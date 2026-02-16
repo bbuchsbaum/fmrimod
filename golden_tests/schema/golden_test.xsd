@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" 
+           targetNamespace="http://golden-tests.org/schema"
+           xmlns="http://golden-tests.org/schema"
+           elementFormDefault="qualified">
+
+  <!-- Root element -->
+  <xs:element name="golden_test">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="metadata" type="MetadataType"/>
+        <xs:element name="semantic_description" type="SemanticDescriptionType"/>
+        <xs:element name="inputs" type="InputsType"/>
+        <xs:element name="expected_outputs" type="ExpectedOutputsType"/>
+        <xs:element name="implementations" type="ImplementationsType"/>
+        <xs:element name="propagation_status" type="PropagationStatusType"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- Metadata type -->
+  <xs:complexType name="MetadataType">
+    <xs:sequence>
+      <xs:element name="id" type="xs:string"/>
+      <xs:element name="version" type="xs:string"/>
+      <xs:element name="description" type="xs:string"/>
+      <xs:element name="tags" type="TagsType"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="TagsType">
+    <xs:sequence>
+      <xs:element name="tag" type="xs:string" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- Semantic description type -->
+  <xs:complexType name="SemanticDescriptionType">
+    <xs:sequence>
+      <xs:element name="purpose" type="xs:string"/>
+      <xs:element name="algorithm" type="xs:string"/>
+      <xs:element name="mathematical_properties" type="xs:string" minOccurs="0"/>
+      <xs:element name="edge_cases" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- Inputs type -->
+  <xs:complexType name="InputsType">
+    <xs:sequence>
+      <xs:element name="input" type="InputType" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="InputType">
+    <xs:sequence>
+      <xs:element name="description" type="xs:string"/>
+      <xs:element name="value" type="xs:string"/>
+    </xs:sequence>
+    <xs:attribute name="name" type="xs:string" use="required"/>
+    <xs:attribute name="type" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <!-- Expected outputs type -->
+  <xs:complexType name="ExpectedOutputsType">
+    <xs:sequence>
+      <xs:element name="numeric_checks" type="NumericChecksType"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="NumericChecksType">
+    <xs:sequence>
+      <xs:element name="check" type="CheckType" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="CheckType">
+    <xs:sequence>
+      <xs:element name="type" type="CheckTypeEnum"/>
+      <xs:element name="location" type="xs:string"/>
+      <xs:element name="expected" type="xs:string" minOccurs="0"/>
+      <xs:element name="tolerance" type="xs:string" minOccurs="0"/>
+      <xs:element name="min" type="xs:string" minOccurs="0"/>
+      <xs:element name="max" type="xs:string" minOccurs="0"/>
+      <xs:element name="property" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="CheckTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="exact_value"/>
+      <xs:enumeration value="approximate"/>
+      <xs:enumeration value="range"/>
+      <xs:enumeration value="statistical"/>
+      <xs:enumeration value="dimensional"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Implementations type -->
+  <xs:complexType name="ImplementationsType">
+    <xs:sequence>
+      <xs:element name="R" type="xs:string" minOccurs="0"/>
+      <xs:element name="Python" type="xs:string" minOccurs="0"/>
+      <xs:element name="Rust" type="xs:string" minOccurs="0"/>
+      <xs:element name="Julia" type="xs:string" minOccurs="0"/>
+      <xs:element name="JavaScript" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- Propagation status type -->
+  <xs:complexType name="PropagationStatusType">
+    <xs:sequence>
+      <xs:element name="implementation" type="ImplementationStatusType" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ImplementationStatusType">
+    <xs:attribute name="lang" type="xs:string" use="required"/>
+    <xs:attribute name="status" type="StatusEnum" use="required"/>
+  </xs:complexType>
+
+  <xs:simpleType name="StatusEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="pending"/>
+      <xs:enumeration value="in_progress"/>
+      <xs:enumeration value="completed"/>
+      <xs:enumeration value="validated"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+</xs:schema>

@@ -1,0 +1,9 @@
+{
+  "source_repo": "/Users/bbuchsbaum/code/fmrihrf/golden_tests",
+  "target_language": "Python",
+  "description": "Python port using golden tests methodology",
+  "created": "2025-07-11T07:35:02.773429",
+  "auto_execute": true,
+  "auto_dashboard": true,
+  "schema_validation": true
+}

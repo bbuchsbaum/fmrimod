@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<golden_test xmlns="http://golden-tests.org/schema">
+  <metadata>
+    <id>lag_hrf_decorator</id>
+    <version>1.0</version>
+    <description>Temporal lag decorator for HRF functions</description>
+    <tags>
+      <tag>core</tag>
+      <tag>hrf</tag>
+      <tag>decorator</tag>
+      <tag>lag</tag>
+      <tag>time_shift</tag>
+    </tags>
+  </metadata>
+  
+  <semantic_description>
+    <purpose>Validate the lag_hrf function that applies temporal lag to existing HRF objects</purpose>
+    <algorithm>
+      The lag_hrf function is a decorator that applies a temporal lag to an existing HRF object.
+      This creates a time-shifted version of the hemodynamic response, which is useful for 
+      modeling delayed responses or temporal variations in neural processing.
+      
+      Mathematical behavior:
+      - Time shifting: f_lagged(t) = f_original(t - lag)
+      - Positive lag shifts response later in time (delayed response)
+      - Negative lag shifts response earlier in time (anticipated response)
+      - Preserves shape: only temporal position changes
+      - Span adjustment: span_new = span_original + max(0, lag)
+    </algorithm>
+    <mathematical_properties>
+      Key properties to validate:
+      1. Time shift accuracy: exact temporal displacement
+      2. Shape preservation: response magnitude unchanged at corresponding times
+      3. Span adjustment: proper domain extension for positive lags
+      4. Attribute inheritance: nbasis, name modification, parameter tracking
+      5. Edge case handling: zero lag, negative lag, large lag values
+      6. Mathematical equivalence: lag_hrf(h, L)(t) ≡ h(t - L)
+    </mathematical_properties>
+    <edge_cases>
+      - Zero lag: should produce identical output to original
+      - Negative lag: shifts response earlier, span unchanged
+      - Large lag: significant span increase, delayed response
+      - Multi-basis HRFs: preserve basis count and matrix structure
+    </edge_cases>
+  </semantic_description>
+  
+  <inputs>
+    <input name="eval_times" type="numeric_vector">
+      <description>Time points for evaluation</description>
+      <value>c(0.0, 2.0, 5.0, 8.0, 10.0, 15.0, 20.0)</value>
+    </input>
+    <input name="comparison_times" type="numeric_vector">
+      <description>Time points for equivalence checking</description>
+      <value>c(-3.0, -1.0, 2.0, 5.0, 7.0, 12.0, 17.0)</value>
+    </input>
+    <input name="search_times" type="numeric_vector">
+      <description>Time points for peak timing validation</description>
+      <value>c(8.0, 9.0, 10.0, 11.0, 12.0)</value>
+    </input>
+  </inputs>
+  
+  <expected_outputs>
+    <numeric_checks>
+      <!-- Positive lag shift validation -->
+      <check>
+        <type>approximate</type>
+        <location>evaluate(lag_hrf(hrf_spmg1_obj, 3.0), eval_times)</location>
+        <expected>[0.0, 0.0, 0.3716, 0.1253, 0.0498, 0.0045, 0.0005]</expected>
+        <tolerance>1e-12</tolerance>
+      </check>
+      
+      <!-- Span adjustment for positive lag -->
+      <check>
+        <type>exact_value</type>
+        <location>attr(lag_hrf(hrf_spmg1_obj, 3.0), "span")</location>
+        <expected>33.0</expected>
+        <tolerance>1e-10</tolerance>
+      </check>
+      
+      <!-- Basis preservation -->
+      <check>
+        <type>exact_value</type>
+        <location>nbasis(lag_hrf(hrf_spmg1_obj, 3.0))</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Name modification -->
+      <check>
+        <type>exact_value</type>
+        <location>attr(lag_hrf(hrf_spmg1_obj, 3.0), "name")</location>
+        <expected>spmg1_lag(3)</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Negative lag: span unchanged -->
+      <check>
+        <type>exact_value</type>
+        <location>attr(lag_hrf(hrf_gaussian_obj, -2.0), "span")</location>
+        <expected>30.0</expected>
+        <tolerance>1e-10</tolerance>
+      </check>
+      
+      <!-- Zero lag identity -->
+      <check>
+        <type>exact_value</type>
+        <location>attr(lag_hrf(hrf_gamma_obj, 0.0), "span")</location>
+        <expected>30.0</expected>
+        <tolerance>1e-10</tolerance>
+      </check>
+      
+      <!-- Large lag boundary -->
+      <check>
+        <type>exact_value</type>
+        <location>attr(lag_hrf(hrf_spmg1_obj, 25.0), "span")</location>
+        <expected>55.0</expected>
+        <tolerance>1e-10</tolerance>
+      </check>
+      
+      <!-- Peak timing shift validation -->
+      <check>
+        <type>approximate</type>
+        <location>max(evaluate(lag_hrf(hrf_spmg1_obj, 4.0), search_times))</location>
+        <expected>1.753946</expected>
+        <tolerance>1e-4</tolerance>
+      </check>
+      
+      <!-- Multi-basis preservation -->
+      <check>
+        <type>exact_value</type>
+        <location>nbasis(lag_hrf(hrf_bspline_obj, 2.5))</location>
+        <expected>4</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Multi-basis span adjustment -->
+      <check>
+        <type>exact_value</type>
+        <location>attr(lag_hrf(hrf_bspline_obj, 2.5), "span")</location>
+        <expected>26.5</expected>
+        <tolerance>1e-10</tolerance>
+      </check>
+    </numeric_checks>
+  </expected_outputs>
+  
+  <implementations>
+    <R><![CDATA[
+      # Create base HRFs for testing
+      hrf_spmg1_obj <- as_hrf(hrf_spmg1, name = "spmg1", nbasis = 1, span = 30)
+      hrf_gaussian_obj <- as_hrf(function(t) hrf_gaussian(t, mean = 6, sd = 2), name = "gaussian", nbasis = 1, span = 30)
+      hrf_gamma_obj <- as_hrf(function(t) hrf_gamma(t, shape = 6, rate = 1), name = "gamma", nbasis = 1, span = 30)
+      hrf_bspline_obj <- as_hrf(function(t) hrf_bspline(t, N = 4), name = "bspline", nbasis = 4, span = 24)
+      
+      # Input vectors
+      eval_times <- c(0.0, 2.0, 5.0, 8.0, 10.0, 15.0, 20.0)
+      comparison_times <- c(-3.0, -1.0, 2.0, 5.0, 7.0, 12.0, 17.0)
+      search_times <- c(8.0, 9.0, 10.0, 11.0, 12.0)
+      
+      # Test positive lag shift
+      lagged_spmg1 <- lag_hrf(hrf_spmg1_obj, 3.0)
+      lagged_values <- evaluate(lagged_spmg1, eval_times)
+      equivalence_check <- evaluate(hrf_spmg1_obj, comparison_times)
+      span_adjustment <- attr(lagged_spmg1, "span")
+      nbasis_preserved <- nbasis(lagged_spmg1)
+      name_modification <- attr(lagged_spmg1, "name")
+      
+      # Test negative lag shift
+      lagged_gaussian_neg <- lag_hrf(hrf_gaussian_obj, -2.0)
+      negative_lag_values <- evaluate(lagged_gaussian_neg, eval_times)
+      span_no_increase <- attr(lagged_gaussian_neg, "span")
+      name_negative_lag <- attr(lagged_gaussian_neg, "name")
+      
+      # Test zero lag identity
+      lagged_gamma_zero <- lag_hrf(hrf_gamma_obj, 0.0)
+      identity_values <- evaluate(lagged_gamma_zero, eval_times)
+      span_unchanged <- attr(lagged_gamma_zero, "span")
+      name_zero_lag <- attr(lagged_gamma_zero, "name")
+      
+      # Test large lag boundary
+      lagged_spmg1_large <- lag_hrf(hrf_spmg1_obj, 25.0)
+      large_lag_values <- evaluate(lagged_spmg1_large, eval_times)
+      large_span_increase <- attr(lagged_spmg1_large, "span")
+      
+      # Test peak timing shift
+      lagged_spmg1_peak <- lag_hrf(hrf_spmg1_obj, 4.0)
+      peak_values <- evaluate(lagged_spmg1_peak, search_times)
+      peak_shifted_correctly <- which.max(peak_values) == which.max(evaluate(hrf_spmg1_obj, search_times - 4.0))
+      peak_magnitude_preserved <- max(peak_values)
+      
+      # Test multi-basis preservation
+      lagged_bspline <- lag_hrf(hrf_bspline_obj, 2.5)
+      multi_basis_result <- evaluate(lagged_bspline, eval_times)
+      multi_basis_shape <- dim(multi_basis_result)
+      nbasis_multi_preserved <- nbasis(lagged_bspline)
+      span_multi_adjusted <- attr(lagged_bspline, "span")
+    ]]></R>
+    
+    <Python><![CDATA[
+      # Python implementation using closure pattern
+      # Create a function that returns a closure capturing the lag value.
+      # Use functools.wraps or similar for metadata preservation.
+      # Ensure span calculation handles max(0, lag) correctly.
+      # Implementation pending - refer to R reference for mathematical behavior
+    ]]></Python>
+    
+    <Rust><![CDATA[
+      // Rust implementation using higher-order functions or traits
+      // Consider struct wrapping original HRF with lag field, or 
+      // function returning Box<dyn Fn> for dynamic dispatch.
+      // Ensure proper ownership and lifetime management.
+      // Implementation pending - refer to R reference for mathematical behavior
+    ]]></Rust>
+  </implementations>
+  
+  <propagation_status>
+    <implementation lang="R" status="completed" date="2024-01-15"/>
+    <implementation lang="Python" status="pending"/>
+    <implementation lang="Rust" status="pending"/>
+  </propagation_status>
+</golden_test>

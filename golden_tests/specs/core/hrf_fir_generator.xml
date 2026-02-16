@@ -1,0 +1,436 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<golden_test xmlns="http://golden-tests.org/schema">
+  <metadata>
+    <id>hrf_fir_generator</id>
+    <version>1.0</version>
+    <description>Finite Impulse Response (FIR) basis HRF with time binning and indicator functions</description>
+    <tags>
+      <tag>core</tag>
+      <tag>hrf</tag>
+      <tag>fir</tag>
+      <tag>basis</tag>
+      <tag>binning</tag>
+      <tag>indicator</tag>
+    </tags>
+  </metadata>
+  
+  <semantic_description>
+    <purpose>Validate FIR (Finite Impulse Response) basis HRF generator with time binning and indicator functions</purpose>
+    <algorithm>
+      FIR basis provides maximum flexibility for HRF modeling by dividing time into discrete bins:
+      
+      **Mathematical Foundation:**
+      - Divides temporal window [0, span] into nbasis equal bins
+      - Each basis function is an indicator function for one time bin
+      - Bin width = span / nbasis
+      - Bin assignment: bin_index = floor(t / bin_width) + 1 (1-indexed)
+      
+      **Implementation Logic:**
+      For each time point t:
+      1. If t &lt; 0 or t ≥ span: assign to no bin (all zeros)
+      2. If 0 ≤ t &lt; span: assign to bin = floor(t / bin_width) + 1
+      3. Special case: t = 0 maps to bin 1
+      4. Boundary: t = span maps to no bin (outside domain)
+      
+      **Basis Function Properties:**
+      - Each B_i(t) ∈ {0, 1} (binary indicator)
+      - Support of B_i = [(i-1) * bin_width, i * bin_width)
+      - Σ B_i(t) = 1 for t ∈ [0, span), 0 otherwise
+      - Basis functions are mutually exclusive (non-overlapping)
+      
+      **Output Matrix:**
+      - Dimensions: length(t) × nbasis
+      - Each row contains exactly one 1 and (nbasis-1) zeros for valid t
+      - Invalid t (outside [0, span)) produce rows of all zeros
+    </algorithm>
+    <mathematical_properties>
+      **FIR Basis Properties:**
+      - Binary values: all entries ∈ {0, 1}
+      - Mutual exclusivity: only one basis active per time point
+      - Partition of time: each valid t maps to exactly one bin
+      - Rectangular basis functions with sharp boundaries
+      - No smoothness constraints (discontinuous at bin boundaries)
+      
+      **Temporal Binning:**
+      - Bin i covers interval [(i-1) * bin_width, i * bin_width)
+      - Uniform bin widths: bin_width = span / nbasis
+      - Left-inclusive, right-exclusive intervals
+      - No gaps or overlaps between bins
+      
+      **Matrix Properties:**
+      - Binary matrix: all entries ∈ {0, 1}
+      - Row sums = 1 for t ∈ [0, span), 0 otherwise
+      - Each column has finite support (one contiguous interval)
+      - Sparse matrix structure for large time vectors
+    </mathematical_properties>
+    <edge_cases>
+      - t &lt; 0: Should map to no bin (row of zeros)
+      - t ≥ span: Should map to no bin (row of zeros)
+      - t = 0: Should map to bin 1
+      - t = span: Should map to no bin (boundary exclusion)
+      - Single bin (nbasis = 1): All valid t map to bin 1
+      - Very fine binning: Many bins with narrow widths
+      - Boundary values: t exactly at bin boundaries
+    </edge_cases>
+  </semantic_description>
+  
+  <inputs>
+    <input name="time_vector" type="numeric_vector">
+      <description>Time points from 0 to 24 seconds with 0.1 second intervals</description>
+      <value>seq(0, 24, by = 0.1)</value>
+    </input>
+    <input name="default_params" type="parameter_set">
+      <description>Default FIR parameters</description>
+      <value>list(nbasis = 12, span = 24)</value>
+    </input>
+    <input name="custom_params" type="parameter_set">
+      <description>Custom FIR parameters</description>
+      <value>list(nbasis = 8, span = 16)</value>
+    </input>
+    <input name="fine_params" type="parameter_set">
+      <description>Fine binning parameters</description>
+      <value>list(nbasis = 20, span = 10)</value>
+    </input>
+    <input name="single_bin_params" type="parameter_set">
+      <description>Single bin parameters</description>
+      <value>list(nbasis = 1, span = 24)</value>
+    </input>
+    <input name="boundary_times" type="numeric_vector">
+      <description>Specific times for boundary testing</description>
+      <value>c(-1, 0, 2, 4, 6, 12, 24, 25)</value>
+    </input>
+    <input name="bin_boundary_times" type="numeric_vector">
+      <description>Times exactly at bin boundaries</description>
+      <value>c(0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24)</value>
+    </input>
+  </inputs>
+  
+  <expected_outputs>
+    <numeric_checks>
+      <!-- Matrix dimension checks -->
+      <check>
+        <type>exact_value</type>
+        <location>nrow(hrf_fir_generator(nbasis = 12, span = 24)(seq(0, 24, by = 0.1)))</location>
+        <expected>241</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>ncol(hrf_fir_generator(nbasis = 12, span = 24)(seq(0, 24, by = 0.1)))</location>
+        <expected>12</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>ncol(hrf_fir_generator(nbasis = 8, span = 16)(seq(0, 16, by = 0.5)))</location>
+        <expected>8</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Binary matrix property: all values are 0 or 1 -->
+      <check>
+        <type>exact_value</type>
+        <location>all(hrf_fir_generator(nbasis = 12, span = 24)(seq(0, 23.9, by = 0.1)) %in% c(0, 1))</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Row sum property: exactly 1 for valid times -->
+      <check>
+        <type>exact_value</type>
+        <location>all(rowSums(hrf_fir_generator(nbasis = 12, span = 24)(seq(0, 23.9, by = 0.1))) == 1)</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Boundary behavior: zeros outside [0, span) -->
+      <check>
+        <type>exact_value</type>
+        <location>sum(hrf_fir_generator(nbasis = 12, span = 24)(c(-1, -0.5)))</location>
+        <expected>0</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>sum(hrf_fir_generator(nbasis = 12, span = 24)(c(24, 25)))</location>
+        <expected>0</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Special case: t = 0 maps to bin 1 -->
+      <check>
+        <type>exact_value</type>
+        <location>hrf_fir_generator(nbasis = 12, span = 24)(0)[1, 1]</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>sum(hrf_fir_generator(nbasis = 12, span = 24)(0)[1, 2:12])</location>
+        <expected>0</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Bin allocation: specific time points -->
+      <!-- t = 1 should be in bin 1 (since bin_width = 24/12 = 2, and 1 < 2) -->
+      <check>
+        <type>exact_value</type>
+        <location>hrf_fir_generator(nbasis = 12, span = 24)(1)[1, 1]</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- t = 2 should be in bin 2 (exactly at boundary, right-exclusive) -->
+      <check>
+        <type>exact_value</type>
+        <location>hrf_fir_generator(nbasis = 12, span = 24)(2)[1, 2]</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- t = 12 should be in bin 7 (12/2 = 6, so bin 7) -->
+      <check>
+        <type>exact_value</type>
+        <location>hrf_fir_generator(nbasis = 12, span = 24)(12)[1, 7]</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Custom parameters: 8 bins, span 16, bin_width = 2 -->
+      <check>
+        <type>exact_value</type>
+        <location>hrf_fir_generator(nbasis = 8, span = 16)(8)[1, 5]</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Single bin case: all valid times map to bin 1 -->
+      <check>
+        <type>exact_value</type>
+        <location>all(hrf_fir_generator(nbasis = 1, span = 24)(seq(0, 23.9, by = 1))[, 1] == 1)</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Column sum property: each bin covers equal time interval -->
+      <check>
+        <type>approximate</type>
+        <location>var(colSums(hrf_fir_generator(nbasis = 12, span = 24)(seq(0, 23.9, by = 0.1))))</location>
+        <expected>0</expected>
+        <tolerance>1e-10</tolerance>
+      </check>
+      
+      <!-- Fine binning: nbasis = 20, span = 10, bin_width = 0.5 -->
+      <check>
+        <type>exact_value</type>
+        <location>ncol(hrf_fir_generator(nbasis = 20, span = 10)(seq(0, 9.9, by = 0.1)))</location>
+        <expected>20</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>hrf_fir_generator(nbasis = 20, span = 10)(2.5)[1, 6]</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Boundary exclusion: t = span should not be in any bin -->
+      <check>
+        <type>exact_value</type>
+        <location>sum(hrf_fir_generator(nbasis = 12, span = 24)(24))</location>
+        <expected>0</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Multiple time points: each should map to exactly one bin -->
+      <check>
+        <type>exact_value</type>
+        <location>all(rowSums(hrf_fir_generator(nbasis = 8, span = 16)(seq(0, 15.9, by = 0.2))) == 1)</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Matrix sparsity: total number of 1s equals number of valid time points -->
+      <check>
+        <type>exact_value</type>
+        <location>sum(hrf_fir_generator(nbasis = 12, span = 24)(seq(0, 23.9, by = 0.1)))</location>
+        <expected>240</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Bin width calculation consistency -->
+      <check>
+        <type>approximate</type>
+        <location>24 / 12</location>
+        <expected>2</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>16 / 8</location>
+        <expected>2</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <!-- Extended boundary test -->
+      <check>
+        <type>exact_value</type>
+        <location>sum(hrf_fir_generator(nbasis = 12, span = 24)(seq(-5, -0.1, by = 0.1)))</location>
+        <expected>0</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>sum(hrf_fir_generator(nbasis = 12, span = 24)(seq(24.1, 30, by = 0.1)))</location>
+        <expected>0</expected>
+        <tolerance>0</tolerance>
+      </check>
+    </numeric_checks>
+  </expected_outputs>
+  
+  <implementations>
+    <R><![CDATA[
+      # R reference implementation
+      # Function: hrf_fir_generator(nbasis = 12, span = 24)
+      # Location: R/hrf.R lines 856-893
+      
+      # Test default parameters
+      fir_default <- hrf_fir_generator(nbasis = 12, span = 24)
+      time_vec <- seq(0, 24, by = 0.1)
+      result_default <- fir_default(time_vec)
+      
+      # Test custom parameters
+      fir_custom <- hrf_fir_generator(nbasis = 8, span = 16)
+      result_custom <- fir_custom(seq(0, 16, by = 0.5))
+      
+      # Test fine binning
+      fir_fine <- hrf_fir_generator(nbasis = 20, span = 10)
+      result_fine <- fir_fine(seq(0, 9.9, by = 0.1))
+      
+      # Test single bin
+      fir_single <- hrf_fir_generator(nbasis = 1, span = 24)
+      result_single <- fir_single(seq(0, 23.9, by = 1))
+      
+      # Test boundary conditions
+      boundary_times <- c(-1, 0, 2, 4, 6, 12, 24, 25)
+      result_boundary <- fir_default(boundary_times)
+      
+      # Test specific bin assignments
+      test_times <- c(0, 1, 2, 12)
+      result_specific <- fir_default(test_times)
+    ]]></R>
+    
+    <Python><![CDATA[
+      # Python implementation following semantic specification
+      
+      import numpy as np
+      
+      def hrf_fir_generator(nbasis=12, span=24):
+          """
+          Create FIR basis HRF generator with time binning.
+          
+          Args:
+              nbasis: Number of time bins (default: 12)
+              span: Temporal window [0, span) (default: 24)
+              
+          Returns:
+              Function that creates FIR basis matrix for given time points
+          """
+          def fir_basis(t):
+              """
+              Generate FIR basis matrix for time points t.
+              
+              Args:
+                  t: Time points (scalar or array)
+                  
+              Returns:
+                  Matrix with rows=len(t), columns=nbasis
+              """
+              t = np.asarray(t, dtype=float).flatten()
+              n_time = len(t)
+              
+              # Initialize output matrix
+              basis_matrix = np.zeros((n_time, nbasis), dtype=float)
+              
+              # Calculate bin width
+              bin_width = span / nbasis
+              
+              for i, time in enumerate(t):
+                  if 0 <= time < span:
+                      # Calculate bin index (0-based)
+                      if time == 0:
+                          bin_idx = 0  # Special case: t=0 maps to first bin
+                      else:
+                          bin_idx = int(np.floor(time / bin_width))
+                      
+                      # Ensure bin index is within bounds
+                      bin_idx = min(bin_idx, nbasis - 1)
+                      basis_matrix[i, bin_idx] = 1.0
+                  # else: time outside [0, span) remains all zeros
+              
+              return basis_matrix
+          
+          return fir_basis
+      
+      # Default parameter wrapper
+      def hrf_fir_default():
+          return hrf_fir_generator(nbasis=12, span=24)
+    ]]></Python>
+    
+    <Rust><![CDATA[
+      // Rust implementation following semantic specification
+      
+      use ndarray::Array2;
+      
+      pub fn hrf_fir_generator(nbasis: usize, span: f64) -> impl Fn(&[f64]) -> Array2<f64> {
+          move |t: &[f64]| -> Array2<f64> {
+              let n_time = t.len();
+              let mut basis_matrix = Array2::<f64>::zeros((n_time, nbasis));
+              
+              // Calculate bin width
+              let bin_width = span / nbasis as f64;
+              
+              for (i, &time) in t.iter().enumerate() {
+                  if time >= 0.0 && time < span {
+                      // Calculate bin index
+                      let bin_idx = if time == 0.0 {
+                          0  // Special case: t=0 maps to first bin
+                      } else {
+                          ((time / bin_width).floor() as usize).min(nbasis - 1)
+                      };
+                      
+                      basis_matrix[[i, bin_idx]] = 1.0;
+                  }
+                  // else: time outside [0, span) remains zero
+              }
+              
+              basis_matrix
+          }
+      }
+      
+      // Default parameter wrapper
+      pub fn hrf_fir_default() -> impl Fn(&[f64]) -> Array2<f64> {
+          hrf_fir_generator(12, 24.0)
+      }
+      
+      // Convenience function for direct evaluation
+      pub fn hrf_fir_evaluate(t: &[f64], nbasis: usize, span: f64) -> Array2<f64> {
+          let generator = hrf_fir_generator(nbasis, span);
+          generator(t)
+      }
+    ]]></Rust>
+  </implementations>
+  
+  <propagation_status>
+    <implementation lang="R" status="completed"/>
+    <implementation lang="Python" status="pending"/>
+    <implementation lang="Rust" status="pending"/>
+  </propagation_status>
+</golden_test>

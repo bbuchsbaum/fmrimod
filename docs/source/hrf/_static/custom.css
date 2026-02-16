@@ -1,0 +1,29 @@
+/* Widen main content for wide tables and plots */
+.bd-main .bd-content .bd-article-container {
+    max-width: 100%;
+}
+
+.bd-page-width {
+    max-width: 88rem;
+}
+
+/* Improve plot directive output */
+.figure img,
+.plot-directive img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Math display styling */
+div.math {
+    padding: 0.5rem 0;
+}
+
+/* Autosummary table tweaks */
+table.autosummary td {
+    padding: 0.4rem 0.6rem;
+}
+
+table.autosummary td:first-child {
+    white-space: nowrap;
+}

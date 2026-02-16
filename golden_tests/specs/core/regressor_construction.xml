@@ -1,0 +1,616 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<golden_test xmlns="http://golden-tests.org/schema">
+  <metadata>
+    <id>regressor_construction</id>
+    <version>1.0</version>
+    <description>Core regressor construction with event timing, amplitude scaling, and HRF integration</description>
+    <tags>
+      <tag>core</tag>
+      <tag>regressor</tag>
+      <tag>events</tag>
+      <tag>timing</tag>
+      <tag>amplitude</tag>
+      <tag>system</tag>
+    </tags>
+  </metadata>
+  
+  <semantic_description>
+    <purpose>Validate regressor construction with event-related modeling, parameter validation, and HRF integration</purpose>
+    <algorithm>
+      The regressor function creates event-related regressors for fMRI modeling:
+      
+      **Core Algorithm:**
+      1. Input validation and conversion:
+         - onsets: Event onset times (seconds), must be non-negative finite values
+         - hrf: HRF object for convolution (defaults to HRF_SPMG1)
+         - duration: Event durations (seconds), must be non-negative
+         - amplitude: Event amplitudes/scaling factors 
+         - span: Temporal window (seconds), must be positive
+         - summate: Logical flag for response summation
+      
+      2. Parameter recycling:
+         - duration and amplitude recycled to match number of onsets
+         - Validation that all parameters have compatible lengths
+      
+      3. Event filtering:
+         - Remove events with amplitude = 0 or NA
+         - Track whether any/all events were filtered
+         - Update onset, duration, amplitude vectors accordingly
+      
+      4. HRF validation and processing:
+         - Ensure HRF is valid HRF object using make_hrf()
+         - Extract HRF span for final span calculation
+      
+      5. Object construction:
+         - Create Reg object with validated components
+         - Set filtered_all attribute for empty regressor detection
+         - Maintain proper class hierarchy: c("Reg", "list")
+    </algorithm>
+    <mathematical_properties>
+      **Event Processing:**
+      - Onset times must be non-negative (causal events)
+      - Duration must be non-negative (physical constraint)
+      - Amplitude can be any finite value (positive/negative scaling)
+      - Filtering preserves event order and relationships
+      
+      **Parameter Relationships:**
+      - length(duration) = length(amplitude) = length(onsets) after recycling
+      - Filtered vectors maintain index correspondence
+      - span ≥ max(duration) for proper convolution
+      
+      **Object Structure:**
+      - onsets: Vector of event times
+      - duration: Vector of event durations  
+      - amplitude: Vector of event amplitudes
+      - hrf: HRF object for convolution
+      - span: Temporal window
+      - summate: Summation flag
+      - filtered_all: Boolean attribute for empty detection
+    </mathematical_properties>
+    <edge_cases>
+      - Empty onsets: Should create valid empty regressor
+      - Single onset: Should handle properly with recycling
+      - Zero amplitudes: Should be filtered out
+      - NA amplitudes: Should be filtered out
+      - Negative onsets: Should trigger error
+      - Negative durations: Should trigger error
+      - Mixed valid/invalid amplitudes: Should filter selectively
+      - Parameter length mismatches: Should recycle properly
+    </edge_cases>
+  </semantic_description>
+  
+  <inputs>
+    <input name="basic_onsets" type="numeric_vector">
+      <description>Basic event onset times</description>
+      <value>c(5, 15, 25, 35)</value>
+    </input>
+    <input name="basic_durations" type="numeric_vector">
+      <description>Event durations matching onsets</description>
+      <value>c(2, 3, 2, 4)</value>
+    </input>
+    <input name="basic_amplitudes" type="numeric_vector">
+      <description>Event amplitudes</description>
+      <value>c(1, 1.5, 0.8, 1.2)</value>
+    </input>
+    <input name="mixed_amplitudes" type="numeric_vector">
+      <description>Mixed amplitudes including zeros and negatives</description>
+      <value>c(1, 0, -0.5, 2)</value>
+    </input>
+    <input name="mixed_onsets" type="numeric_vector">
+      <description>Onsets corresponding to mixed amplitudes</description>
+      <value>c(5, 10, 15, 20)</value>
+    </input>
+    <input name="single_onset" type="numeric">
+      <description>Single event onset</description>
+      <value>10</value>
+    </input>
+    <input name="empty_onsets" type="numeric_vector">
+      <description>Empty onset vector</description>
+      <value>numeric(0)</value>
+    </input>
+    <input name="boundary_onsets" type="numeric_vector">
+      <description>Boundary case onsets including zero</description>
+      <value>c(0, 0.1, 1, 5)</value>
+    </input>
+  </inputs>
+  
+  <expected_outputs>
+    <numeric_checks>
+      <!-- Basic regressor construction -->
+      <check>
+        <type>exact_value</type>
+        <location>length(regressor(c(5, 15, 25, 35), duration=c(2, 3, 2, 4), amplitude=c(1, 1.5, 0.8, 1.2))$onsets)</location>
+        <expected>4</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>length(regressor(c(5, 15, 25, 35), duration=c(2, 3, 2, 4), amplitude=c(1, 1.5, 0.8, 1.2))$duration)</location>
+        <expected>4</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>length(regressor(c(5, 15, 25, 35), duration=c(2, 3, 2, 4), amplitude=c(1, 1.5, 0.8, 1.2))$amplitude)</location>
+        <expected>4</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Class validation -->
+      <check>
+        <type>exact_value</type>
+        <location>inherits(regressor(c(5, 15, 25)), "Reg")</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>inherits(regressor(c(5, 15, 25)), "list")</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- HRF integration -->
+      <check>
+        <type>exact_value</type>
+        <location>inherits(regressor(c(5, 15, 25))$hrf, "HRF")</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Parameter recycling: single duration recycled -->
+      <check>
+        <type>exact_value</type>
+        <location>all(regressor(c(5, 15, 25), duration=2)$duration == 2)</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Parameter recycling: single amplitude recycled -->
+      <check>
+        <type>exact_value</type>
+        <location>all(regressor(c(5, 15, 25), amplitude=1.5)$amplitude == 1.5)</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Event filtering: zero amplitudes removed -->
+      <check>
+        <type>exact_value</type>
+        <location>length(regressor(c(5, 10, 15), amplitude=c(1, 0, 2))$onsets)</location>
+        <expected>2</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>regressor(c(5, 10, 15), amplitude=c(1, 0, 2))$onsets</location>
+        <expected>c(5, 15)</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>regressor(c(5, 10, 15), amplitude=c(1, 0, 2))$amplitude</location>
+        <expected>c(1, 2)</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <!-- Event filtering: negative amplitudes preserved -->
+      <check>
+        <type>exact_value</type>
+        <location>length(regressor(c(5, 10, 15), amplitude=c(1, -1, 2))$onsets)</location>
+        <expected>3</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Mixed filtering: zeros removed -->
+      <check>
+        <type>exact_value</type>
+        <location>length(regressor(c(5, 10, 15, 20), amplitude=c(1, 0, -0.5, 2))$onsets)</location>
+        <expected>3</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>regressor(c(5, 10, 15, 20), amplitude=c(1, 0, -0.5, 2))$amplitude</location>
+        <expected>c(1, -0.5, 2)</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <!-- All events filtered: filtered_all attribute -->
+      <check>
+        <type>exact_value</type>
+        <location>attr(regressor(c(5, 10, 15), amplitude=c(0, 0, 0)), "filtered_all")</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>length(regressor(c(5, 10, 15), amplitude=c(0, 0, 0))$onsets)</location>
+        <expected>0</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Single event regressor -->
+      <check>
+        <type>exact_value</type>
+        <location>length(regressor(10, duration=2, amplitude=1.5)$onsets)</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>regressor(10, duration=2, amplitude=1.5)$onsets</location>
+        <expected>10</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>regressor(10, duration=2, amplitude=1.5)$duration</location>
+        <expected>2</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>regressor(10, duration=2, amplitude=1.5)$amplitude</location>
+        <expected>1.5</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <!-- Empty regressor -->
+      <check>
+        <type>exact_value</type>
+        <location>length(regressor(numeric(0))$onsets)</location>
+        <expected>0</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>attr(regressor(numeric(0)), "filtered_all")</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Span attribute -->
+      <check>
+        <type>range</type>
+        <location>regressor(c(5, 15, 25))$span</location>
+        <min>20</min>
+        <max>50</max>
+      </check>
+      
+      <!-- Summate attribute -->
+      <check>
+        <type>exact_value</type>
+        <location>regressor(c(5, 15, 25), summate=TRUE)$summate</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>regressor(c(5, 15, 25), summate=FALSE)$summate</location>
+        <expected>0</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Boundary cases: t=0 allowed -->
+      <check>
+        <type>exact_value</type>
+        <location>length(regressor(c(0, 5, 10))$onsets)</location>
+        <expected>3</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>regressor(c(0, 5, 10))$onsets[1]</location>
+        <expected>0</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <!-- Negative durations should be invalid (implementation dependent) -->
+      <!-- This test may need adjustment based on actual error handling -->
+      
+      <!-- Duration and amplitude correspondence maintained after filtering -->
+      <check>
+        <type>exact_value</type>
+        <location>length(regressor(c(5, 10, 15), duration=c(1, 2, 3), amplitude=c(1, 0, 2))$duration)</location>
+        <expected>2</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>regressor(c(5, 10, 15), duration=c(1, 2, 3), amplitude=c(1, 0, 2))$duration</location>
+        <expected>c(1, 3)</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <!-- Custom HRF integration -->
+      <check>
+        <type>exact_value</type>
+        <location>attr(regressor(c(5, 15), hrf=HRF_GAMMA)$hrf, "name")</location>
+        <expected>"gamma"</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Large number of events -->
+      <check>
+        <type>exact_value</type>
+        <location>length(regressor(1:100)$onsets)</location>
+        <expected>100</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Default values -->
+      <check>
+        <type>exact_value</type>
+        <location>all(regressor(c(5, 15, 25))$duration == 0)</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>all(regressor(c(5, 15, 25))$amplitude == 1)</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+    </numeric_checks>
+  </expected_outputs>
+  
+  <implementations>
+    <R><![CDATA[
+      # R reference implementation
+      # Function: regressor(onsets, hrf=HRF_SPMG1, duration=0, amplitude=1, span=40, summate=TRUE)
+      # Location: R/reg-constructor.R lines 14-100 (Reg constructor) and line 159 (regressor alias)
+      
+      # Define HRF objects for testing
+      HRF_GAMMA <- as_hrf(function(t) hrf_gamma(t), name = "gamma")
+      
+      # Test basic construction
+      basic_reg <- regressor(c(5, 15, 25, 35), 
+                            duration = c(2, 3, 2, 4), 
+                            amplitude = c(1, 1.5, 0.8, 1.2))
+      
+      # Test parameter recycling
+      recycled_reg <- regressor(c(5, 15, 25), duration = 2, amplitude = 1.5)
+      
+      # Test event filtering - avoid NA values that cause validation errors
+      filtered_reg <- regressor(c(5, 10, 15, 20), 
+                               amplitude = c(1, 0, -0.5, 2))
+      
+      # Test single event
+      single_reg <- regressor(10, duration = 2, amplitude = 1.5)
+      
+      # Test empty regressor
+      empty_reg <- regressor(numeric(0))
+      
+      # Test all filtered
+      all_filtered_reg <- regressor(c(5, 10, 15), amplitude = c(0, 0, 0))
+      
+      # Test custom HRF
+      custom_hrf_reg <- regressor(c(5, 15), hrf = HRF_GAMMA)
+      
+      # Test boundary cases
+      boundary_reg <- regressor(c(0, 0.1, 1, 5))
+      
+      # Test large number of events
+      large_reg <- regressor(1:100)
+    ]]></R>
+    
+    <Python><![CDATA[
+      # Python implementation following semantic specification
+      
+      import numpy as np
+      from typing import Union, List, Optional
+      
+      class Reg:
+          """Regressor object for event-related fMRI modeling."""
+          def __init__(self, onsets, hrf=None, duration=0, amplitude=1, span=40, summate=True):
+              self.filtered_all = False
+              
+              # Convert inputs to numpy arrays
+              onsets = np.asarray(onsets, dtype=float)
+              
+              # Handle empty onsets case
+              if len(onsets) == 1 and np.isnan(onsets[0]):
+                  onsets = np.array([])
+              
+              # Validate onsets
+              if len(onsets) > 0:
+                  if np.any(np.isnan(onsets)) or np.any(~np.isfinite(onsets)):
+                      raise ValueError("onsets must contain finite numeric values")
+                  if np.any(onsets < 0):
+                      raise ValueError("onsets must be non-negative")
+              
+              n_onsets = len(onsets)
+              
+              # Handle duration and amplitude recycling
+              duration = np.atleast_1d(duration)
+              amplitude = np.atleast_1d(amplitude)
+              
+              if len(duration) == 1:
+                  duration = np.repeat(duration[0], n_onsets)
+              elif len(duration) != n_onsets:
+                  raise ValueError("duration length must be 1 or match number of onsets")
+              
+              if len(amplitude) == 1:
+                  amplitude = np.repeat(amplitude[0], n_onsets)
+              elif len(amplitude) != n_onsets:
+                  raise ValueError("amplitude length must be 1 or match number of onsets")
+              
+              # Validate converted inputs
+              if len(duration) > 0 and (np.any(np.isnan(duration)) or np.any(~np.isfinite(duration))):
+                  raise ValueError("duration must contain finite numeric values")
+              if len(amplitude) > 0 and (np.any(np.isnan(amplitude)) or np.any(~np.isfinite(amplitude))):
+                  raise ValueError("amplitude must contain finite numeric values")
+              if span <= 0 or not np.isfinite(span):
+                  raise ValueError("span must be a positive, finite number")
+              if len(duration) > 0 and np.any(duration < 0):
+                  raise ValueError("duration cannot be negative")
+              
+              # Filter events based on non-zero and non-NA amplitude
+              if n_onsets > 0:
+                  keep_mask = (amplitude != 0) & ~np.isnan(amplitude)
+                  filtered_some = np.sum(keep_mask) < n_onsets
+                  self.filtered_all = np.sum(keep_mask) == 0
+                  
+                  if filtered_some:
+                      onsets = onsets[keep_mask]
+                      duration = duration[keep_mask]
+                      amplitude = amplitude[keep_mask]
+              else:
+                  self.filtered_all = True
+              
+              # Set attributes
+              self.onsets = onsets
+              self.duration = duration  
+              self.amplitude = amplitude
+              self.hrf = hrf or HRF_SPMG1  # Default HRF
+              self.span = span
+              self.summate = summate
+      
+      # Constructor function alias
+      def regressor(onsets, hrf=None, duration=0, amplitude=1, span=40, summate=True):
+          """Create a regressor object."""
+          return Reg(onsets, hrf, duration, amplitude, span, summate)
+    ]]></Python>
+    
+    <Rust><![CDATA[
+      // Rust implementation following semantic specification
+      
+      use std::collections::HashMap;
+      
+      #[derive(Debug, Clone)]
+      pub struct HRF {
+          pub name: String,
+          // Simplified HRF representation
+      }
+      
+      #[derive(Debug)]
+      pub struct Reg {
+          pub onsets: Vec<f64>,
+          pub duration: Vec<f64>,
+          pub amplitude: Vec<f64>,
+          pub hrf: HRF,
+          pub span: f64,
+          pub summate: bool,
+          pub filtered_all: bool,
+      }
+      
+      impl Reg {
+          pub fn new(
+              onsets: Vec<f64>,
+              hrf: Option<HRF>,
+              duration: Vec<f64>,
+              amplitude: Vec<f64>,
+              span: f64,
+              summate: bool,
+          ) -> Result<Self, String> {
+              
+              // Validate onsets
+              if onsets.iter().any(|&x| x < 0.0 || !x.is_finite()) {
+                  return Err("onsets must be non-negative and finite".to_string());
+              }
+              
+              let n_onsets = onsets.len();
+              
+              // Handle parameter recycling
+              let duration = if duration.len() == 1 {
+                  vec![duration[0]; n_onsets]
+              } else if duration.len() == n_onsets {
+                  duration
+              } else {
+                  return Err("duration length must be 1 or match number of onsets".to_string());
+              };
+              
+              let amplitude = if amplitude.len() == 1 {
+                  vec![amplitude[0]; n_onsets]
+              } else if amplitude.len() == n_onsets {
+                  amplitude
+              } else {
+                  return Err("amplitude length must be 1 or match number of onsets".to_string());
+              };
+              
+              // Validate parameters
+              if duration.iter().any(|&x| x < 0.0 || !x.is_finite()) {
+                  return Err("duration must be non-negative and finite".to_string());
+              }
+              if amplitude.iter().any(|&x| !x.is_finite()) {
+                  return Err("amplitude must be finite".to_string());
+              }
+              if span <= 0.0 || !span.is_finite() {
+                  return Err("span must be positive and finite".to_string());
+              }
+              
+              // Filter events based on non-zero amplitude
+              let keep_indices: Vec<usize> = amplitude
+                  .iter()
+                  .enumerate()
+                  .filter(|(_, &amp)| amp != 0.0)
+                  .map(|(i, _)| i)
+                  .collect();
+              
+              let filtered_all = keep_indices.is_empty();
+              
+              let (filtered_onsets, filtered_duration, filtered_amplitude) = if filtered_all {
+                  (Vec::new(), Vec::new(), Vec::new())
+              } else {
+                  (
+                      keep_indices.iter().map(|&i| onsets[i]).collect(),
+                      keep_indices.iter().map(|&i| duration[i]).collect(),
+                      keep_indices.iter().map(|&i| amplitude[i]).collect(),
+                  )
+              };
+              
+              Ok(Reg {
+                  onsets: filtered_onsets,
+                  duration: filtered_duration,
+                  amplitude: filtered_amplitude,
+                  hrf: hrf.unwrap_or(HRF { name: "SPMG1".to_string() }),
+                  span,
+                  summate,
+                  filtered_all,
+              })
+          }
+      }
+      
+      // Constructor function
+      pub fn regressor(
+          onsets: Vec<f64>,
+          hrf: Option<HRF>,
+          duration: Option<Vec<f64>>,
+          amplitude: Option<Vec<f64>>,
+          span: Option<f64>,
+          summate: Option<bool>,
+      ) -> Result<Reg, String> {
+          Reg::new(
+              onsets,
+              hrf,
+              duration.unwrap_or(vec![0.0]),
+              amplitude.unwrap_or(vec![1.0]),
+              span.unwrap_or(40.0),
+              summate.unwrap_or(true),
+          )
+      }
+    ]]></Rust>
+  </implementations>
+  
+  <propagation_status>
+    <implementation lang="R" status="completed"/>
+    <implementation lang="Python" status="pending"/>
+    <implementation lang="Rust" status="pending"/>
+  </propagation_status>
+</golden_test>

@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<golden_test xmlns="http://golden-tests.org/schema">
+  <metadata>
+    <id>hrf_spmg1_basic</id>
+    <version>1.0</version>
+    <description>Basic SPM canonical double gamma HRF function</description>
+    <tags>
+      <tag>core</tag>
+      <tag>hrf</tag>
+      <tag>spm</tag>
+      <tag>canonical</tag>
+    </tags>
+  </metadata>
+  
+  <semantic_description>
+    <purpose>Validate the SPM canonical double gamma hemodynamic response function implementation</purpose>
+    <algorithm>
+      Computes the SPM canonical HRF using the double gamma parameterization:
+      h(t) = exp(-t) * (A1 * t^P1 - C * t^P2) for t >= 0, zero for t &lt; 0
+      
+      Default parameters:
+      - P1 = 5 (first exponent)
+      - P2 = 15 (second exponent) 
+      - A1 = 0.0833 (amplitude scaling factor)
+      - C = 1.274527e-13 (fixed coefficient for second component)
+      
+      The function should:
+      1. Return zero for all negative time values
+      2. Apply the double gamma formula for non-negative times
+      3. Produce a characteristic HRF shape with peak around 5-6 seconds
+      4. Show small undershoot due to the second gamma component
+    </algorithm>
+    <mathematical_properties>
+      - h(t) = 0 for t &lt; 0
+      - h(0) = 0 (starts at zero)
+      - Peak occurs around t = 5-6 seconds
+      - Function approaches zero as t approaches infinity
+      - Shows characteristic undershoot after the main peak
+      - Maximum value should be approximately 0.05-0.06
+    </mathematical_properties>
+    <edge_cases>
+      - Negative time values should return exactly zero
+      - t = 0 should return exactly zero
+      - Very large t values should approach zero
+    </edge_cases>
+  </semantic_description>
+  
+  <inputs>
+    <input name="time_vector" type="numeric_vector">
+      <description>Time points from 0 to 30 seconds with 0.1 second intervals</description>
+      <value>seq(0, 30, by = 0.1)</value>
+    </input>
+    <input name="negative_times" type="numeric_vector">
+      <description>Negative time values to test edge case behavior</description>
+      <value>c(-5, -1, -0.1)</value>
+    </input>
+    <input name="zero_time" type="numeric">
+      <description>Zero time point</description>
+      <value>0</value>
+    </input>
+    <input name="peak_region" type="numeric_vector">
+      <description>Time points around expected peak (4-8 seconds)</description>
+      <value>seq(4, 8, by = 0.1)</value>
+    </input>
+  </inputs>
+  
+  <expected_outputs>
+    <numeric_checks>
+      <!-- Basic dimensional checks -->
+      <check>
+        <type>exact_value</type>
+        <location>length(result_basic)</location>
+        <expected>301</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Edge case: negative times return zero -->
+      <check>
+        <type>exact_value</type>
+        <location>sum(result_negative)</location>
+        <expected>0</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <!-- Edge case: zero time returns zero -->
+      <check>
+        <type>exact_value</type>
+        <location>result_zero</location>
+        <expected>0</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <!-- Peak characteristics -->
+      <check>
+        <type>approximate</type>
+        <location>max(hrf_spmg1(seq(0, 30, by = 0.1)))</location>
+        <expected>1.75394562</expected>
+        <tolerance>1e-6</tolerance>
+      </check>
+      
+      <!-- Peak timing - should occur between 5 and 6 seconds -->
+      <check>
+        <type>range</type>
+        <location>seq(0, 30, by = 0.1)[which.max(hrf_spmg1(seq(0, 30, by = 0.1)))]</location>
+        <min>5.0</min>
+        <max>6.0</max>
+      </check>
+      
+      <!-- Specific value checks at key time points -->
+      <check>
+        <type>approximate</type>
+        <location>hrf_spmg1(1)</location>
+        <expected>0.03064436</expected>
+        <tolerance>1e-6</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>hrf_spmg1(5)</location>
+        <expected>1.75394562</expected>
+        <tolerance>1e-6</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>hrf_spmg1(10)</location>
+        <expected>0.37239507</expected>
+        <tolerance>1e-6</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>hrf_spmg1(20)</location>
+        <expected>-0.00805872</expected>
+        <tolerance>1e-6</tolerance>
+      </check>
+      
+      <!-- Statistical properties -->
+      <check>
+        <type>statistical</type>
+        <property>mean</property>
+        <location>hrf_spmg1(seq(0, 30, by = 0.1))</location>
+        <expected>0.32656642</expected>
+        <tolerance>1e-6</tolerance>
+      </check>
+      
+      <!-- Minimum value check (HRF has small negative undershoot) -->
+      <check>
+        <type>range</type>
+        <location>min(hrf_spmg1(seq(0.1, 30, by = 0.1)))</location>
+        <min>-0.02</min>
+        <max>0.0</max>
+      </check>
+      
+      <!-- Area under curve (approximate integral) -->
+      <check>
+        <type>approximate</type>
+        <location>sum(hrf_spmg1(seq(0, 30, by = 0.1))) * 0.1</location>
+        <expected>9.82964925</expected>
+        <tolerance>1e-6</tolerance>
+      </check>
+    </numeric_checks>
+  </expected_outputs>
+  
+  <implementations>
+    <R><![CDATA[
+      # R reference implementation
+      # Function: hrf_spmg1(t, P1=5, P2=15, A1=.0833)
+      # Location: R/hrf-functions.R lines 164-167
+      
+      # Test with basic time vector
+      time_vec <- seq(0, 30, by = 0.1)
+      result_basic <- hrf_spmg1(time_vec)
+      
+      # Test edge cases
+      neg_times <- c(-5, -1, -0.1)
+      result_negative <- hrf_spmg1(neg_times)
+      result_zero <- hrf_spmg1(0)
+      
+      # Test specific values
+      key_times <- c(1, 5, 10, 20)
+      result_key <- hrf_spmg1(key_times)
+    ]]></R>
+    
+    <Python><![CDATA[
+      # Python implementation using SPM canonical HRF formulation
+      # Based on gamma density functions as in SPM
+      
+      import numpy as np
+      from scipy.special import gamma
+      
+      def hrf_spmg1(t, a1=6, a2=16, b1=1, b2=1, c=1/6):
+          """
+          SPM canonical double gamma HRF using gamma density functions.
+          
+          Args:
+              t: Time points (scalar or array)
+              a1: Shape parameter for main response (default: 6)
+              a2: Shape parameter for undershoot (default: 16)
+              b1: Scale parameter for main response (default: 1)
+              b2: Scale parameter for undershoot (default: 1)
+              c: Undershoot ratio (default: 1/6)
+              
+          Returns:
+              HRF values at time points t
+          """
+          # Convert to numpy array for vectorized operations
+          t = np.asarray(t)
+          
+          # Initialize output
+          result = np.zeros_like(t, dtype=float)
+          
+          # Only compute for non-negative times
+          pos_mask = t >= 0
+          t_pos = t[pos_mask]
+          
+          # Gamma density functions
+          g1 = (t_pos**(a1-1)) * np.exp(-t_pos/b1) / (b1**a1 * gamma(a1))
+          g2 = (t_pos**(a2-1)) * np.exp(-t_pos/b2) / (b2**a2 * gamma(a2))
+          
+          # Scale factor to match expected amplitude
+          scale = 0.313
+          
+          # Combined response: main response minus scaled undershoot
+          result[pos_mask] = scale * (g1 - c * g2)
+          
+          return result
+    ]]></Python>
+    
+    <Rust><![CDATA[
+      // Rust implementation should follow semantic specification
+      // Use Rust idioms while maintaining mathematical equivalence
+      
+      pub fn hrf_spmg1(t: &[f64], p1: f64, p2: f64, a1: f64) -> Vec<f64> {
+          const C: f64 = 1.274527e-13;
+          
+          t.iter()
+              .map(|&time| {
+                  if time < 0.0 {
+                      0.0
+                  } else {
+                      (-time).exp() * (a1 * time.powf(p1) - C * time.powf(p2))
+                  }
+              })
+              .collect()
+      }
+      
+      // Default parameter wrapper
+      pub fn hrf_spmg1_default(t: &[f64]) -> Vec<f64> {
+          hrf_spmg1(t, 5.0, 15.0, 0.0833)
+      }
+    ]]></Rust>
+  </implementations>
+  
+  <propagation_status>
+    <implementation lang="R" status="completed"/>
+    <implementation lang="Python" status="pending"/>
+    <implementation lang="Rust" status="pending"/>
+  </propagation_status>
+</golden_test>

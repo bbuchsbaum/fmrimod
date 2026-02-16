@@ -1,0 +1,406 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<golden_test xmlns="http://golden-tests.org/schema">
+  <metadata>
+    <id>hrf_gamma_vs_gaussian</id>
+    <version>1.0</version>
+    <description>Comparative validation of Gamma vs Gaussian HRF shapes and properties</description>
+    <tags>
+      <tag>core</tag>
+      <tag>hrf</tag>
+      <tag>gamma</tag>
+      <tag>gaussian</tag>
+      <tag>comparative</tag>
+    </tags>
+  </metadata>
+  
+  <semantic_description>
+    <purpose>Validate and compare Gamma and Gaussian HRF implementations with their distinct mathematical properties</purpose>
+    <algorithm>
+      Two fundamental HRF shapes based on probability distributions:
+      
+      **Gamma HRF:**
+      h_gamma(t) = dgamma(t, shape, rate) for t >= 0
+      - Uses gamma probability density function
+      - Default: shape=6, rate=1
+      - Peak at (shape-1)/rate for shape > 1
+      - Asymmetric with longer right tail
+      - Zero for t &lt; 0
+      
+      **Gaussian HRF:**  
+      h_gaussian(t) = dnorm(t, mean, sd) for all t
+      - Uses normal probability density function
+      - Default: mean=6, sd=2
+      - Peak at mean
+      - Symmetric around mean
+      - Non-zero for all t (but negligible for |t-mean| >> sd)
+      
+      **Key Differences:**
+      1. Support: Gamma on [0,∞), Gaussian on (-∞,∞)
+      2. Symmetry: Gamma asymmetric, Gaussian symmetric
+      3. Tail behavior: Gamma heavier right tail, Gaussian equal tails
+      4. Peak timing: Gamma at (shape-1)/rate, Gaussian at mean
+      5. Biological realism: Gamma more realistic (causal, t≥0)
+    </algorithm>
+    <mathematical_properties>
+      **Gamma Properties (shape=6, rate=1):**
+      - Peak at t = 5 seconds
+      - Mode = (shape-1)/rate = 5
+      - Mean = shape/rate = 6  
+      - Variance = shape/rate² = 6
+      - Right-skewed distribution
+      - h(0) = 0, monotonic rise to peak, then decay
+      
+      **Gaussian Properties (mean=6, sd=2):**
+      - Peak at t = 6 seconds  
+      - Mode = Mean = 6
+      - Variance = sd² = 4
+      - Symmetric around mean
+      - h(0) ≈ 0.0001 (small but non-zero)
+      - Bell-shaped curve
+      
+      **Comparative Properties:**
+      - Similar peak timing with default parameters
+      - Gamma peak slightly earlier (5s vs 6s)
+      - Gamma more realistic causality (zero before onset)
+      - Different tail behaviors affect convolution results
+    </mathematical_properties>
+    <edge_cases>
+      - Gamma: t &lt; 0 should return exactly 0
+      - Gaussian: Very negative t should return values near 0
+      - Shape parameter effect on gamma peak timing
+      - SD parameter effect on gaussian width
+      - Rate vs shape parameter interactions
+    </edge_cases>
+  </semantic_description>
+  
+  <inputs>
+    <input name="time_vector" type="numeric_vector">
+      <description>Time points from 0 to 25 seconds with 0.1 second intervals</description>
+      <value>seq(0, 25, by = 0.1)</value>
+    </input>
+    <input name="extended_time" type="numeric_vector">
+      <description>Extended time including negative values for gaussian comparison</description>
+      <value>seq(-5, 25, by = 0.1)</value>
+    </input>
+    <input name="gamma_default" type="parameter_set">
+      <description>Default gamma parameters</description>
+      <value>list(shape = 6, rate = 1)</value>
+    </input>
+    <input name="gaussian_default" type="parameter_set">
+      <description>Default gaussian parameters</description>
+      <value>list(mean = 6, sd = 2)</value>
+    </input>
+    <input name="gamma_custom" type="parameter_set">
+      <description>Custom gamma parameters for shape comparison</description>
+      <value>list(shape = 8, rate = 1.5)</value>
+    </input>
+    <input name="gaussian_custom" type="parameter_set">
+      <description>Custom gaussian parameters for width comparison</description>
+      <value>list(mean = 5, sd = 1.5)</value>
+    </input>
+  </inputs>
+  
+  <expected_outputs>
+    <numeric_checks>
+      <!-- Basic dimensional checks -->
+      <check>
+        <type>exact_value</type>
+        <location>length(hrf_gamma(seq(0, 25, by = 0.1)))</location>
+        <expected>251</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>length(hrf_gaussian(seq(0, 25, by = 0.1)))</location>
+        <expected>251</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Gamma HRF specific values -->
+      <check>
+        <type>exact_value</type>
+        <location>hrf_gamma(0, shape=6, rate=1)</location>
+        <expected>0</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>hrf_gamma(5, shape=6, rate=1)</location>
+        <expected>0.1755</expected>
+        <tolerance>1e-4</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>hrf_gamma(6, shape=6, rate=1)</location>
+        <expected>0.1606</expected>
+        <tolerance>1e-4</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>hrf_gamma(10, shape=6, rate=1)</location>
+        <expected>0.0378</expected>
+        <tolerance>1e-4</tolerance>
+      </check>
+      
+      <!-- Gaussian HRF specific values -->
+      <check>
+        <type>approximate</type>
+        <location>hrf_gaussian(0, mean=6, sd=2)</location>
+        <expected>0.0022</expected>
+        <tolerance>1e-4</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>hrf_gaussian(6, mean=6, sd=2)</location>
+        <expected>0.19947</expected>
+        <tolerance>1e-4</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>hrf_gaussian(4, mean=6, sd=2)</location>
+        <expected>0.12098</expected>
+        <tolerance>1e-4</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>hrf_gaussian(8, mean=6, sd=2)</location>
+        <expected>0.12098</expected>
+        <tolerance>1e-4</tolerance>
+      </check>
+      
+      <!-- Peak timing comparison -->
+      <check>
+        <type>range</type>
+        <location>seq(0, 25, by = 0.1)[which.max(hrf_gamma(seq(0, 25, by = 0.1), shape=6, rate=1))]</location>
+        <min>4.9</min>
+        <max>5.1</max>
+      </check>
+      
+      <check>
+        <type>range</type>
+        <location>seq(0, 25, by = 0.1)[which.max(hrf_gaussian(seq(0, 25, by = 0.1), mean=6, sd=2))]</location>
+        <min>5.9</min>
+        <max>6.1</max>
+      </check>
+      
+      <!-- Maximum value comparison -->
+      <check>
+        <type>approximate</type>
+        <location>max(hrf_gamma(seq(0, 25, by = 0.1), shape=6, rate=1))</location>
+        <expected>0.1755</expected>
+        <tolerance>1e-4</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>max(hrf_gaussian(seq(0, 25, by = 0.1), mean=6, sd=2))</location>
+        <expected>0.19947</expected>
+        <tolerance>1e-4</tolerance>
+      </check>
+      
+      <!-- Symmetry test for Gaussian -->
+      <check>
+        <type>approximate</type>
+        <location>abs(hrf_gaussian(4, mean=6, sd=2) - hrf_gaussian(8, mean=6, sd=2))</location>
+        <expected>0</expected>
+        <tolerance>1e-10</tolerance>
+      </check>
+      
+      <!-- Asymmetry test for Gamma (should NOT be symmetric) -->
+      <check>
+        <type>range</type>
+        <location>abs(hrf_gamma(3, shape=6, rate=1) - hrf_gamma(7, shape=6, rate=1))</location>
+        <min>0.02</min>
+        <max>0.04</max>
+      </check>
+      
+      <!-- Area under curve comparison -->
+      <check>
+        <type>approximate</type>
+        <location>sum(hrf_gamma(seq(0, 25, by = 0.1), shape=6, rate=1)) * 0.1</location>
+        <expected>0.9999</expected>
+        <tolerance>1e-3</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>sum(hrf_gaussian(seq(0, 25, by = 0.1), mean=6, sd=2)) * 0.1</location>
+        <expected>0.9988</expected>
+        <tolerance>1e-3</tolerance>
+      </check>
+      
+      <!-- Tail behavior comparison at t=15 -->
+      <check>
+        <type>range</type>
+        <location>hrf_gamma(15, shape=6, rate=1) / hrf_gaussian(15, mean=6, sd=2)</location>
+        <min>200</min>
+        <max>250</max>
+      </check>
+      
+      <!-- Custom parameter tests -->
+      <check>
+        <type>range</type>
+        <location>seq(0, 25, by = 0.1)[which.max(hrf_gamma(seq(0, 25, by = 0.1), shape=8, rate=1.5))]</location>
+        <min>4.5</min>
+        <max>4.8</max>
+      </check>
+      
+      <check>
+        <type>range</type>
+        <location>seq(0, 25, by = 0.1)[which.max(hrf_gaussian(seq(0, 25, by = 0.1), mean=5, sd=1.5))]</location>
+        <min>4.9</min>
+        <max>5.1</max>
+      </check>
+      
+      <!-- Statistical comparison -->
+      <check>
+        <type>statistical</type>
+        <property>mean</property>
+        <location>hrf_gamma(seq(0, 25, by = 0.1), shape=6, rate=1)</location>
+        <expected>0.04</expected>
+        <tolerance>1e-3</tolerance>
+      </check>
+      
+      <check>
+        <type>statistical</type>
+        <property>mean</property>
+        <location>hrf_gaussian(seq(0, 25, by = 0.1), mean=6, sd=2)</location>
+        <expected>0.0398</expected>
+        <tolerance>1e-3</tolerance>
+      </check>
+      
+      <!-- Causality test for Gamma (zero for negative times) -->
+      <check>
+        <type>exact_value</type>
+        <location>sum(hrf_gamma(c(-5, -1, -0.1), shape=6, rate=1))</location>
+        <expected>0</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <!-- Near-zero but non-zero for Gaussian at t=0 -->
+      <check>
+        <type>range</type>
+        <location>hrf_gaussian(0, mean=6, sd=2)</location>
+        <min>0.002</min>
+        <max>0.003</max>
+      </check>
+    </numeric_checks>
+  </expected_outputs>
+  
+  <implementations>
+    <R><![CDATA[
+      # R reference implementation
+      # Functions: hrf_gamma(t, shape=6, rate=1) and hrf_gaussian(t, mean=6, sd=2)
+      # Location: R/hrf-functions.R
+      
+      # Test time vectors
+      time_vec <- seq(0, 25, by = 0.1)
+      extended_time <- seq(-5, 25, by = 0.1)
+      
+      # Default parameter tests
+      gamma_default <- hrf_gamma(time_vec, shape = 6, rate = 1)
+      gaussian_default <- hrf_gaussian(time_vec, mean = 6, sd = 2)
+      
+      # Custom parameter tests
+      gamma_custom <- hrf_gamma(time_vec, shape = 8, rate = 1.5)
+      gaussian_custom <- hrf_gaussian(time_vec, mean = 5, sd = 1.5)
+      
+      # Specific value tests
+      gamma_values <- hrf_gamma(c(0, 5, 6, 10, 15), shape = 6, rate = 1)
+      gaussian_values <- hrf_gaussian(c(0, 4, 6, 8, 15), mean = 6, sd = 2)
+      
+      # Edge case tests
+      gamma_negative <- hrf_gamma(c(-5, -1, -0.1), shape = 6, rate = 1)
+      gaussian_extended <- hrf_gaussian(extended_time, mean = 6, sd = 2)
+    ]]></R>
+    
+    <Python><![CDATA[
+      # Python implementation following semantic specification
+      
+      import numpy as np
+      from scipy import stats
+      
+      def hrf_gamma(t, shape=6, rate=1):
+          """
+          Gamma HRF using gamma probability density function.
+          
+          Args:
+              t: Time points (scalar or array)
+              shape: Shape parameter (default: 6)
+              rate: Rate parameter (default: 1)
+              
+          Returns:
+              Gamma HRF values at time points t
+          """
+          t = np.asarray(t, dtype=float)
+          # scipy.stats.gamma uses scale = 1/rate
+          scale = 1.0 / rate
+          return stats.gamma.pdf(t, a=shape, scale=scale)
+          
+      def hrf_gaussian(t, mean=6, sd=2):
+          """
+          Gaussian HRF using normal probability density function.
+          
+          Args:
+              t: Time points (scalar or array)
+              mean: Mean parameter (default: 6)
+              sd: Standard deviation parameter (default: 2)
+              
+          Returns:
+              Gaussian HRF values at time points t
+          """
+          t = np.asarray(t, dtype=float)
+          return stats.norm.pdf(t, loc=mean, scale=sd)
+    ]]></Python>
+    
+    <Rust><![CDATA[
+      // Rust implementation following semantic specification
+      
+      use statrs::distribution::{Gamma, Normal, Continuous};
+      
+      pub fn hrf_gamma(t: &[f64], shape: f64, rate: f64) -> Vec<f64> {
+          // Create gamma distribution (statrs uses shape and rate)
+          let gamma_dist = Gamma::new(shape, rate).unwrap();
+          
+          t.iter().map(|&time| {
+              if time < 0.0 {
+                  0.0  // Gamma distribution support is [0, ∞)
+              } else {
+                  gamma_dist.pdf(time)
+              }
+          }).collect()
+      }
+      
+      pub fn hrf_gaussian(t: &[f64], mean: f64, sd: f64) -> Vec<f64> {
+          // Create normal distribution
+          let normal_dist = Normal::new(mean, sd).unwrap();
+          
+          t.iter().map(|&time| {
+              normal_dist.pdf(time)
+          }).collect()
+      }
+      
+      // Default parameter wrappers
+      pub fn hrf_gamma_default(t: &[f64]) -> Vec<f64> {
+          hrf_gamma(t, 6.0, 1.0)
+      }
+      
+      pub fn hrf_gaussian_default(t: &[f64]) -> Vec<f64> {
+          hrf_gaussian(t, 6.0, 2.0)
+      }
+    ]]></Rust>
+  </implementations>
+  
+  <propagation_status>
+    <implementation lang="R" status="completed"/>
+    <implementation lang="Python" status="pending"/>
+    <implementation lang="Rust" status="pending"/>
+  </propagation_status>
+</golden_test>

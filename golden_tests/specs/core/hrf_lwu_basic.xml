@@ -1,0 +1,345 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<golden_test xmlns="http://golden-tests.org/schema">
+  <metadata>
+    <id>hrf_lwu_basic</id>
+    <version>1.0</version>
+    <description>Lag-Width-Undershoot (LWU) HRF with dual Gaussian components</description>
+    <tags>
+      <tag>core</tag>
+      <tag>hrf</tag>
+      <tag>lwu</tag>
+      <tag>gaussian</tag>
+      <tag>complex</tag>
+    </tags>
+  </metadata>
+  
+  <semantic_description>
+    <purpose>Validate the LWU (Lag-Width-Undershoot) HRF implementation with dual Gaussian mathematics</purpose>
+    <algorithm>
+      The LWU HRF models hemodynamic response using two Gaussian components:
+      h(t; τ, σ, ρ) = exp(-(t-τ)²/(2σ²)) - ρ * exp(-(t-τ-2σ)²/(2(1.6σ)²))
+      
+      Parameters:
+      - τ (tau): Lag/time-to-peak of main component (default: 6s)
+      - σ (sigma): Width (std dev) of main component, must be > 0.05 (default: 2.5s)
+      - ρ (rho): Undershoot amplitude relative to main, 0 ≤ ρ ≤ 1.5 (default: 0.35)
+      
+      Components:
+      1. Main positive Gaussian: centered at τ with width σ
+      2. Undershoot Gaussian: centered at τ+2σ with width 1.6σ, amplitude ρ
+      
+      Normalization options:
+      - "none": No scaling applied
+      - "height": Scale so max absolute value = 1
+      
+      Key properties:
+      - Main peak occurs around τ seconds
+      - Undershoot peak around τ + 2σ seconds  
+      - Characteristic biphasic shape when ρ > 0
+      - Smooth continuous function
+    </algorithm>
+    <mathematical_properties>
+      - h(t) is continuous and smooth for all t
+      - Main peak location approximately at τ
+      - Undershoot minimum around τ + 2σ + small offset
+      - For default params: peak ~6s, undershoot minimum ~11-12s
+      - Total area depends on ρ: larger ρ means smaller net area
+      - Function approaches zero as t → ±∞
+      - Maximum value occurs in main component for typical parameters
+    </mathematical_properties>
+    <edge_cases>
+      - σ ≤ 0.05 should trigger error or warning
+      - ρ outside [0, 1.5] should trigger error or warning  
+      - ρ = 0 eliminates undershoot (single Gaussian)
+      - ρ = 1 creates balanced positive/negative components
+      - Very large σ creates very wide, low amplitude response
+    </edge_cases>
+  </semantic_description>
+  
+  <inputs>
+    <input name="time_vector" type="numeric_vector">
+      <description>Time points from 0 to 30 seconds with 0.1 second intervals</description>
+      <value>seq(0, 30, by = 0.1)</value>
+    </input>
+    <input name="default_params" type="parameter_set">
+      <description>Default LWU parameters: tau=6, sigma=2.5, rho=0.35</description>
+      <value>list(tau = 6, sigma = 2.5, rho = 0.35)</value>
+    </input>
+    <input name="no_undershoot_params" type="parameter_set">
+      <description>Parameters with no undershoot: rho=0</description>
+      <value>list(tau = 6, sigma = 2.5, rho = 0)</value>
+    </input>
+    <input name="custom_params" type="parameter_set">
+      <description>Custom parameters: tau=8, sigma=1.5, rho=0.5</description>
+      <value>list(tau = 8, sigma = 1.5, rho = 0.5)</value>
+    </input>
+    <input name="edge_times" type="numeric_vector">
+      <description>Specific time points for precise validation</description>
+      <value>c(0, 3, 6, 9, 12, 15, 20)</value>
+    </input>
+  </inputs>
+  
+  <expected_outputs>
+    <numeric_checks>
+      <!-- Basic dimensional checks -->
+      <check>
+        <type>exact_value</type>
+        <location>length(hrf_lwu(seq(0, 30, by = 0.1)))</location>
+        <expected>301</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Default parameter validation - specific values -->
+      <check>
+        <type>approximate</type>
+        <location>hrf_lwu(0, tau=6, sigma=2.5, rho=0.35)</location>
+        <expected>0.0482</expected>
+        <tolerance>1e-4</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>hrf_lwu(6, tau=6, sigma=2.5, rho=0.35)</location>
+        <expected>0.8398</expected>
+        <tolerance>1e-3</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>hrf_lwu(11, tau=6, sigma=2.5, rho=0.35)</location>
+        <expected>-0.2147</expected>
+        <tolerance>1e-3</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>hrf_lwu(20, tau=6, sigma=2.5, rho=0.35)</location>
+        <expected>-0.0278</expected>
+        <tolerance>1e-3</tolerance>
+      </check>
+      
+      <!-- Peak timing validation -->
+      <check>
+        <type>range</type>
+        <location>seq(0, 30, by = 0.1)[which.max(hrf_lwu(seq(0, 30, by = 0.1), tau=6, sigma=2.5, rho=0.35))]</location>
+        <min>5.6</min>
+        <max>5.8</max>
+      </check>
+      
+      <!-- Maximum value check -->
+      <check>
+        <type>approximate</type>
+        <location>max(hrf_lwu(seq(0, 30, by = 0.1), tau=6, sigma=2.5, rho=0.35))</location>
+        <expected>0.8473</expected>
+        <tolerance>1e-3</tolerance>
+      </check>
+      
+      <!-- Minimum value (undershoot) check -->
+      <check>
+        <type>approximate</type>
+        <location>min(hrf_lwu(seq(0, 30, by = 0.1), tau=6, sigma=2.5, rho=0.35))</location>
+        <expected>-0.2924</expected>
+        <tolerance>1e-3</tolerance>
+      </check>
+      
+      <!-- No undershoot case (rho=0) -->
+      <check>
+        <type>approximate</type>
+        <location>min(hrf_lwu(seq(0, 30, by = 0.1), tau=6, sigma=2.5, rho=0))</location>
+        <expected>0</expected>
+        <tolerance>1e-10</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>max(hrf_lwu(seq(0, 30, by = 0.1), tau=6, sigma=2.5, rho=0))</location>
+        <expected>1</expected>
+        <tolerance>1e-10</tolerance>
+      </check>
+      
+      <!-- Custom parameters validation -->
+      <check>
+        <type>approximate</type>
+        <location>hrf_lwu(8, tau=8, sigma=1.5, rho=0.5)</location>
+        <expected>0.7711</expected>
+        <tolerance>1e-3</tolerance>
+      </check>
+      
+      <!-- Height normalization test -->
+      <check>
+        <type>approximate</type>
+        <location>max(abs(hrf_lwu(seq(0, 30, by = 0.1), tau=6, sigma=2.5, rho=0.35, normalize="height")))</location>
+        <expected>1</expected>
+        <tolerance>1e-10</tolerance>
+      </check>
+      
+      <!-- Area under curve (net area considering undershoot) -->
+      <check>
+        <type>approximate</type>
+        <location>sum(hrf_lwu(seq(0, 30, by = 0.1), tau=6, sigma=2.5, rho=0.35)) * 0.1</location>
+        <expected>2.7187</expected>
+        <tolerance>1e-2</tolerance>
+      </check>
+      
+      <!-- Statistical properties -->
+      <check>
+        <type>statistical</type>
+        <property>mean</property>
+        <location>hrf_lwu(seq(0, 30, by = 0.1), tau=6, sigma=2.5, rho=0.35)</location>
+        <expected>0.0903</expected>
+        <tolerance>1e-3</tolerance>
+      </check>
+      
+      <!-- Symmetry test around peak for main component -->
+      <check>
+        <type>approximate</type>
+        <location>abs(hrf_lwu(5, tau=6, sigma=2.5, rho=0) - hrf_lwu(7, tau=6, sigma=2.5, rho=0))</location>
+        <expected>0</expected>
+        <tolerance>1e-10</tolerance>
+      </check>
+      
+      <!-- Custom sigma effect -->
+      <check>
+        <type>range</type>
+        <location>seq(0, 30, by = 0.1)[which.max(hrf_lwu(seq(0, 30, by = 0.1), tau=8, sigma=1.5, rho=0.5))]</location>
+        <min>7.6</min>
+        <max>7.8</max>
+      </check>
+      
+      <!-- Large rho effect (strong undershoot) -->
+      <check>
+        <type>range</type>
+        <location>min(hrf_lwu(seq(0, 30, by = 0.1), tau=6, sigma=2.5, rho=1.0))</location>
+        <min>-0.95</min>
+        <max>-0.90</max>
+      </check>
+    </numeric_checks>
+  </expected_outputs>
+  
+  <implementations>
+    <R><![CDATA[
+      # R reference implementation
+      # Function: hrf_lwu(t, tau = 6, sigma = 2.5, rho = 0.35, normalize = "none")
+      # Location: R/hrf-functions.R lines 449-484
+      
+      # Test default parameters
+      time_vec <- seq(0, 30, by = 0.1)
+      result_default <- hrf_lwu(time_vec, tau = 6, sigma = 2.5, rho = 0.35)
+      
+      # Test no undershoot  
+      result_no_undershoot <- hrf_lwu(time_vec, tau = 6, sigma = 2.5, rho = 0)
+      
+      # Test custom parameters
+      result_custom <- hrf_lwu(time_vec, tau = 8, sigma = 1.5, rho = 0.5)
+      
+      # Test height normalization
+      result_normalized <- hrf_lwu(time_vec, tau = 6, sigma = 2.5, rho = 0.35, normalize = "height")
+      
+      # Test specific time points
+      key_times <- c(0, 3, 6, 9, 12, 15, 20)
+      result_key <- hrf_lwu(key_times, tau = 6, sigma = 2.5, rho = 0.35)
+    ]]></R>
+    
+    <Python><![CDATA[
+      # Python implementation following semantic specification
+      
+      import numpy as np
+      
+      def hrf_lwu(t, tau=6, sigma=2.5, rho=0.35, normalize="none"):
+          """
+          Lag-Width-Undershoot (LWU) HRF with dual Gaussian components.
+          
+          Args:
+              t: Time points (scalar or array)
+              tau: Lag/time-to-peak of main component (default: 6)
+              sigma: Width of main component, must be > 0.05 (default: 2.5)
+              rho: Undershoot amplitude, 0 <= rho <= 1.5 (default: 0.35)
+              normalize: "none" or "height" (default: "none")
+              
+          Returns:
+              LWU HRF values at time points t
+          """
+          # Parameter validation
+          assert sigma > 0.05, "sigma must be > 0.05"
+          assert 0 <= rho <= 1.5, "rho must be between 0 and 1.5"
+          assert normalize in ["none", "height"], "normalize must be 'none' or 'height'"
+          
+          # Convert to numpy array
+          t = np.asarray(t, dtype=float)
+          
+          # Main positive Gaussian component
+          term1_exponent = -((t - tau)**2) / (2 * sigma**2)
+          term1 = np.exp(term1_exponent)
+          
+          # Undershoot Gaussian component  
+          # Peak at tau + 2*sigma, width = 1.6*sigma
+          undershoot_center = tau + 2 * sigma
+          undershoot_width = 1.6 * sigma
+          term2_exponent = -((t - undershoot_center)**2) / (2 * undershoot_width**2)
+          term2 = rho * np.exp(term2_exponent)
+          
+          # Combine components
+          response = term1 - term2
+          
+          # Apply normalization
+          if normalize == "height":
+              max_abs_val = np.max(np.abs(response))
+              if max_abs_val > 1e-10:
+                  response = response / max_abs_val
+          
+          return response
+    ]]></Python>
+    
+    <Rust><![CDATA[
+      // Rust implementation following semantic specification
+      
+      pub fn hrf_lwu(t: &[f64], tau: f64, sigma: f64, rho: f64, normalize: &str) -> Vec<f64> {
+          // Parameter validation
+          assert!(sigma > 0.05, "sigma must be > 0.05");
+          assert!(rho >= 0.0 && rho <= 1.5, "rho must be between 0 and 1.5");
+          assert!(normalize == "none" || normalize == "height", "normalize must be 'none' or 'height'");
+          
+          let mut response: Vec<f64> = t.iter().map(|&time| {
+              // Main positive Gaussian component
+              let term1_exponent = -((time - tau).powi(2)) / (2.0 * sigma.powi(2));
+              let term1 = term1_exponent.exp();
+              
+              // Undershoot Gaussian component
+              let undershoot_center = tau + 2.0 * sigma;
+              let undershoot_width = 1.6 * sigma;
+              let term2_exponent = -((time - undershoot_center).powi(2)) / (2.0 * undershoot_width.powi(2));
+              let term2 = rho * term2_exponent.exp();
+              
+              // Combine components
+              term1 - term2
+          }).collect();
+          
+          // Apply normalization
+          if normalize == "height" {
+              let max_abs_val = response.iter()
+                  .map(|&x| x.abs())
+                  .fold(0.0f64, f64::max);
+              
+              if max_abs_val > 1e-10 {
+                  for val in &mut response {
+                      *val /= max_abs_val;
+                  }
+              }
+          }
+          
+          response
+      }
+      
+      // Default parameter wrapper
+      pub fn hrf_lwu_default(t: &[f64]) -> Vec<f64> {
+          hrf_lwu(t, 6.0, 2.5, 0.35, "none")
+      }
+    ]]></Rust>
+  </implementations>
+  
+  <propagation_status>
+    <implementation lang="R" status="completed"/>
+    <implementation lang="Python" status="pending"/>
+    <implementation lang="Rust" status="pending"/>
+  </propagation_status>
+</golden_test>

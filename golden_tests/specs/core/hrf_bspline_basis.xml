@@ -1,0 +1,445 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<golden_test xmlns="http://golden-tests.org/schema">
+  <metadata>
+    <id>hrf_bspline_basis</id>
+    <version>1.0</version>
+    <description>B-spline basis HRF with multi-basis matrix output and spline mathematics</description>
+    <tags>
+      <tag>core</tag>
+      <tag>hrf</tag>
+      <tag>bspline</tag>
+      <tag>basis</tag>
+      <tag>matrix</tag>
+      <tag>spline</tag>
+    </tags>
+  </metadata>
+  
+  <semantic_description>
+    <purpose>Validate B-spline basis HRF implementation with matrix output and spline mathematical properties</purpose>
+    <algorithm>
+      B-spline basis functions provide a flexible framework for HRF modeling:
+      
+      **Mathematical Foundation:**
+      - Creates N basis functions using B-splines of specified degree
+      - Each basis function has local support (non-zero over limited intervals)
+      - Basis functions sum to 1 at interior points (partition of unity)
+      - Smoothness determined by degree (degree d → C^(d-1) continuity)
+      
+      **Implementation Details:**
+      B(t) = splines::bs(t, df=N, knots=knots, degree=degree, Boundary.knots=[0,span])
+      
+      **Parameters:**
+      - t: Time points to evaluate
+      - span: Temporal window [0, span] (default: 24)
+      - N: Number of basis functions (default: 5)  
+      - degree: Polynomial degree (default: 3 for cubic splines)
+      
+      **Knot Placement:**
+      - Boundary knots at 0 and span
+      - Interior knots placed at quantiles of [0, span]
+      - Number of interior knots = N - degree - 1
+      
+      **Output:**
+      - Matrix with rows = length(t), columns = N
+      - Each column is one basis function
+      - Values outside [0, span] are set to 0
+    </algorithm>
+    <mathematical_properties>
+      **B-spline Properties:**
+      - Local support: Each basis function is non-zero over limited interval
+      - Partition of unity: Σ B_i(t) = 1 for t ∈ [0, span]
+      - Non-negativity: B_i(t) ≥ 0 for all i, t
+      - Smoothness: C^(degree-1) continuous
+      - Linear independence: Basis functions are linearly independent
+      
+      **Boundary Behavior:**
+      - B(t) = 0 for t &lt; 0 or t ≥ span
+      - Smooth transitions at boundaries for degree > 0
+      
+      **Matrix Properties:**
+      - Dimensions: length(t) × N
+      - Each row sums to 1 for t ∈ (0, span)
+      - Each column has finite support
+      - Matrix is sparse (many zeros due to local support)
+    </mathematical_properties>
+    <edge_cases>
+      - t &lt; 0: Should return zero matrix rows
+      - t ≥ span: Should return zero matrix rows  
+      - N &lt; degree + 1: May trigger warnings or adjustments
+      - Single time point: Should return 1×N matrix
+      - Very small span: Should handle boundary conditions
+      - degree = 0: Piecewise constant functions
+      - degree = 1: Piecewise linear functions
+    </edge_cases>
+  </semantic_description>
+  
+  <inputs>
+    <input name="time_vector" type="numeric_vector">
+      <description>Time points from 0 to 24 seconds with 0.2 second intervals</description>
+      <value>seq(0, 24, by = 0.2)</value>
+    </input>
+    <input name="extended_time" type="numeric_vector">
+      <description>Extended time including negative and beyond-span values</description>
+      <value>seq(-2, 26, by = 0.5)</value>
+    </input>
+    <input name="default_params" type="parameter_set">
+      <description>Default B-spline parameters</description>
+      <value>list(span = 24, N = 5, degree = 3)</value>
+    </input>
+    <input name="custom_params" type="parameter_set">
+      <description>Custom parameters for different basis size</description>
+      <value>list(span = 20, N = 8, degree = 2)</value>
+    </input>
+    <input name="linear_params" type="parameter_set">
+      <description>Linear B-spline parameters</description>
+      <value>list(span = 24, N = 6, degree = 1)</value>
+    </input>
+    <input name="interior_times" type="numeric_vector">
+      <description>Time points strictly inside the span</description>
+      <value>seq(2, 22, by = 2)</value>
+    </input>
+  </inputs>
+  
+  <expected_outputs>
+    <numeric_checks>
+      <!-- Matrix dimension checks -->
+      <check>
+        <type>exact_value</type>
+        <location>nrow(hrf_bspline(seq(0, 24, by = 0.2), span=24, N=5))</location>
+        <expected>121</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>ncol(hrf_bspline(seq(0, 24, by = 0.2), span=24, N=5))</location>
+        <expected>5</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>ncol(hrf_bspline(seq(0, 20, by = 0.5), span=20, N=8))</location>
+        <expected>8</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Boundary behavior: zeros outside [0, span] -->
+      <check>
+        <type>exact_value</type>
+        <location>sum(hrf_bspline(c(-1, -0.5), span=24, N=5))</location>
+        <expected>0</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>sum(hrf_bspline(c(24, 25), span=24, N=5))</location>
+        <expected>1</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <!-- Partition of unity: interior points sum to 1 -->
+      <check>
+        <type>approximate</type>
+        <location>sum(hrf_bspline(12, span=24, N=5))</location>
+        <expected>1</expected>
+        <tolerance>1e-10</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>sum(hrf_bspline(6, span=24, N=5))</location>
+        <expected>0.984375</expected>
+        <tolerance>1e-6</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>sum(hrf_bspline(18, span=24, N=5))</location>
+        <expected>1</expected>
+        <tolerance>1e-10</tolerance>
+      </check>
+      
+      <!-- Row sums for multiple interior points -->
+      <check>
+        <type>approximate</type>
+        <location>mean(rowSums(hrf_bspline(seq(2, 22, by = 2), span=24, N=5)))</location>
+        <expected>0.9488636</expected>
+        <tolerance>1e-6</tolerance>
+      </check>
+      
+      <!-- Non-negativity -->
+      <check>
+        <type>range</type>
+        <location>min(hrf_bspline(seq(0, 24, by = 0.2), span=24, N=5))</location>
+        <min>0</min>
+        <max>1</max>
+      </check>
+      
+      <!-- Specific value checks for consistency -->
+      <check>
+        <type>approximate</type>
+        <location>hrf_bspline(0, span=24, N=5)[1, 1]</location>
+        <expected>0</expected>
+        <tolerance>1e-10</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>hrf_bspline(24, span=24, N=5)[1, 5]</location>
+        <expected>1</expected>
+        <tolerance>1e-10</tolerance>
+      </check>
+      
+      <!-- Custom parameters: different N -->
+      <check>
+        <type>exact_value</type>
+        <location>ncol(hrf_bspline(seq(0, 20, by = 1), span=20, N=8, degree=2))</location>
+        <expected>8</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>sum(hrf_bspline(10, span=20, N=8, degree=2))</location>
+        <expected>1</expected>
+        <tolerance>1e-10</tolerance>
+      </check>
+      
+      <!-- Linear B-splines (degree=1) -->
+      <check>
+        <type>exact_value</type>
+        <location>ncol(hrf_bspline(seq(0, 24, by = 1), span=24, N=6, degree=1))</location>
+        <expected>6</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>approximate</type>
+        <location>sum(hrf_bspline(12, span=24, N=6, degree=1))</location>
+        <expected>1</expected>
+        <tolerance>1e-10</tolerance>
+      </check>
+      
+      <!-- Sparsity: each basis function has limited support -->
+      <check>
+        <type>range</type>
+        <location>sum(hrf_bspline(seq(0, 24, by = 0.1), span=24, N=5)[, 1] > 0)</location>
+        <min>150</min>
+        <max>170</max>
+      </check>
+      
+      <!-- Smoothness test: differences should be small for cubic splines -->
+      <check>
+        <type>range</type>
+        <location>max(abs(diff(hrf_bspline(seq(0, 24, by = 0.1), span=24, N=5)[, 3])))</location>
+        <min>0</min>
+        <max>0.1</max>
+      </check>
+      
+      <!-- Single time point -->
+      <check>
+        <type>exact_value</type>
+        <location>nrow(hrf_bspline(12, span=24, N=5))</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>ncol(hrf_bspline(12, span=24, N=5))</location>
+        <expected>5</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Matrix sum properties over full range -->
+      <check>
+        <type>approximate</type>
+        <location>mean(rowSums(hrf_bspline(seq(0.1, 23.9, by = 0.5), span=24, N=5)))</location>
+        <expected>0.9104076</expected>
+        <tolerance>1e-6</tolerance>
+      </check>
+      
+      <!-- Extended time range with boundaries -->
+      <check>
+        <type>exact_value</type>
+        <location>sum(hrf_bspline(seq(-2, -0.1, by = 0.1), span=24, N=5))</location>
+        <expected>0</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>sum(hrf_bspline(seq(24.1, 26, by = 0.1), span=24, N=5))</location>
+        <expected>0</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+    </numeric_checks>
+  </expected_outputs>
+  
+  <implementations>
+    <R><![CDATA[
+      # R reference implementation
+      # Function: hrf_bspline(t, span=24, N=5, degree=3, ...)
+      # Location: R/hrf-functions.R lines 48-81
+      
+      # Test default parameters
+      time_vec <- seq(0, 24, by = 0.2)
+      result_default <- hrf_bspline(time_vec, span = 24, N = 5, degree = 3)
+      
+      # Test custom parameters
+      result_custom <- hrf_bspline(seq(0, 20, by = 0.5), span = 20, N = 8, degree = 2)
+      
+      # Test linear B-splines
+      result_linear <- hrf_bspline(seq(0, 24, by = 1), span = 24, N = 6, degree = 1)
+      
+      # Test boundary conditions
+      extended_time <- seq(-2, 26, by = 0.5)
+      result_extended <- hrf_bspline(extended_time, span = 24, N = 5)
+      
+      # Test specific points
+      interior_times <- seq(2, 22, by = 2)
+      result_interior <- hrf_bspline(interior_times, span = 24, N = 5)
+      
+      # Test single point
+      result_single <- hrf_bspline(12, span = 24, N = 5)
+    ]]></R>
+    
+    <Python><![CDATA[
+      # Python implementation following semantic specification
+      
+      import numpy as np
+      from scipy.interpolate import BSpline
+      
+      def hrf_bspline(t, span=24, N=5, degree=3):
+          """
+          B-spline basis HRF with matrix output.
+          
+          Args:
+              t: Time points (scalar or array)
+              span: Temporal window [0, span] (default: 24)
+              N: Number of basis functions (default: 5)
+              degree: Polynomial degree (default: 3)
+              
+          Returns:
+              Matrix with rows=len(t), columns=N containing basis functions
+          """
+          t = np.asarray(t, dtype=float).flatten()
+          
+          # Handle edge case: if N < degree + 1, adjust
+          effective_N = max(N, degree + 1)
+          
+          # Create knot vector
+          # Number of interior knots
+          n_interior_knots = max(0, effective_N - degree - 1)
+          
+          if n_interior_knots > 0:
+              # Interior knots at quantiles
+              interior_knots = np.linspace(0, span, n_interior_knots + 2)[1:-1]
+          else:
+              interior_knots = np.array([])
+          
+          # Full knot vector: degree+1 boundary knots on each side
+          knots = np.concatenate([
+              np.repeat(0, degree + 1),
+              interior_knots, 
+              np.repeat(span, degree + 1)
+          ])
+          
+          # Create B-spline basis matrix
+          n_time = len(t)
+          basis_matrix = np.zeros((n_time, effective_N))
+          
+          for i in range(effective_N):
+              # Create coefficient vector (1 at position i, 0 elsewhere)
+              coeffs = np.zeros(effective_N)
+              coeffs[i] = 1.0
+              
+              # Create B-spline object and evaluate
+              bspline = BSpline(knots, coeffs, degree, extrapolate=False)
+              basis_values = bspline(t)
+              
+              # Handle extrapolation (set to 0 outside [0, span])
+              basis_values = np.nan_to_num(basis_values, nan=0.0)
+              basis_matrix[:, i] = basis_values
+          
+          # Ensure values outside [0, span] are exactly zero
+          outside_mask = (t < 0) | (t >= span)
+          basis_matrix[outside_mask, :] = 0.0
+          
+          # Return only requested number of basis functions
+          return basis_matrix[:, :N]
+    ]]></Python>
+    
+    <Rust><![CDATA[
+      // Rust implementation following semantic specification
+      // Note: This is a simplified version - full B-spline implementation
+      // would require a spline library like splines-rs or custom implementation
+      
+      use ndarray::Array2;
+      
+      pub fn hrf_bspline(t: &[f64], span: f64, n_basis: usize, degree: usize) -> Array2<f64> {
+          let n_time = t.len();
+          let mut basis_matrix = Array2::<f64>::zeros((n_time, n_basis));
+          
+          // Simplified implementation for demonstration
+          // In practice, would use proper B-spline library
+          
+          // For degree 0 (piecewise constant), create simple bins
+          if degree == 0 {
+              let bin_width = span / n_basis as f64;
+              
+              for (i, &time) in t.iter().enumerate() {
+                  if time >= 0.0 && time < span {
+                      let bin_idx = ((time / bin_width).floor() as usize).min(n_basis - 1);
+                      basis_matrix[[i, bin_idx]] = 1.0;
+                  }
+              }
+          } else {
+              // For higher degrees, would implement proper B-spline evaluation
+              // This is a placeholder that demonstrates the matrix structure
+              
+              // Create overlapping basis functions as approximation
+              for j in 0..n_basis {
+                  let center = (j as f64 + 0.5) * span / n_basis as f64;
+                  let width = span / n_basis as f64 * 2.0; // Overlapping support
+                  
+                  for (i, &time) in t.iter().enumerate() {
+                      if time >= 0.0 && time <= span {
+                          let dist = (time - center).abs();
+                          if dist <= width {
+                              // Simple triangular basis function as approximation
+                              basis_matrix[[i, j]] = (1.0 - dist / width).max(0.0);
+                          }
+                      }
+                  }
+              }
+              
+              // Normalize each row to sum to 1 (partition of unity)
+              for i in 0..n_time {
+                  let row_sum: f64 = (0..n_basis).map(|j| basis_matrix[[i, j]]).sum();
+                  if row_sum > 1e-10 {
+                      for j in 0..n_basis {
+                          basis_matrix[[i, j]] /= row_sum;
+                      }
+                  }
+              }
+          }
+          
+          basis_matrix
+      }
+      
+      // Default parameter wrapper
+      pub fn hrf_bspline_default(t: &[f64]) -> Array2<f64> {
+          hrf_bspline(t, 24.0, 5, 3)
+      }
+    ]]></Rust>
+  </implementations>
+  
+  <propagation_status>
+    <implementation lang="R" status="completed"/>
+    <implementation lang="Python" status="pending"/>
+    <implementation lang="Rust" status="pending"/>
+  </propagation_status>
+</golden_test>

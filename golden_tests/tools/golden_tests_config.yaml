@@ -1,0 +1,105 @@
+# Golden Tests Configuration for fmrihrf project
+project:
+  name: "fmrihrf"
+  description: "fMRI HRF Analysis Package"
+  version: "0.1.0"
+
+# Language-specific configuration
+languages:
+  R:
+    base_path: "../R"
+    implementation_patterns:
+      - "hrf-functions.R"
+      - "hrf_decorators.R"
+      - "reg-*.R"
+      - "*.R"
+    function_extractors:
+      - type: "roxygen_function"
+        pattern: "^#'.*\\n(\\w+)\\s*<-\\s*function"
+      - type: "direct_function" 
+        pattern: "^(\\w+)\\s*<-\\s*function"
+        
+  Python:
+    base_path: "../python/src/fmrihrf"
+    implementation_patterns:
+      - "hrf/**/*.py"
+      - "regressors/**/*.py" 
+      - "**/*.py"
+    function_extractors:
+      - type: "def_function"
+        pattern: "^def\\s+(\\w+)\\("
+        
+  Rust:
+    base_path: "../rust/src"
+    implementation_patterns:
+      - "hrf/**/*.rs"
+      - "regressors/**/*.rs"
+      - "**/*.rs"
+    function_extractors:
+      - type: "pub_function"
+        pattern: "^pub\\s+fn\\s+(\\w+)\\("
+      - type: "impl_method"
+        pattern: "^\\s+pub\\s+fn\\s+(\\w+)\\("
+
+# Test-specific overrides for precise control
+test_overrides:
+  hrf_spmg1_basic:
+    R: 
+      file: "../R/hrf-functions.R"
+      function: "hrf_spmg1"
+      # Alternative: specify exact lines
+      # lines: [164, 180]
+    Python:
+      file: "../python/src/fmrihrf/hrf/canonical.py" 
+      function: "hrf_spmg1"
+    Rust:
+      file: "../rust/src/hrf/spm.rs"
+      function: "hrf_spmg1"
+      
+  empirical_hrf_interpolation:
+    R:
+      file: "../R/hrf-functions.R"
+      function: "empirical_hrf"
+    Python:
+      file: "../python/src/fmrihrf/hrf/empirical.py"
+      function: "empirical_hrf"
+    Rust:
+      file: "../rust/src/hrf/empirical.rs"
+      function: "empirical_hrf"
+
+  block_hrf_decorator:
+    R:
+      file: "../R/hrf_decorators.R"
+      function: "block_hrf"
+    Python:
+      file: "../python/src/fmrihrf/decorators/block.py"
+      function: "block_hrf"
+    Rust:
+      file: "../rust/src/decorators/block.rs"
+      function: "block_hrf"
+
+# Fallback behavior configuration
+fallback:
+  # What to do when implementation not found
+  missing_file: "placeholder"  # placeholder, empty, or error
+  missing_function: "placeholder"
+  
+  # Whether to use embedded code as fallback
+  prefer_embedded: false
+  
+  # How to handle search failures
+  search_failure: "generate_template"
+
+# Dashboard generation options
+dashboard:
+  # Whether to show source file information
+  show_source_info: true
+  
+  # Whether to show implementation status based on file existence
+  auto_detect_status: true
+  
+  # How to format code blocks
+  code_formatting:
+    syntax_highlighting: true
+    show_line_numbers: true
+    max_lines: 100

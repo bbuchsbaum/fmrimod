@@ -1,0 +1,477 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<golden_test xmlns="http://golden-tests.org/schema">
+  <metadata>
+    <id>bind_basis_combination</id>
+    <version>1.0</version>
+    <description>Core HRF basis combination functionality with metadata handling and matrix operations</description>
+    <tags>
+      <tag>core</tag>
+      <tag>hrf</tag>
+      <tag>bind_basis</tag>
+      <tag>combination</tag>
+      <tag>system</tag>
+      <tag>architecture</tag>
+    </tags>
+  </metadata>
+  
+  <semantic_description>
+    <purpose>Validate the bind_basis function that combines multiple HRF objects into unified multi-basis HRF</purpose>
+    <algorithm>
+      The bind_basis function is fundamental to HRF system architecture, enabling combination of multiple HRFs:
+      
+      **Core Algorithm:**
+      1. Accept multiple HRF objects as input
+      2. Validate that all inputs are HRF objects
+      3. Handle single HRF case (return as-is)
+      4. Calculate combined metadata:
+         - combined_nbasis = sum of individual nbasis values
+         - combined_span = max of individual span values  
+         - combined_name = concatenated names with " + " separator
+      5. Create combined function that:
+         - Evaluates each input HRF at time t
+         - Column-binds (cbind) the results into matrix
+      6. Return new HRF object using as_hrf with combined attributes
+      
+      **Matrix Combination:**
+      - Single-basis HRFs: column vectors become matrix columns
+      - Multi-basis HRFs: matrices are column-concatenated
+      - Final matrix: rows=time points, columns=total basis functions
+      
+      **Metadata Rules:**
+      - nbasis: Additive (sum of all input nbasis values)
+      - span: Maximum (longest temporal window)
+      - name: Concatenative (joined with " + ")
+      - params: Empty list (individual params don't combine meaningfully)
+    </algorithm>
+    <mathematical_properties>
+      **Combination Properties:**
+      - Linear combination: Combined HRF is linear combination of inputs
+      - Basis preservation: Each input HRF becomes subset of output columns
+      - Temporal alignment: All HRFs evaluated at same time points
+      - Dimension consistency: Output columns = sum of input basis counts
+      
+      **Matrix Structure:**
+      - Block structure: [HRF1 | HRF2 | ... | HRFn]
+      - Column ordering preserves input order
+      - Each block has width = nbasis of corresponding input HRF
+      - No interaction between blocks (simple concatenation)
+      
+      **Attribute Inheritance:**
+      - Combined span accommodates all input HRFs
+      - Combined nbasis enables complete basis set
+      - Name reflects all contributing HRFs
+      - Class remains "HRF" and "function"
+    </mathematical_properties>
+    <edge_cases>
+      - Single HRF input: Should return input unchanged
+      - Empty input: Should trigger error
+      - Non-HRF inputs: Should trigger validation error
+      - Mixed single/multi basis HRFs: Should handle correctly
+      - Different span values: Should use maximum
+      - Very long names: Should concatenate properly
+    </edge_cases>
+  </semantic_description>
+  
+  <inputs>
+    <input name="single_basis_hrfs" type="hrf_objects">
+      <description>Single-basis HRF objects for combination</description>
+      <value>list(HRF_SPMG1, HRF_GAMMA, HRF_GAUSSIAN)</value>
+    </input>
+    <input name="multi_basis_hrf" type="hrf_object">
+      <description>Multi-basis HRF object</description>
+      <value>HRF_SPMG2</value>
+    </input>
+    <input name="mixed_basis_hrfs" type="hrf_objects">
+      <description>Mix of single and multi-basis HRFs</description>
+      <value>list(HRF_SPMG1, HRF_SPMG2, HRF_GAMMA)</value>
+    </input>
+    <input name="time_vector" type="numeric_vector">
+      <description>Time points for evaluation</description>
+      <value>seq(0, 20, by = 0.5)</value>
+    </input>
+    <input name="custom_hrfs" type="hrf_objects">
+      <description>Custom HRFs with different spans</description>
+      <value>list(as_hrf(hrf_gamma, span=15), as_hrf(hrf_gaussian, span=25))</value>
+    </input>
+  </inputs>
+  
+  <expected_outputs>
+    <numeric_checks>
+      <!-- Single HRF case: should return input unchanged -->
+      <check>
+        <type>exact_value</type>
+        <location>identical(bind_basis(HRF_SPMG1), HRF_SPMG1)</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Three single-basis HRFs: nbasis should sum to 3 -->
+      <check>
+        <type>exact_value</type>
+        <location>nbasis(bind_basis(HRF_SPMG1, HRF_GAMMA, HRF_GAUSSIAN))</location>
+        <expected>3</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Mixed basis combination: 1 + 2 + 1 = 4 -->
+      <check>
+        <type>exact_value</type>
+        <location>nbasis(bind_basis(HRF_SPMG1, HRF_SPMG2, HRF_GAMMA))</location>
+        <expected>4</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Span calculation: should take maximum -->
+      <check>
+        <type>exact_value</type>
+        <location>attr(bind_basis(HRF_SPMG1, HRF_GAMMA), "span")</location>
+        <expected>24</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Name concatenation -->
+      <check>
+        <type>exact_value</type>
+        <location>attr(bind_basis(HRF_SPMG1, HRF_GAMMA), "name")</location>
+        <expected>"SPMG1 + gamma"</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Matrix dimensions: 3 single-basis HRFs -->
+      <check>
+        <type>exact_value</type>
+        <location>ncol(bind_basis(HRF_SPMG1, HRF_GAMMA, HRF_GAUSSIAN)(seq(0, 20, by = 0.5)))</location>
+        <expected>3</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>nrow(bind_basis(HRF_SPMG1, HRF_GAMMA, HRF_GAUSSIAN)(seq(0, 20, by = 0.5)))</location>
+        <expected>41</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Matrix dimensions: mixed basis (1 + 2 + 1 = 4 columns) -->
+      <check>
+        <type>exact_value</type>
+        <location>ncol(bind_basis(HRF_SPMG1, HRF_SPMG2, HRF_GAMMA)(seq(0, 20, by = 0.5)))</location>
+        <expected>4</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Column correspondence: first column should match HRF_SPMG1 -->
+      <check>
+        <type>approximate</type>
+        <location>max(abs(bind_basis(HRF_SPMG1, HRF_GAMMA, HRF_GAUSSIAN)(seq(0, 20, by = 0.5))[, 1] - HRF_SPMG1(seq(0, 20, by = 0.5))))</location>
+        <expected>0</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <!-- Column correspondence: second column should match HRF_GAMMA -->
+      <check>
+        <type>approximate</type>
+        <location>max(abs(bind_basis(HRF_SPMG1, HRF_GAMMA, HRF_GAUSSIAN)(seq(0, 20, by = 0.5))[, 2] - HRF_GAMMA(seq(0, 20, by = 0.5))))</location>
+        <expected>0</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <!-- Column correspondence: third column should match HRF_GAUSSIAN -->
+      <check>
+        <type>approximate</type>
+        <location>max(abs(bind_basis(HRF_SPMG1, HRF_GAMMA, HRF_GAUSSIAN)(seq(0, 20, by = 0.5))[, 3] - HRF_GAUSSIAN(seq(0, 20, by = 0.5))))</location>
+        <expected>0</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <!-- Multi-basis HRF inclusion: SPMG2 has 2 columns -->
+      <check>
+        <type>exact_value</type>
+        <location>ncol(HRF_SPMG2(seq(0, 20, by = 0.5)))</location>
+        <expected>2</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Mixed combination: first column matches SPMG1 -->
+      <check>
+        <type>approximate</type>
+        <location>max(abs(bind_basis(HRF_SPMG1, HRF_SPMG2, HRF_GAMMA)(seq(0, 20, by = 0.5))[, 1] - HRF_SPMG1(seq(0, 20, by = 0.5))))</location>
+        <expected>0</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <!-- Mixed combination: columns 2-3 match SPMG2 -->
+      <check>
+        <type>approximate</type>
+        <location>max(abs(bind_basis(HRF_SPMG1, HRF_SPMG2, HRF_GAMMA)(seq(0, 20, by = 0.5))[, 2:3] - HRF_SPMG2(seq(0, 20, by = 0.5))))</location>
+        <expected>0</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <!-- Mixed combination: column 4 matches GAMMA -->
+      <check>
+        <type>approximate</type>
+        <location>max(abs(bind_basis(HRF_SPMG1, HRF_SPMG2, HRF_GAMMA)(seq(0, 20, by = 0.5))[, 4] - HRF_GAMMA(seq(0, 20, by = 0.5))))</location>
+        <expected>0</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <!-- Class preservation: should remain HRF and function -->
+      <check>
+        <type>exact_value</type>
+        <location>inherits(bind_basis(HRF_SPMG1, HRF_GAMMA), "HRF")</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>inherits(bind_basis(HRF_SPMG1, HRF_GAMMA), "function")</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Span with different input spans: should take maximum -->
+      <check>
+        <type>range</type>
+        <location>attr(bind_basis(as_hrf(hrf_gamma, span=15), as_hrf(hrf_gaussian, span=25)), "span")</location>
+        <min>24</min>
+        <max>25</max>
+      </check>
+      
+      <!-- Large combination: 5 HRFs -->
+      <check>
+        <type>exact_value</type>
+        <location>nbasis(bind_basis(HRF_SPMG1, HRF_SPMG2, HRF_SPMG3, HRF_GAMMA, HRF_GAUSSIAN))</location>
+        <expected>8</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <check>
+        <type>exact_value</type>
+        <location>ncol(bind_basis(HRF_SPMG1, HRF_SPMG2, HRF_SPMG3, HRF_GAMMA, HRF_GAUSSIAN)(seq(0, 20, by = 1)))</location>
+        <expected>8</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Evaluation consistency: combined should equal cbind of individuals -->
+      <check>
+        <type>approximate</type>
+        <location>max(abs(bind_basis(HRF_SPMG1, HRF_GAMMA)(seq(0, 20, by = 0.5)) - cbind(HRF_SPMG1(seq(0, 20, by = 0.5)), HRF_GAMMA(seq(0, 20, by = 0.5)))))</location>
+        <expected>0</expected>
+        <tolerance>1e-15</tolerance>
+      </check>
+      
+      <!-- Name combination with many HRFs -->
+      <check>
+        <type>exact_value</type>
+        <location>grepl("SPMG1.*gamma.*gaussian", attr(bind_basis(HRF_SPMG1, HRF_GAMMA, HRF_GAUSSIAN), "name"))</location>
+        <expected>1</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Empty params list -->
+      <check>
+        <type>exact_value</type>
+        <location>length(attr(bind_basis(HRF_SPMG1, HRF_GAMMA), "params"))</location>
+        <expected>0</expected>
+        <tolerance>0</tolerance>
+      </check>
+      
+      <!-- Two-way combination -->
+      <check>
+        <type>exact_value</type>
+        <location>nbasis(bind_basis(HRF_SPMG2, HRF_SPMG3))</location>
+        <expected>5</expected>
+        <tolerance>0</tolerance>
+      </check>
+    </numeric_checks>
+  </expected_outputs>
+  
+  <implementations>
+    <R><![CDATA[
+      # R reference implementation
+      # Function: bind_basis(...)
+      # Location: R/hrf.R lines 48-76
+      
+      # Test single HRF (should return unchanged)
+      single_result <- bind_basis(HRF_SPMG1)
+      
+      # Test three single-basis HRFs
+      triple_single <- bind_basis(HRF_SPMG1, HRF_GAMMA, HRF_GAUSSIAN)
+      
+      # Test mixed single and multi-basis
+      mixed_result <- bind_basis(HRF_SPMG1, HRF_SPMG2, HRF_GAMMA)
+      
+      # Test large combination
+      large_combo <- bind_basis(HRF_SPMG1, HRF_SPMG2, HRF_SPMG3, HRF_GAMMA, HRF_GAUSSIAN)
+      
+      # Test evaluation
+      time_vec <- seq(0, 20, by = 0.5)
+      eval_triple <- triple_single(time_vec)
+      eval_mixed <- mixed_result(time_vec)
+      
+      # Test attribute extraction
+      nbasis_triple <- nbasis(triple_single)
+      span_triple <- attr(triple_single, "span")
+      name_triple <- attr(triple_single, "name")
+      
+      # Test consistency with manual cbind
+      manual_combo <- cbind(HRF_SPMG1(time_vec), HRF_GAMMA(time_vec))
+      auto_combo <- bind_basis(HRF_SPMG1, HRF_GAMMA)(time_vec)
+    ]]></R>
+    
+    <Python><![CDATA[
+      # Python implementation following semantic specification
+      
+      import numpy as np
+      from typing import List, Callable, Any
+      
+      class HRF:
+          """Simple HRF class for demonstration."""
+          def __init__(self, func: Callable, name: str, nbasis: int, span: float, params: dict = None):
+              self.func = func
+              self.name = name
+              self.nbasis = nbasis
+              self.span = span
+              self.params = params or {}
+          
+          def __call__(self, t):
+              return self.func(t)
+      
+      def bind_basis(*hrfs: HRF) -> HRF:
+          """
+          Combine multiple HRF objects into a single multi-basis HRF.
+          
+          Args:
+              *hrfs: Variable number of HRF objects
+              
+          Returns:
+              Combined HRF object with matrix output
+          """
+          if len(hrfs) == 0:
+              raise ValueError("bind_basis requires at least one HRF object")
+          
+          # Validate all inputs are HRF objects
+          for hrf in hrfs:
+              if not isinstance(hrf, HRF):
+                  raise TypeError("All inputs must be HRF objects")
+          
+          # Handle single HRF case
+          if len(hrfs) == 1:
+              return hrfs[0]
+          
+          # Calculate combined attributes
+          combined_nbasis = sum(hrf.nbasis for hrf in hrfs)
+          combined_span = max(hrf.span for hrf in hrfs)
+          combined_name = " + ".join(hrf.name for hrf in hrfs)
+          
+          def combined_func(t):
+              """Combined function that evaluates all HRFs and concatenates results."""
+              t = np.asarray(t)
+              
+              # Evaluate each HRF
+              results = []
+              for hrf in hrfs:
+                  result = hrf(t)
+                  # Ensure result is 2D (matrix)
+                  if result.ndim == 1:
+                      result = result.reshape(-1, 1)
+                  results.append(result)
+              
+              # Column-concatenate results
+              return np.column_stack(results)
+          
+          # Create new combined HRF
+          return HRF(
+              func=combined_func,
+              name=combined_name,
+              nbasis=combined_nbasis,
+              span=combined_span,
+              params={}  # Empty params for combined HRF
+          )
+    ]]></Python>
+    
+    <Rust><![CDATA[
+      // Rust implementation following semantic specification
+      
+      use std::collections::HashMap;
+      use ndarray::{Array2, Axis};
+      
+      #[derive(Clone)]
+      pub struct HRF {
+          pub name: String,
+          pub nbasis: usize,
+          pub span: f64,
+          pub params: HashMap<String, f64>,
+          pub func: fn(&[f64]) -> Array2<f64>,
+      }
+      
+      impl HRF {
+          pub fn new(func: fn(&[f64]) -> Array2<f64>, name: String, nbasis: usize, span: f64) -> Self {
+              Self {
+                  func,
+                  name,
+                  nbasis,
+                  span,
+                  params: HashMap::new(),
+              }
+          }
+          
+          pub fn evaluate(&self, t: &[f64]) -> Array2<f64> {
+              (self.func)(t)
+          }
+      }
+      
+      pub fn bind_basis(hrfs: Vec<HRF>) -> Result<HRF, String> {
+          if hrfs.is_empty() {
+              return Err("bind_basis requires at least one HRF object".to_string());
+          }
+          
+          // Handle single HRF case
+          if hrfs.len() == 1 {
+              return Ok(hrfs.into_iter().next().unwrap());
+          }
+          
+          // Calculate combined attributes
+          let combined_nbasis: usize = hrfs.iter().map(|h| h.nbasis).sum();
+          let combined_span: f64 = hrfs.iter().map(|h| h.span).fold(0.0, f64::max);
+          let combined_name: String = hrfs.iter()
+              .map(|h| h.name.as_str())
+              .collect::<Vec<_>>()
+              .join(" + ");
+          
+          // Create combined function
+          let combined_func = move |t: &[f64]| -> Array2<f64> {
+              let mut results = Vec::new();
+              
+              for hrf in &hrfs {
+                  let result = hrf.evaluate(t);
+                  results.push(result);
+              }
+              
+              // Concatenate along column axis
+              let mut combined = results[0].clone();
+              for result in results.into_iter().skip(1) {
+                  combined = ndarray::concatenate![Axis(1), combined, result];
+              }
+              
+              combined
+          };
+          
+          Ok(HRF::new(combined_func, combined_name, combined_nbasis, combined_span))
+      }
+      
+      // Convenience function for two HRFs
+      pub fn bind_two_hrfs(hrf1: HRF, hrf2: HRF) -> Result<HRF, String> {
+          bind_basis(vec![hrf1, hrf2])
+      }
+    ]]></Rust>
+  </implementations>
+  
+  <propagation_status>
+    <implementation lang="R" status="completed"/>
+    <implementation lang="Python" status="pending"/>
+    <implementation lang="Rust" status="pending"/>
+  </propagation_status>
+</golden_test>
