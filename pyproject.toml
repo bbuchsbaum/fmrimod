@@ -1,0 +1,213 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fmrimod"
+version = "0.1.0"
+description = "fMRI Signal Modeling: HRFs, Design Matrices, and Regression"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "GPL-3.0-or-later"}
+authors = [
+    {name = "Bradley Buchsbaum", email = "brad.buchsbaum@gmail.com"},
+]
+keywords = [
+    "fMRI", "HRF", "neuroimaging", "hemodynamic response",
+    "design matrix", "GLM", "neuroscience", "BOLD",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+
+dependencies = [
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "pandas>=2.0.0",
+    "scikit-learn>=1.3.0",
+    "statsmodels>=0.14.0",
+    "patsy>=0.5.0",
+    "matplotlib>=3.7.0",
+    "typing-extensions>=4.5.0",
+]
+
+[project.optional-dependencies]
+plotting = [
+    "plotly>=5.0.0",
+    "seaborn>=0.12.0",
+]
+rich = [
+    "rich>=13.0.0",
+]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-xdist>=3.3.0",
+    "hypothesis>=6.82.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+    "pandas-stubs>=2.0.0",
+    "types-setuptools",
+    "pre-commit>=3.4.0",
+]
+test = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-xdist>=3.3.0",
+    "hypothesis>=6.82.0",
+    "pytest-benchmark>=4.0.0",
+]
+cross-test = [
+    "rpy2>=3.5.0",
+    "pytest>=7.4.0",
+    "pytest-json-report>=1.5.0",
+    "pytest-benchmark>=4.0.0",
+]
+jax = [
+    "jax>=0.4.0",
+    "jaxlib>=0.4.0",
+]
+nibabel = [
+    "nibabel>=4.0.0",
+]
+docs = [
+    "sphinx>=7.0.0",
+    "pydata-sphinx-theme>=0.15",
+    "sphinx-copybutton>=0.5",
+    "sphinx-design>=0.5",
+    "sphinx-autodoc-typehints>=1.24.0",
+    "numpydoc>=1.5.0",
+    "myst-parser>=2.0.0",
+    "matplotlib>=3.7.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/bbuchsbaum/fmrimod"
+Documentation = "https://fmrimod.readthedocs.io"
+Repository = "https://github.com/bbuchsbaum/fmrimod"
+Issues = "https://github.com/bbuchsbaum/fmrimod/issues"
+
+[project.entry-points."fmrimod.engines"]
+# Built-in engines (also registered at import time; entry points
+# allow third-party discovery without importing fmrimod.glm).
+runwise = "fmrimod.glm.engines.runwise:RunwiseEngine"
+sketch = "fmrimod.glm.engines.sketch:SketchEngine"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/fmrimod",
+    "/tests",
+    "/docs",
+    "/examples",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["fmrimod"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--tb=short",
+]
+testpaths = ["tests"]
+markers = [
+    "benchmark: marks tests as performance benchmarks",
+    "slow: marks tests as slow",
+    "cross_test: marks tests that require R packages via rpy2",
+    "rpy2: tests that compare results against R via rpy2",
+]
+filterwarnings = [
+    "ignore:scipy\\.misc is deprecated:DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["fmrimod"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if __name__ == .__main__.:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py39', 'py310', 'py311', 'py312']
+include = '\.pyi?$'
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "C90", # mccabe
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "A",   # flake8-builtins
+    "C4",  # flake8-comprehensions
+    "T10", # flake8-debugger
+    "ICN", # flake8-import-conventions
+    "PIE", # flake8-pie
+    "SIM", # flake8-simplify
+    "TID", # flake8-tidy-imports
+]
+ignore = [
+    "E501", # line too long (handled by black)
+    "B008", # do not perform function calls in argument defaults
+    "C901", # too complex
+    "N803", # argument name should be lowercase
+    "N806", # variable in function should be lowercase
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401", "F403"]
+"tests/*" = ["S101"]
+
+[tool.ruff.isort]
+known-third-party = [
+    "numpy", "scipy", "pandas", "matplotlib",
+    "sklearn", "statsmodels", "patsy", "plotly",
+]
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+no_implicit_reexport = true
+namespace_packages = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+    "scipy.*",
+    "sklearn.*",
+    "statsmodels.*",
+    "patsy.*",
+    "plotly.*",
+    "matplotlib.*",
+    "seaborn.*",
+]
+ignore_missing_imports = true

@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Buchsbaum
+    given-names: Bradley
+    email: brad.buchsbaum@gmail.com
+    orcid: https://orcid.org/0000-0000-0000-0000
+title: "pyfmrihrf: fMRI Hemodynamic Response Function (HRF) and Regressor Tools for Python"
+version: 0.1.0
+doi: 10.5281/zenodo.1234567
+date-released: 2024-01-01
+url: "https://github.com/bbuchsbaum/pyfmrihrf"
+license: MIT
+keywords:
+  - fMRI
+  - neuroimaging
+  - hemodynamic response function
+  - HRF
+  - Python
+abstract: |
+  pyfmrihrf is a Python package for working with hemodynamic response functions (HRFs) 
+  in fMRI data analysis. It provides tools for creating, manipulating, and using HRFs 
+  to build design matrices for general linear model (GLM) analysis of fMRI data. 
+  This package is a Python port of the R fmrihrf package.
