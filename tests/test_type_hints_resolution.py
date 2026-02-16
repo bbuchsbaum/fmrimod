@@ -13,7 +13,6 @@ def test_forward_type_hints_resolve_without_custom_namespace():
         "fmrimod.events.matrix": ["EventMatrix.split_columns", "EventMatrix.apply_transform"],
         "fmrimod.events.basis": ["EventBasis.to_matrix"],
         "fmrimod.formula.parser": ["parse_formula"],
-        "fmrimod.utils.misc": ["single_trial_regressor", "hrf_toeplitz"],
         "fmrimod.ar.whitening": ["whiten_apply", "whiten"],
         "fmrimod.regressor.core": ["Regressor.evaluate", "RegressorSet.evaluate"],
         "fmrimod.regressor.neural_input": ["neural_input"],

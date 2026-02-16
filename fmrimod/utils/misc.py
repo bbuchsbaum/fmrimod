@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Optional, List, Union, Callable, Any
+from typing import Optional, List, Union, Callable, Any, TYPE_CHECKING
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from ..hrf import HRF
-from ..regressor import Regressor
+if TYPE_CHECKING:
+    from ..regressor import Regressor
+else:
+    Regressor = Any
 
 
 def recycle_or_error(

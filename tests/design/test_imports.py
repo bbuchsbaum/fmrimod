@@ -1,6 +1,7 @@
 """Test basic imports and re-exports from fmrimod."""
 
-import pytest
+import importlib
+import sys
 
 
 def test_package_imports():
@@ -17,9 +18,9 @@ def test_pyfmrihrf_reexports():
     # Test core HRF exports
     from fmrimod import (
         HRF,
+        SamplingFrame,
         gen_hrf,
         regressor,
-        SamplingFrame,
     )
 
     # Core exports must be callable
@@ -36,14 +37,14 @@ def test_pyfmrihrf_reexports():
 
 def test_submodule_imports():
     """Test that submodules can be imported."""
+    import fmrimod.baseline
+    import fmrimod.basis
     import fmrimod.design
     import fmrimod.events
-    import fmrimod.basis
     import fmrimod.formula
-    import fmrimod.utils
-    import fmrimod.io
     import fmrimod.hrf
-    import fmrimod.baseline
+    import fmrimod.io
+    import fmrimod.utils
 
     # All should have __all__ attribute
     for module in [
@@ -57,3 +58,18 @@ def test_submodule_imports():
         fmrimod.baseline,
     ]:
         assert hasattr(module, '__all__')
+
+
+def test_module_import_order_robustness():
+    """Test import-ordering that previously triggered circular-import crashes."""
+    modules_to_clear = [
+        name
+        for name in list(sys.modules)
+        if name == "fmrimod"
+        or name.startswith("fmrimod.")
+    ]
+    for module_name in modules_to_clear:
+        del sys.modules[module_name]
+
+    importlib.import_module("fmrimod.utils.misc")
+    importlib.import_module("fmrimod.regressor")
