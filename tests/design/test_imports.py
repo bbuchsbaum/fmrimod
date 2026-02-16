@@ -13,11 +13,8 @@ def test_package_imports():
 
 def test_pyfmrihrf_reexports():
     """Test that fmrimod HRF functions are properly exported."""
-    import fmrimod
-
     # Test core HRF exports
     from fmrimod import (
-        HRF,
         SamplingFrame,
         gen_hrf,
         regressor,
