@@ -265,7 +265,7 @@ class TestValidateContrasts:
         X = np.random.randn(100, 3)
         weights = np.array([1, -1, 0])
 
-        for bad_tol in [np.nan, np.inf, -1e-3]:
+        for bad_tol in [np.nan, np.inf, -1e-3, "bad", None, {"tol": 1}]:
             with pytest.raises(
                 ValueError, match="tol must be a finite non-negative number"
             ):
