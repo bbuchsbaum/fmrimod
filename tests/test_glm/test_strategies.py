@@ -4,52 +4,146 @@ import numpy as np
 import pytest
 
 from fmrimod.glm.strategies import fit_run_ols, _pool_run_results
-from fmrimod.glm.preprocess import apply_volume_weights
+from fmrimod.glm.preprocess import apply_volume_weights, soft_subspace_projection
 from fmrimod.glm.solver import fast_preproject, fast_lm_matrix, LmResult, Projection
 from fmrimod.model.config import FmriLmConfig, SoftSubspaceOptions, VolumeWeightOptions
 
 
-def test_fit_run_ols_rejects_soft_subspace_auto_mode():
-    """fit_run_ols should not silently accept `soft_subspace.lam='auto'`."""
-    X = np.ones((8, 2), dtype=np.float64)
-    Y = np.ones((8, 3), dtype=np.float64)
-    nuisance = np.ones((8, 1), dtype=np.float64)
+class _DummyDatasetForSoftSubspace:
+    def __init__(self, mask: np.ndarray, run_lengths):
+        self._mask = np.asarray(mask, dtype=bool)
+        self.n_timepoints = list(run_lengths)
 
+    def get_mask(self):
+        return self._mask
+
+
+def test_fit_run_ols_accepts_soft_subspace_auto_mode():
+    """soft_subspace lam='auto' should run and match direct projection."""
+    rng = np.random.default_rng(0)
+    n, v = 20, 6
+    X = np.column_stack([np.ones(n), rng.standard_normal((n, 1))]).astype(np.float64)
+    Y = rng.standard_normal((n, v)).astype(np.float64)
+    nuisance = rng.standard_normal((n, 2)).astype(np.float64)
     config = FmriLmConfig(
-        soft_subspace=SoftSubspaceOptions(
-            enabled=True, nuisance_matrix=nuisance, lam="auto"
-        )
+        soft_subspace=SoftSubspaceOptions(enabled=True, nuisance_matrix=nuisance, lam="auto")
     )
 
-    with pytest.raises(NotImplementedError, match="soft subspace"):
-        fit_run_ols(X, Y, config)
+    result, proj, X_used, Y_used = fit_run_ols(X, Y, config)
+    X_ref, Y_ref = soft_subspace_projection(X, Y, nuisance, lam="auto")
+    ref_proj = fast_preproject(X_ref)
+    ref_result = fast_lm_matrix(X_ref, Y_ref, ref_proj, return_fitted=True)
+
+    np.testing.assert_allclose(X_used, X_ref, atol=1e-12)
+    np.testing.assert_allclose(Y_used, Y_ref, atol=1e-12)
+    np.testing.assert_allclose(result.betas, ref_result.betas, atol=1e-10)
+    np.testing.assert_allclose(result.sigma2, ref_result.sigma2, atol=1e-10)
+    np.testing.assert_allclose(proj.XtXinv, ref_proj.XtXinv, atol=1e-10)
 
 
-def test_fit_run_ols_rejects_soft_subspace_nuisance_mask_mode():
-    """nuisance_mask config should fail with explicit not-implemented message."""
-    X = np.ones((8, 2), dtype=np.float64)
-    Y = np.ones((8, 3), dtype=np.float64)
-
+def test_fit_run_ols_accepts_soft_subspace_gcv_mode():
+    """soft_subspace lam='gcv' should run and match direct projection."""
+    rng = np.random.default_rng(1)
+    n, v = 24, 5
+    X = np.column_stack([np.ones(n), rng.standard_normal((n, 2))]).astype(np.float64)
+    Y = rng.standard_normal((n, v)).astype(np.float64)
+    nuisance = rng.standard_normal((n, 3)).astype(np.float64)
     config = FmriLmConfig(
-        soft_subspace=SoftSubspaceOptions(
-            enabled=True, nuisance_mask="mask.nii", lam=0.1
-        )
+        soft_subspace=SoftSubspaceOptions(enabled=True, nuisance_matrix=nuisance, lam="gcv")
     )
 
-    with pytest.raises(NotImplementedError, match="nuisance_mask"):
-        fit_run_ols(X, Y, config)
+    result, proj, X_used, Y_used = fit_run_ols(X, Y, config)
+    X_ref, Y_ref = soft_subspace_projection(X, Y, nuisance, lam="gcv")
+    ref_proj = fast_preproject(X_ref)
+    ref_result = fast_lm_matrix(X_ref, Y_ref, ref_proj, return_fitted=True)
+
+    np.testing.assert_allclose(X_used, X_ref, atol=1e-10)
+    np.testing.assert_allclose(Y_used, Y_ref, atol=1e-10)
+    np.testing.assert_allclose(result.betas, ref_result.betas, atol=1e-8)
+    np.testing.assert_allclose(result.sigma2, ref_result.sigma2, atol=1e-8)
+    np.testing.assert_allclose(proj.XtXinv, ref_proj.XtXinv, atol=1e-8)
 
 
-def test_fit_run_ols_nuisance_mask_path_is_explicitly_not_implemented():
-    """nuisance_mask compatibility should fail with a clear placeholder error."""
-    X = np.ones((8, 2), dtype=np.float64)
-    Y = np.ones((8, 3), dtype=np.float64)
-    config = FmriLmConfig(
-        soft_subspace=SoftSubspaceOptions(enabled=True, nuisance_mask="mask.nii.gz", lam=0.1)
+def test_fit_run_ols_nuisance_mask_vector_matches_nuisance_matrix_path():
+    """nuisance_mask vector path should match explicit nuisance_matrix extraction."""
+    rng = np.random.default_rng(3)
+    n, v = 18, 7
+    X = np.column_stack([np.ones(n), rng.standard_normal((n, 1))]).astype(np.float64)
+    Y = rng.standard_normal((n, v)).astype(np.float64)
+    nuisance_mask = np.array([True, False, True, False, False, True, False], dtype=bool)
+    nuisance = Y[:, nuisance_mask]
+
+    cfg_mask = FmriLmConfig(
+        soft_subspace=SoftSubspaceOptions(enabled=True, nuisance_mask=nuisance_mask, lam=0.1)
+    )
+    cfg_mat = FmriLmConfig(
+        soft_subspace=SoftSubspaceOptions(enabled=True, nuisance_matrix=nuisance, lam=0.1)
     )
 
-    with pytest.raises(NotImplementedError, match="nuisance_mask"):
-        fit_run_ols(X, Y, config)
+    res_mask, proj_mask, X_mask, Y_mask = fit_run_ols(X, Y, cfg_mask)
+    res_mat, proj_mat, X_mat, Y_mat = fit_run_ols(X, Y, cfg_mat)
+
+    np.testing.assert_allclose(X_mask, X_mat, atol=1e-12)
+    np.testing.assert_allclose(Y_mask, Y_mat, atol=1e-12)
+    np.testing.assert_allclose(res_mask.betas, res_mat.betas, atol=1e-10)
+    np.testing.assert_allclose(res_mask.sigma2, res_mat.sigma2, atol=1e-10)
+    np.testing.assert_allclose(proj_mask.XtXinv, proj_mat.XtXinv, atol=1e-10)
+
+
+def test_fit_run_ols_nuisance_mask_3d_maps_via_dataset_mask():
+    """3-D nuisance masks should map to in-data voxel space via dataset mask."""
+    rng = np.random.default_rng(4)
+    n = 16
+    data_mask_3d = np.array([[[True]], [[False]], [[True]], [[True]], [[False]]], dtype=bool)
+    # in-data voxels correspond to indices [0, 2, 3] in full space
+    nuisance_mask_3d = np.array([[[False]], [[True]], [[True]], [[False]], [[False]]], dtype=bool)
+    X = np.column_stack([np.ones(n), rng.standard_normal((n, 1))]).astype(np.float64)
+    Y = rng.standard_normal((n, 3)).astype(np.float64)
+
+    ds = _DummyDatasetForSoftSubspace(data_mask_3d, [n])
+    cfg = FmriLmConfig(
+        soft_subspace=SoftSubspaceOptions(enabled=True, nuisance_mask=nuisance_mask_3d, lam=0.2)
+    )
+    res, proj, X_used, Y_used = fit_run_ols(X, Y, cfg, dataset=ds, run=0)
+
+    nuisance_vec = nuisance_mask_3d.ravel()[data_mask_3d.ravel()]
+    nuisance = Y[:, nuisance_vec]
+    X_ref, Y_ref = soft_subspace_projection(X, Y, nuisance, lam=0.2)
+    ref_proj = fast_preproject(X_ref)
+    ref_res = fast_lm_matrix(X_ref, Y_ref, ref_proj, return_fitted=True)
+
+    np.testing.assert_allclose(X_used, X_ref, atol=1e-12)
+    np.testing.assert_allclose(Y_used, Y_ref, atol=1e-12)
+    np.testing.assert_allclose(res.betas, ref_res.betas, atol=1e-10)
+    np.testing.assert_allclose(res.sigma2, ref_res.sigma2, atol=1e-10)
+    np.testing.assert_allclose(proj.XtXinv, ref_proj.XtXinv, atol=1e-10)
+
+
+def test_fit_run_ols_slices_allrun_nuisance_matrix_for_selected_run():
+    """All-run nuisance matrices should be sliced by run before fitting."""
+    rng = np.random.default_rng(5)
+    run_lengths = [10, 8]
+    n_total = sum(run_lengths)
+    X_run1 = np.column_stack([np.ones(run_lengths[1]), rng.standard_normal((run_lengths[1], 1))]).astype(np.float64)
+    Y_run1 = rng.standard_normal((run_lengths[1], 4)).astype(np.float64)
+    nuisance_all = rng.standard_normal((n_total, 2)).astype(np.float64)
+    nuisance_run1 = nuisance_all[run_lengths[0] : n_total]
+
+    ds = _DummyDatasetForSoftSubspace(np.ones((4, 1, 1), dtype=bool), run_lengths)
+    cfg = FmriLmConfig(
+        soft_subspace=SoftSubspaceOptions(enabled=True, nuisance_matrix=nuisance_all, lam=0.15)
+    )
+    res, proj, X_used, Y_used = fit_run_ols(X_run1, Y_run1, cfg, dataset=ds, run=1)
+
+    X_ref, Y_ref = soft_subspace_projection(X_run1, Y_run1, nuisance_run1, lam=0.15)
+    ref_proj = fast_preproject(X_ref)
+    ref_res = fast_lm_matrix(X_ref, Y_ref, ref_proj, return_fitted=True)
+
+    np.testing.assert_allclose(X_used, X_ref, atol=1e-12)
+    np.testing.assert_allclose(Y_used, Y_ref, atol=1e-12)
+    np.testing.assert_allclose(res.betas, ref_res.betas, atol=1e-10)
+    np.testing.assert_allclose(res.sigma2, ref_res.sigma2, atol=1e-10)
+    np.testing.assert_allclose(proj.XtXinv, ref_proj.XtXinv, atol=1e-10)
 
 
 def test_fit_run_ols_rejects_mismatched_volume_weight_length():
