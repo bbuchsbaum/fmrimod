@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from .base import BaseEvent
+from .events import EventBasis
 from .types import (
     Array,
     BasisProtocol,
@@ -176,6 +177,12 @@ def _(obj: BaseEvent) -> List[str]:
     return [obj.name]
 
 
+@columns.register(EventBasis)
+def _(obj: EventBasis) -> List[str]:
+    """Get basis function columns from EventBasis."""
+    return list(obj.basis_names)
+
+
 @columns.register(object)
 def _(obj: object) -> List[str]:
     """Fallback for objects exposing ``column_names``."""
@@ -218,6 +225,12 @@ def _(obj: BaseEvent) -> List[str]:
     return [obj.name]
 
 
+@conditions.register(EventBasis)
+def _(obj: EventBasis) -> List[str]:
+    """Get basis function names from EventBasis."""
+    return list(obj.basis_names)
+
+
 # Cell counting
 cells = GenericFunction("cells")
 
@@ -244,6 +257,12 @@ def _(obj: BaseEvent) -> int:
     if hasattr(obj, "basis_names"):
         return len(obj.basis_names)
     return 1
+
+
+@cells.register(EventBasis)
+def _(obj: EventBasis) -> int:
+    """Count basis function columns for EventBasis."""
+    return obj.n_basis
 
 
 # Element extraction

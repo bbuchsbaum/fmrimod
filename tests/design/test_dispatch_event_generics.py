@@ -70,3 +70,23 @@ def test_dispatch_event_basis_reports_multi_column_metadata():
     assert conditions(ev) == ev.basis_names
     assert cells(ev) == ev.n_basis
     np.testing.assert_array_equal(elements(ev), ev.expanded_values)
+
+
+def test_dispatch_event_basis_without_basis_metadata_falls_back_to_counted_columns():
+    """EventBasis with unnamed basis object should still expose multi-column metadata."""
+    class _TwoBasis:
+        def evaluate(self, x):
+            x = np.asarray(x).reshape(-1, 1)
+            return np.column_stack([x, x**2])
+
+    ev = EventBasis(
+        name="rating",
+        onsets=[1.0, 2.0],
+        durations=[1.0, 1.0],
+        values=[1.0, 2.0],
+        basis=_TwoBasis(),
+    )
+
+    assert columns(ev) == ["rating_basis1", "rating_basis2"]
+    assert conditions(ev) == ["rating_basis1", "rating_basis2"]
+    assert cells(ev) == 2
