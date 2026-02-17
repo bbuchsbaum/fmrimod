@@ -136,7 +136,46 @@ def fit_run_ols(
     Y_used : NDArray
         The (possibly preprocessed) data matrix that was actually fitted.
     """
-    # Keep zero-copy views unless a preprocessing step changes shape/values.
+    X_fit, Y_fit = _prepare_run_matrices(
+        X,
+        Y,
+        config,
+        censor=censor,
+        dataset=dataset,
+        run=run,
+    )
+
+    # 4. Fit OLS
+    proj = None
+    cache_key = None
+    if projection_cache is not None:
+        cache_key = _projection_cache_key(X_fit, compute_dtype)
+        proj = projection_cache.get(cache_key)
+    if proj is None:
+        proj = fast_preproject(X_fit, compute_dtype=compute_dtype)
+        if projection_cache is not None and cache_key is not None:
+            projection_cache[cache_key] = proj
+    result = fast_lm_matrix(
+        X_fit,
+        Y_fit,
+        proj,
+        return_fitted=return_fitted,
+        compute_dtype=compute_dtype,
+    )
+
+    return result, proj, X_fit, Y_fit
+
+
+def _prepare_run_matrices(
+    X: NDArray[np.float64],
+    Y: NDArray[np.float64],
+    config: FmriLmConfig,
+    *,
+    censor: Optional[NDArray[np.bool_]] = None,
+    dataset: Optional[object] = None,
+    run: Optional[int] = None,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Apply censoring/weighting/subspace preprocessing for one run."""
     X_fit = X
     Y_fit = Y
 
@@ -243,25 +282,7 @@ def fit_run_ols(
                 config.soft_subspace.lam,
             )
 
-    # 4. Fit OLS
-    proj = None
-    cache_key = None
-    if projection_cache is not None:
-        cache_key = _projection_cache_key(X_fit, compute_dtype)
-        proj = projection_cache.get(cache_key)
-    if proj is None:
-        proj = fast_preproject(X_fit, compute_dtype=compute_dtype)
-        if projection_cache is not None and cache_key is not None:
-            projection_cache[cache_key] = proj
-    result = fast_lm_matrix(
-        X_fit,
-        Y_fit,
-        proj,
-        return_fitted=return_fitted,
-        compute_dtype=compute_dtype,
-    )
-
-    return result, proj, X_fit, Y_fit
+    return X_fit, Y_fit
 
 
 def fit_runwise(
@@ -472,18 +493,14 @@ def fit_chunkwise(
 
     Notes
     -----
-    This strategy currently supports base OLS + censoring. AR, robust,
-    volume-weights, and soft-subspace preprocessing require full runwise
-    transforms and are intentionally rejected here.
+    This strategy supports the same per-run OLS preprocessing as
+    :func:`fit_run_ols` (censoring, volume weights, soft-subspace).
+    AR/robust post-processing remains runwise-only.
     """
     if config.ar.enabled:
         raise NotImplementedError("chunkwise engine does not yet support AR modeling")
     if config.robust.enabled:
         raise NotImplementedError("chunkwise engine does not yet support robust fitting")
-    if config.volume_weights.enabled:
-        raise NotImplementedError("chunkwise engine does not yet support volume_weights")
-    if config.soft_subspace.enabled:
-        raise NotImplementedError("chunkwise engine does not yet support soft_subspace")
     if chunk_size < 1:
         raise ValueError("chunk_size must be >= 1")
 
@@ -497,24 +514,19 @@ def fit_chunkwise(
         Y_r = model.dataset.get_data(r)  # type: ignore[attr-defined]
         X_r = model.design_matrix_array(run=r)  # type: ignore[attr-defined]
 
-        censor_r = None
         dataset = model.dataset  # type: ignore[attr-defined]
+        censor_r = None
         if hasattr(dataset, "get_censor"):
             censor_r = dataset.get_censor(r)
 
-        if censor_r is not None:
-            censor_arr = np.asarray(censor_r)
-            if censor_arr.dtype.kind in ("i", "u", "f"):
-                unique = np.unique(censor_arr)
-                if not np.all(np.isin(unique, [0, 1])):
-                    raise ValueError("Censor vector must be boolean or binary (0/1)")
-                censor_arr = censor_arr.astype(bool)
-            if np.any(censor_arr):
-                X_fit, Y_fit, _ = apply_censoring(X_r, Y_r, censor_arr)
-            else:
-                X_fit, Y_fit = X_r, Y_r
-        else:
-            X_fit, Y_fit = X_r, Y_r
+        X_fit, Y_fit = _prepare_run_matrices(
+            X_r,
+            Y_r,
+            config,
+            censor=censor_r,
+            dataset=dataset,
+            run=r,
+        )
 
         proj = None
         cache_key = None

@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from fmrimod.glm.fmri_lm import fmri_lm
-from fmrimod.model.config import FmriLmConfig, VolumeWeightOptions
+from fmrimod.model.config import FmriLmConfig, SoftSubspaceOptions, VolumeWeightOptions
 
 
 class _DummyDataset:
@@ -69,12 +68,34 @@ def test_chunkwise_parallel_matches_serial():
     np.testing.assert_allclose(parallel.XtXinv, serial.XtXinv, atol=1e-10)
 
 
-def test_chunkwise_rejects_volume_weights():
-    model = _build_model(seed=101, n_runs=1, n=60, p=4, v=20)
+def test_chunkwise_matches_runwise_volume_weights():
+    model = _build_model(seed=101, n_runs=2, n=60, p=4, v=20)
+    weights = np.linspace(0.5, 1.5, num=120, dtype=np.float64)
     cfg = FmriLmConfig(
-        volume_weights=VolumeWeightOptions(enabled=True, weights=np.ones(60, dtype=np.float64))
+        volume_weights=VolumeWeightOptions(enabled=True, weights=weights)
     )
 
-    with pytest.raises(NotImplementedError, match="volume_weights"):
-        fmri_lm(model, cfg, engine="chunkwise", chunk_size=10)
+    runwise = fmri_lm(model, cfg, engine="runwise")
+    chunked = fmri_lm(model, cfg, engine="chunkwise", chunk_size=10)
 
+    np.testing.assert_allclose(chunked.betas, runwise.betas, atol=1e-10)
+    np.testing.assert_allclose(chunked.sigma, runwise.sigma, atol=1e-10)
+    np.testing.assert_allclose(chunked.XtXinv, runwise.XtXinv, atol=1e-10)
+    assert chunked.residual_df == runwise.residual_df
+
+
+def test_chunkwise_matches_runwise_soft_subspace():
+    model = _build_model(seed=102, n_runs=2, n=70, p=5, v=24)
+    rng = np.random.default_rng(103)
+    nuisance = rng.standard_normal((140, 3)).astype(np.float64)
+    cfg = FmriLmConfig(
+        soft_subspace=SoftSubspaceOptions(enabled=True, nuisance_matrix=nuisance, lam=0.2)
+    )
+
+    runwise = fmri_lm(model, cfg, engine="runwise")
+    chunked = fmri_lm(model, cfg, engine="chunkwise", chunk_size=9)
+
+    np.testing.assert_allclose(chunked.betas, runwise.betas, atol=1e-10)
+    np.testing.assert_allclose(chunked.sigma, runwise.sigma, atol=1e-10)
+    np.testing.assert_allclose(chunked.XtXinv, runwise.XtXinv, atol=1e-10)
+    assert chunked.residual_df == runwise.residual_df
