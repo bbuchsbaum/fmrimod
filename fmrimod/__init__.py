@@ -95,6 +95,16 @@ def estimate_betas(*args, **kwargs):
     from .betas.extraction import estimate_betas as _estimate_betas
     return _estimate_betas(*args, **kwargs)
 
+def glm_ols(*args, **kwargs):
+    """Estimate trial-wise OLS betas. See :func:`fmrimod.betas.extraction.estimate_betas_ols`."""
+    from .betas.extraction import estimate_betas_ols as _glm_ols
+    return _glm_ols(*args, **kwargs)
+
+def glm_lss(*args, **kwargs):
+    """Estimate trial-wise LSS betas. See :func:`fmrimod.betas.extraction.estimate_betas_lss`."""
+    from .betas.extraction import estimate_betas_lss as _glm_lss
+    return _glm_lss(*args, **kwargs)
+
 # ── Bootstrap (lazy) ──────────────────────────────────────────────
 def bootstrap_glm(*args, **kwargs):
     """Bootstrap CIs for GLM. See :func:`fmrimod.glm.bootstrap.bootstrap_glm`."""
@@ -140,6 +150,8 @@ __all__ = [
     "fmri_lm",
     # Beta extraction
     "estimate_betas",
+    "glm_ols",
+    "glm_lss",
     # Bootstrap
     "bootstrap_glm",
 ]
