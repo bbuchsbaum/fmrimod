@@ -4,6 +4,8 @@ import numpy as np
 import pytest
 
 from fmrimod.glm.strategies import fit_run_ols
+from fmrimod.glm.preprocess import apply_volume_weights
+from fmrimod.glm.solver import fast_preproject, fast_lm_matrix
 from fmrimod.model.config import FmriLmConfig, SoftSubspaceOptions, VolumeWeightOptions
 
 
@@ -78,3 +80,55 @@ def test_fit_run_ols_rejects_nonbinary_numeric_censor():
 
     with pytest.raises(ValueError, match="Censor vector must be boolean or binary"):
         fit_run_ols(X, Y, FmriLmConfig(), censor_bad)
+
+
+def test_fit_run_ols_explicit_weights_matches_manual_weighted_solution():
+    """Explicit weights path should match manual weighted solve exactly."""
+    rng = np.random.default_rng(7)
+    n = 80
+    X = np.column_stack([np.ones(n), rng.standard_normal((n, 1))]).astype(np.float64)
+    beta = np.array([[1.0], [2.0]], dtype=np.float64)
+    Y = (X @ beta + rng.standard_normal((n, 1)) * 0.5).astype(np.float64)
+    weights = np.linspace(0.2, 1.0, n, dtype=np.float64)
+
+    config = FmriLmConfig(
+        volume_weights=VolumeWeightOptions(enabled=True, weights=weights)
+    )
+    result_runwise, proj_runwise, X_used, Y_used = fit_run_ols(X, Y, config)
+
+    Xw, Yw = apply_volume_weights(X, Y, weights)
+    proj_manual = fast_preproject(Xw)
+    result_manual = fast_lm_matrix(Xw, Yw, proj_manual, return_fitted=True)
+
+    np.testing.assert_allclose(X_used, Xw, atol=0.0, rtol=0.0)
+    np.testing.assert_allclose(Y_used, Yw, atol=0.0, rtol=0.0)
+    np.testing.assert_allclose(result_runwise.betas, result_manual.betas, atol=1e-12)
+    np.testing.assert_allclose(result_runwise.sigma2, result_manual.sigma2, atol=1e-12)
+    np.testing.assert_allclose(proj_runwise.XtXinv, proj_manual.XtXinv, atol=1e-12)
+
+
+def test_fit_run_ols_weighted_bool_vs_integer_censor_parity():
+    """With explicit weights, bool and 0/1 censor vectors should be equivalent."""
+    rng = np.random.default_rng(21)
+    n = 30
+    X = np.column_stack([np.ones(n), rng.standard_normal((n, 2))]).astype(np.float64)
+    Y = rng.standard_normal((n, 4)).astype(np.float64)
+    weights = np.linspace(0.3, 1.0, n, dtype=np.float64)
+
+    censor_bool = np.zeros(n, dtype=bool)
+    censor_bool[[2, 7, 19]] = True
+    censor_int = censor_bool.astype(np.int64)
+
+    config = FmriLmConfig(
+        volume_weights=VolumeWeightOptions(enabled=True, weights=weights)
+    )
+
+    res_bool, proj_bool, X_bool, Y_bool = fit_run_ols(X, Y, config, censor_bool)
+    res_int, proj_int, X_int, Y_int = fit_run_ols(X, Y, config, censor_int)
+
+    np.testing.assert_array_equal(X_int, X_bool)
+    np.testing.assert_array_equal(Y_int, Y_bool)
+    np.testing.assert_allclose(res_int.betas, res_bool.betas, atol=1e-12)
+    np.testing.assert_allclose(res_int.rss, res_bool.rss, atol=1e-12)
+    np.testing.assert_allclose(res_int.sigma2, res_bool.sigma2, atol=1e-12)
+    np.testing.assert_allclose(proj_int.XtXinv, proj_bool.XtXinv, atol=1e-12)
