@@ -312,6 +312,87 @@ class TestBootstrapGlm:
                 seed=0,
             )
 
+    def test_run_indices_must_be_strictly_increasing_per_run(self, rng):
+        n, p, V = 10, 2, 1
+        X = np.column_stack([np.ones(n), rng.standard_normal((n, 1))])
+        Y = rng.standard_normal((n, V))
+        bad = [np.array([0, 2, 1, 3, 4]), np.array([5, 6, 7, 8, 9])]
+
+        with pytest.raises(ValueError, match="strictly increasing"):
+            bootstrap_glm(X, Y, n_boot=4, run_indices=bad, seed=0)
+
+    def test_run_indices_must_partition_rows_exactly_once(self, rng):
+        n, p, V = 10, 2, 1
+        X = np.column_stack([np.ones(n), rng.standard_normal((n, 1))])
+        Y = rng.standard_normal((n, V))
+        dup = [np.array([0, 1, 2, 3, 4]), np.array([4, 5, 6, 7, 8])]
+        missing = [np.array([0, 1, 2, 3, 4]), np.array([6, 7, 8, 9])]
+
+        with pytest.raises(ValueError, match="partition rows .* exactly once"):
+            bootstrap_glm(X, Y, n_boot=4, run_indices=dup, seed=0)
+        with pytest.raises(ValueError, match="partition rows .* exactly once"):
+            bootstrap_glm(X, Y, n_boot=4, run_indices=missing, seed=0)
+
+    def test_run_indices_must_be_strictly_increasing_within_run(self, rng):
+        n, p, V = 10, 2, 1
+        X = np.column_stack([np.ones(n), rng.standard_normal((n, 1))])
+        Y = rng.standard_normal((n, V))
+        run_indices = [np.array([0, 2, 1, 3]), np.array([4, 5, 6, 7, 8, 9])]
+
+        with pytest.raises(ValueError, match="strictly increasing within each run"):
+            bootstrap_glm(X, Y, n_boot=4, block_size=2, run_indices=run_indices, seed=0)
+
+    def test_run_indices_must_partition_all_rows_without_duplicates(self, rng):
+        n, p, V = 10, 2, 1
+        X = np.column_stack([np.ones(n), rng.standard_normal((n, 1))])
+        Y = rng.standard_normal((n, V))
+
+        dup = [np.arange(0, 6), np.array([5, 6, 7, 8, 9])]  # duplicate index 5
+        with pytest.raises(ValueError, match="partition rows 0..n-1 exactly once"):
+            bootstrap_glm(X, Y, n_boot=4, block_size=2, run_indices=dup, seed=0)
+
+        missing = [np.arange(0, 4), np.arange(5, 10)]  # missing index 4
+        with pytest.raises(ValueError, match="partition rows 0..n-1 exactly once"):
+            bootstrap_glm(X, Y, n_boot=4, block_size=2, run_indices=missing, seed=0)
+
+    def test_run_indices_must_be_strictly_increasing_within_run(self, rng):
+        n, p, V = 10, 2, 1
+        X = np.column_stack([np.ones(n), rng.standard_normal((n, 1))])
+        Y = rng.standard_normal((n, V))
+        run_indices = [np.array([0, 2, 1, 3, 4]), np.arange(5, 10)]
+
+        with pytest.raises(ValueError, match="strictly increasing"):
+            bootstrap_glm(
+                X,
+                Y,
+                n_boot=4,
+                block_size=3,
+                run_indices=run_indices,
+                seed=0,
+            )
+
+    @pytest.mark.parametrize(
+        "run_indices",
+        [
+            [np.array([0, 1, 2, 3, 4]), np.array([4, 5, 6, 7, 8, 9])],  # duplicate
+            [np.array([0, 1, 2, 3]), np.array([5, 6, 7, 8, 9])],  # missing 4
+        ],
+    )
+    def test_run_indices_must_partition_all_rows_exactly_once(self, rng, run_indices):
+        n, p, V = 10, 2, 1
+        X = np.column_stack([np.ones(n), rng.standard_normal((n, 1))])
+        Y = rng.standard_normal((n, V))
+
+        with pytest.raises(ValueError, match="partition all rows exactly once"):
+            bootstrap_glm(
+                X,
+                Y,
+                n_boot=4,
+                block_size=3,
+                run_indices=run_indices,
+                seed=0,
+            )
+
     def test_default_block_size_matches_fmrireg_single_run_rule(self, rng):
         """Parity: default block_size should be round(max(10, n/20))."""
         n, p, V = 400, 2, 2

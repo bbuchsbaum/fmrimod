@@ -131,6 +131,16 @@ def _create_blocks_from_run_indices(
     if np.any(all_idx < 0) or np.any(all_idx >= n):
         raise ValueError("run_indices must contain indices in [0, n) or [1, n]")
 
+    if any(np.any(np.diff(run) <= 0) for run in runs):
+        raise ValueError("run_indices must be strictly increasing within each run")
+
+    counts = np.bincount(all_idx, minlength=n)
+    if counts.shape[0] != n or not np.all(counts == 1):
+        raise ValueError(
+            "run_indices must partition rows 0..n-1 exactly once "
+            "(partition all rows exactly once)"
+        )
+
     blocks: List[NDArray[np.intp]] = []
     for run in runs:
         for i in range(0, run.size, block_size):
