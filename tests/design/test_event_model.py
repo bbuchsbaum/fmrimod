@@ -6,6 +6,7 @@ import pandas as pd
 
 from fmrimod.design.event_model import EventModel, event_model
 from fmrimod.events.factor import EventFactor
+from fmrimod.events.matrix import EventMatrix
 from fmrimod.events.variable import EventVariable
 from fmrimod.formula.base import Term, EventModelBuilder
 from fmrimod.sampling import SamplingFrame
@@ -1630,3 +1631,38 @@ class TestCoverageBoost:
         X = model.design_matrix
         assert X.shape == (45, 1)  # 10+20+15 = 45 total scans
         assert np.max(X) > 0
+
+    def test_subset_event_term_preserves_event_matrix_column_names(self):
+        """Block subsetting should preserve explicit EventMatrix column names."""
+        sf = SamplingFrame(blocklens=[10, 10], TR=1.0)
+        event = EventMatrix(
+            name="motion",
+            onsets=[1, 3, 11, 13],
+            values=np.array(
+                [
+                    [0.1, 1.0],
+                    [0.2, 1.1],
+                    [0.3, 1.2],
+                    [0.4, 1.3],
+                ]
+            ),
+            durations=1.0,
+            column_names=["roll", "pitch"],
+        )
+        model = EventModel(
+            terms=[Term("motion", hrf="simple")],
+            events={"motion": event},
+            sampling_info=sf,
+            blockids=np.array([1, 1, 2, 2]),
+        )
+        event_term = model._create_event_terms()[0]
+
+        subset = model._subset_event_term(
+            event_term=event_term,
+            mask=np.array([True, True, False, False]),
+            onset_shift=0.0,
+        )
+
+        assert subset is not None
+        assert isinstance(subset.events[0], EventMatrix)
+        assert subset.events[0].column_names == ["roll", "pitch"]

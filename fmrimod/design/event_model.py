@@ -1271,6 +1271,7 @@ class EventModel(ModelProtocol):
                     onsets=event.onsets[mask] + onset_shift,
                     values=event.values[mask],
                     durations=event.durations[mask],
+                    column_names=event.column_names,
                 )
             else:
                 # For other types, try generic subsetting

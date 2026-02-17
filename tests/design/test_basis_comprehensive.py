@@ -834,6 +834,30 @@ class TestConditionBasis:
         assert result.shape[0] == 10  # n_scans
         assert result.shape[1] >= 1  # at least one column
 
+    def test_condition_basis_list_rejects_unknown_output(self):
+        """Invalid output mode should raise a clear ValueError."""
+        from fmrimod import condition_basis_list
+        from fmrimod.events import EventFactor
+        from fmrimod.sampling import SamplingFrame
+        from fmrimod.events.term import EventTerm
+        from fmrimod import SPM_CANONICAL
+
+        event = EventFactor(
+            name='stim',
+            onsets=[2, 6, 10],
+            values=['X', 'X', 'X'],
+            durations=1
+        )
+
+        event_term = EventTerm([event])
+        sf = SamplingFrame(tr=2.0, n_scans=10)
+
+        with pytest.raises(
+            ValueError,
+            match="output must be 'condition_list' or 'matrix'",
+        ):
+            condition_basis_list(event_term, SPM_CANONICAL, sf, output="bad_mode")
+
     def test_condition_basis_list_multi_basis_hrf(self):
         """Test with multi-basis HRF."""
         from fmrimod import condition_basis_list

@@ -236,7 +236,9 @@ def split_by_block(event: EventProtocol,
                 onsets=block_onsets,
                 values=block_values,
                 durations=block_durations,
-                columns=event.columns if hasattr(event, 'columns') else None
+                column_names=(
+                    event.column_names if hasattr(event, "column_names") else None
+                ),
             )
             
         elif isinstance(event, EventBasis):

@@ -283,3 +283,30 @@ class TestEventUtils:
         assert isinstance(blocks['B'], EventBasis)
         assert blocks['A'].basis is basis
         assert blocks['B'].basis is basis
+
+    def test_split_by_block_event_matrix_preserves_column_names(self):
+        """EventMatrix split should preserve column names and values."""
+        onsets = np.array([1, 3, 5, 7])
+        values = np.array(
+            [
+                [0.1, 1.0],
+                [0.2, 1.1],
+                [0.3, 1.2],
+                [0.4, 1.3],
+            ]
+        )
+        event = EventMatrix(
+            "motion",
+            onsets,
+            values=values,
+            column_names=["x", "y"],
+        )
+
+        blocks = split_by_block(event, ["run1", "run1", "run2", "run2"])
+
+        assert isinstance(blocks["run1"], EventMatrix)
+        assert isinstance(blocks["run2"], EventMatrix)
+        assert blocks["run1"].column_names == ["x", "y"]
+        assert blocks["run2"].column_names == ["x", "y"]
+        np.testing.assert_array_equal(blocks["run1"].values, values[:2, :])
+        np.testing.assert_array_equal(blocks["run2"].values, values[2:, :])

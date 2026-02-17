@@ -1,6 +1,5 @@
 """Per-condition basis splitting for design matrices."""
 import numpy as np
-from .naming import make_column_names
 
 
 def condition_basis_list(event_term, hrf, sampling_frame, output="condition_list"):
@@ -30,8 +29,9 @@ def condition_basis_list(event_term, hrf, sampling_frame, output="condition_list
     from .design.event_model import EventModel
     from .formula.base import Term
 
-    # Create a minimal model to leverage existing convolution
-    grid = sampling_frame.samples
+    if output not in {"condition_list", "matrix"}:
+        raise ValueError("output must be 'condition_list' or 'matrix'")
+
     nb = hrf.nbasis
 
     # Get conditions from the event term
