@@ -3,7 +3,11 @@
 import numpy as np
 import pytest
 
-from fmrimod.glm.preprocess import compute_dvars, dvars_weights
+from fmrimod.glm.preprocess import (
+    compute_dvars,
+    dvars_weights,
+    extract_nuisance_timeseries,
+)
 
 
 def test_compute_dvars_matches_fmrireg_formula():
@@ -74,3 +78,29 @@ def test_dvars_weights_tukey_matches_fmrireg_formula():
 def test_dvars_weights_rejects_negative_dvars():
     with pytest.raises(ValueError, match="DVARS values must be non-negative"):
         dvars_weights(np.array([0.0, -0.1, 1.0]))
+
+
+def test_extract_nuisance_timeseries_accepts_pathlike_mask_file(tmp_path):
+    nib = pytest.importorskip("nibabel")
+
+    y = np.arange(20, dtype=np.float64).reshape(5, 4)
+    mask = np.array([[[1]], [[0]], [[1]], [[0]]], dtype=np.uint8)
+    mask_path = tmp_path / "nuisance_mask.nii.gz"
+    nib.save(nib.Nifti1Image(mask, affine=np.eye(4)), str(mask_path))
+
+    nuisance = extract_nuisance_timeseries(y, mask_path)
+    np.testing.assert_array_equal(nuisance, y[:, [0, 2]])
+
+
+def test_extract_nuisance_timeseries_path_mask_maps_via_dataset_mask(tmp_path):
+    nib = pytest.importorskip("nibabel")
+
+    y = np.arange(15, dtype=np.float64).reshape(5, 3)
+    # Full-space nuisance mask (4 voxels), then mapped through dataset_mask.
+    nuisance_full = np.array([[[1]], [[0]], [[1]], [[0]]], dtype=np.uint8)
+    dataset_mask = np.array([[[1]], [[0]], [[1]], [[1]]], dtype=bool)
+    mask_path = tmp_path / "nuisance_full_mask.nii.gz"
+    nib.save(nib.Nifti1Image(nuisance_full, affine=np.eye(4)), str(mask_path))
+
+    nuisance = extract_nuisance_timeseries(y, mask_path, dataset_mask=dataset_mask)
+    np.testing.assert_array_equal(nuisance, y[:, [0, 1]])

@@ -5,6 +5,7 @@ Includes volume weighting, soft subspace projection, and censoring.
 
 from __future__ import annotations
 
+import os
 from typing import Optional, Tuple, Union
 import warnings
 
@@ -226,7 +227,7 @@ def extract_nuisance_timeseries(
         Nuisance mask specification:
         - 1-D boolean/numeric vector
         - 3-D boolean/numeric array
-        - path to a NIfTI mask file (requires nibabel)
+        - path/path-like to a NIfTI mask file (requires nibabel)
     dataset_mask : NDArray[bool], optional
         Full dataset spatial mask (typically 3-D). When provided and
         ``nuisance_mask`` is in full-volume space, it is mapped into
@@ -242,14 +243,14 @@ def extract_nuisance_timeseries(
         raise ValueError("Y must be a 2-D matrix")
 
     mask_obj = nuisance_mask
-    if isinstance(mask_obj, str):
+    if isinstance(mask_obj, (str, bytes, os.PathLike)):
         try:
             import nibabel as nib  # type: ignore[import-not-found]
         except Exception as exc:  # pragma: no cover - import guard
             raise ImportError(
                 "nuisance_mask path support requires nibabel to be installed"
             ) from exc
-        mask_arr = np.asarray(nib.load(mask_obj).get_fdata(), dtype=bool)
+        mask_arr = np.asarray(nib.load(os.fspath(mask_obj)).get_fdata(), dtype=bool)
     else:
         mask_arr = np.asarray(mask_obj)
 
