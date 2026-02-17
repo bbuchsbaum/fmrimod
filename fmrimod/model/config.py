@@ -53,6 +53,8 @@ class RobustOptions:
             self.scale_scope = "voxel"
         if self.scale_scope not in ("run", "global", "voxel"):
             raise ValueError("scale_scope must be 'run', 'global', or 'voxel'")
+        if not isinstance(self.reestimate_phi, (bool, np.bool_)):
+            raise ValueError("reestimate_phi must be a boolean scalar")
 
     @property
     def enabled(self) -> bool:

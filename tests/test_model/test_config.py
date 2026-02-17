@@ -46,6 +46,17 @@ class TestRobustOptions:
         opts = RobustOptions(scale_scope="local")
         assert opts.scale_scope == "voxel"
 
+    def test_reestimate_phi_requires_boolean_scalar(self):
+        with pytest.raises(ValueError, match="reestimate_phi must be a boolean scalar"):
+            RobustOptions(reestimate_phi=1)
+        with pytest.raises(ValueError, match="reestimate_phi must be a boolean scalar"):
+            RobustOptions(reestimate_phi="yes")
+
+    def test_reestimate_phi_must_be_boolean_scalar(self):
+        for value in [1, "yes"]:
+            with pytest.raises(ValueError, match="reestimate_phi must be a boolean scalar"):
+                RobustOptions(reestimate_phi=value)
+
 
 class TestAROptions:
     def test_defaults(self):
