@@ -60,28 +60,59 @@ def apply_volume_weights(
     return X_w, Y_w
 
 
-def compute_dvars(Y: NDArray[np.float64]) -> NDArray[np.float64]:
+def compute_dvars(
+    Y: NDArray[np.float64],
+    normalize: bool = True,
+) -> NDArray[np.float64]:
     """Compute DVARS (temporal derivative of voxelwise variance).
+
+    Parity with fmrireg:
+    - first timepoint is set to median of subsequent DVARS values
+    - optional normalization by median DVARS (enabled by default)
 
     Parameters
     ----------
     Y : NDArray
         Data matrix, shape ``(n, V)``.
+    normalize : bool
+        If ``True``, divide by median DVARS (fmrireg default).
 
     Returns
     -------
     NDArray
-        DVARS values, shape ``(n,)``.  The first value is 0.
+        DVARS values, shape ``(n,)``.
     """
-    diff = np.diff(Y, axis=0)
-    dvars = np.sqrt(np.mean(diff ** 2, axis=1))
-    return np.concatenate([[0.0], dvars])
+    Y = np.asarray(Y, dtype=np.float64)
+    if Y.ndim == 1:
+        Y = Y[:, np.newaxis]
+    if Y.ndim != 2:
+        raise ValueError("Y must be a 1-D or 2-D array")
+
+    n = Y.shape[0]
+    if n < 2:
+        raise ValueError("DVARS requires at least 2 timepoints")
+
+    # Temporal derivative: Y[t] - Y[t-1]
+    dY = np.diff(Y, axis=0)
+    # RMS across voxels for each timepoint
+    dvars_raw = np.sqrt(np.mean(dY ** 2, axis=1))
+
+    # First timepoint has no derivative; use median of subsequent values
+    dvars = np.concatenate([[np.median(dvars_raw)], dvars_raw])
+
+    if normalize:
+        med = np.median(dvars)
+        if med > 0:
+            dvars = dvars / med
+
+    return dvars
 
 
 def dvars_weights(
     dvars: NDArray[np.float64],
     method: str = "inverse_squared",
     threshold: float = 1.5,
+    steepness: float = 2.0,
 ) -> NDArray[np.float64]:
     """Convert DVARS into per-volume weights.
 
@@ -93,32 +124,40 @@ def dvars_weights(
         ``"inverse_squared"``, ``"soft_threshold"``, or ``"tukey"``.
     threshold : float
         Threshold in MAD units.
+    steepness : float
+        Decay steepness for ``"soft_threshold"`` method.
 
     Returns
     -------
     NDArray
-        Weights in ``[0, 1]``, shape ``(n,)``.
+        Weights, shape ``(n,)``.
     """
-    # Robust scale: MAD
-    med = np.median(dvars[dvars > 0]) if np.any(dvars > 0) else 1.0
-    mad = np.median(np.abs(dvars - med)) * 1.4826
-    if mad < 1e-10:
-        return np.ones_like(dvars)
-
-    z = (dvars - med) / mad
-
+    dvars = np.asarray(dvars, dtype=np.float64).ravel()
+    if np.any(dvars < 0):
+        raise ValueError("DVARS values must be non-negative")
+    if threshold <= 0:
+        raise ValueError("threshold must be > 0")
     if method == "inverse_squared":
-        w = 1.0 / (1.0 + np.maximum(z / threshold, 0.0) ** 2)
+        # w = 1 / (1 + dvars^2)
+        w = 1.0 / (1.0 + dvars ** 2)
     elif method == "soft_threshold":
-        w = np.where(z <= threshold, 1.0, threshold / np.maximum(np.abs(z), 1e-10))
+        # Sigmoid-like decay above threshold
+        w = 1.0 / (
+            1.0 + ((np.maximum(dvars, threshold) - threshold) / threshold) ** steepness
+        )
     elif method == "tukey":
-        # Tukey bisquare
-        c = threshold
-        w = np.where(np.abs(z) <= c, (1.0 - (z / c) ** 2) ** 2, 0.0)
+        c_tukey = threshold * 2.0
+        u = dvars / c_tukey
+        w = np.where(np.abs(u) <= 1.0, (1.0 - u ** 2) ** 2, 0.0)
     else:
         raise ValueError(f"Unknown method: {method}")
 
-    return np.clip(w, 0.0, 1.0)
+    # Ensure weights are in [0, 1], then normalize mean to ~1
+    w = np.clip(w, 0.0, 1.0)
+    mean_w = np.mean(w)
+    if mean_w > 0:
+        w = w / mean_w
+    return w
 
 
 def apply_censoring(
