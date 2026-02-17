@@ -55,7 +55,14 @@ def fit_run_ols(
     X_fit = X.copy()
     Y_fit = Y.copy()
 
-    # 1. Censoring
+    # 1. Censoring — coerce integer 0/1 to boolean for fmrireg parity
+    if censor is not None:
+        censor = np.asarray(censor)
+        if censor.dtype.kind in ("i", "u", "f"):
+            unique = np.unique(censor)
+            if not np.all(np.isin(unique, [0, 1])):
+                raise ValueError("Censor vector must be boolean or binary (0/1)")
+            censor = censor.astype(bool)
     if censor is not None and np.any(censor):
         X_fit, Y_fit, _ = apply_censoring(X_fit, Y_fit, censor)
 
