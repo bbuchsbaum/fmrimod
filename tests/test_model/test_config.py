@@ -76,6 +76,20 @@ class TestVolumeWeightOptions:
         with pytest.raises(ValueError, match="threshold"):
             VolumeWeightOptions(threshold=-1.0)
 
+    def test_weights_must_be_1d(self):
+        with pytest.raises(ValueError, match="1-D"):
+            VolumeWeightOptions(weights=np.ones((5, 1)))
+
+    def test_weights_must_be_finite(self):
+        bad = np.array([1.0, np.nan, 0.5])
+        with pytest.raises(ValueError, match="finite"):
+            VolumeWeightOptions(weights=bad)
+
+    def test_weights_must_be_nonnegative(self):
+        bad = np.array([1.0, -0.1, 0.5])
+        with pytest.raises(ValueError, match="non-negative"):
+            VolumeWeightOptions(weights=bad)
+
 
 class TestSoftSubspaceOptions:
     def test_defaults(self):
