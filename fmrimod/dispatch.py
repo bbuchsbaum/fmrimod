@@ -118,7 +118,10 @@ columns = GenericFunction("columns")
 @columns.register(ModelProtocol)
 def _(obj: ModelProtocol) -> List[str]:
     """Get column names from model."""
-    return obj.column_names()
+    col_attr = obj.column_names
+    if callable(col_attr):
+        return col_attr()
+    return list(col_attr)
 
 @columns.register(pd.DataFrame)
 def _(obj: pd.DataFrame) -> List[str]:
@@ -134,6 +137,18 @@ def _(obj: np.ndarray) -> List[str]:
         return [f"V{i+1}" for i in range(obj.shape[1])]
     else:
         raise ValueError(f"Cannot get columns for {obj.ndim}D array")
+
+
+@columns.register(object)
+def _(obj: object) -> List[str]:
+    """Fallback for objects exposing ``column_names``."""
+    if not hasattr(obj, "column_names"):
+        raise AttributeError(f"Object of type {type(obj).__name__} has no column_names")
+
+    col_attr = getattr(obj, "column_names")
+    if callable(col_attr):
+        return col_attr()
+    return list(col_attr)
 
 
 # Conditions/levels extraction
