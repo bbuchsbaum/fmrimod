@@ -35,6 +35,25 @@ def apply_volume_weights(
     X_w, Y_w : tuple of NDArray
         Weighted design and data matrices.
     """
+    X = np.asarray(X, dtype=np.float64)
+    Y = np.asarray(Y, dtype=np.float64)
+    weights = np.asarray(weights, dtype=np.float64)
+
+    if X.ndim != 2 or Y.ndim != 2:
+        raise ValueError("X and Y must both be 2-D matrices")
+    if X.shape[0] != Y.shape[0]:
+        raise ValueError("X and Y must have the same number of rows")
+    if weights.ndim != 1:
+        raise ValueError("weights must be a 1-D array")
+    if weights.shape[0] != X.shape[0]:
+        raise ValueError(
+            f"weights length {weights.shape[0]} does not match matrix rows {X.shape[0]}"
+        )
+    if not np.all(np.isfinite(weights)):
+        raise ValueError("weights must be finite")
+    if np.any(weights < 0):
+        raise ValueError("weights must be non-negative")
+
     w_sqrt = np.sqrt(np.maximum(weights, 0.0))
     X_w = X * w_sqrt[:, np.newaxis]
     Y_w = Y * w_sqrt[:, np.newaxis]
