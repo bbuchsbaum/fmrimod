@@ -106,6 +106,31 @@ class TestContrastF:
         assert res.stat_type == "F"
         assert np.all(res.stat > 4.0)  # F = t^2 should be large
 
+    def test_single_row_f_matches_t_squared(self, fitted_model):
+        """Single-row F contrasts should equal squared t contrasts voxelwise."""
+        con_vec = np.array([0.0, 1.0, 0.0, 0.0])
+        con_mat = con_vec[np.newaxis, :]
+
+        t_res = contrast_t(
+            con_vec, fitted_model["betas"], fitted_model["XtXinv"],
+            fitted_model["sigma"], fitted_model["dfres"],
+        )
+        f_res = contrast_f(
+            con_mat, fitted_model["betas"], fitted_model["XtXinv"],
+            fitted_model["sigma"], fitted_model["dfres"],
+        )
+        f_res_vec = contrast_f_vectorized(
+            con_mat, fitted_model["betas"], fitted_model["XtXinv"],
+            fitted_model["sigma"], fitted_model["dfres"],
+        )
+
+        np.testing.assert_allclose(f_res.stat, t_res.stat ** 2, atol=1e-10, rtol=1e-10)
+        np.testing.assert_allclose(f_res_vec.stat, t_res.stat ** 2, atol=1e-10, rtol=1e-10)
+
+        p_from_t = 2.0 * sp_stats.t.sf(np.abs(t_res.stat), fitted_model["dfres"])
+        np.testing.assert_allclose(f_res.p_value, p_from_t, atol=1e-12, rtol=1e-12)
+        np.testing.assert_allclose(f_res_vec.p_value, p_from_t, atol=1e-12, rtol=1e-12)
+
     def test_multi_row_f(self, fitted_model):
         """Joint test of regressors 1 and 2."""
         con = np.array([
