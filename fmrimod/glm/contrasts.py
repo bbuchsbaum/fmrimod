@@ -8,10 +8,64 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional, Union
+import warnings
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy import stats as sp_stats
+
+
+def _validate_f_contrast_matrix(
+    con_mat: NDArray[np.float64], n_coefficients: int
+) -> NDArray[np.float64]:
+    """Validate and normalize an F-contrast matrix."""
+    con_mat = np.atleast_2d(np.asarray(con_mat, dtype=np.float64))
+    if con_mat.shape[0] == 0:
+        raise ValueError("F-contrast matrix must have at least one contrast row")
+    if con_mat.shape[1] != n_coefficients:
+        raise ValueError(
+            f"F-contrast matrix has {con_mat.shape[1]} columns but model has "
+            f"{n_coefficients} coefficients"
+        )
+    return con_mat
+
+
+def _f_quadratic_form_terms(
+    con_mat: NDArray[np.float64],
+    betas: NDArray[np.float64],
+    XtXinv: NDArray[np.float64],
+) -> tuple[NDArray[np.float64], NDArray[np.float64], int]:
+    """Compute stable F-test quadratic-form numerators."""
+    CB = con_mat @ betas  # (k, V)
+    cov = con_mat @ XtXinv @ con_mat.T  # (k, k)
+
+    df1 = int(np.linalg.matrix_rank(cov))
+    if df1 <= 0:
+        return CB, np.zeros(betas.shape[1], dtype=np.float64), 1
+
+    # Use pseudoinverse for rank-deficient or highly ill-conditioned covariance
+    # to keep loop and vectorized paths numerically aligned.
+    cond = np.linalg.cond(cov)
+    use_pinv = (
+        df1 < cov.shape[0]
+        or not np.isfinite(cond)
+        or cond > 1.0 / np.sqrt(np.finfo(np.float64).eps)
+    )
+
+    if use_pinv:
+        warnings.warn(
+            "F-contrast covariance is singular; using pseudoinverse fallback",
+            RuntimeWarning,
+            stacklevel=3,
+        )
+        cov_inv = np.linalg.pinv(cov)
+        numer = np.sum(CB * (cov_inv @ CB), axis=0)
+    else:
+        L = np.linalg.cholesky(cov)
+        Z = np.linalg.solve(L, CB)
+        numer = np.sum(Z ** 2, axis=0)
+
+    return CB, np.maximum(numer, 0.0), df1
 
 
 @dataclass
@@ -135,34 +189,17 @@ def contrast_f(
     -------
     ContrastResult
     """
-    con_mat = np.atleast_2d(np.asarray(con_mat, dtype=np.float64))
-    k = con_mat.shape[0]
-
-    # C @ B  →  (k, V)
-    CB = con_mat @ betas
-
-    # (C (X'X)^{-1} C')^{-1}  →  (k, k)
-    CXtXinvC = con_mat @ XtXinv @ con_mat.T
-    try:
-        CXtXinvC_inv = np.linalg.inv(CXtXinvC)
-    except np.linalg.LinAlgError:
-        CXtXinvC_inv = np.linalg.pinv(CXtXinvC)
-
-    # F = (CB)' (C (X'X)^{-1} C')^{-1} (CB) / (k * sigma^2)
-    # For each voxel v:
-    #   F_v = CB[:,v]' @ CXtXinvC_inv @ CB[:,v] / (k * sigma_v^2)
+    con_mat = _validate_f_contrast_matrix(con_mat, betas.shape[0])
+    CB, numer, df1 = _f_quadratic_form_terms(con_mat, betas, XtXinv)
     sigma2 = sigma ** 2
-    V = betas.shape[1]
-    fstat = np.zeros(V)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        fstat = np.where(
+            sigma2 > 1e-15,
+            numer / (df1 * sigma2),
+            0.0,
+        )
 
-    for v in range(V):
-        cb_v = CB[:, v]
-        if sigma2[v] > 1e-15:
-            fstat[v] = (cb_v @ CXtXinvC_inv @ cb_v) / (k * sigma2[v])
-        else:
-            fstat[v] = 0.0
-
-    p_value = sp_stats.f.sf(fstat, k, dfres)
+    p_value = sp_stats.f.sf(fstat, df1, dfres)
 
     return ContrastResult(
         name=name,
@@ -170,7 +207,7 @@ def contrast_f(
         stat=fstat,
         se=None,
         p_value=p_value,
-        df=(float(k), dfres),
+        df=(float(df1), dfres),
         stat_type="F",
     )
 
@@ -183,49 +220,9 @@ def contrast_f_vectorized(
     dfres: float,
     name: str = "F-contrast",
 ) -> ContrastResult:
-    """Vectorised F-contrast (faster for large V).
+    """Compatibility wrapper for F-contrasts.
 
-    Same interface as :func:`contrast_f` but avoids Python loops.
+    Delegates to :func:`contrast_f` to keep numerics identical across
+    near-singular and rank-deficient paths.
     """
-    con_mat = np.atleast_2d(np.asarray(con_mat, dtype=np.float64))
-    k = con_mat.shape[0]
-
-    CB = con_mat @ betas  # (k, V)
-
-    CXtXinvC = con_mat @ XtXinv @ con_mat.T
-    try:
-        L = np.linalg.cholesky(CXtXinvC)
-        # Solve L @ Z = CB for each voxel
-        Z = np.linalg.solve(L, CB)  # (k, V)
-    except np.linalg.LinAlgError:
-        CXtXinvC_inv = np.linalg.pinv(CXtXinvC)
-        Z = CXtXinvC_inv @ CB
-        # fstat = sum(CB * Z, axis=0) / (k * sigma^2)
-        sigma2 = sigma ** 2
-        with np.errstate(divide="ignore", invalid="ignore"):
-            fstat = np.where(
-                sigma2 > 1e-15,
-                np.sum(CB * Z, axis=0) / (k * sigma2),
-                0.0,
-            )
-        p_value = sp_stats.f.sf(fstat, k, dfres)
-        return ContrastResult(
-            name=name, estimate=CB, stat=fstat, se=None,
-            p_value=p_value, df=(float(k), dfres), stat_type="F",
-        )
-
-    # F = ||Z||^2 / (k * sigma^2)
-    sigma2 = sigma ** 2
-    with np.errstate(divide="ignore", invalid="ignore"):
-        fstat = np.where(
-            sigma2 > 1e-15,
-            np.sum(Z ** 2, axis=0) / (k * sigma2),
-            0.0,
-        )
-
-    p_value = sp_stats.f.sf(fstat, k, dfres)
-
-    return ContrastResult(
-        name=name, estimate=CB, stat=fstat, se=None,
-        p_value=p_value, df=(float(k), dfres), stat_type="F",
-    )
+    return contrast_f(con_mat, betas, XtXinv, sigma, dfres, name=name)
