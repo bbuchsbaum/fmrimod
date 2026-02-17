@@ -884,6 +884,158 @@ class TestConvolveEdgeCases:
             with pytest.raises(ValueError, match="sampling_frame must contain at least one time point"):
                 convolve(event, hrf=custom_hrf, sampling_frame=empty_frame)
 
+    def test_fallback_sampling_frame_row_and_column_vectors_are_normalized(self):
+        """Regression: 2D sampling_frame inputs should be flattened to 1D."""
+        custom_hrf = np.array([0, 0.5, 1.0, 0.5, 0])
+        event = EventVariable(
+            name="event_variable",
+            onsets=[5.0, 10.0],
+            durations=[1.0, 1.0],
+            values=[1.0, 2.0],
+            center=False,
+        )
+
+        flat_frame = np.arange(0, 20.0, 1.0)
+        row_frame = flat_frame.reshape(1, -1)
+        col_frame = flat_frame.reshape(-1, 1)
+
+        flat = convolve(event, hrf=custom_hrf, sampling_frame=flat_frame)
+        row = convolve(event, hrf=custom_hrf, sampling_frame=row_frame)
+        col = convolve(event, hrf=custom_hrf, sampling_frame=col_frame)
+
+        assert row.shape == flat.shape
+        assert col.shape == flat.shape
+        assert np.allclose(row, flat)
+        assert np.allclose(col, flat)
+
+    def test_fallback_sampling_frame_respects_explicit_grid_length(self):
+        """Regression: explicit sampling_frame defines output cardinality."""
+        custom_hrf = np.array([0, 0.5, 1.0, 0.5, 0])
+        event = EventVariable(
+            name="event_variable",
+            onsets=[1.0, 3.0],
+            durations=[1.0, 1.0],
+            values=[1.0, 2.0],
+            center=False,
+        )
+
+        grids = [
+            np.array([0.0, 2.0, 4.0]),   # non-unit spacing
+            np.array([1.0, 2.0, 3.0]),   # non-zero start
+            np.array([10.0, 11.0, 12.0]) # shifted window
+        ]
+
+        for sampling_frame in grids:
+            result = convolve(
+                event,
+                hrf=custom_hrf,
+                sampling_frame=sampling_frame,
+                sampling_rate=1.0,
+            )
+            assert result.shape == (len(sampling_frame), 1)
+
+    def test_fallback_row_vector_sampling_frame_is_normalized(self):
+        """Regression: row-vector sampling_frame should be flattened to 1D."""
+        custom_hrf = np.array([0, 0.5, 1.0, 0.5, 0])
+        sampling_frame_row = np.array([[0.0, 1.0, 2.0]])  # shape (1, 3)
+        sampling_frame_flat = np.array([0.0, 1.0, 2.0])
+
+        event = EventVariable(
+            name="event_variable",
+            onsets=[1.0, 2.0],
+            durations=[1.0, 1.0],
+            values=[1.0, 2.0],
+            center=False
+        )
+
+        result_row = convolve(event, hrf=custom_hrf, sampling_frame=sampling_frame_row)
+        result_flat = convolve(event, hrf=custom_hrf, sampling_frame=sampling_frame_flat)
+        assert result_row.shape == result_flat.shape
+        assert_array_almost_equal(result_row, result_flat)
+
+    def test_fallback_sampling_frame_preserves_grid_length(self):
+        """Regression: fallback with sampling_frame should return one row per sample."""
+        custom_hrf = np.array([0, 0.5, 1.0, 0.5, 0])
+        sampling_frame = np.arange(0.0, 20.0, 2.0)
+
+        event = EventVariable(
+            name="event_variable",
+            onsets=[2.0, 6.0],
+            durations=[1.0, 1.0],
+            values=[1.0, 1.0],
+            center=False
+        )
+
+        result = convolve(event, hrf=custom_hrf, sampling_frame=sampling_frame)
+        assert result.shape == (len(sampling_frame), 1)
+
+    def test_fallback_sampling_frame_uses_grid_spacing_for_internal_rate(self):
+        """Regression: fallback should derive effective sampling from regular grid spacing."""
+        custom_hrf = np.array([0, 0.5, 1.0, 0.5, 0])
+        sampling_frame = np.arange(0.0, 20.0, 2.0)  # TR=2.0 => sampling_rate=0.5
+
+        event = EventVariable(
+            name="event_variable",
+            onsets=[2.0, 6.0],
+            durations=[1.0, 1.0],
+            values=[1.0, 1.0],
+            center=False
+        )
+
+        result_from_grid = convolve(event, hrf=custom_hrf, sampling_frame=sampling_frame)
+        result_from_rate = convolve(
+            event,
+            hrf=custom_hrf,
+            sampling_rate=0.5,
+            total_duration=20.0,
+        )
+
+        assert result_from_grid.shape == result_from_rate.shape
+        assert_array_almost_equal(result_from_grid, result_from_rate)
+
+    def test_sampling_frame_requires_finite_values(self):
+        """Regression: NaN/inf sampling frames should fail fast with clear errors."""
+        custom_hrf = np.array([0, 0.5, 1.0, 0.5, 0])
+        event = EventVariable(
+            name="event_variable",
+            onsets=[2.0],
+            durations=[1.0],
+            values=[1.0],
+            center=False,
+        )
+
+        with pytest.raises(
+            ValueError, match="sampling_frame must contain only finite values"
+        ):
+            convolve(event, hrf=custom_hrf, sampling_frame=np.array([0.0, np.nan, 2.0]))
+
+        with pytest.raises(
+            ValueError, match="sampling_frame must contain only finite values"
+        ):
+            convolve(event, hrf=custom_hrf, sampling_frame=np.array([0.0, np.inf, 2.0]))
+
+    def test_fallback_single_point_sampling_frame_requires_valid_sampling_rate(self):
+        """Regression: invalid sampling_rate should fail clearly for single-point grids."""
+        custom_hrf = np.array([0, 0.5, 1.0, 0.5, 0])
+        event = EventVariable(
+            name="event_variable",
+            onsets=[1.0],
+            durations=[1.0],
+            values=[1.0],
+            center=False,
+        )
+
+        for bad_rate in [0.0, -1.0, np.nan, np.inf]:
+            with pytest.raises(
+                ValueError, match="sampling_rate must be a finite positive number"
+            ):
+                convolve(
+                    event,
+                    hrf=custom_hrf,
+                    sampling_frame=np.array([0.0]),
+                    sampling_rate=bad_rate,
+                )
+
     def test_unsupported_type_raises_error(self):
         """Test that unsupported types raise NotImplementedError."""
         # Try to convolve an unsupported type

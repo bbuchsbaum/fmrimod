@@ -50,10 +50,43 @@ def _peak_normalize(result: Array) -> Array:
     return result
 
 
-def _validate_sampling_grid(grid: Array) -> None:
-    """Validate sampling grid used for convolution."""
-    if np.asarray(grid).size == 0:
+def _prepare_sampling_grid(grid: Array) -> Array:
+    """Return a validated 1D sampling grid used for convolution."""
+    grid = np.asarray(grid, dtype=float).reshape(-1)
+    if grid.size == 0:
         raise ValueError("sampling_frame must contain at least one time point")
+    if not np.all(np.isfinite(grid)):
+        raise ValueError("sampling_frame must contain only finite values")
+    return grid
+
+
+def _get_fallback_timing(
+    grid: Array,
+    sampling_rate: float,
+    used_sampling_frame: bool,
+) -> tuple[float, float, float]:
+    """Derive fallback timing parameters from the sampling grid."""
+    if used_sampling_frame:
+        if grid.size == 1:
+            if not np.isfinite(sampling_rate) or sampling_rate <= 0:
+                raise ValueError("sampling_rate must be a finite positive number")
+            dt = 1.0 / float(sampling_rate)
+        else:
+            diffs = np.diff(grid)
+            if not np.all(np.isfinite(diffs)) or np.any(diffs <= 0):
+                raise ValueError("sampling_frame must be strictly increasing")
+            dt = float(np.median(diffs))
+            if not np.allclose(diffs, dt, rtol=1e-6, atol=1e-8):
+                raise ValueError(
+                    "sampling_frame must be uniformly spaced when using array/callable HRF"
+                )
+        origin = float(grid[0])
+        total_duration = float(grid[-1] - origin + dt)
+        return 1.0 / dt, total_duration, origin
+
+    if not np.isfinite(sampling_rate) or sampling_rate <= 0:
+        raise ValueError("sampling_rate must be a finite positive number")
+    return float(sampling_rate), float(grid[-1] + 1 / sampling_rate), 0.0
 
 
 @singledispatch
@@ -255,6 +288,61 @@ def _convolve_impulses(times: Array, values: Array, durations: Array,
     return convolved
 
 
+def _convolve_impulses_on_grid(
+    times: Array,
+    values: Array,
+    durations: Array,
+    hrf_array: Array,
+    sampling_rate: float,
+    sampling_grid: Array,
+) -> Array:
+    """Fallback convolution sampled at explicit grid points.
+
+    Uses the legacy discrete impulse convolution on an internal uniform grid,
+    then linearly interpolates back to the requested ``sampling_grid``.
+    This preserves output length and supports non-zero / non-unit grids.
+    """
+    grid = _prepare_sampling_grid(sampling_grid)
+    onsets = np.asarray(times, dtype=float).reshape(-1)
+    durs = np.asarray(durations, dtype=float).reshape(-1)
+    amps = np.asarray(values, dtype=float).reshape(-1)
+
+    grid_min = float(np.min(grid))
+    effective_sampling_rate = float(sampling_rate)
+    if grid.size > 1:
+        diffs = np.diff(np.sort(grid))
+        positive_diffs = diffs[diffs > 0]
+        if positive_diffs.size > 0:
+            dt = float(np.median(positive_diffs))
+            if np.allclose(positive_diffs, dt, rtol=1e-6, atol=1e-12):
+                effective_sampling_rate = 1.0 / dt
+    if not np.isfinite(effective_sampling_rate) or effective_sampling_rate <= 0:
+        raise ValueError("sampling_rate must be a finite positive number")
+
+    if onsets.size > 0:
+        origin = min(0.0, grid_min, float(np.min(onsets)))
+        max_event_end = float(np.max(onsets + durs))
+    else:
+        origin = min(0.0, grid_min)
+        max_event_end = float(np.max(grid))
+
+    shifted_grid = grid - origin
+    shifted_onsets = onsets - origin
+    max_time = max(float(np.max(shifted_grid)), max_event_end - origin)
+    total_duration = max_time + 1.0 / effective_sampling_rate
+
+    dense = _convolve_impulses(
+        shifted_onsets,
+        amps,
+        durs,
+        hrf_array,
+        effective_sampling_rate,
+        total_duration,
+    )
+    dense_grid = np.arange(dense.shape[0], dtype=float) / effective_sampling_rate
+    return np.interp(shifted_grid, dense_grid, dense, left=0.0, right=0.0)
+
+
 @convolve.register(EventFactor)
 def _convolve_event_factor(event: EventFactor, hrf=None,
                           sampling_rate: float = 1.0,
@@ -295,13 +383,12 @@ def _convolve_event_factor(event: EventFactor, hrf=None,
     """
     # Determine sampling grid
     if sampling_frame is not None:
-        grid = np.asarray(sampling_frame)
+        grid = _prepare_sampling_grid(sampling_frame)
     else:
         # Determine total duration
         if total_duration is None:
             total_duration = np.max(event.onsets + event.durations) + 32.0
-        grid = np.arange(0, total_duration, 1/sampling_rate)
-    _validate_sampling_grid(grid)
+        grid = _prepare_sampling_grid(np.arange(0, total_duration, 1/sampling_rate))
 
     # Check if we should use fmrimod or fallback
     use_fmrimod = HAS_PYFMRIHRF
@@ -340,19 +427,18 @@ def _convolve_event_factor(event: EventFactor, hrf=None,
         n_levels = len(event.levels)
         n_samples = len(grid)
         convolved = np.zeros((n_samples, n_levels))
-        total_duration = grid[-1] + 1/sampling_rate
 
         for i, level in enumerate(event.levels):
             mask = event.values == level
             if np.any(mask):
                 level_values = np.ones(np.sum(mask))
-                convolved[:, i] = _convolve_impulses(
+                convolved[:, i] = _convolve_impulses_on_grid(
                     event.onsets[mask],
                     level_values,
                     event.durations[mask],
                     hrf_array,
                     sampling_rate,
-                    total_duration
+                    grid,
                 )
 
     if normalize:
@@ -401,13 +487,12 @@ def _convolve_event_variable(event: EventVariable, hrf=None,
     """
     # Determine sampling grid
     if sampling_frame is not None:
-        grid = np.asarray(sampling_frame)
+        grid = _prepare_sampling_grid(sampling_frame)
     else:
         # Determine total duration
         if total_duration is None:
             total_duration = np.max(event.onsets + event.durations) + 32.0
-        grid = np.arange(0, total_duration, 1/sampling_rate)
-    _validate_sampling_grid(grid)
+        grid = _prepare_sampling_grid(np.arange(0, total_duration, 1/sampling_rate))
 
     # Check if we should use fmrimod or fallback
     use_fmrimod = HAS_PYFMRIHRF
@@ -432,14 +517,13 @@ def _convolve_event_variable(event: EventVariable, hrf=None,
     else:
         # Fallback to manual convolution
         hrf_array = _get_hrf_array(hrf, sampling_rate)
-        total_duration = grid[-1] + 1/sampling_rate
-        result = _convolve_impulses(
+        result = _convolve_impulses_on_grid(
             event.onsets,
             event.values,
             event.durations,
             hrf_array,
             sampling_rate,
-            total_duration
+            grid,
         )
         result = result.reshape(-1, 1)
 
@@ -489,13 +573,12 @@ def _convolve_event_matrix(event: EventMatrix, hrf=None,
     """
     # Determine sampling grid
     if sampling_frame is not None:
-        grid = np.asarray(sampling_frame)
+        grid = _prepare_sampling_grid(sampling_frame)
     else:
         # Determine total duration
         if total_duration is None:
             total_duration = np.max(event.onsets + event.durations) + 32.0
-        grid = np.arange(0, total_duration, 1/sampling_rate)
-    _validate_sampling_grid(grid)
+        grid = _prepare_sampling_grid(np.arange(0, total_duration, 1/sampling_rate))
 
     n_cols = event.n_columns
     convolved = np.zeros((len(grid), n_cols))
@@ -526,16 +609,15 @@ def _convolve_event_matrix(event: EventMatrix, hrf=None,
     else:
         # Fallback to manual convolution
         hrf_array = _get_hrf_array(hrf, sampling_rate)
-        total_duration = grid[-1] + 1/sampling_rate
 
         for i in range(n_cols):
-            convolved[:, i] = _convolve_impulses(
+            convolved[:, i] = _convolve_impulses_on_grid(
                 event.onsets,
                 event.values[:, i],
                 event.durations,
                 hrf_array,
                 sampling_rate,
-                total_duration
+                grid,
             )
 
     if normalize:
@@ -561,13 +643,12 @@ def _convolve_event_basis(event: EventBasis, hrf=None,
     """
     # Determine sampling grid
     if sampling_frame is not None:
-        grid = np.asarray(sampling_frame)
+        grid = _prepare_sampling_grid(sampling_frame)
     else:
         # Determine total duration
         if total_duration is None:
             total_duration = np.max(event.onsets + event.durations) + 32.0
-        grid = np.arange(0, total_duration, 1/sampling_rate)
-    _validate_sampling_grid(grid)
+        grid = _prepare_sampling_grid(np.arange(0, total_duration, 1/sampling_rate))
 
     if HAS_PYFMRIHRF:
         # EventBasis represents multiple basis functions
@@ -615,18 +696,17 @@ def _convolve_event_basis(event: EventBasis, hrf=None,
 
         # Simplified fallback: treat as EventMatrix
         hrf_array = _get_hrf_array(hrf, sampling_rate)
-        total_duration = grid[-1] + 1/sampling_rate
         n_basis = event.n_basis
         convolved = np.zeros((len(grid), n_basis))
 
         for i in range(n_basis):
-            convolved[:, i] = _convolve_impulses(
+            convolved[:, i] = _convolve_impulses_on_grid(
                 event.onsets,
                 event.expanded_values[:, i],
                 event.durations,
                 hrf_array,
                 sampling_rate,
-                total_duration
+                grid,
             )
 
         if normalize:
@@ -697,13 +777,12 @@ def _convolve_array(arr: np.ndarray, hrf=None,
 
     # Determine sampling grid
     if sampling_frame is not None:
-        grid = np.asarray(sampling_frame)
+        grid = _prepare_sampling_grid(sampling_frame)
     else:
         # Determine total duration
         if total_duration is None:
             total_duration = np.max(arr[:, 0] + arr[:, 1]) + 32.0
-        grid = np.arange(0, total_duration, 1/sampling_rate)
-    _validate_sampling_grid(grid)
+        grid = _prepare_sampling_grid(np.arange(0, total_duration, 1/sampling_rate))
 
     # Check if we should use fmrimod or fallback
     use_fmrimod = HAS_PYFMRIHRF
@@ -725,15 +804,14 @@ def _convolve_array(arr: np.ndarray, hrf=None,
     else:
         # Fallback to manual convolution
         hrf_array = _get_hrf_array(hrf, sampling_rate)
-        total_duration = grid[-1] + 1/sampling_rate
 
-        result = _convolve_impulses(
+        result = _convolve_impulses_on_grid(
             arr[:, 0],  # onsets
             arr[:, 2],  # values
             arr[:, 1],  # durations
             hrf_array,
             sampling_rate,
-            total_duration
+            grid,
         )
 
     if normalize:
