@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional, Sequence
+import warnings
 
 import numpy as np
 from numpy.typing import NDArray
@@ -322,6 +323,15 @@ def spatial_fdr(
     """
     p_values = np.asarray(p_values, dtype=np.float64).ravel()
     V = len(p_values)
+    if not (0.0 < alpha < 1.0):
+        raise ValueError("alpha must be in (0, 1)")
+    if not (0.0 < tau < 1.0):
+        raise ValueError("tau must be in (0, 1)")
+    if not (0.0 <= min_pi0 <= 1.0):
+        raise ValueError("min_pi0 must be in [0, 1]")
+    if smooth_lambda < 0.0:
+        warnings.warn("smooth_lambda < 0 not recommended; setting to 0", UserWarning)
+        smooth_lambda = 0.0
 
     # Build groups if not provided
     neighbors: list[list[int]] = []
