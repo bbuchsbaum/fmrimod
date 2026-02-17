@@ -177,6 +177,42 @@ def test_fit_run_ols_slices_allrun_volume_weights_for_selected_run_with_censor()
     np.testing.assert_allclose(proj.XtXinv, ref_proj.XtXinv, atol=1e-10)
 
 
+def test_fit_run_ols_combined_allrun_slicing_weights_and_nuisance_with_censor():
+    """Runwise path should consistently slice all-run weights and nuisance before censor."""
+    rng = np.random.default_rng(8)
+    run_lengths = [6, 5]
+    n_total = sum(run_lengths)
+    n_run = run_lengths[1]
+
+    X_run1 = np.column_stack([np.ones(n_run), rng.standard_normal((n_run, 1))]).astype(np.float64)
+    Y_run1 = rng.standard_normal((n_run, 4)).astype(np.float64)
+    weights_all = np.linspace(0.3, 1.1, n_total, dtype=np.float64)
+    nuisance_all = rng.standard_normal((n_total, 2)).astype(np.float64)
+    weights_run1 = weights_all[run_lengths[0] :]
+    nuisance_run1 = nuisance_all[run_lengths[0] :, :]
+    censor = np.array([False, True, False, False, True], dtype=bool)
+
+    ds = _DummyDatasetForSoftSubspace(np.ones((4, 1, 1), dtype=bool), run_lengths)
+    cfg = FmriLmConfig(
+        volume_weights=VolumeWeightOptions(enabled=True, weights=weights_all),
+        soft_subspace=SoftSubspaceOptions(enabled=True, nuisance_matrix=nuisance_all, lam=0.2),
+    )
+
+    res, proj, X_used, Y_used = fit_run_ols(X_run1, Y_run1, cfg, censor=censor, dataset=ds, run=1)
+
+    X_c, Y_c, _ = apply_censoring(X_run1, Y_run1, censor)
+    X_w, Y_w = apply_volume_weights(X_c, Y_c, weights_run1[~censor])
+    X_ref, Y_ref = soft_subspace_projection(X_w, Y_w, nuisance_run1[~censor], lam=0.2)
+    ref_proj = fast_preproject(X_ref)
+    ref_res = fast_lm_matrix(X_ref, Y_ref, ref_proj, return_fitted=True)
+
+    np.testing.assert_allclose(X_used, X_ref, atol=1e-12)
+    np.testing.assert_allclose(Y_used, Y_ref, atol=1e-12)
+    np.testing.assert_allclose(res.betas, ref_res.betas, atol=1e-10)
+    np.testing.assert_allclose(res.sigma2, ref_res.sigma2, atol=1e-10)
+    np.testing.assert_allclose(proj.XtXinv, ref_proj.XtXinv, atol=1e-10)
+
+
 def test_fit_run_ols_rejects_mismatched_volume_weight_length():
     """Volume weights must align with run rows to avoid opaque broadcast errors."""
     X = np.ones((8, 2), dtype=np.float64)
