@@ -8,14 +8,13 @@ placed into the design matrix.
 
 from __future__ import annotations
 
-from typing import List, Optional, Union, TYPE_CHECKING
+from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
 
 from ..base import BaseEvent
-if TYPE_CHECKING:
-    from .factor import EventFactor
+from .factor import EventFactor
 
 from ..types import (
     Array,
