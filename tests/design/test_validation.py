@@ -260,6 +260,17 @@ class TestValidateContrasts:
         # With strict tolerance, 1e-9 should be nonzero
         assert result_strict['nonzero_weights'].iloc[0] == 3
 
+    def test_invalid_tolerance_values(self):
+        """Non-finite or negative tolerances should fail fast."""
+        X = np.random.randn(100, 3)
+        weights = np.array([1, -1, 0])
+
+        for bad_tol in [np.nan, np.inf, -1e-3]:
+            with pytest.raises(
+                ValueError, match="tol must be a finite non-negative number"
+            ):
+                validate_contrasts(X, weights, tol=bad_tol)
+
     def test_rank_deficient_f_contrast(self):
         """Rank-deficient F-contrast should be detected."""
         X = np.random.randn(100, 5)
@@ -276,6 +287,13 @@ class TestValidateContrasts:
         """Invalid input type should raise TypeError."""
         with pytest.raises(TypeError, match="must be EventModel, DataFrame, or numpy array"):
             validate_contrasts("invalid", np.array([1, -1]))
+
+    def test_non_2d_design_matrix_raises_value_error(self):
+        """Non-2D design matrices should raise a clear ValueError."""
+        X = np.array([1, 2, 3])
+        weights = np.array([1, -1, 0])
+        with pytest.raises(ValueError, match="must be 2-dimensional"):
+            validate_contrasts(X, weights)
 
     def test_invalid_weights_type(self):
         """Invalid weights type should raise TypeError."""
@@ -407,6 +425,18 @@ class TestCheckCollinearity:
         # Strict threshold should flag more pairs
         assert len(result_strict['pairs']) >= len(result_lenient['pairs'])
 
+    def test_invalid_threshold_values(self):
+        """Non-finite or out-of-range thresholds should raise ValueError."""
+        X = np.random.randn(100, 3)
+        bad_thresholds = [np.nan, np.inf, -0.1, 1.1]
+
+        for threshold in bad_thresholds:
+            with pytest.raises(
+                ValueError,
+                match="threshold must be a finite number between 0 and 1",
+            ):
+                check_collinearity(X, threshold=threshold)
+
     def test_drops_zero_variance_columns(self):
         """Zero-variance columns should be excluded."""
         X = np.array([[1, 2, 5],
@@ -468,6 +498,12 @@ class TestCheckCollinearity:
         """Invalid input type should raise TypeError."""
         with pytest.raises(TypeError, match="must be EventModel, DataFrame, or numpy array"):
             check_collinearity("invalid")
+
+    def test_non_2d_design_matrix_raises_value_error(self):
+        """Non-2D inputs should raise a clear ValueError."""
+        X = np.array([1, 2, 3])
+        with pytest.raises(ValueError, match="2-dimensional design matrix"):
+            check_collinearity(X)
 
     def test_column_names_in_pairs(self):
         """Pairs should include actual column names."""

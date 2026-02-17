@@ -52,8 +52,22 @@ def validate_contrasts(x, weights=None, tol=1e-8):
     --------
     check_collinearity : Check design matrix for multicollinearity.
     """
+    try:
+        tol = float(tol)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("tol must be a finite non-negative number") from exc
+    if not np.isfinite(tol) or tol < 0.0:
+        raise ValueError("tol must be a finite non-negative number")
+
     # Get design matrix
     from .design.event_model import EventModel
+
+    try:
+        tol = float(tol)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("tol must be a finite non-negative number") from exc
+    if not np.isfinite(tol) or tol < 0:
+        raise ValueError("tol must be a finite non-negative number")
 
     if isinstance(x, EventModel):
         X = x.design_matrix
@@ -62,10 +76,15 @@ def validate_contrasts(x, weights=None, tol=1e-8):
         X = x.values
         col_names = list(x.columns)
     elif isinstance(x, np.ndarray):
+        if x.ndim != 2:
+            raise ValueError("x must be 2-dimensional design matrix")
         X = x
         col_names = [f"V{i+1}" for i in range(x.shape[1])]
     else:
         raise TypeError("x must be EventModel, DataFrame, or numpy array")
+
+    if np.ndim(X) != 2:
+        raise ValueError("x must be 2-dimensional design matrix")
 
     # Find intercept-like columns
     intercept_names = {'(Intercept)', 'Intercept', 'constant', 'const'}
@@ -197,6 +216,13 @@ def check_collinearity(X, threshold=0.9):
     --------
     validate_contrasts : Validate contrast estimability.
     """
+    try:
+        threshold = float(threshold)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("threshold must be a finite number between 0 and 1") from exc
+    if not np.isfinite(threshold) or threshold < 0.0 or threshold > 1.0:
+        raise ValueError("threshold must be a finite number between 0 and 1")
+
     from .design.event_model import EventModel
 
     if isinstance(X, EventModel):
@@ -206,9 +232,14 @@ def check_collinearity(X, threshold=0.9):
         col_names = list(X.columns)
         X = X.values
     elif isinstance(X, np.ndarray):
+        if X.ndim != 2:
+            raise ValueError("X must be 2-dimensional design matrix")
         col_names = [f"V{i+1}" for i in range(X.shape[1])]
     else:
         raise TypeError("X must be EventModel, DataFrame, or numpy array")
+
+    if np.ndim(X) != 2:
+        raise ValueError("X must be 2-dimensional design matrix")
 
     # Drop intercept-like columns
     intercept_names = {'(Intercept)', 'Intercept', 'constant', 'const'}
