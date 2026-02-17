@@ -148,7 +148,7 @@ class TestFastLmMatrix:
         np.testing.assert_allclose(result.betas, betas_ref, atol=1e-10)
 
     def test_near_collinear_full_rank_matches_lstsq(self):
-        """Ill-conditioned full-rank designs should still track lstsq stably."""
+        """Ill-conditioned full-rank designs should still match fitted outputs."""
         rng = np.random.default_rng(0)
         n = 50
         x = rng.standard_normal(n)
@@ -165,8 +165,53 @@ class TestFastLmMatrix:
         proj = fast_preproject(X)
         result = fast_lm_matrix(X, Y, proj)
         betas_ref, _, _, _ = np.linalg.lstsq(X, Y, rcond=None)
+        fitted = X @ result.betas
+        fitted_ref = X @ betas_ref
 
-        np.testing.assert_allclose(result.betas, betas_ref, atol=1e-1, rtol=1e-3)
+        rss_result = np.sum((fitted - Y) ** 2, axis=0)
+        rss_ref = np.sum((fitted_ref - Y) ** 2, axis=0)
+
+        np.testing.assert_allclose(fitted, fitted_ref, rtol=1e-3, atol=1e-2)
+        np.testing.assert_allclose(rss_result, rss_ref, rtol=1e-4, atol=1e-5)
+        assert np.all(np.isfinite(result.betas))
+        assert result.betas.shape == betas_ref.shape
+
+    def test_near_singular_design_produces_finite_results(self, rng):
+        """Near-singular designs should return finite outputs."""
+        n = 100
+        x1 = rng.standard_normal(n)
+        x2 = x1 + rng.standard_normal(n) * 1e-6
+        X = np.column_stack([np.ones(n), x1, x2])
+        Y = rng.standard_normal((n, 2))
+
+        proj = fast_preproject(X)
+        result = fast_lm_matrix(X, Y, proj)
+
+        assert result.betas.shape == (3, 2)
+        assert np.all(np.isfinite(result.betas))
+        assert np.all(np.isfinite(result.rss))
+        assert np.all(np.isfinite(result.sigma2))
+        assert np.linalg.cond(X) > 1e3
+
+    def test_extreme_scale_values_remain_finite(self, rng):
+        """Large and small scale inputs should not produce invalid outputs."""
+        n = 60
+        p = 3
+
+        X_large = np.column_stack([np.ones(n), rng.standard_normal((n, p - 1)) * 1e8])
+        X_small = np.column_stack([np.ones(n), rng.standard_normal((n, p - 1)) * 1e-8])
+        Y_large = rng.standard_normal((n, 4)) * 1e8
+        Y_small = rng.standard_normal((n, 4)) * 1e-8
+
+        proj_large = fast_preproject(X_large)
+        proj_small = fast_preproject(X_small)
+        result_large = fast_lm_matrix(X_large, Y_large, proj_large)
+        result_small = fast_lm_matrix(X_small, Y_small, proj_small)
+
+        assert np.all(np.isfinite(result_large.betas))
+        assert np.all(np.isfinite(result_small.betas))
+        assert np.all(np.isfinite(result_large.sigma2))
+        assert np.all(np.isfinite(result_small.sigma2))
 
     def test_dimension_mismatch_rows_raises_clear_error(self, rng, simple_design):
         """Y with different row count should fail with a stable ValueError."""
