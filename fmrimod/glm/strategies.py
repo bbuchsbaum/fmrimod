@@ -152,7 +152,11 @@ def fit_run_ols(
         cache_key = _projection_cache_key(X_fit, compute_dtype)
         proj = projection_cache.get(cache_key)
     if proj is None:
-        proj = fast_preproject(X_fit, compute_dtype=compute_dtype)
+        proj = fast_preproject(
+            X_fit,
+            compute_dtype=compute_dtype,
+            check_finite=False,
+        )
         if projection_cache is not None and cache_key is not None:
             projection_cache[cache_key] = proj
     result = fast_lm_matrix(
@@ -161,6 +165,7 @@ def fit_run_ols(
         proj,
         return_fitted=return_fitted,
         compute_dtype=compute_dtype,
+        check_finite=False,
     )
 
     return result, proj, X_fit, Y_fit
@@ -445,6 +450,7 @@ def _fit_chunked_lm(
             proj,
             return_fitted=False,
             compute_dtype=compute_dtype,
+            check_finite=False,
         )
         return start, end, res.betas, res.rss, res.sigma2
 
@@ -538,7 +544,11 @@ def fit_chunkwise(
             cache_key = _projection_cache_key(X_fit, compute_dtype)
             proj = proj_cache.get(cache_key)
         if proj is None:
-            proj = fast_preproject(X_fit, compute_dtype=compute_dtype)
+            proj = fast_preproject(
+                X_fit,
+                compute_dtype=compute_dtype,
+                check_finite=False,
+            )
             if proj_cache is not None and cache_key is not None:
                 proj_cache[cache_key] = proj
 

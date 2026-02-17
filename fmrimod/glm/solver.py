@@ -46,6 +46,9 @@ class Projection:
     ill_conditioned : bool
         Whether the design was routed through the SVD path due rank
         deficiency or poor conditioning.
+    XtX : NDArray or None
+        Optional cached Gram matrix ``X'X`` used by fast RSS evaluation.
+        Present for stable full-rank projections.
     """
 
     Pinv: NDArray[np.float64]
@@ -54,11 +57,13 @@ class Projection:
     rank: int
     is_full_rank: bool
     ill_conditioned: bool
+    XtX: Optional[NDArray[np.float64]] = None
 
 
 def fast_preproject(
     X: NDArray[np.float64],
     compute_dtype: object = np.float64,
+    check_finite: bool = True,
 ) -> Projection:
     """Pre-compute projection matrices for fast OLS.
 
@@ -93,7 +98,7 @@ def fast_preproject(
         raise ValueError(f"X must be 2-D, got shape {X.shape}")
     if X.shape[0] == 0 or X.shape[1] == 0:
         raise ValueError("Design matrix must have at least one row and one column")
-    if not np.all(np.isfinite(X)):
+    if check_finite and not np.all(np.isfinite(X)):
         raise ValueError("Design matrix contains NA/Inf values")
 
     n, p = X.shape
@@ -102,6 +107,7 @@ def fast_preproject(
     used_cholesky = False
     ill_conditioned = False
     rank = p
+    XtX_cached: Optional[NDArray[np.float64]] = None
 
     # Fast path: attempt full-rank Cholesky first.
     try:
@@ -117,6 +123,7 @@ def fast_preproject(
             )
             Pinv = XtXinv @ X.T
             used_cholesky = True
+            XtX_cached = XtX
     except np.linalg.LinAlgError:
         used_cholesky = False
 
@@ -162,6 +169,7 @@ def fast_preproject(
                 check_finite=False,
             )
             Pinv = XtXinv @ X.T
+            XtX_cached = XtX
 
     return Projection(
         Pinv=Pinv,
@@ -170,6 +178,7 @@ def fast_preproject(
         rank=rank,
         is_full_rank=(rank == p),
         ill_conditioned=ill_conditioned,
+        XtX=XtX_cached,
     )
 
 
@@ -208,6 +217,7 @@ def fast_lm_matrix(
     proj: Projection,
     return_fitted: bool = False,
     compute_dtype: object = np.float64,
+    check_finite: bool = True,
 ) -> LmResult:
     """Fast matrix-based OLS fit.
 
@@ -241,9 +251,9 @@ def fast_lm_matrix(
         Y = Y[:, np.newaxis]
     elif Y.ndim != 2:
         raise ValueError(f"Y must be 1-D or 2-D, got shape {Y.shape}")
-    if not np.all(np.isfinite(X)):
+    if check_finite and not np.all(np.isfinite(X)):
         raise ValueError("Design matrix contains NA/Inf values")
-    if not np.all(np.isfinite(Y)):
+    if check_finite and not np.all(np.isfinite(Y)):
         raise ValueError("Response matrix contains NA/Inf values")
 
     if X.shape[0] != Y.shape[0]:
@@ -272,7 +282,10 @@ def fast_lm_matrix(
     else:
         # Memory-efficient: compute RSS without materialising residuals.
         # RSS = Y'Y - B' X'Y
-        XtY = X.T @ Y
+        if proj.XtX is not None:
+            XtY = proj.XtX @ betas
+        else:
+            XtY = X.T @ Y
         yTy = np.sum(Y * Y, axis=0)
         rss = yTy - np.sum(betas * XtY, axis=0)
         rss = np.maximum(rss, 0.0)
