@@ -142,7 +142,31 @@ def apply_censoring(
     X_clean, Y_clean, keep_mask : tuple
         Subsetted matrices and the boolean keep mask.
     """
-    keep = ~censor
+    X = np.asarray(X, dtype=np.float64)
+    Y = np.asarray(Y, dtype=np.float64)
+    censor_arr = np.asarray(censor)
+
+    if X.ndim != 2 or Y.ndim != 2:
+        raise ValueError("X and Y must both be 2-D matrices")
+    if X.shape[0] != Y.shape[0]:
+        raise ValueError("X and Y must have the same number of rows")
+    if censor_arr.ndim != 1 or censor_arr.shape[0] != X.shape[0]:
+        raise ValueError(
+            f"Censor vector length {censor_arr.shape[0]} does not match matrix rows {X.shape[0]}"
+        )
+
+    if np.issubdtype(censor_arr.dtype, np.bool_):
+        censor_mask = censor_arr
+    elif np.issubdtype(censor_arr.dtype, np.number):
+        if not np.all(np.isfinite(censor_arr)):
+            raise ValueError("Censor vector must contain finite values")
+        if not np.all(np.isin(censor_arr, [0, 1])):
+            raise ValueError("Censor vector must be boolean or binary (0/1)")
+        censor_mask = censor_arr.astype(bool)
+    else:
+        raise ValueError("Censor vector must be boolean or binary (0/1)")
+
+    keep = ~censor_mask
     return X[keep], Y[keep], keep
 
 
