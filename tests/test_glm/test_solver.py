@@ -147,6 +147,27 @@ class TestFastLmMatrix:
         betas_ref, _, _, _ = np.linalg.lstsq(simple_design, Y, rcond=None)
         np.testing.assert_allclose(result.betas, betas_ref, atol=1e-10)
 
+    def test_near_collinear_full_rank_matches_lstsq(self):
+        """Ill-conditioned full-rank designs should still track lstsq stably."""
+        rng = np.random.default_rng(0)
+        n = 50
+        x = rng.standard_normal(n)
+        z = rng.standard_normal(n)
+        w = rng.standard_normal(n)
+        # Use 1e-4 perturbation — ill-conditioned but not near-singular,
+        # so normal-equation and SVD solvers remain comparable.
+        X = np.column_stack(
+            [np.ones(n), x, x + rng.standard_normal(n) * 1e-4, z, w]
+        )
+        true_b = rng.standard_normal((5, 3))
+        Y = X @ true_b + rng.standard_normal((n, 3)) * 0.01
+
+        proj = fast_preproject(X)
+        result = fast_lm_matrix(X, Y, proj)
+        betas_ref, _, _, _ = np.linalg.lstsq(X, Y, rcond=None)
+
+        np.testing.assert_allclose(result.betas, betas_ref, atol=1e-1, rtol=1e-3)
+
     def test_dimension_mismatch_rows_raises_clear_error(self, rng, simple_design):
         """Y with different row count should fail with a stable ValueError."""
         Y_bad = rng.standard_normal((simple_design.shape[0] - 1, 2))
