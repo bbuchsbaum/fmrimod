@@ -145,3 +145,24 @@ class TestSpatialFdr:
         result = spatial_fdr(p_vals, group_ids=group_ids, alpha=0.05)
         # Should reject < 10% under null
         assert np.mean(result.reject) < 0.15
+
+    def test_group_ids_length_mismatch_raises_clear_error(self):
+        """Group assignments must align exactly with p-value length."""
+        p_vals = np.array([0.01, 0.2, 0.4, 0.8], dtype=np.float64)
+        group_ids = np.array([0, 1], dtype=np.intp)
+
+        with pytest.raises(ValueError, match="group_ids length .* p_values length"):
+            spatial_fdr(p_vals, group_ids=group_ids, alpha=0.05)
+
+    def test_arbitrary_group_labels_match_dense_remap(self):
+        """Arbitrary integer labels should be remapped densely (fmrireg parity)."""
+        p_vals = np.array([0.001, 0.2, 0.3, 0.8, 0.05], dtype=np.float64)
+        labels = np.array([-10, 5, 5, -10, 42], dtype=np.intp)
+        dense = np.array([0, 1, 1, 0, 2], dtype=np.intp)
+
+        result_labels = spatial_fdr(p_vals, group_ids=labels, alpha=0.05)
+        result_dense = spatial_fdr(p_vals, group_ids=dense, alpha=0.05)
+
+        np.testing.assert_array_equal(result_labels.reject, result_dense.reject)
+        np.testing.assert_allclose(result_labels.qvalues, result_dense.qvalues, atol=1e-12)
+        np.testing.assert_allclose(result_labels.weights, result_dense.weights, atol=1e-12)

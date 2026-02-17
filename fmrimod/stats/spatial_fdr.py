@@ -337,7 +337,20 @@ def spatial_fdr(
             n_groups = 1
             neighbors = [[]]
     else:
-        group_ids = np.asarray(group_ids, dtype=np.intp)
+        group_ids_arr = np.asarray(group_ids).ravel()
+        if group_ids_arr.shape[0] != V:
+            raise ValueError(
+                f"group_ids length {group_ids_arr.shape[0]} must match p_values length {V}"
+            )
+        if group_ids_arr.dtype.kind in ("f", "c"):
+            if not np.all(np.isfinite(group_ids_arr)):
+                raise ValueError("group_ids must contain finite integer labels")
+            if not np.allclose(group_ids_arr, np.round(group_ids_arr)):
+                raise ValueError("group_ids must contain integer labels")
+        group_ids_int = group_ids_arr.astype(np.int64, copy=False)
+        # Match fmrireg semantics: compress arbitrary labels to dense 0..G-1 IDs.
+        _, group_ids_dense = np.unique(group_ids_int, return_inverse=True)
+        group_ids = group_ids_dense.astype(np.intp)
         n_groups = int(group_ids.max()) + 1
         if not neighbors:
             neighbors = [[] for _ in range(n_groups)]
