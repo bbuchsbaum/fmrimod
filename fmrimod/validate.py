@@ -62,13 +62,6 @@ def validate_contrasts(x, weights=None, tol=1e-8):
     # Get design matrix
     from .design.event_model import EventModel
 
-    try:
-        tol = float(tol)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("tol must be a finite non-negative number") from exc
-    if not np.isfinite(tol) or tol < 0:
-        raise ValueError("tol must be a finite non-negative number")
-
     if isinstance(x, EventModel):
         X = x.design_matrix
         col_names = x.column_names
@@ -115,17 +108,30 @@ def validate_contrasts(x, weights=None, tol=1e-8):
             raise ValueError("When x is a matrix, weights must be provided")
     elif isinstance(weights, dict):
         for name, w in weights.items():
-            w = np.asarray(w, dtype=float)
+            try:
+                w = np.asarray(w, dtype=float)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"weights for contrast '{name}' must be numeric and rectangular"
+                ) from exc
             if w.ndim == 1:
                 w = w.reshape(-1, 1)
             wlist[name] = w
+        if not wlist:
+            raise ValueError("weights dictionary must contain at least one contrast")
     elif isinstance(weights, np.ndarray):
-        w = weights.astype(float)
+        try:
+            w = weights.astype(float)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("weights must be numeric and rectangular") from exc
         if w.ndim == 1:
             w = w.reshape(-1, 1)
         wlist['contrast'] = w
     elif isinstance(weights, list):
-        w = np.asarray(weights, dtype=float)
+        try:
+            w = np.asarray(weights, dtype=float)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("weights must be numeric and rectangular") from exc
         if w.ndim == 1:
             w = w.reshape(-1, 1)
         wlist['contrast'] = w

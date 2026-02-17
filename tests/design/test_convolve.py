@@ -9,6 +9,7 @@ from fmrimod.events.factor import EventFactor
 from fmrimod.events.variable import EventVariable
 from fmrimod.events.matrix import EventMatrix
 from fmrimod.events.basis import EventBasis
+from fmrimod.basis import Poly
 from fmrimod.convolve import convolve
 from fmrimod import event_model, get_hrf, as_hrf
 from fmrimod.convolve import _get_hrf_array, _convolve_impulses
@@ -765,6 +766,38 @@ class TestConvolveEdgeCases:
                 ValueError, match="total_duration must be a finite positive number"
             ):
                 convolve(arr, sampling_rate=1.0, total_duration=bad_duration)
+
+    @pytest.mark.parametrize(
+        "event",
+        [
+            EventFactor(
+                name="bad_total_duration_factor",
+                onsets=[2.0, 5.0],
+                durations=[1.0, 1.0],
+                values=["A", "A"],
+            ),
+            EventMatrix(
+                name="bad_total_duration_matrix",
+                onsets=[2.0, 5.0],
+                durations=[1.0, 1.0],
+                values=[[1.0, 2.0], [3.0, 4.0]],
+            ),
+            EventBasis(
+                name="bad_total_duration_basis",
+                onsets=[2.0, 5.0],
+                durations=[1.0, 1.0],
+                values=[0.2, 0.8],
+                basis=Poly(degree=2),
+            ),
+        ],
+    )
+    def test_total_duration_requires_finite_positive_for_all_event_types(self, event):
+        """Implicit-grid total_duration validation should be consistent across event types."""
+        for bad_duration in [0.0, -1.0, np.nan, np.inf]:
+            with pytest.raises(
+                ValueError, match="total_duration must be a finite positive number"
+            ):
+                convolve(event, sampling_rate=1.0, total_duration=bad_duration)
 
     def test_custom_hrf_as_array(self):
         """Test with custom HRF provided as array."""

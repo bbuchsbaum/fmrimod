@@ -167,6 +167,15 @@ class TestValidateContrasts:
         assert set(result['name']) == {'contrast1', 'contrast2', 'contrast3'}
         assert all(result['sum_to_zero'])
 
+    def test_empty_weights_dict_raises_clear_error(self):
+        """An empty dict should not be treated as valid contrast input."""
+        X = np.random.randn(100, 3)
+
+        with pytest.raises(
+            ValueError, match="weights dictionary must contain at least one contrast"
+        ):
+            validate_contrasts(X, weights={})
+
     def test_weights_as_list(self):
         """List of weights should be converted to array."""
         X = np.random.randn(100, 3)
@@ -300,6 +309,26 @@ class TestValidateContrasts:
         X = np.random.randn(100, 3)
         with pytest.raises(TypeError, match="weights must be array, dict, or list"):
             validate_contrasts(X, weights="invalid")
+
+    def test_ragged_dict_weights_raise_clear_error(self):
+        """Ragged dict weights should raise a clear ValueError."""
+        X = np.random.randn(100, 3)
+        weights = {"bad": [[1, 0], [0]]}
+
+        with pytest.raises(
+            ValueError, match="weights for contrast 'bad' must be numeric and rectangular"
+        ):
+            validate_contrasts(X, weights=weights)
+
+    def test_ragged_list_weights_raise_clear_error(self):
+        """Ragged list weights should raise a clear ValueError."""
+        X = np.random.randn(100, 3)
+        weights = [[1, 0], [0]]
+
+        with pytest.raises(
+            ValueError, match="weights must be numeric and rectangular"
+        ):
+            validate_contrasts(X, weights=weights)
 
     def test_weights_none_without_event_model(self):
         """weights=None should require EventModel."""
