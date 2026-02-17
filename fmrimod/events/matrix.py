@@ -131,7 +131,10 @@ class EventMatrix(BaseEvent):
                 f"Shape mismatch: {self.values.shape[0]} rows "
                 f"but {len(self.onsets)} onsets"
             )
-        
+
+        if self.values.shape[1] == 0:
+            raise ValueError("Values must contain at least one column")
+
         # Validate finite
         if not np.all(np.isfinite(self.values)):
             raise ValueError("Values must be finite (no NaN or inf)")
@@ -146,6 +149,8 @@ class EventMatrix(BaseEvent):
                 f"Number of column names ({len(self.column_names)}) "
                 f"must match number of columns ({self.n_columns})"
             )
+        elif pd.Index(self.column_names).nunique() != len(self.column_names):
+            raise ValueError("column_names must be unique")
     
     @property
     def event_type(self) -> EventType:

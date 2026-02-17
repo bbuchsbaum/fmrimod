@@ -299,14 +299,33 @@ class EventVariable(BaseEvent):
             Categorical event with binned values
         """
         from .factor import EventFactor
+
+        if isinstance(n_bins, bool) or not isinstance(n_bins, (int, np.integer)) or n_bins < 1:
+            raise ValueError("n_bins must be an integer >= 1")
+        if labels is not None and len(labels) != n_bins:
+            raise ValueError("labels length must match n_bins")
         
-        # Create bins
-        bins = np.quantile(self.raw_values, np.linspace(0, 1, n_bins + 1))
-        bins[0] -= 1e-10  # Ensure leftmost edge includes minimum
-        bins[-1] += 1e-10  # Ensure rightmost edge includes maximum
+        if np.allclose(self.raw_values, self.raw_values[0]):
+            center = float(self.raw_values[0])
+            bins = np.array([center - 1e-10, center + 1e-10], dtype=np.float64)
+        else:
+            # Create bins from quantiles
+            bins = np.quantile(self.raw_values, np.linspace(0, 1, n_bins + 1))
+            bins[0] -= 1e-10  # Ensure leftmost edge includes minimum
+            bins[-1] += 1e-10  # Ensure rightmost edge includes maximum
+
+            # Quantile edges can still collapse; drop duplicates.
+            bins = np.unique(bins)
+            if bins.size < 2:
+                center = float(self.raw_values[0])
+                bins = np.array([center - 1e-10, center + 1e-10], dtype=np.float64)
+        effective_n_bins = bins.size - 1
+        cut_labels = labels
+        if labels is not None and effective_n_bins < n_bins:
+            cut_labels = labels[:effective_n_bins]
         
         # Bin the values
-        binned = pd.cut(self.raw_values, bins=bins, labels=labels)
+        binned = pd.cut(self.raw_values, bins=bins, labels=cut_labels)
         
         return EventFactor(
             name=f"{self.name}_binned",

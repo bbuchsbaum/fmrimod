@@ -150,7 +150,12 @@ def _event_to_table(event: EventProtocol) -> pd.DataFrame:
     
     elif event.event_type == "basis":
         # For basis events, return basis function information
-        basis_names = event.basis_names or [f"basis_{i+1}" for i in range(event.nbasis)]
+        n_basis = getattr(event, "n_basis", getattr(event, "nbasis", None))
+        if n_basis is None:
+            raise AttributeError("EventBasis has no n_basis/nbasis attribute")
+        basis_names = list(event.basis_names)
+        if len(basis_names) != n_basis:
+            basis_names = [f"basis_{i+1}" for i in range(n_basis)]
         return pd.DataFrame({event.name: basis_names})
     
     else:
@@ -242,7 +247,13 @@ def _(x: EventMatrix, **kwargs) -> pd.DataFrame:
 @event_table.register(EventBasis)
 def _(x: EventBasis, **kwargs) -> pd.DataFrame:
     """Extract event table from EventBasis."""
-    basis_names = x.basis_names or [f"basis_{i+1}" for i in range(x.nbasis)]
+    n_basis = getattr(x, "n_basis", getattr(x, "nbasis", None))
+    if n_basis is None:
+        raise AttributeError("EventBasis has no n_basis/nbasis attribute")
+
+    basis_names = list(x.basis_names)
+    if len(basis_names) != n_basis:
+        basis_names = [f"basis_{i+1}" for i in range(n_basis)]
     return pd.DataFrame({
         'basis_function': basis_names,
         'type': x.basis.name if hasattr(x.basis, 'name') else 'basis'

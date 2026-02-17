@@ -153,7 +153,16 @@ class EventBasis(BaseEvent):
         # Ensure 2D
         if expanded.ndim == 1:
             expanded = expanded.reshape(-1, 1)
-        
+        elif expanded.ndim != 2:
+            raise ValueError(
+                f"Basis expansion must be 1D or 2D, got {expanded.ndim}D"
+            )
+
+        if expanded.shape[1] == 0:
+            raise ValueError("Basis expansion must produce at least one column")
+        if expanded.shape[0] != len(self.values):
+            raise ValueError("Basis expansion row count must match number of events")
+
         return expanded
     
     @property
@@ -289,13 +298,17 @@ class EventBasis(BaseEvent):
             Multi-column event with expanded values
         """
         from .matrix import EventMatrix
+
+        column_names = list(self.basis_names)
+        if len(column_names) != self.n_basis:
+            column_names = [f"{self.name}_basis{i+1}" for i in range(self.n_basis)]
         
         return EventMatrix(
             name=f"{self.name}_expanded",
             onsets=self.onsets,
             values=self.expanded_values,
             durations=self.durations,
-            column_names=self.basis_names
+            column_names=column_names
         )
     
     def change_basis(self, new_basis: BasisProtocol) -> EventBasis:

@@ -43,7 +43,33 @@ class TestEventFactor:
         
         assert event.levels == ['easy', 'medium', 'hard']
         assert list(event.values.categories) == ['easy', 'medium', 'hard']
-    
+
+    def test_explicit_levels_must_cover_observed_values(self):
+        """Explicit levels that omit observed values should raise."""
+        with pytest.raises(
+            ValueError,
+            match="levels not present in provided levels",
+        ):
+            EventFactor(
+                name='condition',
+                onsets=[1, 2],
+                values=['A', 'B'],
+                levels=['A'],
+            )
+
+    def test_empty_explicit_levels_are_rejected(self):
+        """Empty explicit levels should not produce degenerate factors."""
+        with pytest.raises(
+            ValueError,
+            match="levels not present in provided levels",
+        ):
+            EventFactor(
+                name='condition',
+                onsets=[1, 2],
+                values=['A', 'B'],
+                levels=[],
+            )
+
     def test_factor_with_durations(self):
         """Test factor with varying durations."""
         event = EventFactor(
@@ -253,6 +279,44 @@ class TestEventVariable:
         assert binned.n_levels == 3
         assert binned.n_events == 6
 
+    def test_bin_values_validates_n_bins(self):
+        """n_bins must be a positive integer."""
+        event = EventVariable(
+            name='rating',
+            onsets=[1, 2, 3, 4],
+            values=[1.0, 2.0, 3.0, 4.0],
+            center=False
+        )
+
+        for bad_n_bins in [0, -1, 1.5]:
+            with pytest.raises(ValueError, match="n_bins must be an integer >= 1"):
+                event.bin_values(n_bins=bad_n_bins)
+
+    def test_bin_values_validates_label_count(self):
+        """labels, when provided, must match n_bins."""
+        event = EventVariable(
+            name='rating',
+            onsets=[1, 2, 3, 4],
+            values=[1.0, 2.0, 3.0, 4.0],
+            center=False
+        )
+
+        with pytest.raises(ValueError, match="labels length must match n_bins"):
+            event.bin_values(n_bins=3, labels=["low", "high"])
+
+    def test_bin_values_handles_constant_values(self):
+        """Constant values should still yield a valid single-bin factor."""
+        event = EventVariable(
+            name='rating',
+            onsets=[1, 2, 3],
+            values=[5.0, 5.0, 5.0],
+            center=False
+        )
+
+        binned = event.bin_values(n_bins=3)
+        assert isinstance(binned, EventFactor)
+        assert binned.n_levels == 1
+
 
 class TestEventMatrix:
     """Test EventMatrix class."""
@@ -275,7 +339,26 @@ class TestEventMatrix:
         assert event.n_columns == 3
         assert event.column_names == ['x', 'y', 'z']
         assert event.event_type == 'matrix'
-    
+
+    def test_rejects_zero_column_values(self):
+        """Matrix events must define at least one value column."""
+        with pytest.raises(ValueError, match="Values must contain at least one column"):
+            EventMatrix(
+                name='motion',
+                onsets=[0, 1],
+                values=np.empty((2, 0))
+            )
+
+    def test_rejects_duplicate_column_names(self):
+        """column_names must be unique for unambiguous lookup."""
+        with pytest.raises(ValueError, match="column_names must be unique"):
+            EventMatrix(
+                name='motion',
+                onsets=[0, 1],
+                values=[[1, 2], [3, 4]],
+                column_names=['a', 'a'],
+            )
+
     def test_get_column(self):
         """Test column access."""
         values = [[1, 2], [3, 4], [5, 6]]
@@ -381,6 +464,65 @@ class TestEventBasis:
         assert isinstance(matrix, EventMatrix)
         assert matrix.n_columns == event.n_basis
         assert matrix.n_events == event.n_events
+
+    def test_rejects_zero_column_basis_expansion(self):
+        """Basis evaluators must produce at least one column."""
+        class EmptyBasis:
+            name = "empty"
+            basis_names = []
+
+            def evaluate(self, x):
+                x = np.asarray(x, dtype=float)
+                return np.empty((x.shape[0], 0))
+
+        with pytest.raises(
+            ValueError, match="Basis expansion must produce at least one column"
+        ):
+            EventBasis(
+                name='x',
+                onsets=[0, 1],
+                values=[1.0, 2.0],
+                basis=EmptyBasis()
+            )
+
+    def test_rejects_basis_expansion_row_mismatch(self):
+        """Basis expansion rows must align with number of events."""
+        class BadRowsBasis:
+            name = "badrows"
+            basis_names = ["b1", "b2"]
+
+            def evaluate(self, x):
+                return np.array([[1.0, 2.0]])  # wrong: only one row
+
+        with pytest.raises(
+            ValueError, match="Basis expansion row count must match number of events"
+        ):
+            EventBasis(
+                name='x',
+                onsets=[0, 1],
+                values=[1.0, 2.0],
+                basis=BadRowsBasis()
+            )
+
+    def test_basis_name_count_mismatch_falls_back_to_defaults(self):
+        """Mismatched basis_names should fall back to generated labels."""
+        class BadNamesBasis:
+            name = "badnames"
+            basis_names = ["only_one"]
+
+            def evaluate(self, x):
+                x = np.asarray(x, dtype=float)
+                return np.column_stack([x, x**2])  # two columns
+
+        event = EventBasis(
+            name='x',
+            onsets=[0, 1],
+            values=[1.0, 2.0],
+            basis=BadNamesBasis()
+        )
+
+        matrix = event.to_matrix()
+        assert matrix.column_names == ['x_basis1', 'x_basis2']
 
 
 class TestEventTerm:

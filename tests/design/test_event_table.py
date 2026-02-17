@@ -95,6 +95,47 @@ class TestEventTable:
         assert 'basis_function' in table.columns
         assert 'type' in table.columns
         assert len(table) == 4  # degree 3 + constant
+
+    def test_event_table_basis_empty_basis_names_uses_default_labels(self):
+        """Empty basis_names should fall back to generated basis_# labels."""
+        class _AnonymousBasis:
+            name = "anonymous"
+            basis_names = []
+
+            def evaluate(self, x):
+                x = np.asarray(x, dtype=float)
+                return np.column_stack([x, x**2])
+
+        event = EventBasis(
+            name='time',
+            onsets=[1, 2],
+            values=[1.0, 2.0],
+            basis=_AnonymousBasis()
+        )
+
+        table = event_table(event)
+        assert list(table['basis_function']) == ['basis_1', 'basis_2']
+
+    def test_event_table_term_single_basis_empty_names_uses_default_labels(self):
+        """Term path should also handle EventBasis with empty basis_names."""
+        class _AnonymousBasis:
+            name = "anonymous"
+            basis_names = []
+
+            def evaluate(self, x):
+                x = np.asarray(x, dtype=float)
+                return np.column_stack([x, x**2])
+
+        event = EventBasis(
+            name='time',
+            onsets=[1, 2],
+            values=[1.0, 2.0],
+            basis=_AnonymousBasis()
+        )
+
+        term = EventTerm([event])
+        table = event_table(term)
+        assert list(table['time']) == ['basis_1', 'basis_2']
     
     def test_event_table_term_single(self):
         """Test event_table for single-event EventTerm."""

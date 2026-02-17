@@ -129,6 +129,19 @@ class EventFactor(BaseEvent):
                 f"Length mismatch: {len(self._categorical_values)} values "
                 f"but {len(self.onsets)} onsets"
             )
+
+        na_mask = pd.isna(self._categorical_values)
+        if np.any(na_mask):
+            raw_values = np.asarray(self._values, dtype=object)
+            missing_levels = sorted(
+                {str(v) for v in raw_values[na_mask] if not pd.isna(v)}
+            )
+            if missing_levels:
+                raise ValueError(
+                    "Factor values include levels not present in provided levels: "
+                    + ", ".join(missing_levels)
+                )
+            raise ValueError("Factor values cannot contain missing values")
     
     @property
     def event_type(self) -> EventType:
