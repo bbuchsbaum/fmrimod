@@ -166,3 +166,30 @@ class TestSpatialFdr:
         np.testing.assert_array_equal(result_labels.reject, result_dense.reject)
         np.testing.assert_allclose(result_labels.qvalues, result_dense.qvalues, atol=1e-12)
         np.testing.assert_allclose(result_labels.weights, result_dense.weights, atol=1e-12)
+
+    def test_invalid_alpha_raises_clear_error(self):
+        p_vals = np.array([0.01, 0.2, 0.4, 0.8], dtype=np.float64)
+        for alpha in [0.0, 1.0, -0.1, 1.1]:
+            with pytest.raises(ValueError, match="alpha must be in \\(0, 1\\)"):
+                spatial_fdr(p_vals, alpha=alpha)
+
+    def test_invalid_tau_raises_clear_error(self):
+        p_vals = np.array([0.01, 0.2, 0.4, 0.8], dtype=np.float64)
+        for tau in [0.0, 1.0, -0.1, 1.1]:
+            with pytest.raises(ValueError, match="tau must be in \\(0, 1\\)"):
+                spatial_fdr(p_vals, tau=tau)
+
+    def test_invalid_min_pi0_raises_clear_error(self):
+        p_vals = np.array([0.01, 0.2, 0.4, 0.8], dtype=np.float64)
+        for min_pi0 in [-0.1, 1.1]:
+            with pytest.raises(ValueError, match="min_pi0 must be in \\[0, 1\\]"):
+                spatial_fdr(p_vals, min_pi0=min_pi0)
+
+    def test_negative_smooth_lambda_warns_and_matches_zero(self):
+        p_vals = np.array([0.01, 0.2, 0.4, 0.8], dtype=np.float64)
+        groups = np.array([0, 0, 1, 1], dtype=np.intp)
+        with pytest.warns(UserWarning, match="smooth_lambda < 0"):
+            neg = spatial_fdr(p_vals, group_ids=groups, smooth_lambda=-1.0)
+        zero = spatial_fdr(p_vals, group_ids=groups, smooth_lambda=0.0)
+        np.testing.assert_array_equal(neg.reject, zero.reject)
+        np.testing.assert_allclose(neg.qvalues, zero.qvalues, atol=1e-12)
