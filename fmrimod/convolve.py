@@ -420,6 +420,7 @@ def _convolve_event_factor(event: EventFactor, hrf=None,
     if sampling_frame is not None:
         grid = _prepare_sampling_grid(sampling_frame)
     else:
+        sampling_rate = _validate_sampling_rate(sampling_rate)
         # Determine total duration
         if total_duration is None:
             total_duration = np.max(event.onsets + event.durations) + 32.0
@@ -526,6 +527,7 @@ def _convolve_event_variable(event: EventVariable, hrf=None,
     if sampling_frame is not None:
         grid = _prepare_sampling_grid(sampling_frame)
     else:
+        sampling_rate = _validate_sampling_rate(sampling_rate)
         # Determine total duration
         if total_duration is None:
             total_duration = np.max(event.onsets + event.durations) + 32.0
@@ -614,6 +616,7 @@ def _convolve_event_matrix(event: EventMatrix, hrf=None,
     if sampling_frame is not None:
         grid = _prepare_sampling_grid(sampling_frame)
     else:
+        sampling_rate = _validate_sampling_rate(sampling_rate)
         # Determine total duration
         if total_duration is None:
             total_duration = np.max(event.onsets + event.durations) + 32.0
@@ -686,6 +689,7 @@ def _convolve_event_basis(event: EventBasis, hrf=None,
     if sampling_frame is not None:
         grid = _prepare_sampling_grid(sampling_frame)
     else:
+        sampling_rate = _validate_sampling_rate(sampling_rate)
         # Determine total duration
         if total_duration is None:
             total_duration = np.max(event.onsets + event.durations) + 32.0
@@ -838,6 +842,7 @@ def _convolve_array(arr: np.ndarray, hrf=None,
     if sampling_frame is not None:
         grid = _prepare_sampling_grid(sampling_frame)
     else:
+        sampling_rate = _validate_sampling_rate(sampling_rate)
         # Determine total duration
         if total_duration is None:
             total_duration = np.max(arr[:, 0] + arr[:, 1]) + 32.0

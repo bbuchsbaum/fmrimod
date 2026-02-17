@@ -881,6 +881,47 @@ class TestConvolveEdgeCases:
             with pytest.raises(ValueError, match=match):
                 convolve(arr, hrf=custom_hrf)
 
+    def test_invalid_sampling_rate_rejected_with_implicit_grid(self):
+        """Invalid sampling_rate should fail fast when sampling_frame is omitted."""
+        arr = np.array([
+            [5.0, 1.0, 1.0],
+            [10.0, 1.0, 1.0],
+        ])
+
+        event_var = EventVariable(
+            name="event_variable",
+            onsets=[5.0, 10.0],
+            durations=[1.0, 1.0],
+            values=[1.0, 1.0],
+            center=False,
+        )
+        event_factor = EventFactor(
+            name="event_factor",
+            onsets=[5.0, 10.0],
+            durations=[1.0, 1.0],
+            values=["A", "B"],
+        )
+        event_matrix = EventMatrix(
+            name="event_matrix",
+            onsets=[5.0, 10.0],
+            durations=[1.0, 1.0],
+            values=np.array([[1.0], [2.0]]),
+        )
+        cases = [
+            ("array", lambda rate: convolve(arr, sampling_rate=rate)),
+            ("factor", lambda rate: convolve(event_factor, sampling_rate=rate)),
+            ("matrix", lambda rate: convolve(event_matrix, sampling_rate=rate)),
+            ("variable", lambda rate: convolve(event_var, sampling_rate=rate)),
+            ("list", lambda rate: convolve([event_factor, event_var], sampling_rate=rate)),
+        ]
+
+        for _name, caller in cases:
+            for bad_rate in [0.0, -1.0, np.nan, np.inf]:
+                with pytest.raises(
+                    ValueError, match="sampling_rate must be a finite positive number"
+                ):
+                    caller(bad_rate)
+
     def test_fallback_empty_sampling_frame_raises_clear_error(self):
         """Regression: empty sampling_frame should fail with ValueError, not IndexError."""
         from fmrimod.basis import Poly
