@@ -36,6 +36,18 @@ class TestCreateBlocks:
         assert len(blocks[0]) == 10
         assert len(blocks[1]) == 5
 
+    def test_run_boundaries_must_start_at_zero(self):
+        with pytest.raises(ValueError, match="run_boundaries must start at 0"):
+            create_blocks(20, block_size=5, run_boundaries=[5, 10])
+
+    def test_run_boundaries_must_be_strictly_increasing(self):
+        with pytest.raises(ValueError, match="run_boundaries must be strictly increasing"):
+            create_blocks(20, block_size=5, run_boundaries=[0, 10, 8])
+
+    def test_run_boundaries_must_be_within_range(self):
+        with pytest.raises(ValueError, match="run_boundaries entries must be in \\[0, n\\)"):
+            create_blocks(20, block_size=5, run_boundaries=[0, 25])
+
 
 class TestBootstrapGlm:
     def test_residual_bootstrap(self, rng):

@@ -87,7 +87,15 @@ def create_blocks(
 
     if run_boundaries is None:
         run_boundaries = [0]
-    boundaries = list(run_boundaries) + [n]
+    boundaries = [int(b) for b in run_boundaries]
+    if not boundaries or boundaries[0] != 0:
+        raise ValueError("run_boundaries must start at 0")
+    if any(b < 0 or b >= n for b in boundaries):
+        raise ValueError("run_boundaries entries must be in [0, n)")
+    if any(boundaries[i] >= boundaries[i + 1] for i in range(len(boundaries) - 1)):
+        raise ValueError("run_boundaries must be strictly increasing")
+
+    boundaries = boundaries + [n]
 
     blocks: List[NDArray[np.intp]] = []
     for start, end in zip(boundaries[:-1], boundaries[1:]):
