@@ -18,7 +18,7 @@ Examples
 >>> result = engine.fit(model, config)
 
 >>> list_engines()
-['runwise', 'sketch']
+['chunkwise', 'runwise', 'sketch']
 """
 
 from __future__ import annotations

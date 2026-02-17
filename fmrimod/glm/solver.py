@@ -14,6 +14,18 @@ from numpy.typing import NDArray
 from scipy import linalg
 
 
+def _resolve_compute_dtype(dtype: object) -> np.dtype:
+    """Normalize and validate solver compute dtype."""
+    dt = np.dtype(dtype)
+    if dt.kind != "f":
+        raise ValueError(f"compute dtype must be floating-point, got {dt}")
+    if dt not in (np.dtype(np.float32), np.dtype(np.float64)):
+        raise ValueError(
+            f"unsupported compute dtype {dt}; expected float32 or float64"
+        )
+    return dt
+
+
 @dataclass
 class Projection:
     """Pre-computed projection components for fast least squares.
@@ -44,7 +56,10 @@ class Projection:
     ill_conditioned: bool
 
 
-def fast_preproject(X: NDArray[np.float64]) -> Projection:
+def fast_preproject(
+    X: NDArray[np.float64],
+    compute_dtype: object = np.float64,
+) -> Projection:
     """Pre-compute projection matrices for fast OLS.
 
     This computes the components needed to solve ``Y = X @ B + E``
@@ -57,6 +72,8 @@ def fast_preproject(X: NDArray[np.float64]) -> Projection:
     ----------
     X : NDArray
         Design matrix, shape ``(n, p)``.
+    compute_dtype : numpy dtype-like
+        Internal compute dtype (``float64`` default, optional ``float32``).
 
     Returns
     -------
@@ -68,7 +85,10 @@ def fast_preproject(X: NDArray[np.float64]) -> Projection:
     ValueError
         If *X* contains NaN or Inf values.
     """
-    X = np.asarray(X, dtype=np.float64)
+    dtype = _resolve_compute_dtype(compute_dtype)
+    eps = np.finfo(dtype).eps
+
+    X = np.asarray(X, dtype=dtype)
     if X.ndim != 2:
         raise ValueError(f"X must be 2-D, got shape {X.shape}")
     if X.shape[0] == 0 or X.shape[1] == 0:
@@ -78,42 +98,70 @@ def fast_preproject(X: NDArray[np.float64]) -> Projection:
 
     n, p = X.shape
 
-    # QR decomposition for rank detection
-    Q, R, pivot = linalg.qr(X, pivoting=True, mode="economic")
-    # Determine rank from R diagonal
-    diag_R = np.abs(np.diag(R))
-    tol = max(n, p) * np.finfo(np.float64).eps * (diag_R[0] if len(diag_R) > 0 else 1.0)
-    rank = int(np.sum(diag_R > tol))
+    cond_threshold = 1.0 / np.sqrt(eps)
+    used_cholesky = False
+    ill_conditioned = False
+    rank = p
 
-    cond_threshold = 1.0 / np.sqrt(np.finfo(np.float64).eps)
-    use_svd = rank != p
-    if rank == p:
-        try:
-            cond_est = np.linalg.cond(R[:p, :p]) if p > 0 else 1.0
-        except np.linalg.LinAlgError:
-            cond_est = np.inf
-        if not np.isfinite(cond_est) or cond_est > cond_threshold:
-            use_svd = True
-
-    if use_svd:
-        # Rank-deficient or ill-conditioned: SVD-based pseudoinverse
-        U, s, Vt = linalg.svd(X, full_matrices=False)
-        tol_svd = max(n, p) * np.finfo(np.float64).eps * s[0]
-        pos = s > tol_svd
-        rank = int(np.sum(pos))
-        s_inv = np.zeros_like(s)
-        s_inv[pos] = 1.0 / s[pos]
-
-        # Pinv = V @ diag(1/s) @ U'
-        Pinv = (Vt.T * s_inv[np.newaxis, :]) @ U.T
-        # XtXinv = V @ diag(1/s^2) @ V'
-        XtXinv = (Vt.T * (s_inv ** 2)[np.newaxis, :]) @ Vt
-    else:
-        # Well-conditioned full rank: Cholesky of X'X for efficiency
+    # Fast path: attempt full-rank Cholesky first.
+    try:
         XtX = X.T @ X
-        L = linalg.cholesky(XtX, lower=True)
-        XtXinv = linalg.cho_solve((L, True), np.eye(p))
-        Pinv = XtXinv @ X.T
+        L = linalg.cholesky(XtX, lower=True, check_finite=False)
+        cond_xtx = np.linalg.cond(XtX) if p > 0 else 1.0
+        cond_est = np.sqrt(cond_xtx) if np.isfinite(cond_xtx) else np.inf
+        if np.isfinite(cond_est) and cond_est <= cond_threshold:
+            XtXinv = linalg.cho_solve(
+                (L, True),
+                np.eye(p, dtype=dtype),
+                check_finite=False,
+            )
+            Pinv = XtXinv @ X.T
+            used_cholesky = True
+    except np.linalg.LinAlgError:
+        used_cholesky = False
+
+    if not used_cholesky:
+        # Fallback: rank-revealing QR + SVD when needed.
+        _Q, R, _pivot = linalg.qr(X, pivoting=True, mode="economic", check_finite=False)
+
+        diag_R = np.abs(np.diag(R))
+        tol = max(n, p) * eps * (
+            diag_R[0] if len(diag_R) > 0 else dtype.type(1.0)
+        )
+        rank = int(np.sum(diag_R > tol))
+
+        use_svd = rank != p
+        if rank == p:
+            try:
+                cond_est = np.linalg.cond(R[:p, :p]) if p > 0 else 1.0
+            except np.linalg.LinAlgError:
+                cond_est = np.inf
+            if not np.isfinite(cond_est) or cond_est > cond_threshold:
+                use_svd = True
+
+        if use_svd:
+            ill_conditioned = True
+            U, s, Vt = linalg.svd(X, full_matrices=False, check_finite=False)
+            tol_svd = max(n, p) * eps * s[0]
+            pos = s > tol_svd
+            rank = int(np.sum(pos))
+            s_inv = np.zeros_like(s)
+            s_inv[pos] = 1.0 / s[pos]
+
+            # Pinv = V @ diag(1/s) @ U'
+            Pinv = (Vt.T * s_inv[np.newaxis, :]) @ U.T
+            # XtXinv = V @ diag(1/s^2) @ V'
+            XtXinv = (Vt.T * (s_inv ** 2)[np.newaxis, :]) @ Vt
+        else:
+            ill_conditioned = False
+            XtX = X.T @ X
+            L = linalg.cholesky(XtX, lower=True, check_finite=False)
+            XtXinv = linalg.cho_solve(
+                (L, True),
+                np.eye(p, dtype=dtype),
+                check_finite=False,
+            )
+            Pinv = XtXinv @ X.T
 
     return Projection(
         Pinv=Pinv,
@@ -121,7 +169,7 @@ def fast_preproject(X: NDArray[np.float64]) -> Projection:
         dfres=float(n - rank),
         rank=rank,
         is_full_rank=(rank == p),
-        ill_conditioned=use_svd,
+        ill_conditioned=ill_conditioned,
     )
 
 
@@ -159,6 +207,7 @@ def fast_lm_matrix(
     Y: NDArray[np.float64],
     proj: Projection,
     return_fitted: bool = False,
+    compute_dtype: object = np.float64,
 ) -> LmResult:
     """Fast matrix-based OLS fit.
 
@@ -183,8 +232,9 @@ def fast_lm_matrix(
     LmResult
         Regression results.
     """
-    X = np.asarray(X, dtype=np.float64)
-    Y = np.asarray(Y, dtype=np.float64)
+    dtype = _resolve_compute_dtype(compute_dtype)
+    X = np.asarray(X, dtype=dtype)
+    Y = np.asarray(Y, dtype=dtype)
     if X.ndim != 2:
         raise ValueError(f"X must be 2-D, got shape {X.shape}")
     if Y.ndim == 1:
@@ -220,7 +270,7 @@ def fast_lm_matrix(
         if not return_fitted:
             fitted = None
     else:
-        # Memory-efficient: compute RSS without materialising residuals
+        # Memory-efficient: compute RSS without materialising residuals.
         # RSS = Y'Y - B' X'Y
         XtY = X.T @ Y
         yTy = np.sum(Y * Y, axis=0)

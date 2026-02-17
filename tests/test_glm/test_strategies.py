@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from fmrimod.glm.strategies import fit_run_ols, _pool_run_results
+from fmrimod.glm.strategies import fit_run_ols, fit_runwise, _pool_run_results
 from fmrimod.glm.preprocess import (
     apply_censoring,
     apply_volume_weights,
@@ -20,6 +20,33 @@ class _DummyDatasetForSoftSubspace:
 
     def get_mask(self):
         return self._mask
+
+
+class _MiniDataset:
+    """Minimal dataset protocol for runwise strategy tests."""
+
+    def __init__(self, ys):
+        self._ys = [np.asarray(y, dtype=np.float64) for y in ys]
+        self.n_timepoints = [y.shape[0] for y in self._ys]
+        self.n_runs = len(self._ys)
+
+    def get_data(self, run: int):
+        return self._ys[run]
+
+    def get_censor(self, run: int):
+        return None
+
+
+class _MiniModel:
+    """Minimal model exposing per-run design matrices and dataset."""
+
+    def __init__(self, xs, ys):
+        self._xs = [np.asarray(x, dtype=np.float64) for x in xs]
+        self.dataset = _MiniDataset(ys)
+        self.n_runs = len(self._xs)
+
+    def design_matrix_array(self, run: int):
+        return self._xs[run]
 
 
 def test_fit_run_ols_accepts_soft_subspace_auto_mode():
@@ -350,6 +377,41 @@ def test_fit_run_ols_weighted_bool_vs_integer_censor_parity():
     np.testing.assert_allclose(proj_int.XtXinv, proj_bool.XtXinv, atol=1e-12)
 
 
+def test_fit_run_ols_return_fitted_false_matches_core_estimates():
+    """RSS-only mode should match fitted mode for betas and variance outputs."""
+    rng = np.random.default_rng(123)
+    n, p, v = 120, 4, 16
+    X = np.column_stack([np.ones(n), rng.standard_normal((n, p - 1))]).astype(np.float64)
+    Y = rng.standard_normal((n, v)).astype(np.float64)
+    cfg = FmriLmConfig()
+
+    res_full, proj_full, X_full, Y_full = fit_run_ols(X, Y, cfg, return_fitted=True)
+    res_fast, proj_fast, X_fast, Y_fast = fit_run_ols(X, Y, cfg, return_fitted=False)
+
+    assert res_fast.fitted is None
+    np.testing.assert_allclose(res_fast.betas, res_full.betas, atol=1e-12)
+    np.testing.assert_allclose(res_fast.rss, res_full.rss, atol=1e-12)
+    np.testing.assert_allclose(res_fast.sigma2, res_full.sigma2, atol=1e-12)
+    np.testing.assert_allclose(proj_fast.XtXinv, proj_full.XtXinv, atol=1e-12)
+    np.testing.assert_allclose(X_fast, X_full, atol=0.0, rtol=0.0)
+    np.testing.assert_allclose(Y_fast, Y_full, atol=0.0, rtol=0.0)
+
+
+def test_fit_run_ols_does_not_mutate_inputs():
+    """Pre-fit preprocessing should not mutate caller-provided X/Y arrays."""
+    rng = np.random.default_rng(321)
+    n, p, v = 40, 3, 5
+    X = np.column_stack([np.ones(n), rng.standard_normal((n, p - 1))]).astype(np.float64)
+    Y = rng.standard_normal((n, v)).astype(np.float64)
+    X_before = X.copy()
+    Y_before = Y.copy()
+
+    _res, _proj, _X_used, _Y_used = fit_run_ols(X, Y, FmriLmConfig())
+
+    np.testing.assert_allclose(X, X_before, atol=0.0, rtol=0.0)
+    np.testing.assert_allclose(Y, Y_before, atol=0.0, rtol=0.0)
+
+
 def test_pool_run_results_inverse_variance_weighting_parity():
     """Runwise pooling should inverse-variance weight noisy runs down."""
     low_noise = LmResult(
@@ -379,3 +441,53 @@ def test_pool_run_results_inverse_variance_weighting_parity():
     expected = (1.0 / 1.0 * 1.0 + 1.0 / 100.0 * 10.0) / (1.0 / 1.0 + 1.0 / 100.0)
 
     np.testing.assert_allclose(pooled["betas"][0, 0], expected, atol=1e-12)
+
+
+def test_fit_runwise_parallel_matches_serial():
+    """Parallel runwise execution should match serial results."""
+    rng = np.random.default_rng(2024)
+    n_runs = 4
+    n, p, v = 120, 5, 32
+    xs = []
+    ys = []
+    for _ in range(n_runs):
+        X = np.column_stack([np.ones(n), rng.standard_normal((n, p - 1))]).astype(np.float64)
+        beta = rng.standard_normal((p, v)).astype(np.float64)
+        Y = X @ beta + rng.standard_normal((n, v)).astype(np.float64) * 0.2
+        xs.append(X)
+        ys.append(Y)
+
+    model = _MiniModel(xs, ys)
+    cfg = FmriLmConfig()
+
+    serial = fit_runwise(model, cfg, n_jobs=1)
+    parallel = fit_runwise(model, cfg, n_jobs=2, blas_threads=1)
+
+    np.testing.assert_allclose(parallel["betas"], serial["betas"], atol=1e-10)
+    np.testing.assert_allclose(parallel["sigma"], serial["sigma"], atol=1e-10)
+    np.testing.assert_allclose(parallel["XtXinv"], serial["XtXinv"], atol=1e-10)
+    assert parallel["dfres"] == serial["dfres"]
+
+
+def test_fit_runwise_float32_compute_dtype_close_to_float64():
+    """Float32 compute mode should stay numerically close to float64."""
+    rng = np.random.default_rng(2025)
+    n_runs = 2
+    n, p, v = 100, 4, 24
+    xs = []
+    ys = []
+    for _ in range(n_runs):
+        X = np.column_stack([np.ones(n), rng.standard_normal((n, p - 1))]).astype(np.float64)
+        beta = rng.standard_normal((p, v)).astype(np.float64)
+        Y = X @ beta + rng.standard_normal((n, v)).astype(np.float64) * 0.3
+        xs.append(X)
+        ys.append(Y)
+
+    model = _MiniModel(xs, ys)
+    cfg = FmriLmConfig()
+
+    f64 = fit_runwise(model, cfg, compute_dtype=np.float64)
+    f32 = fit_runwise(model, cfg, compute_dtype=np.float32)
+
+    np.testing.assert_allclose(f32["betas"], f64["betas"], rtol=3e-4, atol=3e-5)
+    np.testing.assert_allclose(f32["sigma"], f64["sigma"], rtol=3e-4, atol=3e-5)

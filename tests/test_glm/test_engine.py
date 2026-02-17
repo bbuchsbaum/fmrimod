@@ -19,6 +19,7 @@ class TestEngineRegistry:
         engines = list_engines()
         assert "runwise" in engines
         assert "sketch" in engines
+        assert "chunkwise" in engines
 
     def test_get_runwise(self):
         eng = get_engine("runwise")
@@ -27,6 +28,10 @@ class TestEngineRegistry:
 
     def test_get_sketch(self):
         eng = get_engine("sketch")
+        assert hasattr(eng, "fit")
+
+    def test_get_chunkwise(self):
+        eng = get_engine("chunkwise")
         assert hasattr(eng, "fit")
 
     def test_unknown_engine_raises(self):

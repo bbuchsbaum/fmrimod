@@ -103,6 +103,7 @@ Issues = "https://github.com/bbuchsbaum/fmrimod/issues"
 # allow third-party discovery without importing fmrimod.glm).
 runwise = "fmrimod.glm.engines.runwise:RunwiseEngine"
 sketch = "fmrimod.glm.engines.sketch:SketchEngine"
+chunkwise = "fmrimod.glm.engines.chunkwise:ChunkwiseEngine"
 
 [tool.hatch.build.targets.sdist]
 include = [

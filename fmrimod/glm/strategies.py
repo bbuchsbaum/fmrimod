@@ -6,6 +6,9 @@ fMRI datasets.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+import hashlib
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -23,6 +26,69 @@ from .preprocess import (
 from ..model.config import FmriLmConfig
 
 
+@contextmanager
+def _maybe_limit_blas_threads(blas_threads: Optional[int]):
+    """Limit BLAS threads within a context when threadpoolctl is available."""
+    if blas_threads is None:
+        yield
+        return
+    try:
+        from threadpoolctl import threadpool_limits  # type: ignore[import-not-found]
+    except Exception:
+        yield
+        return
+    with threadpool_limits(limits=int(blas_threads)):
+        yield
+
+
+def _projection_cache_key(
+    X: NDArray[np.float64],
+    compute_dtype: object,
+) -> tuple:
+    """Build a stable cache key for a design matrix projection."""
+    Xc = np.ascontiguousarray(X, dtype=np.dtype(compute_dtype))
+    h = hashlib.blake2b(digest_size=16)
+    h.update(memoryview(Xc).cast("B"))
+    return (Xc.shape, Xc.dtype.str, h.digest())
+
+
+def _fit_one_run(
+    model: object,
+    config: FmriLmConfig,
+    run_idx: int,
+    needs_residuals: bool,
+    compute_dtype: object,
+) -> tuple[int, LmResult, Projection, Optional[NDArray[np.float64]], Optional[NDArray[np.float64]]]:
+    """Fit one run and return all run-local outputs."""
+    Y_r = model.dataset.get_data(run_idx)  # type: ignore[attr-defined]
+    X_r = model.design_matrix_array(run=run_idx)  # type: ignore[attr-defined]
+
+    censor_r = None
+    dataset = model.dataset  # type: ignore[attr-defined]
+    if hasattr(dataset, "get_censor"):
+        censor_r = dataset.get_censor(run_idx)
+
+    result, proj, X_used, Y_used = fit_run_ols(
+        X_r,
+        Y_r,
+        config,
+        censor_r,
+        dataset=dataset,
+        run=run_idx,
+        return_fitted=needs_residuals,
+        compute_dtype=compute_dtype,
+    )
+
+    if not needs_residuals:
+        return run_idx, result, proj, None, None
+
+    if result.fitted is not None:
+        residual = Y_used - result.fitted
+    else:
+        residual = Y_used - X_used @ result.betas
+    return run_idx, result, proj, residual, X_used
+
+
 def fit_run_ols(
     X: NDArray[np.float64],
     Y: NDArray[np.float64],
@@ -30,6 +96,9 @@ def fit_run_ols(
     censor: Optional[NDArray[np.bool_]] = None,
     dataset: Optional[object] = None,
     run: Optional[int] = None,
+    return_fitted: bool = True,
+    compute_dtype: object = np.float64,
+    projection_cache: Optional[Dict[tuple, Projection]] = None,
 ) -> Tuple[LmResult, Projection, NDArray[np.float64], NDArray[np.float64]]:
     """Fit a single run with OLS (possibly after preprocessing).
 
@@ -47,6 +116,14 @@ def fit_run_ols(
         Dataset handle used for nuisance-mask extraction/slicing.
     run : int, optional
         Zero-indexed run number for run-aware nuisance slicing.
+    return_fitted : bool
+        If ``True``, include fitted values in ``LmResult``. Set ``False``
+        for faster RSS-only fits when residual time-series are not needed.
+    compute_dtype : numpy dtype-like
+        Internal solver dtype (``float64`` default, optional ``float32``).
+    projection_cache : dict, optional
+        Optional cache mapping design fingerprints to precomputed
+        :class:`Projection` objects.
 
     Returns
     -------
@@ -59,8 +136,9 @@ def fit_run_ols(
     Y_used : NDArray
         The (possibly preprocessed) data matrix that was actually fitted.
     """
-    X_fit = X.copy()
-    Y_fit = Y.copy()
+    # Keep zero-copy views unless a preprocessing step changes shape/values.
+    X_fit = X
+    Y_fit = Y
 
     # 1. Censoring — coerce integer 0/1 to boolean for fmrireg parity
     if censor is not None:
@@ -166,8 +244,22 @@ def fit_run_ols(
             )
 
     # 4. Fit OLS
-    proj = fast_preproject(X_fit)
-    result = fast_lm_matrix(X_fit, Y_fit, proj, return_fitted=True)
+    proj = None
+    cache_key = None
+    if projection_cache is not None:
+        cache_key = _projection_cache_key(X_fit, compute_dtype)
+        proj = projection_cache.get(cache_key)
+    if proj is None:
+        proj = fast_preproject(X_fit, compute_dtype=compute_dtype)
+        if projection_cache is not None and cache_key is not None:
+            projection_cache[cache_key] = proj
+    result = fast_lm_matrix(
+        X_fit,
+        Y_fit,
+        proj,
+        return_fitted=return_fitted,
+        compute_dtype=compute_dtype,
+    )
 
     return result, proj, X_fit, Y_fit
 
@@ -175,6 +267,10 @@ def fit_run_ols(
 def fit_runwise(
     model: object,  # FmriModel
     config: FmriLmConfig,
+    n_jobs: int = 1,
+    blas_threads: Optional[int] = None,
+    compute_dtype: object = np.float64,
+    cache_projections: bool = False,
 ) -> Dict:
     """Fit the GLM run by run and pool results.
 
@@ -196,53 +292,278 @@ def fit_runwise(
         ``projections``, ``run_results``, ``residuals``.
     """
     n_runs = model.n_runs  # type: ignore[attr-defined]
+    n_workers = max(1, min(int(n_jobs), int(n_runs)))
+    needs_residuals = config.ar.enabled or config.robust.enabled
 
-    run_results: List[LmResult] = []
-    run_projections: List[Projection] = []
-    run_residuals: List[NDArray] = []
-    run_X: List[NDArray] = []
+    run_results: List[Optional[LmResult]] = [None] * n_runs
+    run_projections: List[Optional[Projection]] = [None] * n_runs
+    run_residuals: Optional[List[Optional[NDArray]]] = (
+        [None] * n_runs if needs_residuals else None
+    )
+    run_X: Optional[List[Optional[NDArray]]] = (
+        [None] * n_runs if needs_residuals else None
+    )
 
-    for r in range(n_runs):
-        # Get per-run data and design
-        Y_r = model.dataset.get_data(r)  # type: ignore[attr-defined]
-        X_r = model.design_matrix_array(run=r)  # type: ignore[attr-defined]
+    if n_workers == 1:
+        proj_cache: Optional[Dict[tuple, Projection]] = {} if cache_projections else None
+        for r in range(n_runs):
+            # Get per-run data and design
+            Y_r = model.dataset.get_data(r)  # type: ignore[attr-defined]
+            X_r = model.design_matrix_array(run=r)  # type: ignore[attr-defined]
 
-        # Get censor for this run
-        censor_r = None
-        dataset = model.dataset  # type: ignore[attr-defined]
-        if hasattr(dataset, "get_censor"):
-            censor_r = dataset.get_censor(r)
+            # Get censor for this run
+            censor_r = None
+            dataset = model.dataset  # type: ignore[attr-defined]
+            if hasattr(dataset, "get_censor"):
+                censor_r = dataset.get_censor(r)
 
-        result, proj, X_used, Y_used = fit_run_ols(
-            X_r,
-            Y_r,
-            config,
-            censor_r,
-            dataset=dataset,
-            run=r,
-        )
-        run_results.append(result)
-        run_projections.append(proj)
-        run_X.append(X_used)
+            result, proj, X_used, Y_used = fit_run_ols(
+                X_r,
+                Y_r,
+                config,
+                censor_r,
+                dataset=dataset,
+                run=r,
+                return_fitted=needs_residuals,
+                compute_dtype=compute_dtype,
+                projection_cache=proj_cache,
+            )
+            run_results[r] = result
+            run_projections[r] = proj
+            if needs_residuals:
+                assert run_X is not None
+                assert run_residuals is not None
+                run_X[r] = X_used
+                # Compute residuals only when downstream AR/robust needs them.
+                if result.fitted is not None:
+                    run_residuals[r] = Y_used - result.fitted
+                else:
+                    run_residuals[r] = Y_used - X_used @ result.betas
+    else:
+        if cache_projections:
+            # Cache coordination across workers would require explicit locking
+            # and can negate gains; disable in threaded mode.
+            cache_projections = False
+        with _maybe_limit_blas_threads(blas_threads):
+            with ThreadPoolExecutor(max_workers=n_workers) as ex:
+                futures = [
+                    ex.submit(
+                        _fit_one_run,
+                        model,
+                        config,
+                        r,
+                        needs_residuals,
+                        compute_dtype,
+                    )
+                    for r in range(n_runs)
+                ]
+                for fut in futures:
+                    run_idx, result, proj, residual, X_used = fut.result()
+                    run_results[run_idx] = result
+                    run_projections[run_idx] = proj
+                    if needs_residuals:
+                        assert run_X is not None
+                        assert run_residuals is not None
+                        assert residual is not None
+                        assert X_used is not None
+                        run_X[run_idx] = X_used
+                        run_residuals[run_idx] = residual
 
-        # Compute residuals
-        if result.fitted is not None:
-            run_residuals.append(Y_used - result.fitted)
-        else:
-            run_residuals.append(Y_used - X_used @ result.betas)
+    # Narrow optional element types after fill.
+    run_results_typed = [r for r in run_results if r is not None]
+    run_proj_typed = [p for p in run_projections if p is not None]
+    run_residuals_typed: Optional[List[NDArray]] = None
+    run_x_typed: Optional[List[NDArray]] = None
+    if needs_residuals:
+        assert run_residuals is not None
+        assert run_X is not None
+        run_residuals_typed = [rr for rr in run_residuals if rr is not None]
+        run_x_typed = [xx for xx in run_X if xx is not None]
 
     # Pool across runs via fixed-effects meta-analysis
-    pooled = _pool_run_results(run_results, run_projections)
+    pooled = _pool_run_results(run_results_typed, run_proj_typed)
 
     return {
         "betas": pooled["betas"],
         "sigma": pooled["sigma"],
         "dfres": pooled["dfres"],
         "XtXinv": pooled["XtXinv"],
-        "projections": run_projections,
-        "run_results": run_results,
-        "residuals": run_residuals,
-        "run_X": run_X,
+        "projections": run_proj_typed,
+        "run_results": run_results_typed,
+        "residuals": run_residuals_typed,
+        "run_X": run_x_typed,
+    }
+
+
+def _fit_chunked_lm(
+    X_fit: NDArray[np.float64],
+    Y_fit: NDArray[np.float64],
+    proj: Projection,
+    *,
+    chunk_size: int,
+    n_jobs: int,
+    blas_threads: Optional[int],
+    compute_dtype: object,
+) -> LmResult:
+    """Fit OLS for a run by processing voxels in contiguous chunks."""
+    if chunk_size < 1:
+        raise ValueError("chunk_size must be >= 1")
+    n_voxels = int(Y_fit.shape[1])
+    p_dim = int(X_fit.shape[1])
+    n_workers = max(1, int(n_jobs))
+
+    betas = np.empty((p_dim, n_voxels), dtype=np.float64)
+    rss = np.empty(n_voxels, dtype=np.float64)
+    sigma2 = np.empty(n_voxels, dtype=np.float64)
+
+    def _solve_one(start: int, end: int) -> tuple[int, int, NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
+        y_chunk = Y_fit[:, start:end]
+        res = fast_lm_matrix(
+            X_fit,
+            y_chunk,
+            proj,
+            return_fitted=False,
+            compute_dtype=compute_dtype,
+        )
+        return start, end, res.betas, res.rss, res.sigma2
+
+    ranges = [
+        (start, min(start + chunk_size, n_voxels))
+        for start in range(0, n_voxels, chunk_size)
+    ]
+
+    if n_workers == 1 or len(ranges) == 1:
+        for start, end in ranges:
+            s, e, b, r, s2 = _solve_one(start, end)
+            betas[:, s:e] = b
+            rss[s:e] = r
+            sigma2[s:e] = s2
+    else:
+        with _maybe_limit_blas_threads(blas_threads):
+            with ThreadPoolExecutor(max_workers=n_workers) as ex:
+                futures = [ex.submit(_solve_one, s, e) for s, e in ranges]
+                for fut in futures:
+                    s, e, b, r, s2 = fut.result()
+                    betas[:, s:e] = b
+                    rss[s:e] = r
+                    sigma2[s:e] = s2
+
+    return LmResult(
+        betas=betas,
+        rss=rss,
+        sigma2=sigma2,
+        dfres=proj.dfres,
+        rank=proj.rank,
+        fitted=None,
+    )
+
+
+def fit_chunkwise(
+    model: object,  # FmriModel
+    config: FmriLmConfig,
+    *,
+    chunk_size: int = 5000,
+    n_jobs: int = 1,
+    blas_threads: Optional[int] = None,
+    compute_dtype: object = np.float64,
+    cache_projections: bool = False,
+) -> Dict:
+    """Fit GLM in voxel chunks (fmrireg-style chunkwise strategy).
+
+    Notes
+    -----
+    This strategy currently supports base OLS + censoring. AR, robust,
+    volume-weights, and soft-subspace preprocessing require full runwise
+    transforms and are intentionally rejected here.
+    """
+    if config.ar.enabled:
+        raise NotImplementedError("chunkwise engine does not yet support AR modeling")
+    if config.robust.enabled:
+        raise NotImplementedError("chunkwise engine does not yet support robust fitting")
+    if config.volume_weights.enabled:
+        raise NotImplementedError("chunkwise engine does not yet support volume_weights")
+    if config.soft_subspace.enabled:
+        raise NotImplementedError("chunkwise engine does not yet support soft_subspace")
+    if chunk_size < 1:
+        raise ValueError("chunk_size must be >= 1")
+
+    n_runs = model.n_runs  # type: ignore[attr-defined]
+    n_workers = max(1, min(int(n_jobs), int(n_runs)))
+    run_results: List[Optional[LmResult]] = [None] * n_runs
+    run_projections: List[Optional[Projection]] = [None] * n_runs
+    proj_cache: Optional[Dict[tuple, Projection]] = {} if (cache_projections and n_workers == 1) else None
+
+    def _fit_run(r: int) -> tuple[int, LmResult, Projection]:
+        Y_r = model.dataset.get_data(r)  # type: ignore[attr-defined]
+        X_r = model.design_matrix_array(run=r)  # type: ignore[attr-defined]
+
+        censor_r = None
+        dataset = model.dataset  # type: ignore[attr-defined]
+        if hasattr(dataset, "get_censor"):
+            censor_r = dataset.get_censor(r)
+
+        if censor_r is not None:
+            censor_arr = np.asarray(censor_r)
+            if censor_arr.dtype.kind in ("i", "u", "f"):
+                unique = np.unique(censor_arr)
+                if not np.all(np.isin(unique, [0, 1])):
+                    raise ValueError("Censor vector must be boolean or binary (0/1)")
+                censor_arr = censor_arr.astype(bool)
+            if np.any(censor_arr):
+                X_fit, Y_fit, _ = apply_censoring(X_r, Y_r, censor_arr)
+            else:
+                X_fit, Y_fit = X_r, Y_r
+        else:
+            X_fit, Y_fit = X_r, Y_r
+
+        proj = None
+        cache_key = None
+        if proj_cache is not None:
+            cache_key = _projection_cache_key(X_fit, compute_dtype)
+            proj = proj_cache.get(cache_key)
+        if proj is None:
+            proj = fast_preproject(X_fit, compute_dtype=compute_dtype)
+            if proj_cache is not None and cache_key is not None:
+                proj_cache[cache_key] = proj
+
+        result = _fit_chunked_lm(
+            X_fit,
+            Y_fit,
+            proj,
+            chunk_size=chunk_size,
+            n_jobs=1,
+            blas_threads=blas_threads,
+            compute_dtype=compute_dtype,
+        )
+        return r, result, proj
+
+    if n_workers == 1:
+        for r in range(n_runs):
+            run_idx, result, proj = _fit_run(r)
+            run_results[run_idx] = result
+            run_projections[run_idx] = proj
+    else:
+        with _maybe_limit_blas_threads(blas_threads):
+            with ThreadPoolExecutor(max_workers=n_workers) as ex:
+                futures = [ex.submit(_fit_run, r) for r in range(n_runs)]
+                for fut in futures:
+                    run_idx, result, proj = fut.result()
+                    run_results[run_idx] = result
+                    run_projections[run_idx] = proj
+
+    run_results_typed = [r for r in run_results if r is not None]
+    run_proj_typed = [p for p in run_projections if p is not None]
+
+    pooled = _pool_run_results(run_results_typed, run_proj_typed)
+    return {
+        "betas": pooled["betas"],
+        "sigma": pooled["sigma"],
+        "dfres": pooled["dfres"],
+        "XtXinv": pooled["XtXinv"],
+        "projections": run_proj_typed,
+        "run_results": run_results_typed,
+        "residuals": None,
+        "run_X": None,
     }
 
 
@@ -279,21 +600,26 @@ def _pool_run_results(
     p_dim = results[0].betas.shape[0]
     V = results[0].betas.shape[1]
 
-    # Inverse-variance beta pooling (fmrireg parity).
+    # Inverse-variance beta pooling (streaming; avoids large temporary stacks).
     # se_{r,j,v}^2 = sigma2_{r,v} * XtXinv_{r,j,j}
-    beta_stack = np.stack([r.betas for r in results], axis=0)  # (R, p, V)
-    sigma2_stack = np.stack([r.sigma2 for r in results], axis=0)  # (R, V)
-    diag_xtxinv = np.stack(
-        [np.maximum(np.diag(proj.XtXinv), 0.0) for proj in projections], axis=0
-    )  # (R, p)
-    se2 = diag_xtxinv[:, :, np.newaxis] * sigma2_stack[:, np.newaxis, :]  # (R, p, V)
-    weights = np.where(se2 > np.finfo(np.float64).eps, 1.0 / se2, 0.0)
-    wsum = np.sum(weights, axis=0)  # (p, V)
-    wbeta = np.sum(weights * beta_stack, axis=0)
+    wsum = np.zeros((p_dim, V), dtype=np.float64)
+    wbeta = np.zeros((p_dim, V), dtype=np.float64)
+    beta_mean = np.zeros((p_dim, V), dtype=np.float64)
+    eps = np.finfo(np.float64).eps
+
+    for r, proj in zip(results, projections):
+        beta_mean += r.betas
+        diag_xtxinv = np.maximum(np.diag(proj.XtXinv), 0.0)[:, np.newaxis]  # (p,1)
+        se2 = diag_xtxinv * r.sigma2[np.newaxis, :]  # (p,V)
+        w = np.where(se2 > eps, 1.0 / se2, 0.0)
+        wsum += w
+        wbeta += w * r.betas
+
+    beta_mean /= float(len(results))
     betas_pooled = np.divide(
         wbeta,
         wsum,
-        out=np.mean(beta_stack, axis=0),
+        out=beta_mean,
         where=wsum > 0.0,
     )
 

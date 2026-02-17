@@ -193,8 +193,9 @@ def fmri_lm(
     and returns a fitted :class:`FmriLm` result object.
 
     The *engine* parameter selects the fitting strategy.  Built-in
-    engines are ``"runwise"`` (default OLS with meta-analytic pooling)
-    and ``"sketch"`` (randomised low-rank solver).  Third-party engines
+    engines are ``"runwise"`` (default OLS with meta-analytic pooling),
+    ``"chunkwise"`` (voxel-chunked OLS), and ``"sketch"``
+    (randomised low-rank solver).  Third-party engines
     can be registered via Python entry points or
     :func:`~fmrimod.glm.engine.register_engine`.
 
@@ -229,6 +230,10 @@ def fmri_lm(
     Using the sketch engine::
 
         >>> result = fmri_lm(model, engine="sketch", sketch_ratio=0.5)
+
+    Using the chunkwise engine::
+
+        >>> result = fmri_lm(model, engine="chunkwise", chunk_size=5000)
     """
     from .engine import EngineResult, get_engine
 

@@ -1,7 +1,7 @@
-"""Run-wise OLS fitting engine.
+"""Chunkwise OLS fitting engine.
 
-The default engine: fits each run independently, then pools results
-via fixed-effects meta-analysis.
+Processes voxel columns in chunks while sharing the same run design
+projection to reduce peak memory and improve throughput on large datasets.
 """
 
 from __future__ import annotations
@@ -9,19 +9,15 @@ from __future__ import annotations
 from typing import Any
 
 from ..engine import EngineResult, register_engine
-from ..strategies import fit_runwise
+from ..strategies import fit_chunkwise
 from ...model.config import FmriLmConfig
 
 
 @register_engine
-class RunwiseEngine:
-    """Default engine: per-run OLS with meta-analytic pooling.
+class ChunkwiseEngine:
+    """Chunkwise engine: per-run chunked OLS + fixed-effects pooling."""
 
-    This wraps :func:`~fmrimod.glm.strategies.fit_runwise` behind the
-    :class:`~fmrimod.glm.engine.FittingEngine` protocol.
-    """
-
-    name = "runwise"
+    name = "chunkwise"
 
     def fit(
         self,
@@ -29,7 +25,7 @@ class RunwiseEngine:
         config: FmriLmConfig,
         **kwargs: Any,
     ) -> EngineResult:
-        raw = fit_runwise(model, config, **kwargs)
+        raw = fit_chunkwise(model, config, **kwargs)
         return EngineResult(
             betas=raw["betas"],
             sigma=raw["sigma"],
@@ -47,3 +43,4 @@ class RunwiseEngine:
             raise ValueError("Model must have a 'dataset' attribute")
         if not hasattr(model, "design_matrix_array"):
             raise ValueError("Model must provide 'design_matrix_array()'")
+
