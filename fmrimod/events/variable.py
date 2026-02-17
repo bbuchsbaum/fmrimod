@@ -212,13 +212,13 @@ class EventVariable(BaseEvent):
             if duration == 0:
                 # Impulse event - find nearest sampling point
                 idx = np.argmin(np.abs(sampling_points - onset))
-                X[idx, 0] = value
+                X[idx, 0] += value
             else:
                 # Extended event - fill duration
                 mask = (sampling_points >= onset) & (
                     sampling_points < onset + duration
                 )
-                X[mask, 0] = value
+                X[mask, 0] += value
         
         return X
     

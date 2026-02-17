@@ -202,13 +202,13 @@ class EventMatrix(BaseEvent):
             if duration == 0:
                 # Impulse event - find nearest sampling point
                 idx = np.argmin(np.abs(sampling_points - onset))
-                X[idx, :] = values
+                X[idx, :] += values
             else:
                 # Extended event - fill duration
                 mask = (sampling_points >= onset) & (
                     sampling_points < onset + duration
                 )
-                X[mask, :] = values
+                X[mask, :] += values
         
         return X
     

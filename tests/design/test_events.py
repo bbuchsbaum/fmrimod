@@ -97,6 +97,38 @@ class TestEventFactor:
         
         assert np.array_equal(X[:, 0], expected_A)
         assert np.array_equal(X[:, 1], expected_B)
+
+    def test_design_matrix_duplicate_impulses_superpose_same_level(self):
+        """Duplicate impulses for a level should accumulate counts."""
+        event = EventFactor(
+            name='condition',
+            onsets=[1, 1],
+            values=['A', 'A'],
+            durations=0
+        )
+
+        sampling_points = np.arange(0, 4, 1)
+        X = event.design_matrix(sampling_points)
+
+        assert X.shape == (4, 1)
+        assert X[1, 0] == 2.0
+
+    def test_design_matrix_overlapping_durations_superpose_same_level(self):
+        """Overlapping duration windows for a level should accumulate."""
+        event = EventFactor(
+            name='condition',
+            onsets=[1, 2],
+            values=['A', 'A'],
+            durations=[3, 2]
+        )
+
+        sampling_points = np.arange(0, 6, 1)
+        X = event.design_matrix(sampling_points)
+
+        # First event active at 1,2,3. Second active at 2,3.
+        assert X[1, 0] == 1.0
+        assert X[2, 0] == 2.0
+        assert X[3, 0] == 2.0
     
     def test_split_by_level(self):
         """Test splitting into separate events by level."""

@@ -244,13 +244,13 @@ class EventFactor(BaseEvent):
                 if duration == 0:
                     # Zero duration - create impulse at nearest sampling point
                     nearest_idx = np.argmin(np.abs(sampling_points - onset))
-                    X[nearest_idx, i] = 1.0
+                    X[nearest_idx, i] += 1.0
                 else:
                     # Non-zero duration - create boxcar
                     mask = (sampling_points >= onset) & (
                         sampling_points < onset + duration
                     )
-                    X[mask, i] = 1.0
+                    X[mask, i] += 1.0
         
         return X
     

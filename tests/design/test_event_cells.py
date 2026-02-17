@@ -422,6 +422,30 @@ class TestEventModelCells:
 
 
 # ============================================================================
+# Test EventVariable design matrix superposition behavior
+# ============================================================================
+
+class TestEventVariableDesignMatrix:
+    """Test EventVariable design matrix behavior."""
+
+    def test_design_matrix_impulse_superposes_duplicate_onsets(self):
+        """Repeated onsets should sum contributions instead of overwrite."""
+        event = EventVariable(
+            name='rating',
+            onsets=[1, 1],
+            values=[2.0, 3.0],
+            durations=0,
+            center=False,
+            scale=False
+        )
+
+        sampling_points = np.arange(0, 4, 1)
+        X = event.design_matrix(sampling_points)
+
+        assert X[1, 0] == 5.0
+
+
+# ============================================================================
 # Test EventMatrix - P2-02
 # ============================================================================
 
@@ -532,6 +556,20 @@ class TestEventMatrixConstruction:
         assert np.array_equal(X[1, :], [0, 0])
         assert np.array_equal(X[3, :], [0, 0])
         assert np.array_equal(X[5, :], [0, 0])
+
+    def test_design_matrix_impulse_superposes_duplicate_onsets(self):
+        """Repeated onsets should sum contributions instead of overwrite."""
+        event = EventMatrix(
+            name='params',
+            onsets=[2, 2],
+            values=[[1, 2], [10, 20]],
+            durations=0
+        )
+
+        sampling_points = np.arange(0, 5, 1)
+        X = event.design_matrix(sampling_points)
+
+        assert np.array_equal(X[2, :], [11, 22])
 
     def test_design_matrix_extended(self):
         """Test design_matrix method with extended events."""
@@ -703,6 +741,23 @@ class TestEventBasisConstruction:
         # Second event at onset=2, duration=1: fills index 2
         assert X[2, 0] != 0
         assert X[2, 1] != 0
+
+    def test_design_matrix_impulse_superposes_duplicate_onsets(self):
+        """Repeated basis events at same onset should sum basis-expanded values."""
+        basis = Poly(degree=2)
+        event = EventBasis(
+            name='x',
+            onsets=[1, 1],
+            values=[2, 3],
+            basis=basis,
+            durations=0
+        )
+
+        sampling_points = np.arange(0, 4, 1)
+        X = event.design_matrix(sampling_points)
+
+        expected = event.expanded_values[0, :] + event.expanded_values[1, :]
+        assert np.allclose(X[1, :], expected)
 
     def test_n_basis_property(self):
         """Test n_basis property."""
