@@ -123,6 +123,34 @@ def test_fit_run_ols_nuisance_mask_3d_maps_via_dataset_mask():
     np.testing.assert_allclose(proj.XtXinv, ref_proj.XtXinv, atol=1e-10)
 
 
+def test_fit_run_ols_nuisance_mask_pathlike_file_matches_manual_projection(tmp_path):
+    """PathLike nuisance_mask files should flow through fit_run_ols soft-subspace path."""
+    nib = pytest.importorskip("nibabel")
+    rng = np.random.default_rng(41)
+    n, v = 18, 4
+    X = np.column_stack([np.ones(n), rng.standard_normal((n, 1))]).astype(np.float64)
+    Y = rng.standard_normal((n, v)).astype(np.float64)
+    mask_3d = np.array([[[1]], [[0]], [[1]], [[0]]], dtype=np.uint8)
+    mask_path = tmp_path / "soft_nuisance_mask.nii.gz"
+    nib.save(nib.Nifti1Image(mask_3d, affine=np.eye(4)), str(mask_path))
+
+    cfg = FmriLmConfig(
+        soft_subspace=SoftSubspaceOptions(enabled=True, nuisance_mask=mask_path, lam=0.2)
+    )
+    res, proj, X_used, Y_used = fit_run_ols(X, Y, cfg)
+
+    nuisance = Y[:, mask_3d.ravel().astype(bool)]
+    X_ref, Y_ref = soft_subspace_projection(X, Y, nuisance, lam=0.2)
+    ref_proj = fast_preproject(X_ref)
+    ref_res = fast_lm_matrix(X_ref, Y_ref, ref_proj, return_fitted=True)
+
+    np.testing.assert_allclose(X_used, X_ref, atol=1e-12)
+    np.testing.assert_allclose(Y_used, Y_ref, atol=1e-12)
+    np.testing.assert_allclose(res.betas, ref_res.betas, atol=1e-10)
+    np.testing.assert_allclose(res.sigma2, ref_res.sigma2, atol=1e-10)
+    np.testing.assert_allclose(proj.XtXinv, ref_proj.XtXinv, atol=1e-10)
+
+
 def test_fit_run_ols_slices_allrun_nuisance_matrix_for_selected_run():
     """All-run nuisance matrices should be sliced by run before fitting."""
     rng = np.random.default_rng(5)
