@@ -71,6 +71,17 @@ def _validate_sampling_rate(sampling_rate: float) -> float:
     return sampling_rate
 
 
+def _validate_total_duration(total_duration: float) -> float:
+    """Validate total duration is finite and strictly positive."""
+    try:
+        total_duration = float(total_duration)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("total_duration must be a finite positive number") from exc
+    if not np.isfinite(total_duration) or total_duration <= 0:
+        raise ValueError("total_duration must be a finite positive number")
+    return total_duration
+
+
 def _get_fallback_timing(
     grid: Array,
     sampling_rate: float,
@@ -424,6 +435,7 @@ def _convolve_event_factor(event: EventFactor, hrf=None,
         # Determine total duration
         if total_duration is None:
             total_duration = np.max(event.onsets + event.durations) + 32.0
+        total_duration = _validate_total_duration(total_duration)
         grid = _prepare_sampling_grid(np.arange(0, total_duration, 1/sampling_rate))
 
     # Check if we should use fmrimod or fallback
@@ -531,6 +543,7 @@ def _convolve_event_variable(event: EventVariable, hrf=None,
         # Determine total duration
         if total_duration is None:
             total_duration = np.max(event.onsets + event.durations) + 32.0
+        total_duration = _validate_total_duration(total_duration)
         grid = _prepare_sampling_grid(np.arange(0, total_duration, 1/sampling_rate))
 
     # Check if we should use fmrimod or fallback
@@ -620,6 +633,7 @@ def _convolve_event_matrix(event: EventMatrix, hrf=None,
         # Determine total duration
         if total_duration is None:
             total_duration = np.max(event.onsets + event.durations) + 32.0
+        total_duration = _validate_total_duration(total_duration)
         grid = _prepare_sampling_grid(np.arange(0, total_duration, 1/sampling_rate))
 
     n_cols = event.n_columns
@@ -693,6 +707,7 @@ def _convolve_event_basis(event: EventBasis, hrf=None,
         # Determine total duration
         if total_duration is None:
             total_duration = np.max(event.onsets + event.durations) + 32.0
+        total_duration = _validate_total_duration(total_duration)
         grid = _prepare_sampling_grid(np.arange(0, total_duration, 1/sampling_rate))
 
     if HAS_PYFMRIHRF:
@@ -821,6 +836,8 @@ def _convolve_array(arr: np.ndarray, hrf=None,
             "Array must have shape (n_events, 3) with columns "
             "[onset, duration, value]"
         )
+    if arr.shape[0] == 0:
+        raise ValueError("Array must contain at least one event row")
 
     arr = np.asarray(arr, dtype=float)
     onsets = arr[:, 0]
@@ -846,6 +863,7 @@ def _convolve_array(arr: np.ndarray, hrf=None,
         # Determine total duration
         if total_duration is None:
             total_duration = np.max(arr[:, 0] + arr[:, 1]) + 32.0
+        total_duration = _validate_total_duration(total_duration)
         grid = _prepare_sampling_grid(np.arange(0, total_duration, 1/sampling_rate))
 
     # Check if we should use fmrimod or fallback

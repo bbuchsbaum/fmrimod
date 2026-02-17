@@ -618,6 +618,13 @@ class TestConvolveNumpyArrayComprehensive:
         with pytest.raises(ValueError, match="must have shape"):
             convolve(arr_1d, sampling_rate=1.0)
 
+    def test_array_empty_rows_raise_clear_error(self):
+        """Regression: empty ndarray inputs should fail with a clear message."""
+        arr_empty = np.empty((0, 3), dtype=float)
+
+        with pytest.raises(ValueError, match="Array must contain at least one event row"):
+            convolve(arr_empty, sampling_rate=1.0)
+
     def test_array_3column_format(self):
         """Test array with correct [onset, duration, value] format."""
         arr = np.array([
@@ -732,6 +739,32 @@ class TestConvolveEdgeCases:
                 ValueError, match="sampling_rate must be a finite positive number"
             ):
                 convolve(event, sampling_rate=bad_rate, total_duration=10.0)
+
+    def test_total_duration_requires_finite_positive_without_sampling_frame(self):
+        """Regression: invalid total_duration should fail clearly when grid is implicit."""
+        event = EventVariable(
+            name="bad_total_duration",
+            onsets=[5.0],
+            durations=[1.0],
+            values=[1.0],
+            center=False,
+        )
+
+        for bad_duration in [0.0, -1.0, np.nan, np.inf]:
+            with pytest.raises(
+                ValueError, match="total_duration must be a finite positive number"
+            ):
+                convolve(event, sampling_rate=1.0, total_duration=bad_duration)
+
+    def test_total_duration_requires_finite_positive_for_array_input(self):
+        """Regression: ndarray entry point should validate total_duration too."""
+        arr = np.array([[5.0, 1.0, 1.0], [10.0, 1.0, 1.0]])
+
+        for bad_duration in [0.0, -1.0, np.nan, np.inf]:
+            with pytest.raises(
+                ValueError, match="total_duration must be a finite positive number"
+            ):
+                convolve(arr, sampling_rate=1.0, total_duration=bad_duration)
 
     def test_custom_hrf_as_array(self):
         """Test with custom HRF provided as array."""
