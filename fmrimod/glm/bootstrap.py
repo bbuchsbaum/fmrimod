@@ -81,6 +81,10 @@ def create_blocks(
     list of NDArray[int]
         Each element is an array of contiguous indices forming one block.
     """
+    if not isinstance(block_size, (int, np.integer)) or int(block_size) <= 0:
+        raise ValueError("block_size must be a positive integer")
+    block_size = int(block_size)
+
     if run_boundaries is None:
         run_boundaries = [0]
     boundaries = list(run_boundaries) + [n]
@@ -239,6 +243,21 @@ def bootstrap_glm(
     -------
     BootstrapResult
     """
+    if not isinstance(n_boot, (int, np.integer)) or int(n_boot) <= 0:
+        raise ValueError("n_boot must be a positive integer")
+    n_boot = int(n_boot)
+
+    if not isinstance(block_size, (int, np.integer)) or int(block_size) <= 0:
+        raise ValueError("block_size must be a positive integer")
+    block_size = int(block_size)
+
+    try:
+        confidence = float(confidence)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("confidence must be between 0 and 1") from exc
+    if not (0.0 < confidence < 1.0):
+        raise ValueError("confidence must be between 0 and 1")
+
     method = BootstrapMethod(method)
     rng = np.random.default_rng(seed)
 

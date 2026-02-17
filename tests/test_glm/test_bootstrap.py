@@ -110,3 +110,28 @@ class TestBootstrapGlm:
 
         result = bootstrap_glm(X, Y, n_boot=20, seed=42)
         assert result.boot_betas.shape == (20, p, 1)
+
+    def test_invalid_n_boot_raises_clear_error(self, rng):
+        n, p, V = 40, 2, 2
+        X = np.column_stack([np.ones(n), rng.standard_normal((n, 1))])
+        Y = rng.standard_normal((n, V))
+
+        with pytest.raises(ValueError, match="n_boot must be a positive integer"):
+            bootstrap_glm(X, Y, n_boot=0, seed=42)
+
+    def test_invalid_block_size_raises_clear_error(self, rng):
+        n, p, V = 40, 2, 2
+        X = np.column_stack([np.ones(n), rng.standard_normal((n, 1))])
+        Y = rng.standard_normal((n, V))
+
+        with pytest.raises(ValueError, match="block_size must be a positive integer"):
+            bootstrap_glm(X, Y, block_size=0, seed=42)
+
+    def test_invalid_confidence_raises_clear_error(self, rng):
+        n, p, V = 40, 2, 2
+        X = np.column_stack([np.ones(n), rng.standard_normal((n, 1))])
+        Y = rng.standard_normal((n, V))
+
+        for bad_conf in [0.0, 1.0, -0.1, 1.1]:
+            with pytest.raises(ValueError, match="confidence must be between 0 and 1"):
+                bootstrap_glm(X, Y, confidence=bad_conf, seed=42)
