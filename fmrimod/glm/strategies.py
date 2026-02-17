@@ -17,6 +17,7 @@ from .preprocess import (
     apply_volume_weights,
     compute_dvars,
     dvars_weights,
+    extract_nuisance_timeseries,
     soft_subspace_projection,
 )
 from ..model.config import FmriLmConfig
@@ -27,6 +28,8 @@ def fit_run_ols(
     Y: NDArray[np.float64],
     config: FmriLmConfig,
     censor: Optional[NDArray[np.bool_]] = None,
+    dataset: Optional[object] = None,
+    run: Optional[int] = None,
 ) -> Tuple[LmResult, Projection, NDArray[np.float64], NDArray[np.float64]]:
     """Fit a single run with OLS (possibly after preprocessing).
 
@@ -40,6 +43,10 @@ def fit_run_ols(
         Fitting configuration.
     censor : NDArray[bool], optional
         Censoring vector for this run.
+    dataset : object, optional
+        Dataset handle used for nuisance-mask extraction/slicing.
+    run : int, optional
+        Zero-indexed run number for run-aware nuisance slicing.
 
     Returns
     -------
@@ -93,18 +100,54 @@ def fit_run_ols(
     # 3. Soft subspace projection
     if config.soft_subspace.enabled:
         if config.soft_subspace.nuisance_matrix is not None:
-            nuisance = config.soft_subspace.nuisance_matrix
+            nuisance = np.asarray(config.soft_subspace.nuisance_matrix, dtype=np.float64)
+            if nuisance.ndim == 1:
+                nuisance = nuisance[:, np.newaxis]
+            if nuisance.ndim != 2:
+                raise ValueError("nuisance_matrix must be 1-D or 2-D")
+
+            # R parity: allow nuisance matrix defined over all runs, then
+            # slice this run before optional censoring.
+            if (
+                dataset is not None
+                and run is not None
+                and hasattr(dataset, "n_timepoints")
+                and nuisance.shape[0] != X.shape[0]
+            ):
+                run_lengths = [int(v) for v in getattr(dataset, "n_timepoints")]
+                total_rows = int(sum(run_lengths))
+                if nuisance.shape[0] == total_rows:
+                    start = int(sum(run_lengths[:run]))
+                    end = start + run_lengths[run]
+                    nuisance = nuisance[start:end]
+
             if censor is not None and np.any(censor):
                 nuisance = nuisance[~censor]
-            lam_val = config.soft_subspace.lam
-            if isinstance(lam_val, str):
-                raise NotImplementedError(
-                    f"soft subspace lam='{lam_val}' is not implemented yet"
+            if nuisance.shape[0] != X_fit.shape[0]:
+                raise ValueError(
+                    f"nuisance_matrix rows ({nuisance.shape[0]}) must match data rows ({X_fit.shape[0]})"
                 )
-            X_fit, Y_fit = soft_subspace_projection(X_fit, Y_fit, nuisance, lam_val)
+
+            X_fit, Y_fit = soft_subspace_projection(
+                X_fit,
+                Y_fit,
+                nuisance,
+                config.soft_subspace.lam,
+            )
         elif config.soft_subspace.nuisance_mask is not None:
-            raise NotImplementedError(
-                "soft subspace nuisance_mask is not implemented yet; provide nuisance_matrix"
+            dataset_mask = None
+            if dataset is not None and hasattr(dataset, "get_mask"):
+                dataset_mask = dataset.get_mask()
+            nuisance = extract_nuisance_timeseries(
+                Y_fit,
+                config.soft_subspace.nuisance_mask,
+                dataset_mask=dataset_mask,
+            )
+            X_fit, Y_fit = soft_subspace_projection(
+                X_fit,
+                Y_fit,
+                nuisance,
+                config.soft_subspace.lam,
             )
 
     # 4. Fit OLS
@@ -155,7 +198,14 @@ def fit_runwise(
         if hasattr(dataset, "get_censor"):
             censor_r = dataset.get_censor(r)
 
-        result, proj, X_used, Y_used = fit_run_ols(X_r, Y_r, config, censor_r)
+        result, proj, X_used, Y_used = fit_run_ols(
+            X_r,
+            Y_r,
+            config,
+            censor_r,
+            dataset=dataset,
+            run=r,
+        )
         run_results.append(result)
         run_projections.append(proj)
         run_X.append(X_used)

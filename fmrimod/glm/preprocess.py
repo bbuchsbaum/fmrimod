@@ -5,10 +5,12 @@ Includes volume weighting, soft subspace projection, and censoring.
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
+import warnings
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy import optimize
 
 
 def apply_volume_weights(
@@ -209,11 +211,137 @@ def apply_censoring(
     return X[keep], Y[keep], keep
 
 
+def extract_nuisance_timeseries(
+    Y: NDArray[np.float64],
+    nuisance_mask: object,
+    dataset_mask: Optional[NDArray[np.bool_]] = None,
+) -> NDArray[np.float64]:
+    """Extract nuisance timeseries columns from *Y* using a mask spec.
+
+    Parameters
+    ----------
+    Y : NDArray
+        Data matrix of shape ``(n_time, n_voxels_in_data)``.
+    nuisance_mask : object
+        Nuisance mask specification:
+        - 1-D boolean/numeric vector
+        - 3-D boolean/numeric array
+        - path to a NIfTI mask file (requires nibabel)
+    dataset_mask : NDArray[bool], optional
+        Full dataset spatial mask (typically 3-D). When provided and
+        ``nuisance_mask`` is in full-volume space, it is mapped into
+        in-data voxel space via ``nuisance_mask[dataset_mask]``.
+
+    Returns
+    -------
+    NDArray
+        Nuisance matrix of shape ``(n_time, n_nuisance_voxels)``.
+    """
+    Y = np.asarray(Y, dtype=np.float64)
+    if Y.ndim != 2:
+        raise ValueError("Y must be a 2-D matrix")
+
+    mask_obj = nuisance_mask
+    if isinstance(mask_obj, str):
+        try:
+            import nibabel as nib  # type: ignore[import-not-found]
+        except Exception as exc:  # pragma: no cover - import guard
+            raise ImportError(
+                "nuisance_mask path support requires nibabel to be installed"
+            ) from exc
+        mask_arr = np.asarray(nib.load(mask_obj).get_fdata(), dtype=bool)
+    else:
+        mask_arr = np.asarray(mask_obj)
+
+    if mask_arr.ndim == 0:
+        raise ValueError("nuisance_mask must be a vector, 3-D mask, or mask file path")
+    if mask_arr.ndim not in (1, 3):
+        raise ValueError("nuisance_mask must be a 1-D vector or 3-D array")
+
+    mask_vec = mask_arr.astype(bool).ravel()
+
+    if mask_vec.shape[0] == Y.shape[1]:
+        in_data_mask = mask_vec
+    else:
+        if dataset_mask is None:
+            raise ValueError(
+                "nuisance_mask length does not match data voxels and no dataset_mask was provided"
+            )
+        ds_mask_vec = np.asarray(dataset_mask, dtype=bool).ravel()
+        if mask_vec.shape[0] != ds_mask_vec.shape[0]:
+            raise ValueError(
+                f"nuisance_mask length {mask_vec.shape[0]} does not match dataset mask size {ds_mask_vec.shape[0]}"
+            )
+        if int(np.sum(ds_mask_vec)) != Y.shape[1]:
+            raise ValueError(
+                "dataset mask voxel count does not match number of data columns"
+            )
+        in_data_mask = mask_vec[ds_mask_vec]
+
+    if not np.any(in_data_mask):
+        raise ValueError("nuisance_mask selected zero nuisance voxels")
+    return Y[:, in_data_mask]
+
+
+def _select_lambda_gcv(
+    U: NDArray[np.float64],
+    d2: NDArray[np.float64],
+    Y: NDArray[np.float64],
+) -> float:
+    """Select soft-projection lambda via GCV (fmrireg parity)."""
+    n = float(U.shape[0])
+    UY = U.T @ Y
+
+    def gcv_score(log_lambda: float) -> float:
+        lam = float(np.exp(log_lambda))
+        shrink = d2 / (d2 + lam)
+        df = float(np.sum(shrink))
+        y_hat = U @ (shrink[:, np.newaxis] * UY)
+        rss = float(np.sum((Y - y_hat) ** 2))
+        denom = (1.0 - df / n) ** 2
+        if denom < 1e-10:
+            return np.inf
+        return rss / denom
+
+    d2_pos = d2[d2 > 0]
+    if d2_pos.size == 0:
+        return 0.0
+    lo = float(np.log(np.min(d2_pos) / 100.0))
+    hi = float(np.log(np.max(d2_pos) * 100.0))
+    opt = optimize.minimize_scalar(gcv_score, bounds=(lo, hi), method="bounded")
+    return float(np.exp(opt.x))
+
+
+def _resolve_soft_lambda(
+    d2: NDArray[np.float64],
+    lam: Union[float, str],
+    Y: Optional[NDArray[np.float64]],
+    U: NDArray[np.float64],
+) -> float:
+    """Resolve soft-projection lambda from numeric/'auto'/'gcv' spec."""
+    if isinstance(lam, str):
+        if lam not in ("auto", "gcv"):
+            raise ValueError("lambda must be a non-negative number, 'auto', or 'gcv'")
+        if d2.size == 0:
+            return 0.0
+        if lam == "auto":
+            return float(np.median(d2))
+        if Y is None:
+            warnings.warn("GCV requires Y; falling back to auto", RuntimeWarning)
+            return float(np.median(d2))
+        return _select_lambda_gcv(U, d2, Y)
+
+    lam_val = float(lam)
+    if lam_val < 0:
+        raise ValueError("lambda must be non-negative")
+    return lam_val
+
+
 def soft_subspace_projection(
     X: NDArray[np.float64],
     Y: NDArray[np.float64],
     nuisance: NDArray[np.float64],
-    lam: float,
+    lam: Union[float, str],
 ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Apply soft subspace projection to remove nuisance signals.
 
@@ -228,25 +356,34 @@ def soft_subspace_projection(
         Data matrix, shape ``(n, V)``.
     nuisance : NDArray
         Nuisance matrix, shape ``(n, q)``.
-    lam : float
-        Regularisation parameter.  0 = hard projection, larger = softer.
+    lam : float or {"auto", "gcv"}
+        Regularisation parameter. 0 = hard projection, larger = softer.
+        String options follow fmrireg semantics.
 
     Returns
     -------
     X_proj, Y_proj : tuple of NDArray
         Projected matrices.
     """
-    n, q = nuisance.shape
-    NtN = nuisance.T @ nuisance
-    # Regularised projection: P = N @ (N'N + lam*I)^{-1} @ N'
-    reg = NtN + lam * np.eye(q)
-    try:
-        L = np.linalg.cholesky(reg)
-        NtN_inv = np.linalg.solve(L.T, np.linalg.solve(L, np.eye(q)))
-    except np.linalg.LinAlgError:
-        NtN_inv = np.linalg.pinv(reg)
+    X = np.asarray(X, dtype=np.float64)
+    Y = np.asarray(Y, dtype=np.float64)
+    N = np.asarray(nuisance, dtype=np.float64)
 
-    P = nuisance @ NtN_inv @ nuisance.T
-    I_minus_P = np.eye(n) - P
+    if X.ndim != 2 or Y.ndim != 2 or N.ndim != 2:
+        raise ValueError("X, Y, and nuisance must all be 2-D matrices")
+    if X.shape[0] != Y.shape[0] or X.shape[0] != N.shape[0]:
+        raise ValueError("X, Y, and nuisance must have matching row counts")
+    if N.shape[1] == 0:
+        return X.copy(), Y.copy()
 
-    return I_minus_P @ X, I_minus_P @ Y
+    # SVD-based form mirrors fmrireg::soft_projection implementation.
+    U, s, _ = np.linalg.svd(N, full_matrices=False)
+    d2 = s ** 2
+    lam_val = _resolve_soft_lambda(d2, lam, Y=Y, U=U)
+    shrink = d2 / (d2 + lam_val)
+
+    UX = U.T @ X
+    UY = U.T @ Y
+    X_proj = X - U @ (shrink[:, np.newaxis] * UX)
+    Y_proj = Y - U @ (shrink[:, np.newaxis] * UY)
+    return X_proj, Y_proj
