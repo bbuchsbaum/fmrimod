@@ -163,3 +163,39 @@ class TestFastLmMatrix:
         proj_other = fast_preproject(X_other)
         with pytest.raises(ValueError, match="X and projection dimensions do not match"):
             fast_lm_matrix(X, Y, proj_other)
+
+    def test_nonfinite_y_nan_raises_clear_error(self, rng, simple_design):
+        """NaN in response matrix should fail fast with clear validation."""
+        Y = rng.standard_normal((simple_design.shape[0], 2))
+        Y[0, 1] = np.nan
+        proj = fast_preproject(simple_design)
+
+        with pytest.raises(ValueError, match="Response matrix contains NA/Inf values"):
+            fast_lm_matrix(simple_design, Y, proj)
+
+    def test_nonfinite_y_inf_raises_clear_error(self, rng, simple_design):
+        """Inf in response matrix should fail fast with clear validation."""
+        Y = rng.standard_normal((simple_design.shape[0], 2))
+        Y[5, 0] = np.inf
+        proj = fast_preproject(simple_design)
+
+        with pytest.raises(ValueError, match="Response matrix contains NA/Inf values"):
+            fast_lm_matrix(simple_design, Y, proj)
+
+    def test_nan_in_Y_raises_clear_error(self, rng, simple_design):
+        """Non-finite response values should fail fast with a stable error."""
+        Y = rng.standard_normal((simple_design.shape[0], 3))
+        Y[0, 0] = np.nan
+        proj = fast_preproject(simple_design)
+
+        with pytest.raises(ValueError, match="Response matrix contains NA/Inf"):
+            fast_lm_matrix(simple_design, Y, proj)
+
+    def test_inf_in_Y_raises_clear_error(self, rng, simple_design):
+        """Infinite response values should also be rejected."""
+        Y = rng.standard_normal((simple_design.shape[0], 3))
+        Y[1, 2] = np.inf
+        proj = fast_preproject(simple_design)
+
+        with pytest.raises(ValueError, match="Response matrix contains NA/Inf"):
+            fast_lm_matrix(simple_design, Y, proj)
