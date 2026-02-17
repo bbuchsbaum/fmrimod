@@ -19,11 +19,10 @@ from __future__ import annotations
 import ast
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Union
 
 from ..types import FormulaContext
-if TYPE_CHECKING:
-    from ..formula.base import Term
+from ..formula.base import Term
 
 
 @dataclass
