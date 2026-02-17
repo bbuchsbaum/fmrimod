@@ -60,6 +60,17 @@ def _prepare_sampling_grid(grid: Array) -> Array:
     return grid
 
 
+def _validate_sampling_rate(sampling_rate: float) -> float:
+    """Validate sampling rate is finite and strictly positive."""
+    try:
+        sampling_rate = float(sampling_rate)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("sampling_rate must be a finite positive number") from exc
+    if not np.isfinite(sampling_rate) or sampling_rate <= 0:
+        raise ValueError("sampling_rate must be a finite positive number")
+    return sampling_rate
+
+
 def _get_fallback_timing(
     grid: Array,
     sampling_rate: float,
