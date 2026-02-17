@@ -5,17 +5,7 @@ import typing
 
 
 def test_forward_type_hints_resolve_for_recent_f821_hotspots():
-    events_mod = importlib.import_module("fmrimod.events")
-    formula_base_mod = importlib.import_module("fmrimod.formula.base")
-    hrf_mod = importlib.import_module("fmrimod.hrf")
-    regressor_mod = importlib.import_module("fmrimod.regressor")
-    shared_ns = {
-        **vars(events_mod),
-        **vars(formula_base_mod),
-        **vars(hrf_mod),
-        **vars(regressor_mod),
-    }
-
+    importlib.import_module("fmrimod")
     modules = {
         "fmrimod.events.variable": ["EventVariable.bin_values"],
         "fmrimod.events.matrix": ["EventMatrix.split_columns", "EventMatrix.apply_transform"],
@@ -24,6 +14,7 @@ def test_forward_type_hints_resolve_for_recent_f821_hotspots():
         "fmrimod.utils.misc": ["single_trial_regressor", "hrf_toeplitz"],
         "fmrimod.ar.whitening": ["whiten_apply", "whiten"],
         "fmrimod.regressor.core": ["Regressor.evaluate", "RegressorSet.evaluate"],
+        "fmrimod.regressor.neural_input": ["neural_input"],
     }
 
     for module_name, dotted_names in modules.items():
@@ -32,4 +23,22 @@ def test_forward_type_hints_resolve_for_recent_f821_hotspots():
             obj = mod
             for part in dotted.split("."):
                 obj = getattr(obj, part)
-            typing.get_type_hints(obj, globalns={**vars(mod), **shared_ns})
+            typing.get_type_hints(obj)
+
+
+def test_type_hints_for_public_api_resolve_without_custom_globalns():
+    """Regression: these APIs should resolve without shared globalns injection."""
+    cases = [
+        ("fmrimod.events.variable", ["EventVariable.bin_values"]),
+        ("fmrimod.events.matrix", ["EventMatrix.split_columns"]),
+        ("fmrimod.events.basis", ["EventBasis.to_matrix"]),
+        ("fmrimod.formula.parser", ["parse_formula"]),
+    ]
+
+    for module_name, dotted_names in cases:
+        mod = importlib.import_module(module_name)
+        for dotted in dotted_names:
+            obj = mod
+            for part in dotted.split("."):
+                obj = getattr(obj, part)
+            typing.get_type_hints(obj)
