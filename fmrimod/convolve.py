@@ -308,16 +308,7 @@ def _convolve_impulses_on_grid(
     amps = np.asarray(values, dtype=float).reshape(-1)
 
     grid_min = float(np.min(grid))
-    effective_sampling_rate = float(sampling_rate)
-    if grid.size > 1:
-        diffs = np.diff(np.sort(grid))
-        positive_diffs = diffs[diffs > 0]
-        if positive_diffs.size > 0:
-            dt = float(np.median(positive_diffs))
-            if np.allclose(positive_diffs, dt, rtol=1e-6, atol=1e-12):
-                effective_sampling_rate = 1.0 / dt
-    if not np.isfinite(effective_sampling_rate) or effective_sampling_rate <= 0:
-        raise ValueError("sampling_rate must be a finite positive number")
+    effective_sampling_rate = _effective_sampling_rate_from_grid(grid, sampling_rate)
 
     if onsets.size > 0:
         origin = min(0.0, grid_min, float(np.min(onsets)))
@@ -353,6 +344,25 @@ def _validate_single_point_sampling_rate(sampling_grid: Array, sampling_rate: fl
         not np.isfinite(sampling_rate) or sampling_rate <= 0
     ):
         raise ValueError("sampling_rate must be a finite positive number")
+
+
+def _effective_sampling_rate_from_grid(sampling_grid: Array, sampling_rate: float) -> float:
+    """Resolve effective sampling rate from explicit sampling grid when regular."""
+    grid = _prepare_sampling_grid(sampling_grid)
+    effective_sampling_rate = float(sampling_rate)
+    if grid.size > 1:
+        diffs = np.diff(grid)
+        if not np.all(np.isfinite(diffs)) or np.any(diffs <= 0):
+            raise ValueError("sampling_frame must be strictly increasing")
+        dt = float(np.median(diffs))
+        if not np.allclose(diffs, dt, rtol=1e-6, atol=1e-8):
+            raise ValueError(
+                "sampling_frame must be uniformly spaced when using array/callable HRF"
+            )
+        effective_sampling_rate = 1.0 / dt
+    if not np.isfinite(effective_sampling_rate) or effective_sampling_rate <= 0:
+        raise ValueError("sampling_rate must be a finite positive number")
+    return effective_sampling_rate
 
 
 @convolve.register(EventFactor)
@@ -436,7 +446,8 @@ def _convolve_event_factor(event: EventFactor, hrf=None,
     else:
         # Fallback to manual convolution
         _validate_single_point_sampling_rate(grid, sampling_rate)
-        hrf_array = _get_hrf_array(hrf, sampling_rate)
+        fallback_rate = _effective_sampling_rate_from_grid(grid, sampling_rate)
+        hrf_array = _get_hrf_array(hrf, fallback_rate)
         n_levels = len(event.levels)
         n_samples = len(grid)
         convolved = np.zeros((n_samples, n_levels))
@@ -450,7 +461,7 @@ def _convolve_event_factor(event: EventFactor, hrf=None,
                     level_values,
                     event.durations[mask],
                     hrf_array,
-                    sampling_rate,
+                    fallback_rate,
                     grid,
                 )
 
@@ -530,13 +541,14 @@ def _convolve_event_variable(event: EventVariable, hrf=None,
     else:
         # Fallback to manual convolution
         _validate_single_point_sampling_rate(grid, sampling_rate)
-        hrf_array = _get_hrf_array(hrf, sampling_rate)
+        fallback_rate = _effective_sampling_rate_from_grid(grid, sampling_rate)
+        hrf_array = _get_hrf_array(hrf, fallback_rate)
         result = _convolve_impulses_on_grid(
             event.onsets,
             event.values,
             event.durations,
             hrf_array,
-            sampling_rate,
+            fallback_rate,
             grid,
         )
         result = result.reshape(-1, 1)
@@ -623,7 +635,8 @@ def _convolve_event_matrix(event: EventMatrix, hrf=None,
     else:
         # Fallback to manual convolution
         _validate_single_point_sampling_rate(grid, sampling_rate)
-        hrf_array = _get_hrf_array(hrf, sampling_rate)
+        fallback_rate = _effective_sampling_rate_from_grid(grid, sampling_rate)
+        hrf_array = _get_hrf_array(hrf, fallback_rate)
 
         for i in range(n_cols):
             convolved[:, i] = _convolve_impulses_on_grid(
@@ -631,7 +644,7 @@ def _convolve_event_matrix(event: EventMatrix, hrf=None,
                 event.values[:, i],
                 event.durations,
                 hrf_array,
-                sampling_rate,
+                fallback_rate,
                 grid,
             )
 
@@ -711,7 +724,8 @@ def _convolve_event_basis(event: EventBasis, hrf=None,
 
         # Simplified fallback: treat as EventMatrix
         _validate_single_point_sampling_rate(grid, sampling_rate)
-        hrf_array = _get_hrf_array(hrf, sampling_rate)
+        fallback_rate = _effective_sampling_rate_from_grid(grid, sampling_rate)
+        hrf_array = _get_hrf_array(hrf, fallback_rate)
         n_basis = event.n_basis
         convolved = np.zeros((len(grid), n_basis))
 
@@ -721,7 +735,7 @@ def _convolve_event_basis(event: EventBasis, hrf=None,
                 event.expanded_values[:, i],
                 event.durations,
                 hrf_array,
-                sampling_rate,
+                fallback_rate,
                 grid,
             )
 
@@ -820,14 +834,15 @@ def _convolve_array(arr: np.ndarray, hrf=None,
     else:
         # Fallback to manual convolution
         _validate_single_point_sampling_rate(grid, sampling_rate)
-        hrf_array = _get_hrf_array(hrf, sampling_rate)
+        fallback_rate = _effective_sampling_rate_from_grid(grid, sampling_rate)
+        hrf_array = _get_hrf_array(hrf, fallback_rate)
 
         result = _convolve_impulses_on_grid(
             arr[:, 0],  # onsets
             arr[:, 2],  # values
             arr[:, 1],  # durations
             hrf_array,
-            sampling_rate,
+            fallback_rate,
             grid,
         )
 

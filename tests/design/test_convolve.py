@@ -993,6 +993,56 @@ class TestConvolveEdgeCases:
         assert result_from_grid.shape == result_from_rate.shape
         assert_array_almost_equal(result_from_grid, result_from_rate)
 
+    def test_fallback_callable_hrf_uses_sampling_frame_spacing(self):
+        """Regression: callable HRFs should honor explicit sampling-frame spacing."""
+        sampling_frame = np.arange(0.0, 20.0, 2.0)  # TR=2.0 => sampling_rate=0.5
+
+        def custom_hrf(t):
+            t = np.asarray(t, dtype=float)
+            return np.where(t >= 0, t * np.exp(-t / 2.0), 0.0)
+
+        event = EventVariable(
+            name="event_variable",
+            onsets=[2.0, 6.0],
+            durations=[1.0, 1.0],
+            values=[1.0, 1.0],
+            center=False,
+        )
+
+        result_from_grid = convolve(event, hrf=custom_hrf, sampling_frame=sampling_frame)
+        result_from_rate = convolve(
+            event,
+            hrf=custom_hrf,
+            sampling_rate=0.5,
+            total_duration=20.0,
+        )
+
+        assert result_from_grid.shape == result_from_rate.shape
+        assert_array_almost_equal(result_from_grid, result_from_rate)
+
+    def test_fallback_sampling_frame_requires_uniform_increasing_grid(self):
+        """Regression: fallback requires strictly increasing, uniform sampling frames."""
+        custom_hrf = np.array([0, 0.5, 1.0, 0.5, 0])
+        event = EventVariable(
+            name="event_variable",
+            onsets=[2.0, 6.0],
+            durations=[1.0, 1.0],
+            values=[1.0, 1.0],
+            center=False,
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="sampling_frame must be uniformly spaced when using array/callable HRF",
+        ):
+            convolve(event, hrf=custom_hrf, sampling_frame=np.array([0.0, 2.0, 6.0, 7.0]))
+
+        with pytest.raises(
+            ValueError,
+            match="sampling_frame must be strictly increasing",
+        ):
+            convolve(event, hrf=custom_hrf, sampling_frame=np.array([0.0, 2.0, 2.0, 4.0]))
+
     def test_sampling_frame_requires_finite_values(self):
         """Regression: NaN/inf sampling frames should fail fast with clear errors."""
         custom_hrf = np.array([0, 0.5, 1.0, 0.5, 0])
