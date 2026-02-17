@@ -180,9 +180,13 @@ def fast_lm_matrix(
         Y = Y[:, np.newaxis]
     elif Y.ndim != 2:
         raise ValueError(f"Y must be 1-D or 2-D, got shape {Y.shape}")
+    if not np.all(np.isfinite(Y)):
+        raise ValueError("Response matrix contains NA/Inf values")
 
     if X.shape[0] != Y.shape[0]:
         raise ValueError("X and Y dimensions do not match")
+    if not np.all(np.isfinite(Y)):
+        raise ValueError("Response matrix contains NA/Inf values")
 
     if proj.Pinv.ndim != 2:
         raise ValueError("Projection Pinv must be 2-D")
