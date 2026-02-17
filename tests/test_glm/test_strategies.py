@@ -3,9 +3,9 @@
 import numpy as np
 import pytest
 
-from fmrimod.glm.strategies import fit_run_ols
+from fmrimod.glm.strategies import fit_run_ols, _pool_run_results
 from fmrimod.glm.preprocess import apply_volume_weights
-from fmrimod.glm.solver import fast_preproject, fast_lm_matrix
+from fmrimod.glm.solver import fast_preproject, fast_lm_matrix, LmResult, Projection
 from fmrimod.model.config import FmriLmConfig, SoftSubspaceOptions, VolumeWeightOptions
 
 
@@ -132,3 +132,34 @@ def test_fit_run_ols_weighted_bool_vs_integer_censor_parity():
     np.testing.assert_allclose(res_int.rss, res_bool.rss, atol=1e-12)
     np.testing.assert_allclose(res_int.sigma2, res_bool.sigma2, atol=1e-12)
     np.testing.assert_allclose(proj_int.XtXinv, proj_bool.XtXinv, atol=1e-12)
+
+
+def test_pool_run_results_inverse_variance_weighting_parity():
+    """Runwise pooling should inverse-variance weight noisy runs down."""
+    low_noise = LmResult(
+        betas=np.array([[1.0]], dtype=np.float64),
+        rss=np.array([10.0], dtype=np.float64),
+        sigma2=np.array([1.0], dtype=np.float64),
+        dfres=10.0,
+        rank=1,
+    )
+    high_noise = LmResult(
+        betas=np.array([[10.0]], dtype=np.float64),
+        rss=np.array([1000.0], dtype=np.float64),
+        sigma2=np.array([100.0], dtype=np.float64),
+        dfres=10.0,
+        rank=1,
+    )
+    proj = Projection(
+        Pinv=np.zeros((1, 1), dtype=np.float64),
+        XtXinv=np.array([[1.0]], dtype=np.float64),
+        dfres=10.0,
+        rank=1,
+        is_full_rank=True,
+        ill_conditioned=False,
+    )
+
+    pooled = _pool_run_results([low_noise, high_noise], [proj, proj])
+    expected = (1.0 / 1.0 * 1.0 + 1.0 / 100.0 * 10.0) / (1.0 / 1.0 + 1.0 / 100.0)
+
+    np.testing.assert_allclose(pooled["betas"][0, 0], expected, atol=1e-12)

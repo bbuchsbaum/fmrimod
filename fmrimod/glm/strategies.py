@@ -206,37 +206,48 @@ def _pool_run_results(
             "XtXinv": p.XtXinv,
         }
 
-    # Weighted combination: weight_r = 1/sigma2_r for each voxel
-    # For betas: B_pool = (sum_r XtXinv_r^{-1} B_r) / (sum_r XtXinv_r^{-1})
-    # Simpler: sum_r XtX_r and sum_r XtX_r B_r
     p_dim = results[0].betas.shape[0]
     V = results[0].betas.shape[1]
 
-    # Accumulate X'X and X'X @ B across runs
+    # Inverse-variance beta pooling (fmrireg parity).
+    # se_{r,j,v}^2 = sigma2_{r,v} * XtXinv_{r,j,j}
+    beta_stack = np.stack([r.betas for r in results], axis=0)  # (R, p, V)
+    sigma2_stack = np.stack([r.sigma2 for r in results], axis=0)  # (R, V)
+    diag_xtxinv = np.stack(
+        [np.maximum(np.diag(proj.XtXinv), 0.0) for proj in projections], axis=0
+    )  # (R, p)
+    se2 = diag_xtxinv[:, :, np.newaxis] * sigma2_stack[:, np.newaxis, :]  # (R, p, V)
+    weights = np.where(se2 > np.finfo(np.float64).eps, 1.0 / se2, 0.0)
+    wsum = np.sum(weights, axis=0)  # (p, V)
+    wbeta = np.sum(weights * beta_stack, axis=0)
+    betas_pooled = np.divide(
+        wbeta,
+        wsum,
+        out=np.mean(beta_stack, axis=0),
+        where=wsum > 0.0,
+    )
+
+    # Keep a pooled XtXinv for downstream contrasts/SE interfaces.
+    # This follows the prior behavior based on summed per-run information.
     XtX_total = np.zeros((p_dim, p_dim))
-    XtXB_total = np.zeros((p_dim, V))
     rss_total = np.zeros(V)
     dfres_total = 0.0
 
     for r, proj in zip(results, projections):
-        # XtX_r = inv(XtXinv_r)
         try:
             XtX_r = np.linalg.inv(proj.XtXinv)
         except np.linalg.LinAlgError:
             XtX_r = np.linalg.pinv(proj.XtXinv)
 
         XtX_total += XtX_r
-        XtXB_total += XtX_r @ r.betas
         rss_total += r.rss
         dfres_total += r.dfres
 
-    # Pooled (X'X)^{-1}
     try:
         XtXinv_total = np.linalg.inv(XtX_total)
     except np.linalg.LinAlgError:
         XtXinv_total = np.linalg.pinv(XtX_total)
 
-    betas_pooled = XtXinv_total @ XtXB_total
     sigma2_pooled = rss_total / dfres_total if dfres_total > 0 else np.full(V, np.nan)
 
     return {
