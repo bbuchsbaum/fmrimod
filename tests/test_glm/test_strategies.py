@@ -25,6 +25,33 @@ def test_fit_run_ols_rejects_soft_subspace_auto_mode():
         fit_run_ols(X, Y, config)
 
 
+def test_fit_run_ols_rejects_soft_subspace_nuisance_mask_mode():
+    """nuisance_mask config should fail with explicit not-implemented message."""
+    X = np.ones((8, 2), dtype=np.float64)
+    Y = np.ones((8, 3), dtype=np.float64)
+
+    config = FmriLmConfig(
+        soft_subspace=SoftSubspaceOptions(
+            enabled=True, nuisance_mask="mask.nii", lam=0.1
+        )
+    )
+
+    with pytest.raises(NotImplementedError, match="nuisance_mask"):
+        fit_run_ols(X, Y, config)
+
+
+def test_fit_run_ols_nuisance_mask_path_is_explicitly_not_implemented():
+    """nuisance_mask compatibility should fail with a clear placeholder error."""
+    X = np.ones((8, 2), dtype=np.float64)
+    Y = np.ones((8, 3), dtype=np.float64)
+    config = FmriLmConfig(
+        soft_subspace=SoftSubspaceOptions(enabled=True, nuisance_mask="mask.nii.gz", lam=0.1)
+    )
+
+    with pytest.raises(NotImplementedError, match="nuisance_mask"):
+        fit_run_ols(X, Y, config)
+
+
 def test_fit_run_ols_rejects_mismatched_volume_weight_length():
     """Volume weights must align with run rows to avoid opaque broadcast errors."""
     X = np.ones((8, 2), dtype=np.float64)

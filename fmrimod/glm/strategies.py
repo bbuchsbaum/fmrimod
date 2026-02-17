@@ -91,16 +91,21 @@ def fit_run_ols(
         X_fit, Y_fit = apply_volume_weights(X_fit, Y_fit, weights)
 
     # 3. Soft subspace projection
-    if config.soft_subspace.enabled and config.soft_subspace.nuisance_matrix is not None:
-        nuisance = config.soft_subspace.nuisance_matrix
-        if censor is not None and np.any(censor):
-            nuisance = nuisance[~censor]
-        lam_val = config.soft_subspace.lam
-        if isinstance(lam_val, str):
+    if config.soft_subspace.enabled:
+        if config.soft_subspace.nuisance_matrix is not None:
+            nuisance = config.soft_subspace.nuisance_matrix
+            if censor is not None and np.any(censor):
+                nuisance = nuisance[~censor]
+            lam_val = config.soft_subspace.lam
+            if isinstance(lam_val, str):
+                raise NotImplementedError(
+                    f"soft subspace lam='{lam_val}' is not implemented yet"
+                )
+            X_fit, Y_fit = soft_subspace_projection(X_fit, Y_fit, nuisance, lam_val)
+        elif config.soft_subspace.nuisance_mask is not None:
             raise NotImplementedError(
-                f"soft subspace lam='{lam_val}' is not implemented yet"
+                "soft subspace nuisance_mask is not implemented yet; provide nuisance_matrix"
             )
-        X_fit, Y_fit = soft_subspace_projection(X_fit, Y_fit, nuisance, lam_val)
 
     # 4. Fit OLS
     proj = fast_preproject(X_fit)

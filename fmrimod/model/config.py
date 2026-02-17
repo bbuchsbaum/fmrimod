@@ -41,6 +41,17 @@ class RobustOptions:
     reestimate_phi: bool = False
 
     def __post_init__(self) -> None:
+        try:
+            self.k_huber = float(self.k_huber)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("k_huber must be numeric") from exc
+        try:
+            self.c_tukey = float(self.c_tukey)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("c_tukey must be numeric") from exc
+        if not isinstance(self.max_iter, (int, np.integer)):
+            raise ValueError("max_iter must be an integer >= 1")
+        self.max_iter = int(self.max_iter)
         if self.type == "FALSE":
             self.type = False
         if self.type not in (False, "huber", "bisquare"):
@@ -145,10 +156,46 @@ class AROptions:
             )
         if self.struct == "arp" and self.p is None:
             raise ValueError("p must be specified when struct is 'arp'")
-        if self.p is not None and self.p < 1:
-            raise ValueError("p must be >= 1")
+        if self.p is not None:
+            if isinstance(self.p, (bool, np.bool_)) or not isinstance(
+                self.p, (int, np.integer)
+            ):
+                raise ValueError("p must be an integer >= 1")
+            self.p = int(self.p)
+            if self.p < 1:
+                raise ValueError("p must be >= 1")
+        if isinstance(self.iter_gls, (bool, np.bool_)) or not isinstance(
+            self.iter_gls, (int, np.integer)
+        ):
+            raise ValueError("iter_gls must be an integer >= 0")
+        self.iter_gls = int(self.iter_gls)
         if self.iter_gls < 0:
             raise ValueError("iter_gls must be >= 0")
+        if self.method not in ("ar", "arma", "afni"):
+            raise ValueError("method must be 'ar', 'arma', or 'afni'")
+        if self.pooling not in ("global", "run", "parcel"):
+            raise ValueError("pooling must be 'global', 'run', or 'parcel'")
+        if isinstance(self.q, (bool, np.bool_)) or not isinstance(
+            self.q, (int, np.integer)
+        ):
+            raise ValueError("q must be an integer >= 0")
+        self.q = int(self.q)
+        if self.q < 0:
+            raise ValueError("q must be >= 0")
+        if isinstance(self.p_max, (bool, np.bool_)) or not isinstance(
+            self.p_max, (int, np.integer)
+        ):
+            raise ValueError("p_max must be an integer >= 1")
+        self.p_max = int(self.p_max)
+        if self.p_max < 1:
+            raise ValueError("p_max must be >= 1")
+        if isinstance(self.convergence_tol, (bool, np.bool_)) or not isinstance(
+            self.convergence_tol, (int, float, np.integer, np.floating)
+        ):
+            raise ValueError("convergence_tol must be numeric")
+        self.convergence_tol = float(self.convergence_tol)
+        if self.convergence_tol <= 0:
+            raise ValueError("convergence_tol must be > 0")
         for key, value in (
             ("global_ar", self.global_ar),
             ("voxelwise", self.voxelwise),
@@ -216,6 +263,12 @@ class VolumeWeightOptions:
     weights: Optional[NDArray] = None
 
     def __post_init__(self) -> None:
+        if not isinstance(self.enabled, (bool, np.bool_)):
+            raise ValueError("enabled must be a boolean scalar")
+        if self.method not in ("inverse_squared", "soft_threshold", "tukey"):
+            raise ValueError(
+                "method must be one of: 'inverse_squared', 'soft_threshold', 'tukey'"
+            )
         if self.threshold <= 0:
             raise ValueError("threshold must be > 0")
         if self.weights is not None:
@@ -241,6 +294,8 @@ class SoftSubspaceOptions:
         Whether to apply soft subspace projection.
     nuisance_matrix : NDArray or None
         Pre-computed nuisance time-series matrix.
+    nuisance_mask : object or None
+        Mask-style nuisance spec (R compatibility placeholder).
     lam : float or "auto" or "gcv"
         Regularisation parameter.
     warn_redundant : bool
@@ -249,16 +304,27 @@ class SoftSubspaceOptions:
 
     enabled: bool = False
     nuisance_matrix: Optional[NDArray] = None
+    nuisance_mask: Optional[object] = None
     lam: Union[float, Literal["auto"], Literal["gcv"]] = "auto"
     warn_redundant: bool = True
 
     def __post_init__(self) -> None:
-        if self.enabled and self.nuisance_matrix is None:
+        if not isinstance(self.enabled, (bool, np.bool_)):
+            raise ValueError("enabled must be a boolean scalar")
+        if not isinstance(self.warn_redundant, (bool, np.bool_)):
+            raise ValueError("warn_redundant must be a boolean scalar")
+        if self.enabled and self.nuisance_matrix is None and self.nuisance_mask is None:
             raise ValueError(
-                "nuisance_matrix is required when soft subspace projection is enabled"
+                "soft subspace projection requires nuisance_matrix or nuisance_mask when enabled"
             )
-        if isinstance(self.lam, (int, float)) and self.lam < 0:
-            raise ValueError("lambda must be >= 0")
+        if isinstance(self.lam, str):
+            if self.lam not in ("auto", "gcv"):
+                raise ValueError("lambda must be a non-negative number, 'auto', or 'gcv'")
+        elif isinstance(self.lam, (int, float)):
+            if self.lam < 0:
+                raise ValueError("lambda must be >= 0")
+        else:
+            raise ValueError("lambda must be a non-negative number, 'auto', or 'gcv'")
 
 
 @dataclass

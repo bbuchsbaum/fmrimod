@@ -42,6 +42,18 @@ class TestRobustOptions:
         with pytest.raises(ValueError, match="max_iter"):
             RobustOptions(max_iter=0)
 
+    def test_k_huber_must_be_numeric(self):
+        with pytest.raises(ValueError, match="k_huber must be numeric"):
+            RobustOptions(k_huber="bad")
+
+    def test_c_tukey_must_be_numeric(self):
+        with pytest.raises(ValueError, match="c_tukey must be numeric"):
+            RobustOptions(c_tukey="bad")
+
+    def test_max_iter_type_validation(self):
+        with pytest.raises(ValueError, match="max_iter must be an integer >= 1"):
+            RobustOptions(max_iter="x")
+
     def test_scale_scope_local_alias_maps_to_voxel(self):
         opts = RobustOptions(scale_scope="local")
         assert opts.scale_scope == "voxel"
@@ -56,6 +68,16 @@ class TestRobustOptions:
         for value in [1, "yes"]:
             with pytest.raises(ValueError, match="reestimate_phi must be a boolean scalar"):
                 RobustOptions(reestimate_phi=value)
+
+    def test_k_huber_and_c_tukey_must_be_numeric(self):
+        with pytest.raises(ValueError, match="k_huber must be numeric"):
+            RobustOptions(k_huber="x")
+        with pytest.raises(ValueError, match="c_tukey must be numeric"):
+            RobustOptions(c_tukey="x")
+
+    def test_max_iter_must_be_integer(self):
+        with pytest.raises(ValueError, match="max_iter must be an integer >= 1"):
+            RobustOptions(max_iter="x")
 
 
 class TestAROptions:
@@ -81,6 +103,17 @@ class TestAROptions:
     def test_arp_missing_p(self):
         with pytest.raises(ValueError, match="p must be specified"):
             AROptions(struct="arp")
+
+    def test_p_must_be_integer_scalar_when_provided(self):
+        for bad in [True, 1.5, "2"]:
+            with pytest.raises(ValueError, match="p must be an integer >= 1"):
+                AROptions(struct="arp", p=bad)
+
+    def test_p_must_be_integer_when_provided(self):
+        assert AROptions(struct="arp", p=2).p == 2
+        for bad in [1.5, True, "2"]:
+            with pytest.raises(ValueError, match="p must be an integer >= 1"):
+                AROptions(struct="arp", p=bad)
 
     def test_invalid_struct(self):
         with pytest.raises(ValueError):
@@ -142,15 +175,66 @@ class TestAROptions:
             with pytest.raises(ValueError, match="must be a boolean scalar"):
                 AROptions(**kwargs)
 
+    def test_iter_gls_must_be_non_negative_integer(self):
+        assert AROptions(iter_gls=0).iter_gls == 0
+        assert AROptions(iter_gls=2).iter_gls == 2
+
+        for bad in [1.5, True, "2"]:
+            with pytest.raises(ValueError, match="iter_gls must be an integer >= 0"):
+                AROptions(iter_gls=bad)
+
+    def test_method_must_be_supported_value(self):
+        for method in ["ar", "arma", "afni"]:
+            assert AROptions(method=method).method == method
+        with pytest.raises(ValueError, match="method must be"):
+            AROptions(method="bad")
+
+    def test_pooling_must_be_supported_value(self):
+        for pooling in ["global", "run", "parcel"]:
+            assert AROptions(pooling=pooling).pooling == pooling
+        with pytest.raises(ValueError, match="pooling must be"):
+            AROptions(pooling="bad")
+
+    def test_q_and_p_max_must_be_integer_ranges(self):
+        assert AROptions(q=0, p_max=1).q == 0
+        assert AROptions(q=2, p_max=6).p_max == 6
+
+        for bad in [1.5, True, "2"]:
+            with pytest.raises(ValueError, match="q must be an integer >= 0"):
+                AROptions(q=bad)
+        with pytest.raises(ValueError, match="q must be >= 0"):
+            AROptions(q=-1)
+
+        for bad in [4.2, True, "6"]:
+            with pytest.raises(ValueError, match="p_max must be an integer >= 1"):
+                AROptions(p_max=bad)
+        with pytest.raises(ValueError, match="p_max must be >= 1"):
+            AROptions(p_max=0)
+
+    def test_convergence_tol_must_be_positive_numeric(self):
+        assert AROptions(convergence_tol=1e-3).convergence_tol == 1e-3
+        with pytest.raises(ValueError, match="convergence_tol must be numeric"):
+            AROptions(convergence_tol="x")
+        with pytest.raises(ValueError, match="convergence_tol must be > 0"):
+            AROptions(convergence_tol=0.0)
+
 
 class TestVolumeWeightOptions:
     def test_defaults(self):
         opts = VolumeWeightOptions()
         assert not opts.enabled
 
+    def test_enabled_requires_boolean_scalar(self):
+        with pytest.raises(ValueError, match="enabled must be a boolean scalar"):
+            VolumeWeightOptions(enabled=1)
+
     def test_threshold_validation(self):
         with pytest.raises(ValueError, match="threshold"):
             VolumeWeightOptions(threshold=-1.0)
+
+    def test_method_validation(self):
+        with pytest.raises(ValueError, match="method must be one of"):
+            VolumeWeightOptions(method="bad")
 
     def test_weights_must_be_1d(self):
         with pytest.raises(ValueError, match="1-D"):
@@ -166,20 +250,49 @@ class TestVolumeWeightOptions:
         with pytest.raises(ValueError, match="non-negative"):
             VolumeWeightOptions(weights=bad)
 
+    def test_enabled_must_be_boolean_scalar(self):
+        for value in [1, "yes"]:
+            with pytest.raises(ValueError, match="enabled must be a boolean scalar"):
+                VolumeWeightOptions(enabled=value)
+
 
 class TestSoftSubspaceOptions:
     def test_defaults(self):
         opts = SoftSubspaceOptions()
         assert not opts.enabled
 
+    def test_enabled_requires_boolean_scalar(self):
+        mat = np.ones((10, 1))
+        with pytest.raises(ValueError, match="enabled must be a boolean scalar"):
+            SoftSubspaceOptions(enabled="yes", nuisance_matrix=mat)
+
     def test_enabled_without_matrix(self):
         with pytest.raises(ValueError, match="nuisance_matrix"):
             SoftSubspaceOptions(enabled=True)
+
+    def test_enabled_with_nuisance_mask(self):
+        opts = SoftSubspaceOptions(enabled=True, nuisance_mask="mask.nii")
+        assert opts.enabled
+        assert opts.nuisance_mask == "mask.nii"
 
     def test_enabled_with_matrix(self):
         mat = np.random.randn(100, 5)
         opts = SoftSubspaceOptions(enabled=True, nuisance_matrix=mat)
         assert opts.enabled
+
+    def test_warn_redundant_requires_boolean_scalar(self):
+        with pytest.raises(ValueError, match="warn_redundant must be a boolean scalar"):
+            SoftSubspaceOptions(warn_redundant="yes")
+
+    def test_lam_string_must_be_auto_or_gcv(self):
+        with pytest.raises(ValueError, match="lambda must be"):
+            SoftSubspaceOptions(lam="bad")
+
+    def test_enabled_must_be_boolean_scalar(self):
+        mat = np.random.randn(10, 2)
+        for value in [1, "yes"]:
+            with pytest.raises(ValueError, match="enabled must be a boolean scalar"):
+                SoftSubspaceOptions(enabled=value, nuisance_matrix=mat)
 
 
 class TestFmriLmConfig:
@@ -230,3 +343,14 @@ class TestFmriLmControl:
             }
         )
         assert cfg.soft_subspace.lam == 0.25
+
+    def test_soft_subspace_nuisance_mask_option(self):
+        cfg = fmri_lm_control(
+            soft_subspace_options={
+                "enabled": True,
+                "nuisance_mask": "mask.nii",
+                "lambda": 0.1,
+            }
+        )
+        assert cfg.soft_subspace.nuisance_mask == "mask.nii"
+        assert cfg.soft_subspace.lam == 0.1
