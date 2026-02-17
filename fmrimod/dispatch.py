@@ -171,6 +171,8 @@ def _(obj: BaseEvent) -> List[str]:
         return [f"{obj.name}.{level}" for level in list(obj.values.categories)]
     if hasattr(obj, "column_names"):
         return list(obj.column_names)
+    if hasattr(obj, "basis_names"):
+        return list(obj.basis_names)
     return [obj.name]
 
 
@@ -197,6 +199,8 @@ def _(obj: EventProtocol) -> List[str]:
         return list(obj.values.categories)
     elif hasattr(obj, "column_names"):
         return list(obj.column_names)
+    elif hasattr(obj, "basis_names"):
+        return list(obj.basis_names)
     else:
         # Continuous - use event name
         return [obj.name]
@@ -209,6 +213,8 @@ def _(obj: BaseEvent) -> List[str]:
         return list(obj.values.categories)
     if hasattr(obj, "column_names"):
         return list(obj.column_names)
+    if hasattr(obj, "basis_names"):
+        return list(obj.basis_names)
     return [obj.name]
 
 
@@ -222,6 +228,8 @@ def _(obj: EventProtocol) -> int:
         return len(obj.values.categories)
     elif hasattr(obj, "column_names"):
         return len(obj.column_names)
+    elif hasattr(obj, "basis_names"):
+        return len(obj.basis_names)
     else:
         return 1
 
@@ -233,6 +241,8 @@ def _(obj: BaseEvent) -> int:
         return len(obj.values.categories)
     if hasattr(obj, "column_names"):
         return len(obj.column_names)
+    if hasattr(obj, "basis_names"):
+        return len(obj.basis_names)
     return 1
 
 
@@ -246,6 +256,8 @@ def _(obj: EventProtocol) -> Union[List[str], Array]:
         return list(obj.values.categories)
     elif hasattr(obj, "column_names"):
         return np.asarray(obj.values)
+    elif hasattr(obj, "expanded_values"):
+        return np.asarray(obj.expanded_values)
     else:
         return np.unique(obj.values)
 
@@ -257,6 +269,8 @@ def _(obj: BaseEvent) -> Union[List[str], Array]:
         return list(obj.values.categories)
     if hasattr(obj, "column_names"):
         return np.asarray(obj.values)
+    if hasattr(obj, "expanded_values"):
+        return np.asarray(obj.expanded_values)
     return np.unique(obj.values)
 
 
