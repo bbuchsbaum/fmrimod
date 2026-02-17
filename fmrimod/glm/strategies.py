@@ -81,7 +81,9 @@ def fit_run_ols(
             nuisance = nuisance[~censor]
         lam_val = config.soft_subspace.lam
         if isinstance(lam_val, str):
-            lam_val = 1.0  # TODO: implement auto/gcv selection
+            raise NotImplementedError(
+                f"soft subspace lam='{lam_val}' is not implemented yet"
+            )
         X_fit, Y_fit = soft_subspace_projection(X_fit, Y_fit, nuisance, lam_val)
 
     # 4. Fit OLS
