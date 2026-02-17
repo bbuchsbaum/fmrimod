@@ -311,10 +311,12 @@ def _convolve_impulses_on_grid(
     effective_sampling_rate = _effective_sampling_rate_from_grid(grid, sampling_rate)
 
     if onsets.size > 0:
-        origin = min(0.0, grid_min, float(np.min(onsets)))
+        # Anchor quantization to the explicit grid origin (or earlier onsets),
+        # not absolute time zero, to avoid phase shifts for non-zero starts.
+        origin = min(grid_min, float(np.min(onsets)))
         max_event_end = float(np.max(onsets + durs))
     else:
-        origin = min(0.0, grid_min)
+        origin = grid_min
         max_event_end = float(np.max(grid))
 
     shifted_grid = grid - origin
