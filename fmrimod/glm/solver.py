@@ -67,6 +67,8 @@ def fast_preproject(X: NDArray[np.float64]) -> Projection:
     X = np.asarray(X, dtype=np.float64)
     if X.ndim != 2:
         raise ValueError(f"X must be 2-D, got shape {X.shape}")
+    if X.shape[0] == 0 or X.shape[1] == 0:
+        raise ValueError("Design matrix must have at least one row and one column")
     if not np.all(np.isfinite(X)):
         raise ValueError("Design matrix contains NA/Inf values")
 
@@ -172,8 +174,20 @@ def fast_lm_matrix(
     """
     X = np.asarray(X, dtype=np.float64)
     Y = np.asarray(Y, dtype=np.float64)
+    if X.ndim != 2:
+        raise ValueError(f"X must be 2-D, got shape {X.shape}")
     if Y.ndim == 1:
         Y = Y[:, np.newaxis]
+    elif Y.ndim != 2:
+        raise ValueError(f"Y must be 1-D or 2-D, got shape {Y.shape}")
+
+    if X.shape[0] != Y.shape[0]:
+        raise ValueError("X and Y dimensions do not match")
+
+    if proj.Pinv.ndim != 2:
+        raise ValueError("Projection Pinv must be 2-D")
+    if proj.Pinv.shape != (X.shape[1], X.shape[0]):
+        raise ValueError("X and projection dimensions do not match")
 
     # B = Pinv @ Y   →  (p, V)
     betas = proj.Pinv @ Y

@@ -62,6 +62,13 @@ class TestFastPreproject:
         with pytest.raises(ValueError, match="NA/Inf"):
             fast_preproject(X)
 
+    def test_empty_matrix_raises_clear_error(self):
+        with pytest.raises(
+            ValueError,
+            match="Design matrix must have at least one row and one column",
+        ):
+            fast_preproject(np.empty((0, 0)))
+
     def test_XtXinv_is_inverse(self, simple_design):
         proj = fast_preproject(simple_design)
         X = simple_design
@@ -139,3 +146,20 @@ class TestFastLmMatrix:
 
         betas_ref, _, _, _ = np.linalg.lstsq(simple_design, Y, rcond=None)
         np.testing.assert_allclose(result.betas, betas_ref, atol=1e-10)
+
+    def test_dimension_mismatch_rows_raises_clear_error(self, rng, simple_design):
+        """Y with different row count should fail with a stable ValueError."""
+        Y_bad = rng.standard_normal((simple_design.shape[0] - 1, 2))
+        proj = fast_preproject(simple_design)
+        with pytest.raises(ValueError, match="X and Y dimensions do not match"):
+            fast_lm_matrix(simple_design, Y_bad, proj)
+
+    def test_projection_shape_mismatch_raises_clear_error(self, rng):
+        """Projection from a different design should fail fast."""
+        X = np.column_stack([np.ones(20), rng.standard_normal((20, 2))])
+        X_other = np.column_stack([np.ones(20), rng.standard_normal((20, 1))])
+        Y = rng.standard_normal((20, 3))
+
+        proj_other = fast_preproject(X_other)
+        with pytest.raises(ValueError, match="X and projection dimensions do not match"):
+            fast_lm_matrix(X, Y, proj_other)
