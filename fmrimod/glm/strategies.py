@@ -505,10 +505,14 @@ def fit_chunkwise(
         raise ValueError("chunk_size must be >= 1")
 
     n_runs = model.n_runs  # type: ignore[attr-defined]
-    n_workers = max(1, min(int(n_jobs), int(n_runs)))
+    total_workers = max(1, int(n_jobs))
+    run_workers = max(1, min(total_workers, int(n_runs)))
+    chunk_workers = max(1, total_workers // run_workers)
     run_results: List[Optional[LmResult]] = [None] * n_runs
     run_projections: List[Optional[Projection]] = [None] * n_runs
-    proj_cache: Optional[Dict[tuple, Projection]] = {} if (cache_projections and n_workers == 1) else None
+    proj_cache: Optional[Dict[tuple, Projection]] = (
+        {} if (cache_projections and run_workers == 1) else None
+    )
 
     def _fit_run(r: int) -> tuple[int, LmResult, Projection]:
         Y_r = model.dataset.get_data(r)  # type: ignore[attr-defined]
@@ -543,20 +547,20 @@ def fit_chunkwise(
             Y_fit,
             proj,
             chunk_size=chunk_size,
-            n_jobs=1,
+            n_jobs=chunk_workers,
             blas_threads=blas_threads,
             compute_dtype=compute_dtype,
         )
         return r, result, proj
 
-    if n_workers == 1:
+    if run_workers == 1:
         for r in range(n_runs):
             run_idx, result, proj = _fit_run(r)
             run_results[run_idx] = result
             run_projections[run_idx] = proj
     else:
         with _maybe_limit_blas_threads(blas_threads):
-            with ThreadPoolExecutor(max_workers=n_workers) as ex:
+            with ThreadPoolExecutor(max_workers=run_workers) as ex:
                 futures = [ex.submit(_fit_run, r) for r in range(n_runs)]
                 for fut in futures:
                     run_idx, result, proj = fut.result()

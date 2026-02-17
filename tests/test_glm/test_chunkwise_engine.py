@@ -68,6 +68,18 @@ def test_chunkwise_parallel_matches_serial():
     np.testing.assert_allclose(parallel.XtXinv, serial.XtXinv, atol=1e-10)
 
 
+def test_chunkwise_parallel_single_run_matches_serial():
+    model = _build_model(seed=110, n_runs=1, n=140, p=6, v=128)
+    cfg = FmriLmConfig()
+
+    serial = fmri_lm(model, cfg, engine="chunkwise", chunk_size=17, n_jobs=1)
+    parallel = fmri_lm(model, cfg, engine="chunkwise", chunk_size=17, n_jobs=4, blas_threads=1)
+
+    np.testing.assert_allclose(parallel.betas, serial.betas, atol=1e-10)
+    np.testing.assert_allclose(parallel.sigma, serial.sigma, atol=1e-10)
+    np.testing.assert_allclose(parallel.XtXinv, serial.XtXinv, atol=1e-10)
+
+
 def test_chunkwise_matches_runwise_volume_weights():
     model = _build_model(seed=101, n_runs=2, n=60, p=4, v=20)
     weights = np.linspace(0.5, 1.5, num=120, dtype=np.float64)
