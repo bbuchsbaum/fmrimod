@@ -143,6 +143,10 @@ def validate_contrasts(x, weights=None, tol=1e-8):
     # Validate each contrast
     rows = []
     for nm, W in wlist.items():
+        if W.ndim != 2 or W.shape[1] == 0:
+            raise ValueError(
+                f"Contrast '{nm}' must contain at least one contrast column"
+            )
         if W.shape[0] != X.shape[1]:
             raise ValueError(
                 f"Contrast '{nm}' has {W.shape[0]} weights but design matrix has "

@@ -225,6 +225,12 @@ def _(obj: BaseEvent) -> List[str]:
     return [obj.name]
 
 
+@conditions.register(pd.DataFrame)
+def _(obj: pd.DataFrame) -> List[str]:
+    """Get condition-like labels from DataFrame columns."""
+    return list(obj.columns)
+
+
 @conditions.register(EventBasis)
 def _(obj: EventBasis) -> List[str]:
     """Get basis function names from EventBasis."""
@@ -259,6 +265,12 @@ def _(obj: BaseEvent) -> int:
     return 1
 
 
+@cells.register(pd.DataFrame)
+def _(obj: pd.DataFrame) -> int:
+    """Count DataFrame columns as cells."""
+    return int(obj.shape[1])
+
+
 @cells.register(EventBasis)
 def _(obj: EventBasis) -> int:
     """Count basis function columns for EventBasis."""
@@ -291,6 +303,12 @@ def _(obj: BaseEvent) -> Union[List[str], Array]:
     if hasattr(obj, "expanded_values"):
         return np.asarray(obj.expanded_values)
     return np.unique(obj.values)
+
+
+@elements.register(pd.DataFrame)
+def _(obj: pd.DataFrame) -> Array:
+    """Return DataFrame values as element matrix."""
+    return obj.to_numpy()
 
 
 # Onset extraction

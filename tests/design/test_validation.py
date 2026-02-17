@@ -343,6 +343,16 @@ class TestValidateContrasts:
 
         assert len(result) == 2
 
+    def test_zero_column_contrast_matrix_raises(self):
+        """Contrast matrices must include at least one column."""
+        X = np.random.randn(100, 3)
+        weights = {'empty': np.empty((3, 0))}
+
+        with pytest.raises(
+            ValueError, match="Contrast 'empty' must contain at least one contrast column"
+        ):
+            validate_contrasts(X, weights)
+
 
 # ============================================================================
 # check_collinearity Tests

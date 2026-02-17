@@ -1,6 +1,7 @@
 """Regression tests for event-level generics in fmrimod.dispatch."""
 
 import numpy as np
+import pandas as pd
 
 from fmrimod.dispatch import cells, columns, conditions, durations, elements, onsets
 from fmrimod.basis import Poly
@@ -70,6 +71,16 @@ def test_dispatch_event_basis_reports_multi_column_metadata():
     assert conditions(ev) == ev.basis_names
     assert cells(ev) == ev.n_basis
     np.testing.assert_array_equal(elements(ev), ev.expanded_values)
+
+
+def test_dispatch_dataframe_conditions_cells_elements():
+    """DataFrame should be supported consistently across dispatch helpers."""
+    df = pd.DataFrame({"onset": [1.0, 2.0], "duration": [1.0, 1.0], "a": [0.1, 0.2]})
+
+    assert columns(df) == ["onset", "duration", "a"]
+    assert conditions(df) == ["onset", "duration", "a"]
+    assert cells(df) == 3
+    np.testing.assert_array_equal(elements(df), df.to_numpy())
 
 
 def test_dispatch_event_basis_without_basis_metadata_falls_back_to_counted_columns():
