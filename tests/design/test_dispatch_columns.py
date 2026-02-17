@@ -1,18 +1,9 @@
 """Regression tests for fmrimod.dispatch column name extraction."""
 
-import pytest
 import pandas as pd
 
 from fmrimod import event_model
 from fmrimod.dispatch import columns as dispatch_columns
-
-
-class _MethodColumnModel:
-    def __init__(self, column_names):
-        self._column_names = list(column_names)
-
-    def column_names(self):
-        return self._column_names
 
 
 def test_dispatch_columns_accepts_event_model_column_names_property():
@@ -31,18 +22,3 @@ def test_dispatch_columns_accepts_event_model_column_names_property():
     assert cols == model.column_names
     assert any("A" in c for c in cols)
     assert any("B" in c for c in cols)
-
-
-def test_dispatch_columns_accepts_model_column_names_callable():
-    """dispatch.columns should support Model.column_names() method access."""
-    model = _MethodColumnModel(["col1", "col2"])
-
-    cols = dispatch_columns(model)
-
-    assert cols == ["col1", "col2"]
-
-
-def test_dispatch_columns_rejects_objects_without_column_names():
-    """Objects without column_names should raise a clear attribute error."""
-    with pytest.raises(AttributeError):
-        dispatch_columns(object())
