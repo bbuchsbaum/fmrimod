@@ -148,6 +148,17 @@ class VolumeWeightOptions:
     def __post_init__(self) -> None:
         if self.threshold <= 0:
             raise ValueError("threshold must be > 0")
+        if self.weights is not None:
+            w = np.asarray(self.weights, dtype=np.float64)
+            if w.ndim != 1:
+                raise ValueError("weights must be a 1-D array")
+            if w.size == 0:
+                raise ValueError("weights must contain at least one value")
+            if not np.all(np.isfinite(w)):
+                raise ValueError("weights must be finite")
+            if np.any(w < 0):
+                raise ValueError("weights must be non-negative")
+            self.weights = w
 
 
 @dataclass
