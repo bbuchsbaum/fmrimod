@@ -265,6 +265,26 @@ class TestFastLmMatrix:
         with pytest.raises(ValueError, match="Response matrix contains NA/Inf values"):
             fast_lm_matrix(simple_design, Y, proj)
 
+    def test_nonfinite_x_nan_raises_clear_error(self, rng, simple_design):
+        """NaN in X should fail fast instead of poisoning RSS/fitted outputs."""
+        X_bad = simple_design.copy()
+        X_bad[0, 1] = np.nan
+        Y = rng.standard_normal((simple_design.shape[0], 2))
+        proj = fast_preproject(simple_design)
+
+        with pytest.raises(ValueError, match="Design matrix contains NA/Inf values"):
+            fast_lm_matrix(X_bad, Y, proj)
+
+    def test_nonfinite_x_inf_raises_clear_error(self, rng, simple_design):
+        """Inf in X should also be rejected with a stable error."""
+        X_bad = simple_design.copy()
+        X_bad[1, 2] = np.inf
+        Y = rng.standard_normal((simple_design.shape[0], 2))
+        proj = fast_preproject(simple_design)
+
+        with pytest.raises(ValueError, match="Design matrix contains NA/Inf values"):
+            fast_lm_matrix(X_bad, Y, proj)
+
     def test_nan_in_Y_raises_clear_error(self, rng, simple_design):
         """Non-finite response values should fail fast with a stable error."""
         Y = rng.standard_normal((simple_design.shape[0], 3))
