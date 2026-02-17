@@ -75,3 +75,8 @@ def test_contrast_dispatch_string_and_dict_are_equivalent(fitted_result):
 def test_unknown_named_contrast_raises_keyerror(fitted_result):
     with pytest.raises(KeyError, match="Unknown contrast name"):
         fitted_result.contrast("does_not_exist")
+
+
+def test_dict_contrast_requires_weights_key(fitted_result):
+    with pytest.raises(ValueError, match="must contain 'weights'"):
+        fitted_result.contrast({"name": "bad_spec"})

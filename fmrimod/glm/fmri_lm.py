@@ -136,6 +136,8 @@ class FmriLm:
             return self._compute_contrast(cw[spec], name=name or spec)
 
         if isinstance(spec, dict):
+            if "weights" not in spec:
+                raise ValueError("Contrast dict spec must contain 'weights'")
             weights = np.asarray(spec["weights"], dtype=np.float64)
             cname = name or spec.get("name", "contrast")
             return self._compute_contrast(weights, name=cname)
