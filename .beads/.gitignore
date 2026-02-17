@@ -9,3 +9,7 @@
 # Temporary
 last-touched
 *.tmp
+
+# Runtime artifacts
+daemon.log
+.local_version
