@@ -20,3 +20,6 @@ coverage.xml
 *.swp
 *.swo
 uv.lock
+cross_testing/reports/
+fitlins/
+worker_agent.md
