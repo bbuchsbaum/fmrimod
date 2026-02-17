@@ -842,6 +842,48 @@ class TestConvolveEdgeCases:
         assert result.shape[0] == 20
         assert np.max(result) > 0
 
+    def test_fallback_empty_sampling_frame_raises_clear_error(self):
+        """Regression: empty sampling_frame should fail with ValueError, not IndexError."""
+        from fmrimod.basis import Poly
+        custom_hrf = np.array([0, 0.5, 1.0, 0.5, 0])
+        empty_frame = np.array([])
+
+        cases = [
+            EventVariable(
+                name="event_variable",
+                onsets=[5.0, 10.0],
+                durations=[1.0, 1.0],
+                values=[1.0, 2.0],
+                center=False
+            ),
+            EventFactor(
+                name="event_factor",
+                onsets=[5.0, 10.0],
+                durations=[1.0, 1.0],
+                values=["A", "B"]
+            ),
+            EventMatrix(
+                name="event_matrix",
+                onsets=[5.0, 10.0],
+                durations=[1.0, 1.0],
+                values=np.array([[1.0], [2.0]])
+            ),
+            EventBasis(
+                name="event_basis",
+                onsets=[5.0, 10.0],
+                values=[1.0, 2.0],
+                basis=Poly(degree=1)
+            ),
+            np.array([
+                [5.0, 1.0, 1.0],
+                [10.0, 1.0, 2.0]
+            ])
+        ]
+
+        for event in cases:
+            with pytest.raises(ValueError, match="sampling_frame must contain at least one time point"):
+                convolve(event, hrf=custom_hrf, sampling_frame=empty_frame)
+
     def test_unsupported_type_raises_error(self):
         """Test that unsupported types raise NotImplementedError."""
         # Try to convolve an unsupported type

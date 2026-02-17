@@ -50,6 +50,12 @@ def _peak_normalize(result: Array) -> Array:
     return result
 
 
+def _validate_sampling_grid(grid: Array) -> None:
+    """Validate sampling grid used for convolution."""
+    if np.asarray(grid).size == 0:
+        raise ValueError("sampling_frame must contain at least one time point")
+
+
 @singledispatch
 def convolve(x, hrf=None, sampling_rate: float = 1.0,
              sampling_frame: Optional[Array] = None, **kwargs) -> Array:
@@ -295,6 +301,7 @@ def _convolve_event_factor(event: EventFactor, hrf=None,
         if total_duration is None:
             total_duration = np.max(event.onsets + event.durations) + 32.0
         grid = np.arange(0, total_duration, 1/sampling_rate)
+    _validate_sampling_grid(grid)
 
     # Check if we should use fmrimod or fallback
     use_fmrimod = HAS_PYFMRIHRF
@@ -400,6 +407,7 @@ def _convolve_event_variable(event: EventVariable, hrf=None,
         if total_duration is None:
             total_duration = np.max(event.onsets + event.durations) + 32.0
         grid = np.arange(0, total_duration, 1/sampling_rate)
+    _validate_sampling_grid(grid)
 
     # Check if we should use fmrimod or fallback
     use_fmrimod = HAS_PYFMRIHRF
@@ -487,6 +495,7 @@ def _convolve_event_matrix(event: EventMatrix, hrf=None,
         if total_duration is None:
             total_duration = np.max(event.onsets + event.durations) + 32.0
         grid = np.arange(0, total_duration, 1/sampling_rate)
+    _validate_sampling_grid(grid)
 
     n_cols = event.n_columns
     convolved = np.zeros((len(grid), n_cols))
@@ -558,6 +567,7 @@ def _convolve_event_basis(event: EventBasis, hrf=None,
         if total_duration is None:
             total_duration = np.max(event.onsets + event.durations) + 32.0
         grid = np.arange(0, total_duration, 1/sampling_rate)
+    _validate_sampling_grid(grid)
 
     if HAS_PYFMRIHRF:
         # EventBasis represents multiple basis functions
@@ -693,6 +703,7 @@ def _convolve_array(arr: np.ndarray, hrf=None,
         if total_duration is None:
             total_duration = np.max(arr[:, 0] + arr[:, 1]) + 32.0
         grid = np.arange(0, total_duration, 1/sampling_rate)
+    _validate_sampling_grid(grid)
 
     # Check if we should use fmrimod or fallback
     use_fmrimod = HAS_PYFMRIHRF
