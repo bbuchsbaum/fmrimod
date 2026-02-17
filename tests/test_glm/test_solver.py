@@ -193,6 +193,23 @@ class TestFastLmMatrix:
         assert np.all(np.isfinite(result.sigma2))
         assert np.linalg.cond(X) > 1e3
 
+    def test_ill_conditioned_rss_matches_explicit_residuals(self):
+        """Regression: fast RSS path should match explicit residual RSS."""
+        rng = np.random.default_rng(0)
+        n = 50
+        x = rng.standard_normal(n)
+        z = rng.standard_normal(n)
+        w = rng.standard_normal(n)
+        X = np.column_stack([np.ones(n), x, x + rng.standard_normal(n) * 1e-12, z, w])
+        Y = X @ rng.standard_normal((5, 3)) + rng.standard_normal((n, 3)) * 0.01
+
+        proj = fast_preproject(X)
+        result_fast = fast_lm_matrix(X, Y, proj, return_fitted=False)
+        result_explicit = fast_lm_matrix(X, Y, proj, return_fitted=True)
+
+        np.testing.assert_allclose(result_fast.rss, result_explicit.rss, rtol=1e-8, atol=1e-10)
+        np.testing.assert_allclose(result_fast.sigma2, result_explicit.sigma2, rtol=1e-8, atol=1e-10)
+
     def test_extreme_scale_values_remain_finite(self, rng):
         """Large and small scale inputs should not produce invalid outputs."""
         n = 60
