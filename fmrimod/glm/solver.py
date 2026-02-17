@@ -81,22 +81,22 @@ def fast_preproject(X: NDArray[np.float64]) -> Projection:
     tol = max(n, p) * np.finfo(np.float64).eps * (diag_R[0] if len(diag_R) > 0 else 1.0)
     rank = int(np.sum(diag_R > tol))
 
+    cond_threshold = 1.0 / np.sqrt(np.finfo(np.float64).eps)
+    use_svd = rank != p
     if rank == p:
-        # Full rank: Cholesky of X'X for efficiency
-        XtX = X.T @ X
         try:
-            L = linalg.cholesky(XtX, lower=True)
-            XtXinv = linalg.cho_solve((L, True), np.eye(p))
-        except linalg.LinAlgError:
-            # Fallback: add small ridge
-            L = linalg.cholesky(XtX + np.eye(p) * 1e-8, lower=True)
-            XtXinv = linalg.cho_solve((L, True), np.eye(p))
-        Pinv = XtXinv @ X.T
-    else:
-        # Rank deficient: SVD-based pseudoinverse
+            cond_est = np.linalg.cond(R[:p, :p]) if p > 0 else 1.0
+        except np.linalg.LinAlgError:
+            cond_est = np.inf
+        if not np.isfinite(cond_est) or cond_est > cond_threshold:
+            use_svd = True
+
+    if use_svd:
+        # Rank-deficient or ill-conditioned: SVD-based pseudoinverse
         U, s, Vt = linalg.svd(X, full_matrices=False)
         tol_svd = max(n, p) * np.finfo(np.float64).eps * s[0]
         pos = s > tol_svd
+        rank = int(np.sum(pos))
         s_inv = np.zeros_like(s)
         s_inv[pos] = 1.0 / s[pos]
 
@@ -104,6 +104,12 @@ def fast_preproject(X: NDArray[np.float64]) -> Projection:
         Pinv = (Vt.T * s_inv[np.newaxis, :]) @ U.T
         # XtXinv = V @ diag(1/s^2) @ V'
         XtXinv = (Vt.T * (s_inv ** 2)[np.newaxis, :]) @ Vt
+    else:
+        # Well-conditioned full rank: Cholesky of X'X for efficiency
+        XtX = X.T @ X
+        L = linalg.cholesky(XtX, lower=True)
+        XtXinv = linalg.cho_solve((L, True), np.eye(p))
+        Pinv = XtXinv @ X.T
 
     return Projection(
         Pinv=Pinv,
