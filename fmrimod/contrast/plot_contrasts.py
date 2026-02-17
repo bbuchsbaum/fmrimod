@@ -1,15 +1,12 @@
 """Visualization functions for contrasts."""
 
-from typing import Dict, Optional, List, Tuple, Union, TYPE_CHECKING
+from typing import Dict, Optional, List, Tuple, Union
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from functools import singledispatch
 
-from ..types import Array
-
-if TYPE_CHECKING:
-    from ..design.event_model import EventModel
+from ..types import Array, ModelProtocol
 
 
 @singledispatch
@@ -197,7 +194,7 @@ def _plot_contrasts_dict(contrast_dict: Dict[str, Array],
     return fig
 
 
-def plot_contrasts_event_model(model: 'EventModel',
+def plot_contrasts_event_model(model: ModelProtocol,
                              absolute_limits: bool = False,
                              rotate_x_text: bool = True,
                              scale_mode: str = "auto",

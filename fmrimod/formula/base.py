@@ -10,7 +10,7 @@ programmatically.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -20,13 +20,11 @@ from ..types import (
     BasisProtocol,
     EventProtocol,
     HRFProtocol,
+    ModelProtocol,
     validate_onsets,
     validate_durations,
 )
 from ..base import BaseEvent, CacheMixin
-
-if TYPE_CHECKING:
-    from ..design.event_model import EventModel
 
 
 @dataclass
@@ -377,7 +375,7 @@ class EventModelBuilder:
         self._kwargs.update(kwargs)
         return self
     
-    def build(self) -> EventModel:
+    def build(self) -> ModelProtocol:
         """Build the event model.
         
         Returns

@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Optional, Sequence, Union, TYPE_CHECKING
+from typing import Any, Optional, Sequence, Union, TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import ArrayLike
 
 if TYPE_CHECKING:
-    import matplotlib.axes
-    import pandas as pd
+    from matplotlib.axes import Axes
+else:
+    Axes = Any
 
 from .hrf.core import HRF
 
@@ -19,9 +20,9 @@ def plot_hrf(
     time: Optional[ArrayLike] = None,
     normalize: bool = False,
     show_peak: bool = True,
-    ax: Optional["matplotlib.axes.Axes"] = None,
+    ax: Optional[Axes] = None,
     **kwargs,
-) -> "matplotlib.axes.Axes":
+) -> Axes:
     """Plot a single HRF.
 
     For multi-basis HRFs each basis function is plotted as a separate line.
@@ -88,9 +89,9 @@ def plot_hrfs(
     normalize: bool = False,
     labels: Optional[Sequence[str]] = None,
     title: Optional[str] = None,
-    ax: Optional["matplotlib.axes.Axes"] = None,
+    ax: Optional[Axes] = None,
     **kwargs,
-) -> "matplotlib.axes.Axes":
+) -> Axes:
     """Overlay multiple HRFs on the same axes for comparison.
 
     Only single-basis HRFs (or the first basis of multi-basis HRFs) are
@@ -147,9 +148,9 @@ def plot_regressor(
     grid: Optional[ArrayLike] = None,
     precision: float = 0.33,
     show_onsets: bool = True,
-    ax: Optional["matplotlib.axes.Axes"] = None,
+    ax: Optional[Axes] = None,
     **kwargs,
-) -> "matplotlib.axes.Axes":
+) -> Axes:
     """Plot an evaluated regressor time course.
 
     Args:
@@ -204,9 +205,9 @@ def plot_regressors(
     precision: float = 0.33,
     labels: Optional[Sequence[str]] = None,
     title: Optional[str] = None,
-    ax: Optional["matplotlib.axes.Axes"] = None,
+    ax: Optional[Axes] = None,
     **kwargs,
-) -> "matplotlib.axes.Axes":
+) -> Axes:
     """Overlay multiple regressors on the same axes.
 
     Only the first basis column of each regressor is plotted.

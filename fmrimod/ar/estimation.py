@@ -6,13 +6,12 @@ Provides Yule-Walker estimation of AR coefficients, either globally
 
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 
 import numpy as np
 from numpy.typing import NDArray
 
-if TYPE_CHECKING:
-    from .plan import WhiteningPlan
+from .plan import WhiteningPlan
 
 
 def estimate_ar_yule_walker(
@@ -333,7 +332,6 @@ def fit_noise(
     -------
     WhiteningPlan
     """
-    from .plan import WhiteningPlan
     from .numhelpers import (
         enforce_stationary_ar,
         levinson_durbin,

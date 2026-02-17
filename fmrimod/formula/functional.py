@@ -16,13 +16,10 @@ Example::
 
 from __future__ import annotations
 
-from typing import Any, Callable, List, Optional, Union, TYPE_CHECKING
+from typing import Any, Callable, List, Optional, Union
 
 from .base import Term, term as create_term
-
-if TYPE_CHECKING:
-    from ..basis import BasisProtocol
-    from ..types import HRFProtocol
+from ..types import BasisProtocol, HRFProtocol
 
 
 class PipeTerm(Term):
