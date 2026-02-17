@@ -31,6 +31,9 @@ class Projection:
         Numerical rank of the design matrix.
     is_full_rank : bool
         Whether ``rank == p``.
+    ill_conditioned : bool
+        Whether the design was routed through the SVD path due rank
+        deficiency or poor conditioning.
     """
 
     Pinv: NDArray[np.float64]
@@ -38,6 +41,7 @@ class Projection:
     dfres: float
     rank: int
     is_full_rank: bool
+    ill_conditioned: bool
 
 
 def fast_preproject(X: NDArray[np.float64]) -> Projection:
@@ -117,6 +121,7 @@ def fast_preproject(X: NDArray[np.float64]) -> Projection:
         dfres=float(n - rank),
         rank=rank,
         is_full_rank=(rank == p),
+        ill_conditioned=use_svd,
     )
 
 
@@ -202,10 +207,18 @@ def fast_lm_matrix(
     # B = Pinv @ Y   →  (p, V)
     betas = proj.Pinv @ Y
 
-    if return_fitted:
+    use_fast_rss = (
+        not return_fitted
+        and proj.is_full_rank
+        and not proj.ill_conditioned
+    )
+
+    if not use_fast_rss:
         fitted = X @ betas
         residuals = Y - fitted
         rss = np.sum(residuals ** 2, axis=0)
+        if not return_fitted:
+            fitted = None
     else:
         # Memory-efficient: compute RSS without materialising residuals
         # RSS = Y'Y - B' X'Y
