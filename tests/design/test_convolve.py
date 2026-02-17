@@ -1043,6 +1043,52 @@ class TestConvolveEdgeCases:
         ):
             convolve(event, hrf=custom_hrf, sampling_frame=np.array([0.0, 2.0, 2.0, 4.0]))
 
+    def test_fallback_uniform_grid_requirement_across_types(self):
+        """Non-uniform sampling frames should be rejected for all fallback entry points."""
+        custom_hrf = np.array([0, 0.5, 1.0, 0.5, 0])
+
+        def custom_callable_hrf(t):
+            return np.exp(-np.asarray(t) / 2.0)
+
+        event_var = EventVariable(
+            name="event_variable",
+            onsets=[2.0, 6.0],
+            durations=[1.0, 1.0],
+            values=[1.0, 1.0],
+            center=False,
+        )
+        event_matrix = EventMatrix(
+            name="event_matrix",
+            onsets=[2.0, 6.0],
+            durations=[1.0, 1.0],
+            values=np.array([[1.0], [1.0]]),
+            column_names=["a"],
+        )
+        event_factor = EventFactor(
+            name="event_factor",
+            onsets=[2.0, 6.0],
+            durations=[1.0, 1.0],
+            values=["A", "A"],
+        )
+        event_array = np.array([[2.0, 1.0, 1.0], [6.0, 1.0, 1.0]])
+
+        cases = [
+            ("array", lambda **kw: convolve(event_array, **kw)),
+            ("factor", lambda **kw: convolve(event_factor, **kw)),
+            ("matrix", lambda **kw: convolve(event_matrix, **kw)),
+            ("variable", lambda **kw: convolve(event_var, **kw)),
+            ("list", lambda **kw: convolve([event_var, event_matrix], **kw)),
+        ]
+        sampling_frame = np.array([0.0, 2.0, 6.0, 7.0])
+
+        for _name, caller in cases:
+            for hrf in [custom_hrf, custom_callable_hrf]:
+                with pytest.raises(
+                    ValueError,
+                    match="uniformly spaced when using array/callable HRF",
+                ):
+                    caller(hrf=hrf, sampling_frame=sampling_frame)
+
     def test_sampling_frame_requires_finite_values(self):
         """Regression: NaN/inf sampling frames should fail fast with clear errors."""
         custom_hrf = np.array([0, 0.5, 1.0, 0.5, 0])
