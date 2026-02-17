@@ -119,14 +119,12 @@ class TestValidateContrasts:
         assert result['estimable'].iloc[0] == True
 
     def test_wrong_number_of_weights(self):
-        """Contrast with wrong number of weights should be skipped."""
+        """Contrast with wrong number of weights should raise ValueError."""
         X = np.random.randn(100, 5)
         weights = np.array([1, -1, 0])  # Only 3 weights for 5 columns
 
-        result = validate_contrasts(X, weights)
-
-        # Should return empty DataFrame since dimensions don't match
-        assert len(result) == 0
+        with pytest.raises(ValueError, match="has 3 weights but design matrix has 5 columns"):
+            validate_contrasts(X, weights)
 
     def test_non_estimable_contrast(self):
         """Non-estimable contrast should be flagged."""
