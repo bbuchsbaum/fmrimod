@@ -29,6 +29,11 @@ class TestRobustOptions:
         assert opts.enabled
         assert opts.c_tukey == 4.685
 
+    def test_false_string_alias(self):
+        opts = RobustOptions(type="FALSE")
+        assert opts.type is False
+        assert not opts.enabled
+
     def test_invalid_type(self):
         with pytest.raises(ValueError, match="robust type"):
             RobustOptions(type="invalid")
@@ -36,6 +41,10 @@ class TestRobustOptions:
     def test_max_iter_validation(self):
         with pytest.raises(ValueError, match="max_iter"):
             RobustOptions(max_iter=0)
+
+    def test_scale_scope_local_alias_maps_to_voxel(self):
+        opts = RobustOptions(scale_scope="local")
+        assert opts.scale_scope == "voxel"
 
 
 class TestAROptions:
@@ -65,6 +74,62 @@ class TestAROptions:
     def test_invalid_struct(self):
         with pytest.raises(ValueError):
             AROptions(struct="ar99")
+
+    def test_global_alias_is_accepted(self):
+        opts = AROptions(**{"struct": "ar1", "global": True})
+        assert opts.global_ar is True
+
+    def test_global_alias_conflicts_with_global_ar(self):
+        with pytest.raises(TypeError, match="only one of 'global' or 'global_ar'"):
+            AROptions(global_ar=True, **{"global": True})
+
+    def test_logical_flags_require_boolean_scalars(self):
+        with pytest.raises(ValueError, match="global_ar must be a boolean scalar"):
+            AROptions(global_ar=1)
+        with pytest.raises(ValueError, match="voxelwise must be a boolean scalar"):
+            AROptions(voxelwise="yes")
+        with pytest.raises(ValueError, match="exact_first must be a boolean scalar"):
+            AROptions(exact_first=1)
+
+    def test_censor_accepts_auto_string(self):
+        opts = AROptions(censor="auto")
+        assert opts.censor == "auto"
+
+    def test_censor_accepts_numeric_or_logical_vectors(self):
+        opts_num = AROptions(censor=[1, 4, 9])
+        opts_bool = AROptions(censor=[True, False, True])
+        assert opts_num.censor == [1, 4, 9]
+        assert opts_bool.censor == [True, False, True]
+
+    def test_censor_rejects_invalid_string(self):
+        with pytest.raises(ValueError, match="censor must be"):
+            AROptions(censor="bad_mode")
+
+    def test_censor_rejects_nonnumeric_nonlogical(self):
+        with pytest.raises(ValueError, match="censor must be"):
+            AROptions(censor={"bad": 1})
+
+    def test_censor_accepts_auto_numeric_or_logical(self):
+        assert AROptions(censor="auto").censor == "auto"
+        assert AROptions(censor=[1, 5, 10]).censor == [1, 5, 10]
+        assert AROptions(censor=[True, False, True]).censor == [True, False, True]
+
+    def test_censor_rejects_invalid_string(self):
+        with pytest.raises(ValueError, match="censor must be None, 'auto'"):
+            AROptions(censor="bad")
+
+    def test_censor_rejects_invalid_type(self):
+        with pytest.raises(ValueError, match="censor must be None, 'auto'"):
+            AROptions(censor={"bad": "type"})
+
+    def test_logical_flags_must_be_boolean_scalars(self):
+        for kwargs in [
+            {"global_ar": 1},
+            {"voxelwise": "yes"},
+            {"exact_first": "no"},
+        ]:
+            with pytest.raises(ValueError, match="must be a boolean scalar"):
+                AROptions(**kwargs)
 
 
 class TestVolumeWeightOptions:
@@ -134,3 +199,23 @@ class TestFmriLmControl:
         cfg = fmri_lm_control(robust_options={"type": "bisquare", "max_iter": 5})
         assert cfg.robust.type == "bisquare"
         assert cfg.robust.max_iter == 5
+
+    def test_r_compat_aliases(self):
+        cfg = fmri_lm_control(
+            robust_options={"type": "FALSE", "scale_scope": "local"},
+            ar_options={"struct": "ar1", "global": True},
+        )
+        assert cfg.robust.type is False
+        assert cfg.robust.scale_scope == "voxel"
+        assert cfg.ar.global_ar is True
+
+    def test_soft_subspace_lambda_alias(self):
+        nuisance = np.ones((6, 1))
+        cfg = fmri_lm_control(
+            soft_subspace_options={
+                "enabled": True,
+                "nuisance_matrix": nuisance,
+                "lambda": 0.25,
+            }
+        )
+        assert cfg.soft_subspace.lam == 0.25

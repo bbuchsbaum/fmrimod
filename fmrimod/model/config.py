@@ -33,20 +33,24 @@ class RobustOptions:
         Whether to re-estimate AR parameters after robust weighting.
     """
 
-    type: Union[Literal[False], Literal["huber"], Literal["bisquare"]] = False
+    type: Union[Literal[False], Literal["FALSE"], Literal["huber"], Literal["bisquare"]] = False
     k_huber: float = 1.345
     c_tukey: float = 4.685
     max_iter: int = 2
-    scale_scope: Literal["run", "global", "voxel"] = "run"
+    scale_scope: Literal["run", "global", "voxel", "local"] = "run"
     reestimate_phi: bool = False
 
     def __post_init__(self) -> None:
+        if self.type == "FALSE":
+            self.type = False
         if self.type not in (False, "huber", "bisquare"):
             raise ValueError(
                 f"robust type must be False, 'huber', or 'bisquare', got {self.type!r}"
             )
         if self.max_iter < 1:
             raise ValueError("max_iter must be >= 1")
+        if self.scale_scope == "local":
+            self.scale_scope = "voxel"
         if self.scale_scope not in ("run", "global", "voxel"):
             raise ValueError("scale_scope must be 'run', 'global', or 'voxel'")
 
@@ -55,7 +59,7 @@ class RobustOptions:
         return self.type is not False
 
 
-@dataclass
+@dataclass(init=False)
 class AROptions:
     """Options for autoregressive noise modelling.
 
@@ -91,6 +95,47 @@ class AROptions:
     convergence_tol: float = 5e-3
     parcels: Optional[NDArray] = None
 
+    def __init__(
+        self,
+        struct: Literal["iid", "ar1", "ar2", "arp", "arma"] = "iid",
+        p: Optional[int] = None,
+        iter_gls: int = 1,
+        global_ar: bool = False,
+        voxelwise: bool = False,
+        exact_first: bool = False,
+        censor: Optional[Union[NDArray, List[int], Literal["auto"]]] = None,
+        method: Literal["ar", "arma", "afni"] = "ar",
+        q: int = 0,
+        p_max: int = 6,
+        pooling: Literal["global", "run", "parcel"] = "global",
+        convergence_tol: float = 5e-3,
+        parcels: Optional[NDArray] = None,
+        **kwargs,
+    ) -> None:
+        # R-compat alias: ar_options$global -> global_ar
+        if "global" in kwargs:
+            if global_ar is not False:
+                raise TypeError("Specify only one of 'global' or 'global_ar'")
+            global_ar = kwargs.pop("global")
+        if kwargs:
+            extras = ", ".join(sorted(kwargs.keys()))
+            raise TypeError(f"Unexpected AR option(s): {extras}")
+
+        self.struct = struct
+        self.p = p
+        self.iter_gls = iter_gls
+        self.global_ar = global_ar
+        self.voxelwise = voxelwise
+        self.exact_first = exact_first
+        self.censor = censor
+        self.method = method
+        self.q = q
+        self.p_max = p_max
+        self.pooling = pooling
+        self.convergence_tol = convergence_tol
+        self.parcels = parcels
+        self.__post_init__()
+
     def __post_init__(self) -> None:
         if self.struct not in ("iid", "ar1", "ar2", "arp", "arma"):
             raise ValueError(
@@ -102,6 +147,29 @@ class AROptions:
             raise ValueError("p must be >= 1")
         if self.iter_gls < 0:
             raise ValueError("iter_gls must be >= 0")
+        for key, value in (
+            ("global_ar", self.global_ar),
+            ("voxelwise", self.voxelwise),
+            ("exact_first", self.exact_first),
+        ):
+            if not isinstance(value, (bool, np.bool_)):
+                raise ValueError(f"{key} must be a boolean scalar")
+        if self.censor is not None:
+            if isinstance(self.censor, str):
+                if self.censor != "auto":
+                    raise ValueError(
+                        "censor must be None, 'auto', a numeric vector, or a logical vector"
+                    )
+            else:
+                censor_arr = np.asarray(self.censor)
+                if censor_arr.ndim == 0:
+                    raise ValueError(
+                        "censor must be None, 'auto', a numeric vector, or a logical vector"
+                    )
+                if censor_arr.dtype.kind not in ("b", "i", "u", "f"):
+                    raise ValueError(
+                        "censor must be None, 'auto', a numeric vector, or a logical vector"
+                    )
 
     @property
     def ar_order(self) -> int:
@@ -259,5 +327,11 @@ def fmri_lm_control(
     robust = RobustOptions(**(robust_options or {}))
     ar = AROptions(**(ar_options or {}))
     vw = VolumeWeightOptions(**(volume_weights_options or {}))
-    ss = SoftSubspaceOptions(**(soft_subspace_options or {}))
+    ss_opts = dict(soft_subspace_options or {})
+    # R-compat alias: soft_subspace_options$lambda -> lam
+    if "lambda" in ss_opts:
+        if "lam" in ss_opts:
+            raise TypeError("Specify only one of 'lambda' or 'lam'")
+        ss_opts["lam"] = ss_opts.pop("lambda")
+    ss = SoftSubspaceOptions(**ss_opts)
     return FmriLmConfig(robust=robust, ar=ar, volume_weights=vw, soft_subspace=ss)
