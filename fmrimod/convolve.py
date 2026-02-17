@@ -807,6 +807,22 @@ def _convolve_array(arr: np.ndarray, hrf=None,
             "[onset, duration, value]"
         )
 
+    arr = np.asarray(arr, dtype=float)
+    onsets = arr[:, 0]
+    durations = arr[:, 1]
+    values = arr[:, 2]
+
+    if not np.all(np.isfinite(onsets)):
+        raise ValueError("Array event onsets must be finite")
+    if not np.all(np.isfinite(durations)):
+        raise ValueError("Array event durations must be finite")
+    if not np.all(np.isfinite(values)):
+        raise ValueError("Array event values must be finite")
+    if np.any(onsets < 0):
+        raise ValueError("Array event onsets must be non-negative")
+    if np.any(durations < 0):
+        raise ValueError("Array event durations must be non-negative")
+
     # Determine sampling grid
     if sampling_frame is not None:
         grid = _prepare_sampling_grid(sampling_frame)

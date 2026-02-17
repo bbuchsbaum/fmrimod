@@ -717,6 +717,22 @@ class TestConvolveEdgeCases:
         assert result.shape == (150, 1)  # 15 seconds at 10 Hz
         assert np.max(result) > 0
 
+    def test_sampling_rate_requires_finite_positive_without_sampling_frame(self):
+        """Regression: invalid sampling_rate should fail clearly when grid is implicit."""
+        event = EventVariable(
+            name="bad_sampling_rate",
+            onsets=[5.0],
+            durations=[1.0],
+            values=[1.0],
+            center=False,
+        )
+
+        for bad_rate in [0.0, -1.0, np.nan, np.inf]:
+            with pytest.raises(
+                ValueError, match="sampling_rate must be a finite positive number"
+            ):
+                convolve(event, sampling_rate=bad_rate, total_duration=10.0)
+
     def test_custom_hrf_as_array(self):
         """Test with custom HRF provided as array."""
         event = EventFactor(
@@ -841,6 +857,29 @@ class TestConvolveEdgeCases:
 
         assert result.shape[0] == 20
         assert np.max(result) > 0
+
+    def test_array_convolve_rejects_invalid_timing_rows(self):
+        """Non-finite or negative onsets/durations should fail with clear errors."""
+        custom_hrf = np.array([0, 0.5, 1.0, 0.5, 0])
+
+        bad_rows = [
+            np.array([[np.nan, 1.0, 1.0], [2.0, 1.0, 1.0]]),
+            np.array([[5.0, np.nan, 1.0], [10.0, 1.0, 1.0]]),
+            np.array([[5.0, 1.0, np.nan], [10.0, 1.0, 1.0]]),
+            np.array([[-1.0, 1.0, 1.0], [2.0, 1.0, 1.0]]),
+            np.array([[1.0, -0.1, 1.0], [2.0, 1.0, 1.0]]),
+        ]
+        matches = [
+            "Array event onsets must be finite",
+            "Array event durations must be finite",
+            "Array event values must be finite",
+            "Array event onsets must be non-negative",
+            "Array event durations must be non-negative",
+        ]
+
+        for arr, match in zip(bad_rows, matches):
+            with pytest.raises(ValueError, match=match):
+                convolve(arr, hrf=custom_hrf)
 
     def test_fallback_empty_sampling_frame_raises_clear_error(self):
         """Regression: empty sampling_frame should fail with ValueError, not IndexError."""
@@ -1019,6 +1058,36 @@ class TestConvolveEdgeCases:
 
         assert result_from_grid.shape == result_from_rate.shape
         assert_array_almost_equal(result_from_grid, result_from_rate)
+
+    def test_fallback_callable_hrf_nonzero_grid_origin_matches_shifted_problem(self):
+        """Regression: non-zero sampling-frame origins should not phase-shift fallback output."""
+        sampling_frame_abs = np.arange(5.0, 15.0, 2.0)
+        sampling_frame_rel = np.arange(0.0, 10.0, 2.0)
+
+        def custom_hrf(t):
+            t = np.asarray(t, dtype=float)
+            return np.where(t >= 0, np.exp(-t), 0.0)
+
+        event_abs = EventVariable(
+            name="event_variable",
+            onsets=[6.0, 8.0],
+            durations=[0.5, 0.5],
+            values=[1.0, 1.0],
+            center=False,
+        )
+        event_rel = EventVariable(
+            name="event_variable",
+            onsets=[1.0, 3.0],
+            durations=[0.5, 0.5],
+            values=[1.0, 1.0],
+            center=False,
+        )
+
+        result_abs = convolve(event_abs, hrf=custom_hrf, sampling_frame=sampling_frame_abs)
+        result_rel = convolve(event_rel, hrf=custom_hrf, sampling_frame=sampling_frame_rel)
+
+        assert result_abs.shape == result_rel.shape
+        assert_array_almost_equal(result_abs, result_rel)
 
     def test_fallback_sampling_frame_requires_uniform_increasing_grid(self):
         """Regression: fallback requires strictly increasing, uniform sampling frames."""
