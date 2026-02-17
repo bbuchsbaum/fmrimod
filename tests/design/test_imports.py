@@ -1,7 +1,9 @@
 """Test basic imports and re-exports from fmrimod."""
 
 import importlib
+import subprocess
 import sys
+import textwrap
 
 
 def test_package_imports():
@@ -58,15 +60,36 @@ def test_submodule_imports():
 
 
 def test_module_import_order_robustness():
-    """Test import-ordering that previously triggered circular-import crashes."""
-    modules_to_clear = [
-        name
-        for name in list(sys.modules)
-        if name == "fmrimod"
-        or name.startswith("fmrimod.")
-    ]
-    for module_name in modules_to_clear:
-        del sys.modules[module_name]
+    """Test import-ordering robustness in a fresh interpreter.
 
-    importlib.import_module("fmrimod.utils.misc")
-    importlib.import_module("fmrimod.regressor")
+    Running this probe in-process can invalidate class identity for the
+    remainder of the test session by reloading ``fmrimod`` modules.
+    """
+    code = textwrap.dedent(
+        """
+        import importlib
+        import sys
+
+        modules_to_clear = [
+            name
+            for name in list(sys.modules)
+            if name == "fmrimod" or name.startswith("fmrimod.")
+        ]
+        for module_name in modules_to_clear:
+            del sys.modules[module_name]
+
+        importlib.import_module("fmrimod.utils.misc")
+        importlib.import_module("fmrimod.regressor")
+        """
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, (
+        "Import-order robustness probe failed in a fresh interpreter.\n"
+        f"stdout:\n{result.stdout}\n"
+        f"stderr:\n{result.stderr}"
+    )

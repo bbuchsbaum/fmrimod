@@ -8,13 +8,14 @@ the design matrix.
 
 from __future__ import annotations
 
-from typing import List, Optional, Union
+from typing import List, Optional, Union, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
 from ..base import BaseEvent
-from .matrix import EventMatrix
+if TYPE_CHECKING:
+    from .matrix import EventMatrix
 
 from ..types import (
     Array,

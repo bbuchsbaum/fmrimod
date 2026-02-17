@@ -6,7 +6,7 @@ from typing import Optional, List, Union, Callable, Any, TYPE_CHECKING
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from ..hrf import HRF
+from ..hrf.core import HRF
 if TYPE_CHECKING:
     from ..regressor import Regressor
 else:
