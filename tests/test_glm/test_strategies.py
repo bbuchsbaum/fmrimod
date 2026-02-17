@@ -4,7 +4,11 @@ import numpy as np
 import pytest
 
 from fmrimod.glm.strategies import fit_run_ols, _pool_run_results
-from fmrimod.glm.preprocess import apply_volume_weights, soft_subspace_projection
+from fmrimod.glm.preprocess import (
+    apply_censoring,
+    apply_volume_weights,
+    soft_subspace_projection,
+)
 from fmrimod.glm.solver import fast_preproject, fast_lm_matrix, LmResult, Projection
 from fmrimod.model.config import FmriLmConfig, SoftSubspaceOptions, VolumeWeightOptions
 
@@ -136,6 +140,33 @@ def test_fit_run_ols_slices_allrun_nuisance_matrix_for_selected_run():
     res, proj, X_used, Y_used = fit_run_ols(X_run1, Y_run1, cfg, dataset=ds, run=1)
 
     X_ref, Y_ref = soft_subspace_projection(X_run1, Y_run1, nuisance_run1, lam=0.15)
+    ref_proj = fast_preproject(X_ref)
+    ref_res = fast_lm_matrix(X_ref, Y_ref, ref_proj, return_fitted=True)
+
+    np.testing.assert_allclose(X_used, X_ref, atol=1e-12)
+    np.testing.assert_allclose(Y_used, Y_ref, atol=1e-12)
+    np.testing.assert_allclose(res.betas, ref_res.betas, atol=1e-10)
+    np.testing.assert_allclose(res.sigma2, ref_res.sigma2, atol=1e-10)
+    np.testing.assert_allclose(proj.XtXinv, ref_proj.XtXinv, atol=1e-10)
+
+
+def test_fit_run_ols_slices_allrun_volume_weights_for_selected_run_with_censor():
+    """All-run volume weights should be sliced by run before censor-aware weighting."""
+    rng = np.random.default_rng(6)
+    run_lengths = [9, 7]
+    X_run1 = np.column_stack([np.ones(run_lengths[1]), rng.standard_normal((run_lengths[1], 1))]).astype(np.float64)
+    Y_run1 = rng.standard_normal((run_lengths[1], 3)).astype(np.float64)
+    weights_all = np.linspace(0.2, 1.0, sum(run_lengths), dtype=np.float64)
+    weights_run1 = weights_all[run_lengths[0] :]
+    censor = np.array([False, True, False, False, True, False, False], dtype=bool)
+
+    ds = _DummyDatasetForSoftSubspace(np.ones((3, 1, 1), dtype=bool), run_lengths)
+    cfg = FmriLmConfig(volume_weights=VolumeWeightOptions(enabled=True, weights=weights_all))
+
+    res, proj, X_used, Y_used = fit_run_ols(X_run1, Y_run1, cfg, censor=censor, dataset=ds, run=1)
+
+    X_c, Y_c, _ = apply_censoring(X_run1, Y_run1, censor)
+    X_ref, Y_ref = apply_volume_weights(X_c, Y_c, weights_run1[~censor])
     ref_proj = fast_preproject(X_ref)
     ref_res = fast_lm_matrix(X_ref, Y_ref, ref_proj, return_fitted=True)
 

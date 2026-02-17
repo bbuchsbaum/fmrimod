@@ -76,7 +76,22 @@ def fit_run_ols(
     # 2. Volume weighting
     if config.volume_weights.enabled:
         if config.volume_weights.weights is not None:
-            weights = config.volume_weights.weights
+            weights = np.asarray(config.volume_weights.weights, dtype=np.float64)
+
+            # R parity: allow all-run weight vectors and slice selected run.
+            if (
+                dataset is not None
+                and run is not None
+                and hasattr(dataset, "n_timepoints")
+                and weights.shape[0] != X.shape[0]
+            ):
+                run_lengths = [int(v) for v in getattr(dataset, "n_timepoints")]
+                total_rows = int(sum(run_lengths))
+                if weights.shape[0] == total_rows:
+                    start = int(sum(run_lengths[:run]))
+                    end = start + run_lengths[run]
+                    weights = weights[start:end]
+
             if censor is not None and np.any(censor):
                 n_rows = X.shape[0]
                 n_keep = X_fit.shape[0]
