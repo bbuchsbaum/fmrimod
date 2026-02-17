@@ -3,6 +3,8 @@
 import numpy as np
 
 from fmrimod.dispatch import cells, columns, conditions, durations, elements, onsets
+from fmrimod.basis import Poly
+from fmrimod.events.basis import EventBasis
 from fmrimod.events.factor import EventFactor
 from fmrimod.events.matrix import EventMatrix
 
@@ -52,3 +54,19 @@ def test_dispatch_columns_for_event_variable():
         center=False,
     )
     assert columns(ev) == ["rt"]
+
+
+def test_dispatch_event_basis_reports_multi_column_metadata():
+    """EventBasis dispatch should reflect basis-expanded columns."""
+    ev = EventBasis(
+        name="rating",
+        onsets=[1.0, 2.0, 3.0],
+        durations=[1.0, 1.0, 1.0],
+        values=[1.0, 2.0, 3.0],
+        basis=Poly(degree=2),
+    )
+
+    assert columns(ev) == ev.basis_names
+    assert conditions(ev) == ev.basis_names
+    assert cells(ev) == ev.n_basis
+    np.testing.assert_array_equal(elements(ev), ev.expanded_values)
