@@ -315,3 +315,11 @@ class TestMakeHRF:
         t = np.arange(0, 20, 0.1)
         values = hrf(t)
         assert abs(np.max(np.abs(values)) - 1.0) < 0.001  # Allow 0.1% tolerance
+
+    def test_make_hrf_with_hrf_object(self):
+        """Test make_hrf accepts existing HRF objects directly."""
+        hrf = make_hrf(SPM_CANONICAL, lag=1.0)
+
+        assert isinstance(hrf, HRF)
+        assert "_lag(1.0)" in hrf.name
+        assert hrf.span == SPM_CANONICAL.span + 1.0

@@ -6,6 +6,7 @@ from numpy.testing import assert_array_almost_equal
 
 from fmrimod import as_hrf, get_hrf
 from fmrimod.hrf_dispatch import ArrayHRF, FunctionHRF, DictHRF
+from fmrimod.utils.cache import clear_hrf_cache, cached_hrf_eval
 
 
 class TestAsHRF:
@@ -219,3 +220,105 @@ class TestAsHRF:
             t = np.array([0, 1, 2])
             result = hrf.evaluate(t)
             assert isinstance(result, np.ndarray)
+
+    def test_cached_hrf_eval_supports_array_hrf(self):
+        """Cached HRF evaluation should handle protocol HRFs without params."""
+        clear_hrf_cache()
+        hrf_values_a = np.array([0.0, 0.5, 1.0, 0.5, 0.0])
+        hrf_values_b = np.array([0.0, 1.0, 0.0])
+
+        hrf_a = as_hrf(hrf_values_a, name="shared_name", sampling_rate=1.0)
+        hrf_b = as_hrf(hrf_values_b, name="shared_name", sampling_rate=1.0)
+
+        values_a = cached_hrf_eval(hrf_a, span=5.0, dt=0.1)
+        values_b = cached_hrf_eval(hrf_b, span=5.0, dt=0.1)
+
+        assert not np.array_equal(values_a, values_b)
+
+        # Repeated call should come from cache and preserve values.
+        values_a_repeat = cached_hrf_eval(hrf_a, span=5.0, dt=0.1)
+        assert_array_almost_equal(values_a, values_a_repeat)
+
+    def test_cached_hrf_eval_prefers_evaluate_for_non_callable_protocol(self):
+        """Regression: synthetic __call__ attrs should not force object invocation."""
+        clear_hrf_cache()
+
+        class NonCallableHRF:
+            name = "non_callable_hrf"
+            params = {}
+
+            def __getattr__(self, attr):
+                if attr == "__call__":
+                    return lambda t: np.zeros_like(np.asarray(t), dtype=float)
+                raise AttributeError(attr)
+
+            def evaluate(self, t):
+                return np.ones_like(np.asarray(t), dtype=float)
+
+        values = cached_hrf_eval(NonCallableHRF(), span=2.0, dt=1.0)
+        assert values.shape == (3, 1)
+        assert_array_almost_equal(values.ravel(), np.array([1.0, 1.0, 1.0]))
+
+    def test_cached_hrf_eval_validates_dt(self):
+        """Invalid dt values should raise a clear ValueError."""
+        clear_hrf_cache()
+        hrf = as_hrf("spm")
+
+        with pytest.raises(ValueError, match="dt must be a finite positive number"):
+            cached_hrf_eval(hrf, span=5.0, dt=0.0)
+
+        with pytest.raises(ValueError, match="dt must be a finite positive number"):
+            cached_hrf_eval(hrf, span=5.0, dt=-0.1)
+
+    def test_cached_hrf_eval_validates_span(self):
+        """Negative span should raise a clear ValueError."""
+        clear_hrf_cache()
+        hrf = as_hrf("spm")
+
+        with pytest.raises(ValueError, match="span must be a finite non-negative number"):
+            cached_hrf_eval(hrf, span=-1.0, dt=0.1)
+
+    def test_cached_hrf_eval_accepts_list_output_from_evaluate(self):
+        """Regression: list-valued evaluate outputs should be coerced to ndarray."""
+        clear_hrf_cache()
+        hrf = as_hrf(
+            {
+                "name": "list_eval_hrf",
+                "nbasis": 1,
+                "evaluate": lambda t: [float(x) for x in np.asarray(t)],
+            }
+        )
+
+        values = cached_hrf_eval(hrf, span=2.0, dt=1.0)
+        assert values.shape == (3, 1)
+        assert_array_almost_equal(values.ravel(), np.array([0.0, 1.0, 2.0]))
+
+    def test_cached_hrf_eval_broadcasts_scalar_output(self):
+        """Regression: scalar evaluate outputs should broadcast across samples."""
+        clear_hrf_cache()
+        hrf = as_hrf(
+            {
+                "name": "scalar_eval_hrf",
+                "nbasis": 1,
+                "evaluate": lambda t: 1.5,
+            }
+        )
+
+        values = cached_hrf_eval(hrf, span=2.0, dt=1.0)
+        assert values.shape == (3, 1)
+        assert_array_almost_equal(values.ravel(), np.array([1.5, 1.5, 1.5]))
+
+    def test_cached_hrf_eval_transposes_row_vector_outputs(self):
+        """Regression: row-vector outputs should be interpreted as a single basis."""
+        clear_hrf_cache()
+        hrf = as_hrf(
+            {
+                "name": "row_vector_hrf",
+                "nbasis": 1,
+                "evaluate": lambda t: np.asarray(t, dtype=float)[np.newaxis, :],
+            }
+        )
+
+        values = cached_hrf_eval(hrf, span=2.0, dt=1.0)
+        assert values.shape == (3, 1)
+        assert_array_almost_equal(values.ravel(), np.array([0.0, 1.0, 2.0]))

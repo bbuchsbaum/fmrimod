@@ -288,7 +288,7 @@ def daguerre_generator(
 
 
 def make_hrf(
-    hrf_spec: Union[str, Dict[str, Any]],
+    hrf_spec: Union[str, Dict[str, Any], HRF],
     lag: float = 0.0,
     normalize: bool = False,
 ) -> HRF:
@@ -338,7 +338,7 @@ def make_hrf(
         else:
             func_name = hrf_spec
             params = {}
-    else:
+    elif isinstance(hrf_spec, dict):
         # Dictionary specification
         func_name = hrf_spec.get('type', 'spmg1')
         params = {k: v for k, v in hrf_spec.items() if k != 'type'}
@@ -350,6 +350,11 @@ def make_hrf(
             except ValueError:
                 # Fall back to original name
                 pass
+    elif isinstance(hrf_spec, HRF):
+        return gen_hrf(hrf_spec, lag=lag, normalize=normalize)
+    else:
+        # Fallback for callable or object-like specs
+        return gen_hrf(hrf_spec, lag=lag, normalize=normalize)
     
     # Create HRF using gen_hrf
     return gen_hrf(func_name, lag=lag, normalize=normalize, **params)
