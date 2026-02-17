@@ -197,8 +197,13 @@ class FmriModel:
                 dm = em.design_matrix
                 # Slice to run rows
                 starts, ends = self._run_slices()
-                dm_slice = dm.iloc[starts[run] : ends[run]]
-                return dm_slice.reset_index(drop=True)
+                if isinstance(dm, np.ndarray):
+                    dm_slice = dm[starts[run] : ends[run]]
+                else:
+                    dm_slice = dm.iloc[starts[run] : ends[run]]
+                if isinstance(dm_slice, pd.DataFrame):
+                    return dm_slice.reset_index(drop=True)
+                return pd.DataFrame(dm_slice)
             raise TypeError("event_model does not have a design_matrix attribute")
 
         if hasattr(em, "design_matrix"):
