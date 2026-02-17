@@ -30,10 +30,22 @@ def r_session():
 
 
 @pytest.fixture(autouse=True)
-def check_rpy2():
-    """Check if rpy2 is available and skip test if not."""
+def check_rpy2(request):
+    """Skip only tests that explicitly require rpy2/R.
+
+    This keeps fitlins parity tests runnable without an R stack while preserving
+    existing behavior for R-Python equivalence tests.
+    """
+    needs_rpy2 = (
+        request.node.get_closest_marker("rpy2") is not None
+        or request.node.get_closest_marker("cross_test") is not None
+        or "r_tester" in request.fixturenames
+        or "r_session" in request.fixturenames
+    )
+    if not needs_rpy2:
+        return
     try:
-        import rpy2
+        import rpy2  # noqa: F401
     except ImportError:
         pytest.skip("rpy2 not available - skipping cross-test")
 

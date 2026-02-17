@@ -10,6 +10,7 @@ The cross-testing framework ensures that both implementations produce identical 
 2. **Regression Testing**: Catching unintended changes
 3. **Documentation**: Providing clear equivalence mappings
 4. **Performance**: Comparing execution speed
+5. **Fitlins Parity**: Validating first-level OLS parity against fitlins-aligned GLM outputs
 
 ## Requirements
 
@@ -51,13 +52,35 @@ pytest cross_testing/test_complex_scenarios.py -v
 
 # Performance benchmarks
 pytest cross_testing/test_performance.py -v -m benchmark
+
+# Fitlins OLS parity + speed contract
+pytest cross_testing/test_fitlins_parity.py -v
 ```
 
 ### Generate Report
 
 ```bash
 python cross_testing/generate_report.py
+
+# Fitlins parity + benchmark JSON
+python cross_testing/benchmark_fitlins.py \
+  --output cross_testing/reports/fitlins_parity_benchmark.json
+
+# fmrimod optimization-lever benchmark (parallel/cache/float32)
+python cross_testing/benchmark_fmrimod_levers.py \
+  --output cross_testing/reports/fmrimod_levers_benchmark.json
 ```
+
+## Fitlins Parity Contract
+
+The fitlins parity harness is implemented in:
+
+- `cross_testing/fitlins_parity.py`
+- `cross_testing/test_fitlins_parity.py`
+- `cross_testing/benchmark_fitlins.py`
+- `cross_testing/FITLINS_PARITY_CONTRACT.md`
+
+Current gate focuses on matched first-level OLS GLM outputs (`betas`, `sigma2`, `t`, `p`) and sign-flip rate. This gate should pass before any speed optimization is accepted.
 
 ## Test Structure
 
