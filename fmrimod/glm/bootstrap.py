@@ -117,11 +117,7 @@ def _resample_residual(
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Residual bootstrap: resample blocks of residuals, add to fitted."""
     n = X.shape[0]
-    n_blocks = len(blocks)
-    chosen = rng.integers(0, n_blocks, size=n_blocks)
-
-    # Concatenate resampled block indices
-    new_idx = np.concatenate([blocks[i] for i in chosen])[:n]
+    new_idx = _sample_block_indices(blocks, n, rng)
     Y_star = fitted + residuals[new_idx]
     X_star = X  # design unchanged in residual bootstrap
     return X_star, Y_star
@@ -135,11 +131,29 @@ def _resample_case(
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Case bootstrap: resample blocks of (X, Y) pairs."""
     n = X.shape[0]
-    n_blocks = len(blocks)
-    chosen = rng.integers(0, n_blocks, size=n_blocks)
-
-    new_idx = np.concatenate([blocks[i] for i in chosen])[:n]
+    new_idx = _sample_block_indices(blocks, n, rng)
     return X[new_idx], Y[new_idx]
+
+
+def _sample_block_indices(
+    blocks: List[NDArray[np.intp]],
+    n: int,
+    rng: np.random.Generator,
+) -> NDArray[np.intp]:
+    """Draw block-bootstrap indices, guaranteeing exactly ``n`` rows."""
+    if n <= 0:
+        raise ValueError("n must be positive")
+    if not blocks:
+        raise ValueError("blocks must be non-empty")
+
+    total = 0
+    picks: List[NDArray[np.intp]] = []
+    while total < n:
+        block = blocks[int(rng.integers(0, len(blocks)))]
+        picks.append(block)
+        total += int(block.shape[0])
+
+    return np.concatenate(picks)[:n]
 
 
 def _resample_wild(

@@ -6,9 +6,13 @@ import pytest
 from fmrimod.glm.bootstrap import (
     BootstrapMethod,
     BootstrapResult,
+    _resample_case,
+    _resample_residual,
+    _sample_block_indices,
     bootstrap_glm,
     create_blocks,
 )
+from fmrimod.glm.solver import fast_preproject, fast_lm_matrix
 
 
 @pytest.fixture
@@ -147,3 +151,58 @@ class TestBootstrapGlm:
         for bad_conf in [0.0, 1.0, -0.1, 1.1]:
             with pytest.raises(ValueError, match="confidence must be between 0 and 1"):
                 bootstrap_glm(X, Y, confidence=bad_conf, seed=42)
+
+    def test_sample_block_indices_always_returns_n(self, rng):
+        blocks = create_blocks(5, block_size=4)  # lengths [4, 1]
+        for _ in range(50):
+            idx = _sample_block_indices(blocks, 5, rng)
+            assert idx.shape == (5,)
+            assert np.all((0 <= idx) & (idx < 5))
+
+    def test_resample_residual_handles_uneven_blocks(self, rng):
+        n, p, V = 5, 2, 1
+        X = np.column_stack([np.ones(n), rng.standard_normal((n, p - 1))])
+        Y = rng.standard_normal((n, V))
+        proj = fast_preproject(X)
+        fit = fast_lm_matrix(X, Y, proj, return_fitted=True)
+        fitted = fit.fitted
+        residuals = Y - fitted
+        blocks = create_blocks(n, block_size=4)  # uneven blocks [4, 1]
+
+        for _ in range(20):
+            X_star, Y_star = _resample_residual(X, fitted, residuals, blocks, rng)
+            assert X_star.shape[0] == n
+            assert Y_star.shape[0] == n
+
+    def test_resample_case_handles_uneven_blocks(self, rng):
+        n, p, V = 5, 2, 1
+        X = np.column_stack([np.ones(n), rng.standard_normal((n, p - 1))])
+        Y = rng.standard_normal((n, V))
+        blocks = create_blocks(n, block_size=4)  # uneven blocks [4, 1]
+
+        for _ in range(20):
+            X_star, Y_star = _resample_case(X, Y, blocks, rng)
+            assert X_star.shape[0] == n
+            assert Y_star.shape[0] == n
+
+    def test_residual_bootstrap_handles_uneven_blocks_without_shape_errors(self, rng):
+        """Residual block resampling should always reconstruct exactly n rows."""
+        n, p, V = 5, 2, 2
+        X = np.column_stack([np.ones(n), rng.standard_normal((n, 1))])
+        Y = rng.standard_normal((n, V))
+
+        result = bootstrap_glm(
+            X, Y, n_boot=5, method="residual", block_size=4, use_bca=False, seed=0
+        )
+        assert result.boot_betas.shape == (5, p, V)
+
+    def test_case_bootstrap_handles_uneven_blocks_without_shape_errors(self, rng):
+        """Case block resampling should also return exactly n rows."""
+        n, p, V = 5, 2, 2
+        X = np.column_stack([np.ones(n), rng.standard_normal((n, 1))])
+        Y = rng.standard_normal((n, V))
+
+        result = bootstrap_glm(
+            X, Y, n_boot=5, method="case", block_size=4, use_bca=False, seed=0
+        )
+        assert result.boot_betas.shape == (5, p, V)
