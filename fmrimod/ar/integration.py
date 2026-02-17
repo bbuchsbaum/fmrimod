@@ -122,14 +122,15 @@ def iterative_gls(
         }
         ar_params_per_run = run_ar_params
 
-    # Combine AR params: if global, average across runs
-    if len(ar_params_per_run) == 1:
+    # Combine AR params honoring config.global_ar.
+    if not ar_params_per_run:
+        ar_params = np.array([])
+    elif len(ar_params_per_run) == 1:
         ar_params = ar_params_per_run[0]
-    elif ar_params_per_run and ar_params_per_run[0].ndim == 1:
-        ar_params = np.mean(ar_params_per_run, axis=0)
+    elif ar_opts.global_ar:
+        ar_params = np.mean(np.stack(ar_params_per_run, axis=0), axis=0)
     else:
-        # Voxelwise: stack
-        ar_params = ar_params_per_run[0] if ar_params_per_run else np.array([])
+        ar_params = np.stack(ar_params_per_run, axis=0)
 
     return current_fit, ar_params
 

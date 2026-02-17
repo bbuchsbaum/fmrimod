@@ -6,6 +6,8 @@ import pytest
 from fmrimod.ar.estimation import fit_noise
 from fmrimod.ar.whitening import whiten_apply
 from fmrimod.ar.diagnostics import acorr_diagnostics
+from fmrimod.ar.integration import iterative_gls
+from fmrimod.model.config import FmriLmConfig, AROptions
 
 
 class TestFitWhitenPipeline:
@@ -126,3 +128,79 @@ class TestFitWhitenPipeline:
         X = rng.randn(n, 3)
         wr = whiten_apply(plan, X, noise, censor=censor)
         assert wr.X.shape == X.shape
+
+
+class _DummyDataset:
+    def __init__(self, runs):
+        self._runs = runs
+
+    def get_data(self, run):
+        return self._runs[run]
+
+    def get_censor(self, run):
+        return None
+
+
+class _DummyModel:
+    def __init__(self, X_runs, Y_runs):
+        self._X_runs = X_runs
+        self.dataset = _DummyDataset(Y_runs)
+        self.n_runs = len(X_runs)
+
+    def design_matrix_array(self, run):
+        return self._X_runs[run]
+
+
+class TestIterativeGlsGlobalAr:
+    def test_global_ar_true_averages_across_runs(self, monkeypatch):
+        X_runs = [np.eye(4), np.eye(4)]
+        Y_runs = [np.eye(4), 2 * np.eye(4)]
+        model = _DummyModel(X_runs, Y_runs)
+
+        initial_fit = {
+            "residuals": [np.ones((4, 2)), np.ones((4, 2))],
+            "run_X": X_runs,
+        }
+
+        phi_values = [np.array([0.2]), np.array([0.8])]
+
+        def fake_estimate_ar(*args, **kwargs):
+            return phi_values.pop(0)
+
+        monkeypatch.setattr("fmrimod.ar.integration.estimate_ar", fake_estimate_ar)
+        monkeypatch.setattr(
+            "fmrimod.ar.integration.ar_whiten_matrix",
+            lambda X, Y, phi: (X, Y),
+        )
+
+        config = FmriLmConfig(ar=AROptions(struct="ar1", iter_gls=1, global_ar=True))
+        _, ar_params = iterative_gls(model, config, initial_fit)
+
+        np.testing.assert_allclose(ar_params, np.array([0.5]))
+
+    def test_global_ar_false_keeps_runwise_params(self, monkeypatch):
+        X_runs = [np.eye(4), np.eye(4)]
+        Y_runs = [np.eye(4), 2 * np.eye(4)]
+        model = _DummyModel(X_runs, Y_runs)
+
+        initial_fit = {
+            "residuals": [np.ones((4, 2)), np.ones((4, 2))],
+            "run_X": X_runs,
+        }
+
+        phi_values = [np.array([0.2]), np.array([0.8])]
+
+        def fake_estimate_ar(*args, **kwargs):
+            return phi_values.pop(0)
+
+        monkeypatch.setattr("fmrimod.ar.integration.estimate_ar", fake_estimate_ar)
+        monkeypatch.setattr(
+            "fmrimod.ar.integration.ar_whiten_matrix",
+            lambda X, Y, phi: (X, Y),
+        )
+
+        config = FmriLmConfig(ar=AROptions(struct="ar1", iter_gls=1, global_ar=False))
+        _, ar_params = iterative_gls(model, config, initial_fit)
+
+        assert ar_params.shape == (2, 1)
+        np.testing.assert_allclose(ar_params[:, 0], np.array([0.2, 0.8]))
