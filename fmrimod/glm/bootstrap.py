@@ -106,6 +106,38 @@ def create_blocks(
     return blocks
 
 
+def _create_blocks_from_run_indices(
+    n: int,
+    block_size: int,
+    run_indices: Sequence[Sequence[int]],
+) -> List[NDArray[np.intp]]:
+    """Build blocks from per-run index vectors (fmrireg-compatible input).
+
+    Accepts 0-based Python indices or 1-based R-style indices.
+    """
+    runs = [np.asarray(run, dtype=np.intp).ravel() for run in run_indices]
+    if not runs:
+        raise ValueError("run_indices must be a non-empty sequence")
+    if any(run.size == 0 for run in runs):
+        raise ValueError("run_indices entries must be non-empty")
+
+    all_idx = np.concatenate(runs)
+    # Heuristic for R-style 1-based inputs:
+    # when 0 is absent and n appears, map to 0-based.
+    if np.all(all_idx >= 1) and np.any(all_idx == n) and not np.any(all_idx == 0):
+        runs = [run - 1 for run in runs]
+        all_idx = np.concatenate(runs)
+
+    if np.any(all_idx < 0) or np.any(all_idx >= n):
+        raise ValueError("run_indices must contain indices in [0, n) or [1, n]")
+
+    blocks: List[NDArray[np.intp]] = []
+    for run in runs:
+        for i in range(0, run.size, block_size):
+            blocks.append(run[i : i + block_size])
+    return blocks
+
+
 # -- Resampling schemes -------------------------------------------------------
 
 def _resample_residual(
@@ -229,11 +261,12 @@ def bootstrap_glm(
     Y: NDArray[np.float64],
     n_boot: int = 1000,
     method: Union[str, BootstrapMethod] = "residual",
-    block_size: int = 10,
+    block_size: Optional[int] = None,
     confidence: float = 0.95,
     run_boundaries: Optional[Sequence[int]] = None,
+    run_indices: Optional[Sequence[Sequence[int]]] = None,
     contrasts: Optional[dict[str, NDArray[np.float64]]] = None,
-    use_bca: bool = True,
+    use_bca: bool = False,
     seed: Optional[int] = None,
 ) -> BootstrapResult:
     """Bootstrap confidence intervals for a GLM.
@@ -248,12 +281,17 @@ def bootstrap_glm(
         Number of bootstrap iterations.
     method : str
         ``"residual"``, ``"case"``, or ``"wild"``.
-    block_size : int
-        Block size for temporal resampling.
+    block_size : int, optional
+        Block size for temporal resampling. If omitted, uses fmrireg-style
+        defaults: ``round(max(10, n/20))`` for single-run inputs, or
+        ``round(min(run_length)/4)`` when ``run_indices`` is provided.
     confidence : float
         Confidence level (e.g. 0.95).
     run_boundaries : sequence of int, optional
         Time indices where new runs start.
+    run_indices : sequence of index sequences, optional
+        Alternative run specification compatible with fmrireg:
+        each entry is the ordered index vector for one run.
     contrasts : dict, optional
         Named contrast vectors ``{name: (p,) array}``.
     use_bca : bool
@@ -268,10 +306,6 @@ def bootstrap_glm(
     if not isinstance(n_boot, (int, np.integer)) or int(n_boot) <= 0:
         raise ValueError("n_boot must be a positive integer")
     n_boot = int(n_boot)
-
-    if not isinstance(block_size, (int, np.integer)) or int(block_size) <= 0:
-        raise ValueError("block_size must be a positive integer")
-    block_size = int(block_size)
 
     try:
         confidence = float(confidence)
@@ -290,13 +324,32 @@ def bootstrap_glm(
     n, p = X.shape
     V = Y.shape[1]
 
+    if block_size is None:
+        if run_indices is not None:
+            run_lens = [int(np.asarray(run).ravel().shape[0]) for run in run_indices]
+            if not run_lens:
+                raise ValueError("run_indices must be a non-empty sequence")
+            block_size = int(round(min(run_lens) / 4.0))
+        else:
+            block_size = int(round(max(10.0, n / 20.0)))
+        block_size = max(1, block_size)
+    else:
+        if not isinstance(block_size, (int, np.integer)) or int(block_size) <= 0:
+            raise ValueError("block_size must be a positive integer")
+        block_size = int(block_size)
+
     # Original fit
     proj = fast_preproject(X)
     orig = fast_lm_matrix(X, Y, proj, return_fitted=True)
     fitted = orig.fitted
     residuals = Y - fitted
 
-    blocks = create_blocks(n, block_size, run_boundaries)
+    if run_boundaries is not None and run_indices is not None:
+        raise ValueError("Specify only one of run_boundaries or run_indices")
+    if run_indices is not None:
+        blocks = _create_blocks_from_run_indices(n, block_size, run_indices)
+    else:
+        blocks = create_blocks(n, block_size, run_boundaries)
 
     # Bootstrap iterations
     boot_betas = np.empty((n_boot, p, V), dtype=np.float64)
