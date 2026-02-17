@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union
 import numpy as np
 import pandas as pd
 
+from .base import BaseEvent
 from .types import (
     Array,
     BasisProtocol,
@@ -109,7 +110,31 @@ design_matrix = GenericFunction("design_matrix")
 @design_matrix.register(DesignMatrixProtocol)
 def _(obj: DesignMatrixProtocol) -> Array:
     """Extract design matrix from objects implementing the protocol."""
-    return obj.design_matrix()
+    dm_attr = obj.design_matrix
+    if callable(dm_attr):
+        return dm_attr()
+    return dm_attr
+
+
+@design_matrix.register(ModelProtocol)
+def _(obj: ModelProtocol) -> Array:
+    """Extract design matrix from model objects."""
+    dm_attr = obj.design_matrix
+    if callable(dm_attr):
+        return dm_attr()
+    return dm_attr
+
+
+@design_matrix.register(np.ndarray)
+def _(obj: np.ndarray) -> Array:
+    """Raw ndarray is already a design matrix."""
+    return obj
+
+
+@design_matrix.register(pd.DataFrame)
+def _(obj: pd.DataFrame) -> Array:
+    """Extract numeric matrix from DataFrame design matrix."""
+    return obj.to_numpy()
 
 
 # Column names extraction
@@ -139,6 +164,16 @@ def _(obj: np.ndarray) -> List[str]:
         raise ValueError(f"Cannot get columns for {obj.ndim}D array")
 
 
+@columns.register(BaseEvent)
+def _(obj: BaseEvent) -> List[str]:
+    """Get column names from concrete event classes."""
+    if hasattr(obj.values, "categories"):
+        return [f"{obj.name}.{level}" for level in list(obj.values.categories)]
+    if hasattr(obj, "column_names"):
+        return list(obj.column_names)
+    return [obj.name]
+
+
 @columns.register(object)
 def _(obj: object) -> List[str]:
     """Fallback for objects exposing ``column_names``."""
@@ -160,9 +195,21 @@ def _(obj: EventProtocol) -> List[str]:
     if hasattr(obj.values, 'categories'):
         # Categorical
         return list(obj.values.categories)
+    elif hasattr(obj, "column_names"):
+        return list(obj.column_names)
     else:
         # Continuous - use event name
         return [obj.name]
+
+
+@conditions.register(BaseEvent)
+def _(obj: BaseEvent) -> List[str]:
+    """Get conditions from concrete event classes."""
+    if hasattr(obj.values, "categories"):
+        return list(obj.values.categories)
+    if hasattr(obj, "column_names"):
+        return list(obj.column_names)
+    return [obj.name]
 
 
 # Cell counting
@@ -173,8 +220,20 @@ def _(obj: EventProtocol) -> int:
     """Count cells in event."""
     if hasattr(obj.values, 'categories'):
         return len(obj.values.categories)
+    elif hasattr(obj, "column_names"):
+        return len(obj.column_names)
     else:
         return 1
+
+
+@cells.register(BaseEvent)
+def _(obj: BaseEvent) -> int:
+    """Count cells in concrete event classes."""
+    if hasattr(obj.values, "categories"):
+        return len(obj.values.categories)
+    if hasattr(obj, "column_names"):
+        return len(obj.column_names)
+    return 1
 
 
 # Element extraction
@@ -185,8 +244,20 @@ def _(obj: EventProtocol) -> Union[List[str], Array]:
     """Get unique elements from event."""
     if hasattr(obj.values, 'categories'):
         return list(obj.values.categories)
+    elif hasattr(obj, "column_names"):
+        return np.asarray(obj.values)
     else:
         return np.unique(obj.values)
+
+
+@elements.register(BaseEvent)
+def _(obj: BaseEvent) -> Union[List[str], Array]:
+    """Get elements from concrete event classes."""
+    if hasattr(obj.values, "categories"):
+        return list(obj.values.categories)
+    if hasattr(obj, "column_names"):
+        return np.asarray(obj.values)
+    return np.unique(obj.values)
 
 
 # Onset extraction
@@ -195,6 +266,12 @@ onsets = GenericFunction("onsets")
 @onsets.register(EventProtocol)
 def _(obj: EventProtocol) -> Array:
     """Get onsets from event."""
+    return obj.onsets
+
+
+@onsets.register(BaseEvent)
+def _(obj: BaseEvent) -> Array:
+    """Get onsets from concrete event classes."""
     return obj.onsets
 
 @onsets.register(pd.DataFrame)
@@ -211,6 +288,12 @@ durations = GenericFunction("durations")
 @durations.register(EventProtocol)
 def _(obj: EventProtocol) -> Array:
     """Get durations from event."""
+    return obj.durations
+
+
+@durations.register(BaseEvent)
+def _(obj: BaseEvent) -> Array:
+    """Get durations from concrete event classes."""
     return obj.durations
 
 @durations.register(pd.DataFrame)
