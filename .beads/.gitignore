@@ -12,4 +12,9 @@ last-touched
 
 # Runtime artifacts
 daemon.log
+daemon-error
 .local_version
+*.sock.startlock
+
+# History snapshots
+.br_history/
