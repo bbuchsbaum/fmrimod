@@ -70,6 +70,11 @@ class FmriLm:
     robust_weights: Optional[NDArray[np.float64]] = None
     run_results: Optional[List] = None
     projections: Optional[List[Projection]] = None
+    _named_weights_cache: Optional[Dict[str, NDArray[np.float64]]] = field(
+        default=None,
+        init=False,
+        repr=False,
+    )
 
     # -- Accessors --
 
@@ -129,8 +134,14 @@ class FmriLm:
         ContrastResult
         """
         if isinstance(spec, str):
+            if name is None and spec in self.contrasts:
+                return self.contrasts[spec]
             # Look up from model's contrast weights
-            cw = self.model.contrast_weights() if hasattr(self.model, "contrast_weights") else {}  # type: ignore[union-attr]
+            if self._named_weights_cache is None:
+                self._named_weights_cache = (
+                    self.model.contrast_weights() if hasattr(self.model, "contrast_weights") else {}  # type: ignore[union-attr]
+                )
+            cw = self._named_weights_cache
             if spec not in cw:
                 raise KeyError(f"Unknown contrast name: {spec!r}")
             return self._compute_contrast(cw[spec], name=name or spec)

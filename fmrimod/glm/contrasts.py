@@ -12,7 +12,7 @@ import warnings
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy import stats as sp_stats
+from scipy import special as sp_special
 
 
 def _validate_f_contrast_matrix(
@@ -66,6 +66,23 @@ def _f_quadratic_form_terms(
         numer = np.sum(Z ** 2, axis=0)
 
     return CB, np.maximum(numer, 0.0), df1
+
+
+def _t_two_sided_pvalue(
+    tstat: NDArray[np.float64],
+    dfres: float,
+) -> NDArray[np.float64]:
+    """Compute two-sided p-values for t-statistics."""
+    return 2.0 * sp_special.stdtr(dfres, -np.abs(tstat))
+
+
+def _f_upper_tail_pvalue(
+    fstat: NDArray[np.float64],
+    df1: float,
+    df2: float,
+) -> NDArray[np.float64]:
+    """Compute upper-tail p-values for F-statistics."""
+    return sp_special.fdtrc(df1, df2, fstat)
 
 
 @dataclass
@@ -146,7 +163,7 @@ def contrast_t(
         tstat = np.where(se > 1e-15, estimate / se, 0.0)
 
     # Two-sided p-value
-    p_value = 2.0 * sp_stats.t.sf(np.abs(tstat), dfres)
+    p_value = _t_two_sided_pvalue(tstat, dfres)
 
     return ContrastResult(
         name=name,
@@ -190,8 +207,29 @@ def contrast_f(
     ContrastResult
     """
     con_mat = _validate_f_contrast_matrix(con_mat, betas.shape[0])
+
+    # Fast-path: one-row F-contrast is equivalent to squared t-statistic.
+    if con_mat.shape[0] == 1:
+        con_vec = con_mat[0]
+        estimate = con_vec @ betas  # (V,)
+        var_factor = con_vec @ XtXinv @ con_vec
+        se = sigma * np.sqrt(np.maximum(var_factor, 0.0))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            tstat = np.where(se > 1e-15, estimate / se, 0.0)
+        fstat = np.maximum(tstat * tstat, 0.0)
+        p_value = _t_two_sided_pvalue(tstat, dfres)
+        return ContrastResult(
+            name=name,
+            estimate=estimate[np.newaxis, :],
+            stat=fstat,
+            se=None,
+            p_value=p_value,
+            df=(1.0, dfres),
+            stat_type="F",
+        )
+
     CB, numer, df1 = _f_quadratic_form_terms(con_mat, betas, XtXinv)
-    sigma2 = sigma ** 2
+    sigma2 = np.square(sigma, dtype=np.float64)
     with np.errstate(divide="ignore", invalid="ignore"):
         fstat = np.where(
             sigma2 > 1e-15,
@@ -199,7 +237,7 @@ def contrast_f(
             0.0,
         )
 
-    p_value = sp_stats.f.sf(fstat, df1, dfres)
+    p_value = _f_upper_tail_pvalue(fstat, float(df1), float(dfres))
 
     return ContrastResult(
         name=name,
