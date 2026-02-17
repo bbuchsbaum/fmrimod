@@ -64,7 +64,16 @@ def fit_run_ols(
         if config.volume_weights.weights is not None:
             weights = config.volume_weights.weights
             if censor is not None and np.any(censor):
-                weights = weights[~censor]
+                n_rows = X.shape[0]
+                n_keep = X_fit.shape[0]
+                n_weights = weights.shape[0]
+                if n_weights == n_rows:
+                    weights = weights[~censor]
+                elif n_weights != n_keep:
+                    raise ValueError(
+                        f"weights length {n_weights} does not match number of timepoints "
+                        f"{n_rows} or uncensored rows {n_keep}"
+                    )
         else:
             dvars = compute_dvars(Y_fit)
             weights = dvars_weights(

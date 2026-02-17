@@ -34,3 +34,17 @@ def test_fit_run_ols_rejects_mismatched_volume_weight_length():
 
     with pytest.raises(ValueError, match="weights length .* rows"):
         fit_run_ols(X, Y, config)
+
+
+def test_fit_run_ols_rejects_mismatched_length_after_censoring():
+    """Censoring should not mask volume-weight length mismatches."""
+    X = np.ones((8, 2), dtype=np.float64)
+    Y = np.ones((8, 3), dtype=np.float64)
+    censor = np.array([False, False, True, False, False, False, False, False], dtype=bool)
+
+    config = FmriLmConfig(
+        volume_weights=VolumeWeightOptions(enabled=True, weights=np.ones(5))
+    )
+
+    with pytest.raises(ValueError, match="weights length .* rows"):
+        fit_run_ols(X, Y, config, censor)
