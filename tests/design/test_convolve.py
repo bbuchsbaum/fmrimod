@@ -1017,6 +1017,7 @@ class TestConvolveEdgeCases:
     def test_fallback_single_point_sampling_frame_requires_valid_sampling_rate(self):
         """Regression: invalid sampling_rate should fail clearly for single-point grids."""
         custom_hrf = np.array([0, 0.5, 1.0, 0.5, 0])
+        callable_hrf = lambda t: np.exp(-t)
         event = EventVariable(
             name="event_variable",
             onsets=[1.0],
@@ -1024,17 +1025,17 @@ class TestConvolveEdgeCases:
             values=[1.0],
             center=False,
         )
-
-        for bad_rate in [0.0, -1.0, np.nan, np.inf]:
-            with pytest.raises(
-                ValueError, match="sampling_rate must be a finite positive number"
-            ):
-                convolve(
-                    event,
-                    hrf=custom_hrf,
-                    sampling_frame=np.array([0.0]),
-                    sampling_rate=bad_rate,
-                )
+        for hrf in [custom_hrf, callable_hrf]:
+            for bad_rate in [0.0, -1.0, np.nan, np.inf]:
+                with pytest.raises(
+                    ValueError, match="sampling_rate must be a finite positive number"
+                ):
+                    convolve(
+                        event,
+                        hrf=hrf,
+                        sampling_frame=np.array([0.0]),
+                        sampling_rate=bad_rate,
+                    )
 
     def test_unsupported_type_raises_error(self):
         """Test that unsupported types raise NotImplementedError."""

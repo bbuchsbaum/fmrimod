@@ -343,6 +343,18 @@ def _convolve_impulses_on_grid(
     return np.interp(shifted_grid, dense_grid, dense, left=0.0, right=0.0)
 
 
+def _validate_single_point_sampling_rate(sampling_grid: Array, sampling_rate: float) -> None:
+    """Validate sampling rate when output grid has one sample.
+
+    Callable HRFs derive sample spacing from ``sampling_rate`` even with
+    single-point grids, so invalid values must fail with a clear ValueError.
+    """
+    if sampling_grid.size == 1 and (
+        not np.isfinite(sampling_rate) or sampling_rate <= 0
+    ):
+        raise ValueError("sampling_rate must be a finite positive number")
+
+
 @convolve.register(EventFactor)
 def _convolve_event_factor(event: EventFactor, hrf=None,
                           sampling_rate: float = 1.0,
@@ -423,6 +435,7 @@ def _convolve_event_factor(event: EventFactor, hrf=None,
                     convolved[:, i] = result[:, 0]
     else:
         # Fallback to manual convolution
+        _validate_single_point_sampling_rate(grid, sampling_rate)
         hrf_array = _get_hrf_array(hrf, sampling_rate)
         n_levels = len(event.levels)
         n_samples = len(grid)
@@ -516,6 +529,7 @@ def _convolve_event_variable(event: EventVariable, hrf=None,
             result = result.reshape(-1, 1)
     else:
         # Fallback to manual convolution
+        _validate_single_point_sampling_rate(grid, sampling_rate)
         hrf_array = _get_hrf_array(hrf, sampling_rate)
         result = _convolve_impulses_on_grid(
             event.onsets,
@@ -608,6 +622,7 @@ def _convolve_event_matrix(event: EventMatrix, hrf=None,
                 convolved[:, i] = result[:, 0]
     else:
         # Fallback to manual convolution
+        _validate_single_point_sampling_rate(grid, sampling_rate)
         hrf_array = _get_hrf_array(hrf, sampling_rate)
 
         for i in range(n_cols):
@@ -695,6 +710,7 @@ def _convolve_event_basis(event: EventBasis, hrf=None,
             )
 
         # Simplified fallback: treat as EventMatrix
+        _validate_single_point_sampling_rate(grid, sampling_rate)
         hrf_array = _get_hrf_array(hrf, sampling_rate)
         n_basis = event.n_basis
         convolved = np.zeros((len(grid), n_basis))
@@ -803,6 +819,7 @@ def _convolve_array(arr: np.ndarray, hrf=None,
         )
     else:
         # Fallback to manual convolution
+        _validate_single_point_sampling_rate(grid, sampling_rate)
         hrf_array = _get_hrf_array(hrf, sampling_rate)
 
         result = _convolve_impulses_on_grid(
