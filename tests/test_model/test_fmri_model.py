@@ -68,3 +68,26 @@ class TestTopLevelGlmWrappers:
         right = impl_fn(trial_regressors, y)
         assert left.method == right.method
         assert left.betas.shape == right.betas.shape
+
+    def test_glm_lss_accepts_deprecated_use_cpp_kwarg(self):
+        trial_regressors = np.eye(4)
+        y = np.arange(16).reshape(4, 4)
+
+        baseline = fmrimod.glm_lss(trial_regressors, y)
+        with pytest.warns(DeprecationWarning, match="use_cpp"):
+            compat = fmrimod.glm_lss(trial_regressors, y, use_cpp=False)
+
+        assert compat.method == baseline.method
+        np.testing.assert_allclose(compat.betas, baseline.betas)
+
+    @pytest.mark.parametrize("call_fn", [fmrimod.glm_ols, fmrimod.glm_lss])
+    def test_glm_wrappers_accept_deprecated_progress_kwarg(self, call_fn):
+        trial_regressors = np.eye(4)
+        y = np.arange(16).reshape(4, 4)
+
+        baseline = call_fn(trial_regressors, y)
+        with pytest.warns(DeprecationWarning, match="progress"):
+            compat = call_fn(trial_regressors, y, progress=True)
+
+        assert compat.method == baseline.method
+        np.testing.assert_allclose(compat.betas, baseline.betas)

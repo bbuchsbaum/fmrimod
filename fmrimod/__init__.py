@@ -97,11 +97,38 @@ def estimate_betas(*args, **kwargs):
 
 def glm_ols(*args, **kwargs):
     """Estimate trial-wise OLS betas. See :func:`fmrimod.betas.extraction.estimate_betas_ols`."""
+    if "progress" in kwargs:
+        import warnings
+
+        warnings.warn(
+            "'progress' is deprecated and ignored in Python glm_ols wrapper.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        kwargs.pop("progress", None)
     from .betas.extraction import estimate_betas_ols as _glm_ols
     return _glm_ols(*args, **kwargs)
 
 def glm_lss(*args, **kwargs):
     """Estimate trial-wise LSS betas. See :func:`fmrimod.betas.extraction.estimate_betas_lss`."""
+    if "progress" in kwargs:
+        import warnings
+
+        warnings.warn(
+            "'progress' is deprecated and ignored in Python glm_lss wrapper.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        kwargs.pop("progress", None)
+    if "use_cpp" in kwargs:
+        import warnings
+
+        warnings.warn(
+            "'use_cpp' is deprecated and ignored; vectorized LSS is always used.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        kwargs.pop("use_cpp", None)
     from .betas.extraction import estimate_betas_lss as _glm_lss
     return _glm_lss(*args, **kwargs)
 
