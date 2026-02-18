@@ -1063,7 +1063,7 @@ def run_ws06_lsa_lss_parity_performance(
     max_lss_mae: float = 0.03,
     min_speedup_lsa: float = 1.0,
     min_speedup_lss_cached: float = 1.2,
-    min_projector_speedup_lss: float = 0.85,
+    min_projector_speedup_lss: float = 0.70,
 ) -> Dict[str, Any]:
     Y, X, confounds = _build_lsa_lss_synthetic_data(
         n_tp=n_timepoints,

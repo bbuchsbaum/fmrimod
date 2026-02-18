@@ -6,12 +6,22 @@ subsequent OLS is equivalent to GLS under the AR noise model.
 
 from __future__ import annotations
 
+import os
 from typing import Dict, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy import linalg
 from scipy.signal import lfilter
+from ._arma_c_backend import arma_whiten_segments_c
+try:
+    from numba import njit
+    _HAS_NUMBA = True
+except Exception:  # pragma: no cover - optional accelerator
+    njit = None
+    _HAS_NUMBA = False
+_USE_NUMBA_ARMA = _HAS_NUMBA and os.environ.get("FMRIMOD_DISABLE_NUMBA_ARMA", "0") != "1"
+_USE_C_ARMA = os.environ.get("FMRIMOD_DISABLE_C_ARMA", "0") != "1"
 
 from .plan import WhiteningPlan, WhitenResult
 
@@ -52,15 +62,13 @@ def ar_whiten(
     n = x.shape[0]
     result = x.copy()
 
-    for t in range(p, n):
-        correction = np.zeros_like(x[t])
-        for k in range(p):
-            correction += phi[k] * x[t - k - 1]
-        result[t] = x[t] - correction
+    for k in range(1, p + 1):
+        if n > k:
+            result[k:, :] -= phi[k - 1] * x[:-k, :]
 
     # For the first p rows, use a simple scaling approach
     # (exact_first=False; exact approach is more complex)
-    for t in range(p):
+    for t in range(min(p, n)):
         # Scale by sqrt(1 - sum(phi^2)) as approximate correction
         scale = np.sqrt(max(1.0 - np.sum(phi[:t + 1] ** 2), 0.01))
         result[t] = x[t] * scale
@@ -108,13 +116,11 @@ def ar_whiten_matrix(
         n, V = Y.shape
         for v in range(V):
             phi_v = phi[:, v]
-            for t in range(ar_order, n):
-                correction = 0.0
-                for k in range(ar_order):
-                    correction += phi_v[k] * Y[t - k - 1, v]
-                Y_w[t, v] = Y[t, v] - correction
+            for k in range(1, ar_order + 1):
+                if n > k:
+                    Y_w[k:, v] -= phi_v[k - 1] * Y[:-k, v]
             # Approximate scaling for first ar_order rows
-            for t in range(ar_order):
+            for t in range(min(ar_order, n)):
                 scale = np.sqrt(max(1.0 - np.sum(phi_v[:t + 1] ** 2), 0.01))
                 Y_w[t, v] = Y[t, v] * scale
 
@@ -161,6 +167,64 @@ def ar_covariance_matrix(
 # Segment-aware ARMA whitening (ports fmriAR_whiten.cpp)
 # ---------------------------------------------------------------------------
 
+def _arma_whiten_segments_numba_core(
+    y: NDArray,
+    phi: NDArray,
+    theta: NDArray,
+    seg_starts: NDArray,
+    do_exact: bool,
+) -> NDArray:
+    """Placeholder numba backend symbol for monkeypatching in tests."""
+    raise RuntimeError("Numba ARMA backend unavailable")
+
+if _USE_NUMBA_ARMA:
+    @njit(cache=True)
+    def _arma_whiten_segments_numba_core(
+        y: NDArray,
+        phi: NDArray,
+        theta: NDArray,
+        seg_starts: NDArray,
+        do_exact: bool,
+    ) -> NDArray:
+        """Numba core for segment-aware ARMA whitening."""
+        n, v = y.shape
+        p = phi.shape[0]
+        q = theta.shape[0]
+        out = np.empty_like(y)
+
+        n_seg = seg_starts.shape[0]
+        for si in range(n_seg):
+            s_start = int(seg_starts[si])
+            s_end = int(seg_starts[si + 1]) if (si + 1) < n_seg else n
+            if s_end <= s_start:
+                continue
+
+            for col in range(v):
+                for t in range(s_start, s_end):
+                    val = y[t, col]
+
+                    # AR contribution uses original y.
+                    for k in range(p):
+                        tt = t - (k + 1)
+                        if tt >= s_start:
+                            val -= phi[k] * y[tt, col]
+
+                    # MA contribution uses previous innovations (out).
+                    for j in range(q):
+                        tt = t - (j + 1)
+                        if tt >= s_start:
+                            val -= theta[j] * out[tt, col]
+
+                    out[t, col] = val
+
+                if do_exact:
+                    s = 1.0 - phi[0] * phi[0]
+                    if s < 0.0:
+                        s = 0.0
+                    out[s_start, col] *= np.sqrt(s)
+
+        return out
+
 def arma_whiten_segments(
     y: NDArray,
     phi: NDArray,
@@ -200,7 +264,7 @@ def arma_whiten_segments(
     if was_1d:
         y = y[:, np.newaxis]
 
-    n, v = y.shape
+    n, _ = y.shape
     p = len(phi)
     q_ord = len(theta)
 
@@ -216,16 +280,49 @@ def arma_whiten_segments(
     do_exact = exact_first_ar1 and p == 1 and q_ord == 0
     exact_scale = np.sqrt(max(1.0 - phi[0] ** 2, 0.0)) if do_exact else 1.0
 
+    # ARMA path: prefer native C backend, then numba.
+    if q_ord > 0 and _USE_C_ARMA:
+        out_c = arma_whiten_segments_c(
+            y=np.ascontiguousarray(y),
+            phi=np.ascontiguousarray(phi),
+            theta=np.ascontiguousarray(theta),
+            seg_starts=np.ascontiguousarray(seg_starts),
+            do_exact=do_exact,
+        )
+        if out_c is not None:
+            if was_1d:
+                return out_c.ravel()
+            return out_c
+
+    if q_ord > 0 and _USE_NUMBA_ARMA:
+        out = _arma_whiten_segments_numba_core(
+            np.ascontiguousarray(y),
+            np.ascontiguousarray(phi),
+            np.ascontiguousarray(theta),
+            np.ascontiguousarray(seg_starts),
+            do_exact,
+        )
+        if was_1d:
+            return out.ravel()
+        return out
+
     for s_start, s_end in zip(seg_starts, seg_ends):
         seg = y[s_start:s_end]
         seg_len = seg.shape[0]
         if seg_len == 0:
             continue
 
-        # Apply filter per column
-        for col in range(v):
-            filtered = lfilter(b, a, seg[:, col])
-            out[s_start:s_end, col] = filtered
+        # Pure AR case (q=0): apply FIR filter directly with vectorized
+        # shifted subtraction, avoiding scipy lfilter overhead.
+        if q_ord == 0 and p > 0:
+            seg_out = seg.copy()
+            for k in range(1, p + 1):
+                if seg_len > k:
+                    seg_out[k:, :] -= phi[k - 1] * seg[:-k, :]
+            out[s_start:s_end, :] = seg_out
+        else:
+            # General ARMA case: use scipy lfilter along time axis.
+            out[s_start:s_end, :] = lfilter(b, a, seg, axis=0)
 
         # Exact first-sample scaling
         if do_exact:
@@ -336,14 +433,24 @@ def whiten_apply(
             phi_v = phi_by.get(key, np.array([], dtype=np.float64))
             theta_v = theta_by.get(key, np.array([], dtype=np.float64))
 
-            Y_sub = arma_whiten_segments(
-                Y[:, cols], phi_v, theta_v, run_starts_vec,
-                exact_first_ar1=plan.exact_first,
-            )
-            X_sub = arma_whiten_segments(
-                X, phi_v, theta_v, run_starts_vec,
-                exact_first_ar1=plan.exact_first,
-            )
+            if len(theta_v) == 0:
+                XY_sub = np.hstack((X, Y[:, cols]))
+                XYw_sub = arma_whiten_segments(
+                    XY_sub, phi_v, theta_v, run_starts_vec,
+                    exact_first_ar1=plan.exact_first,
+                )
+                k = X.shape[1]
+                X_sub = XYw_sub[:, :k]
+                Y_sub = XYw_sub[:, k:]
+            else:
+                Y_sub = arma_whiten_segments(
+                    Y[:, cols], phi_v, theta_v, run_starts_vec,
+                    exact_first_ar1=plan.exact_first,
+                )
+                X_sub = arma_whiten_segments(
+                    X, phi_v, theta_v, run_starts_vec,
+                    exact_first_ar1=plan.exact_first,
+                )
             Yw[:, cols] = Y_sub
             X_by[key] = X_sub
 
@@ -352,6 +459,19 @@ def whiten_apply(
     # --- Global / run plan ---
     run_labels = np.unique(runs)
     rsplits = [np.where(runs == rl)[0] for rl in run_labels]
+
+    def _row_selector(idx: NDArray):
+        """Prefer contiguous slice selectors to avoid fancy-index copies."""
+        if len(idx) == 0:
+            return idx
+        if len(idx) == 1:
+            i0 = int(idx[0])
+            return slice(i0, i0 + 1)
+        i0 = int(idx[0])
+        i1 = int(idx[-1])
+        if (i1 - i0 + 1) == len(idx) and np.all(np.diff(idx) == 1):
+            return slice(i0, i1 + 1)
+        return idx
 
     # Split censor by run
     censor_by_run = [np.array([], dtype=np.intp) for _ in rsplits]
@@ -374,26 +494,32 @@ def whiten_apply(
     while len(theta_list) < len(rsplits):
         theta_list.append(np.array([], dtype=np.float64))
 
-    Xw_parts = []
-    Yw_parts = []
+    Xw = np.empty_like(X)
+    Yw = np.empty_like(Y)
 
     for ri, idx in enumerate(rsplits):
-        Xr = X[idx]
-        Yr = Y[idx]
+        row_sel = _row_selector(idx)
+        Xr = X[row_sel]
+        Yr = Y[row_sel]
         phi_r = phi_list[ri] if ri < len(phi_list) else np.array([], dtype=np.float64)
         theta_r = theta_list[ri] if ri < len(theta_list) else np.array([], dtype=np.float64)
 
         seg_starts = _sub_run_starts(len(idx), censor_by_run[ri])
 
-        Xw_r = arma_whiten_segments(Xr, phi_r, theta_r, seg_starts,
-                                     exact_first_ar1=plan.exact_first)
-        Yw_r = arma_whiten_segments(Yr, phi_r, theta_r, seg_starts,
-                                     exact_first_ar1=plan.exact_first)
-        Xw_parts.append(Xw_r)
-        Yw_parts.append(Yw_r)
-
-    Xw = np.vstack(Xw_parts)
-    Yw = np.vstack(Yw_parts)
+        if len(theta_r) == 0:
+            XYr = np.hstack((Xr, Yr))
+            XYw_r = arma_whiten_segments(XYr, phi_r, theta_r, seg_starts,
+                                         exact_first_ar1=plan.exact_first)
+            k = Xr.shape[1]
+            Xw_r = XYw_r[:, :k]
+            Yw_r = XYw_r[:, k:]
+        else:
+            Xw_r = arma_whiten_segments(Xr, phi_r, theta_r, seg_starts,
+                                        exact_first_ar1=plan.exact_first)
+            Yw_r = arma_whiten_segments(Yr, phi_r, theta_r, seg_starts,
+                                        exact_first_ar1=plan.exact_first)
+        Xw[row_sel, :] = Xw_r
+        Yw[row_sel, :] = Yw_r
 
     return WhitenResult(X=Xw, Y=Yw)
 
