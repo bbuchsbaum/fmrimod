@@ -21,6 +21,10 @@ from .contrast_weights import contrast_weights
 from .fcontrast import Fcontrasts, plot_Fcontrasts
 from .plot_contrasts import plot_contrasts
 from .basis_filter import filter_basis, apply_basis_filter
+from .factorial import (
+    generate_main_effect_contrast,
+    generate_interaction_contrast,
+)
 
 __all__ = [
     # Core contrast constructors
@@ -36,6 +40,8 @@ __all__ = [
     'pairwise_contrasts',
     'one_against_all_contrast',
     'sliding_window_contrasts',
+    'generate_main_effect_contrast',
+    'generate_interaction_contrast',
     # Weight computation
     'contrast_weights',
     # F-contrasts

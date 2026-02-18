@@ -163,6 +163,57 @@ def dvars_weights(
     return w
 
 
+def dvars_to_weights(
+    dvars: NDArray[np.float64],
+    method: str = "inverse_squared",
+    threshold: float = 1.5,
+    steepness: float = 2.0,
+) -> NDArray[np.float64]:
+    """R-parity alias for :func:`dvars_weights`."""
+    return dvars_weights(
+        dvars=dvars,
+        method=method,
+        threshold=threshold,
+        steepness=steepness,
+    )
+
+
+def volume_weights(
+    Y: NDArray[np.float64],
+    method: str = "inverse_squared",
+    threshold: float = 1.5,
+    return_dvars: bool = False,
+) -> Union[NDArray[np.float64], dict[str, NDArray[np.float64]]]:
+    """Compute per-volume weights from data in one step.
+
+    Mirrors fmrireg's ``volume_weights`` API:
+    1. compute DVARS from ``Y``
+    2. convert DVARS to weights via the selected method
+
+    Parameters
+    ----------
+    Y : NDArray
+        Data matrix, shape ``(n, V)``.
+    method : str
+        ``"inverse_squared"``, ``"soft_threshold"``, or ``"tukey"``.
+    threshold : float
+        Threshold used in weight conversion.
+    return_dvars : bool
+        If ``True``, return ``{"weights": ..., "dvars": ...}``.
+
+    Returns
+    -------
+    NDArray or dict
+        Weight vector, or a mapping with both weights and DVARS.
+    """
+    dvars = compute_dvars(Y, normalize=True)
+    weights = dvars_to_weights(dvars, method=method, threshold=threshold)
+
+    if return_dvars:
+        return {"weights": weights, "dvars": dvars}
+    return weights
+
+
 def apply_censoring(
     X: NDArray[np.float64],
     Y: NDArray[np.float64],

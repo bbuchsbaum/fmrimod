@@ -1,4 +1,5 @@
 """I/O functionality for fmrimod."""
 
-# Will be populated as modules are implemented
-__all__ = []
+from .results import write_results
+
+__all__ = ["write_results"]

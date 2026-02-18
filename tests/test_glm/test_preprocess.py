@@ -5,9 +5,12 @@ import pytest
 
 from fmrimod.glm.preprocess import (
     compute_dvars,
+    dvars_to_weights,
     dvars_weights,
     extract_nuisance_timeseries,
+    volume_weights,
 )
+import fmrimod
 
 
 def test_compute_dvars_matches_fmrireg_formula():
@@ -34,6 +37,23 @@ def test_compute_dvars_requires_at_least_two_timepoints():
     y = np.array([[1.0, 2.0, 3.0]])
     with pytest.raises(ValueError, match="at least 2 timepoints"):
         compute_dvars(y)
+
+
+def test_compute_dvars_normalize_false_uses_raw_scale_with_median_first():
+    y = np.array(
+        [
+            [0.0, 0.0],
+            [1.0, 2.0],
+            [3.0, 6.0],
+            [6.0, 12.0],
+        ],
+        dtype=np.float64,
+    )
+    got = compute_dvars(y, normalize=False)
+
+    dvars_raw = np.sqrt(np.mean(np.diff(y, axis=0) ** 2, axis=1))
+    expected = np.concatenate([[np.median(dvars_raw)], dvars_raw])
+    np.testing.assert_allclose(got, expected, atol=1e-12)
 
 
 def test_dvars_weights_inverse_squared_matches_fmrireg_formula():
@@ -78,6 +98,97 @@ def test_dvars_weights_tukey_matches_fmrireg_formula():
 def test_dvars_weights_rejects_negative_dvars():
     with pytest.raises(ValueError, match="DVARS values must be non-negative"):
         dvars_weights(np.array([0.0, -0.1, 1.0]))
+
+
+def test_dvars_to_weights_alias_matches_dvars_weights():
+    dvars = np.array([0.5, 1.5, 2.5], dtype=np.float64)
+    expected = dvars_weights(dvars, method="tukey", threshold=1.25)
+    got = dvars_to_weights(dvars, method="tukey", threshold=1.25)
+    np.testing.assert_allclose(got, expected, atol=1e-12)
+
+
+def test_volume_weights_matches_compute_then_convert():
+    y = np.array(
+        [
+            [0.0, 0.0],
+            [1.0, 2.0],
+            [3.0, 5.0],
+            [6.0, 9.0],
+        ],
+        dtype=np.float64,
+    )
+    got = volume_weights(y, method="inverse_squared", threshold=1.5)
+    expected = dvars_to_weights(
+        compute_dvars(y, normalize=True),
+        method="inverse_squared",
+        threshold=1.5,
+    )
+    np.testing.assert_allclose(got, expected, atol=1e-12)
+
+
+def test_volume_weights_return_dvars_payload():
+    y = np.array(
+        [
+            [0.0, 1.0],
+            [1.0, 1.0],
+            [2.0, 4.0],
+            [3.0, 9.0],
+        ],
+        dtype=np.float64,
+    )
+    result = volume_weights(y, return_dvars=True)
+    assert set(result.keys()) == {"weights", "dvars"}
+    np.testing.assert_allclose(result["dvars"], compute_dvars(y, normalize=True), atol=1e-12)
+    np.testing.assert_allclose(
+        result["weights"],
+        dvars_to_weights(result["dvars"]),
+        atol=1e-12,
+    )
+
+
+def test_top_level_volume_quality_helpers_match_glm_preprocess():
+    y = np.array(
+        [
+            [0.0, 0.0],
+            [1.0, 1.0],
+            [2.0, 4.0],
+            [3.0, 9.0],
+        ],
+        dtype=np.float64,
+    )
+    dvars = fmrimod.compute_dvars(y)
+    weights = fmrimod.dvars_to_weights(dvars)
+    one_step = fmrimod.volume_weights(y)
+    np.testing.assert_allclose(one_step, weights, atol=1e-12)
+
+
+def test_package_exports_volume_quality_helpers():
+    assert "volume_weights" in fmrimod.__all__
+    assert "compute_dvars" in fmrimod.__all__
+    assert "dvars_to_weights" in fmrimod.__all__
+
+
+def test_package_volume_weights_matches_module_implementation():
+    y = np.array(
+        [
+            [0.0, 1.0],
+            [2.0, 2.0],
+            [5.0, 8.0],
+            [9.0, 17.0],
+        ],
+        dtype=np.float64,
+    )
+
+    mod = volume_weights(y, method="soft_threshold", threshold=1.2)
+    top = fmrimod.volume_weights(y, method="soft_threshold", threshold=1.2)
+    np.testing.assert_allclose(top, mod, atol=1e-12)
+
+    mod_d = volume_weights(y, method="tukey", threshold=1.1, return_dvars=True)
+    top_d = fmrimod.volume_weights(y, method="tukey", threshold=1.1, return_dvars=True)
+
+    np.testing.assert_array_equal(top_d.keys(), mod_d.keys())
+    np.testing.assert_allclose(top_d["weights"], mod_d["weights"], atol=1e-12)
+    np.testing.assert_allclose(top_d["dvars"], mod_d["dvars"], atol=1e-12)
 
 
 def test_extract_nuisance_timeseries_accepts_pathlike_mask_file(tmp_path):

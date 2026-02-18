@@ -17,6 +17,7 @@ The cross-testing framework ensures that both implementations produce identical 
 - Python 3.8+
 - R 4.1+
 - `rpy2` Python package
+- `nilearn` Python package (required for fitlins parity tests)
 - `fmrihrf` R package
 
 ## Installation

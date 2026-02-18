@@ -6,6 +6,7 @@ Ports R's ``fmri_lm_control()`` into Python dataclasses with validation.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import warnings
 from typing import List, Literal, Optional, Union
 
 import numpy as np
@@ -366,6 +367,56 @@ class FmriLmConfig:
         return f"FmriLmConfig({', '.join(parts)})"
 
 
+_LAMBDA_SENTINEL = object()
+
+
+def soft_subspace_options(
+    *,
+    enabled: bool = False,
+    nuisance_matrix: Optional[NDArray] = None,
+    nuisance_mask: Optional[object] = None,
+    lam: Union[float, Literal["auto", "gcv"], object] = _LAMBDA_SENTINEL,
+    warn_redundant: bool = True,
+    **kwargs,
+) -> SoftSubspaceOptions:
+    """Construct :class:`SoftSubspaceOptions` with R-style compatibility.
+
+    Parameters mirror :class:`SoftSubspaceOptions` with the ``lambda`` alias
+    accepted for R parity. A warning is emitted when both
+    ``nuisance_matrix`` and ``nuisance_mask`` are supplied.
+    """
+    lam_value: Union[float, Literal["auto", "gcv"]] = "auto" if lam is _LAMBDA_SENTINEL else lam
+    if kwargs:
+        if "lambda" in kwargs:
+            if lam is not _LAMBDA_SENTINEL:
+                raise TypeError("Specify only one of 'lambda' or 'lam'")
+            lam_value = kwargs.pop("lambda")
+        if kwargs:
+            extras = ", ".join(sorted(kwargs.keys()))
+            raise TypeError(f"Unexpected soft_subspace option(s): {extras}")
+
+    if nuisance_matrix is not None and nuisance_mask is not None and warn_redundant:
+        warnings.warn(
+            "Both 'nuisance_matrix' and 'nuisance_mask' were provided.\n"
+            "This is a redundant configuration and may be ignored depending on call path.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+    return SoftSubspaceOptions(
+        enabled=enabled,
+        nuisance_matrix=nuisance_matrix,
+        nuisance_mask=nuisance_mask,
+        lam=lam_value,
+        warn_redundant=warn_redundant,
+    )
+
+
+# Keep a stable local name for the factory after parameter shadowing in
+# fmri_lm_control.
+_soft_subspace_options = soft_subspace_options
+
+
 def fmri_lm_control(
     robust_options: Optional[dict] = None,
     ar_options: Optional[dict] = None,
@@ -396,10 +447,5 @@ def fmri_lm_control(
     ar = AROptions(**(ar_options or {}))
     vw = VolumeWeightOptions(**(volume_weights_options or {}))
     ss_opts = dict(soft_subspace_options or {})
-    # R-compat alias: soft_subspace_options$lambda -> lam
-    if "lambda" in ss_opts:
-        if "lam" in ss_opts:
-            raise TypeError("Specify only one of 'lambda' or 'lam'")
-        ss_opts["lam"] = ss_opts.pop("lambda")
-    ss = SoftSubspaceOptions(**ss_opts)
+    ss = _soft_subspace_options(**ss_opts)
     return FmriLmConfig(robust=robust, ar=ar, volume_weights=vw, soft_subspace=ss)

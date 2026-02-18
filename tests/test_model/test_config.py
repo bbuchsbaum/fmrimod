@@ -10,6 +10,7 @@ from fmrimod.model.config import (
     SoftSubspaceOptions,
     VolumeWeightOptions,
     fmri_lm_control,
+    soft_subspace_options,
 )
 
 
@@ -354,3 +355,75 @@ class TestFmriLmControl:
         )
         assert cfg.soft_subspace.nuisance_mask == "mask.nii"
         assert cfg.soft_subspace.lam == 0.1
+
+    def test_soft_subspace_redundant_inputs_warn(self):
+        nuisance = np.ones((8, 2))
+
+        with pytest.warns(
+            UserWarning,
+            match="Both 'nuisance_matrix' and 'nuisance_mask'",
+        ):
+            fmri_lm_control(
+                soft_subspace_options={
+                    "enabled": True,
+                    "nuisance_matrix": nuisance,
+                    "nuisance_mask": "mask.nii",
+                }
+            )
+
+    def test_soft_subspace_unexpected_kwarg_error(self):
+        with pytest.raises(TypeError, match="Unexpected soft_subspace option\\(s\\): bad_kwarg"):
+            fmri_lm_control(
+                soft_subspace_options={"bad_kwarg": 1, "enabled": True}
+            )
+
+
+class TestSoftSubspaceOptionsFactory:
+    def test_lambda_alias_and_warning_when_redundant_inputs(self):
+        nuisance_matrix = np.ones((10, 1))
+        nuisance_mask = "mask.nii"
+
+        with pytest.warns(UserWarning, match="Both 'nuisance_matrix' and 'nuisance_mask'"):
+            opts = soft_subspace_options(
+                enabled=True,
+                nuisance_matrix=nuisance_matrix,
+                nuisance_mask=nuisance_mask,
+                lam=0.2,
+            )
+
+        assert opts.lam == 0.2
+        assert opts.nuisance_matrix is nuisance_matrix
+        assert opts.nuisance_mask == nuisance_mask
+
+    def test_lambda_keyword_alias(self):
+        nuisance_matrix = np.ones((10, 1))
+
+        opts = soft_subspace_options(
+            enabled=True,
+            nuisance_matrix=nuisance_matrix,
+            **{"lambda": 0.25},
+        )
+
+        assert opts.lam == 0.25
+
+    def test_lambda_and_alias_are_mutually_exclusive(self):
+        nuisance_matrix = np.ones((10, 1))
+
+        with pytest.raises(TypeError, match="Specify only one of 'lambda' or 'lam'"):
+            soft_subspace_options(
+                enabled=True,
+                nuisance_matrix=nuisance_matrix,
+                lam=0.1,
+                **{"lambda": 0.2},
+            )
+
+    def test_top_level_export(self):
+        from fmrimod import soft_subspace_options as top_level_soft_subspace_options
+
+        opts = top_level_soft_subspace_options(
+            enabled=True,
+            nuisance_matrix=np.ones((10, 1)),
+            **{"lambda": 0.3},
+        )
+
+        assert opts.lam == 0.3
