@@ -16,7 +16,7 @@ from dataclasses import asdict, dataclass
 import json
 from pathlib import Path
 import time
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -182,6 +182,7 @@ def fit_fmrimod_ols(
     n_jobs: int = 1,
     chunk_size: int = 5000,
     blas_threads: int | None = None,
+    executor: Optional[ThreadPoolExecutor] = None,
 ) -> Dict[str, Array]:
     """Fit OLS with fmrimod's matrix solver and return comparable outputs."""
     proj = fast_preproject(X, compute_dtype=compute_dtype, check_finite=False)
@@ -219,8 +220,15 @@ def fit_fmrimod_ols(
         ]
 
         with _maybe_limit_blas_threads(blas_threads):
-            with ThreadPoolExecutor(max_workers=workers) as ex:
-                futures = [ex.submit(_solve_chunk, s, e) for s, e in ranges]
+            if executor is None:
+                with ThreadPoolExecutor(max_workers=workers) as ex:
+                    futures = [ex.submit(_solve_chunk, s, e) for s, e in ranges]
+                    for fut in futures:
+                        s, e, b, s2 = fut.result()
+                        betas[:, s:e] = b
+                        sigma2[s:e] = s2
+            else:
+                futures = [executor.submit(_solve_chunk, s, e) for s, e in ranges]
                 for fut in futures:
                     s, e, b, s2 = fut.result()
                     betas[:, s:e] = b
@@ -373,37 +381,70 @@ def benchmark_implementations(
     X_candidate = X.astype(fmrimod_compute_dtype, copy=False)
     Y_candidate = Y.astype(fmrimod_compute_dtype, copy=False)
 
-    for _ in range(warmup):
-        fit_fmrimod_ols(
-            X_candidate,
-            Y_candidate,
-            contrast,
-            compute_dtype=fmrimod_compute_dtype,
-            n_jobs=fmrimod_n_jobs,
-            chunk_size=fmrimod_chunk_size,
-            blas_threads=fmrimod_blas_threads,
-        )
-        fit_fitlins_reference_ols(X, Y, contrast)
-
     fmrimod_runs: list[float] = []
     reference_runs: list[float] = []
 
-    for _ in range(repeats):
-        t0 = time.perf_counter()
-        fit_fmrimod_ols(
-            X_candidate,
-            Y_candidate,
-            contrast,
-            compute_dtype=fmrimod_compute_dtype,
-            n_jobs=fmrimod_n_jobs,
-            chunk_size=fmrimod_chunk_size,
-            blas_threads=fmrimod_blas_threads,
-        )
-        fmrimod_runs.append(time.perf_counter() - t0)
+    if fmrimod_n_jobs > 1:
+        with ThreadPoolExecutor(max_workers=int(fmrimod_n_jobs)) as ex:
+            for _ in range(warmup):
+                fit_fmrimod_ols(
+                    X_candidate,
+                    Y_candidate,
+                    contrast,
+                    compute_dtype=fmrimod_compute_dtype,
+                    n_jobs=fmrimod_n_jobs,
+                    chunk_size=fmrimod_chunk_size,
+                    blas_threads=fmrimod_blas_threads,
+                    executor=ex,
+                )
+                fit_fitlins_reference_ols(X, Y, contrast)
 
-        t0 = time.perf_counter()
-        fit_fitlins_reference_ols(X, Y, contrast)
-        reference_runs.append(time.perf_counter() - t0)
+            for _ in range(repeats):
+                t0 = time.perf_counter()
+                fit_fmrimod_ols(
+                    X_candidate,
+                    Y_candidate,
+                    contrast,
+                    compute_dtype=fmrimod_compute_dtype,
+                    n_jobs=fmrimod_n_jobs,
+                    chunk_size=fmrimod_chunk_size,
+                    blas_threads=fmrimod_blas_threads,
+                    executor=ex,
+                )
+                fmrimod_runs.append(time.perf_counter() - t0)
+
+                t0 = time.perf_counter()
+                fit_fitlins_reference_ols(X, Y, contrast)
+                reference_runs.append(time.perf_counter() - t0)
+    else:
+        for _ in range(warmup):
+            fit_fmrimod_ols(
+                X_candidate,
+                Y_candidate,
+                contrast,
+                compute_dtype=fmrimod_compute_dtype,
+                n_jobs=fmrimod_n_jobs,
+                chunk_size=fmrimod_chunk_size,
+                blas_threads=fmrimod_blas_threads,
+            )
+            fit_fitlins_reference_ols(X, Y, contrast)
+
+        for _ in range(repeats):
+            t0 = time.perf_counter()
+            fit_fmrimod_ols(
+                X_candidate,
+                Y_candidate,
+                contrast,
+                compute_dtype=fmrimod_compute_dtype,
+                n_jobs=fmrimod_n_jobs,
+                chunk_size=fmrimod_chunk_size,
+                blas_threads=fmrimod_blas_threads,
+            )
+            fmrimod_runs.append(time.perf_counter() - t0)
+
+            t0 = time.perf_counter()
+            fit_fitlins_reference_ols(X, Y, contrast)
+            reference_runs.append(time.perf_counter() - t0)
 
     fmrimod_median = float(np.median(fmrimod_runs))
     reference_median = float(np.median(reference_runs))
