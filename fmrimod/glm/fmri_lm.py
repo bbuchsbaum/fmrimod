@@ -19,6 +19,7 @@ from .solver import Projection
 from .contrasts import (
     ContrastResult,
     contrast_t,
+    contrast_t_batch,
     contrast_f_vectorized,
 )
 from .effective_df import effective_df
@@ -175,6 +176,69 @@ class FmriLm:
             )
         self.contrasts[name] = result
         return result
+
+    def compute_contrasts(
+        self,
+        specs: Dict[str, NDArray[np.float64]],
+    ) -> Dict[str, ContrastResult]:
+        """Compute multiple contrasts, batching t-contrasts for speed.
+
+        Parameters
+        ----------
+        specs : dict[str, NDArray]
+            Mapping of contrast name to weight vector/matrix.
+
+        Returns
+        -------
+        dict[str, ContrastResult]
+            Computed contrast results keyed by name.
+        """
+        if not specs:
+            return {}
+
+        out: Dict[str, ContrastResult] = {}
+        t_names: list[str] = []
+        t_weights: list[NDArray[np.float64]] = []
+        f_items: list[tuple[str, NDArray[np.float64]]] = []
+
+        for cname, w in specs.items():
+            if cname in self.contrasts:
+                out[cname] = self.contrasts[cname]
+                continue
+            w_arr = np.asarray(w, dtype=np.float64)
+            if w_arr.ndim == 1:
+                t_names.append(cname)
+                t_weights.append(w_arr)
+            else:
+                f_items.append((cname, np.atleast_2d(w_arr)))
+
+        if t_weights:
+            t_mat = np.vstack(t_weights)
+            t_results = contrast_t_batch(
+                t_mat,
+                self.betas,
+                self.XtXinv,
+                self.sigma,
+                self.residual_df,
+                names=t_names,
+            )
+            for res in t_results:
+                self.contrasts[res.name] = res
+                out[res.name] = res
+
+        for cname, w_arr in f_items:
+            res = contrast_f_vectorized(
+                w_arr,
+                self.betas,
+                self.XtXinv,
+                self.sigma,
+                self.residual_df,
+                name=cname,
+            )
+            self.contrasts[cname] = res
+            out[cname] = res
+
+        return out
 
     # -- Display --
 

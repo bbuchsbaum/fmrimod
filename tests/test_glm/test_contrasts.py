@@ -5,7 +5,12 @@ import pytest
 from scipy import stats as sp_stats
 
 from fmrimod.glm.solver import fast_preproject, fast_lm_matrix
-from fmrimod.glm.contrasts import contrast_t, contrast_f, contrast_f_vectorized
+from fmrimod.glm.contrasts import (
+    contrast_t,
+    contrast_t_batch,
+    contrast_f,
+    contrast_f_vectorized,
+)
 
 
 @pytest.fixture
@@ -93,6 +98,38 @@ class TestContrastT:
         )
         # true difference is 3 - 0 = 3
         np.testing.assert_allclose(res.estimate, 3.0, atol=0.3)
+
+    def test_batch_t_matches_single_contrast_calls(self, fitted_model):
+        con_mat = np.array(
+            [
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0],
+                [0.0, 1.0, -1.0, 0.0],
+            ]
+        )
+        names = ["c1", "c2", "c3"]
+        batch = contrast_t_batch(
+            con_mat,
+            fitted_model["betas"],
+            fitted_model["XtXinv"],
+            fitted_model["sigma"],
+            fitted_model["dfres"],
+            names=names,
+        )
+        assert len(batch) == 3
+        for i, c in enumerate(con_mat):
+            single = contrast_t(
+                c,
+                fitted_model["betas"],
+                fitted_model["XtXinv"],
+                fitted_model["sigma"],
+                fitted_model["dfres"],
+                name=names[i],
+            )
+            np.testing.assert_allclose(batch[i].estimate, single.estimate, atol=1e-12)
+            np.testing.assert_allclose(batch[i].stat, single.stat, atol=1e-12)
+            np.testing.assert_allclose(batch[i].se, single.se, atol=1e-12)
+            np.testing.assert_allclose(batch[i].p_value, single.p_value, atol=1e-12)
 
 
 class TestContrastF:

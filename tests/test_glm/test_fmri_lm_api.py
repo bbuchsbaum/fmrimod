@@ -80,3 +80,19 @@ def test_unknown_named_contrast_raises_keyerror(fitted_result):
 def test_dict_contrast_requires_weights_key(fitted_result):
     with pytest.raises(ValueError, match="must contain 'weights'"):
         fitted_result.contrast({"name": "bad_spec"})
+
+
+def test_compute_contrasts_batches_t_and_matches_single_calls(fitted_result):
+    specs = {
+        "slope": np.array([0.0, 1.0]),
+        "intercept": np.array([1.0, 0.0]),
+    }
+    out = fitted_result.compute_contrasts(specs)
+
+    slope_single = fitted_result.contrast(np.array([0.0, 1.0]), name="slope_single")
+    intercept_single = fitted_result.contrast(np.array([1.0, 0.0]), name="intercept_single")
+
+    np.testing.assert_allclose(out["slope"].stat, slope_single.stat, atol=1e-12)
+    np.testing.assert_allclose(out["slope"].p_value, slope_single.p_value, atol=1e-12)
+    np.testing.assert_allclose(out["intercept"].stat, intercept_single.stat, atol=1e-12)
+    np.testing.assert_allclose(out["intercept"].p_value, intercept_single.p_value, atol=1e-12)

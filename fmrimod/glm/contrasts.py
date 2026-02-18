@@ -176,6 +176,80 @@ def contrast_t(
     )
 
 
+def contrast_t_batch(
+    con_mat: NDArray[np.float64],
+    betas: NDArray[np.float64],
+    XtXinv: NDArray[np.float64],
+    sigma: NDArray[np.float64],
+    dfres: float,
+    names: Optional[list[str]] = None,
+    name_prefix: str = "t-contrast",
+) -> list[ContrastResult]:
+    """Compute multiple t-contrasts in one vectorized pass.
+
+    Parameters
+    ----------
+    con_mat : NDArray
+        Contrast matrix, shape ``(k, p)``.
+    betas : NDArray
+        Coefficient matrix, shape ``(p, V)``.
+    XtXinv : NDArray
+        ``(X'X)^{-1}``, shape ``(p, p)``.
+    sigma : NDArray
+        Residual standard deviation, shape ``(V,)``.
+    dfres : float
+        Residual degrees of freedom.
+    names : list[str], optional
+        Names for each contrast row.
+    name_prefix : str
+        Prefix used when ``names`` is not provided.
+
+    Returns
+    -------
+    list[ContrastResult]
+        One result per contrast row.
+    """
+    con_mat = np.atleast_2d(np.asarray(con_mat, dtype=np.float64))
+    if con_mat.shape[0] == 0:
+        return []
+    p = betas.shape[0]
+    if con_mat.shape[1] != p:
+        raise ValueError(
+            f"Contrast matrix has {con_mat.shape[1]} columns but model has "
+            f"{p} coefficients"
+        )
+    if names is not None and len(names) != con_mat.shape[0]:
+        raise ValueError("names length must match number of contrast rows")
+
+    # Estimates: C B -> (k, V)
+    estimates = con_mat @ betas
+
+    # Per-contrast variance factors: diag(C XtXinv C')
+    c_xtx = con_mat @ XtXinv
+    var_factors = np.sum(c_xtx * con_mat, axis=1)
+    se = np.sqrt(np.maximum(var_factors, 0.0))[:, np.newaxis] * sigma[np.newaxis, :]
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        tstat = np.where(se > 1e-15, estimates / se, 0.0)
+    p_value = _t_two_sided_pvalue(tstat, dfres)
+
+    if names is None:
+        names = [f"{name_prefix}[{i}]" for i in range(con_mat.shape[0])]
+
+    return [
+        ContrastResult(
+            name=names[i],
+            estimate=estimates[i],
+            stat=tstat[i],
+            se=se[i],
+            p_value=p_value[i],
+            df=dfres,
+            stat_type="t",
+        )
+        for i in range(con_mat.shape[0])
+    ]
+
+
 def contrast_f(
     con_mat: NDArray[np.float64],
     betas: NDArray[np.float64],
