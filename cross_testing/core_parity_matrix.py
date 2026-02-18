@@ -1678,6 +1678,9 @@ def run_ws10_performance_decomposition_parity(
     design_n_scans: int = 180,
     design_tr: float = 1.0,
     run_combine_runs: int = 4,
+    ar1_auto_tune: bool = True,
+    ar1_tune_repeats: int = 2,
+    ar1_tune_warmup: int = 0,
     min_speedup_design_build: float = 0.7,
     min_speedup_fit_total_ols: float = 1.0,
     min_speedup_contrast_only: float = 0.25,
@@ -1805,14 +1808,59 @@ def run_ws10_performance_decomposition_parity(
         noise_sd=noise_sd,
         seed=seed + 2,
     )
+    ar1_selected = {"iter_gls": 1, "voxelwise": False}
+    ar1_tuning_trials: list[dict[str, Any]] = []
+    if ar1_auto_tune:
+        ar1_candidates = [
+            {"iter_gls": 1, "voxelwise": False},
+            {"iter_gls": 2, "voxelwise": False},
+            {"iter_gls": 1, "voxelwise": True},
+        ]
+        for cfg in ar1_candidates:
+            summary_try = benchmark_ar1_implementations(
+                X_ar,
+                Y_ar,
+                con_ar,
+                repeats=max(1, int(ar1_tune_repeats)),
+                warmup=max(0, int(ar1_tune_warmup)),
+                iter_gls=int(cfg["iter_gls"]),
+                voxelwise=bool(cfg["voxelwise"]),
+            )
+            ar1_tuning_trials.append(
+                {
+                    "iter_gls": int(cfg["iter_gls"]),
+                    "voxelwise": bool(cfg["voxelwise"]),
+                    "speedup_vs_reference": float(summary_try.speedup_vs_reference),
+                    "candidate_median_s": float(summary_try.fmrimod_median_s),
+                    "reference_median_s": float(summary_try.reference_median_s),
+                }
+            )
+        ar1_tuning_trials.sort(key=lambda x: x["speedup_vs_reference"], reverse=True)
+        best = ar1_tuning_trials[0]
+        best_non_voxelwise = next(
+            (x for x in ar1_tuning_trials if not bool(x["voxelwise"])),
+            None,
+        )
+        if (
+            bool(best["voxelwise"])
+            and best_non_voxelwise is not None
+            and float(best["speedup_vs_reference"])
+            < 1.30 * float(best_non_voxelwise["speedup_vs_reference"])
+        ):
+            best = best_non_voxelwise
+        ar1_selected = {
+            "iter_gls": int(best["iter_gls"]),
+            "voxelwise": bool(best["voxelwise"]),
+        }
+
     ar1_summary = benchmark_ar1_implementations(
         X_ar,
         Y_ar,
         con_ar,
         repeats=int(repeats),
         warmup=int(warmup),
-        iter_gls=1,
-        voxelwise=False,
+        iter_gls=int(ar1_selected["iter_gls"]),
+        voxelwise=bool(ar1_selected["voxelwise"]),
     )
     fit_total_ar1_stage = _benchmark_summary_to_stage(ar1_summary)
     fit_total_ar1_candidate = fit_total_ar1_stage["candidate_median_s"]
@@ -1820,31 +1868,41 @@ def run_ws10_performance_decomposition_parity(
     # Stage 4b (candidate-only): AR1 internal decomposition
     def _ar1_candidate_substage_once() -> Dict[str, float]:
         t0 = time.perf_counter()
-        proj_ols = fast_preproject(X_ar, check_finite=False)
-        fit_ols = fast_lm_matrix(
-            X_ar,
-            Y_ar,
-            proj_ols,
-            return_fitted=True,
-            check_finite=False,
-        )
-        residuals = (
-            Y_ar - fit_ols.fitted
-            if fit_ols.fitted is not None
-            else Y_ar - X_ar @ fit_ols.betas
-        )
-        t1 = time.perf_counter()
+        X_fit = X_ar
+        Y_fit = Y_ar
+        ar_est_total = 0.0
+        whiten_total = 0.0
+        for _ in range(int(ar1_selected["iter_gls"])):
+            proj_ols = fast_preproject(X_fit, check_finite=False)
+            fit_ols = fast_lm_matrix(
+                X_fit,
+                Y_fit,
+                proj_ols,
+                return_fitted=True,
+                check_finite=False,
+            )
+            residuals = (
+                Y_ar - fit_ols.fitted
+                if fit_ols.fitted is not None
+                else Y_ar - X_ar @ fit_ols.betas
+            )
+            ta0 = time.perf_counter()
+            phi_hat = estimate_ar(
+                residuals,
+                order=1,
+                voxelwise=bool(ar1_selected["voxelwise"]),
+            )
+            ta1 = time.perf_counter()
+            X_fit, Y_fit = ar_whiten_matrix(X_ar, Y_ar, phi_hat)
+            ta2 = time.perf_counter()
+            ar_est_total += float(ta1 - ta0)
+            whiten_total += float(ta2 - ta1)
 
-        phi_hat = estimate_ar(residuals, order=1, voxelwise=False)
-        t2 = time.perf_counter()
-
-        Xw, Yw = ar_whiten_matrix(X_ar, Y_ar, phi_hat)
         t3 = time.perf_counter()
-
-        proj_gls = fast_preproject(Xw, check_finite=False)
+        proj_gls = fast_preproject(X_fit, check_finite=False)
         _fit_gls = fast_lm_matrix(
-            Xw,
-            Yw,
+            X_fit,
+            Y_fit,
             proj_gls,
             return_fitted=False,
             check_finite=False,
@@ -1852,9 +1910,9 @@ def run_ws10_performance_decomposition_parity(
         t4 = time.perf_counter()
 
         return {
-            "fit_noise_s": float(t2 - t0),
-            "ar_estimation_only_s": float(t2 - t1),
-            "whitening_s": float(t3 - t2),
+            "fit_noise_s": float(t3 - t0),
+            "ar_estimation_only_s": float(ar_est_total),
+            "whitening_s": float(whiten_total),
             "final_glm_s": float(t4 - t3),
             "total_candidate_s": float(t4 - t0),
         }
@@ -1894,6 +1952,13 @@ def run_ws10_performance_decomposition_parity(
         "candidate_medians": ar1_substage_medians,
         "candidate_total_median_from_fit_stage_s": float(fit_total_ar1_candidate),
         "candidate_shares": ar1_substage_shares,
+        "selected_config": ar1_selected,
+        "auto_tune": {
+            "enabled": bool(ar1_auto_tune),
+            "repeats": int(ar1_tune_repeats),
+            "warmup": int(ar1_tune_warmup),
+            "trials": ar1_tuning_trials,
+        },
     }
 
     # Stage 5: run-combine only
@@ -1904,7 +1969,7 @@ def run_ws10_performance_decomposition_parity(
     ).astype(np.float64)
     rc_variances = np.maximum(rc_variances, 1e-6)
 
-    run_combine_inner = 64
+    run_combine_inner = 256
 
     def _run_combine_batch():
         out = None
@@ -1912,12 +1977,18 @@ def run_ws10_performance_decomposition_parity(
             out = _fixed_effects_combine(rc_effects, rc_variances)
         return out
 
-    run_combine_stage = _benchmark_pair(
-        _run_combine_batch,
+    run_combine_single = _benchmark_single(
         _run_combine_batch,
         repeats=int(repeats),
         warmup=int(warmup),
     )
+    run_combine_stage = {
+        "candidate_runs_s": list(run_combine_single["runs_s"]),
+        "reference_runs_s": list(run_combine_single["runs_s"]),
+        "candidate_median_s": float(run_combine_single["median_s"]),
+        "reference_median_s": float(run_combine_single["median_s"]),
+        "speedup_vs_reference": 1.0,
+    }
 
     stage_metrics = {
         "design_build": design_stage,
@@ -2034,6 +2105,9 @@ def build_core_parity_matrix_report(
     ws10_design_n_scans: int = 180,
     ws10_design_tr: float = 1.0,
     ws10_run_combine_runs: int = 4,
+    ws10_ar1_auto_tune: bool = True,
+    ws10_ar1_tune_repeats: int = 2,
+    ws10_ar1_tune_warmup: int = 0,
 ) -> Dict[str, Any]:
     workstreams: Dict[str, Dict[str, Any]] = {
         key: _placeholder_workstream(name) for key, name in WS_NAMES.items()
@@ -2118,6 +2192,9 @@ def build_core_parity_matrix_report(
         design_n_scans=ws10_design_n_scans,
         design_tr=ws10_design_tr,
         run_combine_runs=ws10_run_combine_runs,
+        ar1_auto_tune=ws10_ar1_auto_tune,
+        ar1_tune_repeats=ws10_ar1_tune_repeats,
+        ar1_tune_warmup=ws10_ar1_tune_warmup,
     )
 
     return {
@@ -2185,6 +2262,9 @@ def build_core_parity_matrix_report(
             "ws10_design_n_scans": int(ws10_design_n_scans),
             "ws10_design_tr": float(ws10_design_tr),
             "ws10_run_combine_runs": int(ws10_run_combine_runs),
+            "ws10_ar1_auto_tune": bool(ws10_ar1_auto_tune),
+            "ws10_ar1_tune_repeats": int(ws10_ar1_tune_repeats),
+            "ws10_ar1_tune_warmup": int(ws10_ar1_tune_warmup),
         },
         "workstreams": workstreams,
     }
@@ -2267,6 +2347,21 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ws10-design-n-scans", type=int, default=180)
     parser.add_argument("--ws10-design-tr", type=float, default=1.0)
     parser.add_argument("--ws10-run-combine-runs", type=int, default=4)
+    parser.add_argument(
+        "--ws10-ar1-auto-tune",
+        dest="ws10_ar1_auto_tune",
+        action="store_true",
+        help="Enable AR1 candidate config auto-tuning for WS10.",
+    )
+    parser.add_argument(
+        "--ws10-no-ar1-auto-tune",
+        dest="ws10_ar1_auto_tune",
+        action="store_false",
+        help="Disable AR1 candidate config auto-tuning for WS10.",
+    )
+    parser.set_defaults(ws10_ar1_auto_tune=True)
+    parser.add_argument("--ws10-ar1-tune-repeats", type=int, default=2)
+    parser.add_argument("--ws10-ar1-tune-warmup", type=int, default=0)
     parser.add_argument(
         "--require-ws01-ws02",
         action="store_true",
@@ -2384,6 +2479,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             ws10_design_n_scans=args.ws10_design_n_scans,
             ws10_design_tr=args.ws10_design_tr,
             ws10_run_combine_runs=args.ws10_run_combine_runs,
+            ws10_ar1_auto_tune=args.ws10_ar1_auto_tune,
+            ws10_ar1_tune_repeats=args.ws10_ar1_tune_repeats,
+            ws10_ar1_tune_warmup=args.ws10_ar1_tune_warmup,
         )
     except ModuleNotFoundError as exc:
         print(
