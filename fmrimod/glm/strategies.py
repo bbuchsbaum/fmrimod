@@ -651,15 +651,19 @@ def _pool_run_results(
 
     # Keep a pooled XtXinv for downstream contrasts/SE interfaces.
     # This follows the prior behavior based on summed per-run information.
-    XtX_total = np.zeros((p_dim, p_dim))
-    rss_total = np.zeros(V)
+    XtX_total = np.zeros((p_dim, p_dim), dtype=np.float64)
+    rss_total = np.zeros(V, dtype=np.float64)
     dfres_total = 0.0
 
     for r, proj in zip(results, projections):
-        try:
-            XtX_r = np.linalg.inv(proj.XtXinv)
-        except np.linalg.LinAlgError:
-            XtX_r = np.linalg.pinv(proj.XtXinv)
+        XtX_cached = getattr(proj, "XtX", None)
+        if XtX_cached is not None:
+            XtX_r = np.asarray(XtX_cached, dtype=np.float64)
+        else:
+            try:
+                XtX_r = np.linalg.inv(proj.XtXinv)
+            except np.linalg.LinAlgError:
+                XtX_r = np.linalg.pinv(proj.XtXinv)
 
         XtX_total += XtX_r
         rss_total += r.rss
