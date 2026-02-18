@@ -297,6 +297,7 @@ def fit_runwise(
     blas_threads: Optional[int] = None,
     compute_dtype: object = np.float64,
     cache_projections: bool = False,
+    chunk_size: int = 5000,
 ) -> Dict:
     """Fit the GLM run by run and pool results.
 
@@ -329,6 +330,52 @@ def fit_runwise(
     run_X: Optional[List[Optional[NDArray]]] = (
         [None] * n_runs if needs_residuals else None
     )
+
+    # Single-run fast path: allow voxel-chunk parallelism when n_jobs > 1.
+    if (
+        n_runs == 1
+        and n_jobs > 1
+        and not needs_residuals
+        and np.dtype(compute_dtype) == np.dtype(np.float64)
+    ):
+        dataset = model.dataset  # type: ignore[attr-defined]
+        Y_r = dataset.get_data(0)
+        X_r = model.design_matrix_array(run=0)  # type: ignore[attr-defined]
+        censor_r = dataset.get_censor(0) if hasattr(dataset, "get_censor") else None
+
+        X_fit, Y_fit = _prepare_run_matrices(
+            X_r,
+            Y_r,
+            config,
+            censor=censor_r,
+            dataset=dataset,
+            run=0,
+        )
+        proj = fast_preproject(
+            X_fit,
+            compute_dtype=compute_dtype,
+            check_finite=False,
+        )
+        result = _fit_chunked_lm(
+            X_fit,
+            Y_fit,
+            proj,
+            chunk_size=chunk_size,
+            n_jobs=max(1, int(n_jobs)),
+            blas_threads=blas_threads,
+            compute_dtype=compute_dtype,
+        )
+        pooled = _pool_run_results([result], [proj])
+        return {
+            "betas": pooled["betas"],
+            "sigma": pooled["sigma"],
+            "dfres": pooled["dfres"],
+            "XtXinv": pooled["XtXinv"],
+            "projections": [proj],
+            "run_results": [result],
+            "residuals": None,
+            "run_X": None,
+        }
 
     if n_workers == 1:
         proj_cache: Optional[Dict[tuple, Projection]] = {} if cache_projections else None
@@ -437,22 +484,25 @@ def _fit_chunked_lm(
     n_voxels = int(Y_fit.shape[1])
     p_dim = int(X_fit.shape[1])
     n_workers = max(1, int(n_jobs))
+    out_dtype = np.dtype(compute_dtype)
 
-    betas = np.empty((p_dim, n_voxels), dtype=np.float64)
-    rss = np.empty(n_voxels, dtype=np.float64)
+    betas = np.empty((p_dim, n_voxels), dtype=out_dtype)
     sigma2 = np.empty(n_voxels, dtype=np.float64)
+    rss = np.empty(n_voxels, dtype=np.float64)
 
     def _solve_one(start: int, end: int) -> tuple[int, int, NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
         y_chunk = Y_fit[:, start:end]
-        res = fast_lm_matrix(
-            X_fit,
-            y_chunk,
-            proj,
-            return_fitted=False,
-            compute_dtype=compute_dtype,
-            check_finite=False,
+        beta_chunk = proj.Pinv @ y_chunk
+        if proj.XtX is not None:
+            xty_chunk = proj.XtX @ beta_chunk
+        else:
+            xty_chunk = X_fit.T @ y_chunk
+        yty_chunk = np.sum(y_chunk * y_chunk, axis=0)
+        rss_chunk = np.maximum(yty_chunk - np.sum(beta_chunk * xty_chunk, axis=0), 0.0)
+        sigma2_chunk = (
+            rss_chunk / proj.dfres if proj.dfres > 0 else np.full_like(rss_chunk, np.nan)
         )
-        return start, end, res.betas, res.rss, res.sigma2
+        return start, end, beta_chunk, rss_chunk, sigma2_chunk
 
     ranges = [
         (start, min(start + chunk_size, n_voxels))
