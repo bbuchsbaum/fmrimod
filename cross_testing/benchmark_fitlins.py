@@ -32,6 +32,24 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Internal compute dtype for fmrimod solver path.",
     )
     parser.add_argument(
+        "--fmrimod-n-jobs",
+        type=int,
+        default=1,
+        help="Parallel workers for chunked fmrimod path (1 disables chunk threading).",
+    )
+    parser.add_argument(
+        "--fmrimod-chunk-size",
+        type=int,
+        default=5000,
+        help="Voxel chunk size for threaded fmrimod benchmark path.",
+    )
+    parser.add_argument(
+        "--fmrimod-blas-threads",
+        type=int,
+        default=None,
+        help="Optional BLAS thread cap during threaded chunk solves.",
+    )
+    parser.add_argument(
         "--output",
         type=str,
         default="cross_testing/reports/fitlins_parity_benchmark.json",
@@ -57,6 +75,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             repeats=args.repeats,
             warmup=args.warmup,
             fmrimod_compute_dtype=args.fmrimod_compute_dtype,
+            fmrimod_n_jobs=args.fmrimod_n_jobs,
+            fmrimod_chunk_size=args.fmrimod_chunk_size,
+            fmrimod_blas_threads=args.fmrimod_blas_threads,
         )
     except ModuleNotFoundError as exc:
         print(

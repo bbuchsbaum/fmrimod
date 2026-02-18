@@ -10,6 +10,8 @@ This module defines:
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 import json
 from pathlib import Path
@@ -111,6 +113,21 @@ DEFAULT_PARITY_THRESHOLDS = ParityThresholds()
 DEFAULT_SPEED_THRESHOLDS = SpeedThresholds()
 
 
+@contextmanager
+def _maybe_limit_blas_threads(blas_threads: int | None):
+    """Limit BLAS threads for nested parallel chunk solves."""
+    if blas_threads is None:
+        yield
+        return
+    try:
+        from threadpoolctl import threadpool_limits  # type: ignore[import-not-found]
+    except Exception:
+        yield
+        return
+    with threadpool_limits(limits=int(blas_threads)):
+        yield
+
+
 def make_synthetic_glm(
     *,
     n_timepoints: int = 240,
@@ -162,15 +179,64 @@ def fit_fmrimod_ols(
     contrast: Array,
     *,
     compute_dtype: object = np.float64,
+    n_jobs: int = 1,
+    chunk_size: int = 5000,
+    blas_threads: int | None = None,
 ) -> Dict[str, Array]:
     """Fit OLS with fmrimod's matrix solver and return comparable outputs."""
-    proj = fast_preproject(X, compute_dtype=compute_dtype)
-    fit = fast_lm_matrix(X, Y, proj, return_fitted=False, compute_dtype=compute_dtype)
-    sigma = np.sqrt(np.maximum(fit.sigma2, 0.0))
-    cres = contrast_t(contrast, fit.betas, proj.XtXinv, sigma, fit.dfres, name="main")
+    proj = fast_preproject(X, compute_dtype=compute_dtype, check_finite=False)
+
+    n_voxels = int(Y.shape[1])
+    workers = max(1, int(n_jobs))
+    do_chunked = workers > 1 and n_voxels > int(chunk_size)
+
+    if not do_chunked:
+        fit = fast_lm_matrix(
+            X,
+            Y,
+            proj,
+            return_fitted=False,
+            compute_dtype=compute_dtype,
+            check_finite=False,
+        )
+        betas = fit.betas
+        sigma2 = fit.sigma2
+        dfres = fit.dfres
+    else:
+        p_dim = int(X.shape[1])
+        betas = np.empty((p_dim, n_voxels), dtype=np.dtype(compute_dtype))
+        sigma2 = np.empty(n_voxels, dtype=np.float64)
+
+        ranges = [
+            (start, min(start + int(chunk_size), n_voxels))
+            for start in range(0, n_voxels, int(chunk_size))
+        ]
+
+        def _solve_chunk(start: int, end: int) -> tuple[int, int, Array, Array]:
+            fit_chunk = fast_lm_matrix(
+                X,
+                Y[:, start:end],
+                proj,
+                return_fitted=False,
+                compute_dtype=compute_dtype,
+                check_finite=False,
+            )
+            return start, end, fit_chunk.betas, fit_chunk.sigma2
+
+        with _maybe_limit_blas_threads(blas_threads):
+            with ThreadPoolExecutor(max_workers=workers) as ex:
+                futures = [ex.submit(_solve_chunk, s, e) for s, e in ranges]
+                for fut in futures:
+                    s, e, b, s2 = fut.result()
+                    betas[:, s:e] = b
+                    sigma2[s:e] = s2
+        dfres = proj.dfres
+
+    sigma = np.sqrt(np.maximum(sigma2, 0.0))
+    cres = contrast_t(contrast, betas, proj.XtXinv, sigma, dfres, name="main")
     return {
-        "betas": fit.betas,
-        "sigma2": fit.sigma2,
+        "betas": np.asarray(betas, dtype=np.float64),
+        "sigma2": np.asarray(sigma2, dtype=np.float64),
         "t": np.asarray(cres.stat, dtype=np.float64).reshape(-1),
         "p": np.asarray(cres.p_value, dtype=np.float64).reshape(-1),
     }
@@ -296,6 +362,9 @@ def benchmark_implementations(
     repeats: int = 5,
     warmup: int = 1,
     fmrimod_compute_dtype: object = np.float64,
+    fmrimod_n_jobs: int = 1,
+    fmrimod_chunk_size: int = 5000,
+    fmrimod_blas_threads: int | None = None,
 ) -> BenchmarkSummary:
     """Benchmark matched OLS runs for fmrimod and fitlins reference."""
     if repeats < 1:
@@ -310,6 +379,9 @@ def benchmark_implementations(
             Y_candidate,
             contrast,
             compute_dtype=fmrimod_compute_dtype,
+            n_jobs=fmrimod_n_jobs,
+            chunk_size=fmrimod_chunk_size,
+            blas_threads=fmrimod_blas_threads,
         )
         fit_fitlins_reference_ols(X, Y, contrast)
 
@@ -323,6 +395,9 @@ def benchmark_implementations(
             Y_candidate,
             contrast,
             compute_dtype=fmrimod_compute_dtype,
+            n_jobs=fmrimod_n_jobs,
+            chunk_size=fmrimod_chunk_size,
+            blas_threads=fmrimod_blas_threads,
         )
         fmrimod_runs.append(time.perf_counter() - t0)
 
@@ -353,6 +428,9 @@ def run_parity_and_benchmark(
     repeats: int = 5,
     warmup: int = 1,
     fmrimod_compute_dtype: object = np.float64,
+    fmrimod_n_jobs: int = 1,
+    fmrimod_chunk_size: int = 5000,
+    fmrimod_blas_threads: int | None = None,
     parity_thresholds: ParityThresholds = DEFAULT_PARITY_THRESHOLDS,
     speed_thresholds: SpeedThresholds = DEFAULT_SPEED_THRESHOLDS,
 ) -> Dict[str, Any]:
@@ -372,6 +450,9 @@ def run_parity_and_benchmark(
         Y_candidate,
         contrast,
         compute_dtype=fmrimod_compute_dtype,
+        n_jobs=fmrimod_n_jobs,
+        chunk_size=fmrimod_chunk_size,
+        blas_threads=fmrimod_blas_threads,
     )
     reference = fit_fitlins_reference_ols(X, Y, contrast)
 
@@ -390,6 +471,9 @@ def run_parity_and_benchmark(
         repeats=repeats,
         warmup=warmup,
         fmrimod_compute_dtype=fmrimod_compute_dtype,
+        fmrimod_n_jobs=fmrimod_n_jobs,
+        fmrimod_chunk_size=fmrimod_chunk_size,
+        fmrimod_blas_threads=fmrimod_blas_threads,
     )
     speed_ok = bench.speedup_vs_reference >= speed_thresholds.min_speedup_vs_reference
 
@@ -403,6 +487,11 @@ def run_parity_and_benchmark(
             "repeats": repeats,
             "warmup": warmup,
             "fmrimod_compute_dtype": str(np.dtype(fmrimod_compute_dtype)),
+            "fmrimod_n_jobs": int(fmrimod_n_jobs),
+            "fmrimod_chunk_size": int(fmrimod_chunk_size),
+            "fmrimod_blas_threads": (
+                None if fmrimod_blas_threads is None else int(fmrimod_blas_threads)
+            ),
         },
         "thresholds": {
             "parity": asdict(parity_thresholds),
