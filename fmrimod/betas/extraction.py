@@ -133,6 +133,8 @@ def estimate_betas_lss(
     trial_regressors: NDArray[np.float64],
     Y: NDArray[np.float64],
     confounds: Optional[NDArray[np.float64]] = None,
+    nuisance_projector: Optional[object] = None,
+    chunk_size: Optional[int] = None,
 ) -> BetaResult:
     """Estimate trial-wise betas via LSS (Least Squares Separate).
 
@@ -147,7 +149,13 @@ def estimate_betas_lss(
     """
     from ..single.lss import lss_single_trial
 
-    result = lss_single_trial(Y, trial_regressors, confounds=confounds)
+    result = lss_single_trial(
+        Y,
+        trial_regressors,
+        confounds=confounds,
+        nuisance_projector=nuisance_projector,
+        chunk_size=chunk_size,
+    )
     return BetaResult.from_single_trial_result(result)
 
 
@@ -156,6 +164,8 @@ def estimate_betas(
     Y: NDArray[np.float64],
     method: str = "lss",
     confounds: Optional[NDArray[np.float64]] = None,
+    nuisance_projector: Optional[object] = None,
+    chunk_size: Optional[int] = None,
     trial_labels: Optional[Sequence[str]] = None,
 ) -> BetaResult:
     """Estimate trial-wise betas.
@@ -175,6 +185,10 @@ def estimate_betas(
         ``"ols"`` or ``"lss"`` (default).
     confounds : NDArray, optional
         Nuisance regressors.
+    nuisance_projector : object, optional
+        Precomputed nuisance projector for LSS.
+    chunk_size : int, optional
+        Voxel chunk size for beta-only LSS solves.
     trial_labels : sequence of str, optional
         Labels for each trial.
 
@@ -187,7 +201,13 @@ def estimate_betas(
     if method_enum is BetaMethod.OLS:
         result = estimate_betas_ols(trial_regressors, Y, confounds)
     elif method_enum is BetaMethod.LSS:
-        result = estimate_betas_lss(trial_regressors, Y, confounds)
+        result = estimate_betas_lss(
+            trial_regressors,
+            Y,
+            confounds=confounds,
+            nuisance_projector=nuisance_projector,
+            chunk_size=chunk_size,
+        )
     else:
         raise ValueError(f"Unknown method: {method!r}")
 

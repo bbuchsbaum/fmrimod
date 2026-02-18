@@ -18,8 +18,35 @@ from typing import Optional
 import numpy as np
 from numpy.typing import NDArray
 
-from ._project import project_nuisance
+from ._project import NuisanceProjector, build_nuisance_projector
 from ._types import SingleTrialResult
+
+
+def _auto_chunk_size(
+    n_trials: int,
+    n_voxels: int,
+    target_working_mb: int = 96,
+) -> int:
+    """Heuristic voxel chunk size for beta-only LSS.
+
+    Targets a bounded temporary working set for the `(T, V)` intermediates.
+    """
+    if n_voxels < 1:
+        return 1
+    # For moderate shapes, full-matrix path is often faster.
+    if n_trials * n_voxels <= 2_000_000:
+        return n_voxels
+    # Also keep full-matrix when the core trial-by-voxel block is still
+    # modest in memory footprint (~64 MB).
+    core_block_mb = (n_trials * n_voxels * 8) / (1024.0 * 1024.0)
+    if core_block_mb <= 64.0:
+        return n_voxels
+
+    bytes_budget = int(target_working_mb * 1024 * 1024)
+    # Roughly 3 trial-by-voxel temporaries per chunk (CtY, BtY, num).
+    bytes_per_voxel = max(1, n_trials * 8 * 3)
+    chunk = max(512, bytes_budget // bytes_per_voxel)
+    return int(min(n_voxels, chunk))
 
 
 def _lss_beta_vec(
@@ -85,6 +112,50 @@ def _lss_beta_vec(
     den = CtC - ctb ** 2 / bt2_safe      # (T,)
 
     return num / np.maximum(den, eps)[:, np.newaxis]  # (T, V)
+
+
+def _lss_beta_vec_chunked(
+    C: NDArray[np.float64],
+    Y: NDArray[np.float64],
+    chunk_size: int = 5000,
+    eps: float = 1e-12,
+) -> NDArray[np.float64]:
+    """Chunked vectorized LSS beta computation across voxels.
+
+    Useful for large ``V`` where the fully materialized ``(T, V)``
+    intermediates are less cache-friendly.
+    """
+    if chunk_size < 1:
+        raise ValueError("chunk_size must be >= 1")
+
+    T = C.shape[1]
+    V = Y.shape[1]
+    out = np.empty((T, V), dtype=np.float64)
+
+    total = C.sum(axis=1)               # (n,)
+    ss_tot = float(total @ total)       # scalar
+    CtC = np.einsum("ij,ij->j", C, C)   # (T,)
+    CtT = C.T @ total                   # (T,)
+    bt2 = ss_tot - 2.0 * CtT + CtC      # (T,)
+    ctb = CtT - CtC                      # (T,)
+
+    bt2_safe = bt2.copy()
+    bt2_safe[bt2_safe < eps] = np.inf
+
+    ctb_bt2 = ctb / bt2_safe             # (T,)
+    den = CtC - ctb ** 2 / bt2_safe      # (T,)
+    den_safe = np.maximum(den, eps)
+
+    for start in range(0, V, chunk_size):
+        end = min(start + chunk_size, V)
+        Y_chunk = Y[:, start:end]                        # (n, vc)
+        CtY = C.T @ Y_chunk                               # (T, vc)
+        total_Y = total @ Y_chunk                         # (vc,)
+        BtY = total_Y[np.newaxis, :] - CtY                # (T, vc)
+        num = CtY - ctb_bt2[:, np.newaxis] * BtY          # (T, vc)
+        out[:, start:end] = num / den_safe[:, np.newaxis]
+
+    return out
 
 
 def _lss_beta_vec_with_se(
@@ -154,6 +225,8 @@ def lss_single_trial(
     Y: NDArray[np.float64],
     X: NDArray[np.float64],
     confounds: Optional[NDArray[np.float64]] = None,
+    nuisance_projector: Optional[NuisanceProjector] = None,
+    chunk_size: Optional[int] = None,
     return_se: bool = False,
     trial_labels: Optional[list] = None,
 ) -> SingleTrialResult:
@@ -167,6 +240,13 @@ def lss_single_trial(
         Trial regressor matrix (already convolved with HRF).
     confounds : NDArray, shape ``(n, q)``, optional
         Nuisance regressors (motion, drift, etc.).
+    nuisance_projector : NuisanceProjector, optional
+        Precomputed nuisance projector returned by
+        :func:`fmrimod.single._project.build_nuisance_projector`.
+        When provided, ``confounds`` is ignored.
+    chunk_size : int, optional
+        Voxel chunk size for beta-only LSS computation.  If ``None``,
+        a heuristic is used to choose full-matrix vs chunked solve.
     return_se : bool
         If ``True``, compute standard errors.
     trial_labels : list of str, optional
@@ -188,23 +268,45 @@ def lss_single_trial(
         )
 
     # Project out nuisance
-    if confounds is not None:
+    n_nuisance = 0
+    if nuisance_projector is not None:
+        if nuisance_projector.n_rows != n:
+            raise ValueError(
+                f"nuisance_projector has {nuisance_projector.n_rows} rows, expected {n}."
+            )
+        Y_clean, X_clean = nuisance_projector.project(Y, X)
+        n_nuisance = nuisance_projector.n_cols
+    elif confounds is not None:
         confounds = np.asarray(confounds, dtype=np.float64)
-        Y_clean, X_clean = project_nuisance(confounds, Y, X)
+        if confounds.shape[0] != n:
+            raise ValueError(
+                f"confounds has {confounds.shape[0]} rows, expected {n}."
+            )
+        projector = build_nuisance_projector(confounds)
+        if projector is None:
+            Y_clean, X_clean = Y, X
+        else:
+            Y_clean, X_clean = projector.project(Y, X)
+            n_nuisance = projector.n_cols
     else:
         Y_clean, X_clean = Y, X
 
     if return_se:
         betas, se, _ = _lss_beta_vec_with_se(X_clean, Y_clean)
-        dfres = float(n - 2)
-        if confounds is not None:
-            dfres -= confounds.shape[1]
     else:
-        betas = _lss_beta_vec(X_clean, Y_clean)
+        effective_chunk_size = (
+            _auto_chunk_size(X_clean.shape[1], Y_clean.shape[1])
+            if chunk_size is None
+            else chunk_size
+        )
+        if effective_chunk_size >= Y_clean.shape[1]:
+            betas = _lss_beta_vec(X_clean, Y_clean)
+        else:
+            betas = _lss_beta_vec_chunked(
+                X_clean, Y_clean, chunk_size=effective_chunk_size
+            )
         se = None
-        dfres = float(n - 2)
-        if confounds is not None:
-            dfres -= confounds.shape[1]
+    dfres = float(n - 2 - n_nuisance)
 
     return SingleTrialResult(
         betas=betas,

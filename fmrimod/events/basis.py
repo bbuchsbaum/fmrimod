@@ -182,6 +182,16 @@ class EventBasis(BaseEvent):
             return self.basis.basis_names
         else:
             return [f"{self.name}_basis{i+1}" for i in range(self.n_basis)]
+
+    @property
+    def basis_matrix(self) -> Array:
+        """Alias for expanded basis values.
+
+        Historically, other event types expose expanded matrix-like data via
+        ``basis_matrix``. This compatibility shim keeps ``EventBasis`` aligned
+        with the rest of the event-convolution and generics stack.
+        """
+        return self.expanded_values
     
     def design_matrix(self, sampling_points: Array) -> Array:
         """Generate design matrix columns for this event.

@@ -6,10 +6,54 @@ T x T projection matrix.  Shared by all single-trial estimation methods.
 
 from __future__ import annotations
 
-from typing import Tuple
+from dataclasses import dataclass
+from typing import Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+
+
+@dataclass(frozen=True)
+class NuisanceProjector:
+    """Precomputed nuisance projector based on a thin-QR basis."""
+
+    Q: NDArray[np.float64]
+
+    @property
+    def n_rows(self) -> int:
+        return int(self.Q.shape[0])
+
+    @property
+    def n_cols(self) -> int:
+        return int(self.Q.shape[1])
+
+    def project(self, *targets: NDArray[np.float64]) -> Tuple[NDArray[np.float64], ...]:
+        """Project each target matrix off the nuisance subspace."""
+        results = []
+        for M in targets:
+            if M.shape[0] != self.n_rows:
+                raise ValueError(
+                    f"Target has {M.shape[0]} rows, expected {self.n_rows}."
+                )
+            results.append(M - self.Q @ (self.Q.T @ M))
+        return tuple(results) if len(results) > 1 else results[0]
+
+
+def build_nuisance_projector(
+    X_nuisance: NDArray[np.float64],
+) -> Optional[NuisanceProjector]:
+    """Build a reusable nuisance projector from a nuisance design matrix."""
+    X_nuisance = np.asarray(X_nuisance, dtype=np.float64)
+    if X_nuisance.ndim != 2:
+        raise ValueError(
+            f"X_nuisance must be 2-D, got shape {X_nuisance.shape}"
+        )
+    if X_nuisance.shape[1] == 0:
+        return None
+
+    # Thin QR: Q is (n, p), avoids forming (n, n)
+    Q, _ = np.linalg.qr(X_nuisance, mode="reduced")
+    return NuisanceProjector(Q=Q)
 
 
 def project_nuisance(
@@ -45,19 +89,7 @@ def project_nuisance(
     >>> Y_clean.shape
     (100, 50)
     """
-    if X_nuisance.ndim != 2:
-        raise ValueError(
-            f"X_nuisance must be 2-D, got shape {X_nuisance.shape}"
-        )
-    if X_nuisance.shape[1] == 0:
+    projector = build_nuisance_projector(X_nuisance)
+    if projector is None:
         return targets if len(targets) > 1 else targets[0]
-
-    # Thin QR: Q is (n, p), avoids forming (n, n)
-    Q, _ = np.linalg.qr(X_nuisance, mode="reduced")
-
-    results = []
-    for M in targets:
-        # M_clean = M - Q @ (Q' @ M)
-        results.append(M - Q @ (Q.T @ M))
-
-    return tuple(results) if len(results) > 1 else results[0]
+    return projector.project(*targets)

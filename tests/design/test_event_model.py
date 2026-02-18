@@ -8,6 +8,7 @@ from fmrimod.design.event_model import EventModel, event_model
 from fmrimod.events.factor import EventFactor
 from fmrimod.events.matrix import EventMatrix
 from fmrimod.events.variable import EventVariable
+from fmrimod.events.basis import EventBasis
 from fmrimod.formula.base import Term, EventModelBuilder
 from fmrimod.sampling import SamplingFrame
 from fmrimod.basis import Poly
@@ -271,9 +272,116 @@ class TestEventModelConstructor:
         model = builder.build()
         
         assert model.n_terms == 2
-        # TODO: Basis expansion not yet implemented
         X = model.design_matrix
-        assert X.shape[1] == 3  # 2 for condition, 1 for rating (no expansion yet)
+        assert X.shape[1] == 5  # 2 for condition, 3 for Poly(2) rating basis
+
+    def test_formula_with_basis_transform(self):
+        """Test formula basis syntax creates expanded columns."""
+        df = pd.DataFrame({
+            'onset': [2, 6, 10, 14],
+            'rating': [1, 2, 3, 4],
+            'duration': [1.0] * 4,
+        })
+
+        model = event_model(
+            "poly(rating, 2)",
+            data=df,
+            tr=1.0,
+            n_scans=20,
+        )
+
+        assert model.n_terms == 1
+        X = model.design_matrix
+        assert X.shape[1] == 3
+
+    def test_formula_with_basis_transform_has_matching_names(self):
+        """Test basis columns and names stay aligned for formula basis terms."""
+        df = pd.DataFrame({
+            'onset': [2, 6, 10, 14],
+            'rating': [1, 2, 3, 4],
+            'duration': [1.0] * 4,
+        })
+
+        model = event_model("poly(rating, 2)", data=df, tr=1.0, n_scans=20)
+
+        assert model.design_matrix.shape[1] == 3
+        assert len(model.column_names) == 3
+        assert len(set(model.column_names)) == 3
+
+    def test_with_basis_and_hrf_uses_expanded_columns(self):
+        """Test basis+HRF terms keep one regressor per basis function."""
+        events = {
+            'rating': EventVariable(
+                name='rating',
+                onsets=[2, 6, 10, 14],
+                values=[1, 2, 3, 4],
+                durations=[1.0] * 4,
+            )
+        }
+        model = EventModel(
+            terms=[Term('rating', basis=Poly(2), hrf='simple')],
+            events=events,
+            sampling_info=SamplingFrame(tr=1.0, n_scans=20),
+        )
+
+        assert model.design_matrix.shape[1] == 3
+        assert len(model.column_names) == 3
+
+    def test_basis_interaction_with_factor_retains_all_columns(self):
+        """Test prebuilt basis events keep expansion in factor interactions."""
+        events = {
+            "condition": EventFactor(
+                name="condition",
+                onsets=[1, 3, 5, 7],
+                values=["A", "A", "B", "B"],
+                durations=1.0,
+            ),
+            "rating": EventBasis(
+                name="rating",
+                onsets=[1, 3, 5, 7],
+                values=[1, 2, 3, 4],
+                durations=1.0,
+                basis=Poly(2),
+            ),
+        }
+        model = EventModel(
+            terms=[Term(["condition", "rating"])],
+            events=events,
+            sampling_info=SamplingFrame(tr=1.0, n_scans=20),
+        )
+
+        # 2 conditions * 3 basis functions = 6 columns
+        assert model.design_matrix.shape[1] == 6
+        assert len(model.column_names) == 6
+        assert len(set(model.column_names)) == 6
+
+    def test_basis_interaction_with_factor_and_hrf_uses_expanded_columns(self):
+        """Test basis+HRF interactions preserve basis-expanded regressors."""
+        events = {
+            "condition": EventFactor(
+                name="condition",
+                onsets=[1, 3, 5, 7],
+                values=["A", "A", "B", "B"],
+                durations=1.0,
+            ),
+            "rating": EventBasis(
+                name="rating",
+                onsets=[1, 3, 5, 7],
+                values=[1, 2, 3, 4],
+                durations=1.0,
+                basis=Poly(2),
+            ),
+        }
+        model = EventModel(
+            terms=[Term(["condition", "rating"], hrf="simple")],
+            events=events,
+            sampling_info=SamplingFrame(tr=1.0, n_scans=20),
+        )
+
+        # 2 conditions * 3 basis functions = 6 columns
+        assert model.design_matrix.shape[1] == 6
+        assert len(model.column_names) == 6
+        assert len(set(model.column_names)) == 6
     
     def test_with_prebuilt_events(self):
         """Test with pre-constructed events."""
@@ -898,6 +1006,19 @@ class TestEndToEndEventModel:
         assert len(model.column_indices['condition']) == 2
         # rating has 1 column
         assert len(model.column_indices['rating']) == 1
+
+    def test_column_indices_with_basis_term(self):
+        """Test column_indices accounts for expanded basis terms."""
+        df = pd.DataFrame({
+            'onset': [5, 10, 15, 20],
+            'rating': [1.0, 2.0, 3.0, 4.0],
+            'duration': 1.0
+        })
+
+        model = event_model("poly(rating, 2)", data=df, tr=2.0, n_scans=30)
+
+        assert 'rating' in model.column_indices
+        assert len(model.column_indices['rating']) == 3
 
     def test_shortnames_and_longnames(self):
         """Test shortnames() and longnames() work."""

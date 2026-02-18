@@ -9,6 +9,7 @@ single-trial regressors and estimates amplitudes using one of three methods:
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from typing import Optional
 
 import numpy as np
@@ -16,7 +17,21 @@ from numpy.typing import NDArray
 
 from .._types import OasisConfig
 from ..oasis import oasis_single_trial
-from ..lss import lss_single_trial
+
+
+@contextmanager
+def _maybe_limit_blas_threads(blas_threads: Optional[int]):
+    """Limit BLAS threads within a context when threadpoolctl is available."""
+    if blas_threads is None:
+        yield
+        return
+    try:
+        from threadpoolctl import threadpool_limits  # type: ignore[import-not-found]
+    except Exception:
+        yield
+        return
+    with threadpool_limits(limits=int(blas_threads)):
+        yield
 
 
 def _reconstruct_voxel_regressors(
@@ -107,6 +122,93 @@ def _global_ls(
         except np.linalg.LinAlgError:
             betas[:, v] = np.linalg.lstsq(G, Xty, rcond=None)[0]
 
+    return betas
+
+
+def _lss1_voxel_chunk(
+    Y_chunk: NDArray[np.float64],
+    X_chunk: NDArray[np.float64],
+    eps: float = 1e-12,
+) -> NDArray[np.float64]:
+    """Vectorized LSS1 solve for a voxel chunk.
+
+    Parameters
+    ----------
+    Y_chunk : NDArray, shape ``(T, Vc)``
+        Data for a contiguous chunk of voxels.
+    X_chunk : NDArray, shape ``(T, N, Vc)``
+        Voxel-specific trial design for the same chunk.
+    eps : float
+        Numerical guard for near-singular denominators.
+
+    Returns
+    -------
+    NDArray, shape ``(N, Vc)``
+        Trial-wise beta estimates for each voxel in the chunk.
+    """
+    total = X_chunk.sum(axis=1)                         # (T, Vc)
+    ss_tot = np.einsum("tv,tv->v", total, total)        # (Vc,)
+
+    CtY = np.einsum("tnv,tv->nv", X_chunk, Y_chunk)     # (N, Vc)
+    CtC = np.einsum("tnv,tnv->nv", X_chunk, X_chunk)    # (N, Vc)
+    CtT = np.einsum("tnv,tv->nv", X_chunk, total)       # (N, Vc)
+    total_Y = np.einsum("tv,tv->v", total, Y_chunk)     # (Vc,)
+
+    BtY = total_Y[np.newaxis, :] - CtY                  # (N, Vc)
+    bt2 = ss_tot[np.newaxis, :] - 2.0 * CtT + CtC       # (N, Vc)
+    ctb = CtT - CtC                                      # (N, Vc)
+
+    bt2_safe = bt2.copy()
+    bt2_safe[bt2_safe < eps] = np.inf
+
+    ctb_bt2 = ctb / bt2_safe
+    num = CtY - ctb_bt2 * BtY
+    den = CtC - (ctb * ctb) / bt2_safe
+    return num / np.maximum(den, eps)
+
+
+def _lss1_voxelwise_chunked(
+    Y: NDArray[np.float64],
+    X_voxel: NDArray[np.float64],
+    confounds: Optional[NDArray[np.float64]] = None,
+    chunk_size: int = 4096,
+    eps: float = 1e-12,
+) -> NDArray[np.float64]:
+    """Chunked vectorized voxel-wise LSS1 solver."""
+    T, N, V = X_voxel.shape
+    if Y.shape != (T, V):
+        raise ValueError(
+            f"Y has shape {Y.shape}, expected ({T}, {V}) to match X_voxel."
+        )
+    if chunk_size < 1:
+        raise ValueError("chunk_size must be >= 1")
+
+    if confounds is not None:
+        confounds = np.asarray(confounds, dtype=np.float64)
+        if confounds.shape[0] != T:
+            raise ValueError(
+                f"confounds has {confounds.shape[0]} rows, expected {T}."
+            )
+        Q, _ = np.linalg.qr(confounds, mode="reduced")
+        Y_clean = Y - Q @ (Q.T @ Y)
+    else:
+        Q = None
+        Y_clean = Y
+
+    betas = np.empty((N, V), dtype=np.float64)
+    for start in range(0, V, chunk_size):
+        end = min(start + chunk_size, V)
+        X_chunk = X_voxel[:, :, start:end]                         # (T, N, Vc)
+        if Q is not None:
+            QtX = np.einsum("tq,tnv->qnv", Q, X_chunk)            # (q, N, Vc)
+            X_chunk = X_chunk - np.einsum("tq,qnv->tnv", Q, QtX)  # (T, N, Vc)
+
+        Y_chunk = Y_clean[:, start:end]                            # (T, Vc)
+        betas[:, start:end] = _lss1_voxel_chunk(
+            Y_chunk,
+            X_chunk,
+            eps=eps,
+        )
     return betas
 
 
@@ -210,15 +312,12 @@ def sbhm_amplitude(
     elif method == "lss1":
         # Reconstruct per-voxel regressors, then vectorized LSS per voxel
         X_voxel = _reconstruct_voxel_regressors(X_trials, alpha_coords, K)
-        betas = np.zeros((N, V), dtype=np.float64)
-        for v in range(V):
-            result = lss_single_trial(
-                Y[:, v:v+1],
-                X_voxel[:, :, v],
+        with _maybe_limit_blas_threads(1):
+            return _lss1_voxelwise_chunked(
+                Y,
+                X_voxel,
                 confounds=confounds,
             )
-            betas[:, v] = result.betas[:, 0]
-        return betas
 
     elif method == "oasis_voxel":
         # Reconstruct per-voxel regressors, then OASIS K=1 per voxel
@@ -230,14 +329,15 @@ def sbhm_amplitude(
             ridge_b=ridge_b,
         )
         betas = np.zeros((N, V), dtype=np.float64)
-        for v in range(V):
-            result = oasis_single_trial(
-                Y[:, v:v+1],
-                X_voxel[:, :, v],
-                confounds=confounds,
-                config=config,
-            )
-            betas[:, v] = result.betas[:, 0]
+        with _maybe_limit_blas_threads(1):
+            for v in range(V):
+                result = oasis_single_trial(
+                    Y[:, v:v+1],
+                    X_voxel[:, :, v],
+                    confounds=confounds,
+                    config=config,
+                )
+                betas[:, v] = result.betas[:, 0]
         return betas
 
     else:

@@ -323,6 +323,27 @@ class EventModel(ModelProtocol):
             term_events.append(self.events[event_name])
 
         if len(term_events) == 1:
+            if term.basis is not None:
+                event = term_events[0]
+                if event.event_type == "continuous":
+                    term_events = [
+                        EventBasis(
+                            name=event.name,
+                            onsets=event.onsets,
+                            values=event.values,
+                            durations=event.durations,
+                            basis=term.basis,
+                        )
+                    ]
+                elif event.event_type == "basis":
+                    # Event was already created with basis expansion.
+                    pass
+                else:
+                    warnings.warn(
+                        f"Basis transform for term '{term.name}' cannot be applied "
+                        f"to {event.event_type} event '{event.name}'; "
+                        "using raw event values"
+                    )
             return EventTerm(term_events, name=term.name)
         else:
             return create_interaction(*term_events, name=term.name)
@@ -550,6 +571,8 @@ class EventModel(ModelProtocol):
                         nb = hrf_obj.nbasis
                     except Exception:
                         pass
+                # Basis expansion is represented directly via condition tags for
+                # non-HRF terms, so keep nb=1 to avoid double-expanding names.
 
                 term_col_names = make_column_names(term_tag, cond_tags, nb)
 
@@ -1033,7 +1056,13 @@ class EventModel(ModelProtocol):
             Number of columns
         """
         if cont_events:
-            return max(1, sum(getattr(e, 'n_columns', 1) for e in cont_events))
+            n_cols = 1
+            for e in cont_events:
+                if getattr(e, 'event_type', None) == 'basis':
+                    n_cols *= e.n_basis
+                else:
+                    n_cols *= getattr(e, 'n_columns', 1)
+            return n_cols
         else:
             return 1
 
@@ -1071,6 +1100,13 @@ class EventModel(ModelProtocol):
             if cont_event.event_type == "matrix":
                 for ci in range(cont_event.n_columns):
                     amplitude = cont_event.values[mask, ci]
+                    result = self._evaluate_regressor(
+                        onsets, durations, amplitude, hrf_obj, grid, summate
+                    )
+                    cols.append(result)
+            elif cont_event.event_type == "basis":
+                for ci in range(cont_event.n_basis):
+                    amplitude = cont_event.basis_matrix[mask, ci]
                     result = self._evaluate_regressor(
                         onsets, durations, amplitude, hrf_obj, grid, summate
                     )
@@ -1273,6 +1309,14 @@ class EventModel(ModelProtocol):
                     durations=event.durations[mask],
                     column_names=event.column_names,
                 )
+            elif event.event_type == "basis":
+                subset_event = EventBasis(
+                    name=event.name,
+                    onsets=event.onsets[mask] + onset_shift,
+                    values=event.values[mask],
+                    basis=event.basis,
+                    durations=event.durations[mask],
+                )
             else:
                 # For other types, try generic subsetting
                 subset_event = event  # Fallback
@@ -1329,14 +1373,7 @@ class EventModel(ModelProtocol):
                         tokens.append(token)
                     cond_tags.append(make_cond_tag(tokens))
             else:
-                tokens = []
-                for event in event_term.events:
-                    if event.event_type == "categorical":
-                        token = level_token(event.name, event.levels[0])
-                    else:
-                        token = continuous_token(event.name)
-                    tokens.append(token)
-                cond_tags.append(make_cond_tag(tokens))
+                cond_tags = event_term.get_column_names()
         else:
             event = event_term.events[0]
             if event.event_type == "categorical":
@@ -1346,7 +1383,7 @@ class EventModel(ModelProtocol):
                 for col_name in event.column_names:
                     cond_tags.append(continuous_token(col_name))
             elif event.event_type == "basis":
-                cond_tags.append(continuous_token(event.name))
+                cond_tags.extend(event.basis_names)
             else:
                 cond_tags.append(continuous_token(event.name))
 
@@ -2017,7 +2054,12 @@ def _extract_event_specs(regular_terms, data):
             if event_name not in event_specs:
                 if event_name in data.columns:
                     col_data = data[event_name]
-                    if pd.api.types.is_numeric_dtype(col_data):
+                    if term.basis is not None and pd.api.types.is_numeric_dtype(col_data):
+                        event_specs[event_name] = {
+                            'type': 'basis',
+                            'basis': term.basis,
+                        }
+                    elif pd.api.types.is_numeric_dtype(col_data):
                         # Match fmridesign defaults: numeric modulators are
                         # not mean-centered unless explicitly requested.
                         event_specs[event_name] = {'type': 'variable', 'center': False}

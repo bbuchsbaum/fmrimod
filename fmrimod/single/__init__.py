@@ -26,11 +26,13 @@ from ._types import (
     SingleTrialResult,
     VoxelHrfResult,
 )
+from ._project import NuisanceProjector, build_nuisance_projector
 from ._prewhiten import PrewhitenConfig
 from .lss import lss_single_trial
 from .lsa import lsa_single_trial
 from .oasis import oasis_single_trial
 from .mixed import mixed_single_trial
+from .voxel_hrf import estimate_hrf, estimate_voxel_hrf, lss_with_voxel_hrf
 
 
 def estimate_single_trial(
@@ -42,6 +44,8 @@ def estimate_single_trial(
     return_se: bool = False,
     *,
     prewhiten: Optional[PrewhitenConfig] = None,
+    nuisance_projector: Optional[NuisanceProjector] = None,
+    chunk_size: Optional[int] = None,
     oasis_config: Optional[OasisConfig] = None,
     sbhm_config: Optional[SbhmConfig] = None,
     sbhm_library: Optional[object] = None,
@@ -69,6 +73,11 @@ def estimate_single_trial(
     prewhiten : PrewhitenConfig, optional
         If provided, AR-based prewhitening is applied to Y, X, and
         confounds before estimation.
+    nuisance_projector : NuisanceProjector, optional
+        Precomputed nuisance projector for LSS. Useful when reusing the
+        same confound matrix across repeated LSS fits.
+    chunk_size : int, optional
+        Voxel chunk size for LSS beta-only solves.
     oasis_config : OasisConfig, optional
         Configuration for the OASIS solver.
     sbhm_config : SbhmConfig, optional
@@ -91,6 +100,8 @@ def estimate_single_trial(
         return lss_single_trial(
             Y, X,
             confounds=confounds,
+            nuisance_projector=nuisance_projector,
+            chunk_size=chunk_size,
             return_se=return_se,
             trial_labels=trial_labels,
         )
@@ -143,10 +154,15 @@ __all__ = [
     "lsa_single_trial",
     "oasis_single_trial",
     "mixed_single_trial",
+    "estimate_hrf",
+    "estimate_voxel_hrf",
+    "lss_with_voxel_hrf",
     "SingleTrialResult",
     "SingleTrialMethod",
     "OasisConfig",
     "SbhmConfig",
     "PrewhitenConfig",
     "VoxelHrfResult",
+    "NuisanceProjector",
+    "build_nuisance_projector",
 ]
