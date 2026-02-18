@@ -204,3 +204,45 @@ class TestIterativeGlsGlobalAr:
 
         assert ar_params.shape == (2, 1)
         np.testing.assert_allclose(ar_params[:, 0], np.array([0.2, 0.8]))
+
+
+class TestIterativeGlsRegression:
+    def test_iter_gls_ar1_does_not_collapse_on_second_iteration(self):
+        """Regression: AR(1) estimate should remain stable for iter_gls > 1."""
+        rng = np.random.RandomState(0)
+        n, k, V = 300, 6, 80
+        phi_true = 0.6
+
+        X = rng.randn(n, k)
+        X[:, 0] = 1.0
+        beta = rng.randn(k, V)
+
+        innov = rng.randn(n, V)
+        noise = np.zeros((n, V))
+        noise[0] = innov[0]
+        for t in range(1, n):
+            noise[t] = phi_true * noise[t - 1] + innov[t]
+        Y = X @ beta + noise
+
+        coef = np.linalg.lstsq(X, Y, rcond=None)[0]
+        resid = Y - X @ coef
+
+        model = _DummyModel([X], [Y])
+        initial_fit = {
+            "residuals": [resid],
+            "run_X": [X],
+        }
+
+        cfg1 = FmriLmConfig(
+            ar=AROptions(struct="ar1", iter_gls=1, global_ar=True, voxelwise=False)
+        )
+        cfg2 = FmriLmConfig(
+            ar=AROptions(struct="ar1", iter_gls=2, global_ar=True, voxelwise=False)
+        )
+
+        _, phi1 = iterative_gls(model, cfg1, initial_fit)
+        _, phi2 = iterative_gls(model, cfg2, initial_fit)
+
+        assert np.abs(phi1[0] - phi_true) < 0.2
+        assert np.abs(phi2[0] - phi_true) < 0.2
+        assert np.abs(phi2[0] - phi1[0]) < 0.15
