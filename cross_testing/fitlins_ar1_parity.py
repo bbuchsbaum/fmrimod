@@ -174,7 +174,8 @@ def fit_fmrimod_ar1(
             return_fitted=True,
             check_finite=False,
         )
-        residuals = Y_fit - fit_ols.fitted
+        # Re-estimate AR on residuals in the original (unwhitened) domain.
+        residuals = Y_base - X_base @ fit_ols.betas
         phi = estimate_ar(residuals, order=1, voxelwise=voxelwise)
         X_fit, Y_fit = ar_whiten_matrix(X_base, Y_base, phi)
 

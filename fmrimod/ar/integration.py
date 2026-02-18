@@ -79,6 +79,7 @@ def iterative_gls(
         run_results = []
         run_projections = []
         new_residuals = []
+        ar_residuals = []
         new_run_X = []
 
         for r in range(n_runs):
@@ -97,13 +98,16 @@ def iterative_gls(
             run_projections.append(proj)
             new_run_X.append(X_w)
 
+            # Residuals on whitened scale (kept in fit payload)
             if result.fitted is not None:
                 new_residuals.append(Y_w - result.fitted)
             else:
                 new_residuals.append(Y_w - X_w @ result.betas)
+            # Residuals on original scale (used for next AR update)
+            ar_residuals.append(Y_r - X_r @ result.betas)
 
         # Update for next iteration
-        residuals_list = new_residuals
+        residuals_list = ar_residuals
 
         # Pool results
         from ..glm.strategies import _pool_run_results
@@ -243,6 +247,7 @@ def iterative_ar_gls(
         run_results = []
         run_projections = []
         new_residuals = []
+        ar_residuals = []
         new_run_X = []
 
         for r in range(n_runs):
@@ -284,13 +289,16 @@ def iterative_ar_gls(
             run_projections.append(proj)
             new_run_X.append(X_w)
 
+            # Residuals on whitened scale (kept in fit payload)
             if result.fitted is not None:
                 new_residuals.append(Y_w - result.fitted)
             else:
                 new_residuals.append(Y_w - X_w @ result.betas)
+            # Residuals on original scale (used for next AR update)
+            ar_residuals.append(Y_r - X_r @ result.betas)
 
         # Update for next iteration
-        residuals_list = new_residuals
+        residuals_list = ar_residuals
 
         # Pool results
         from ..glm.strategies import _pool_run_results
