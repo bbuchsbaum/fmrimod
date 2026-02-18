@@ -287,7 +287,7 @@ def fast_lm_matrix(
         else:
             XtY = X.T @ Y
         yTy = np.sum(Y * Y, axis=0)
-        rss = yTy - np.sum(betas * XtY, axis=0)
+        rss = yTy - np.einsum("ij,ij->j", betas, XtY)
         rss = np.maximum(rss, 0.0)
         fitted = None
 

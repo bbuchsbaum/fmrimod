@@ -200,7 +200,7 @@ def fit_fmrimod_ols(
         else:
             xty_chunk = X.T @ y_chunk
         yty_chunk = np.sum(y_chunk * y_chunk, axis=0)
-        rss_chunk = np.maximum(yty_chunk - np.sum(beta_chunk * xty_chunk, axis=0), 0.0)
+        rss_chunk = np.maximum(yty_chunk - np.einsum("ij,ij->j", beta_chunk, xty_chunk), 0.0)
         sigma2_chunk = (
             rss_chunk / proj.dfres if proj.dfres > 0 else np.full_like(rss_chunk, np.nan)
         )
