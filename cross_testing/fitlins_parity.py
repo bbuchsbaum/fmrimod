@@ -23,7 +23,7 @@ from numpy.typing import NDArray
 from scipy import stats as sp_stats
 
 from fmrimod.glm.contrasts import contrast_t
-from fmrimod.glm.solver import fast_lm_matrix, fast_preproject
+from fmrimod.glm.solver import fast_preproject
 
 
 Array = NDArray[np.float64]
@@ -189,39 +189,34 @@ def fit_fmrimod_ols(
     n_voxels = int(Y.shape[1])
     workers = max(1, int(n_jobs))
     do_chunked = workers > 1 and n_voxels > int(chunk_size)
+    p_dim = int(X.shape[1])
+    out_dtype = np.dtype(compute_dtype)
+
+    def _solve_chunk(start: int, end: int) -> tuple[int, int, Array, Array]:
+        y_chunk = Y[:, start:end]
+        beta_chunk = proj.Pinv @ y_chunk
+        if proj.XtX is not None:
+            xty_chunk = proj.XtX @ beta_chunk
+        else:
+            xty_chunk = X.T @ y_chunk
+        yty_chunk = np.sum(y_chunk * y_chunk, axis=0)
+        rss_chunk = np.maximum(yty_chunk - np.sum(beta_chunk * xty_chunk, axis=0), 0.0)
+        sigma2_chunk = (
+            rss_chunk / proj.dfres if proj.dfres > 0 else np.full_like(rss_chunk, np.nan)
+        )
+        return start, end, beta_chunk, sigma2_chunk
 
     if not do_chunked:
-        fit = fast_lm_matrix(
-            X,
-            Y,
-            proj,
-            return_fitted=False,
-            compute_dtype=compute_dtype,
-            check_finite=False,
-        )
-        betas = fit.betas
-        sigma2 = fit.sigma2
-        dfres = fit.dfres
+        _s, _e, betas, sigma2 = _solve_chunk(0, n_voxels)
+        dfres = proj.dfres
     else:
-        p_dim = int(X.shape[1])
-        betas = np.empty((p_dim, n_voxels), dtype=np.dtype(compute_dtype))
+        betas = np.empty((p_dim, n_voxels), dtype=out_dtype)
         sigma2 = np.empty(n_voxels, dtype=np.float64)
 
         ranges = [
             (start, min(start + int(chunk_size), n_voxels))
             for start in range(0, n_voxels, int(chunk_size))
         ]
-
-        def _solve_chunk(start: int, end: int) -> tuple[int, int, Array, Array]:
-            fit_chunk = fast_lm_matrix(
-                X,
-                Y[:, start:end],
-                proj,
-                return_fitted=False,
-                compute_dtype=compute_dtype,
-                check_finite=False,
-            )
-            return start, end, fit_chunk.betas, fit_chunk.sigma2
 
         with _maybe_limit_blas_threads(blas_threads):
             with ThreadPoolExecutor(max_workers=workers) as ex:
