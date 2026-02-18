@@ -21,8 +21,8 @@ from typing import Any, Dict, Mapping
 import numpy as np
 from numpy.typing import NDArray
 from scipy import stats as sp_stats
+from scipy import special as sp_special
 
-from fmrimod.glm.contrasts import contrast_t
 from fmrimod.glm.solver import fast_preproject
 
 
@@ -227,13 +227,18 @@ def fit_fmrimod_ols(
                     sigma2[s:e] = s2
         dfres = proj.dfres
 
-    sigma = np.sqrt(np.maximum(sigma2, 0.0))
-    cres = contrast_t(contrast, betas, proj.XtXinv, sigma, dfres, name="main")
+    con = np.asarray(contrast, dtype=np.float64).ravel()
+    estimate = con @ np.asarray(betas, dtype=np.float64)
+    var_factor = float(con @ np.asarray(proj.XtXinv, dtype=np.float64) @ con)
+    denom2 = np.maximum(var_factor, 0.0) * np.asarray(sigma2, dtype=np.float64)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        t_vals = np.where(denom2 > 1e-30, estimate / np.sqrt(denom2), 0.0)
+    p_vals = 2.0 * sp_special.stdtr(dfres, -np.abs(t_vals))
     return {
         "betas": np.asarray(betas, dtype=np.float64),
         "sigma2": np.asarray(sigma2, dtype=np.float64),
-        "t": np.asarray(cres.stat, dtype=np.float64).reshape(-1),
-        "p": np.asarray(cres.p_value, dtype=np.float64).reshape(-1),
+        "t": np.asarray(t_vals, dtype=np.float64).reshape(-1),
+        "p": np.asarray(p_vals, dtype=np.float64).reshape(-1),
     }
 
 
