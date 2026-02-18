@@ -166,6 +166,30 @@ def _benchmark_pair(
     }
 
 
+def _benchmark_single(
+    fn,
+    *,
+    repeats: int,
+    warmup: int,
+) -> Dict[str, Any]:
+    if int(repeats) < 1:
+        raise ValueError("repeats must be >= 1")
+
+    for _ in range(int(warmup)):
+        fn()
+
+    runs: list[float] = []
+    for _ in range(int(repeats)):
+        t0 = time.perf_counter()
+        fn()
+        runs.append(float(time.perf_counter() - t0))
+
+    return {
+        "runs_s": runs,
+        "median_s": float(np.median(runs)),
+    }
+
+
 def _placeholder_workstream(name: str) -> Dict[str, Any]:
     return {
         "name": name,
@@ -1705,14 +1729,26 @@ def run_ws10_performance_decomposition_parity(
         noise_sd=noise_sd,
         seed=seed + 1,
     )
-    ols_summary = benchmark_implementations(
-        X,
-        Y,
-        t_con,
+    ols_inner = 8
+
+    def _candidate_ols_total():
+        out = None
+        for _ in range(ols_inner):
+            out = fit_fmrimod_ols(X, Y, t_con)
+        return out
+
+    def _reference_ols_total():
+        out = None
+        for _ in range(ols_inner):
+            out = fit_fitlins_reference_ols(X, Y, t_con)
+        return out
+
+    fit_total_ols_stage = _benchmark_pair(
+        _candidate_ols_total,
+        _reference_ols_total,
         repeats=int(repeats),
         warmup=int(warmup),
     )
-    fit_total_ols_stage = _benchmark_summary_to_stage(ols_summary)
 
     # Stage 3: contrast-only on precomputed fit objects
     proj = fast_preproject(X, check_finite=False)
@@ -1779,6 +1815,86 @@ def run_ws10_performance_decomposition_parity(
         voxelwise=False,
     )
     fit_total_ar1_stage = _benchmark_summary_to_stage(ar1_summary)
+    fit_total_ar1_candidate = fit_total_ar1_stage["candidate_median_s"]
+
+    # Stage 4b (candidate-only): AR1 internal decomposition
+    def _ar1_candidate_substage_once() -> Dict[str, float]:
+        t0 = time.perf_counter()
+        proj_ols = fast_preproject(X_ar, check_finite=False)
+        fit_ols = fast_lm_matrix(
+            X_ar,
+            Y_ar,
+            proj_ols,
+            return_fitted=True,
+            check_finite=False,
+        )
+        residuals = (
+            Y_ar - fit_ols.fitted
+            if fit_ols.fitted is not None
+            else Y_ar - X_ar @ fit_ols.betas
+        )
+        t1 = time.perf_counter()
+
+        phi_hat = estimate_ar(residuals, order=1, voxelwise=False)
+        t2 = time.perf_counter()
+
+        Xw, Yw = ar_whiten_matrix(X_ar, Y_ar, phi_hat)
+        t3 = time.perf_counter()
+
+        proj_gls = fast_preproject(Xw, check_finite=False)
+        _fit_gls = fast_lm_matrix(
+            Xw,
+            Yw,
+            proj_gls,
+            return_fitted=False,
+            check_finite=False,
+        )
+        t4 = time.perf_counter()
+
+        return {
+            "fit_noise_s": float(t2 - t0),
+            "ar_estimation_only_s": float(t2 - t1),
+            "whitening_s": float(t3 - t2),
+            "final_glm_s": float(t4 - t3),
+            "total_candidate_s": float(t4 - t0),
+        }
+
+    for _ in range(int(warmup)):
+        _ar1_candidate_substage_once()
+
+    ar1_substage_runs: dict[str, list[float]] = {
+        "fit_noise_s": [],
+        "ar_estimation_only_s": [],
+        "whitening_s": [],
+        "final_glm_s": [],
+        "total_candidate_s": [],
+    }
+    for _ in range(int(repeats)):
+        one = _ar1_candidate_substage_once()
+        for key in ar1_substage_runs:
+            ar1_substage_runs[key].append(float(one[key]))
+
+    ar1_substage_medians = {
+        key.replace("_s", "_median_s"): float(np.median(vals))
+        for key, vals in ar1_substage_runs.items()
+    }
+    ar1_substage_shares = {
+        "fit_noise_share_of_candidate_total": float(
+            ar1_substage_medians["fit_noise_median_s"] / max(fit_total_ar1_candidate, 1e-12)
+        ),
+        "whitening_share_of_candidate_total": float(
+            ar1_substage_medians["whitening_median_s"] / max(fit_total_ar1_candidate, 1e-12)
+        ),
+        "final_glm_share_of_candidate_total": float(
+            ar1_substage_medians["final_glm_median_s"] / max(fit_total_ar1_candidate, 1e-12)
+        ),
+    }
+    fit_total_ar1_substages = {
+        "candidate_runs": ar1_substage_runs,
+        "candidate_medians": ar1_substage_medians,
+        "candidate_total_median_from_fit_stage_s": float(fit_total_ar1_candidate),
+        "candidate_shares": ar1_substage_shares,
+    }
 
     # Stage 5: run-combine only
     rng_rc = np.random.default_rng(seed + 3)
@@ -1809,6 +1925,10 @@ def run_ws10_performance_decomposition_parity(
         "contrast_only": contrast_only_stage,
         "fit_total_ar1": fit_total_ar1_stage,
         "run_combine": run_combine_stage,
+    }
+    metrics_payload = {
+        **stage_metrics,
+        "fit_total_ar1_substages": fit_total_ar1_substages,
     }
     thresholds = {
         "min_speedup_design_build": float(min_speedup_design_build),
@@ -1847,7 +1967,7 @@ def run_ws10_performance_decomposition_parity(
         "notes": "Stage-level timing decomposition across design/fit/contrast/run-combine.",
         "artifacts": [],
         "thresholds": thresholds,
-        "metrics": stage_metrics,
+        "metrics": metrics_payload,
         "failures": failures,
     }
 

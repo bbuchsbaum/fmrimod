@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from typing import Sequence
 
@@ -50,6 +51,26 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Optional BLAS thread cap during threaded chunk solves.",
     )
     parser.add_argument(
+        "--auto-tune",
+        action="store_true",
+        help=(
+            "Auto-tune fmrimod OLS config on this machine before final report. "
+            "When enabled, selected config overrides explicit fmrimod-* args."
+        ),
+    )
+    parser.add_argument(
+        "--auto-tune-repeats",
+        type=int,
+        default=2,
+        help="Repeats per candidate during auto-tuning.",
+    )
+    parser.add_argument(
+        "--auto-tune-warmup",
+        type=int,
+        default=0,
+        help="Warmup iterations per candidate during auto-tuning.",
+    )
+    parser.add_argument(
         "--output",
         type=str,
         default="cross_testing/reports/fitlins_parity_benchmark.json",
@@ -66,6 +87,103 @@ def build_arg_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_arg_parser().parse_args(argv)
     try:
+        selected = {
+            "fmrimod_compute_dtype": args.fmrimod_compute_dtype,
+            "fmrimod_n_jobs": int(args.fmrimod_n_jobs),
+            "fmrimod_chunk_size": int(args.fmrimod_chunk_size),
+            "fmrimod_blas_threads": args.fmrimod_blas_threads,
+        }
+        auto_tune_report = None
+
+        if args.auto_tune:
+            cpu_count = max(1, int(os.cpu_count() or 1))
+            tuned_jobs = max(1, min(cpu_count, 4))
+            candidate_configs = [
+                selected,
+                {
+                    "fmrimod_compute_dtype": "float64",
+                    "fmrimod_n_jobs": 1,
+                    "fmrimod_chunk_size": 5000,
+                    "fmrimod_blas_threads": None,
+                },
+                {
+                    "fmrimod_compute_dtype": "float32",
+                    "fmrimod_n_jobs": 1,
+                    "fmrimod_chunk_size": 5000,
+                    "fmrimod_blas_threads": None,
+                },
+                {
+                    "fmrimod_compute_dtype": "float64",
+                    "fmrimod_n_jobs": tuned_jobs,
+                    "fmrimod_chunk_size": 1500,
+                    "fmrimod_blas_threads": 1,
+                },
+                {
+                    "fmrimod_compute_dtype": "float32",
+                    "fmrimod_n_jobs": tuned_jobs,
+                    "fmrimod_chunk_size": 1500,
+                    "fmrimod_blas_threads": 1,
+                },
+            ]
+
+            # Deduplicate candidate configs while preserving order.
+            seen = set()
+            unique_candidates = []
+            for cfg in candidate_configs:
+                key = (
+                    cfg["fmrimod_compute_dtype"],
+                    int(cfg["fmrimod_n_jobs"]),
+                    int(cfg["fmrimod_chunk_size"]),
+                    cfg["fmrimod_blas_threads"],
+                )
+                if key in seen:
+                    continue
+                seen.add(key)
+                unique_candidates.append(cfg)
+
+            tuning_trials = []
+            for cfg in unique_candidates:
+                trial = run_parity_and_benchmark(
+                    n_timepoints=args.n_timepoints,
+                    n_regressors=args.n_regressors,
+                    n_voxels=args.n_voxels,
+                    noise_sd=args.noise_sd,
+                    seed=args.seed,
+                    repeats=args.auto_tune_repeats,
+                    warmup=args.auto_tune_warmup,
+                    **cfg,
+                )
+                tuning_trials.append(
+                    {
+                        **cfg,
+                        "speedup_vs_reference": float(
+                            trial["speed"]["summary"]["speedup_vs_reference"]
+                        ),
+                        "parity_ok": bool(trial["parity"]["ok"]),
+                    }
+                )
+
+            valid_trials = [t for t in tuning_trials if t["parity_ok"]]
+            ranked = sorted(
+                valid_trials if valid_trials else tuning_trials,
+                key=lambda t: float(t["speedup_vs_reference"]),
+                reverse=True,
+            )
+            best = ranked[0]
+            selected = {
+                "fmrimod_compute_dtype": best["fmrimod_compute_dtype"],
+                "fmrimod_n_jobs": int(best["fmrimod_n_jobs"]),
+                "fmrimod_chunk_size": int(best["fmrimod_chunk_size"]),
+                "fmrimod_blas_threads": best["fmrimod_blas_threads"],
+            }
+            auto_tune_report = {
+                "enabled": True,
+                "repeats": int(args.auto_tune_repeats),
+                "warmup": int(args.auto_tune_warmup),
+                "selected": selected,
+                "trials": tuning_trials,
+            }
+
         report = run_parity_and_benchmark(
             n_timepoints=args.n_timepoints,
             n_regressors=args.n_regressors,
@@ -74,11 +192,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             seed=args.seed,
             repeats=args.repeats,
             warmup=args.warmup,
-            fmrimod_compute_dtype=args.fmrimod_compute_dtype,
-            fmrimod_n_jobs=args.fmrimod_n_jobs,
-            fmrimod_chunk_size=args.fmrimod_chunk_size,
-            fmrimod_blas_threads=args.fmrimod_blas_threads,
+            **selected,
         )
+        if auto_tune_report is not None:
+            report["auto_tune"] = auto_tune_report
     except ModuleNotFoundError as exc:
         print(
             "Missing optional dependency for fitlins parity benchmark: "
