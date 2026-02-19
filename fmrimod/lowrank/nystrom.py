@@ -113,10 +113,19 @@ def build_landmark_weights(
     """
     V = coords.shape[0]
     L = landmark_coords.shape[0]
+    if L < 1:
+        raise ValueError("landmark_coords must contain at least one landmark")
+    if k < 1:
+        raise ValueError("k must be >= 1")
     k = min(k, L)
 
     tree = KDTree(landmark_coords)
     dists, indices = tree.query(coords, k=k)
+    if k == 1:
+        # scipy.spatial.KDTree returns 1-D arrays for k=1, but downstream code
+        # assumes a (V, k) layout.
+        dists = np.asarray(dists)[:, np.newaxis]
+        indices = np.asarray(indices)[:, np.newaxis]
 
     # Bandwidth: median of k-th neighbour distance
     if bandwidth is None:

@@ -216,24 +216,44 @@ class FmriModel:
     def _get_baseline_dm(self, run: Optional[int]) -> pd.DataFrame:
         """Get baseline design matrix, optionally for a single run."""
         bm = self._baseline_model
-        if hasattr(bm, "design_matrix"):
-            # Use the generic dispatch if available
-            from ..baseline.baseline_model import design_matrix as bl_design_matrix
+        if not hasattr(bm, "design_matrix"):
+            raise TypeError("baseline_model does not have a design_matrix method")
 
+        dm = None
+
+        # Prefer baseline generic dispatch if available; fall back to the
+        # object's design_matrix attribute otherwise.
+        bl_design_matrix = None
+        try:
+            from ..baseline import baseline_model as baseline_module
+
+            bl_design_matrix = getattr(baseline_module, "design_matrix", None)
+        except Exception:
+            bl_design_matrix = None
+
+        if callable(bl_design_matrix):
             try:
                 dm = bl_design_matrix(bm, blockid=([run] if run is not None else None))
             except TypeError:
                 dm = bl_design_matrix(bm)
-                if run is not None:
-                    starts, ends = self._run_slices()
-                    dm = dm.iloc[starts[run] : ends[run]]
-                    dm = dm.reset_index(drop=True)
+        else:
+            dm_attr = getattr(bm, "design_matrix")
+            dm = dm_attr() if callable(dm_attr) else dm_attr
 
+        if run is not None:
+            starts, ends = self._run_slices()
+            start = starts[run]
+            end = ends[run]
             if isinstance(dm, np.ndarray):
-                return pd.DataFrame(dm)
-            return dm if isinstance(dm, pd.DataFrame) else pd.DataFrame(dm)
+                dm = dm[start:end]
+            elif isinstance(dm, pd.DataFrame):
+                dm = dm.iloc[start:end].reset_index(drop=True)
+            else:
+                dm = np.asarray(dm)[start:end]
 
-        raise TypeError("baseline_model does not have a design_matrix method")
+        if isinstance(dm, np.ndarray):
+            return pd.DataFrame(dm)
+        return dm if isinstance(dm, pd.DataFrame) else pd.DataFrame(dm)
 
     def _run_slices(self) -> tuple:
         """Compute start/end row indices for each run."""

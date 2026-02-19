@@ -59,6 +59,19 @@ class TestBuildLandmarkWeights:
         lw = build_landmark_weights(coords_3d, coords_3d[lm_idx], k=3, bandwidth=1.0)
         assert lw.weights.shape == (100, 3)
 
+    def test_k1_returns_2d_arrays_and_normalized_rows(self, coords_3d, rng):
+        """Regression: k=1 should not crash and still produce (V, 1) outputs."""
+        lm_idx = select_landmarks(coords_3d, 12, method="random", rng=rng)
+        lw = build_landmark_weights(coords_3d, coords_3d[lm_idx], k=1)
+        assert lw.indices.shape == (100, 1)
+        assert lw.weights.shape == (100, 1)
+        np.testing.assert_allclose(lw.weights, 1.0, atol=1e-12)
+
+    def test_invalid_k_raises(self, coords_3d, rng):
+        lm_idx = select_landmarks(coords_3d, 10, method="random", rng=rng)
+        with pytest.raises(ValueError, match="k must be >= 1"):
+            build_landmark_weights(coords_3d, coords_3d[lm_idx], k=0)
+
 
 class TestExtendBetas:
     def test_recovery_at_landmarks(self, coords_3d, rng):
@@ -84,3 +97,18 @@ class TestExtendBetas:
         betas_full = extend_betas(betas_lm, lw)
         # All voxels should have value 3.14 since weights sum to 1
         np.testing.assert_allclose(betas_full, 3.14, atol=1e-10)
+
+    def test_convex_hull_bounds_are_respected(self, coords_3d, rng):
+        """Row-normalised positive weights imply values stay within landmark range."""
+        L = 25
+        p = 4
+        lm_idx = select_landmarks(coords_3d, L, method="random", rng=rng)
+        lw = build_landmark_weights(coords_3d, coords_3d[lm_idx], k=6)
+
+        betas_lm = rng.standard_normal((p, L))
+        betas_full = extend_betas(betas_lm, lw)
+
+        lo = betas_lm.min(axis=1)[:, np.newaxis]
+        hi = betas_lm.max(axis=1)[:, np.newaxis]
+        assert np.all(betas_full >= lo - 1e-12)
+        assert np.all(betas_full <= hi + 1e-12)

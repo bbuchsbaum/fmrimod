@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 
+from fmrimod.glm.solver import fast_preproject, fast_lm_matrix
 from fmrimod.lowrank.engine import LowRankConfig, fit_sketched
 
 
@@ -54,6 +55,24 @@ class TestFitSketched:
         result = fit_sketched(X, Y, config)
         np.testing.assert_allclose(result.betas, true_B, atol=1e-8)
 
+    def test_ratio_one_matches_solver_outputs(self, rng):
+        """Differential check: ratio=1 should equal the baseline OLS solver."""
+        n, p, V = 137, 5, 17
+        X = np.column_stack([np.ones(n), rng.standard_normal((n, p - 1))])
+        Y = rng.standard_normal((n, V))
+
+        config = LowRankConfig(sketch_ratio=1.0, seed=17)
+        got = fit_sketched(X, Y, config)
+
+        proj = fast_preproject(X)
+        ref = fast_lm_matrix(X, Y, proj)
+
+        np.testing.assert_allclose(got.betas, ref.betas, atol=1e-12)
+        np.testing.assert_allclose(got.rss, ref.rss, atol=1e-12)
+        np.testing.assert_allclose(got.sigma2, ref.sigma2, atol=1e-12)
+        assert got.dfres == ref.dfres
+        assert got.rank == ref.rank
+
     def test_ridge_penalty(self, rng):
         n, p, V = 100, 3, 5
         X = rng.standard_normal((n, p))
@@ -88,3 +107,20 @@ class TestFitSketched:
             np.testing.assert_allclose(
                 result.betas[j].mean(), true_B[j], atol=0.5,
             )
+
+    def test_sketch_seed_controls_reproducibility(self, rng):
+        n, p, V = 180, 4, 25
+        X = np.column_stack([np.ones(n), rng.standard_normal((n, p - 1))])
+        true_B = np.array([2.0, -1.0, 0.5, 3.0])
+        Y = X @ true_B[:, np.newaxis] + 0.3 * rng.standard_normal((n, V))
+
+        cfg_a = LowRankConfig(sketch_kind="gaussian", sketch_ratio=0.45, seed=123)
+        cfg_b = LowRankConfig(sketch_kind="gaussian", sketch_ratio=0.45, seed=123)
+        cfg_c = LowRankConfig(sketch_kind="gaussian", sketch_ratio=0.45, seed=124)
+
+        fit_a = fit_sketched(X, Y, cfg_a)
+        fit_b = fit_sketched(X, Y, cfg_b)
+        fit_c = fit_sketched(X, Y, cfg_c)
+
+        np.testing.assert_allclose(fit_a.betas, fit_b.betas, atol=0.0, rtol=0.0)
+        assert np.mean(np.abs(fit_a.betas - fit_c.betas)) > 1e-4
