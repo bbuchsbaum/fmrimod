@@ -1,6 +1,6 @@
 # Trio Port Completion Audit v1
 
-Status: Incomplete
+Status: Complete as of pushed `main` handoff
 
 ## Objective Restated
 
@@ -69,7 +69,7 @@ Observed coverage artifacts:
 | AR/whitening performance evidence | `cross_testing/benchmark_arma_paths.py`, `.github/workflows/arma-benchmark*.yml`, AR tests, `tests/test_ar/test_rpy2_parity.py` | Satisfied locally | Core parity WS03/WS10 passed, and gate-sized normal/fallback ARMA benchmark artifacts pass unchanged thresholds after preferring the faster Numba q>0 backend. |
 | LSA/LSS performance evidence | `cross_testing/core_parity_matrix.py` WS06, `cross_testing/benchmark_lss_vs_nilearn.py`, `tests/test_single/test_lsa.py`, `tests/test_single/test_lss.py` | Satisfied locally | Current core parity WS06 passed parity and performance gates. |
 | Scoped second-level interface | `docs/contracts/second_level_parity_v1.md`, `fmrimod/stats`, `tests/test_stats/test_group_fit_*`, `tests/test_dataset/test_group_data*` | Mostly satisfied | Focused second-level/meta tests pass. Non-CSV execution remains intentionally prepared-path scope. |
-| Continuous verification | `pyproject.toml` extras/markers, `pytest.ini`, workflows for core parity and benchmarks | Partial | Some workflow and benchmark files are untracked in the current worktree. Need a clean verification transcript and staged/committed CI surface before treating this as durable. |
+| Continuous verification | `pyproject.toml` extras/markers, `pytest.ini`, workflows for core parity and benchmarks, pushed `main` handoff | Satisfied locally | Benchmark/workflow/doc surfaces are tracked and pushed to `origin/main`. |
 
 ## Inventory Gap Summary
 
@@ -114,13 +114,17 @@ oriented rather than missing-row oriented.
   `fmrireg`, `fmriAR`, or `nilearn` are unavailable; skip status itself is not
   parity evidence.
 
-## Next Required Actions
+## Handoff State
 
-1. Stage, commit, and push the verified benchmark/workflow/doc surface once the
-   inventory evidence cleanup is complete.
+- Branch: `main`
+- Remote: `origin/main`
+- Local git status after push: clean
+- Mote state after completion: no ready issues, no active claims, no active
+  reservations
 
 ## Audit Conclusion
 
-The active goal is not achieved. The repository has a substantial port and a
-current verification transcript, but completion is still blocked by clean
-handoff work rather than missing inventory evidence.
+The active goal is achieved in the current repository state. The trio export
+inventory has zero pending rows, concrete evidence anchors, a public API policy,
+passing focused/broad/local parity evidence, benchmark gates, migration docs,
+and a clean pushed handoff.

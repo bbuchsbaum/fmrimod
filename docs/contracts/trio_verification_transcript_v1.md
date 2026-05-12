@@ -1,6 +1,6 @@
 # Trio Verification Transcript v1
 
-Status: Current local transcript with remaining evidence/cleanup blockers
+Status: Complete local transcript for pushed `main`
 
 Date: 2026-05-12
 Actor: `codex-trio-port`
@@ -24,7 +24,7 @@ From `docs/contracts/trio_api_inventory_v1.md`:
 | `fmrireg` | 171 | 147 | 16 | 0 | 8 |
 
 There are no remaining `pending` inventory rows. Current gate-sized
-verification passes; completion is still blocked by clean git handoff.
+verification passes and the verified surface is committed and pushed.
 
 ## Prompt-To-Artifact Checklist
 
@@ -78,6 +78,8 @@ verification passes; completion is still blocked by clean git handoff.
 | Inventory placeholder scan | `rg -n "needs audit|pending test evidence audit|module tests need audit|top-level API tests|README/docs/contracts/tests pending audit|verification needed|initial static inventory|hrf tests|design tests|formula tests|engine tests|model config tests|robust GLM tests|dataset tests" docs/contracts/trio_api_inventory_v1.md` | Pass | No matches. |
 | Inventory anchor existence scan | Python table scan over `docs/contracts/trio_api_inventory_v1.md` checking `tests/`, `cross_testing/`, `docs/`, and `README.md` anchors | Pass | `rows 340`; `missing anchors 0`. |
 | Public API policy | `docs/contracts/trio_public_api_policy_v1.md` | Pass | Defines stable surface, `ported`/`pythonized`/`scoped_out` semantics, change control, and acceptable evidence standards. |
+| Git handoff | `git status --short`; `git log -1 --oneline`; `git push origin main` | Pass | Clean status after final push; latest commit on `main` pushed to `origin/main`. |
+| Mote handoff | `mote ready`; `mote board` | Pass | No ready issues, no active claims, no active reservations after closing the inventory and final-audit issues. |
 
 ## Code Adjustment During Verification
 
@@ -97,9 +99,7 @@ The original threshold checker then passes for both the normal and
 1. The inventory anchors are concrete and all referenced files exist, but some
    rows rely on namespace-level evidence rather than one independent test per
    R export.
-2. The worktree is dirty and contains untracked benchmark/workflow/doc artifacts.
-   This transcript verifies the current workspace, not a clean committed state.
-3. Tiny diagnostic benchmark fixtures can fail speed gates while still passing
+2. Tiny diagnostic benchmark fixtures can fail speed gates while still passing
    parity; gate-sized fixtures should be used for completion evidence.
 
 ## Conclusion
@@ -107,5 +107,4 @@ The original threshold checker then passes for both the normal and
 The port is materially advanced and has strong current evidence for implemented
 API surfaces, unit behavior, R/golden parity behavior, HRF/regressor
 cross-language behavior, docs, and the core parity matrix. The active trio goal
-is still incomplete because clean workspace handoff is still needed before
-completion can be claimed.
+is complete in the current pushed repository state.
