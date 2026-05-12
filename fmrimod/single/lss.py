@@ -232,6 +232,8 @@ def _as_time_feature_matrix(
         arr = arr[:, np.newaxis]
     if arr.ndim != 2:
         raise ValueError(f"{name} must be a 1-D or 2-D matrix")
+    if not np.all(np.isfinite(arr)):
+        raise ValueError(f"{name} must contain only finite values")
     if arr.shape[0] != n_rows:
         raise ValueError(f"{name} has {arr.shape[0]} rows, expected {n_rows}.")
     return arr
@@ -340,6 +342,10 @@ def lss_single_trial(
     X = np.asarray(X, dtype=np.float64)
     if Y.ndim == 1:
         Y = Y[:, np.newaxis]
+    if not np.all(np.isfinite(X)):
+        raise ValueError("Design matrix contains NA/Inf values")
+    if not np.all(np.isfinite(Y)):
+        raise ValueError("Response matrix contains NA/Inf values")
 
     n, n_trials = X.shape
     if Y.shape[0] != n:

@@ -219,3 +219,52 @@ class TestTopLevelGlmWrappers:
 
         assert compat.method == baseline.method
         np.testing.assert_allclose(compat.betas, baseline.betas)
+
+    @pytest.mark.parametrize("call_fn", [fmrimod.glm_ols, fmrimod.glm_lss])
+    @pytest.mark.parametrize("n_voxels", [1, 100])
+    def test_glm_wrappers_preserve_voxel_axis(self, call_fn, n_voxels):
+        rng = np.random.default_rng(789)
+        n, n_trials = 50, 4
+        trial_regressors = rng.standard_normal((n, n_trials))
+        y = rng.standard_normal((n, n_voxels))
+
+        result = call_fn(trial_regressors, y)
+
+        assert result.betas.shape == (n_trials, n_voxels)
+
+    @pytest.mark.parametrize("call_fn", [fmrimod.glm_ols, fmrimod.glm_lss])
+    def test_glm_wrappers_are_deterministic_for_fixed_inputs(self, call_fn):
+        rng = np.random.default_rng(246)
+        n, n_trials, n_voxels = 60, 5, 3
+        trial_regressors = rng.standard_normal((n, n_trials))
+        y = rng.standard_normal((n, n_voxels))
+
+        first = call_fn(trial_regressors, y)
+        second = call_fn(trial_regressors, y)
+
+        np.testing.assert_allclose(first.betas, second.betas)
+
+    def test_glm_lss_rejects_nonfinite_response_like_fmrireg(self):
+        trial_regressors = np.eye(4)
+        y = np.arange(16, dtype=float).reshape(4, 4)
+        y[0, 0] = np.nan
+
+        with pytest.raises(ValueError, match="Response matrix contains NA/Inf"):
+            fmrimod.glm_lss(trial_regressors, y)
+
+    def test_glm_lss_rejects_nonfinite_design_like_fmrireg(self):
+        trial_regressors = np.eye(4)
+        trial_regressors[0, 0] = np.inf
+        y = np.arange(16, dtype=float).reshape(4, 4)
+
+        with pytest.raises(ValueError, match="Design matrix contains NA/Inf"):
+            fmrimod.glm_lss(trial_regressors, y)
+
+    def test_glm_lss_rejects_nonfinite_baseline_regressors(self):
+        trial_regressors = np.eye(4)
+        y = np.arange(16, dtype=float).reshape(4, 4)
+        baseline = np.ones((4, 1))
+        baseline[0, 0] = np.nan
+
+        with pytest.raises(ValueError, match="baseline_regressors.*finite"):
+            fmrimod.glm_lss(trial_regressors, y, baseline_regressors=baseline)

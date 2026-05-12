@@ -77,9 +77,11 @@ def test_tidy_and_coef_image_accessors():
         "estimate",
         "std_error",
         "stat",
+        "statistic",
         "p_value",
     ]
     assert len(tidy) == fit.n_coefficients * fit.n_voxels
+    np.testing.assert_allclose(tidy["statistic"], tidy["stat"])
 
     vec = fmrimod.coef_image(fit, coef="slope")
     np.testing.assert_allclose(vec, fit.betas[1])
@@ -155,4 +157,12 @@ def test_fitted_hrf_and_tidy_fitted_hrf_smoke():
     assert list(out["condition"]["design"].columns) == ["condition", "time"]
 
     tidy = fmrimod.tidy_fitted_hrf(fit, sample_at=[0.0, 1.0])
-    assert set(tidy.columns) == {"term", "condition", "time", "voxel", "value"}
+    assert set(tidy.columns) == {
+        "term",
+        "condition",
+        "time",
+        "voxel",
+        "estimate",
+        "value",
+    }
+    np.testing.assert_allclose(tidy["estimate"], tidy["value"])

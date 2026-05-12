@@ -313,6 +313,7 @@ def tidy(x: Any, type: str = "estimates", **kwargs) -> pd.DataFrame:
                         "estimate": estimates[coef_idx, voxel],
                         "std_error": se_vals[coef_idx, voxel],
                         "stat": stat_vals[coef_idx, voxel],
+                        "statistic": stat_vals[coef_idx, voxel],
                         "p_value": p_vals[coef_idx, voxel],
                     }
                 )
@@ -332,6 +333,7 @@ def tidy(x: Any, type: str = "estimates", **kwargs) -> pd.DataFrame:
                         "estimate": np.ravel(result.estimate)[voxel],
                         "std_error": None if result.se is None else np.ravel(result.se)[voxel],
                         "stat": stat,
+                        "statistic": stat,
                         "p_value": np.ravel(result.p_value)[voxel],
                     }
                 )
@@ -397,6 +399,7 @@ def tidy_fitted_hrf(x: Any, sample_at: Sequence[float], **kwargs) -> pd.DataFram
                         "condition": meta["condition"],
                         "time": meta["time"],
                         "voxel": voxel,
+                        "estimate": pred[row_idx, voxel],
                         "value": pred[row_idx, voxel],
                     }
                 )
