@@ -1,0 +1,7 @@
+# z_to_r { #fmrimod.z_to_r }
+
+```python
+z_to_r(*args, **kwargs)
+```
+
+Back-transform Fisher Z values to correlations.

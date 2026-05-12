@@ -1,0 +1,28 @@
+/*-- scss:defaults --*/
+
+$body-bg: #0e1116;
+$body-color: #e6e8eb;
+$link-color: #6aa3ff;
+$link-hover-color: #93bbff;
+$border-color: #20242b;
+$code-bg: #161a21;
+$code-color: #e6e8eb;
+$navbar-bg: #0e1116;
+$navbar-fg: #e6e8eb;
+
+/*-- scss:rules --*/
+
+pre, .sourceCode {
+  border: 1px solid #20242b !important;
+  background: #11151b !important;
+}
+
+code:not(pre code) { background: #1a1f27; }
+
+.navbar {
+  background: rgba(14, 17, 22, 0.85) !important;
+  border-bottom: 1px solid #20242b;
+}
+
+table th { border-bottom: 2px solid #e6e8eb; }
+table td { border-bottom: 1px solid #20242b; }

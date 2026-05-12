@@ -1,0 +1,134 @@
+# SamplingFrame { #fmrimod.SamplingFrame }
+
+```python
+SamplingFrame(
+    blocklens=None,
+    tr=None,
+    start_time=None,
+    precision=0.1,
+    *,
+    n_scans=None,
+    TR=None,
+)
+```
+
+fMRI acquisition timing specification.
+
+This class represents the temporal sampling structure of an fMRI experiment,
+including the timing of acquisitions, block structure, and precision settings.
+
+Attributes:
+    blocklens: Number of scans per block (array or scalar)
+    tr: Repetition time(s) in seconds (array or scalar)
+    start_time: Start time offset(s) in seconds (array or scalar, default TR/2)
+    precision: Temporal precision for convolution in seconds
+
+## Attributes
+
+| Name | Description |
+| --- | --- |
+| [TR](#fmrimod.SamplingFrame.TR) | Repetition time (scalar, for backward compatibility). |
+| [acquisition_onsets](#fmrimod.SamplingFrame.acquisition_onsets) | Get fMRI acquisition onset times. |
+| [blockids](#fmrimod.SamplingFrame.blockids) | Block ID for each scan. |
+| [global_scan_times](#fmrimod.SamplingFrame.global_scan_times) | Global scan times across all blocks. |
+| [n_blocks](#fmrimod.SamplingFrame.n_blocks) | Number of blocks. |
+| [n_scans](#fmrimod.SamplingFrame.n_scans) | Total number of scans across all blocks. |
+| [samples](#fmrimod.SamplingFrame.samples) | Time points for each scan. |
+
+## Methods
+
+| Name | Description |
+| --- | --- |
+| [block_samples](#fmrimod.SamplingFrame.block_samples) | Get time points for a specific block. |
+| [concatenate](#fmrimod.SamplingFrame.concatenate) | Concatenate two sampling frames. |
+| [from_dict](#fmrimod.SamplingFrame.from_dict) | Create SamplingFrame from dictionary. |
+| [global_onsets](#fmrimod.SamplingFrame.global_onsets) | Convert block-relative onset times to global (experiment-wide) onset times. |
+| [sample_times](#fmrimod.SamplingFrame.sample_times) | Get time points for scans with optional filtering. |
+| [to_dict](#fmrimod.SamplingFrame.to_dict) | Convert to dictionary representation. |
+
+### block_samples { #fmrimod.SamplingFrame.block_samples }
+
+```python
+SamplingFrame.block_samples(block_idx)
+```
+
+Get time points for a specific block.
+
+Args:
+    block_idx: Block index (0-based)
+
+Returns:
+    Array of time points for the specified block
+
+### concatenate { #fmrimod.SamplingFrame.concatenate }
+
+```python
+SamplingFrame.concatenate(other)
+```
+
+Concatenate two sampling frames.
+
+Args:
+    other: Another SamplingFrame to concatenate
+
+Returns:
+    New SamplingFrame with combined blocks
+
+### from_dict { #fmrimod.SamplingFrame.from_dict }
+
+```python
+SamplingFrame.from_dict(data)
+```
+
+Create SamplingFrame from dictionary.
+
+Args:
+    data: Dictionary with sampling frame parameters
+
+Returns:
+    New SamplingFrame instance
+
+### global_onsets { #fmrimod.SamplingFrame.global_onsets }
+
+```python
+SamplingFrame.global_onsets(onsets, blockids)
+```
+
+Convert block-relative onset times to global (experiment-wide) onset times.
+
+Args:
+    onsets: Numeric array of onset times within blocks (block-relative).
+    blockids: Integer array identifying which block each onset belongs to
+        (0-based).
+
+Returns:
+    Array of global onset times.
+
+Raises:
+    ValueError: If onsets and blockids have different lengths or blockids are out of range.
+
+### sample_times { #fmrimod.SamplingFrame.sample_times }
+
+```python
+SamplingFrame.sample_times(global_time=True, blockids=None)
+```
+
+Get time points for scans with optional filtering.
+
+Args:
+    global_time: If True, return global times; if False, return block-relative times
+    blockids: Optional 0-based block IDs to filter.
+
+Returns:
+    Array of time points in seconds
+
+### to_dict { #fmrimod.SamplingFrame.to_dict }
+
+```python
+SamplingFrame.to_dict()
+```
+
+Convert to dictionary representation.
+
+Returns:
+    Dictionary with all sampling frame parameters

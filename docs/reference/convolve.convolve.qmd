@@ -1,0 +1,49 @@
+# convolve.convolve { #fmrimod.convolve.convolve }
+
+```python
+convolve.convolve(x, hrf=None, sampling_rate=1.0, sampling_frame=None, **kwargs)
+```
+
+Convolve event(s) with hemodynamic response function.
+
+This is a generic function that convolves various event types with an HRF.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name           | Type                              | Description                                                                                                                | Default    |
+|----------------|-----------------------------------|----------------------------------------------------------------------------------------------------------------------------|------------|
+| x              | [object](`object`)                | Event object or array to convolve                                                                                          | _required_ |
+| hrf            | HRF, array, or None               | Hemodynamic response function. If None, uses SPM canonical HRF                                                             | `None`     |
+| sampling_rate  | [float](`float`)                  | Sampling rate in Hz (default 1.0). Ignored if sampling_frame is provided.                                                  | `1.0`      |
+| sampling_frame | [array](`array`) - [like](`like`) | Explicit time points at which to sample the convolved signal. If provided, takes precedence over sampling_rate.            | `None`     |
+| normalize      | [bool](`bool`)                    | If True, peak-normalize each regressor column after convolution so that max(abs(col)) == 1. Default False.                 | _required_ |
+| summate        | [bool](`bool`)                    | Whether overlapping HRF responses are summed (default True). If False, max is used instead. Passed to fmrimod.regressor(). | _required_ |
+| **kwargs       |                                   | Additional arguments passed to convolution                                                                                 | `{}`       |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                           | Description      |
+|--------|--------------------------------|------------------|
+|        | [Array](`fmrimod.types.Array`) | Convolved signal |
+
+## Examples {.doc-section .doc-section-examples}
+
+```python
+>>> # Convolve event with default HRF
+>>> event = EventVariable(onsets=[1, 5, 10], durations=[2, 2, 2],
+...                      values=[1, 2, 3], name="stimulus")
+>>> convolved = convolve(event, sampling_rate=0.5)  # TR=2s
+```
+
+```python
+>>> # Use custom HRF
+>>> from fmrimod import HRF
+>>> custom_hrf = HRF(a1=6, a2=12)
+>>> convolved = convolve(event, hrf=custom_hrf)
+```
+
+```python
+>>> # Use explicit sampling frame
+>>> sampling_times = np.arange(0, 100, 2.0)  # TR=2s
+>>> convolved = convolve(event, hrf=custom_hrf, sampling_frame=sampling_times)
+```

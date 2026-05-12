@@ -1,0 +1,7 @@
+# simulate_simple_dataset { #fmrimod.simulate_simple_dataset }
+
+```python
+simulate_simple_dataset(*args, **kwargs)
+```
+
+Simulate a simple multi-condition dataset with clean/noisy signals.

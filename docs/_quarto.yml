@@ -1,0 +1,170 @@
+project:
+  type: website
+  output-dir: _site
+  render:
+    - "*.qmd"
+    - "tutorials/*.qmd"
+    - "reference/*.qmd"
+  preview:
+    port: 4200
+    browser: false
+  resources:
+    - "reference/**"
+
+website:
+  title: "fmrimod"
+  description: "fMRI signal modeling, from HRF specification to design matrices and regression."
+  site-url: "https://bbuchsbaum.github.io/fmrimod/"
+  repo-url: "https://github.com/bbuchsbaum/fmrimod"
+  repo-actions: [edit, issue]
+  repo-branch: main
+  page-navigation: true
+  back-to-top-navigation: true
+  bread-crumbs: false
+  reader-mode: false
+  search:
+    location: navbar
+    type: overlay
+    copy-button: true
+  navbar:
+    pinned: true
+    logo: ""
+    background: light
+    foreground: dark
+    left:
+      - text: "Get started"
+        href: get-started.qmd
+      - text: "Tutorials"
+        href: tutorials/index.qmd
+      - text: "Reference"
+        href: reference/index.qmd
+    right:
+      - icon: github
+        href: "https://github.com/bbuchsbaum/fmrimod"
+        aria-label: GitHub
+  sidebar:
+    - id: tutorials
+      title: "Tutorials"
+      style: floating
+      align: left
+      contents:
+        - tutorials/index.qmd
+        - auto: tutorials/*.qmd
+    - id: reference
+      title: "Reference"
+      style: floating
+      contents:
+        - reference/index.qmd
+        - auto: reference/*.qmd
+  page-footer:
+    border: false
+    left: "© 2026 Bradley Buchsbaum"
+    right:
+      - icon: github
+        href: "https://github.com/bbuchsbaum/fmrimod"
+
+format:
+  html:
+    theme:
+      light: [cosmo, _variables.scss]
+      dark: [darkly, _variables.scss, _variables-dark.scss]
+    css: styles.css
+    toc: true
+    toc-depth: 3
+    toc-location: right
+    toc-title: "On this page"
+    number-sections: false
+    anchor-sections: true
+    code-copy: true
+    code-overflow: wrap
+    code-link: true
+    code-annotations: hover
+    highlight-style:
+      light: github
+      dark: github-dark
+    fig-align: center
+    fig-cap-location: bottom
+    fig-format: retina
+    fig-dpi: 200
+    smooth-scroll: true
+    link-external-icon: false
+    link-external-newwindow: true
+    citations-hover: true
+    footnotes-hover: true
+    grid:
+      sidebar-width: 240px
+      body-width: 760px
+      margin-width: 260px
+      gutter-width: 1.5rem
+
+execute:
+  freeze: auto
+  cache: true
+  warning: false
+  message: false
+
+metadata-files:
+  - _quartodoc.yml
+
+quartodoc:
+  package: fmrimod
+  style: pkgdown
+  dir: reference
+  title: "API reference"
+  render_interlinks: true
+  options:
+    include_inherited: true
+  sidebar: reference/_sidebar.yml
+  sections:
+    - title: "Design and events"
+      desc: "Build event terms and design matrices from fMRI timing tables."
+      contents:
+        - SamplingFrame
+        - event_model
+        - design_matrix
+        - design_colmap.design_colmap
+        - event_factor
+        - event_variable
+        - event_matrix
+        - event_term
+    - title: "HRFs and regressors"
+      desc: "Specify HRFs and convolve event timing into regressors."
+      contents:
+        - hrf
+        - hrf_formula
+        - convolve.convolve
+        - convolve_design
+        - regressor
+        - regressors.regressors
+        - trialwise.trialwise
+    - title: "Contrasts and validation"
+      desc: "Create contrast weights and validate design-matrix structure."
+      contents:
+        - contrast
+        - contrast_weights
+        - Fcontrasts
+        - validate.validate_contrasts
+        - validate.check_collinearity
+        - residualize.residualize
+    - title: "GLM and single-trial models"
+      desc: "Fit GLMs and estimate trial-wise responses."
+      contents:
+        - fmri_lm
+        - fmri_ols_fit
+        - compute_lm_contrasts
+        - estimate_betas
+        - glm_ols
+        - glm_lss
+        - estimate_single_trial
+        - lss_single_trial
+        - lsa_single_trial
+    - title: "Simulation and summaries"
+      desc: "Generate small synthetic examples and convert common statistics."
+      contents:
+        - simulate_simple_dataset
+        - simulate_bold_signal
+        - simulate_noise_vector
+        - simulate_fmri_matrix
+        - t_to_d
+        - r_to_z
+        - z_to_r

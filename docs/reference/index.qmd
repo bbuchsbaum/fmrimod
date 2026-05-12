@@ -1,0 +1,73 @@
+# API reference {.doc .doc-index}
+
+## Design and events
+
+Build event terms and design matrices from fMRI timing tables.
+
+| | |
+| --- | --- |
+| [SamplingFrame](SamplingFrame.qmd#fmrimod.SamplingFrame) | fMRI acquisition timing specification. |
+| [event_model](event_model.qmd#fmrimod.event_model) | Create an EventModel. See :func:`fmrimod.design.event_model.event_model`. |
+| [design_matrix](design_matrix.qmd#fmrimod.design_matrix) | Assemble a design matrix. See :func:`fmrimod.design.design_matrix.design_matrix`. |
+| [design_colmap.design_colmap](design_colmap.design_colmap.qmd#fmrimod.design_colmap.design_colmap) | Get structured column metadata for a design matrix. |
+| [event_factor](event_factor.qmd#fmrimod.event_factor) | Construct a categorical event factor. |
+| [event_variable](event_variable.qmd#fmrimod.event_variable) | Construct a continuous event variable. |
+| [event_matrix](event_matrix.qmd#fmrimod.event_matrix) | Construct a multi-column event matrix. |
+| [event_term](event_term.qmd#fmrimod.event_term) | Construct an event term from one or more events. |
+
+## HRFs and regressors
+
+Specify HRFs and convolve event timing into regressors.
+
+| | |
+| --- | --- |
+| [hrf](hrf.qmd#fmrimod.hrf) | HRF module. |
+| [hrf_formula](hrf_formula.qmd#fmrimod.hrf_formula) | HRF formula function. See :func:`fmrimod.formula.functional.hrf`. |
+| [convolve.convolve](convolve.convolve.qmd#fmrimod.convolve.convolve) | Convolve event(s) with hemodynamic response function. |
+| [convolve_design](convolve_design.qmd#fmrimod.convolve_design) | Design matrix convolution functionality. |
+| [regressor](regressor.qmd#fmrimod.regressor) | Regressor module for fMRI event modeling. |
+| [regressors.regressors](regressors.regressors.qmd#fmrimod.regressors.regressors) | Extract regressors from an event model or event term. |
+| [trialwise.trialwise](trialwise.trialwise.qmd#fmrimod.trialwise.trialwise) | Generate one regressor per trial (plus an optional grand-mean column). |
+
+## Contrasts and validation
+
+Create contrast weights and validate design-matrix structure.
+
+| | |
+| --- | --- |
+| [contrast](contrast.qmd#fmrimod.contrast) | Contrast specification and computation for fMRI design matrices. |
+| [contrast_weights](contrast_weights.qmd#fmrimod.contrast_weights) | Compute contrast weights. See :func:`fmrimod.contrast.contrast_weights`. |
+| [Fcontrasts](Fcontrasts.qmd#fmrimod.Fcontrasts) | Create F-contrasts. See :func:`fmrimod.contrast.Fcontrasts`. |
+| [validate.validate_contrasts](validate.validate_contrasts.qmd#fmrimod.validate.validate_contrasts) | Validate contrast weights against a design matrix or event model. |
+| [validate.check_collinearity](validate.check_collinearity.qmd#fmrimod.validate.check_collinearity) | Check a design matrix for multicollinearity. |
+| [residualize.residualize](residualize.residualize.qmd#fmrimod.residualize.residualize) | Residualize data by projecting out a design matrix. |
+
+## GLM and single-trial models
+
+Fit GLMs and estimate trial-wise responses.
+
+| | |
+| --- | --- |
+| [fmri_lm](fmri_lm.qmd#fmrimod.fmri_lm) | Fit a GLM to fMRI data. See :func:`fmrimod.glm.fmri_lm.fmri_lm`. |
+| [fmri_ols_fit](fmri_ols_fit.qmd#fmrimod.fmri_ols_fit) | Fit matrix OLS and return beta, SE, and t summaries. |
+| [compute_lm_contrasts](compute_lm_contrasts.qmd#fmrimod.compute_lm_contrasts) | Compute t/F contrast statistics from fitted GLM matrices. |
+| [estimate_betas](estimate_betas.qmd#fmrimod.estimate_betas) | Estimate trial-wise betas. See :func:`fmrimod.betas.extraction.estimate_betas`. |
+| [glm_ols](glm_ols.qmd#fmrimod.glm_ols) | Estimate trial-wise OLS betas. See :func:`fmrimod.betas.extraction.estimate_betas_ols`. |
+| [glm_lss](glm_lss.qmd#fmrimod.glm_lss) | Estimate trial-wise LSS betas. See :func:`fmrimod.betas.extraction.estimate_betas_lss`. |
+| [estimate_single_trial](estimate_single_trial.qmd#fmrimod.estimate_single_trial) | Estimate single-trial betas. See :func:`fmrimod.single.estimate_single_trial`. |
+| [lss_single_trial](lss_single_trial.qmd#fmrimod.lss_single_trial) | Estimate single-trial betas with vectorized LSS. |
+| [lsa_single_trial](lsa_single_trial.qmd#fmrimod.lsa_single_trial) | Estimate single-trial betas with LSA/OLS. |
+
+## Simulation and summaries
+
+Generate small synthetic examples and convert common statistics.
+
+| | |
+| --- | --- |
+| [simulate_simple_dataset](simulate_simple_dataset.qmd#fmrimod.simulate_simple_dataset) | Simulate a simple multi-condition dataset with clean/noisy signals. |
+| [simulate_bold_signal](simulate_bold_signal.qmd#fmrimod.simulate_bold_signal) | Simulate condition-wise BOLD responses (compatibility helper). |
+| [simulate_noise_vector](simulate_noise_vector.qmd#fmrimod.simulate_noise_vector) | Simulate fMRI-like 1D noise with ARMA/drift/physiology components. |
+| [simulate_fmri_matrix](simulate_fmri_matrix.qmd#fmrimod.simulate_fmri_matrix) | Simulate a matrix_dataset-like object with event/noise metadata. |
+| [t_to_d](t_to_d.qmd#fmrimod.t_to_d) | Convert t-statistics to standardized effect sizes. |
+| [r_to_z](r_to_z.qmd#fmrimod.r_to_z) | Convert correlations to Fisher Z and variance. |
+| [z_to_r](z_to_r.qmd#fmrimod.z_to_r) | Back-transform Fisher Z values to correlations. |

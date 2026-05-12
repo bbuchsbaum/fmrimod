@@ -1,0 +1,7 @@
+# contrast_weights { #fmrimod.contrast_weights }
+
+```python
+contrast_weights(*args, **kwargs)
+```
+
+Compute contrast weights. See :func:`fmrimod.contrast.contrast_weights`.

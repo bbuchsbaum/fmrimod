@@ -1,0 +1,7 @@
+# hrf_formula { #fmrimod.hrf_formula }
+
+```python
+hrf_formula(*args, **kwargs)
+```
+
+HRF formula function. See :func:`fmrimod.formula.functional.hrf`.

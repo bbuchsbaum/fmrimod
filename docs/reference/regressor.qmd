@@ -1,0 +1,5 @@
+# regressor { #fmrimod.regressor }
+
+`regressor`
+
+Regressor module for fMRI event modeling.

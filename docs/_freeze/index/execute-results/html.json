@@ -1,0 +1,12 @@
+{
+  "hash": "8c2e115f0b4acdd1c736477c75c5575c",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\npagetitle: \"fmrimod\"\ntoc: false\nsidebar: false\npage-layout: full\njupyter: python3\n---\n\n::: {.hero}\n# fmrimod\n\n[fMRI signal modeling, from HRF specification to design matrices and regression.]{.lead}\n\n[Get started](get-started.qmd){.btn .btn-primary}\n[Browse the API](reference/index.qmd){.btn .btn-outline-secondary}\n:::\n\n## Why fmrimod?\n\n::: {.grid}\n\n::: {.g-col-12 .g-col-md-4}\n::: {.card .h-100 .p-3}\n### Unified\nBuild HRFs, event terms, design matrices, contrasts, GLMs, and single-trial models from one Python package.\n:::\n:::\n\n::: {.g-col-12 .g-col-md-4}\n::: {.card .h-100 .p-3}\n### Familiar\nUse NumPy and pandas inputs directly while keeping R-style fMRI formula workflows available.\n:::\n:::\n\n::: {.g-col-12 .g-col-md-4}\n::: {.card .h-100 .p-3}\n### Verifiable\nR parity fixtures and focused numerical tests keep design matrices, HRFs, and regression contracts explicit.\n:::\n:::\n\n:::\n\n## In 30 Seconds\n\n::: {#7f9ea678 .cell execution_count=1}\n``` {.python .cell-code}\nimport pandas as pd\nimport fmrimod as fm\n\nevents = pd.DataFrame({\n    \"onset\": [0, 12, 24, 36],\n    \"condition\": [\"face\", \"scene\", \"face\", \"scene\"],\n})\n\nsf = fm.SamplingFrame(blocklens=40, TR=1.0)\nmodel = fm.event_model(\n    'onset ~ hrf(condition, basis=\"spmg1\")',\n    data=events,\n    sampling_frame=sf,\n)\n\nmodel.design_matrix.shape\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n(40, 2)\n```\n:::\n:::\n\n\n[Read the full tutorial](get-started.qmd)\n\n",
+    "supporting": [
+      "index_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}

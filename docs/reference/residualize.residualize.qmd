@@ -1,0 +1,48 @@
+# residualize.residualize { #fmrimod.residualize.residualize }
+
+```python
+residualize.residualize(x, data, cols=None)
+```
+
+Residualize data by projecting out a design matrix.
+
+Computes ordinary-least-squares residuals:
+``residuals = data - Q @ Q.T @ data`` where ``Q`` comes from
+the thin QR decomposition of the design matrix.
+
+This is a generic function dispatching on the type of ``x``.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name   | Type                                                          | Description                                                                                                                                 | Default    |
+|--------|---------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| x      | numpy.ndarray, pandas.DataFrame, EventModel, or BaselineModel | Design matrix or model to project out. When an ``EventModel`` or ``BaselineModel`` is passed, the design matrix is extracted automatically. | _required_ |
+| data   | [array](`array`) - [like](`like`)                             | Observations to residualize. Shape ``(n_timepoints,)`` or ``(n_timepoints, n_signals)``.                                                    | _required_ |
+| cols   | list of int or list of str                                    | Subset of design columns to use. String names are supported for DataFrame and EventModel inputs.                                            | `None`     |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                                        | Description                                |
+|--------|---------------------------------------------|--------------------------------------------|
+|        | [numpy](`numpy`).[ndarray](`numpy.ndarray`) | Residuals with the same shape as ``data``. |
+
+## Raises {.doc-section .doc-section-raises}
+
+| Name   | Type                       | Description                                               |
+|--------|----------------------------|-----------------------------------------------------------|
+|        | [ValueError](`ValueError`) | If the number of rows in ``x`` and ``data`` do not match. |
+
+## Examples {.doc-section .doc-section-examples}
+
+```python
+>>> import numpy as np
+>>> X = np.column_stack([np.ones(100), np.random.randn(100)])
+>>> y = np.random.randn(100)
+>>> resid = residualize(X, y)
+>>> resid.shape
+(100, 1)
+```
+
+## See Also {.doc-section .doc-section-see-also}
+
+validate_contrasts : Validate contrast estimability.

@@ -1,0 +1,8 @@
+# contrast { #fmrimod.contrast }
+
+`contrast`
+
+Contrast specification and computation for fMRI design matrices.
+
+This module provides tools for defining and computing statistical contrasts
+for hypothesis testing in fMRI analyses.

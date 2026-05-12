@@ -1,0 +1,74 @@
+---
+title: "Get started"
+subtitle: "From event timings to a usable fMRI design matrix."
+jupyter: python3
+---
+
+## Install
+
+```bash
+pip install fmrimod
+```
+
+For local development from this checkout:
+
+```bash
+pip install -e .
+```
+
+## The 30-Second Tour
+
+Start with an event table and a sampling frame. The event table stores
+experimental timing; the sampling frame defines the acquired time grid.
+
+```{python}
+import pandas as pd
+import fmrimod as fm
+from fmrimod.design_colmap import design_colmap
+
+events = pd.DataFrame({
+    "onset": [0, 12, 24, 36],
+    "condition": ["face", "scene", "face", "scene"],
+})
+
+sf = fm.SamplingFrame(blocklens=40, TR=1.0)
+```
+
+Use a formula to turn those events into task regressors. This example creates
+one canonical SPM HRF regressor per condition.
+
+```{python}
+model = fm.event_model(
+    'onset ~ hrf(condition, basis="spmg1")',
+    data=events,
+    sampling_frame=sf,
+)
+
+model.column_names
+```
+
+The resulting matrix has one row per acquired sample and one column per model
+regressor.
+
+```{python}
+design = model.design_matrix
+design.shape
+```
+
+## What Just Happened
+
+`SamplingFrame` defines the time axis, `event_model()` parses the formula and
+constructs event terms, and `design_matrix` holds the convolved regressors ready
+for downstream GLM fitting.
+
+You can inspect the design surface with the same top-level API:
+
+```{python}
+colmap = design_colmap(model)
+colmap[["col", "name", "role", "model_source"]]
+```
+
+## Next Steps
+
+- [Tutorial: design matrices](tutorials/design-matrices.qmd)
+- [API reference](reference/index.qmd)

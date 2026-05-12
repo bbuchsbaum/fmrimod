@@ -1,0 +1,7 @@
+# estimate_single_trial { #fmrimod.estimate_single_trial }
+
+```python
+estimate_single_trial(*args, **kwargs)
+```
+
+Estimate single-trial betas. See :func:`fmrimod.single.estimate_single_trial`.

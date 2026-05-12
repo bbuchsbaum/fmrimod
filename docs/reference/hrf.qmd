@@ -1,0 +1,5 @@
+# hrf { #fmrimod.hrf }
+
+`hrf`
+
+HRF module.

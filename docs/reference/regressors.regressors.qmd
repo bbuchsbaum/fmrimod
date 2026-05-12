@@ -1,0 +1,60 @@
+# regressors.regressors { #fmrimod.regressors.regressors }
+
+```python
+regressors.regressors(
+    model,
+    term=None,
+    include_baseline=True,
+    as_dict=False,
+    hrf=None,
+    sampling_frame=None,
+    precision=0.3,
+)
+```
+
+Extract regressors from an event model or event term.
+
+This function extracts specific regressors or groups of regressors
+from an EventModel's design matrix, or convolves a single EventTerm
+with an HRF and sampling frame.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name             | Type                                                                              | Description                                                                                                                                                                                                                            | Default    |
+|------------------|-----------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| model            | [EventModel](`fmrimod.design.event_model.EventModel`) or [EventTerm](`EventTerm`) | The event model containing the design matrix, or an EventTerm to convolve with an HRF                                                                                                                                                  | _required_ |
+| term             | str, regex pattern, list of str                                                   | Term name(s) or pattern to match columns (EventModel only): - None: return all regressors - str: return columns matching this term name - regex Pattern: return columns matching pattern - list of str: return columns for these terms | `None`     |
+| include_baseline | [bool](`bool`)                                                                    | Whether to include baseline/nuisance regressors                                                                                                                                                                                        | `True`     |
+| as_dict          | [bool](`bool`)                                                                    | If True, return dict mapping column names to arrays. If False, return DataFrame or array.                                                                                                                                              | `False`    |
+| hrf              | HRF object or str                                                                 | HRF to use for convolution (EventTerm only). Defaults to SPM canonical.                                                                                                                                                                | `None`     |
+| sampling_frame   | [SamplingFrame](`fmrimod.sampling.SamplingFrame`)                                 | Sampling frame for convolution (required for EventTerm)                                                                                                                                                                                | `None`     |
+| precision        | [float](`float`)                                                                  | Temporal precision for HRF convolution (EventTerm only)                                                                                                                                                                                | `0.3`      |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                           | Description                                                |
+|--------|--------------------------------|------------------------------------------------------------|
+|        | array-like, DataFrame, or dict | Extracted regressors. Format depends on as_dict parameter. |
+
+## Examples {.doc-section .doc-section-examples}
+
+```python
+>>> # Get all regressors as DataFrame
+>>> all_regs = regressors(model)
+>>>
+>>> # Get specific term's regressors
+>>> visual_regs = regressors(model, term='visual')
+>>>
+>>> # Get multiple terms
+>>> task_regs = regressors(model, term=['visual', 'motor'])
+>>>
+>>> # Use regex pattern
+>>> import re
+>>> condition_regs = regressors(model, term=re.compile(r'cond_.*'))
+>>>
+>>> # Get as dictionary
+>>> reg_dict = regressors(model, as_dict=True)
+>>>
+>>> # Exclude baseline regressors
+>>> event_regs = regressors(model, include_baseline=False)
+```

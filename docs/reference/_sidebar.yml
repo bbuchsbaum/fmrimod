@@ -1,0 +1,53 @@
+website:
+  sidebar:
+  - contents:
+    - reference/index.qmd
+    - contents:
+      - reference/SamplingFrame.qmd
+      - reference/event_model.qmd
+      - reference/design_matrix.qmd
+      - reference/design_colmap.design_colmap.qmd
+      - reference/event_factor.qmd
+      - reference/event_variable.qmd
+      - reference/event_matrix.qmd
+      - reference/event_term.qmd
+      section: Design and events
+    - contents:
+      - reference/hrf.qmd
+      - reference/hrf_formula.qmd
+      - reference/convolve.convolve.qmd
+      - reference/convolve_design.qmd
+      - reference/regressor.qmd
+      - reference/regressors.regressors.qmd
+      - reference/trialwise.trialwise.qmd
+      section: HRFs and regressors
+    - contents:
+      - reference/contrast.qmd
+      - reference/contrast_weights.qmd
+      - reference/Fcontrasts.qmd
+      - reference/validate.validate_contrasts.qmd
+      - reference/validate.check_collinearity.qmd
+      - reference/residualize.residualize.qmd
+      section: Contrasts and validation
+    - contents:
+      - reference/fmri_lm.qmd
+      - reference/fmri_ols_fit.qmd
+      - reference/compute_lm_contrasts.qmd
+      - reference/estimate_betas.qmd
+      - reference/glm_ols.qmd
+      - reference/glm_lss.qmd
+      - reference/estimate_single_trial.qmd
+      - reference/lss_single_trial.qmd
+      - reference/lsa_single_trial.qmd
+      section: GLM and single-trial models
+    - contents:
+      - reference/simulate_simple_dataset.qmd
+      - reference/simulate_bold_signal.qmd
+      - reference/simulate_noise_vector.qmd
+      - reference/simulate_fmri_matrix.qmd
+      - reference/t_to_d.qmd
+      - reference/r_to_z.qmd
+      - reference/z_to_r.qmd
+      section: Simulation and summaries
+    id: reference
+  - id: dummy-sidebar

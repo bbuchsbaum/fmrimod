@@ -1,0 +1,7 @@
+# fmri_ols_fit { #fmrimod.fmri_ols_fit }
+
+```python
+fmri_ols_fit(*args, **kwargs)
+```
+
+Fit matrix OLS and return beta, SE, and t summaries.

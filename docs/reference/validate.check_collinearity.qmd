@@ -1,0 +1,38 @@
+# validate.check_collinearity { #fmrimod.validate.check_collinearity }
+
+```python
+validate.check_collinearity(X, threshold=0.9)
+```
+
+Check a design matrix for multicollinearity.
+
+Computes the pairwise Pearson correlation between all non-intercept,
+non-zero-variance columns and flags pairs whose absolute correlation
+exceeds the threshold.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name      | Type                                           | Description                                                                                                              | Default    |
+|-----------|------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------|------------|
+| X         | EventModel, numpy.ndarray, or pandas.DataFrame | Design matrix to check. Intercept-like columns (named ``'Intercept'``, ``'constant'``, etc.) are automatically excluded. | _required_ |
+| threshold | [float](`float`)                               | Absolute correlation above which a pair is flagged as collinear.                                                         | `0.9`      |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type           | Description                                                                                                                                                                    |
+|--------|----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|        | [dict](`dict`) | ``{'ok': bool, 'pairs': DataFrame}`` where ``ok`` is True when no pair exceeds the threshold. The ``pairs`` DataFrame has columns ``regressor_1``, ``regressor_2``, and ``r``. |
+
+## Examples {.doc-section .doc-section-examples}
+
+```python
+>>> import numpy as np
+>>> X = np.column_stack([np.arange(100), np.arange(100) + 0.1])
+>>> result = check_collinearity(X, threshold=0.99)
+>>> result['ok']
+False
+```
+
+## See Also {.doc-section .doc-section-see-also}
+
+validate_contrasts : Validate contrast estimability.

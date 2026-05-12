@@ -1,0 +1,7 @@
+# lsa_single_trial { #fmrimod.lsa_single_trial }
+
+```python
+lsa_single_trial(*args, **kwargs)
+```
+
+Estimate single-trial betas with LSA/OLS.

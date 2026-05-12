@@ -1,0 +1,7 @@
+# estimate_betas { #fmrimod.estimate_betas }
+
+```python
+estimate_betas(*args, **kwargs)
+```
+
+Estimate trial-wise betas. See :func:`fmrimod.betas.extraction.estimate_betas`.

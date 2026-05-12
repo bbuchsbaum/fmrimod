@@ -1,0 +1,7 @@
+# event_term { #fmrimod.event_term }
+
+```python
+event_term(*events, **kwargs)
+```
+
+Construct an event term from one or more events.

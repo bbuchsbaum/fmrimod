@@ -1,0 +1,46 @@
+# validate.validate_contrasts { #fmrimod.validate.validate_contrasts }
+
+```python
+validate.validate_contrasts(x, weights=None, tol=1e-08)
+```
+
+Validate contrast weights against a design matrix or event model.
+
+Performs several diagnostic checks on each contrast vector:
+
+- **Estimability**: whether the contrast lies in the column space
+  of the design matrix.
+- **Sum-to-zero**: whether the weights sum to zero (within ``tol``).
+- **Intercept orthogonality**: whether the contrast has zero weight
+  on intercept-like columns.
+- **Full rank** (F-contrasts only): whether the contrast matrix
+  has full column rank.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name    | Type                                           | Description                                                                                                                                                                                                                                                        | Default    |
+|---------|------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| x       | EventModel, numpy.ndarray, or pandas.DataFrame | Design matrix or event model containing a design matrix.                                                                                                                                                                                                           | _required_ |
+| weights | array-like, dict, or None                      | Contrast weights to validate. Accepted formats:  - ``None``: if ``x`` is an ``EventModel``, validates all   attached contrasts. - ``numpy.ndarray`` or ``list``: a single contrast vector   or matrix. - ``dict``: maps contrast names to weight vectors/matrices. | `None`     |
+| tol     | [float](`float`)                               | Numerical tolerance for zero checks.                                                                                                                                                                                                                               | `1e-8`     |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                                               | Description                                                                                                                                                   |
+|--------|----------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|        | [pandas](`pandas`).[DataFrame](`pandas.DataFrame`) | One row per contrast column with fields: ``name``, ``type``, ``estimable``, ``sum_to_zero``, ``orthogonal_to_intercept``, ``full_rank``, ``nonzero_weights``. |
+
+## Examples {.doc-section .doc-section-examples}
+
+```python
+>>> import numpy as np
+>>> X = np.column_stack([np.ones(100), np.random.randn(100, 2)])
+>>> w = np.array([0, 1, -1])
+>>> result = validate_contrasts(X, weights=w)
+>>> result['estimable'].iloc[0]
+True
+```
+
+## See Also {.doc-section .doc-section-see-also}
+
+check_collinearity : Check design matrix for multicollinearity.

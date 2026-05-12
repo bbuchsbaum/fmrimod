@@ -1,0 +1,7 @@
+# design_matrix { #fmrimod.design_matrix }
+
+```python
+design_matrix(*args, **kwargs)
+```
+
+Assemble a design matrix. See :func:`fmrimod.design.design_matrix.design_matrix`.

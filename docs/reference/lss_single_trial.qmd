@@ -1,0 +1,7 @@
+# lss_single_trial { #fmrimod.lss_single_trial }
+
+```python
+lss_single_trial(*args, **kwargs)
+```
+
+Estimate single-trial betas with vectorized LSS.

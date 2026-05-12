@@ -1,0 +1,62 @@
+quartodoc:
+  package: fmrimod
+  style: pkgdown
+  dir: reference
+  title: "API reference"
+  render_interlinks: true
+  options:
+    include_inherited: true
+  sidebar: reference/_sidebar.yml
+  sections:
+    - title: "Design and events"
+      desc: "Build event terms and design matrices from fMRI timing tables."
+      contents:
+        - SamplingFrame
+        - event_model
+        - design_matrix
+        - design_colmap.design_colmap
+        - event_factor
+        - event_variable
+        - event_matrix
+        - event_term
+    - title: "HRFs and regressors"
+      desc: "Specify HRFs and convolve event timing into regressors."
+      contents:
+        - hrf
+        - hrf_formula
+        - convolve.convolve
+        - convolve_design
+        - regressor
+        - regressors.regressors
+        - trialwise.trialwise
+    - title: "Contrasts and validation"
+      desc: "Create contrast weights and validate design-matrix structure."
+      contents:
+        - contrast
+        - contrast_weights
+        - Fcontrasts
+        - validate.validate_contrasts
+        - validate.check_collinearity
+        - residualize.residualize
+    - title: "GLM and single-trial models"
+      desc: "Fit GLMs and estimate trial-wise responses."
+      contents:
+        - fmri_lm
+        - fmri_ols_fit
+        - compute_lm_contrasts
+        - estimate_betas
+        - glm_ols
+        - glm_lss
+        - estimate_single_trial
+        - lss_single_trial
+        - lsa_single_trial
+    - title: "Simulation and summaries"
+      desc: "Generate small synthetic examples and convert common statistics."
+      contents:
+        - simulate_simple_dataset
+        - simulate_bold_signal
+        - simulate_noise_vector
+        - simulate_fmri_matrix
+        - t_to_d
+        - r_to_z
+        - z_to_r

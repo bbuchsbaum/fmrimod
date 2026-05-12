@@ -1,0 +1,39 @@
+# design_colmap.design_colmap { #fmrimod.design_colmap.design_colmap }
+
+```python
+design_colmap.design_colmap(x)
+```
+
+Get structured column metadata for a design matrix.
+
+Returns a DataFrame with one row per regressor column, providing
+rich metadata about each column's origin, role, basis function
+membership, and display properties.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name   | Type                                                           | Description                       | Default    |
+|--------|----------------------------------------------------------------|-----------------------------------|------------|
+| x      | [EventModel](`EventModel`) or [BaselineModel](`BaselineModel`) | Model containing a design matrix. | _required_ |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                                               | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+|--------|----------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|        | [pandas](`pandas`).[DataFrame](`pandas.DataFrame`) | DataFrame with the following columns:  - ``col`` : int -- 1-based column index. - ``name`` : str -- Column name in the design matrix. - ``term_tag`` : str or None -- Term tag this column belongs to. - ``term_index`` : int or None -- 1-based term index. - ``condition`` : str -- Condition label (term tag stripped). - ``run`` : int or None -- Run index (if block-diagonal). - ``role`` : str -- ``'task'``, ``'intercept'``, ``'drift'``,   ``'nuisance'``, or ``'baseline'``. - ``model_source`` : str -- ``'event'`` or ``'baseline'``. - ``basis_name`` : str or None -- HRF/basis name. - ``basis_ix`` : int or None -- 1-based basis index. - ``basis_total`` : int or None -- Total basis functions. - ``basis_label`` : str or None -- Human-readable basis label   (e.g., ``'canonical'``, ``'derivative'``). - ``pretty_name`` : str -- Display-friendly column name. - ``is_block_diagonal`` : bool -- Whether the column is   block-diagonal (non-zero in only one run). - ``modulation_type`` : str or None -- Modulation type. - ``modulation_id`` : str or None -- Modulation identifier. |
+
+## Raises {.doc-section .doc-section-raises}
+
+| Name   | Type                     | Description                                             |
+|--------|--------------------------|---------------------------------------------------------|
+|        | [TypeError](`TypeError`) | If ``x`` is not an ``EventModel`` or ``BaselineModel``. |
+
+## Examples {.doc-section .doc-section-examples}
+
+```python
+>>> cmap = design_colmap(model)
+>>> cmap[['name', 'term_tag', 'role']].head()
+   name     term_tag  role
+0  cond.A   cond      task
+1  cond.B   cond      task
+```

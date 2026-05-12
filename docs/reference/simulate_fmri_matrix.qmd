@@ -1,0 +1,7 @@
+# simulate_fmri_matrix { #fmrimod.simulate_fmri_matrix }
+
+```python
+simulate_fmri_matrix(*args, **kwargs)
+```
+
+Simulate a matrix_dataset-like object with event/noise metadata.

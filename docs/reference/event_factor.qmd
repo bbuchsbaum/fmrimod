@@ -1,0 +1,7 @@
+# event_factor { #fmrimod.event_factor }
+
+```python
+event_factor(*args, **kwargs)
+```
+
+Construct a categorical event factor.

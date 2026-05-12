@@ -1,0 +1,69 @@
+# trialwise.trialwise { #fmrimod.trialwise.trialwise }
+
+```python
+trialwise.trialwise(
+    basis='spmg1',
+    lag=0.0,
+    nbasis=1,
+    add_sum=False,
+    label='trial',
+    durations=None,
+    normalize=False,
+)
+```
+
+Generate one regressor per trial (plus an optional grand-mean column).
+
+Use it only on the RHS of an event-model formula:
+
+    event_model("onset ~ trialwise(basis='spmg1', add_sum=True)", data)
+
+This creates individual regressors for each trial/event in the data,
+allowing for single-trial analysis. Each trial gets its own column
+in the design matrix.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name      | Type                   | Description                                                                                                                            | Default   |
+|-----------|------------------------|----------------------------------------------------------------------------------------------------------------------------------------|-----------|
+| basis     | str or HRF object      | The hemodynamic response function or name of pre-supplied function. Options: "gamma", "spmg1", "spmg2", "spmg3", "bspline", "gaussian" | `"spmg1"` |
+| lag       | [float](`float`)       | Temporal offset in seconds added to onset before convolution                                                                           | `0.0`     |
+| nbasis    | [int](`int`)           | Number of basis functions (for HRFs that support variable bases)                                                                       | `1`       |
+| add_sum   | [bool](`bool`)         | If True, append a column that is the average of all trialwise columns. This serves as a conventional main effect regressor.            | `False`   |
+| label     | [str](`str`)           | Term label/prefix for the generated columns                                                                                            | `"trial"` |
+| durations | [optional](`optional`) | Duration specification (column name, float, or array). Passed to hrf().                                                                | `None`    |
+| normalize | [bool](`bool`)         | Peak-normalize each regressor column. Passed to hrf().                                                                                 | `False`   |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                           | Description                                          |
+|--------|--------------------------------|------------------------------------------------------|
+|        | [Term](`fmrimod.formula.Term`) | A Term object configured for single-trial regressors |
+
+## Examples {.doc-section .doc-section-examples}
+
+```python
+>>> # Basic single-trial model
+>>> model = event_model("onset ~ trialwise()", data)
+>>>
+>>> # Single-trial with grand mean
+>>> model = event_model("onset ~ trialwise(add_sum=True)", data)
+>>>
+>>> # Custom HRF for single trials
+>>> model = event_model("onset ~ trialwise(basis='spmg3')", data)
+>>>
+>>> # With durations and normalization
+>>> model = event_model("onset ~ trialwise(durations='duration', normalize=True)", data)
+>>>
+>>> # Combined with other terms
+>>> model = event_model("onset ~ hrf(condition) + trialwise()", data)
+```
+
+## Notes {.doc-section .doc-section-notes}
+
+The trialwise() function works by creating a special EventFactor that
+generates unique levels for each trial. This is then processed through
+the standard HRF convolution pipeline.
+
+When add_sum=True, an additional column is added that represents the
+average activation across all trials, useful for group-level analyses.

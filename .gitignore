@@ -25,6 +25,9 @@ coverage.xml
 uv.lock
 cross_testing/reports/
 docs/_build/
+docs/_site/
+docs/.quarto/
+.jupyter_cache/
 fitlins/
 worker_agent.md
 .mote/

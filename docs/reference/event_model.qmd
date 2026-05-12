@@ -1,0 +1,7 @@
+# event_model { #fmrimod.event_model }
+
+```python
+event_model(*args, **kwargs)
+```
+
+Create an EventModel. See :func:`fmrimod.design.event_model.event_model`.

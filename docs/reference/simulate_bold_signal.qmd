@@ -1,0 +1,7 @@
+# simulate_bold_signal { #fmrimod.simulate_bold_signal }
+
+```python
+simulate_bold_signal(*args, **kwargs)
+```
+
+Simulate condition-wise BOLD responses (compatibility helper).

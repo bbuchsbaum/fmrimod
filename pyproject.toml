@@ -83,6 +83,11 @@ nibabel = [
     "nibabel>=4.0.0",
 ]
 docs = [
+    "quartodoc>=0.7",
+    "jupyter",
+    "ipykernel",
+    "nbformat",
+    "nbclient",
     "sphinx>=7.0.0",
     "pydata-sphinx-theme>=0.15",
     "sphinx-copybutton>=0.5",

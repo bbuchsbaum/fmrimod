@@ -1,0 +1,66 @@
+---
+title: "Build a design matrix"
+subtitle: "Model event timing with HRFs and inspect the generated regressors."
+jupyter: python3
+---
+
+## Create Events
+
+```{python}
+import pandas as pd
+import fmrimod as fm
+from fmrimod.design_colmap import design_colmap
+
+events = pd.DataFrame({
+    "onset": [0, 8, 16, 24, 32, 40],
+    "condition": ["face", "scene", "face", "scene", "face", "scene"],
+    "response_time": [0.8, 1.1, 0.7, 0.9, 1.0, 1.2],
+})
+events
+```
+
+## Define the Acquisition Grid
+
+```{python}
+sf = fm.SamplingFrame(blocklens=60, TR=1.0)
+sf.samples[:8]
+```
+
+## Build the Model
+
+The formula below creates condition-specific canonical HRF regressors. The
+result is an event model with a concrete design matrix and column metadata.
+
+```{python}
+model = fm.event_model(
+    'onset ~ hrf(condition, basis="spmg1")',
+    data=events,
+    sampling_frame=sf,
+)
+
+model.design_matrix.shape
+```
+
+```{python}
+model.column_names
+```
+
+## Inspect Column Metadata
+
+```{python}
+design_colmap(model)[["col", "name", "condition", "role", "basis_name"]]
+```
+
+## Add a Parametric Modulator
+
+Continuous variables can enter the formula as event-level covariates.
+
+```{python}
+modulated = fm.event_model(
+    'onset ~ hrf(condition, basis="spmg1") + hrf(response_time, basis="spmg1")',
+    data=events,
+    sampling_frame=sf,
+)
+
+modulated.design_matrix.shape
+```

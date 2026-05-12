@@ -1,0 +1,7 @@
+# simulate_noise_vector { #fmrimod.simulate_noise_vector }
+
+```python
+simulate_noise_vector(*args, **kwargs)
+```
+
+Simulate fMRI-like 1D noise with ARMA/drift/physiology components.

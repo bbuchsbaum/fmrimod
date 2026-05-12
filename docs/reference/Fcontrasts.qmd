@@ -1,0 +1,7 @@
+# Fcontrasts { #fmrimod.Fcontrasts }
+
+```python
+Fcontrasts(*args, **kwargs)
+```
+
+Create F-contrasts. See :func:`fmrimod.contrast.Fcontrasts`.

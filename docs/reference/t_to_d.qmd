@@ -1,0 +1,7 @@
+# t_to_d { #fmrimod.t_to_d }
+
+```python
+t_to_d(*args, **kwargs)
+```
+
+Convert t-statistics to standardized effect sizes.

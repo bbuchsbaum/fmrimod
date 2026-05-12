@@ -1,0 +1,7 @@
+# event_variable { #fmrimod.event_variable }
+
+```python
+event_variable(*args, **kwargs)
+```
+
+Construct a continuous event variable.

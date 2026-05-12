@@ -1,0 +1,7 @@
+# fmri_lm { #fmrimod.fmri_lm }
+
+```python
+fmri_lm(*args, **kwargs)
+```
+
+Fit a GLM to fMRI data. See :func:`fmrimod.glm.fmri_lm.fmri_lm`.

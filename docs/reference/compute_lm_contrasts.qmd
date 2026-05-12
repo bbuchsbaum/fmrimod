@@ -1,0 +1,7 @@
+# compute_lm_contrasts { #fmrimod.compute_lm_contrasts }
+
+```python
+compute_lm_contrasts(*args, **kwargs)
+```
+
+Compute t/F contrast statistics from fitted GLM matrices.

@@ -1,0 +1,117 @@
+# convolve_design { #fmrimod.convolve_design }
+
+`convolve_design`
+
+Design matrix convolution functionality.
+
+This module provides :func:`convolve_design` for convolving an existing
+design matrix (or ``EventModel``) with an HRF, and
+:func:`convolve_regressors` for convolving a dictionary of named
+regressors. These are useful when you have a pre-built matrix and want
+to apply (or re-apply) HRF convolution as a post-processing step.
+
+## Functions
+
+| Name | Description |
+| --- | --- |
+| [convolve_design](#fmrimod.convolve_design.convolve_design) | Convolve a design matrix with a hemodynamic response function. |
+| [convolve_regressors](#fmrimod.convolve_design.convolve_regressors) | Convolve a dictionary of regressors with an HRF. |
+
+### convolve_design { #fmrimod.convolve_design.convolve_design }
+
+```python
+convolve_design.convolve_design(
+    design_matrix,
+    hrf='spmg1',
+    sampling_rate=None,
+    time_points=None,
+    column_names=None,
+    normalize=False,
+    **hrf_kwargs,
+)
+```
+
+Convolve a design matrix with a hemodynamic response function.
+
+This function takes an existing design matrix and convolves each column
+with the specified HRF. Useful for applying HRF convolution to matrices
+that were constructed without convolution, or for applying different
+HRFs to different parts of a design.
+
+#### Parameters {.doc-section .doc-section-parameters}
+
+| Name          | Type                                 | Description                                                                                                                                                                | Default    |
+|---------------|--------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| design_matrix | array-like, DataFrame, or EventModel | The design matrix to convolve. Can be: - NumPy array (n_timepoints x n_regressors) - pandas DataFrame with regressors as columns - EventModel (will extract design matrix) | _required_ |
+| hrf           | str, dict, or HRF object             | HRF specification: - String name: "spmg1", "spmg2", "spmg3", "gamma", etc. - Dict with 'name' and parameters - HRF object from fmrimod                                     | `"spmg1"`  |
+| sampling_rate | [float](`float`)                     | Sampling rate in seconds. Required if design_matrix is array. Extracted automatically from DataFrame or EventModel.                                                        | `None`     |
+| time_points   | [array](`array`) - [like](`like`)    | Time points for the design matrix rows. If None, generated from sampling_rate.                                                                                             | `None`     |
+| column_names  | list of str                          | Names for the columns (used when returning DataFrame). Extracted automatically from DataFrame or EventModel.                                                               | `None`     |
+| normalize     | [bool](`bool`)                       | If True, peak-normalize each column after convolution so that max(abs(col)) == 1.                                                                                          | `False`    |
+| **hrf_kwargs  |                                      | Additional keyword arguments passed to HRF function                                                                                                                        | `{}`       |
+
+#### Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                                                          | Description                                                        |
+|--------|---------------------------------------------------------------|--------------------------------------------------------------------|
+|        | [array](`array`) - [like](`like`) or [DataFrame](`DataFrame`) | Convolved design matrix. Returns same type as input when possible. |
+
+#### Examples {.doc-section .doc-section-examples}
+
+```python
+>>> # Convolve existing design matrix with SPM canonical HRF
+>>> X_conv = convolve_design(X, hrf='spmg1', sampling_rate=2.0)
+>>>
+>>> # Use custom HRF parameters
+>>> X_conv = convolve_design(X, hrf='gamma', shape=6, scale=1)
+>>>
+>>> # Apply to EventModel
+>>> model_conv = convolve_design(model, hrf='spmg3')
+```
+
+#### Notes {.doc-section .doc-section-notes}
+
+The convolution is performed using the same method as in EventModel,
+ensuring consistency across the package. Zero-padding is used to
+maintain the original matrix dimensions.
+
+### convolve_regressors { #fmrimod.convolve_design.convolve_regressors }
+
+```python
+convolve_design.convolve_regressors(
+    regressors,
+    hrf='spmg1',
+    sampling_rate=1.0,
+    **hrf_kwargs,
+)
+```
+
+Convolve a dictionary of regressors with an HRF.
+
+Convenience function for convolving multiple named regressors
+stored in a dictionary.
+
+#### Parameters {.doc-section .doc-section-parameters}
+
+| Name          | Type                     | Description                                              | Default    |
+|---------------|--------------------------|----------------------------------------------------------|------------|
+| regressors    | [dict](`dict`)           | Dictionary mapping regressor names to time series arrays | _required_ |
+| hrf           | str, dict, or HRF object | HRF specification                                        | `"spmg1"`  |
+| sampling_rate | [float](`float`)         | Sampling rate in seconds                                 | `1.0`      |
+| **hrf_kwargs  |                          | Additional HRF parameters                                | `{}`       |
+
+#### Returns {.doc-section .doc-section-returns}
+
+| Name   | Type           | Description                                               |
+|--------|----------------|-----------------------------------------------------------|
+|        | [dict](`dict`) | Dictionary with same keys, convolved regressors as values |
+
+#### Examples {.doc-section .doc-section-examples}
+
+```python
+>>> regressors = {
+...     'visual': visual_regressor,
+...     'motor': motor_regressor
+... }
+>>> conv_regressors = convolve_regressors(regressors, hrf='spmg1', sampling_rate=2.0)
+```

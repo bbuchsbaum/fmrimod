@@ -1,0 +1,27 @@
+---
+title: "Tutorials"
+subtitle: "Task-focused guides for fMRI modeling workflows."
+---
+
+Start with the design-matrix tutorial, then move to the API reference for
+specific functions and classes.
+
+::: {.grid}
+
+::: {.g-col-12 .g-col-md-6}
+::: {.card .h-100 .p-3}
+### [Build a design matrix](design-matrices.qmd)
+Create condition-specific HRF regressors from an event table and inspect the
+resulting column metadata.
+:::
+:::
+
+::: {.g-col-12 .g-col-md-6}
+::: {.card .h-100 .p-3}
+### [API reference](../reference/index.qmd)
+Look up the main event, HRF, contrast, GLM, and single-trial APIs generated
+from Python docstrings.
+:::
+:::
+
+:::
