@@ -8,7 +8,7 @@ the original.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional, Tuple
 
 import numpy as np
@@ -48,6 +48,24 @@ class PrewhitenConfig:
     parcels: Optional[NDArray] = None
     exact_first: str = "ar1"
 
+    def __post_init__(self) -> None:
+        if self.method not in {"ar", "arma", "none"}:
+            raise ValueError("method must be one of: ar, arma, none")
+        if self.pooling not in {"global", "voxel", "run", "parcel"}:
+            raise ValueError("pooling must be one of: global, voxel, run, parcel")
+        if self.exact_first not in {"ar1", "none"}:
+            raise ValueError("exact_first must be one of: ar1, none")
+        if self.p != "auto":
+            if int(self.p) != self.p or int(self.p) < 0:
+                raise ValueError("p must be a non-negative integer or 'auto'")
+            self.p = int(self.p)
+        if int(self.q) != self.q or self.q < 0:
+            raise ValueError("q must be a non-negative integer")
+        if int(self.p_max) != self.p_max or self.p_max < 1:
+            raise ValueError("p_max must be a positive integer")
+        self.q = int(self.q)
+        self.p_max = int(self.p_max)
+
 
 def prewhiten_matrices(
     Y: NDArray[np.float64],
@@ -68,13 +86,11 @@ def prewhiten_matrices(
     -------
     Y_w, X_w, confounds_w : whitened versions
     """
-    from ..ar.estimation import estimate_ar, fit_noise
+    from ..ar.estimation import estimate_ar
     from ..ar.whitening import ar_whiten, ar_whiten_matrix
 
     if config.method == "none":
         return Y, X, confounds
-
-    n = Y.shape[0]
 
     # Step 1: OLS residuals for AR estimation
     # Build full design for residual computation

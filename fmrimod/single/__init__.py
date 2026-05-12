@@ -119,12 +119,12 @@ def estimate_single_trial(
         Y, X, confounds = prewhiten_matrices(Y, X, confounds, prewhiten)
 
     method_enum = SingleTrialMethod(method)
-    if method_enum is not SingleTrialMethod.LSS and (
+    if method_enum not in {SingleTrialMethod.LSS, SingleTrialMethod.LSA} and (
         baseline_regressors is not None or include_intercept
     ):
         raise ValueError(
             "baseline_regressors and include_intercept are currently supported "
-            "only for method='lss'."
+            "only for method='lss' or method='lsa'."
         )
 
     if method_enum is SingleTrialMethod.LSS:
@@ -145,6 +145,8 @@ def estimate_single_trial(
             confounds=confounds,
             return_se=return_se,
             trial_labels=trial_labels,
+            baseline_regressors=baseline_regressors,
+            include_intercept=include_intercept,
         )
 
     if method_enum is SingleTrialMethod.OASIS:

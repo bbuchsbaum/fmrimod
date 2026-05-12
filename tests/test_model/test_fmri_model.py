@@ -183,6 +183,31 @@ class TestTopLevelGlmWrappers:
         assert result.betas.shape == (n_trials, n_voxels)
         assert result.residual_df == n - 2 - 2
 
+    def test_glm_ols_supports_fmrilss_baseline_regressors(self):
+        rng = np.random.default_rng(456)
+        n, n_trials, n_voxels = 60, 4, 3
+        trial_regressors = rng.standard_normal((n, n_trials))
+        baseline = np.column_stack([np.ones(n), np.linspace(-1.0, 1.0, n)])
+        y = (
+            trial_regressors @ rng.standard_normal((n_trials, n_voxels))
+            + baseline @ rng.standard_normal((2, n_voxels))
+            + rng.standard_normal((n, n_voxels)) * 0.05
+        )
+
+        result = fmrimod.glm_ols(
+            trial_regressors,
+            y,
+            baseline_regressors=baseline,
+        )
+        expected = np.linalg.lstsq(
+            np.column_stack([trial_regressors, baseline]),
+            y,
+            rcond=None,
+        )[0][:n_trials]
+
+        assert result.betas.shape == (n_trials, n_voxels)
+        np.testing.assert_allclose(result.betas, expected, atol=1e-10)
+
     @pytest.mark.parametrize("call_fn", [fmrimod.glm_ols, fmrimod.glm_lss])
     def test_glm_wrappers_accept_deprecated_progress_kwarg(self, call_fn):
         trial_regressors = np.eye(4)

@@ -115,6 +115,8 @@ def estimate_betas_ols(
     trial_regressors: NDArray[np.float64],
     Y: NDArray[np.float64],
     confounds: Optional[NDArray[np.float64]] = None,
+    baseline_regressors: Optional[NDArray[np.float64]] = None,
+    include_intercept: bool = False,
 ) -> BetaResult:
     """Estimate trial-wise betas via standard OLS.
 
@@ -122,7 +124,13 @@ def estimate_betas_ols(
     """
     from ..single.lsa import lsa_single_trial
 
-    result = lsa_single_trial(Y, trial_regressors, confounds=confounds)
+    result = lsa_single_trial(
+        Y,
+        trial_regressors,
+        confounds=confounds,
+        baseline_regressors=baseline_regressors,
+        include_intercept=include_intercept,
+    )
     br = BetaResult.from_single_trial_result(result)
     br.method = "ols"  # preserve legacy method name
     return br
@@ -206,16 +214,14 @@ def estimate_betas(
     BetaResult
     """
     method_enum = BetaMethod(method)
-    if method_enum is not BetaMethod.LSS and (
-        baseline_regressors is not None or include_intercept
-    ):
-        raise ValueError(
-            "baseline_regressors and include_intercept are currently supported "
-            "only for method='lss'."
-        )
-
     if method_enum is BetaMethod.OLS:
-        result = estimate_betas_ols(trial_regressors, Y, confounds)
+        result = estimate_betas_ols(
+            trial_regressors,
+            Y,
+            confounds,
+            baseline_regressors=baseline_regressors,
+            include_intercept=include_intercept,
+        )
     elif method_enum is BetaMethod.LSS:
         result = estimate_betas_lss(
             trial_regressors,

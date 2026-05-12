@@ -84,6 +84,73 @@ class TestOasisK1:
                                     trial_labels=labels)
         assert result.trial_labels == labels
 
+    def test_small_block_cols_matches_large_block_cols(self, rng):
+        n, T, V = 90, 7, 11
+        X = rng.standard_normal((n, T))
+        Y = rng.standard_normal((n, V))
+
+        small = oasis_single_trial(Y, X, config=OasisConfig(K=1, block_cols=3))
+        large = oasis_single_trial(Y, X, config=OasisConfig(K=1, block_cols=1000))
+
+        assert_allclose(small.betas, large.betas, atol=1e-12)
+
+    def test_confounds_match_residualized_lss(self, rng):
+        from fmrimod.single._project import project_nuisance
+        from fmrimod.single.lss import lss_single_trial
+
+        n, T, V = 90, 7, 5
+        X = rng.standard_normal((n, T))
+        confounds = np.column_stack([np.ones(n), np.linspace(-1.0, 1.0, n)])
+        Y = (
+            X @ rng.standard_normal((T, V))
+            + confounds @ rng.standard_normal((2, V))
+            + rng.standard_normal((n, V)) * 0.05
+        )
+
+        result = oasis_single_trial(Y, X, confounds=confounds, config=OasisConfig(K=1))
+        Y_res, X_res = project_nuisance(confounds, Y, X)
+        expected = lss_single_trial(Y_res, X_res)
+
+        assert_allclose(result.betas, expected.betas, atol=1e-8)
+
+    def test_input_validation(self, rng):
+        Y = rng.standard_normal((20, 3))
+        X = rng.standard_normal((20, 4))
+
+        with pytest.raises(ValueError, match="not divisible"):
+            oasis_single_trial(Y, X[:, :3], config=OasisConfig(K=2))
+        with pytest.raises(ValueError, match="finite"):
+            oasis_single_trial(np.array([[np.nan], [1.0]]), X[:2, :1])
+        with pytest.raises(ValueError, match="confounds has 19 rows"):
+            oasis_single_trial(Y, X, confounds=np.ones((19, 1)))
+
+
+class TestOasisConfig:
+    def test_accepts_valid_options(self):
+        cfg = OasisConfig(
+            K=2,
+            ridge_mode="absolute",
+            ridge_x=0.1,
+            ridge_b=0.2,
+            block_cols=32,
+        )
+        assert cfg.K == 2
+        assert cfg.block_cols == 32
+
+    @pytest.mark.parametrize(
+        "kwargs, message",
+        [
+            ({"K": 0}, "K must be a positive integer"),
+            ({"ridge_x": -0.1}, "ridge_x must be non-negative"),
+            ({"ridge_b": -0.1}, "ridge_b must be non-negative"),
+            ({"ridge_mode": "bogus"}, "ridge_mode must be one of"),
+            ({"block_cols": 0}, "block_cols must be a positive integer"),
+        ],
+    )
+    def test_rejects_invalid_options(self, kwargs, message):
+        with pytest.raises(ValueError, match=message):
+            OasisConfig(**kwargs)
+
 
 class TestOasisKn:
     """OASIS with K>1 (multi-basis)."""

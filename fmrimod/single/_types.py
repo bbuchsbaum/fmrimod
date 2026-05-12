@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional, Sequence
+from typing import Any, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -81,6 +81,20 @@ class OasisConfig:
     ridge_b: float = 0.0
     return_se: bool = False
     block_cols: int = 4096
+
+    def __post_init__(self) -> None:
+        if int(self.K) != self.K or self.K < 1:
+            raise ValueError("K must be a positive integer")
+        self.K = int(self.K)
+        if self.ridge_mode not in {"none", "fractional", "absolute"}:
+            raise ValueError("ridge_mode must be one of: none, fractional, absolute")
+        if self.ridge_x < 0:
+            raise ValueError("ridge_x must be non-negative")
+        if self.ridge_b < 0:
+            raise ValueError("ridge_b must be non-negative")
+        if int(self.block_cols) != self.block_cols or self.block_cols < 1:
+            raise ValueError("block_cols must be a positive integer")
+        self.block_cols = int(self.block_cols)
 
 
 @dataclass

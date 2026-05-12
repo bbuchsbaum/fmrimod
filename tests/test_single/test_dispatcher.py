@@ -78,16 +78,16 @@ class TestDispatcher:
 
         assert result.extra["adjustment_rank"] == 2
 
-    def test_baseline_regressors_rejected_for_non_lss(self, rng):
+    def test_baseline_regressors_rejected_for_methods_without_adjustment_surface(self, rng):
         n, T, V = 70, 4, 3
         Y = rng.standard_normal((n, V))
         X = rng.standard_normal((n, T))
 
-        with pytest.raises(ValueError, match="only for method='lss'"):
+        with pytest.raises(ValueError, match="only for method='lss' or method='lsa'"):
             estimate_single_trial(
                 Y,
                 X,
-                method="lsa",
+                method="oasis",
                 baseline_regressors=np.ones((n, 1)),
             )
 
@@ -132,6 +132,23 @@ class TestPrewhitening:
         res_pw = estimate_single_trial(Y, X, method="lss", prewhiten=pw)
         res_no = estimate_single_trial(Y, X, method="lss")
         assert_allclose(res_pw.betas, res_no.betas, atol=1e-12)
+
+    @pytest.mark.parametrize(
+        "kwargs, message",
+        [
+            ({"method": "bad"}, "method must be one of"),
+            ({"pooling": "bad"}, "pooling must be one of"),
+            ({"exact_first": "bad"}, "exact_first must be one of"),
+            ({"p": -1}, "p must be a non-negative integer"),
+            ({"q": -1}, "q must be a non-negative integer"),
+            ({"p_max": 0}, "p_max must be a positive integer"),
+        ],
+    )
+    def test_prewhiten_config_validates_options(self, kwargs, message):
+        from fmrimod.single._prewhiten import PrewhitenConfig
+
+        with pytest.raises(ValueError, match=message):
+            PrewhitenConfig(**kwargs)
 
 
 class TestSingleTrialMethod:

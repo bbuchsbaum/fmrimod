@@ -49,7 +49,17 @@ def estimate_voxel_hrf(
     """
     Y = np.asarray(Y, dtype=np.float64)
     X_trials = np.asarray(X_trials, dtype=np.float64)
-    T, V = Y.shape
+    if Y.ndim != 2:
+        raise ValueError("Y must be a 2-D matrix")
+    if X_trials.ndim != 2:
+        raise ValueError("X_trials must be a 2-D matrix")
+    T = Y.shape[0]
+    if X_trials.shape[0] != T:
+        raise ValueError(f"X_trials has {X_trials.shape[0]} rows, expected {T}")
+    if not np.all(np.isfinite(Y)):
+        raise ValueError("Y must contain only finite values")
+    if not np.all(np.isfinite(X_trials)):
+        raise ValueError("X_trials must contain only finite values")
 
     if K is None:
         b = np.asarray(basis)
@@ -59,9 +69,10 @@ def estimate_voxel_hrf(
             raise ValueError("Cannot infer K; pass K explicitly")
 
     NK = X_trials.shape[1]
+    if K < 1:
+        raise ValueError("K must be >= 1")
     if NK % K != 0:
         raise ValueError(f"ncol(X_trials)={NK} not divisible by K={K}")
-    N = NK // K
 
     # Aggregate per-basis regressors: A[:, k] = sum of all trial-k columns
     A = np.zeros((T, K), dtype=np.float64)
@@ -71,6 +82,12 @@ def estimate_voxel_hrf(
     # Project out confounds
     if confounds is not None:
         confounds = np.asarray(confounds, dtype=np.float64)
+        if confounds.ndim == 1:
+            confounds = confounds[:, np.newaxis]
+        if confounds.ndim != 2:
+            raise ValueError("confounds must be a 1-D or 2-D matrix")
+        if confounds.shape[0] != T:
+            raise ValueError(f"confounds has {confounds.shape[0]} rows, expected {T}")
         Y_c, A_c = project_nuisance(confounds, Y, A)
     else:
         Y_c, A_c = Y, A
@@ -272,9 +289,25 @@ def lss_with_voxel_hrf(
     """
     Y = np.asarray(Y, dtype=np.float64)
     X_trials = np.asarray(X_trials, dtype=np.float64)
+    if Y.ndim != 2:
+        raise ValueError("Y must be a 2-D matrix")
+    if X_trials.ndim != 2:
+        raise ValueError("X_trials must be a 2-D matrix")
     T, V = Y.shape
     K = hrf_result.coefficients.shape[0]
     NK = X_trials.shape[1]
+    if X_trials.shape[0] != T:
+        raise ValueError(f"X_trials has {X_trials.shape[0]} rows, expected {T}")
+    if K < 1:
+        raise ValueError("hrf_result must have at least one basis coefficient")
+    if NK % K != 0:
+        raise ValueError(f"ncol(X_trials)={NK} not divisible by K={K}")
+    if chunk_size < 1:
+        raise ValueError("chunk_size must be >= 1")
+    if not np.all(np.isfinite(Y)):
+        raise ValueError("Y must contain only finite values")
+    if not np.all(np.isfinite(X_trials)):
+        raise ValueError("X_trials must contain only finite values")
     N = NK // K
 
     if hrf_result.coefficients.shape[1] != V:
@@ -286,6 +319,12 @@ def lss_with_voxel_hrf(
     # Project out confounds
     if confounds is not None:
         confounds = np.asarray(confounds, dtype=np.float64)
+        if confounds.ndim == 1:
+            confounds = confounds[:, np.newaxis]
+        if confounds.ndim != 2:
+            raise ValueError("confounds must be a 1-D or 2-D matrix")
+        if confounds.shape[0] != T:
+            raise ValueError(f"confounds has {confounds.shape[0]} rows, expected {T}")
         Y_c, X_c = project_nuisance(confounds, Y, X_trials)
     else:
         Y_c, X_c = Y, X_trials

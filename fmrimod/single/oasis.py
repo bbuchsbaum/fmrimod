@@ -17,7 +17,6 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy import linalg
 
-from ._project import project_nuisance
 from ._types import OasisConfig, SingleTrialResult
 
 
@@ -255,7 +254,6 @@ def _oasis_products_blocked_kn(
 ) -> dict:
     """Blocked products for multi-basis OASIS."""
     NK = A.shape[1]
-    N = NK // K
     V = Y.shape[1]
 
     N1 = np.empty((NK, V), dtype=np.float64)    # A' R Y
@@ -382,11 +380,18 @@ def oasis_single_trial(
     X = np.asarray(X, dtype=np.float64)
     if Y.ndim == 1:
         Y = Y[:, np.newaxis]
+    if Y.ndim != 2:
+        raise ValueError("Y must be a 1-D or 2-D matrix")
+    if X.ndim != 2:
+        raise ValueError("X must be a 2-D matrix")
+    if not np.all(np.isfinite(Y)):
+        raise ValueError("Y must contain only finite values")
+    if not np.all(np.isfinite(X)):
+        raise ValueError("X must contain only finite values")
 
     n = Y.shape[0]
     if X.shape[0] != n:
         raise ValueError(f"Y has {n} timepoints, X has {X.shape[0]}.")
-
     K = config.K
     NK = X.shape[1]
     if NK % K != 0:
@@ -394,10 +399,23 @@ def oasis_single_trial(
             f"ncol(X)={NK} is not divisible by K={K}"
         )
     N = NK // K
+    if trial_labels is not None and len(trial_labels) != N:
+        raise ValueError(
+            f"trial_labels has length {len(trial_labels)}, "
+            f"expected {N}."
+        )
 
     # Nuisance QR
     if confounds is not None:
         confounds = np.asarray(confounds, dtype=np.float64)
+        if confounds.ndim == 1:
+            confounds = confounds[:, np.newaxis]
+        if confounds.ndim != 2:
+            raise ValueError("confounds must be a 1-D or 2-D matrix")
+        if confounds.shape[0] != n:
+            raise ValueError(f"confounds has {confounds.shape[0]} rows, expected {n}.")
+        if not np.all(np.isfinite(confounds)):
+            raise ValueError("confounds must contain only finite values")
         Q, _ = np.linalg.qr(confounds, mode="reduced")
     else:
         Q = np.empty((n, 0), dtype=np.float64)

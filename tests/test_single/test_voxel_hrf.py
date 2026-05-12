@@ -59,6 +59,29 @@ class TestEstimateVoxelHrf:
         with pytest.raises(ValueError, match="not divisible"):
             estimate_voxel_hrf(Y, X_trials, basis, K=K)
 
+    def test_rejects_bad_rows_and_nonfinite_values(self, rng):
+        T, V, K = 50, 4, 2
+        Y = rng.standard_normal((T, V))
+        X_trials = rng.standard_normal((T, 6))
+        basis = rng.standard_normal((20, K))
+
+        with pytest.raises(ValueError, match="X_trials has 49 rows"):
+            estimate_voxel_hrf(Y, X_trials[:-1], basis, K=K)
+
+        Y_bad = Y.copy()
+        Y_bad[0, 0] = np.nan
+        with pytest.raises(ValueError, match="finite"):
+            estimate_voxel_hrf(Y_bad, X_trials, basis, K=K)
+
+        with pytest.raises(ValueError, match="confounds has 49 rows"):
+            estimate_voxel_hrf(
+                Y,
+                X_trials,
+                basis,
+                K=K,
+                confounds=np.ones((T - 1, 1)),
+            )
+
 
 class TestLssWithVoxelHrf:
     def test_basic(self, multi_basis_data, rng):
@@ -91,3 +114,14 @@ class TestLssWithVoxelHrf:
         result_small = lss_with_voxel_hrf(Y, X_trials, hrf_result, chunk_size=5)
         result_big = lss_with_voxel_hrf(Y, X_trials, hrf_result, chunk_size=1000)
         assert_allclose(result_small.betas, result_big.betas, atol=1e-10)
+
+    def test_rejects_malformed_inputs(self, multi_basis_data, rng):
+        Y, X_trials, basis, T, N, K, V = multi_basis_data
+        hrf_result = estimate_voxel_hrf(Y, X_trials, basis, K=K)
+
+        with pytest.raises(ValueError, match="not divisible"):
+            lss_with_voxel_hrf(Y, X_trials[:, :-1], hrf_result)
+        with pytest.raises(ValueError, match="chunk_size"):
+            lss_with_voxel_hrf(Y, X_trials, hrf_result, chunk_size=0)
+        with pytest.raises(ValueError, match="confounds has 99 rows"):
+            lss_with_voxel_hrf(Y, X_trials, hrf_result, confounds=np.ones((T - 1, 1)))

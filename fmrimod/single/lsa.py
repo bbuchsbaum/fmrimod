@@ -12,6 +12,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ..glm.solver import fast_preproject, fast_lm_matrix
+from .lss import _build_adjustment_matrix
 from ._types import SingleTrialResult
 
 
@@ -21,6 +22,8 @@ def lsa_single_trial(
     confounds: Optional[NDArray[np.float64]] = None,
     return_se: bool = False,
     trial_labels: Optional[list] = None,
+    baseline_regressors: Optional[NDArray[np.float64]] = None,
+    include_intercept: bool = False,
 ) -> SingleTrialResult:
     """Estimate trial-wise betas via standard OLS (all trials simultaneous).
 
@@ -36,6 +39,10 @@ def lsa_single_trial(
         If ``True``, compute standard errors.
     trial_labels : list of str, optional
         Labels for each trial.
+    baseline_regressors : NDArray, shape ``(n, p)``, optional
+        Baseline or experimental regressors included in the all-trials GLM.
+    include_intercept : bool
+        If ``True``, add an intercept to the adjustment design.
 
     Returns
     -------
@@ -51,11 +58,20 @@ def lsa_single_trial(
         raise ValueError(
             f"Y has {Y.shape[0]} timepoints, X has {n}."
         )
+    if trial_labels is not None and len(trial_labels) != n_trials:
+        raise ValueError(
+            f"trial_labels has length {len(trial_labels)}, expected {n_trials}."
+        )
 
     # Build full design: [trials | confounds]
-    if confounds is not None:
-        confounds = np.asarray(confounds, dtype=np.float64)
-        X_full = np.column_stack([X, confounds])
+    adjustment = _build_adjustment_matrix(
+        n,
+        baseline_regressors=baseline_regressors,
+        confounds=confounds,
+        include_intercept=include_intercept,
+    )
+    if adjustment is not None:
+        X_full = np.column_stack([X, adjustment])
     else:
         X_full = X
 
