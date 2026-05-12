@@ -1,0 +1,89 @@
+---
+title: "Overview and workflow"
+subtitle: "A Python port of the fmrireg overview vignette."
+jupyter: python3
+execute:
+  freeze: auto
+---
+
+## Core Workflow
+
+`fmrimod` combines timing information, HRF specification, design-matrix
+construction, and matrix GLM utilities. A typical workflow starts with an
+event table and an acquisition grid.
+
+```{python}
+import numpy as np
+import pandas as pd
+import fmrimod as fm
+from fmrimod.design_colmap import design_colmap
+
+events = pd.DataFrame({
+    "onset": [0, 12, 24, 36, 48, 60],
+    "stim_type": ["face", "scene", "face", "scene", "face", "scene"],
+})
+
+sf = fm.SamplingFrame(blocklens=[40, 40], TR=1.0)
+sf.blocklens
+```
+
+## Event Model
+
+The formula creates one HRF-convolved regressor per stimulus level.
+
+```{python}
+model = fm.event_model(
+    'onset ~ hrf(stim_type, basis="spmg1")',
+    data=events,
+    sampling_frame=fm.SamplingFrame(blocklens=80, TR=1.0),
+)
+
+model.design_matrix.shape
+```
+
+```{python}
+design_colmap(model)[["col", "name", "condition", "basis_name"]]
+```
+
+## Baseline and Contrasts
+
+Baseline modeling and contrast testing are separate decisions. The design
+matrix stores task regressors; contrast vectors state the scientific
+comparison in that column space.
+
+```{python}
+columns = model.column_names
+face_vs_scene = np.zeros(len(columns))
+face_vs_scene[columns.index("stim_type_stim_type.face")] = 1
+face_vs_scene[columns.index("stim_type_stim_type.scene")] = -1
+
+pd.DataFrame({"column": columns, "face_vs_scene": face_vs_scene})
+```
+
+## Matrix GLM
+
+For a compact demonstration, simulate five voxel time series directly from the
+design matrix, then fit ordinary least squares.
+
+```{python}
+rng = np.random.default_rng(42)
+X = np.asarray(model.design_matrix)
+true_beta = np.array([[1.0, 0.8, 0.6, 0.4, 0.2],
+                      [-0.2, -0.1, 0.0, 0.1, 0.2]])
+Y = X @ true_beta + rng.normal(scale=0.08, size=(X.shape[0], 5))
+
+fit = fm.fmri_ols_fit(Y, X)
+fit["beta"].shape, fit["t"].shape
+```
+
+## Advanced Topics
+
+The same design/data contract supports sketched solvers, AR diagnostics,
+single-trial estimation, benchmark fixtures, and group-level meta-analysis.
+Those topics are covered in the companion tutorials.
+
+## Next
+
+- [Linear model](linear-model.qmd)
+- [Contrasts](contrasts.qmd)
+- [Group analysis](group-analysis.qmd)

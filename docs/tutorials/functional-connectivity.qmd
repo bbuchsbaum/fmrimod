@@ -1,0 +1,73 @@
+---
+title: "Functional connectivity"
+subtitle: "Seed-to-target correlations and Fisher z transforms."
+jupyter: python3
+execute:
+  freeze: auto
+---
+
+## Seed-Based Correlations
+
+Functional connectivity analyses often start from a seed time series and a
+matrix of target time series. This page keeps the calculation explicit and
+uses `fmrimod` for common effect-size transforms.
+
+```{python}
+import numpy as np
+import pandas as pd
+import fmrimod as fm
+from fmrimod.residualize import residualize
+
+rng = np.random.default_rng(13)
+n_time = 160
+n_targets = 8
+
+seed = rng.normal(size=n_time)
+targets = rng.normal(size=(n_time, n_targets))
+targets[:, :3] += 0.45 * seed[:, None]
+
+corr = np.array([np.corrcoef(seed, targets[:, j])[0, 1] for j in range(n_targets)])
+z, z_var = fm.r_to_z(corr, n_time)
+
+pd.DataFrame({
+    "target": [f"roi_{j + 1}" for j in range(n_targets)],
+    "r": corr,
+    "fisher_z": z,
+    "z_variance": z_var,
+}).round(3)
+```
+
+## Return to Correlation Units
+
+Fisher z values are useful for group summaries because they are closer to
+normal. Convert back to correlations for presentation.
+
+```{python}
+pooled_z = z.mean()
+pooled_r = fm.z_to_r(pooled_z)
+
+round(float(pooled_z), 3), round(float(pooled_r), 3)
+```
+
+## Remove a Nuisance Signal
+
+A common preprocessing step is residualizing the seed and target signals with
+respect to nuisance columns before correlation.
+
+```{python}
+nuisance = np.column_stack([np.ones(n_time), np.linspace(-1, 1, n_time)])
+seed_resid = residualize(nuisance, seed[:, None]).ravel()
+target_resid = residualize(nuisance, targets)
+
+partial_corr = np.array([
+    np.corrcoef(seed_resid, target_resid[:, j])[0, 1]
+    for j in range(n_targets)
+])
+
+pd.DataFrame({"raw_r": corr, "residualized_r": partial_corr}).round(3)
+```
+
+## Next
+
+- [Group analysis](group-analysis.qmd)
+- [Datasets](datasets.qmd)

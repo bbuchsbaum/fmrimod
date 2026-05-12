@@ -3,16 +3,93 @@ title: "Tutorials"
 subtitle: "Task-focused guides for fMRI modeling workflows."
 ---
 
-Start with the design-matrix tutorial, then move to the API reference for
-specific functions and classes.
+These guides port the `fmrireg` vignette set into Python/Quarto with cleaner
+topic filenames and examples that run against `fmrimod`.
 
 ::: {.grid}
+
+::: {.g-col-12 .g-col-md-6}
+::: {.card .h-100 .p-3}
+### [Overview and workflow](overview-workflow.qmd)
+Walk through the modeling stack: sampling frames, HRFs, event models, baseline
+terms, GLM fitting, acceleration, and group summaries.
+:::
+:::
 
 ::: {.g-col-12 .g-col-md-6}
 ::: {.card .h-100 .p-3}
 ### [Build a design matrix](design-matrices.qmd)
 Create condition-specific HRF regressors from an event table and inspect the
 resulting column metadata.
+:::
+:::
+
+::: {.g-col-12 .g-col-md-6}
+::: {.card .h-100 .p-3}
+### [Contrasts](contrasts.qmd)
+Create named contrast vectors from model columns and use factorial contrast
+generators for main effects and interactions.
+:::
+:::
+
+::: {.g-col-12 .g-col-md-6}
+::: {.card .h-100 .p-3}
+### [Simulation](simulation.qmd)
+Generate clean BOLD responses, fMRI-like noise, and matrix time series for
+method checks.
+:::
+:::
+
+::: {.g-col-12 .g-col-md-6}
+::: {.card .h-100 .p-3}
+### [Linear model](linear-model.qmd)
+Fit a small GLM, inspect beta and t-statistic matrices, and compute a manual
+contrast.
+:::
+:::
+
+::: {.g-col-12 .g-col-md-6}
+::: {.card .h-100 .p-3}
+### [Datasets](datasets.qmd)
+Represent in-memory and latent data with sampling frames and event tables.
+:::
+:::
+
+::: {.g-col-12 .g-col-md-6}
+::: {.card .h-100 .p-3}
+### [Group analysis](group-analysis.qmd)
+Fit feature-wise fixed/random-effects meta-regression from beta and variance
+matrices.
+:::
+:::
+
+::: {.g-col-12 .g-col-md-6}
+::: {.card .h-100 .p-3}
+### [Functional connectivity](functional-connectivity.qmd)
+Estimate seed-to-target correlations and transform them with Fisher z helpers.
+:::
+:::
+
+::: {.g-col-12 .g-col-md-6}
+::: {.card .h-100 .p-3}
+### [Sketched and AR-aware models](sketched-ar-models.qmd)
+Use low-rank GLM sketches and residual autocorrelation diagnostics for large
+or temporally correlated data.
+:::
+:::
+
+::: {.g-col-12 .g-col-md-6}
+::: {.card .h-100 .p-3}
+### [Plugin development](plugin-development.qmd)
+Register custom bases and sketch the engine extension contract.
+:::
+:::
+
+::: {.g-col-12 .g-col-md-6}
+::: {.card .h-100 .p-3}
+### [Benchmark datasets](benchmark-datasets.qmd)
+Load deterministic fixtures, build design matrices, and score estimated
+condition betas.
 :::
 :::
 

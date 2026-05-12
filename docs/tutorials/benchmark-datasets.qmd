@@ -1,0 +1,72 @@
+---
+title: "Benchmark datasets"
+subtitle: "Load deterministic fixtures and score estimated betas."
+jupyter: python3
+execute:
+  freeze: auto
+---
+
+## Available Fixtures
+
+`fmrimod` includes small deterministic benchmark fixtures for examples and
+regression tests.
+
+```{python}
+import numpy as np
+import pandas as pd
+import fmrimod as fm
+
+fm.list_benchmark_datasets()
+```
+
+## Inspect a Dataset
+
+```{python}
+name = "BM_Canonical_HighSNR"
+summary = fm.get_benchmark_summary(name)
+
+summary["dimensions"], summary["experimental_design"]
+```
+
+```{python}
+data = fm.load_benchmark_dataset(name)
+data.keys()
+```
+
+## Build a Design Matrix
+
+```{python}
+X = fm.create_design_matrix_from_benchmark(name, hrf="spmg1")
+X.head()
+```
+
+## Fit OLS and Score It
+
+The benchmark stores condition-level ground truth, so drop the intercept row
+before evaluating.
+
+```{python}
+Y = data["Y_noisy"]
+beta = np.linalg.lstsq(X.to_numpy(), Y, rcond=None)[0]
+condition_beta = beta[1:, :]
+
+performance = fm.evaluate_method_performance(name, condition_beta, "OLS")
+pd.Series(performance["overall_metrics"]).round(4)
+```
+
+## Compare Estimated and True Betas
+
+```{python}
+true_beta = data["true_betas_condition"]
+comparison = pd.DataFrame({
+    "true": true_beta.ravel(),
+    "estimated": condition_beta.ravel(),
+})
+
+comparison.corr().iloc[0, 1].round(5)
+```
+
+## Next
+
+- [Simulation](simulation.qmd)
+- [Linear model](linear-model.qmd)

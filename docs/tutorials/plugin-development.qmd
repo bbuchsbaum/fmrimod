@@ -1,0 +1,83 @@
+---
+title: "Plugin development"
+subtitle: "Register custom bases and extend GLM engines."
+jupyter: python3
+execute:
+  freeze: auto
+---
+
+## Extension Points
+
+The Python package exposes two practical extension surfaces:
+
+- basis registration for named basis constructors;
+- engine registration for alternate GLM fitting strategies.
+
+## Register a Basis
+
+`register_basis()` stores a constructor under a string key. `resolve_basis()`
+retrieves it later.
+
+```{python}
+import numpy as np
+import pandas as pd
+import fmrimod as fm
+
+def linear_ramp_basis(scale=1.0):
+    def evaluate(x):
+        x = np.asarray(x, dtype=float)
+        return scale * (x - x.min())[:, None]
+    return evaluate
+
+fm.register_basis("linear_ramp_demo", linear_ramp_basis)
+basis = fm.resolve_basis("linear_ramp_demo", scale=0.5)
+
+basis(np.linspace(0, 4, 5)).ravel()
+```
+
+## Register an Engine
+
+Custom engines live behind the GLM engine registry. An engine class provides a
+`preflight()` method and a `fit()` method returning an `EngineResult`.
+
+```python
+from fmrimod.glm.engine import EngineResult, register_engine
+
+@register_engine(name="my_engine")
+class MyEngine:
+    def preflight(self, model, config):
+        return None
+
+    def fit(self, model, config, **kwargs):
+        # Build or retrieve X and Y, solve the GLM, then return EngineResult.
+        return EngineResult(
+            betas=betas,
+            sigma=sigma,
+            dfres=dfres,
+            XtXinv=XtXinv,
+        )
+```
+
+The direct class registration keeps plugin code importable without requiring
+package metadata. For installed third-party packages, expose engines through
+the `fmrimod.engines` entry-point group.
+
+## Inspect Built-In Engines
+
+```{python}
+from fmrimod.glm.engine import list_engines
+
+list_engines()
+```
+
+## Extension Checklist
+
+- Validate dimensions in `preflight()`.
+- Return coefficient matrices in `(parameters, voxels)` order.
+- Preserve the model column order used by contrasts.
+- Add a small oracle test against ordinary least squares before optimizing.
+
+## Next
+
+- [Sketched and AR-aware models](sketched-ar-models.qmd)
+- [API reference](../reference/index.qmd)

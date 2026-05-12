@@ -1,0 +1,70 @@
+---
+title: "Group analysis"
+subtitle: "Fit feature-wise meta-regression from beta and variance matrices."
+jupyter: python3
+execute:
+  freeze: auto
+---
+
+## Inputs
+
+Group analysis works on first-level estimates and their sampling variances.
+Rows are subjects or studies; columns are voxels, parcels, or other features.
+
+```{python}
+import numpy as np
+import pandas as pd
+import fmrimod as fm
+
+rng = np.random.default_rng(12)
+n_subjects = 10
+n_features = 6
+
+group = np.repeat([0, 1], n_subjects // 2)
+X = np.column_stack([np.ones(n_subjects), group])
+
+true_effect = np.array([[0.2] * n_features, [0.4, 0.3, 0.2, 0.0, -0.1, -0.2]])
+V = rng.uniform(0.04, 0.12, size=(n_subjects, n_features))
+Y = X @ true_effect + rng.normal(scale=np.sqrt(V))
+
+Y.shape, V.shape, X.shape
+```
+
+## Fit Meta-Regression
+
+`fmri_meta_fit()` estimates one weighted model per feature. Use `"fe"` for a
+fixed-effect fit and `"pm"` or `"dl"` for random-effects tau-squared estimates.
+
+```{python}
+fit = fm.fmri_meta_fit(Y, V, X, method="pm")
+
+fit["beta"].shape, fit["se"].shape, fit["tau2"].round(4)
+```
+
+```{python}
+summary = pd.DataFrame({
+    "feature": [f"feature_{i + 1}" for i in range(n_features)],
+    "group_beta": fit["beta"][1],
+    "group_se": fit["se"][1],
+    "group_z": fit["z"][1],
+    "p": fit["p"][1],
+    "I2_fe": fit["I2_fe"],
+})
+
+summary.round(3)
+```
+
+## Covariance Output
+
+When downstream code needs coefficient covariance matrices, use the covariance
+variant.
+
+```{python}
+fit_cov = fm.fmri_meta_fit_cov(Y, V, X, method="pm")
+fit_cov["cov_tri"].shape
+```
+
+## Next
+
+- [Functional connectivity](functional-connectivity.qmd)
+- [Benchmark datasets](benchmark-datasets.qmd)

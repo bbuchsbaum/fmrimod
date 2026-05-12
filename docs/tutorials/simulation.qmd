@@ -1,0 +1,120 @@
+---
+title: "Simulation"
+subtitle: "Generate clean BOLD responses, noise, and matrix time series."
+jupyter: python3
+execute:
+  freeze: auto
+---
+
+## Clean Condition Signals
+
+`simulate_bold_signal()` creates condition-wise HRF-convolved responses. The
+first column of `mat` is time; the remaining columns are condition signals.
+
+```{python}
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import fmrimod as fm
+
+sim = fm.simulate_bold_signal(
+    ncond=3,
+    amps=[1.0, 1.5, 2.0],
+    tr=2.0,
+    seed=10,
+)
+
+signals = pd.DataFrame(
+    sim["mat"],
+    columns=["time", "cond_1", "cond_2", "cond_3"],
+)
+signals.head()
+```
+
+```{python}
+#| fig-width: 7
+#| fig-height: 3.5
+ax = signals.plot(x="time", y=["cond_1", "cond_2", "cond_3"])
+ax.set_xlabel("Time (s)")
+ax.set_ylabel("Response")
+plt.show()
+```
+
+## Noise Components
+
+`simulate_noise_vector()` combines temporal correlation, low-frequency drift,
+and optional physiological sinusoids.
+
+```{python}
+n_timepoints = 200
+tr = 2.0
+time = np.arange(n_timepoints) * tr
+
+whiteish = fm.simulate_noise_vector(
+    n_timepoints,
+    tr=tr,
+    ar=[],
+    ma=[],
+    drift_amplitude=0.0,
+    physio=False,
+    seed=1,
+)
+structured = fm.simulate_noise_vector(n_timepoints, tr=tr, seed=1)
+
+pd.DataFrame({
+    "whiteish_sd": [whiteish.std()],
+    "structured_sd": [structured.std()],
+}).round(3)
+```
+
+```{python}
+#| fig-width: 7
+#| fig-height: 3.5
+noise_df = pd.DataFrame({
+    "time": time,
+    "whiteish": whiteish,
+    "structured": structured,
+})
+ax = noise_df.plot(x="time", y=["whiteish", "structured"], alpha=0.85)
+ax.set_xlabel("Time (s)")
+ax.set_ylabel("Noise")
+plt.show()
+```
+
+## Signal Plus Noise
+
+`simulate_simple_dataset()` returns clean and noisy matrices for small method
+checks.
+
+```{python}
+dataset = fm.simulate_simple_dataset(ncond=3, tr=2.0, snr=0.5, seed=2)
+
+dataset["clean"].shape, dataset["noisy"].shape
+```
+
+## Matrix Time Series
+
+`simulate_fmri_matrix()` varies event amplitude and duration across columns,
+mirroring the R vignette's column-specific simulation examples.
+
+```{python}
+matrix_sim = fm.simulate_fmri_matrix(
+    n=5,
+    total_time=120,
+    TR=2.0,
+    n_events=8,
+    durations=0.5,
+    amplitude_sd=0.2,
+    duration_sd=0.1,
+    noise_type="ar1",
+    random_seed=3,
+)
+
+ts = matrix_sim["time_series"].get_all_data()
+ts.shape, matrix_sim["ampmat"].shape, matrix_sim["durmat"].shape
+```
+
+## Next
+
+- [Benchmark datasets](benchmark-datasets.qmd)
+- [Linear model](linear-model.qmd)

@@ -1,0 +1,94 @@
+---
+title: "Linear model"
+subtitle: "Fit voxel-wise GLMs from a design matrix."
+jupyter: python3
+execute:
+  freeze: auto
+---
+
+## Build a Design
+
+```{python}
+import numpy as np
+import pandas as pd
+import fmrimod as fm
+
+events = pd.DataFrame({
+    "onset": np.arange(0, 96, 8),
+    "condition": ["face", "scene", "tool"] * 4,
+})
+
+model = fm.event_model(
+    'onset ~ hrf(condition, basis="spmg1")',
+    data=events,
+    sampling_frame=fm.SamplingFrame(blocklens=120, TR=1.0),
+)
+
+X = np.asarray(model.design_matrix)
+X.shape
+```
+
+## Simulate Voxel Data
+
+```{python}
+rng = np.random.default_rng(5)
+n_voxels = 6
+true_beta = np.array([
+    np.linspace(0.8, 1.2, n_voxels),
+    np.linspace(-0.4, 0.2, n_voxels),
+    np.linspace(0.1, 0.5, n_voxels),
+])
+
+Y = X @ true_beta + rng.normal(scale=0.08, size=(X.shape[0], n_voxels))
+Y.shape
+```
+
+## Fit OLS
+
+`fmri_ols_fit()` is a compact matrix-level helper. Rows are time points and
+columns are voxels.
+
+```{python}
+fit = fm.fmri_ols_fit(Y, X)
+
+fit["beta"].shape, fit["se"].shape, fit["t"].shape
+```
+
+```{python}
+beta = pd.DataFrame(fit["beta"], index=model.column_names)
+beta.round(3)
+```
+
+## Compute a Contrast
+
+```{python}
+columns = model.column_names
+face_vs_scene = np.zeros(len(columns))
+face_vs_scene[columns.index("condition_condition.face")] = 1
+face_vs_scene[columns.index("condition_condition.scene")] = -1
+
+contrast_beta = face_vs_scene @ fit["beta"]
+contrast_beta.round(3)
+```
+
+## Voxel-Wise Covariates
+
+The compatibility helper can append one voxel-specific nuisance column per
+voxel.
+
+```{python}
+voxelwise_motion = rng.normal(size=Y.shape)
+fit_with_voxel_cov = fm.fmri_ols_fit(
+    Y,
+    X,
+    voxelwise=voxelwise_motion,
+    voxel_name="motion_proxy",
+)
+
+fit_with_voxel_cov["beta"].tail(1)
+```
+
+## Next
+
+- [Contrasts](contrasts.qmd)
+- [Sketched and AR-aware models](sketched-ar-models.qmd)
