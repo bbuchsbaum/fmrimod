@@ -486,6 +486,46 @@ def zscores(*args, **kwargs):
     from .accessors import zscores as _zscores
     return _zscores(*args, **kwargs)
 
+
+# ── AR/ARMA noise whitening (fmriAR parity API) ────────────────────
+def fit_noise(*args, **kwargs):
+    """Fit an AR/ARMA noise model and return a whitening plan."""
+    from .ar import fit_noise as _fit_noise
+    return _fit_noise(*args, **kwargs)
+
+
+def whiten_apply(*args, **kwargs):
+    """Apply a fitted whitening plan to design and data matrices."""
+    from .ar import whiten_apply as _whiten_apply
+    return _whiten_apply(*args, **kwargs)
+
+
+def whiten(*args, **kwargs):
+    """Fit and apply AR/ARMA whitening in one call."""
+    from .ar import whiten as _whiten
+    return _whiten(*args, **kwargs)
+
+
+def acorr_diagnostics(*args, **kwargs):
+    """Compute residual autocorrelation diagnostics."""
+    from .ar import acorr_diagnostics as _acorr_diagnostics
+    return _acorr_diagnostics(*args, **kwargs)
+
+
+def sandwich_from_whitened_resid(*args, **kwargs):
+    """Compute GLS standard errors from whitened residuals."""
+    from .ar import sandwich_from_whitened_resid as _sandwich_from_whitened_resid
+    return _sandwich_from_whitened_resid(*args, **kwargs)
+
+
+def afni_restricted_plan(*args, **kwargs):
+    """Build an AFNI-style restricted AR whitening plan."""
+    from .ar import afni_restricted_plan as _afni_restricted_plan
+    return _afni_restricted_plan(*args, **kwargs)
+
+
+from .ar import compat
+
 # ── Formula functions (lazy to avoid shadowing hrf subpackage) ───────
 from functools import partial as _partial
 
@@ -907,6 +947,13 @@ __all__ = [
     "tidy",
     "tidy_fitted_hrf",
     "zscores",
+    "fit_noise",
+    "whiten",
+    "whiten_apply",
+    "acorr_diagnostics",
+    "sandwich_from_whitened_resid",
+    "afni_restricted_plan",
+    "compat",
     # Formula functions
     "hrf_formula",
     "hrf_spmg1",
