@@ -1228,6 +1228,7 @@ class EventModel(ModelProtocol):
         row_start = 0
         for b in range(n_blocks):
             row_end = row_start + int(blocklens[b])
+            block_grid = global_grid[row_start:row_end]
             block_event_mask = (self._blockids == (b + 1))
 
             # Create block-local event copies
@@ -1242,20 +1243,21 @@ class EventModel(ModelProtocol):
                 n_cols = self._count_term_columns(event_term, hrf_obj)
                 block_results.append(np.zeros((int(blocklens[b]), n_cols)))
             else:
-                # Evaluate on full global sampling grid, then slice block rows.
-                # This mirrors fmridesign::convolve.event_term behavior.
+                # Evaluate on this block's global-time sample grid. This matches
+                # fmridesign::convolve.event_term, where each block is evaluated
+                # separately and the fine-grid origin follows the block samples.
                 events = block_event_term.events
                 if len(events) == 1 and not block_event_term.interaction:
                     full_result = self._convolve_single_event(
-                        events[0], hrf_obj, global_grid,
+                        events[0], hrf_obj, block_grid,
                         summate=summate,
                     )
                 else:
                     full_result = self._convolve_interaction_events(
-                        block_event_term, hrf_obj, global_grid,
+                        block_event_term, hrf_obj, block_grid,
                         summate=summate,
                     )
-                block_results.append(full_result[row_start:row_end, :])
+                block_results.append(full_result)
 
             row_start = row_end
 

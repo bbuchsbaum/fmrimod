@@ -367,7 +367,7 @@ def group_data_from_csv(
     subjects = (
         list(subjects)
         if subjects is not None
-        else sorted(set(subject_values), key=pd.Index(subject_values).get_loc)
+        else list(dict.fromkeys(subject_values))
     )
     if subjects and len(subject_values) == 0:
         raise ValueError("No subjects found in CSV data")

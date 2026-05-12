@@ -145,6 +145,16 @@ def gen_hrf_set(*hrfs: Union[HRF, Callable], name: Optional[str] = None) -> HRF:
     return combined
 
 
+def hrf_set(*hrfs: Union[HRF, Callable], name: str = "hrf_set") -> HRF:
+    """R-compatible alias for :func:`gen_hrf_set`.
+
+    The original ``fmrihrf`` public API stabilized ``hrf_set()`` as the
+    preferred name and deprecated ``gen_hrf_set()``. In Python both names point
+    to the same implementation.
+    """
+    return gen_hrf_set(*hrfs, name=name)
+
+
 def gamma_generator(
     shape: float = 6.0,
     rate: float = 1.0,
@@ -388,6 +398,53 @@ def tent_generator(
         span=span,
         params={"n_basis": nbasis, "degree": 1, "span": span},
     )
+
+
+def hrf_bspline_generator(
+    nbasis: int = 5,
+    span: float = 24.0,
+    degree: int = 3,
+    name: Optional[str] = None,
+) -> HRF:
+    """R-compatible B-spline HRF basis generator."""
+    return bspline_generator(n_basis=nbasis, degree=degree, span=span, name=name)
+
+
+def hrf_tent_generator(
+    nbasis: int = 5,
+    span: float = 24.0,
+    name: Optional[str] = None,
+) -> HRF:
+    """R-compatible tent HRF basis generator."""
+    return tent_generator(nbasis=nbasis, span=span, name=name)
+
+
+def hrf_fourier_generator(
+    nbasis: int = 5,
+    span: float = 24.0,
+    name: Optional[str] = None,
+) -> HRF:
+    """R-compatible Fourier HRF basis generator."""
+    return fourier_generator(n_basis=nbasis, span=span, name=name)
+
+
+def hrf_daguerre_generator(
+    nbasis: int = 3,
+    scale: float = 4.0,
+    span: float = 24.0,
+    name: Optional[str] = None,
+) -> HRF:
+    """R-compatible Daguerre HRF basis generator."""
+    return daguerre_generator(n_basis=nbasis, span=span, scale=scale, name=name)
+
+
+def hrf_fir_generator(
+    nbasis: int = 12,
+    span: float = 24.0,
+    name: Optional[str] = None,
+) -> HRF:
+    """R-compatible FIR HRF basis generator."""
+    return fir_generator(n_basis=nbasis, span=span, name=name)
 
 
 def boxcar_generator(

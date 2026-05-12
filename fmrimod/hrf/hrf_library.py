@@ -81,3 +81,8 @@ def hrf_library(
         return hrfs[0]
     else:
         return bind_basis(*hrfs)  # Unpack list
+
+
+def gen_hrf_library(*args, **kwargs) -> HRF:
+    """R-compatible alias for :func:`hrf_library`."""
+    return hrf_library(*args, **kwargs)

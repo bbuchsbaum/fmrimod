@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 import typing
 
+import fmrimod.ar.whitening as whitening_mod
 from fmrimod.ar.plan import WhiteningPlan, WhitenResult
 from fmrimod.ar.whitening import (
     ar_whiten,
@@ -77,6 +78,86 @@ class TestArmaWhitenSegments:
         y = rng.randn(100, 3)
         result = arma_whiten_segments(y, np.array([]), np.array([]), np.array([0]))
         np.testing.assert_allclose(result, y)
+
+
+class TestArmaBackendDispatch:
+    def test_prefers_numba_backend_over_c_and_scipy(self, monkeypatch):
+        y = np.random.RandomState(0).randn(40, 4)
+        phi = np.array([0.4])
+        theta = np.array([0.2])
+        seg = np.array([0], dtype=np.intp)
+        c_out = np.full_like(y, 11.0)
+        numba_out = np.full_like(y, 22.0)
+        calls = []
+
+        def fake_c(y, phi, theta, seg_starts, do_exact):
+            calls.append("c")
+            return c_out
+
+        def fake_numba(y, phi, theta, seg_starts, do_exact):
+            calls.append("numba")
+            return numba_out
+
+        def fail_lfilter(*args, **kwargs):
+            raise AssertionError("SciPy fallback should not be used when numba backend succeeds")
+
+        monkeypatch.setattr(whitening_mod, "_USE_C_ARMA", True)
+        monkeypatch.setattr(whitening_mod, "_USE_NUMBA_ARMA", True)
+        monkeypatch.setattr(whitening_mod, "arma_whiten_segments_c", fake_c)
+        monkeypatch.setattr(whitening_mod, "_arma_whiten_segments_numba_core", fake_numba)
+        monkeypatch.setattr(whitening_mod, "lfilter", fail_lfilter)
+
+        out = whitening_mod.arma_whiten_segments(y, phi, theta, seg)
+        np.testing.assert_allclose(out, numba_out)
+        assert calls == ["numba"]
+
+    def test_uses_c_backend_when_numba_unavailable(self, monkeypatch):
+        y = np.random.RandomState(1).randn(40, 4)
+        phi = np.array([0.4])
+        theta = np.array([0.2])
+        seg = np.array([0], dtype=np.intp)
+        c_out = np.full_like(y, 11.0)
+        calls = []
+
+        def fake_c(y, phi, theta, seg_starts, do_exact):
+            calls.append("c")
+            return c_out
+
+        def fail_lfilter(*args, **kwargs):
+            raise AssertionError("SciPy fallback should not be used when C backend succeeds")
+
+        monkeypatch.setattr(whitening_mod, "_USE_C_ARMA", True)
+        monkeypatch.setattr(whitening_mod, "_USE_NUMBA_ARMA", False)
+        monkeypatch.setattr(whitening_mod, "arma_whiten_segments_c", fake_c)
+        monkeypatch.setattr(whitening_mod, "lfilter", fail_lfilter)
+
+        out = whitening_mod.arma_whiten_segments(y, phi, theta, seg)
+        np.testing.assert_allclose(out, c_out)
+        assert calls == ["c"]
+
+    def test_falls_back_to_scipy_when_c_and_numba_unavailable(self, monkeypatch):
+        y = np.random.RandomState(2).randn(40, 4)
+        phi = np.array([0.4])
+        theta = np.array([0.2])
+        seg = np.array([0], dtype=np.intp)
+        calls = []
+
+        def fake_c(y, phi, theta, seg_starts, do_exact):
+            calls.append("c")
+            return None
+
+        def fake_lfilter(b, a, x, axis=0):
+            calls.append("lfilter")
+            return np.full_like(x, 33.0)
+
+        monkeypatch.setattr(whitening_mod, "_USE_C_ARMA", True)
+        monkeypatch.setattr(whitening_mod, "_USE_NUMBA_ARMA", False)
+        monkeypatch.setattr(whitening_mod, "arma_whiten_segments_c", fake_c)
+        monkeypatch.setattr(whitening_mod, "lfilter", fake_lfilter)
+
+        out = whitening_mod.arma_whiten_segments(y, phi, theta, seg)
+        np.testing.assert_allclose(out, np.full_like(y, 33.0))
+        assert calls == ["c", "lfilter"]
 
 
 class TestWhitenApply:

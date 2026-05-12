@@ -1,0 +1,303 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fmrimod.dev/schemas/core_parity_benchmark.schema.json",
+  "title": "fmrimod Core Parity Benchmark Artifact",
+  "description": "Schema for benchmark/parity artifacts used by the core parity and performance PRD.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/FitlinsAr1Report"
+    },
+    {
+      "$ref": "#/$defs/ArmaPathReport"
+    },
+    {
+      "$ref": "#/$defs/CoreParityMatrixReport"
+    }
+  ],
+  "$defs": {
+    "NumberArray": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      }
+    },
+    "FitlinsAr1Report": {
+      "type": "object",
+      "required": [
+        "config",
+        "parity",
+        "speed",
+        "thresholds"
+      ],
+      "properties": {
+        "config": {
+          "type": "object",
+          "required": [
+            "n_timepoints",
+            "n_voxels",
+            "n_regressors",
+            "repeats",
+            "warmup",
+            "seed"
+          ],
+          "additionalProperties": true
+        },
+        "parity": {
+          "type": "object",
+          "required": [
+            "ok",
+            "metrics",
+            "failures"
+          ],
+          "properties": {
+            "ok": {
+              "type": "boolean"
+            },
+            "failures": {
+              "type": "array"
+            },
+            "metrics": {
+              "type": "object",
+              "required": [
+                "beta_corr",
+                "beta_mae",
+                "beta_max_abs",
+                "t_corr",
+                "t_mae",
+                "t_max_abs",
+                "p_mae",
+                "sigma2_corr",
+                "sigma2_mae",
+                "sign_flip_rate"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        },
+        "speed": {
+          "type": "object",
+          "required": [
+            "ok",
+            "summary"
+          ],
+          "properties": {
+            "ok": {
+              "type": "boolean"
+            },
+            "summary": {
+              "type": "object",
+              "required": [
+                "fmrimod_runs_s",
+                "reference_runs_s",
+                "fmrimod_median_s",
+                "reference_median_s",
+                "speedup_vs_reference"
+              ],
+              "properties": {
+                "fmrimod_runs_s": {
+                  "$ref": "#/$defs/NumberArray"
+                },
+                "reference_runs_s": {
+                  "$ref": "#/$defs/NumberArray"
+                },
+                "fmrimod_median_s": {
+                  "type": "number"
+                },
+                "reference_median_s": {
+                  "type": "number"
+                },
+                "speedup_vs_reference": {
+                  "type": "number"
+                }
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        },
+        "thresholds": {
+          "type": "object",
+          "required": [
+            "parity",
+            "speed"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "ArmaCaseMetrics": {
+      "type": "object",
+      "required": [
+        "fit_noise_runs_s",
+        "whiten_runs_s",
+        "total_runs_s",
+        "fit_noise_median_s",
+        "whiten_median_s",
+        "total_median_s"
+      ],
+      "properties": {
+        "fit_noise_runs_s": {
+          "$ref": "#/$defs/NumberArray"
+        },
+        "whiten_runs_s": {
+          "$ref": "#/$defs/NumberArray"
+        },
+        "total_runs_s": {
+          "$ref": "#/$defs/NumberArray"
+        },
+        "fit_noise_median_s": {
+          "type": "number"
+        },
+        "whiten_median_s": {
+          "type": "number"
+        },
+        "total_median_s": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ArmaPathReport": {
+      "type": "object",
+      "required": [
+        "config",
+        "results",
+        "relative_speed_vs_ar_run_p2"
+      ],
+      "properties": {
+        "config": {
+          "type": "object",
+          "required": [
+            "n_runs",
+            "n_timepoints",
+            "n_regressors",
+            "n_voxels",
+            "repeats",
+            "warmup",
+            "seed"
+          ],
+          "additionalProperties": true
+        },
+        "results": {
+          "type": "object",
+          "required": [
+            "ar_run_p2",
+            "ar_global_p2",
+            "arma_run_p2q1",
+            "arma_global_p2q1"
+          ],
+          "properties": {
+            "ar_run_p2": {
+              "$ref": "#/$defs/ArmaCaseMetrics"
+            },
+            "ar_global_p2": {
+              "$ref": "#/$defs/ArmaCaseMetrics"
+            },
+            "arma_run_p2q1": {
+              "$ref": "#/$defs/ArmaCaseMetrics"
+            },
+            "arma_global_p2q1": {
+              "$ref": "#/$defs/ArmaCaseMetrics"
+            }
+          },
+          "additionalProperties": true
+        },
+        "relative_speed_vs_ar_run_p2": {
+          "type": "object",
+          "required": [
+            "ar_run_p2",
+            "ar_global_p2",
+            "arma_run_p2q1",
+            "arma_global_p2q1"
+          ],
+          "additionalProperties": {
+            "type": "number"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "CoreParityMatrixReport": {
+      "type": "object",
+      "required": [
+        "artifact_version",
+        "report_kind",
+        "generated_at_utc",
+        "config",
+        "workstreams"
+      ],
+      "properties": {
+        "artifact_version": {
+          "type": "string"
+        },
+        "report_kind": {
+          "const": "core_parity_matrix"
+        },
+        "generated_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "config": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "workstreams": {
+          "type": "object",
+          "required": [
+            "ws01",
+            "ws02",
+            "ws03",
+            "ws04",
+            "ws05",
+            "ws06",
+            "ws07",
+            "ws08",
+            "ws09",
+            "ws10"
+          ],
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "name",
+              "status",
+              "parity_ok",
+              "performance_ok"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "not_started",
+                  "in_progress",
+                  "blocked",
+                  "complete"
+                ]
+              },
+              "parity_ok": {
+                "type": "boolean"
+              },
+              "performance_ok": {
+                "type": "boolean"
+              },
+              "artifacts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "notes": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

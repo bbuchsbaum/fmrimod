@@ -279,7 +279,7 @@ def gen_hrf_lagged(
     if not isinstance(hrf, HRF):
         hrf = as_hrf(hrf)
     
-    lags = np.asarray(lags)
+    lags = np.atleast_1d(np.asarray(lags, dtype=np.float64))
     
     # Create lagged HRFs
     lagged_hrfs = [lag_hrf(hrf, lag) for lag in lags]
@@ -299,6 +299,19 @@ def gen_hrf_lagged(
         )
     
     return combined
+
+
+def hrf_lagged(
+    hrf: Union[HRF, Callable],
+    lag: ArrayLike = 2.0,
+    normalize: bool = False,
+    name: Optional[str] = None,
+) -> HRF:
+    """R-compatible alias for creating lagged HRF bases."""
+    lagged = gen_hrf_lagged(hrf, lag, name=name)
+    if normalize:
+        lagged = normalize_hrf(lagged)
+    return lagged
 
 
 def gen_hrf_blocked(
@@ -331,7 +344,7 @@ def gen_hrf_blocked(
     if not isinstance(hrf, HRF):
         hrf = as_hrf(hrf)
     
-    widths = np.asarray(widths)
+    widths = np.atleast_1d(np.asarray(widths, dtype=np.float64))
     
     # Create blocked HRFs
     blocked_hrfs = []
@@ -359,3 +372,27 @@ def gen_hrf_blocked(
         )
     
     return combined
+
+
+def hrf_blocked(
+    hrf: Optional[Union[HRF, Callable]] = None,
+    width: ArrayLike = 5.0,
+    precision: float = 0.1,
+    half_life: float = float('inf'),
+    summate: bool = True,
+    normalize: bool = False,
+    name: Optional[str] = None,
+) -> HRF:
+    """R-compatible alias for creating blocked HRF bases."""
+    if hrf is None:
+        from .library import GAUSSIAN_HRF
+        hrf = GAUSSIAN_HRF
+    return gen_hrf_blocked(
+        hrf,
+        width,
+        precision=precision,
+        half_life=half_life,
+        summate=summate,
+        normalize=normalize,
+        name=name,
+    )

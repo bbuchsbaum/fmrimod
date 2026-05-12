@@ -15,6 +15,9 @@ daemon.log
 daemon-error
 .local_version
 *.sock.startlock
+sync-state.json
+backup/
+embeddeddolt/
 
 # History snapshots
 .br_history/

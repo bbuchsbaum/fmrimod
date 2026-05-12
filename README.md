@@ -45,10 +45,16 @@ signal = reg.eval_regressor(sf)
 
 ## Lineage
 
-This package unifies two Python ports of R neuroimaging packages:
+This package unifies Python ports of three related R neuroimaging packages:
 
 - **fmrihrf** (R) -> `fmrimod.hrf` + `fmrimod.regressor`
 - **fmridesign** (R) -> `fmrimod.events` + `fmrimod.design` + `fmrimod.contrast` + ...
+- **fmrireg** (R) -> `fmrimod.model` + `fmrimod.glm` + `fmrimod.ar` + `fmrimod.betas` + `fmrimod.stats` + ...
+
+Migration guides:
+
+- `docs/source/design/migration_guide.md` maps R `fmridesign` workflows to Python.
+- `docs/source/design/fmrireg_migration.rst` maps R `fmrireg` workflows to Python.
 
 ## License
 

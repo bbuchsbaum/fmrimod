@@ -1,0 +1,70 @@
+name: ARMA Benchmark
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *"
+
+jobs:
+  benchmark-arma:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[test]
+          pip install numba
+          pip install jsonschema
+
+      - name: Run AR/ARMA benchmark
+        run: |
+          mkdir -p cross_testing/reports
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            REPEATS=7
+            WARMUP=2
+          else
+            REPEATS=3
+            WARMUP=1
+          fi
+          python cross_testing/benchmark_arma_paths.py \
+            --repeats "$REPEATS" \
+            --warmup "$WARMUP" \
+            --output cross_testing/reports/fmrimod_arma_benchmark_ci.json
+
+      - name: Validate benchmark artifact schema
+        run: |
+          python cross_testing/validate_benchmark_schema.py \
+            --artifact cross_testing/reports/fmrimod_arma_benchmark_ci.json \
+            --schema cross_testing/schemas/core_parity_benchmark.schema.json
+
+      - name: Enforce benchmark thresholds
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            MIN_RUN=1.20
+            MIN_GLOBAL=1.05
+          else
+            MIN_RUN=1.05
+            MIN_GLOBAL=1.00
+          fi
+          python cross_testing/check_arma_benchmark_thresholds.py \
+            --report cross_testing/reports/fmrimod_arma_benchmark_ci.json \
+            --min-arma-run "$MIN_RUN" \
+            --min-arma-global "$MIN_GLOBAL"
+
+      - name: Upload benchmark artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fmrimod-arma-benchmark
+          path: cross_testing/reports/fmrimod_arma_benchmark_ci.json

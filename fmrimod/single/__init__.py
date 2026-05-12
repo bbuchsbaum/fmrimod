@@ -19,6 +19,8 @@ from typing import Optional
 import numpy as np
 from numpy.typing import NDArray
 
+from ._prewhiten import PrewhitenConfig
+from ._project import NuisanceProjector, build_nuisance_projector
 from ._types import (
     OasisConfig,
     SbhmConfig,
@@ -26,12 +28,27 @@ from ._types import (
     SingleTrialResult,
     VoxelHrfResult,
 )
-from ._project import NuisanceProjector, build_nuisance_projector
-from ._prewhiten import PrewhitenConfig
-from .lss import lss_single_trial
+from .item import (
+    ItemBundle,
+    ItemCovarianceResult,
+    ItemCvAggregate,
+    ItemCvResult,
+    ItemFoldMetrics,
+    ItemFoldSplit,
+    ItemPredictions,
+    ItemWeightsResult,
+    item_build_design,
+    item_compute_u,
+    item_cv,
+    item_fit,
+    item_from_lsa,
+    item_predict,
+    item_slice_fold,
+)
 from .lsa import lsa_single_trial
-from .oasis import oasis_single_trial
+from .lss import lss_single_trial
 from .mixed import mixed_single_trial
+from .oasis import oasis_single_trial
 from .voxel_hrf import estimate_hrf, estimate_voxel_hrf, lss_with_voxel_hrf
 
 
@@ -39,16 +56,16 @@ def estimate_single_trial(
     Y: NDArray[np.float64],
     X: NDArray[np.float64],
     method: str = "lss",
-    confounds: Optional[NDArray[np.float64]] = None,
-    trial_labels: Optional[list] = None,
+    confounds: NDArray[np.float64] | None = None,
+    trial_labels: list | None = None,
     return_se: bool = False,
     *,
-    prewhiten: Optional[PrewhitenConfig] = None,
-    nuisance_projector: Optional[NuisanceProjector] = None,
-    chunk_size: Optional[int] = None,
-    oasis_config: Optional[OasisConfig] = None,
-    sbhm_config: Optional[SbhmConfig] = None,
-    sbhm_library: Optional[object] = None,
+    prewhiten: PrewhitenConfig | None = None,
+    nuisance_projector: NuisanceProjector | None = None,
+    chunk_size: int | None = None,
+    oasis_config: OasisConfig | None = None,
+    sbhm_config: SbhmConfig | None = None,
+    sbhm_library: object | None = None,
 ) -> SingleTrialResult:
     """Estimate per-trial betas using the specified method.
 
@@ -154,6 +171,13 @@ __all__ = [
     "lsa_single_trial",
     "oasis_single_trial",
     "mixed_single_trial",
+    "item_build_design",
+    "item_compute_u",
+    "item_fit",
+    "item_predict",
+    "item_slice_fold",
+    "item_cv",
+    "item_from_lsa",
     "estimate_hrf",
     "estimate_voxel_hrf",
     "lss_with_voxel_hrf",
@@ -165,4 +189,12 @@ __all__ = [
     "VoxelHrfResult",
     "NuisanceProjector",
     "build_nuisance_projector",
+    "ItemBundle",
+    "ItemCovarianceResult",
+    "ItemWeightsResult",
+    "ItemFoldSplit",
+    "ItemFoldMetrics",
+    "ItemPredictions",
+    "ItemCvAggregate",
+    "ItemCvResult",
 ]

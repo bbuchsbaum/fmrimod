@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import numpy as np
 from numpy.typing import NDArray
 from scipy import stats as sp_stats
+
+from .backends import resolve_second_level_backend
+from .interfaces import GroupFitRequest, GroupFitResult
+from .normalize import normalize_group_fit_request
+from .spatial_fdr import spatial_fdr
 
 
 def p_to_z(p: NDArray[np.float64], two_sided: bool = True) -> NDArray[np.float64]:
@@ -158,3 +165,72 @@ def fdr_correction(
     reject = p_adjusted <= alpha
 
     return reject, p_adjusted
+
+
+def _as_2d(x: NDArray[np.float64]) -> NDArray[np.float64]:
+    arr = np.asarray(x, dtype=np.float64)
+    if arr.ndim == 1:
+        return arr[:, np.newaxis]
+    if arr.ndim == 2:
+        return arr
+    raise ValueError("Expected 1-D or 2-D p-value array")
+
+
+def _coerce_group_ids(group_ids: object, n_features: int) -> NDArray[np.intp]:
+    if group_ids is None:
+        raise ValueError("correction='spatial' requires group_ids")
+    arr = np.asarray(group_ids)
+    if arr.ndim != 1:
+        raise ValueError("group_ids must be 1-D")
+    if arr.shape[0] != n_features:
+        raise ValueError("group_ids length must match number of features")
+    if arr.dtype.kind in ("f", "c"):
+        if not np.all(np.isfinite(arr)):
+            raise ValueError("group_ids must contain finite integer labels")
+        if not np.allclose(arr, np.round(arr)):
+            raise ValueError("group_ids must contain integer labels")
+    elif arr.dtype.kind not in ("i", "u", "b"):
+        try:
+            arr = arr.astype(np.int64)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("group_ids must contain integer labels") from exc
+    return arr.astype(np.intp, copy=False)
+
+
+def _apply_group_correction(
+    result: GroupFitResult,
+    request: GroupFitRequest,
+) -> GroupFitResult:
+    if request.correction is None:
+        return result
+
+    p2 = _as_2d(result.p)
+    q2 = np.empty_like(p2)
+    corr = str(request.correction)
+
+    if corr in ("bh", "by"):
+        for j in range(p2.shape[1]):
+            _, q_col = fdr_correction(p2[:, j], alpha=request.alpha, method=corr)
+            q2[:, j] = q_col
+    elif corr == "spatial":
+        gids = _coerce_group_ids(request.group_ids, n_features=p2.shape[0])
+        for j in range(p2.shape[1]):
+            q2[:, j] = spatial_fdr(p2[:, j], group_ids=gids, alpha=request.alpha).qvalues
+    else:
+        raise ValueError("correction must be one of: bh, by, spatial")
+
+    md = dict(result.metadata)
+    md["correction"] = corr
+    md["alpha"] = float(request.alpha)
+    return replace(result, q=q2, metadata=md)
+
+
+def group_fit(request: GroupFitRequest) -> GroupFitResult:
+    """Canonical second-level interface with parity-oriented normalization."""
+    if not isinstance(request, GroupFitRequest):
+        raise TypeError("request must be a GroupFitRequest")
+
+    req = normalize_group_fit_request(request)
+    backend = resolve_second_level_backend(str(req.backend))
+    out = backend.fit(req)
+    return _apply_group_correction(out, req)

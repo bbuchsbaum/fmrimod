@@ -1,0 +1,66 @@
+name: Fitlins Parity Benchmark
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 8 * * *"
+
+jobs:
+  benchmark-fitlins:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[test]
+          pip install nilearn jsonschema
+
+      - name: Run fitlins parity benchmark
+        run: |
+          mkdir -p cross_testing/reports
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            REPEATS=7
+            WARMUP=2
+          else
+            REPEATS=3
+            WARMUP=1
+          fi
+          python cross_testing/benchmark_fitlins.py \
+            --repeats "$REPEATS" \
+            --warmup "$WARMUP" \
+            --output cross_testing/reports/fitlins_parity_benchmark_ci.json
+
+      - name: Validate benchmark artifact schema
+        run: |
+          python cross_testing/validate_benchmark_schema.py \
+            --artifact cross_testing/reports/fitlins_parity_benchmark_ci.json \
+            --schema cross_testing/schemas/core_parity_benchmark.schema.json
+
+      - name: Enforce fitlins contract
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            MIN_SPEEDUP=1.05
+          else
+            MIN_SPEEDUP=1.00
+          fi
+          python cross_testing/check_fitlins_benchmark_contract.py \
+            --report cross_testing/reports/fitlins_parity_benchmark_ci.json \
+            --min-speedup "$MIN_SPEEDUP"
+
+      - name: Upload fitlins benchmark artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fmrimod-fitlins-benchmark
+          path: cross_testing/reports/fitlins_parity_benchmark_ci.json

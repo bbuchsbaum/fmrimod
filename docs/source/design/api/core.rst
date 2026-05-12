@@ -1,45 +1,27 @@
 Core API
 ========
 
-Event Models
-------------
+Use the high-level functions below to construct event models and design matrices.
 
-.. currentmodule:: fmrimod
+Model Construction
+------------------
 
-.. autofunction:: event_model
+- :func:`fmrimod.event_model`
+- :func:`fmrimod.design_matrix`
+- :func:`fmrimod.baseline_model`
+- :func:`fmrimod.contrast`
 
-.. autoclass:: fmrimod.core.event_model.EventModel
-   :members:
-   :undoc-members:
-   :show-inheritance:
+Event Helpers
+-------------
 
-Baseline Models
----------------
+- :func:`fmrimod.event_factor`
+- :func:`fmrimod.event_variable`
+- :func:`fmrimod.event_matrix`
+- :func:`fmrimod.event_term`
 
-.. autofunction:: baseline_model
+Core Types
+----------
 
-.. autoclass:: fmrimod.baseline.baseline_model.BaselineModel
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Model Building
---------------
-
-.. autoclass:: fmrimod.formula.base.EventModelBuilder
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. autoclass:: fmrimod.formula.base.Term
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-Sampling
---------
-
-.. autoclass:: fmrimod.sampling.SamplingFrame
-   :members:
-   :undoc-members:
-   :show-inheritance:
+- :class:`fmrimod.design.event_model.EventModel`
+- :class:`fmrimod.baseline.baseline_model.BaselineModel`
+- :class:`fmrimod.sampling.SamplingFrame`

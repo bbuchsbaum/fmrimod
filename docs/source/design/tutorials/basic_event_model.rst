@@ -253,6 +253,6 @@ Mixed Block/Event Design
 Next Steps
 ----------
 
-- Learn about :doc:`working_with_contrasts` to test hypotheses
-- Explore :doc:`parametric_modulation` for more complex designs
-- See :doc:`baseline_modeling` to handle scanner drift
+- Return to :doc:`../quickstart` for compact usage examples
+- See :doc:`../api/index` for full API reference
+- Read :doc:`../migration_guide` for differences from R ``fmridesign``

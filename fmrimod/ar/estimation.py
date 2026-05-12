@@ -408,7 +408,21 @@ def fit_noise(
             if len(c_in):
                 censor_by_run[ri] = c_in - start
 
-    run_mats = [resid[idx] for idx in run_sets]
+    def _rows_from_idx(mat: NDArray, idx: NDArray) -> NDArray:
+        """Return run rows, preferring slice views for contiguous indices."""
+        if len(idx) == 0:
+            return mat[idx]
+        if len(idx) == 1:
+            i0 = int(idx[0])
+            return mat[i0 : i0 + 1]
+        i0 = int(idx[0])
+        i1 = int(idx[-1])
+        # Fast contiguous check: run labels are typically contiguous blocks.
+        if (i1 - i0 + 1) == len(idx) and np.all(np.diff(idx) == 1):
+            return mat[i0 : i1 + 1]
+        return mat[idx]
+
+    run_mats = [_rows_from_idx(resid, idx) for idx in run_sets]
 
     # --- Parcel pooling ---
     if pooling == "parcel":
@@ -533,6 +547,21 @@ def fit_noise(
     def _est_run(mat, censor_rel):
         n_run = mat.shape[0]
 
+        if method == "arma":
+            # ARMA uses run-mean time series; avoid materializing full-row copies
+            # when there is no censoring.
+            if len(censor_rel) > 0:
+                valid = np.ones(n_run, dtype=bool)
+                valid[censor_rel] = False
+                y_mean = mat[valid].mean(axis=1)
+            else:
+                y_mean = mat.mean(axis=1)
+
+            from .hr_arma import hr_arma
+            pp = min(2, p_max) if p == "auto" else int(p)
+            qq = int(q)
+            return hr_arma(y_mean, p=pp, q=qq, n_iter=hr_iter, step1=step1)
+
         # Build valid indices
         if len(censor_rel) > 0:
             valid = np.ones(n_run, dtype=bool)
@@ -604,22 +633,23 @@ def fit_noise(
             return {"phi": best_phi,
                     "theta": np.array([], dtype=np.float64),
                     "order": (best_p, 0)}
-        else:
-            # ARMA
-            from .hr_arma import hr_arma
-            mat_valid = mat[valid_idx]
-            y_mean = mat_valid.mean(axis=1)
-            pp = min(2, p_max) if p == "auto" else int(p)
-            qq = int(q)
-            result = hr_arma(y_mean, p=pp, q=qq, n_iter=hr_iter, step1=step1)
-            return result
-
     # If p is a fixed integer (not "auto"), override BIC
     if p != "auto":
         p_fixed = int(p)
         # For fixed p, just do Yule-Walker without BIC
         def _est_run_fixed(mat, censor_rel):
             n_run = mat.shape[0]
+
+            if method == "arma":
+                if len(censor_rel) > 0:
+                    valid = np.ones(n_run, dtype=bool)
+                    valid[censor_rel] = False
+                    y_mean = mat[valid].mean(axis=1)
+                else:
+                    y_mean = mat.mean(axis=1)
+                from .hr_arma import hr_arma
+                return hr_arma(y_mean, p=p_fixed, q=int(q), n_iter=hr_iter, step1=step1)
+
             if len(censor_rel) > 0:
                 valid = np.ones(n_run, dtype=bool)
                 valid[censor_rel] = False
@@ -642,12 +672,6 @@ def fit_noise(
                 return {"phi": phi_try,
                         "theta": np.array([], dtype=np.float64),
                         "order": (p_fixed, 0)}
-            else:
-                from .hr_arma import hr_arma
-                mat_valid = mat[valid_idx]
-                y_mean = mat_valid.mean(axis=1)
-                return hr_arma(y_mean, p=p_fixed, q=int(q), n_iter=hr_iter, step1=step1)
-
         estimates = [_est_run_fixed(m, c) for m, c in zip(run_mats, censor_by_run)]
     else:
         estimates = [_est_run(m, c) for m, c in zip(run_mats, censor_by_run)]

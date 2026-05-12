@@ -148,15 +148,19 @@ def hr_arma(
     # Initialize
     phi = np.zeros(p, dtype=np.float64) if p > 0 else np.array([], dtype=np.float64)
     theta = np.zeros(q, dtype=np.float64) if q > 0 else np.array([], dtype=np.float64)
+    m = max(p, q)
+    idx = slice(m, n)
+    z_y = y[idx]
+    Ylags = _lag_matrix(y, p)
+    Yblock = Ylags[idx]
 
     # Step 2 + refinement iterations
     for _iteration in range(n_iter + 1):
-        Ylags = _lag_matrix(y, p)
-        Elags = _lag_matrix(ehat, q)
-        m = max(p, q)
-        idx = slice(m, n)
-        Z = np.hstack([Ylags[idx], Elags[idx]])
-        z_y = y[idx]
+        if q > 0:
+            Elags = _lag_matrix(ehat, q)
+            Z = np.hstack([Yblock, Elags[idx]])
+        else:
+            Z = Yblock
 
         if Z.shape[0] < Z.shape[1] + 1:
             raise ValueError(

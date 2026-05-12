@@ -122,7 +122,7 @@ class Contrast:
 
 
 @singledispatch
-def contrast_weights(x, term, **kwargs):
+def contrast_weights(x, term=None, **kwargs):
     """Compute contrast weights for a specification.
     
     This is a generic function that dispatches to specific implementations

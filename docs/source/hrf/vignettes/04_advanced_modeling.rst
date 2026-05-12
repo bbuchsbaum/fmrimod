@@ -25,7 +25,8 @@ Let's create a library of gamma HRFs with different shape and rate parameters:
 
 .. code-block:: python
 
-    from fmrimod import hrf_library, gen_hrf
+    from fmrimod import gen_hrf
+    from fmrimod.hrf import hrf_library
     from fmrimod.hrf.functions import gamma_hrf
     import numpy as np
     import pandas as pd
@@ -50,7 +51,8 @@ Let's create a library of gamma HRFs with different shape and rate parameters:
 
     import numpy as np
     import matplotlib.pyplot as plt
-    from fmrimod import hrf_library, gen_hrf
+    from fmrimod import gen_hrf
+    from fmrimod.hrf import hrf_library
     from fmrimod.hrf.functions import gamma_hrf
     import pandas as pd
 
@@ -100,7 +102,8 @@ Here's how to create a library of the SPM canonical HRF with different temporal 
 
     import numpy as np
     import matplotlib.pyplot as plt
-    from fmrimod import hrf_library, get_hrf, lag_hrf
+    from fmrimod import get_hrf, lag_hrf
+    from fmrimod.hrf import hrf_library
     import pandas as pd
 
     # Parameter grid for temporal lags

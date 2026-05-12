@@ -280,7 +280,20 @@ def arma_whiten_segments(
     do_exact = exact_first_ar1 and p == 1 and q_ord == 0
     exact_scale = np.sqrt(max(1.0 - phi[0] ** 2, 0.0)) if do_exact else 1.0
 
-    # ARMA path: prefer native C backend, then numba.
+    # ARMA path: prefer numba when available. On the benchmark gate workload,
+    # numba avoids ctypes boundary overhead and is faster than the C shim.
+    if q_ord > 0 and _USE_NUMBA_ARMA:
+        out = _arma_whiten_segments_numba_core(
+            np.ascontiguousarray(y),
+            np.ascontiguousarray(phi),
+            np.ascontiguousarray(theta),
+            np.ascontiguousarray(seg_starts),
+            do_exact,
+        )
+        if was_1d:
+            return out.ravel()
+        return out
+
     if q_ord > 0 and _USE_C_ARMA:
         out_c = arma_whiten_segments_c(
             y=np.ascontiguousarray(y),
@@ -293,18 +306,6 @@ def arma_whiten_segments(
             if was_1d:
                 return out_c.ravel()
             return out_c
-
-    if q_ord > 0 and _USE_NUMBA_ARMA:
-        out = _arma_whiten_segments_numba_core(
-            np.ascontiguousarray(y),
-            np.ascontiguousarray(phi),
-            np.ascontiguousarray(theta),
-            np.ascontiguousarray(seg_starts),
-            do_exact,
-        )
-        if was_1d:
-            return out.ravel()
-        return out
 
     for s_start, s_end in zip(seg_starts, seg_ends):
         seg = y[s_start:s_end]

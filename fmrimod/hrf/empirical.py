@@ -79,3 +79,8 @@ def empirical_hrf(
         params={"t": t_sorted.tolist(), "y": y_sorted.tolist()},
         param_names=["t", "y"]
     )
+
+
+def gen_empirical_hrf(*args, **kwargs) -> HRF:
+    """R-compatible alias for :func:`empirical_hrf`."""
+    return empirical_hrf(*args, **kwargs)

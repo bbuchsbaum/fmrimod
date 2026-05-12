@@ -345,6 +345,31 @@ def conditions(x, drop_empty: bool = True, expand_basis: bool = False, **kwargs)
     raise NotImplementedError(f"conditions not implemented for {type(x)}")
 
 
+def _display_condition_name(canonical: Any) -> Any:
+    """Convert canonical condition tags to compact display names."""
+    if canonical is None:
+        return None
+    parts = str(canonical).split("_")
+    labels = [part.split(".")[-1] for part in parts]
+    return ":".join(labels)
+
+
+@singledispatch
+def condition_map(
+    x,
+    drop_empty: bool = True,
+    expand_basis: bool = False,
+    **kwargs,
+) -> pd.DataFrame:
+    """Map compact display condition names to canonical condition names.
+
+    This mirrors the fmridesign ``condition_map()`` generic while keeping the
+    result in a pandas DataFrame. Event terms return ``display`` and
+    ``canonical`` columns. Event models add ``term`` and ``column_name``.
+    """
+    raise NotImplementedError(f"condition_map not implemented for {type(x)}")
+
+
 @singledispatch
 def onsets(x, **kwargs) -> Union[np.ndarray, List[float]]:
     """Extract event onset times from an object.
@@ -643,6 +668,97 @@ def construct(x, *args, **kwargs) -> Any:
     raise NotImplementedError(f"construct not implemented for {type(x)}")
 
 
+def evaluate(x, *args, **kwargs):
+    """Evaluate an object with an ``evaluate`` method or callable interface.
+
+    This is a lightweight compatibility helper for the R ``evaluate()`` generic.
+    It intentionally delegates to the object's Python method rather than
+    introducing a parallel dispatch system.
+    """
+    method = getattr(x, "evaluate", None)
+    if callable(method):
+        return method(*args, **kwargs)
+    if callable(x):
+        return x(*args, **kwargs)
+    raise NotImplementedError(f"evaluate not implemented for {type(x)}")
+
+
+def acquisition_onsets(x, **kwargs) -> np.ndarray:
+    """Return global fMRI acquisition onset times from a sampling frame."""
+    val = getattr(x, "acquisition_onsets", None)
+    if callable(val):
+        return np.asarray(val(**kwargs))
+    if val is not None:
+        if kwargs:
+            unexpected = ", ".join(sorted(kwargs))
+            raise TypeError(f"unexpected keyword argument(s): {unexpected}")
+        return np.asarray(val)
+    raise NotImplementedError(f"acquisition_onsets not implemented for {type(x)}")
+
+
+def amplitudes(x, **kwargs) -> np.ndarray:
+    """Return event amplitudes from a regressor-like object."""
+    method = getattr(x, "amplitudes", None)
+    if callable(method):
+        return np.asarray(method(**kwargs))
+    val = getattr(x, "amplitude", None)
+    if val is not None:
+        if kwargs:
+            unexpected = ", ".join(sorted(kwargs))
+            raise TypeError(f"unexpected keyword argument(s): {unexpected}")
+        return np.asarray(val)
+    raise NotImplementedError(f"amplitudes not implemented for {type(x)}")
+
+
+def samples(x, global_time: bool = True, **kwargs) -> np.ndarray:
+    """Return sampling times from a sampling-frame-like object.
+
+    Parameters
+    ----------
+    x : object
+        Object exposing ``sample_times`` or ``samples``.
+    global_time : bool, default True
+        Whether to return global scan times. The R-style keyword ``global`` is
+        accepted through ``**kwargs``.
+    """
+    blockids = kwargs.pop("blockids", None)
+    if "global" in kwargs:
+        global_time = bool(kwargs.pop("global"))
+    if kwargs:
+        unexpected = ", ".join(sorted(kwargs))
+        raise TypeError(f"unexpected keyword argument(s): {unexpected}")
+    if hasattr(x, "sample_times"):
+        return np.asarray(x.sample_times(global_time=global_time, blockids=blockids))
+    if blockids is not None:
+        raise NotImplementedError(f"samples block filtering not implemented for {type(x)}")
+    val = getattr(x, "samples", None)
+    if callable(val):
+        return np.asarray(val())
+    if val is not None and global_time:
+        return np.asarray(val)
+    raise NotImplementedError(f"samples not implemented for {type(x)}")
+
+
+def global_onsets(x, onsets, blockids, **kwargs) -> np.ndarray:
+    """Convert block-local onsets to global experiment onsets."""
+    method = getattr(x, "global_onsets", None)
+    if callable(method):
+        return np.asarray(method(onsets, blockids, **kwargs))
+    raise NotImplementedError(f"global_onsets not implemented for {type(x)}")
+
+
+def shift(x, shift_amount=None, **kwargs):
+    """Shift a regressor-like object by a temporal offset."""
+    if shift_amount is None and "offset" in kwargs:
+        shift_amount = kwargs.pop("offset")
+    if shift_amount is None:
+        raise TypeError("shift requires `shift_amount` or `offset`")
+    method = getattr(x, "shift", None)
+    if callable(method):
+        return method(shift_amount, **kwargs)
+    raise NotImplementedError(f"shift not implemented for {type(x)}")
+
+
 # Register EventTerm implementations after generics are defined
 def _register_event_term():
     """Register EventTerm implementations after imports are resolved."""
@@ -660,6 +776,17 @@ def _register_event_term():
                                    expand_basis: bool = False, **kwargs):
             """Extract conditions from an EventTerm."""
             return conditions_event_term(term, drop_empty, expand_basis)
+
+        @condition_map.register(EventTerm)
+        def _condition_map_event_term(term: EventTerm, drop_empty: bool = True,
+                                      expand_basis: bool = False, **kwargs):
+            """Map EventTerm display labels to canonical condition names."""
+            canonical = conditions_event_term(term, drop_empty, expand_basis)
+            display = [_display_condition_name(cond) for cond in canonical]
+            return pd.DataFrame({
+                "display": display,
+                "canonical": canonical,
+            })
             
     except ImportError:
         pass
@@ -871,6 +998,14 @@ def _register_event_cells_conditions():
             from ..events.term import EventTerm
             term = EventTerm([event])
             return conditions_event_term(term, drop_empty, expand_basis)
+
+        @condition_map.register(EventFactor)
+        def _condition_map_event_factor(event: EventFactor, drop_empty: bool = True,
+                                        expand_basis: bool = False, **kwargs):
+            """Map EventFactor display labels to canonical condition names."""
+            from ..events.term import EventTerm
+            term = EventTerm([event])
+            return condition_map(term, drop_empty=drop_empty, expand_basis=expand_basis)
         
         # For EventVariable - wrap in EventTerm
         @cells.register(EventVariable)
@@ -887,6 +1022,14 @@ def _register_event_cells_conditions():
             from ..events.term import EventTerm
             term = EventTerm([event])
             return conditions_event_term(term, drop_empty, expand_basis)
+
+        @condition_map.register(EventVariable)
+        def _condition_map_event_variable(event: EventVariable, drop_empty: bool = True,
+                                          expand_basis: bool = False, **kwargs):
+            """Map EventVariable display labels to canonical condition names."""
+            from ..events.term import EventTerm
+            term = EventTerm([event])
+            return condition_map(term, drop_empty=drop_empty, expand_basis=expand_basis)
         
         # For EventMatrix - wrap in EventTerm
         @cells.register(EventMatrix)
@@ -903,6 +1046,14 @@ def _register_event_cells_conditions():
             from ..events.term import EventTerm
             term = EventTerm([event])
             return conditions_event_term(term, drop_empty, expand_basis)
+
+        @condition_map.register(EventMatrix)
+        def _condition_map_event_matrix(event: EventMatrix, drop_empty: bool = True,
+                                        expand_basis: bool = False, **kwargs):
+            """Map EventMatrix display labels to canonical condition names."""
+            from ..events.term import EventTerm
+            term = EventTerm([event])
+            return condition_map(term, drop_empty=drop_empty, expand_basis=expand_basis)
         
         # For EventBasis - wrap in EventTerm
         @cells.register(EventBasis)
@@ -919,6 +1070,14 @@ def _register_event_cells_conditions():
             from ..events.term import EventTerm
             term = EventTerm([event])
             return conditions_event_term(term, drop_empty, expand_basis)
+
+        @condition_map.register(EventBasis)
+        def _condition_map_event_basis(event: EventBasis, drop_empty: bool = True,
+                                       expand_basis: bool = False, **kwargs):
+            """Map EventBasis display labels to canonical condition names."""
+            from ..events.term import EventTerm
+            term = EventTerm([event])
+            return condition_map(term, drop_empty=drop_empty, expand_basis=expand_basis)
             
     except ImportError:
         pass
@@ -1468,6 +1627,44 @@ def _register_events_event_conditions_contrasts():
 
     try:
         from ..design.event_model import EventModel
+
+        @condition_map.register(EventModel)
+        def _condition_map_event_model(x, drop_empty=True, expand_basis=False, **kwargs):
+            """Map EventModel display/canonical names to design column names."""
+            rows = []
+            event_term_list = x._create_event_terms()
+            column_names = list(getattr(x, "column_names", []) or [])
+            column_indices = getattr(x, "column_indices", {}) or {}
+
+            for term_obj, event_term in zip(x.terms, event_term_list):
+                term_name = getattr(term_obj, "name", getattr(event_term, "name", "term"))
+                term_map = condition_map(
+                    event_term,
+                    drop_empty=drop_empty,
+                    expand_basis=expand_basis,
+                    **kwargs,
+                )
+                term_cols = [
+                    column_names[idx]
+                    for idx in column_indices.get(term_name, [])
+                    if idx < len(column_names)
+                ]
+                if len(term_cols) == len(term_map):
+                    mapped_cols = term_cols
+                else:
+                    mapped_cols = [None] * len(term_map)
+                for i, row in term_map.reset_index(drop=True).iterrows():
+                    rows.append({
+                        "term": term_name,
+                        "display": row["display"],
+                        "canonical": row["canonical"],
+                        "column_name": mapped_cols[i],
+                    })
+
+            return pd.DataFrame(
+                rows,
+                columns=["term", "display", "canonical", "column_name"],
+            )
 
         @events.register(EventModel)
         def _events_event_model(x, drop_empty=False, **kwargs):

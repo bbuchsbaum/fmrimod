@@ -1,7 +1,7 @@
 .. fmrimod documentation master file
 
-Welcome to fmrimod's documentation!
-=========================================
+Design Matrix Documentation
+===========================
 
 **fmrimod** is a Python implementation of the R fmridesign package for creating and manipulating 
 design matrices for fMRI data analysis. It provides a comprehensive set of tools for experimental 
@@ -17,36 +17,16 @@ design specification, HRF convolution, and statistical contrast definition.
 
 .. toctree::
    :maxdepth: 2
-   :caption: Interactive Notebooks
-
-   notebooks/01_hemodynamic_response
-   notebooks/02_building_regressors
-   notebooks/03_baseline_models
-   notebooks/04_event_models
-
-.. toctree::
-   :maxdepth: 2
-   :caption: User Guide
-
-   user_guide/event_models
-   user_guide/contrasts
-   user_guide/baseline
-   user_guide/covariates
-   user_guide/visualization
-
-.. toctree::
-   :maxdepth: 2
    :caption: API Reference
 
    api/index
 
 .. toctree::
    :maxdepth: 1
-   :caption: Migration & Development
+   :caption: Migration
 
    migration_guide
-   contributing
-   changelog
+   fmrireg_migration
 
 Features
 --------

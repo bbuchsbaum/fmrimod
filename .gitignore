@@ -3,6 +3,9 @@ __pycache__/
 *$py.class
 *.egg-info/
 dist/
+fmrimod/ar/_arma_filter*.so
+fmrimod/ar/_arma_filter*.pyd
+fmrimod/ar/_arma_filter*.dylib
 build/
 .eggs/
 *.egg
@@ -21,5 +24,7 @@ coverage.xml
 *.swo
 uv.lock
 cross_testing/reports/
+docs/_build/
 fitlins/
 worker_agent.md
+.mote/

@@ -185,5 +185,5 @@ Next Steps
 ----------
 
 * See the :doc:`tutorials/index` for more detailed examples
-* Read the :doc:`user_guide/event_models` for comprehensive model specification
 * Check the :doc:`api/index` for detailed function documentation
+* Read the :doc:`migration_guide` for differences from the R package

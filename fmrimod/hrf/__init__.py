@@ -18,18 +18,21 @@ from .library import (
 from .decorators import (
     lag_hrf, block_hrf, normalize_hrf,
     gen_hrf_lagged, gen_hrf_blocked,
+    hrf_lagged, hrf_blocked,
 )
 from .generators import (
-    gen_hrf, gen_hrf_set, make_hrf,
+    gen_hrf, gen_hrf_set, hrf_set, make_hrf,
     bspline_generator, fir_generator, fourier_generator, daguerre_generator,
+    hrf_bspline_generator, hrf_fir_generator, hrf_fourier_generator,
+    hrf_daguerre_generator, hrf_tent_generator,
 )
 from .registry import (
     get_hrf, list_available_hrfs, register_hrf, remove_hrf,
     clear_registry, _HRF_REGISTRY,
 )
 from .penalty import penalty_matrix
-from .empirical import empirical_hrf
-from .hrf_library import hrf_library
+from .empirical import empirical_hrf, gen_empirical_hrf
+from .hrf_library import hrf_library, gen_hrf_library
 from .reconstruction import reconstruction_matrix
 from .derivatives import deriv
 
@@ -50,18 +53,21 @@ __all__ = [
     # Decorators
     "lag_hrf", "block_hrf", "normalize_hrf",
     "gen_hrf_lagged", "gen_hrf_blocked",
+    "hrf_lagged", "hrf_blocked",
     # Generators
-    "gen_hrf", "gen_hrf_set", "make_hrf",
+    "gen_hrf", "gen_hrf_set", "hrf_set", "make_hrf",
     "bspline_generator", "fir_generator", "fourier_generator", "daguerre_generator",
+    "hrf_bspline_generator", "hrf_fir_generator", "hrf_fourier_generator",
+    "hrf_daguerre_generator", "hrf_tent_generator",
     # Registry
     "get_hrf", "list_available_hrfs", "register_hrf", "remove_hrf", "clear_registry",
     "_HRF_REGISTRY", "PREDEFINED_HRFS",
     # Penalty
     "penalty_matrix",
     # Empirical
-    "empirical_hrf",
+    "empirical_hrf", "gen_empirical_hrf",
     # Library
-    "hrf_library",
+    "hrf_library", "gen_hrf_library",
     # Reconstruction
     "reconstruction_matrix",
     # Derivatives

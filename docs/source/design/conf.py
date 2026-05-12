@@ -1,47 +1,52 @@
-# Configuration file for the Sphinx documentation builder.
-#
-# For the full list of built-in configuration values, see the documentation:
-# https://www.sphinx-doc.org/en/master/usage/configuration.html
-
-import os
+from importlib.util import find_spec
+from pathlib import Path
 import sys
-sys.path.insert(0, os.path.abspath('../../src'))
 
-# -- Project information -----------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
+ROOT = Path(__file__).resolve().parents[3]
+SRC = ROOT / "src"
+if SRC.exists():
+    sys.path.insert(0, str(SRC))
+else:
+    sys.path.insert(0, str(ROOT))
 
-project = 'fmrimod'
-copyright = '2024, fmrimod developers'
-author = 'fmrimod developers'
-release = '0.1.0'
+import fmrimod
 
-# -- General configuration ---------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
+project = "fmrimod"
+copyright = "2024, fmrimod developers"
+author = "fmrimod developers"
+release = fmrimod.__version__
 
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.autosummary',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.intersphinx',
-    'sphinx.ext.mathjax',
-    'sphinx_autodoc_typehints',
-    'myst_parser',
-    'nbsphinx',
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.mathjax",
+    "myst_parser",
 ]
 
-templates_path = ['_templates']
-exclude_patterns = []
+if find_spec("sphinx_autodoc_typehints") is not None:
+    extensions.append("sphinx_autodoc_typehints")
 
-# -- Options for HTML output -------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
+HAS_NBSPHINX = find_spec("nbsphinx") is not None
+if HAS_NBSPHINX:
+    extensions.append("nbsphinx")
+    tags.add("has_nbsphinx")
 
-html_theme = 'sphinx_rtd_theme'
-html_static_path = ['_static']
+templates_path = ["_templates"]
+exclude_patterns = ["api/generated/pyfmridesign*.rst"]
+if not HAS_NBSPHINX:
+    exclude_patterns.append("notebooks/*.ipynb")
 
-# -- Extension configuration -------------------------------------------------
+if find_spec("sphinx_rtd_theme") is not None:
+    html_theme = "sphinx_rtd_theme"
+else:
+    html_theme = "alabaster"
 
-# Napoleon settings
+STATIC_DIR = Path(__file__).parent / "_static"
+html_static_path = ["_static"] if STATIC_DIR.exists() else []
+
 napoleon_google_docstring = False
 napoleon_numpy_docstring = True
 napoleon_include_init_with_doc = True
@@ -54,35 +59,30 @@ napoleon_use_ivar = False
 napoleon_use_param = True
 napoleon_use_rtype = True
 
-# Autodoc settings
 autodoc_default_options = {
-    'members': True,
-    'member-order': 'bysource',
-    'special-members': '__init__',
-    'undoc-members': True,
-    'exclude-members': '__weakref__',
+    "members": True,
+    "member-order": "bysource",
+    "special-members": "__init__",
+    "undoc-members": True,
+    "exclude-members": "__weakref__",
 }
-
-# Autosummary settings
+autodoc_typehints = "description"
 autosummary_generate = True
 
-# Intersphinx configuration
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3', None),
-    'numpy': ('https://numpy.org/doc/stable/', None),
-    'pandas': ('https://pandas.pydata.org/pandas-docs/stable/', None),
-    'scipy': ('https://docs.scipy.org/doc/scipy/', None),
-    'matplotlib': ('https://matplotlib.org/stable/', None),
+    "python": ("https://docs.python.org/3", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "pandas": ("https://pandas.pydata.org/docs/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
+    "matplotlib": ("https://matplotlib.org/stable/", None),
 }
 
-# MyST parser for markdown support
 myst_enable_extensions = [
     "colon_fence",
     "deflist",
     "tasklist",
 ]
 
-# nbsphinx settings for Jupyter notebooks
-nbsphinx_execute = 'never'  # Don't execute notebooks during build
-nbsphinx_allow_errors = True  # Continue building even if notebooks have errors
-nbsphinx_kernel_name = 'python3'
+nbsphinx_execute = "never"
+nbsphinx_allow_errors = True
+nbsphinx_kernel_name = "python3"

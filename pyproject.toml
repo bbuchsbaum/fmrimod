@@ -112,10 +112,19 @@ include = [
     "/tests",
     "/docs",
     "/examples",
+    "/hatch_build.py",
 ]
 
 [tool.hatch.build.targets.wheel]
 packages = ["fmrimod"]
+artifacts = [
+    "fmrimod/ar/_arma_filter*.so",
+    "fmrimod/ar/_arma_filter*.pyd",
+    "fmrimod/ar/_arma_filter*.dylib",
+]
+
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
 
 [tool.pytest.ini_options]
 minversion = "7.0"

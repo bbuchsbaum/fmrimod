@@ -47,7 +47,7 @@ def rctx() -> RContext:
     """Provide an R interop context or skip when unavailable."""
     pytest.importorskip("rpy2")
 
-    from rpy2.robjects import Formula
+    from rpy2.robjects import Formula, r
     from rpy2.robjects import conversion, default_converter, pandas2ri
     from rpy2.robjects.conversion import localconverter
     from rpy2.robjects.packages import PackageNotInstalledError, importr
@@ -73,6 +73,61 @@ def rctx() -> RContext:
             fmrihrf = importr("fmrihrf")
         except PackageNotInstalledError as exc:
             pytest.skip(f"Required R package not installed: {exc}")
+
+        # fmridesign 0.5.0 can fail before numeric parity is tested because an
+        # internal metadata tibble uses ``col = integer(0)`` with non-empty
+        # column names. Patch only the in-session R namespace helper so the
+        # live R design matrix can be constructed and compared.
+        r(
+            """
+            local({
+              ns <- asNamespace("fmridesign")
+              if (exists(".make_col_metadata", envir = ns, inherits = FALSE)) {
+                f <- get(".make_col_metadata", envir = ns)
+                probe <- try(f(name = c("a", "b"), condition = c("A", "B")), silent = TRUE)
+                needs_patch <- inherits(probe, "try-error") || NROW(probe) != 2L
+                if (isTRUE(needs_patch)) {
+                  replacement <- function(
+                    name,
+                    condition = name,
+                    term_tag = NA_character_,
+                    basis_name = NA_character_,
+                    basis_ix = NA_integer_,
+                    basis_total = NA_integer_,
+                    basis_label = NA_character_,
+                    role = "task",
+                    model_source = "event",
+                    modulation_type = "amplitude",
+                    modulation_id = NA_character_,
+                    is_block_diagonal = FALSE
+                  ) {
+                    tibble::tibble(
+                      col = seq_along(name),
+                      name = name,
+                      term_tag = term_tag,
+                      term_index = NA_integer_,
+                      condition = condition,
+                      run = NA_integer_,
+                      role = role,
+                      model_source = model_source,
+                      basis_name = basis_name,
+                      basis_ix = basis_ix,
+                      basis_total = basis_total,
+                      basis_label = basis_label,
+                      is_block_diagonal = is_block_diagonal,
+                      modulation_type = modulation_type,
+                      modulation_id = modulation_id
+                    )
+                  }
+                  was_locked <- bindingIsLocked(".make_col_metadata", ns)
+                  if (was_locked) unlockBinding(".make_col_metadata", ns)
+                  assign(".make_col_metadata", replacement, envir = ns)
+                  if (was_locked) lockBinding(".make_col_metadata", ns)
+                }
+              }
+            })
+            """
+        )
 
         pyfmrihrf = importlib.import_module("pyfmrihrf")
         with warnings.catch_warnings():
