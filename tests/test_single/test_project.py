@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from fmrimod.single._project import project_nuisance
+from fmrimod.single._project import build_nuisance_projector, project_nuisance
 
 
 @pytest.fixture
@@ -47,3 +47,19 @@ class TestProjectNuisance:
         Y_proj1 = project_nuisance(X_nuis, Y)
         Y_proj2 = project_nuisance(X_nuis, Y_proj1)
         assert_allclose(Y_proj1, Y_proj2, atol=1e-10)
+
+    def test_rank_deficient_projector_uses_column_space_rank(self, rng):
+        n = 50
+        intercept = np.ones((n, 1))
+        trend = np.linspace(-1.0, 1.0, n)[:, np.newaxis]
+        X_nuis = np.column_stack([intercept, intercept, trend])
+
+        projector = build_nuisance_projector(X_nuis)
+
+        assert projector is not None
+        assert projector.n_cols == 2
+
+        Y = rng.standard_normal((n, 4))
+        projected_duplicate = project_nuisance(X_nuis, Y)
+        projected_unique = project_nuisance(np.column_stack([intercept, trend]), Y)
+        assert_allclose(projected_duplicate, projected_unique, atol=1e-10)

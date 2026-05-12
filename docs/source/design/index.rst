@@ -27,6 +27,7 @@ design specification, HRF convolution, and statistical contrast definition.
 
    migration_guide
    fmrireg_migration
+   fmrilss_migration
 
 Features
 --------

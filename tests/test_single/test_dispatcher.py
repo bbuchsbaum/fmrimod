@@ -7,7 +7,7 @@ import pytest
 from numpy.testing import assert_allclose
 
 from fmrimod.single import estimate_single_trial
-from fmrimod.single._types import SingleTrialResult, SingleTrialMethod
+from fmrimod.single._types import SingleTrialMethod
 
 
 @pytest.fixture
@@ -22,6 +22,19 @@ class TestDispatcher:
         X = rng.standard_normal((n, T))
         result = estimate_single_trial(Y, X, method="lss")
         assert result.method == "lss"
+
+    def test_top_level_single_trial_exports(self, rng):
+        import fmrimod
+
+        n, T, V = 50, 5, 4
+        Y = rng.standard_normal((n, V))
+        X = rng.standard_normal((n, T))
+
+        result = fmrimod.estimate_single_trial(Y, X, method="lss")
+        direct = fmrimod.lss_single_trial(Y, X)
+
+        assert result.method == "lss"
+        assert_allclose(result.betas, direct.betas)
 
     def test_lsa(self, rng):
         n, T, V = 80, 10, 15
@@ -49,6 +62,34 @@ class TestDispatcher:
         X = rng.standard_normal((50, 5))
         with pytest.raises(ValueError):
             estimate_single_trial(Y, X, method="bogus")
+
+    def test_lss_baseline_regressors_are_dispatched(self, rng):
+        n, T, V = 70, 4, 3
+        Y = rng.standard_normal((n, V))
+        X = rng.standard_normal((n, T))
+        baseline = np.column_stack([np.ones(n), np.linspace(-1.0, 1.0, n)])
+
+        result = estimate_single_trial(
+            Y,
+            X,
+            method="lss",
+            baseline_regressors=baseline,
+        )
+
+        assert result.extra["adjustment_rank"] == 2
+
+    def test_baseline_regressors_rejected_for_non_lss(self, rng):
+        n, T, V = 70, 4, 3
+        Y = rng.standard_normal((n, V))
+        X = rng.standard_normal((n, T))
+
+        with pytest.raises(ValueError, match="only for method='lss'"):
+            estimate_single_trial(
+                Y,
+                X,
+                method="lsa",
+                baseline_regressors=np.ones((n, 1)),
+            )
 
 
 class TestCrossMethodEquivalence:

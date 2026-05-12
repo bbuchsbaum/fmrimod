@@ -66,6 +66,8 @@ def estimate_single_trial(
     oasis_config: OasisConfig | None = None,
     sbhm_config: SbhmConfig | None = None,
     sbhm_library: object | None = None,
+    baseline_regressors: NDArray[np.float64] | None = None,
+    include_intercept: bool = False,
 ) -> SingleTrialResult:
     """Estimate per-trial betas using the specified method.
 
@@ -101,6 +103,11 @@ def estimate_single_trial(
         Configuration for the SBHM pipeline.
     sbhm_library : SbhmLibrary, optional
         Pre-built SBHM library (required for SBHM method).
+    baseline_regressors : NDArray, shape ``(n, p)``, optional
+        Baseline or experimental regressors included in every LSS model.
+        Equivalent to the ``Z`` matrix in ``fmrilss::lss``.
+    include_intercept : bool
+        Add an intercept to the LSS adjustment design.
 
     Returns
     -------
@@ -112,6 +119,13 @@ def estimate_single_trial(
         Y, X, confounds = prewhiten_matrices(Y, X, confounds, prewhiten)
 
     method_enum = SingleTrialMethod(method)
+    if method_enum is not SingleTrialMethod.LSS and (
+        baseline_regressors is not None or include_intercept
+    ):
+        raise ValueError(
+            "baseline_regressors and include_intercept are currently supported "
+            "only for method='lss'."
+        )
 
     if method_enum is SingleTrialMethod.LSS:
         return lss_single_trial(
@@ -121,6 +135,8 @@ def estimate_single_trial(
             chunk_size=chunk_size,
             return_se=return_se,
             trial_labels=trial_labels,
+            baseline_regressors=baseline_regressors,
+            include_intercept=include_intercept,
         )
 
     if method_enum is SingleTrialMethod.LSA:

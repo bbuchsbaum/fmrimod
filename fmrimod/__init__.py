@@ -691,6 +691,21 @@ def build_nuisance_projector(*args, **kwargs):
     from .single import build_nuisance_projector as _build_nuisance_projector
     return _build_nuisance_projector(*args, **kwargs)
 
+def estimate_single_trial(*args, **kwargs):
+    """Estimate single-trial betas. See :func:`fmrimod.single.estimate_single_trial`."""
+    from .single import estimate_single_trial as _estimate_single_trial
+    return _estimate_single_trial(*args, **kwargs)
+
+def lss_single_trial(*args, **kwargs):
+    """Estimate single-trial betas with vectorized LSS."""
+    from .single import lss_single_trial as _lss_single_trial
+    return _lss_single_trial(*args, **kwargs)
+
+def lsa_single_trial(*args, **kwargs):
+    """Estimate single-trial betas with LSA/OLS."""
+    from .single import lsa_single_trial as _lsa_single_trial
+    return _lsa_single_trial(*args, **kwargs)
+
 # ── Bootstrap (lazy) ──────────────────────────────────────────────
 def bootstrap_glm(*args, **kwargs):
     """Bootstrap CIs for GLM. See :func:`fmrimod.glm.bootstrap.bootstrap_glm`."""
@@ -981,6 +996,9 @@ __all__ = [
     "glm_ols",
     "glm_lss",
     "build_nuisance_projector",
+    "estimate_single_trial",
+    "lss_single_trial",
+    "lsa_single_trial",
     # Bootstrap
     "bootstrap_glm",
     # Group data constructors

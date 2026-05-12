@@ -51,8 +51,16 @@ def build_nuisance_projector(
     if X_nuisance.shape[1] == 0:
         return None
 
-    # Thin QR: Q is (n, p), avoids forming (n, n)
-    Q, _ = np.linalg.qr(X_nuisance, mode="reduced")
+    # Rank-aware thin basis.  A plain QR decomposition with rank-deficient
+    # nuisance matrices can include arbitrary null-space columns and overproject.
+    U, s, _ = np.linalg.svd(X_nuisance, full_matrices=False)
+    if s.size == 0:
+        return None
+    tol = np.finfo(np.float64).eps * max(X_nuisance.shape) * float(s[0])
+    rank = int(np.sum(s > tol))
+    if rank == 0:
+        return None
+    Q = U[:, :rank]
     return NuisanceProjector(Q=Q)
 
 

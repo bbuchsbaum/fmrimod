@@ -16,7 +16,6 @@ regressor.
 
 from __future__ import annotations
 
-import warnings
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Sequence
@@ -135,6 +134,8 @@ def estimate_betas_lss(
     confounds: Optional[NDArray[np.float64]] = None,
     nuisance_projector: Optional[object] = None,
     chunk_size: Optional[int] = None,
+    baseline_regressors: Optional[NDArray[np.float64]] = None,
+    include_intercept: bool = False,
 ) -> BetaResult:
     """Estimate trial-wise betas via LSS (Least Squares Separate).
 
@@ -155,6 +156,8 @@ def estimate_betas_lss(
         confounds=confounds,
         nuisance_projector=nuisance_projector,
         chunk_size=chunk_size,
+        baseline_regressors=baseline_regressors,
+        include_intercept=include_intercept,
     )
     return BetaResult.from_single_trial_result(result)
 
@@ -167,6 +170,8 @@ def estimate_betas(
     nuisance_projector: Optional[object] = None,
     chunk_size: Optional[int] = None,
     trial_labels: Optional[Sequence[str]] = None,
+    baseline_regressors: Optional[NDArray[np.float64]] = None,
+    include_intercept: bool = False,
 ) -> BetaResult:
     """Estimate trial-wise betas.
 
@@ -191,12 +196,23 @@ def estimate_betas(
         Voxel chunk size for beta-only LSS solves.
     trial_labels : sequence of str, optional
         Labels for each trial.
+    baseline_regressors : NDArray, optional
+        Baseline or experimental regressors included in every LSS model.
+    include_intercept : bool
+        Add an intercept to the LSS adjustment design.
 
     Returns
     -------
     BetaResult
     """
     method_enum = BetaMethod(method)
+    if method_enum is not BetaMethod.LSS and (
+        baseline_regressors is not None or include_intercept
+    ):
+        raise ValueError(
+            "baseline_regressors and include_intercept are currently supported "
+            "only for method='lss'."
+        )
 
     if method_enum is BetaMethod.OLS:
         result = estimate_betas_ols(trial_regressors, Y, confounds)
@@ -207,6 +223,8 @@ def estimate_betas(
             confounds=confounds,
             nuisance_projector=nuisance_projector,
             chunk_size=chunk_size,
+            baseline_regressors=baseline_regressors,
+            include_intercept=include_intercept,
         )
     else:
         raise ValueError(f"Unknown method: {method!r}")

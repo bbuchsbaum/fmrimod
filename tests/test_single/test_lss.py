@@ -26,6 +26,27 @@ def simple_data(rng):
     return Y, X, true_betas
 
 
+def _naive_lss(
+    Y: np.ndarray,
+    X: np.ndarray,
+    adjustment: np.ndarray | None = None,
+) -> np.ndarray:
+    """Reference per-trial LSS implementation using direct least squares."""
+    if Y.ndim == 1:
+        Y = Y[:, np.newaxis]
+    out = np.empty((X.shape[1], Y.shape[1]))
+    for trial in range(X.shape[1]):
+        pieces = [X[:, [trial]]]
+        other = np.delete(X, trial, axis=1)
+        if other.shape[1] > 0:
+            pieces.append(other.sum(axis=1, keepdims=True))
+        if adjustment is not None:
+            pieces.append(adjustment)
+        design = np.column_stack(pieces)
+        out[trial] = np.linalg.lstsq(design, Y, rcond=None)[0][0]
+    return out
+
+
 class TestLssBetaVec:
     """Test the core vectorized LSS kernel."""
 
@@ -127,3 +148,101 @@ class TestLssSingleTrial:
         Y = rng.standard_normal(n)
         result = lss_single_trial(Y, X)
         assert result.betas.shape[0] == T
+
+    def test_baseline_regressors_match_naive_glm(self, rng):
+        n, T, V = 90, 6, 4
+        X = rng.standard_normal((n, T))
+        baseline = np.column_stack(
+            [
+                np.ones(n),
+                np.linspace(-1.0, 1.0, n),
+            ]
+        )
+        Y = (
+            X @ rng.standard_normal((T, V))
+            + baseline @ rng.standard_normal((2, V))
+            + 0.05 * rng.standard_normal((n, V))
+        )
+
+        result = lss_single_trial(Y, X, baseline_regressors=baseline)
+        expected = _naive_lss(Y, X, adjustment=baseline)
+
+        assert_allclose(result.betas, expected, atol=1e-10)
+        assert result.extra["adjustment_rank"] == 2
+        assert result.residual_df == n - 2 - 2
+
+    def test_baseline_and_confounds_match_naive_glm(self, rng):
+        n, T, V = 100, 5, 3
+        X = rng.standard_normal((n, T))
+        baseline = np.column_stack([np.ones(n), np.linspace(-1.0, 1.0, n)])
+        confounds = rng.standard_normal((n, 3))
+        adjustment = np.column_stack([baseline, confounds])
+        Y = (
+            X @ rng.standard_normal((T, V))
+            + adjustment @ rng.standard_normal((adjustment.shape[1], V))
+            + 0.05 * rng.standard_normal((n, V))
+        )
+
+        result = lss_single_trial(
+            Y,
+            X,
+            baseline_regressors=baseline,
+            confounds=confounds,
+        )
+        expected = _naive_lss(Y, X, adjustment=adjustment)
+
+        assert_allclose(result.betas, expected, atol=1e-10)
+        assert result.extra["adjustment_rank"] == adjustment.shape[1]
+
+    def test_include_intercept_matches_explicit_intercept(self, rng):
+        n, T, V = 60, 4, 2
+        X = rng.standard_normal((n, T))
+        Y = 5.0 + X @ rng.standard_normal((T, V)) + rng.standard_normal((n, V))
+
+        implicit = lss_single_trial(Y, X, include_intercept=True)
+        explicit = lss_single_trial(Y, X, baseline_regressors=np.ones((n, 1)))
+
+        assert_allclose(implicit.betas, explicit.betas, atol=1e-12)
+        assert implicit.extra["adjustment_rank"] == 1
+
+    def test_rank_deficient_adjustment_does_not_overproject(self, rng):
+        n, T, V = 70, 5, 3
+        X = rng.standard_normal((n, T))
+        intercept = np.ones((n, 1))
+        trend = np.linspace(-1.0, 1.0, n)[:, np.newaxis]
+        duplicated = np.column_stack([intercept, intercept, trend])
+        unique = np.column_stack([intercept, trend])
+        Y = X @ rng.standard_normal((T, V)) + unique @ rng.standard_normal((2, V))
+
+        result_dup = lss_single_trial(Y, X, baseline_regressors=duplicated)
+        result_unique = lss_single_trial(Y, X, baseline_regressors=unique)
+
+        assert_allclose(result_dup.betas, result_unique.betas, atol=1e-10)
+        assert result_dup.extra["adjustment_rank"] == 2
+
+    def test_zero_trial_regressor_warns_but_returns_finite(self, rng):
+        n, T, V = 50, 3, 2
+        X = rng.standard_normal((n, T))
+        X[:, 2] = 0.0
+        Y = rng.standard_normal((n, V))
+
+        with pytest.warns(RuntimeWarning, match="Trial regressor 'bad' appears to be zero"):
+            result = lss_single_trial(Y, X, trial_labels=["a", "b", "bad"])
+
+        assert np.all(np.isfinite(result.betas))
+
+    def test_rejects_projector_with_adjustment_regressors(self, rng):
+        from fmrimod.single import build_nuisance_projector
+
+        n, T, V = 50, 3, 2
+        X = rng.standard_normal((n, T))
+        Y = rng.standard_normal((n, V))
+        projector = build_nuisance_projector(np.ones((n, 1)))
+
+        with pytest.raises(ValueError, match="Provide either nuisance_projector"):
+            lss_single_trial(
+                Y,
+                X,
+                nuisance_projector=projector,
+                include_intercept=True,
+            )
