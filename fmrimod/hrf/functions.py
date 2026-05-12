@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import Literal, Optional, Union, Sequence
 
 import numpy as np
@@ -614,7 +615,7 @@ def hrf_lwu(
     tau: float = 6.0,
     sigma: float = 2.5,
     rho: float = 0.35,
-    normalize: Literal["none", "height"] = "none",
+    normalize: Literal["none", "height", "area"] = "none",
 ) -> NDArray[np.float64]:
     """Lag-Width-Undershoot (LWU) HRF.
     
@@ -641,8 +642,8 @@ def hrf_lwu(
         raise ValueError("sigma must be > 0.05")
     if not 0 <= rho <= 1.5:
         raise ValueError("rho must be between 0 and 1.5")
-    if normalize not in ["none", "height"]:
-        raise ValueError("normalize must be 'none' or 'height'")
+    if normalize not in ["none", "height", "area"]:
+        raise ValueError("normalize must be 'none', 'height', or 'area'")
     
     # Main positive Gaussian component
     term1 = np.exp(-((t - tau)**2) / (2 * sigma**2))
@@ -656,6 +657,12 @@ def hrf_lwu(
         max_abs_val = np.max(np.abs(response))
         if max_abs_val > 1e-10:
             response = response / max_abs_val
+    elif normalize == "area":
+        warnings.warn(
+            "normalize='area' is not implemented; returning unnormalised LWU HRF",
+            UserWarning,
+            stacklevel=2,
+        )
     
     return response
 

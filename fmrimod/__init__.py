@@ -361,6 +361,18 @@ def shift(*args, **kwargs):
     return _shift(*args, **kwargs)
 
 
+def fmrihrf_cli(*args, **kwargs):
+    """Run the fmrihrf-compatible command line interface."""
+    from .cli import fmrihrf_cli as _fmrihrf_cli
+    return _fmrihrf_cli(*args, **kwargs)
+
+
+def install_cli(*args, **kwargs):
+    """Install fmrihrf-compatible command wrappers."""
+    from .cli import install_cli as _install_cli
+    return _install_cli(*args, **kwargs)
+
+
 def ar_parameters(*args, **kwargs):
     """Return AR parameters from a fitted GLM result."""
     from .accessors import ar_parameters as _ar_parameters

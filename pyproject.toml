@@ -99,6 +99,10 @@ Documentation = "https://fmrimod.readthedocs.io"
 Repository = "https://github.com/bbuchsbaum/fmrimod"
 Issues = "https://github.com/bbuchsbaum/fmrimod/issues"
 
+[project.scripts]
+fmrimod = "fmrimod.cli:main"
+fmrihrf = "fmrimod.cli:main"
+
 [project.entry-points."fmrimod.engines"]
 # Built-in engines (also registered at import time; entry points
 # allow third-party discovery without importing fmrimod.glm).

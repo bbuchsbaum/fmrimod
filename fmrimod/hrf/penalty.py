@@ -32,13 +32,13 @@ def penalty_matrix(hrf: HRF, order: int = 2, **kwargs) -> NDArray[np.float64]:
         return _penalty_spmg2(hrf, order, **kwargs)
     elif hrf_type in ['SPMG3', 'SPM3']:
         return _penalty_spmg3(hrf, order, **kwargs)
-    elif hrf_type in ['BSPLINE', 'BS']:
+    elif hrf_type in ['BSPLINE', 'BS'] or hrf_type.startswith('BSPLINE'):
         return _penalty_roughness(hrf, order)
-    elif hrf_type in ['FIR', 'TENT']:
+    elif hrf_type in ['FIR', 'TENT'] or hrf_type.startswith(('FIR', 'TENT')):
         return _penalty_roughness(hrf, order)
-    elif hrf_type == 'FOURIER':
+    elif hrf_type == 'FOURIER' or hrf_type.startswith('FOURIER'):
         return _penalty_fourier(hrf, order)
-    elif hrf_type == 'DAGUERRE':
+    elif hrf_type == 'DAGUERRE' or hrf_type.startswith('DAGUERRE'):
         return _penalty_daguerre(hrf, order)
     else:
         # Default: identity matrix (ridge penalty)
