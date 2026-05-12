@@ -4,7 +4,8 @@ Allows external packages to register custom HRF spec types that integrate
 with the fmrimod formula and convolution pipeline.
 """
 
-from typing import Dict, List, Optional, Any, Set
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 
 
@@ -16,10 +17,45 @@ class HRFSpecExtension:
     convolved_class: Optional[str] = None
     requires_external_processing: bool = False
     formula_functions: Optional[List[str]] = None
+    registered_at: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
 
 
 # Module-level private registry
 _registry: Dict[str, HRFSpecExtension] = {}
+
+
+def _validate_single_string(value: Any, name: str) -> str:
+    if not isinstance(value, str) or value == "":
+        raise TypeError(f"{name} must be a single non-empty string")
+    return value
+
+
+def _coerce_formula_functions(
+    formula_functions: Optional[Any],
+) -> Optional[List[str]]:
+    if formula_functions is None:
+        return None
+    if isinstance(formula_functions, str):
+        return [formula_functions]
+    if not isinstance(formula_functions, (list, tuple)):
+        raise TypeError("formula_functions must be a character vector")
+    if not all(isinstance(fn, str) and fn for fn in formula_functions):
+        raise TypeError("formula_functions must be a character vector")
+    return list(formula_functions)
+
+
+def _candidate_spec_classes(spec_class_or_object: Any) -> List[str]:
+    if isinstance(spec_class_or_object, str):
+        return [spec_class_or_object]
+    explicit = getattr(spec_class_or_object, "__fmrimod_hrfspec_classes__", None)
+    if explicit is not None:
+        if isinstance(explicit, str):
+            return [explicit]
+        return [str(cls) for cls in explicit]
+    cls = spec_class_or_object.__class__
+    return [base.__name__ for base in cls.__mro__]
 
 
 def register_hrfspec_extension(
@@ -56,6 +92,12 @@ def register_hrfspec_extension(
     ...     formula_functions=['custom_hrf']
     ... )
     """
+    spec_class = _validate_single_string(spec_class, "spec_class")
+    package = _validate_single_string(package, "package")
+    if convolved_class is not None:
+        convolved_class = _validate_single_string(convolved_class, "convolved_class")
+    formula_functions = _coerce_formula_functions(formula_functions)
+
     _registry[spec_class] = HRFSpecExtension(
         spec_class=spec_class,
         package=package,
@@ -65,7 +107,7 @@ def register_hrfspec_extension(
     )
 
 
-def is_external_hrfspec(spec_class: str) -> bool:
+def is_external_hrfspec(spec_class: Any) -> bool:
     """Check if a spec class is registered as external.
 
     Parameters
@@ -86,10 +128,10 @@ def is_external_hrfspec(spec_class: str) -> bool:
     >>> is_external_hrfspec('CustomHRF')
     True
     """
-    return spec_class in _registry
+    return any(cls in _registry for cls in _candidate_spec_classes(spec_class))
 
 
-def get_external_hrfspec_info(spec_class: str) -> Optional[HRFSpecExtension]:
+def get_external_hrfspec_info(spec_class: Any) -> Optional[HRFSpecExtension]:
     """Get registration info for an external spec class.
 
     Parameters
@@ -109,7 +151,10 @@ def get_external_hrfspec_info(spec_class: str) -> Optional[HRFSpecExtension]:
     ...     print(info.package)
     my_package
     """
-    return _registry.get(spec_class)
+    for cls in _candidate_spec_classes(spec_class):
+        if cls in _registry:
+            return _registry[cls]
+    return None
 
 
 def list_external_hrfspecs() -> List[str]:
@@ -128,7 +173,7 @@ def list_external_hrfspecs() -> List[str]:
     return list(_registry.keys())
 
 
-def requires_external_processing(spec_class: str) -> bool:
+def requires_external_processing(spec_class: Any) -> bool:
     """Check if external processing is required for a spec class.
 
     Parameters
@@ -146,11 +191,11 @@ def requires_external_processing(spec_class: str) -> bool:
     >>> requires_external_processing('CustomHRF')
     False
     """
-    ext = _registry.get(spec_class)
+    ext = get_external_hrfspec_info(spec_class)
     return ext.requires_external_processing if ext else False
 
 
-def get_external_hrfspec_functions(spec_class: str) -> Optional[List[str]]:
+def get_external_hrfspec_functions(spec_class: Any) -> Optional[List[str]]:
     """Get formula function names for a registered spec class.
 
     Parameters
@@ -168,8 +213,12 @@ def get_external_hrfspec_functions(spec_class: str) -> Optional[List[str]]:
     >>> get_external_hrfspec_functions('CustomHRF')
     ['custom_hrf']
     """
-    ext = _registry.get(spec_class)
-    return ext.formula_functions if ext else None
+    ext = get_external_hrfspec_info(spec_class)
+    if ext is None:
+        return None
+    if ext.formula_functions is None and ext.spec_class == "afni_hrfspec":
+        return ["afni_hrf"]
+    return ext.formula_functions
 
 
 def get_all_external_hrf_functions() -> List[str]:
@@ -186,7 +235,10 @@ def get_all_external_hrf_functions() -> List[str]:
     ['custom_hrf', 'another_hrf']
     """
     funcs = []
-    for ext in _registry.values():
-        if ext.formula_functions:
-            funcs.extend(ext.formula_functions)
+    seen = set()
+    for spec_class in _registry:
+        for fn in get_external_hrfspec_functions(spec_class) or []:
+            if fn not in seen:
+                funcs.append(fn)
+                seen.add(fn)
     return funcs
