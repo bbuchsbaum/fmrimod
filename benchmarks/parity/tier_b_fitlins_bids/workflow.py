@@ -17,10 +17,16 @@ import pandas as pd
 from nilearn.glm.first_level.hemodynamic_models import compute_regressor
 
 import fmrimod as fm
+from cross_testing.fitlins_ar1_parity import AR1CandidateConfig, fit_fmrimod_ar1
 from cross_testing.harness import ParityCase, ParityTolerance, PipelineOutput, render, run
-from fmrimod.ar import ar_whiten_matrix, estimate_ar
 from fmrimod.bids import translate_run_node
-from fmrimod.glm.solver import fast_lm_matrix, fast_preproject
+
+
+CLI_DERIVATIVE_AR_CONFIG = AR1CandidateConfig(
+    iter_gls=1,
+    voxelwise=True,
+    coefficient_bin_width=0.01,
+)
 
 
 def _stats_model() -> dict:
@@ -198,6 +204,7 @@ class FitlinsCliDerivativeResult:
     """Result summary for the real FitLins CLI derivative-tree comparison."""
 
     status: str
+    ar_config: dict[str, object]
     fitlins_command: list[str]
     fitlins_seconds: float
     fitlins_output_files: list[str]
@@ -323,10 +330,6 @@ def _fit_fmrimod_derivatives(paths: dict[str, Path], fitlins_out: Path, fmrimod_
     Y = data[mask].T
     mean = np.maximum(Y.mean(axis=0), 1.0)
     Y = 100.0 * (Y / mean - 1.0)
-    ols = fast_lm_matrix(X, Y, fast_preproject(X), return_fitted=False)
-    residuals = Y - X @ ols.betas
-    ar1 = estimate_ar(residuals, order=1, voxelwise=True).reshape(-1)
-    ar1_bins = (ar1 * 100).astype(int) / 100.0
     fmrimod_files: list[str] = []
     columns = list(design.columns)
     contrast_specs = {
@@ -337,22 +340,12 @@ def _fit_fmrimod_derivatives(paths: dict[str, Path], fitlins_out: Path, fmrimod_
         contrast = np.zeros(len(columns), dtype=np.float64)
         for column, weight in weights.items():
             contrast[columns.index(column)] = weight
-        effect = np.zeros(Y.shape[1], dtype=np.float64)
-        variance = np.zeros(Y.shape[1], dtype=np.float64)
-        tstat = np.zeros(Y.shape[1], dtype=np.float64)
-        for ar1_bin in np.unique(ar1_bins):
-            cols_idx = ar1_bins == ar1_bin
-            Xw, Yw = ar_whiten_matrix(X, Y[:, cols_idx], np.array([ar1_bin]))
-            projection = fast_preproject(Xw, check_finite=False)
-            fit = fast_lm_matrix(Xw, Yw, projection, check_finite=False)
-            effect[cols_idx] = contrast @ fit.betas
-            variance[cols_idx] = fit.sigma2 * float(
-                contrast @ projection.XtXinv @ contrast
-            )
-            tstat[cols_idx] = effect[cols_idx] / np.sqrt(
-                np.maximum(variance[cols_idx], np.finfo(np.float64).eps)
-            )
-        outputs = {"effect": effect, "variance": variance, "t": tstat}
+        fit = fit_fmrimod_ar1(X, Y, contrast, config=CLI_DERIVATIVE_AR_CONFIG)
+        outputs = {
+            "effect": fit["effect"],
+            "variance": fit["variance"],
+            "t": fit["t"],
+        }
         for stat_name, values in outputs.items():
             volume = np.zeros(mask.shape, dtype=np.float32)
             volume[mask] = values.astype(np.float32)
@@ -524,6 +517,7 @@ def run_fitlins_cli_derivative_parity(work_dir: Path | None = None) -> FitlinsCl
             if all(delta.passes for delta in deltas)
             else "fail"
         ),
+        ar_config=asdict(CLI_DERIVATIVE_AR_CONFIG),
         fitlins_command=cmd,
         fitlins_seconds=fitlins_seconds,
         fitlins_output_files=fitlins_files,
@@ -559,6 +553,7 @@ def render_fitlins_cli_derivative_report(
         "",
         f"Status: `{result.status}`",
         f"FitLins runtime seconds: `{result.fitlins_seconds:.3f}`",
+        f"AR candidate config: `{json.dumps(result.ar_config, sort_keys=True)}`",
         "",
         "## Compared Maps",
         "",

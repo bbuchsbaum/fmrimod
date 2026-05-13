@@ -6,7 +6,7 @@ modeling against nilearn's ``run_glm(..., noise_model='ar1')`` path.
 
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 import json
 from pathlib import Path
 import time
@@ -46,6 +46,53 @@ DEFAULT_AR1_PARITY_THRESHOLDS = ParityThresholds(
     sign_flip_floor=1e-8,
 )
 DEFAULT_AR1_SPEED_THRESHOLDS = SpeedThresholds(min_speedup_vs_reference=1.0)
+
+
+@dataclass(frozen=True)
+class AR1CandidateConfig:
+    """Generic AR(1) candidate fitting configuration for parity fixtures.
+
+    ``coefficient_bin_width`` groups voxelwise AR(1) coefficients before
+    whitening/refitting. This mirrors binned-label AR workflows without naming
+    any reference implementation in fmrimod's library surface.
+    """
+
+    iter_gls: int = 1
+    voxelwise: bool = False
+    coefficient_bin_width: float | None = None
+    exact_first_ar1: bool = False
+
+    def __post_init__(self) -> None:
+        if (
+            isinstance(self.iter_gls, bool)
+            or not isinstance(self.iter_gls, int)
+            or self.iter_gls < 1
+        ):
+            raise ValueError("iter_gls must be an integer >= 1")
+        if not isinstance(self.voxelwise, bool):
+            raise ValueError("voxelwise must be a boolean")
+        if not isinstance(self.exact_first_ar1, bool):
+            raise ValueError("exact_first_ar1 must be a boolean")
+        if self.coefficient_bin_width is not None:
+            width = float(self.coefficient_bin_width)
+            if not np.isfinite(width) or width <= 0.0:
+                raise ValueError("coefficient_bin_width must be positive")
+            if not self.voxelwise:
+                raise ValueError(
+                    "coefficient_bin_width requires voxelwise AR coefficients"
+                )
+
+
+def bin_ar1_coefficients(phi: Array, bin_width: float | None) -> Array:
+    """Bin AR(1) coefficients toward zero with a fixed bin width."""
+
+    phi_arr = np.asarray(phi, dtype=np.float64)
+    if bin_width is None:
+        return phi_arr.copy()
+    width = float(bin_width)
+    if not np.isfinite(width) or width <= 0.0:
+        raise ValueError("bin_width must be positive")
+    return np.trunc(phi_arr / width) * width
 
 
 def make_synthetic_glm_ar1(
@@ -154,54 +201,127 @@ def fit_fmrimod_ar1(
     *,
     iter_gls: int = 1,
     voxelwise: bool = False,
+    coefficient_bin_width: float | None = None,
+    exact_first_ar1: bool = False,
+    config: AR1CandidateConfig | None = None,
 ) -> Dict[str, Array]:
     """Fit AR(1) with fmrimod's AR estimation + whitening path."""
+    if config is None:
+        config = AR1CandidateConfig(
+            iter_gls=iter_gls,
+            voxelwise=voxelwise,
+            coefficient_bin_width=coefficient_bin_width,
+            exact_first_ar1=exact_first_ar1,
+        )
+    else:
+        iter_gls = config.iter_gls
+        voxelwise = config.voxelwise
+        coefficient_bin_width = config.coefficient_bin_width
+        exact_first_ar1 = config.exact_first_ar1
+
     X_base = np.asarray(X, dtype=np.float64)
     Y_base = np.asarray(Y, dtype=np.float64)
 
     if iter_gls < 1:
         raise ValueError("iter_gls must be >= 1")
 
-    X_fit = X_base
-    Y_fit = Y_base
+    con = np.asarray(contrast, dtype=np.float64).ravel()
 
-    for _ in range(iter_gls):
-        proj_ols = fast_preproject(X_fit, check_finite=False)
-        fit_ols = fast_lm_matrix(
-            X_fit,
-            Y_fit,
-            proj_ols,
-            return_fitted=True,
+    def finish_fit(X_w: Array, Y_w: Array) -> Dict[str, Array]:
+        proj = fast_preproject(X_w, check_finite=False)
+        fit = fast_lm_matrix(
+            X_w,
+            Y_w,
+            proj,
+            return_fitted=False,
             check_finite=False,
         )
+        estimate = con @ np.asarray(fit.betas, dtype=np.float64)
+        var_factor = float(con @ np.asarray(proj.XtXinv, dtype=np.float64) @ con)
+        variance = np.maximum(var_factor, 0.0) * np.asarray(fit.sigma2, dtype=np.float64)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            t_vals = np.where(variance > 1e-30, estimate / np.sqrt(variance), 0.0)
+        p_vals = 2.0 * sp_special.stdtr(proj.dfres, -np.abs(t_vals))
+        return {
+            "betas": np.asarray(fit.betas, dtype=np.float64),
+            "sigma2": np.asarray(fit.sigma2, dtype=np.float64),
+            "effect": np.asarray(estimate, dtype=np.float64).reshape(-1),
+            "variance": np.asarray(variance, dtype=np.float64).reshape(-1),
+            "t": np.asarray(t_vals, dtype=np.float64).reshape(-1),
+            "p": np.asarray(p_vals, dtype=np.float64).reshape(-1),
+        }
+
+    def finish_binned_fit(phi: Array) -> Dict[str, Array]:
+        phi_bins = bin_ar1_coefficients(
+            np.asarray(phi, dtype=np.float64).reshape(-1),
+            coefficient_bin_width,
+        )
+        n_regressors, n_voxels = X_base.shape[1], Y_base.shape[1]
+        betas = np.zeros((n_regressors, n_voxels), dtype=np.float64)
+        sigma2 = np.zeros(n_voxels, dtype=np.float64)
+        effect = np.zeros(n_voxels, dtype=np.float64)
+        variance = np.zeros(n_voxels, dtype=np.float64)
+        t_vals = np.zeros(n_voxels, dtype=np.float64)
+        p_vals = np.zeros(n_voxels, dtype=np.float64)
+
+        for ar1_bin in np.unique(phi_bins):
+            cols_idx = phi_bins == ar1_bin
+            X_w, Y_w = ar_whiten_matrix(
+                X_base,
+                Y_base[:, cols_idx],
+                np.array([ar1_bin], dtype=np.float64),
+                exact_first_ar1=exact_first_ar1,
+            )
+            outputs = finish_fit(X_w, Y_w)
+            betas[:, cols_idx] = outputs["betas"]
+            sigma2[cols_idx] = outputs["sigma2"]
+            effect[cols_idx] = outputs["effect"]
+            variance[cols_idx] = outputs["variance"]
+            t_vals[cols_idx] = outputs["t"]
+            p_vals[cols_idx] = outputs["p"]
+
+        return {
+            "betas": betas,
+            "sigma2": sigma2,
+            "effect": effect,
+            "variance": variance,
+            "t": t_vals,
+            "p": p_vals,
+        }
+
+    outputs: Dict[str, Array] | None = None
+    X_fit = X_base
+    Y_fit = Y_base
+    beta_for_residual: Array | None = None
+    for _ in range(iter_gls):
+        if beta_for_residual is None:
+            proj_ols = fast_preproject(X_fit, check_finite=False)
+            fit_ols = fast_lm_matrix(
+                X_fit,
+                Y_fit,
+                proj_ols,
+                return_fitted=True,
+                check_finite=False,
+            )
+            beta_for_residual = np.asarray(fit_ols.betas, dtype=np.float64)
         # Re-estimate AR on residuals in the original (unwhitened) domain.
-        residuals = Y_base - X_base @ np.asarray(fit_ols.betas, dtype=np.float64)
+        residuals = Y_base - X_base @ beta_for_residual
         phi = estimate_ar(residuals, order=1, voxelwise=voxelwise)
-        X_fit, Y_fit = ar_whiten_matrix(X_base, Y_base, phi)
+        if coefficient_bin_width is None:
+            X_fit, Y_fit = ar_whiten_matrix(
+                X_base,
+                Y_base,
+                phi,
+                exact_first_ar1=exact_first_ar1,
+            )
+            outputs = finish_fit(X_fit, Y_fit)
+        else:
+            outputs = finish_binned_fit(phi)
+        beta_for_residual = outputs["betas"]
 
-    proj = fast_preproject(X_fit, check_finite=False)
-    fit = fast_lm_matrix(
-        X_fit,
-        Y_fit,
-        proj,
-        return_fitted=False,
-        check_finite=False,
-    )
-
-    con = np.asarray(contrast, dtype=np.float64).ravel()
-    estimate = con @ np.asarray(fit.betas, dtype=np.float64)
-    var_factor = float(con @ np.asarray(proj.XtXinv, dtype=np.float64) @ con)
-    denom2 = np.maximum(var_factor, 0.0) * np.asarray(fit.sigma2, dtype=np.float64)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        t_vals = np.where(denom2 > 1e-30, estimate / np.sqrt(denom2), 0.0)
-    p_vals = 2.0 * sp_special.stdtr(proj.dfres, -np.abs(t_vals))
-
-    return {
-        "betas": np.asarray(fit.betas, dtype=np.float64),
-        "sigma2": np.asarray(fit.sigma2, dtype=np.float64),
-        "t": np.asarray(t_vals, dtype=np.float64).reshape(-1),
-        "p": np.asarray(p_vals, dtype=np.float64).reshape(-1),
-    }
+    if outputs is None:
+        raise RuntimeError("AR(1) fit did not produce outputs")
+    return outputs
 
 
 def benchmark_ar1_implementations(
@@ -213,6 +333,7 @@ def benchmark_ar1_implementations(
     warmup: int = 1,
     iter_gls: int = 1,
     voxelwise: bool = False,
+    coefficient_bin_width: float | None = None,
 ) -> BenchmarkSummary:
     """Benchmark matched AR(1) runs for fmrimod and nilearn reference."""
     if repeats < 1:
@@ -222,12 +343,26 @@ def benchmark_ar1_implementations(
     reference_runs: list[float] = []
 
     for _ in range(warmup):
-        fit_fmrimod_ar1(X, Y, contrast, iter_gls=iter_gls, voxelwise=voxelwise)
+        fit_fmrimod_ar1(
+            X,
+            Y,
+            contrast,
+            iter_gls=iter_gls,
+            voxelwise=voxelwise,
+            coefficient_bin_width=coefficient_bin_width,
+        )
         fit_fitlins_reference_ar1(X, Y, contrast)
 
     for _ in range(repeats):
         t0 = time.perf_counter()
-        fit_fmrimod_ar1(X, Y, contrast, iter_gls=iter_gls, voxelwise=voxelwise)
+        fit_fmrimod_ar1(
+            X,
+            Y,
+            contrast,
+            iter_gls=iter_gls,
+            voxelwise=voxelwise,
+            coefficient_bin_width=coefficient_bin_width,
+        )
         fmrimod_runs.append(time.perf_counter() - t0)
 
         t0 = time.perf_counter()
@@ -259,6 +394,7 @@ def run_ar1_parity_and_benchmark(
     warmup: int = 1,
     iter_gls: int = 1,
     voxelwise: bool = False,
+    coefficient_bin_width: float | None = None,
     parity_thresholds: ParityThresholds = DEFAULT_AR1_PARITY_THRESHOLDS,
     speed_thresholds: SpeedThresholds = DEFAULT_AR1_SPEED_THRESHOLDS,
 ) -> Dict[str, Any]:
@@ -278,6 +414,7 @@ def run_ar1_parity_and_benchmark(
         contrast,
         iter_gls=iter_gls,
         voxelwise=voxelwise,
+        coefficient_bin_width=coefficient_bin_width,
     )
     reference = fit_fitlins_reference_ar1(X, Y, contrast)
 
@@ -297,6 +434,7 @@ def run_ar1_parity_and_benchmark(
         warmup=warmup,
         iter_gls=iter_gls,
         voxelwise=voxelwise,
+        coefficient_bin_width=coefficient_bin_width,
     )
     speed_ok = bench.speedup_vs_reference >= speed_thresholds.min_speedup_vs_reference
 
@@ -312,6 +450,7 @@ def run_ar1_parity_and_benchmark(
             "warmup": int(warmup),
             "iter_gls": int(iter_gls),
             "voxelwise": bool(voxelwise),
+            "coefficient_bin_width": coefficient_bin_width,
         },
         "thresholds": {
             "parity": asdict(parity_thresholds),

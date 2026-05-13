@@ -22,6 +22,8 @@ def test_fitlins_cli_derivative_tree_parity(tmp_path):
 
     result = run_fitlins_cli_derivative_parity(tmp_path / "work")
     assert result.status == "pass_with_caveats"
+    assert result.ar_config["coefficient_bin_width"] == 0.01
+    assert result.ar_config["voxelwise"] is True
     assert len(result.deltas) == 6
     assert all(delta.passes for delta in result.deltas)
     assert {delta.caveat_id for delta in result.deltas if delta.caveat_id} == {
@@ -39,4 +41,5 @@ def test_fitlins_cli_derivative_tree_parity(tmp_path):
     json_path, md_path = render_fitlins_cli_derivative_report(result, tmp_path / "report")
     payload = json.loads(json_path.read_text())
     assert payload["status"] == "pass_with_caveats"
+    assert payload["ar_config"]["coefficient_bin_width"] == 0.01
     assert "| map | gate |" in md_path.read_text()
