@@ -771,6 +771,13 @@ def estimate_single_trial(*args, **kwargs):
     from .single import estimate_single_trial as _estimate_single_trial
     return _estimate_single_trial(*args, **kwargs)
 
+def estimate_single_trial_from_dataset(*args, **kwargs):
+    """Estimate single-trial betas from an FmriDataset and trialwise spec."""
+    from .single import (
+        estimate_single_trial_from_dataset as _estimate_single_trial_from_dataset,
+    )
+    return _estimate_single_trial_from_dataset(*args, **kwargs)
+
 def lss_single_trial(*args, **kwargs):
     """Estimate single-trial betas with vectorized LSS."""
     from .single import lss_single_trial as _lss_single_trial
@@ -1117,6 +1124,7 @@ __all__ = [
     "glm_lss",
     "build_nuisance_projector",
     "estimate_single_trial",
+    "estimate_single_trial_from_dataset",
     "lss_single_trial",
     "lsa_single_trial",
     # Bootstrap

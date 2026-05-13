@@ -46,6 +46,23 @@ For repeated fits with the same adjustment design, precompute the projection:
 ``SingleTrialResult`` with ``betas``, optional ``se``, residual degrees of
 freedom, trial labels, and method metadata.
 
+Dataset + Trialwise Spec Entry
+------------------------------
+
+New public-seam code can start from the same typed dataset/spec objects used by
+the GLM path:
+
+.. code-block:: python
+
+   ds = fm.fmri_dataset(bold, tr=2.0, events=events)
+   result = fm.estimate_single_trial_from_dataset(ds, "trialwise()", method="lss")
+
+This wrapper builds the trialwise design from ``ds.event_table`` and delegates
+to ``estimate_single_trial``. Slice 1 returns the same ``SingleTrialResult`` as
+the matrix-first API, with trial labels populated from the compiled trialwise
+columns. Richer trial tables, run/subject metadata, and spatial identity are
+tracked as follow-on work.
+
 Compatibility Beta Dispatch
 ---------------------------
 

@@ -62,6 +62,16 @@ def test_wrapper_returns_single_trial_result_with_trial_labels():
     assert len(result.trial_labels) == len(events)
 
 
+def test_wrapper_is_top_level_public_entry():
+    """The dataset wrapper is reachable from the public fmrimod namespace."""
+    ds, spec, events = _build_dataset_and_spec()
+
+    result = fm.estimate_single_trial_from_dataset(ds, spec, method="lss")
+
+    assert isinstance(result, SingleTrialResult)
+    assert result.betas.shape[0] == len(events)
+
+
 def test_wrapper_equivalent_to_matrix_estimate_on_same_realised_design():
     """For identical (Y, X), wrapper matches the matrix-first dispatcher.
 
