@@ -274,6 +274,70 @@ def run_lss_public_seam_showcase(seed: int = 2029) -> ShowcaseRow:
     )
 
 
+def run_lss_public_seam_independent_generative(seed: int = 2030) -> ShowcaseRow:
+    """Public-seam LSS with a generator independent of EventModel lowering."""
+    import pandas as pd
+
+    from fmrimod import fmri_dataset
+    from fmrimod.hrf.functions import spm_canonical
+    from fmrimod.single import estimate_single_trial_from_dataset
+
+    rng = np.random.default_rng(seed)
+    n_time = 120
+    n_trials = 10
+    n_voxels = 24
+    tr = 2.0
+    noise_scale = 0.01
+    beta_scale = 0.8
+
+    onsets = np.linspace(8.0, n_time * tr - 32.0, n_trials, dtype=np.float64)
+    events = pd.DataFrame({
+        "onset": onsets,
+        "duration": np.zeros_like(onsets),
+        "run": np.ones(n_trials, dtype=int),
+    })
+    scan_times = np.arange(n_time, dtype=np.float64) * tr
+    X = np.column_stack([
+        spm_canonical(scan_times - onset) for onset in onsets
+    ]).astype(np.float64)
+    true_betas = rng.normal(scale=beta_scale, size=(n_trials, n_voxels))
+    bold = X @ true_betas + rng.normal(scale=noise_scale, size=(n_time, n_voxels))
+    ds = fmri_dataset(bold.astype(np.float64), tr=tr, events=events)
+
+    result, seconds = _elapsed(
+        lambda: estimate_single_trial_from_dataset(
+            ds, "trialwise()", method="lss", include_intercept=True,
+        )
+    )
+    recovery_error = float(np.max(np.abs(result.betas - true_betas)))
+    threshold = 0.75
+    n_recovered_labels = len(result.trial_labels) if result.trial_labels else 0
+    status = (
+        "pass"
+        if recovery_error < threshold and n_recovered_labels == n_trials
+        else "fail"
+    )
+    return ShowcaseRow(
+        case_id="tier_d_lss_public_seam_independent_generative",
+        capability="public-seam LSS with independently generated HRF signal",
+        status=status,
+        metric="max_abs_recovery_error",
+        value=recovery_error,
+        threshold=threshold,
+        details={
+            "wrapper_seconds": seconds,
+            "wrapper_trial_labels_present": result.trial_labels is not None,
+            "wrapper_n_trial_labels": n_recovered_labels,
+            "noise_scale": noise_scale,
+            "beta_scale": beta_scale,
+            "n_time": n_time,
+            "n_trials": n_trials,
+            "n_voxels": n_voxels,
+            "generator_uses_event_model": False,
+        },
+    )
+
+
 def run_showcases() -> list[ShowcaseRow]:
     """Run all Tier D showcase cases."""
 
@@ -282,6 +346,7 @@ def run_showcases() -> list[ShowcaseRow]:
         run_sketched_glm_showcase(),
         run_lss_showcase(),
         run_lss_public_seam_showcase(),
+        run_lss_public_seam_independent_generative(),
     ]
 
 
@@ -333,4 +398,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
