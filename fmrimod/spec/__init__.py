@@ -15,6 +15,7 @@ Spec tree.
 
 from ._compile import compile, compile_baseline, compile_events, legacy_formula_to_spec
 from .builders import confounds, drift, hrf, intercept, trialwise
+from .diff import FieldDiff, SpecDiff, TermDiff, spec_diff
 from .terms import (
     Confounds,
     Drift,
@@ -45,6 +46,11 @@ __all__ = [
     # Helpers
     "as_spec",
     "is_spec",
+    # Diff
+    "spec_diff",
+    "SpecDiff",
+    "TermDiff",
+    "FieldDiff",
     # Compilation
     "compile",
     "compile_events",

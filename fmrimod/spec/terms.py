@@ -40,6 +40,7 @@ from ..hrf.normalization import NormMode
 
 if TYPE_CHECKING:
     from ..contrast.contrast_spec import ContrastSpec
+    from .diff import SpecDiff
 
 Predicate = Union[str, Mapping[str, Any], Callable[[pd.DataFrame], Any]]
 
@@ -203,6 +204,18 @@ class Spec:
     def terms(self) -> Tuple[Term, ...]:
         """All terms, events then baseline, in declaration order."""
         return self.events + self.baseline
+
+    def diff(self, other: "Spec") -> "SpecDiff":
+        """Return a structural :class:`SpecDiff` against ``other``.
+
+        Pure equality (``self == other``) only answers yes/no; this
+        helper reports *what* changed: added/removed/changed terms and
+        the specific fields that diverge on each changed term. See
+        :func:`fmrimod.spec.diff.spec_diff` for the matching rules.
+        """
+        from .diff import spec_diff
+
+        return spec_diff(self, other)
 
 
 # -- Utility -----------------------------------------------------------------
