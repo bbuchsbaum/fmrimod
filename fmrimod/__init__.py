@@ -665,6 +665,12 @@ def fit_glm_with_config(*args, **kwargs):
     return _fit_glm_with_config(*args, **kwargs)
 
 
+def fit_glm_from_matrix(*args, **kwargs):
+    """Build a GLM result from an explicit design and response matrix."""
+    from .glm import fit_glm_from_matrix as _fit_glm_from_matrix
+    return _fit_glm_from_matrix(*args, **kwargs)
+
+
 def fit_glm_from_suffstats(*args, **kwargs):
     """Build a GLM result from sufficient statistics."""
     from .glm import fit_glm_from_suffstats as _fit_glm_from_suffstats
@@ -1109,6 +1115,7 @@ __all__ = [
     "fit_contrasts",
     "fit_glm_on_transformed_series",
     "fit_glm_with_config",
+    "fit_glm_from_matrix",
     "fit_glm_from_suffstats",
     "fmri_ols_fit",
     "fmri_rlm",

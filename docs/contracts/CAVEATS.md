@@ -7,7 +7,7 @@ criterion.
 
 | Caveat ID | First appearance | Affected tiers | Owner | Exit criterion |
 | --- | --- | --- | --- | --- |
-| `localizer-tstat-variance-outliers` | `benchmarks/parity/tier_a_localizer_fixed_effects/` | Tier A localizer fixed effects | `bd-01KRGRF4X588F56QT21CPBB7NJ` | Replace the variance-derived t-stat caveat with an explicit selectable covariance/whitening mode whose t map passes the normal allclose or strict absolute-error gate. |
+| `localizer-tstat-variance-outliers` | `benchmarks/parity/tier_a_localizer_fixed_effects/` | Tier A localizer fixed effects | `bd-01KRGRF4X588F56QT21CPBB7NJ` | Resolve the remaining near-zero-dispersion sparse-mask voxels where Nilearn `run_glm` and fmrimod's X/Y-aware OLS path produce different variance-derived t statistics, then restore the normal allclose gate. |
 | `fitlins-ar1-coefficient-binning` | `benchmarks/parity/tier_b_fitlins_bids/` | Tier B FitLins CLI derivative parity | `bd-01KRGRF4X588F56QT21CPBB7NJ` | Narrow or remove the AR/statistic caveat once t and variance maps meet the standard gate without undocumented tolerance bypasses. |
 | `second-level-normal-vs-t-pvalues` | `benchmarks/parity/tier_c_second_level/` | Tier C second-level regression | `bd-01KRGRF4WRPCKEK7FBR8BXJ4AY` | Add the requested OLS second-level backend and switch the Nilearn-parity case to that backend so effect and statistic rows pass without the meta-regression caveat. |
 

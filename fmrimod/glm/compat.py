@@ -18,7 +18,7 @@ from numpy.typing import NDArray
 from scipy import optimize
 
 from ..model.config import FmriLmConfig
-from .contrasts import ContrastResult, contrast_f_vectorized, contrast_t, contrast_t_batch
+from .contrasts import ContrastResult, contrast_f_vectorized, contrast_t_batch
 from .fmri_lm import FmriLm, fmri_lm
 from .solver import fast_lm_matrix, fast_preproject
 
@@ -475,6 +475,38 @@ def fit_glm_with_config(
         strategy=strategy,
         engine=engine,
     )
+
+
+def fit_glm_from_matrix(
+    X: ArrayLike,
+    Y: ArrayLike,
+    model: Any = None,
+    cfg: Optional[FmriLmConfig] = None,
+    strategy: str = "external",
+    engine: str = "runwise",
+) -> FmriLm:
+    """Fit a matrix-design GLM and return a full ``FmriLm`` result.
+
+    Unlike :func:`fit_glm_from_suffstats`, this path keeps raw ``X`` and ``Y``
+    available to the solver, so cancellation-prone RSS values can be recovered
+    from explicit residuals.
+    """
+    X_arr = np.asarray(X, dtype=np.float64)
+    Y_arr = np.asarray(Y, dtype=np.float64)
+    if Y_arr.ndim == 1:
+        Y_arr = Y_arr[:, np.newaxis]
+    if X_arr.ndim != 2 or Y_arr.ndim != 2:
+        raise ValueError("X and Y must be 2-D matrices")
+    if X_arr.shape[0] != Y_arr.shape[0]:
+        raise ValueError("X and Y must have the same number of rows")
+    fit = fmri_lm(
+        _MatrixModel(X_arr, Y_arr, source=model),
+        cfg or FmriLmConfig(),
+        engine=engine,
+    )
+    fit.strategy = strategy
+    fit.engine = engine
+    return fit
 
 
 def fit_glm_from_suffstats(

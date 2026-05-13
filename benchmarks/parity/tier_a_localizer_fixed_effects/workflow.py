@@ -22,7 +22,7 @@ from cross_testing.harness import (
     render,
     run,
 )
-from fmrimod.glm import fit_glm_from_suffstats
+from fmrimod.glm import fit_glm_from_matrix
 
 
 Array = NDArray[np.float64]
@@ -116,19 +116,14 @@ def nilearn_pipeline(inputs: LocalizerInputs) -> PipelineOutput:
 def fmrimod_pipeline(inputs: LocalizerInputs) -> PipelineOutput:
     """Fit Nilearn's localizer design with fmrimod's public OLS path.
 
-    Three user lines: build sufficient statistics, fit, contrast.
+    The X/Y-aware path preserves residual information needed for
+    cancellation-safe variance recovery on sparse boundary voxels.
     """
     model = _fit_reference(inputs.img, inputs.events, inputs.mask_img)
     X = model.design_matrices_[0].to_numpy(dtype=np.float64)
     Y = model.masker_.transform(inputs.img)
 
-    fit = fit_glm_from_suffstats(
-        model=None,
-        XtX=X.T @ X,
-        XtS=X.T @ Y,
-        StS=np.sum(Y * Y, axis=0),
-        df=float(X.shape[0] - X.shape[1]),
-    )
+    fit = fit_glm_from_matrix(X, Y)
     cres = fit.contrast(inputs.contrast)
     return PipelineOutput(
         arrays={
@@ -143,10 +138,10 @@ def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
         caveat_id="localizer-tstat-variance-outliers",
         quantity="t_audio_gt_visual",
         reason=(
-            "Nilearn run_glm and fmrimod OLS agree on contrast effects, but a "
-            "small number of sparse-mask voxels differ in residual-variance "
-            "derived t-statistics; the parity gate therefore uses MAE and rank "
-            "stability for the t map."
+            "fmrimod now uses an X/Y-aware OLS path with explicit residual RSS "
+            "recovery, but Nilearn run_glm still differs on a small set of "
+            "near-zero-dispersion sparse-mask voxels; the parity gate therefore "
+            "uses MAE and rank stability for the t map."
         ),
         expected="effect equality with low-MAE, high-rank-correlation t statistics",
         link="docs/contracts/fitlins_nilearn_overlap_v1.md#reference-workflow-tiers",
