@@ -218,6 +218,24 @@ class SineHRF(HRF):
 
 
 @dataclass
+class DaguerreHRF(HRF):
+    """Daguerre basis HRF (orthogonal polynomials on [0, infinity))."""
+
+    name: str = "daguerre"
+    nbasis: int = 3
+    span: float = 24.0
+    scale: float = 4.0
+
+    def __post_init__(self) -> None:
+        self.params = {"n_basis": self.nbasis, "scale": self.scale}
+        self.param_names = ["n_basis", "scale"]
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        from .functions import daguerre_basis
+        return daguerre_basis(t, n_basis=self.nbasis, scale=self.scale)
+
+
+@dataclass
 class LWUHRF(HRF):
     """Lag-Width-Undershoot HRF.
 
