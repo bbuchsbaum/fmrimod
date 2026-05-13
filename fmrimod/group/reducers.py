@@ -22,6 +22,23 @@ from .registry import reducer_registry
 
 Tail = Literal["two.sided"]
 T = TypeVar("T")
+_LMM_EXPECTED_FIT_ERRORS = (
+    FloatingPointError,
+    np.linalg.LinAlgError,
+    RuntimeError,
+    ValueError,
+)
+_LMM_NUMERICAL_FAILURE_SIGNATURES = (
+    "singular matrix",
+    "convergence",
+    "could not converge",
+    "failed to converge",
+    "maximum likelihood optimization",
+    "non-positive-definite",
+    "not positive definite",
+    "positive definite",
+    "step size",
+)
 
 
 @contextmanager
@@ -260,6 +277,45 @@ def _fit_mixedlm_feature(
             cov_re=np.eye(exog_re.shape[1]),
         )
     return model.fit(reml=reml, method="lbfgs", disp=False, **fit_options)
+
+
+def _is_expected_lmm_fit_failure(exc: BaseException) -> bool:
+    if isinstance(exc, (FloatingPointError, np.linalg.LinAlgError)):
+        return True
+    if isinstance(exc, (RuntimeError, ValueError)):
+        message = str(exc).lower()
+        return any(sig in message for sig in _LMM_NUMERICAL_FAILURE_SIGNATURES)
+    return False
+
+
+def _lmm_failure_metadata(
+    failures: list[tuple[int, BaseException]],
+    *,
+    attempted_features: int,
+) -> dict[str, Any]:
+    return {
+        "fit_attempted_features": int(attempted_features),
+        "fit_failed_features": len(failures),
+        "fit_failed_feature_indices": tuple(int(idx) for idx, _ in failures),
+        "fit_failed_reasons": tuple(
+            f"{type(exc).__name__}: {exc}" for _, exc in failures
+        ),
+    }
+
+
+def _raise_if_all_lmm_fits_failed(
+    *,
+    method: str,
+    failures: list[tuple[int, BaseException]],
+    attempted_features: int,
+) -> None:
+    if attempted_features == 0 or len(failures) < attempted_features:
+        return
+    first_idx, first_exc = failures[0]
+    raise UnsupportedGroupFeatureError(
+        f"native {method} failed for all {attempted_features} finite features; "
+        f"first failure at feature {first_idx}: {type(first_exc).__name__}: {first_exc}"
+    ) from first_exc
 
 
 def _flatten_feature_axis(arr: NDArray[np.float64]) -> NDArray[np.float64]:
@@ -1352,11 +1408,14 @@ def lmm_ri(
     log_lik = np.full(n_samples, np.nan, dtype=np.float64)
     converged = np.zeros(n_samples, dtype=np.float64)
     lambda_intercept = np.full(n_samples, np.nan, dtype=np.float64)
+    fit_failures: list[tuple[int, BaseException]] = []
+    attempted_features = 0
 
     for feature_idx in range(n_samples):
         y = y_mat[:, feature_idx]
         if not np.all(np.isfinite(y)):
             continue
+        attempted_features += 1
         try:
             result = _fit_mixedlm_feature(
                 y,
@@ -1365,7 +1424,10 @@ def lmm_ri(
                 exog_re,
                 reml=fit == "REML",
             )
-        except Exception:
+        except _LMM_EXPECTED_FIT_ERRORS as exc:
+            if not _is_expected_lmm_fit_failure(exc):
+                raise
+            fit_failures.append((feature_idx, exc))
             continue
         fe = np.asarray(result.fe_params, dtype=np.float64)
         se = np.asarray(result.bse_fe, dtype=np.float64)
@@ -1385,6 +1447,11 @@ def lmm_ri(
         converged[feature_idx] = 1.0 if bool(getattr(result, "converged", False)) else 0.0
         lambda_intercept[feature_idx] = vc_i / scale if scale > 0 else np.nan
 
+    _raise_if_all_lmm_fits_failed(
+        method="lmm:ri",
+        failures=fit_failures,
+        attempted_features=attempted_features,
+    )
     df_res = np.full(n_samples, df_val, dtype=np.float64)
     assays: dict[str, NDArray[np.float64]] = {
         "sigma2": _flat_lmm(sigma2),
@@ -1411,6 +1478,10 @@ def lmm_ri(
             "theta_mode": theta_mode,
             "predictor_names": tuple(predictor_names),
             "engine": "statsmodels.MixedLM",
+            **_lmm_failure_metadata(
+                fit_failures,
+                attempted_features=attempted_features,
+            ),
         },
     )
 
@@ -1469,11 +1540,14 @@ def lmm_ri_slope1(
     lambda_slope = np.full(n_samples, np.nan, dtype=np.float64)
     lambda_cov = np.full(n_samples, np.nan, dtype=np.float64)
     corr = np.full(n_samples, np.nan, dtype=np.float64)
+    fit_failures: list[tuple[int, BaseException]] = []
+    attempted_features = 0
 
     for feature_idx in range(n_samples):
         y = y_mat[:, feature_idx]
         if not np.all(np.isfinite(y)):
             continue
+        attempted_features += 1
         try:
             result = _fit_mixedlm_feature(
                 y,
@@ -1483,7 +1557,10 @@ def lmm_ri_slope1(
                 reml=fit == "REML",
                 covariance=covariance,
             )
-        except Exception:
+        except _LMM_EXPECTED_FIT_ERRORS as exc:
+            if not _is_expected_lmm_fit_failure(exc):
+                raise
+            fit_failures.append((feature_idx, exc))
             continue
         fe = np.asarray(result.fe_params, dtype=np.float64)
         se = np.asarray(result.bse_fe, dtype=np.float64)
@@ -1511,6 +1588,11 @@ def lmm_ri_slope1(
         denom = np.sqrt(vc_i * vc_s)
         corr[feature_idx] = vc_is / denom if denom > 0 else 0.0
 
+    _raise_if_all_lmm_fits_failed(
+        method="lmm:ri_slope1",
+        failures=fit_failures,
+        attempted_features=attempted_features,
+    )
     df_res = np.full(n_samples, df_val, dtype=np.float64)
     assays: dict[str, NDArray[np.float64]] = {
         "sigma2": _flat_lmm(sigma2),
@@ -1545,6 +1627,10 @@ def lmm_ri_slope1(
             "center_slope": bool(center_slope),
             "predictor_names": tuple(predictor_names),
             "engine": "statsmodels.MixedLM",
+            **_lmm_failure_metadata(
+                fit_failures,
+                attempted_features=attempted_features,
+            ),
         },
     )
 

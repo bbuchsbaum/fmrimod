@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 import pandas as pd
 import pytest
 
+import fmrimod.group.reducers as group_reducers
 from fmrimod.group import (
     AdapterContractError,
     SampleLabelSpace,
@@ -635,6 +638,133 @@ def test_lmm_ri_slope1_voxelwise_full_covariance_runs_natively() -> None:
     assert "corr_intercept_slope" in out.assays
     assert np.all(out.assay("coef:time")[:, 0, 0] > 0.4)
     np.testing.assert_allclose(out.assay("corr_intercept_slope")[:, 0, 0], 0.0)
+
+
+def test_lmm_ri_records_partial_voxelwise_fit_failures(monkeypatch) -> None:
+    ds = _lmm_repeated_dataset()
+    calls = []
+
+    def fake_fit(y, X, groups, exog_re, *, reml, covariance="full"):
+        calls.append(y.copy())
+        if len(calls) == 2:
+            raise ValueError("Singular matrix fixture")
+        return SimpleNamespace(
+            fe_params=np.array([1.0, 0.75]),
+            bse_fe=np.array([0.20, 0.25]),
+            scale=0.5,
+            cov_re=np.array([[0.25]]),
+            llf=-1.25,
+            converged=True,
+        )
+
+    monkeypatch.setattr(group_reducers, "_fit_mixedlm_feature", fake_fit)
+
+    out = lmm_ri(ds, formula="~ condition", theta_mode="voxelwise")
+
+    assert out.metadata["fit_attempted_features"] == 2
+    assert out.metadata["fit_failed_features"] == 1
+    assert out.metadata["fit_failed_feature_indices"] == (1,)
+    assert out.metadata["fit_failed_reasons"] == ("ValueError: Singular matrix fixture",)
+    np.testing.assert_allclose(out.assay("coef:condition")[0, 0, 0], 0.75)
+    assert np.isnan(out.assay("coef:condition")[1, 0, 0])
+    assert out.assay("converged")[0, 0, 0] == 1.0
+    assert out.assay("converged")[1, 0, 0] == 0.0
+
+
+def test_lmm_ri_raises_when_all_voxelwise_fits_fail(monkeypatch) -> None:
+    ds = _lmm_repeated_dataset()
+
+    def fake_fit(y, X, groups, exog_re, *, reml, covariance="full"):
+        raise ValueError("Singular matrix fixture")
+
+    monkeypatch.setattr(group_reducers, "_fit_mixedlm_feature", fake_fit)
+
+    with pytest.raises(UnsupportedGroupFeatureError, match="failed for all 2 finite"):
+        lmm_ri(ds, formula="~ condition", theta_mode="voxelwise")
+
+
+def test_lmm_ri_propagates_unexpected_voxelwise_fit_errors(monkeypatch) -> None:
+    ds = _lmm_repeated_dataset()
+
+    def fake_fit(y, X, groups, exog_re, *, reml, covariance="full"):
+        raise RuntimeError("programming bug: contract violation")
+
+    monkeypatch.setattr(group_reducers, "_fit_mixedlm_feature", fake_fit)
+
+    with pytest.raises(RuntimeError, match="programming bug"):
+        lmm_ri(ds, formula="~ condition", theta_mode="voxelwise")
+
+
+def test_lmm_ri_slope1_records_partial_voxelwise_fit_failures(monkeypatch) -> None:
+    ds = _lmm_slope_dataset()
+    calls = []
+
+    def fake_fit(y, X, groups, exog_re, *, reml, covariance="full"):
+        calls.append(y.copy())
+        if len(calls) == 2:
+            raise RuntimeError("Maximum likelihood optimization failed to converge fixture")
+        return SimpleNamespace(
+            fe_params=np.array([1.0, 0.5]),
+            bse_fe=np.array([0.20, 0.25]),
+            scale=0.5,
+            cov_re=np.array([[0.25, 0.0], [0.0, 0.10]]),
+            llf=-1.25,
+            converged=True,
+        )
+
+    monkeypatch.setattr(group_reducers, "_fit_mixedlm_feature", fake_fit)
+
+    out = lmm_ri_slope1(
+        ds,
+        formula="~ time",
+        slope="time",
+        theta_mode="voxelwise",
+    )
+
+    assert out.metadata["fit_attempted_features"] == 2
+    assert out.metadata["fit_failed_features"] == 1
+    assert out.metadata["fit_failed_feature_indices"] == (1,)
+    assert out.metadata["fit_failed_reasons"] == (
+        "RuntimeError: Maximum likelihood optimization failed to converge fixture",
+    )
+    np.testing.assert_allclose(out.assay("coef:time")[0, 0, 0], 0.5)
+    assert np.isnan(out.assay("coef:time")[1, 0, 0])
+
+
+def test_lmm_ri_slope1_raises_when_all_voxelwise_fits_fail(monkeypatch) -> None:
+    ds = _lmm_slope_dataset()
+
+    def fake_fit(y, X, groups, exog_re, *, reml, covariance="full"):
+        raise RuntimeError("Maximum likelihood optimization failed to converge fixture")
+
+    monkeypatch.setattr(group_reducers, "_fit_mixedlm_feature", fake_fit)
+
+    with pytest.raises(UnsupportedGroupFeatureError, match="failed for all 2 finite"):
+        lmm_ri_slope1(
+            ds,
+            formula="~ time",
+            slope="time",
+            theta_mode="voxelwise",
+        )
+
+
+def test_lmm_ri_slope1_propagates_unexpected_voxelwise_fit_errors(
+    monkeypatch,
+) -> None:
+    ds = _lmm_slope_dataset()
+
+    def fake_fit(y, X, groups, exog_re, *, reml, covariance="full"):
+        raise ValueError("programming bug: shape contract violated")
+
+    monkeypatch.setattr(group_reducers, "_fit_mixedlm_feature", fake_fit)
+
+    with pytest.raises(ValueError, match="programming bug"):
+        lmm_ri_slope1(
+            ds,
+            formula="~ time",
+            slope="time",
+            theta_mode="voxelwise",
+        )
 
 
 def test_lmm_reducers_keep_unsupported_modes_explicit() -> None:
