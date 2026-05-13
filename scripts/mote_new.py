@@ -17,7 +17,7 @@ from __future__ import annotations
 import argparse
 import shlex
 import subprocess
-from typing import Sequence
+from collections.abc import Sequence
 
 
 def _non_empty(value: str) -> str:
