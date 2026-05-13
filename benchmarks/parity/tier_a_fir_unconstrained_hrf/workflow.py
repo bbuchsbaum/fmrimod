@@ -137,18 +137,20 @@ def _realize_design(events: pd.DataFrame) -> tuple[Any, Array, DesignColumns]:
 
 
 def _t_vector(columns: DesignColumns, term: str, level: str) -> Array:
-    """One-hot t-contrast on the first column carrying (term, level)."""
+    """One-hot t-contrast on the first FIR basis carrying (term, level).
 
-    matches = sorted(
-        (c for c in columns.where(term=term).columns if c.level == level),
-        key=lambda c: c.index,
-    )
-    if not matches:
+    Uses the typed ``basis_ix=`` filter to address a specific FIR lag
+    without iterating the realised design by hand.
+    """
+
+    selected = columns.where(term=term, level=level, basis_ix=1)
+    if len(selected) != 1:
         raise RuntimeError(
-            f"no design column with term={term!r} level={level!r}"
+            f"expected one column with term={term!r} level={level!r} "
+            f"basis_ix=1; got {len(selected)}"
         )
     vector = np.zeros(len(columns), dtype=np.float64)
-    vector[matches[0].index] = 1.0
+    vector[selected.one().index] = 1.0
     return vector
 
 
