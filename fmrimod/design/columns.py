@@ -65,6 +65,7 @@ class DesignColumns:
         level: str | None = None,
         role: str | None = None,
         model_source: str | None = None,
+        basis_ix: int | None = None,
     ) -> "DesignColumns":
         """Filter columns by semantic fields."""
         columns = self.columns
@@ -81,6 +82,10 @@ class DesignColumns:
         if model_source is not None:
             columns = tuple(
                 column for column in columns if column.model_source == model_source
+            )
+        if basis_ix is not None:
+            columns = tuple(
+                column for column in columns if column.basis_ix == basis_ix
             )
         return DesignColumns(columns)
 

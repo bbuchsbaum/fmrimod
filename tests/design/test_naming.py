@@ -175,12 +175,17 @@ class TestAddBasisSuffix:
         assert add_basis_suffix(tags, 1) == tags
         
     def test_multiple_basis(self):
-        """Test with multiple basis functions."""
+        """Test with multiple basis functions.
+
+        Condition-major ordering matches the categorical convolver's
+        per-level hstack output, so the column name at index k describes
+        the realised column at index k.
+        """
         tags = ["cond_A", "cond_B"]
         result = add_basis_suffix(tags, 2)
         assert result == [
-            "cond_A_b01", "cond_B_b01",
-            "cond_A_b02", "cond_B_b02"
+            "cond_A_b01", "cond_A_b02",
+            "cond_B_b01", "cond_B_b02"
         ]
 
 
@@ -197,11 +202,16 @@ class TestMakeColumnNames:
         assert make_column_names("cond", ["A", "B"]) == ["cond_A", "cond_B"]
         
     def test_with_basis(self):
-        """Test with basis functions."""
+        """Test with basis functions.
+
+        Condition-major: within each condition the basis suffixes appear
+        in order before moving on to the next condition. Matches the
+        realised column order produced by the categorical convolver.
+        """
         result = make_column_names("poly_rt", ["f1", "f2"], nb=2)
         assert result == [
-            "poly_rt_f1_b01", "poly_rt_f2_b01",
-            "poly_rt_f1_b02", "poly_rt_f2_b02"
+            "poly_rt_f1_b01", "poly_rt_f1_b02",
+            "poly_rt_f2_b01", "poly_rt_f2_b02"
         ]
 
 

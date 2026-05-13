@@ -35,7 +35,12 @@ def _resolve_hrf(term: HrfTerm) -> HRF | str:
 
 
 def _hrf_term_to_event_model_term(term: HrfTerm) -> Any:
-    """Translate one typed HRF term to EventModel's explicit Term object."""
+    """Translate one typed HRF term to EventModel's explicit Term object.
+
+    This builds only the main-effect term; ``term.modulators`` is expanded
+    into separate parametric-modulator terms by :func:`_lower_hrf_term`,
+    which is what :func:`compile_events` calls.
+    """
     from ..formula.base import Term as EventModelTerm
 
     if not term.variables:
@@ -56,8 +61,6 @@ def _hrf_term_to_event_model_term(term: HrfTerm) -> Any:
     )
     if term.contrasts:
         lowered._kwargs["contrasts"] = term.contrasts
-    if term.modulators:
-        lowered._kwargs["modulators"] = term.modulators
     if term.durations is not None:
         lowered._kwargs["durations"] = term.durations
     if term.subset is not None:
@@ -66,6 +69,49 @@ def _hrf_term_to_event_model_term(term: HrfTerm) -> Any:
         lowered._kwargs["prefix"] = term.prefix
     if term.lag:
         lowered._kwargs["lag"] = term.lag
+    return lowered
+
+
+def _lower_hrf_term(term: HrfTerm) -> list[Any]:
+    """Lower one typed HrfTerm into one or more legacy EventModelTerms.
+
+    With no modulators, this is a single main-effect term. With
+    ``modulators=("rt", ...)`` it expands to one main-effect term plus one
+    interaction term per modulator, mirroring the legacy
+    ``trial_type:hrf(...) + trial_type:rt:hrf(...)`` formula path.
+
+    The main term keeps any declared ``contrasts``; parametric terms inherit
+    the main term's HRF, durations, lag, subset, prefix, normalize and
+    summate but never the contrasts (those name level-combinations of the
+    categorical variables, not the modulator regressors).
+    """
+    from ..formula.base import Term as EventModelTerm
+
+    main = _hrf_term_to_event_model_term(term)
+    if not term.modulators:
+        return [main]
+
+    base_id = term.id or main.name
+    lowered: list[Any] = [main]
+    for modulator in term.modulators:
+        param_events = list(term.variables) + [modulator]
+        param_name = f"{base_id}:{modulator}" if base_id else None
+        param = EventModelTerm(
+            param_events,
+            hrf=_resolve_hrf(term),
+            name=param_name,
+            normalize=term.normalize,
+            summate=term.summate,
+        )
+        if term.durations is not None:
+            param._kwargs["durations"] = term.durations
+        if term.subset is not None:
+            param._kwargs["subset"] = term.subset
+        if term.prefix is not None:
+            param._kwargs["prefix"] = term.prefix
+        if term.lag:
+            param._kwargs["lag"] = term.lag
+        lowered.append(param)
     return lowered
 
 
@@ -159,7 +205,7 @@ def compile_events(
                 f"Spec.events may only contain HrfTerm objects; got "
                 f"{type(term).__name__}"
             )
-        lowered_terms.append(_hrf_term_to_event_model_term(term))
+        lowered_terms.extend(_lower_hrf_term(term))
 
     kwargs: dict[str, Any] = dict(
         data=data,
