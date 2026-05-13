@@ -14,13 +14,13 @@ readers; bead ``bd-01KRGCZJ6JAA4BKRTNQ91P2PE5`` retires that mirror.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Literal
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from ..hrf_dispatch import SimpleHRF
-from .core import HRF
+from .core import HRF, HrfParamValue
 from .functions import (
     bspline_hrf,
     fir_basis,
@@ -257,7 +257,7 @@ class LWUHRF(HRF):
         name: str = "lwu",
         nbasis: int = 1,
         span: float = 30.0,
-        params: dict[str, Any] | None = None,
+        params: dict[str, HrfParamValue] | None = None,
         param_names: list[str] | None = None,
         tau: float = 6.0,
         sigma: float = 2.5,

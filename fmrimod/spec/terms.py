@@ -21,6 +21,7 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Iterator,
@@ -36,6 +37,9 @@ import pandas as pd
 
 from ..hrf.core import HRF
 from ..hrf.normalization import NormMode
+
+if TYPE_CHECKING:
+    from ..contrast.contrast_spec import ContrastSpec
 
 Predicate = Union[str, Mapping[str, Any], Callable[[pd.DataFrame], Any]]
 
@@ -74,8 +78,10 @@ class HrfTerm(Term):
         Optional :class:`~fmrimod.contrast.ContrastSpec` objects attached to
         this term (filled in by bd-01KRFMD3F66TENJMP6BQYE32HC).
     modulators
-        Parametric modulators (filled in by a follow-up bead;
-        accepted-but-not-yet-realised in v1).
+        Names of parametric-modulator columns from the event table. The
+        slot is typed but realisation is deferred to a follow-up bead;
+        v1 accepts the names and passes them through to the lowered
+        event-model term, where they are ignored until that landing.
     durations
         Per-event duration; either a column name in the event table or a
         scalar.  ``None`` defers to the spec-level default.
@@ -101,8 +107,8 @@ class HrfTerm(Term):
 
     variables: Tuple[str, ...]
     hrf: Union[HRF, str] = "spm"
-    contrasts: Tuple[Any, ...] = ()
-    modulators: Tuple[Any, ...] = ()
+    contrasts: Tuple[ContrastSpec, ...] = ()
+    modulators: Tuple[str, ...] = ()
     durations: Union[str, float, None] = None
     lag: float = 0.0
     subset: Optional[Predicate] = None

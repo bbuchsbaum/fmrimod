@@ -12,9 +12,9 @@ from .base import ParametricBasis
 
 class Scale(ParametricBasis):
     """Scaling transformation (z-score).
-    
+
     Centers and scales values to have mean 0 and standard deviation 1.
-    
+
     Parameters
     ----------
     center : bool, optional
@@ -22,8 +22,8 @@ class Scale(ParametricBasis):
     scale : bool, optional
         Whether to scale (divide by SD). Default is True.
     name : str, optional
-        Name for the transformation. Default is 'scale'.
-    
+        Name for the transformation. Default is ``'scale'``.
+
     Examples
     --------
     >>> transform = Scale()
@@ -31,60 +31,48 @@ class Scale(ParametricBasis):
     >>> z = transform.evaluate(x)
     >>> np.mean(z), np.std(z)
     (0.0, 1.0)
+
+    See Also
+    --------
+    Scale.from_data : R-style construction that evaluates on data
+        with sample-SD (``ddof=1``) scaling.
     """
-    
+
     def __init__(
         self,
-        *args: Any,
         center: bool = True,
         scale: bool = True,
         name: Optional[str] = None,
-    ):
-        """Initialize scale transformation.
-
-        Parameters
-        ----------
-        center : bool, optional
-            Whether to subtract the mean. Default is True.
-        scale : bool, optional
-            Whether to divide by the standard deviation.
-            Default is True.
-        name : str, optional
-            Name for the transformation. Default is ``'scale'``.
-        """
-        compat_x = None
-        if len(args) > 2:
-            raise TypeError("Scale accepts at most two positional arguments")
-        if len(args) >= 1:
-            arg0 = args[0]
-            if isinstance(arg0, (bool, np.bool_)):
-                center = bool(arg0)
-                if len(args) == 2:
-                    arg1 = args[1]
-                    if not isinstance(arg1, (bool, np.bool_)):
-                        raise TypeError("Second positional argument must be bool")
-                    scale = bool(arg1)
-            else:
-                compat_x = np.asarray(arg0)
-                if len(args) == 2:
-                    raise TypeError(
-                        "When first positional argument is data, "
-                        "pass center/scale via keywords."
-                    )
-
+    ) -> None:
         self.center = center
         self.scale = scale
-        name = name or "scale"
-        super().__init__(name)
-        
-        # Statistics computed during evaluation
-        self._mean = None
-        self._std = None
-        self.y = None
-        self._compat_r_scale = compat_x is not None
+        super().__init__(name or "scale")
 
-        if compat_x is not None:
-            self.y = self.evaluate(compat_x)
+        # Statistics computed during evaluation
+        self._mean: Optional[float] = None
+        self._std: Optional[float] = None
+        self.y: Optional[Array] = None
+        self._compat_r_scale = False
+
+    @classmethod
+    def from_data(
+        cls,
+        x: ArrayLike,
+        center: bool = True,
+        scale: bool = True,
+        name: Optional[str] = None,
+    ) -> "Scale":
+        """Construct a :class:`Scale` and evaluate it on ``x``.
+
+        Mirrors R's ``scale(x)`` ergonomics: constructs the transform,
+        evaluates on the supplied data, and stores the result on
+        ``.y``. The sample standard deviation (``ddof=1``) is used so
+        the output matches R's ``scale()``.
+        """
+        basis = cls(center=center, scale=scale, name=name)
+        basis._compat_r_scale = True
+        basis.y = basis.evaluate(x)
+        return basis
     
     @property
     def n_basis(self) -> int:
@@ -276,12 +264,11 @@ class RobustScale(ParametricBasis):
     
     def __init__(
         self,
-        *args: Any,
         center: bool = True,
         scale: str = "mad",
         constant: float = 1.4826,
         name: Optional[str] = None,
-    ):
+    ) -> None:
         """Initialize robust scaling transformation.
 
         Parameters
@@ -305,42 +292,37 @@ class RobustScale(ParametricBasis):
         ValueError
             If ``scale`` is not ``'mad'`` or ``'iqr'``.
         """
-        compat_x = None
-        if len(args) > 3:
-            raise TypeError("RobustScale accepts at most three positional arguments")
-        if len(args) >= 1:
-            arg0 = args[0]
-            if isinstance(arg0, (bool, np.bool_)):
-                center = bool(arg0)
-                if len(args) >= 2:
-                    scale = args[1]
-                if len(args) == 3:
-                    constant = args[2]
-            else:
-                compat_x = np.asarray(arg0)
-                if len(args) > 1:
-                    raise TypeError(
-                        "When first positional argument is data, "
-                        "pass center/scale/constant via keywords."
-                    )
+        if scale not in ('mad', 'iqr'):
+            raise ValueError("scale must be 'mad' or 'iqr'")
 
         self.center = center
         self.scale = scale
         self.constant = constant
-        
-        if scale not in ['mad', 'iqr']:
-            raise ValueError("scale must be 'mad' or 'iqr'")
-        
-        name = name or "robustscale"
-        super().__init__(name)
-        
-        # Statistics
-        self._median = None
-        self._scale_factor = None
-        self.y = None
 
-        if compat_x is not None:
-            self.y = self.evaluate(compat_x)
+        super().__init__(name or "robustscale")
+
+        self._median: Optional[float] = None
+        self._scale_factor: Optional[float] = None
+        self.y: Optional[Array] = None
+
+    @classmethod
+    def from_data(
+        cls,
+        x: ArrayLike,
+        center: bool = True,
+        scale: str = "mad",
+        constant: float = 1.4826,
+        name: Optional[str] = None,
+    ) -> "RobustScale":
+        """Construct a :class:`RobustScale` and evaluate it on ``x``.
+
+        Mirrors R's ``robustscale(x)`` ergonomics: constructs the
+        transform, evaluates on the supplied data, and stores the
+        result on ``.y``.
+        """
+        basis = cls(center=center, scale=scale, constant=constant, name=name)
+        basis.y = basis.evaluate(x)
+        return basis
     
     @property
     def n_basis(self) -> int:

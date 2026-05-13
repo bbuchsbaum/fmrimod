@@ -13,7 +13,7 @@ They return frozen :class:`Term` dataclasses; compose with ``+``.
 
 from __future__ import annotations
 
-from typing import Any, Literal, Optional, Sequence, cast
+from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, cast
 
 import pandas as pd
 
@@ -26,6 +26,9 @@ from .terms import (
     Intercept,
     Predicate,
 )
+
+if TYPE_CHECKING:
+    from ..contrast.contrast_spec import ContrastSpec
 
 
 def _validate_norm(norm: str | None) -> NormMode | None:
@@ -43,8 +46,8 @@ def _validate_norm(norm: str | None) -> NormMode | None:
 def hrf(
     *variables: str,
     basis: HRF | str = "spm",
-    contrasts: Sequence[Any] = (),
-    modulators: Sequence[Any] = (),
+    contrasts: Sequence[ContrastSpec] = (),
+    modulators: Sequence[str] = (),
     durations: str | float | None = None,
     lag: float = 0.0,
     subset: Optional[Predicate] = None,

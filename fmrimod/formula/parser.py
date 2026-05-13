@@ -494,7 +494,7 @@ def parse_formula(
                     # Handle polynomial basis
                     degree = ft.arguments[1] if len(ft.arguments) > 1 else 2
                     from ..basis import Poly
-                    term.basis = Poly(degree)
+                    term.basis = Poly(degree=int(degree))
             else:
                 # Just a function name with no args
                 term = Term(ft.function)
