@@ -17,12 +17,12 @@ import pandas as pd
 from nilearn.glm.first_level.hemodynamic_models import compute_regressor
 
 import fmrimod as fm
-from cross_testing.fitlins_ar1_parity import AR1CandidateConfig, fit_fmrimod_ar1
 from cross_testing.harness import ParityCase, ParityTolerance, PipelineOutput, render, run
+from fmrimod.ar import Ar1NilearnConfig, ar1_nilearn
 from fmrimod.bids import translate_run_node
 
 
-CLI_DERIVATIVE_AR_CONFIG = AR1CandidateConfig(
+CLI_DERIVATIVE_AR_CONFIG = Ar1NilearnConfig(
     iter_gls=1,
     voxelwise=True,
     coefficient_bin_width=0.01,
@@ -340,7 +340,7 @@ def _fit_fmrimod_derivatives(paths: dict[str, Path], fitlins_out: Path, fmrimod_
         contrast = np.zeros(len(columns), dtype=np.float64)
         for column, weight in weights.items():
             contrast[columns.index(column)] = weight
-        fit = fit_fmrimod_ar1(X, Y, contrast, config=CLI_DERIVATIVE_AR_CONFIG)
+        fit = ar1_nilearn(X, Y, contrast, config=CLI_DERIVATIVE_AR_CONFIG)
         outputs = {
             "effect": fit["effect"],
             "variance": fit["variance"],

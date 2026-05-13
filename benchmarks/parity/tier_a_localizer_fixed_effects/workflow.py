@@ -13,7 +13,7 @@ from nilearn.glm.first_level import FirstLevelModel
 from nilearn.image import load_img, new_img_like
 from numpy.typing import NDArray
 
-from cross_testing.fitlins_parity import fit_fitlins_reference_ols, fit_fmrimod_ols
+from cross_testing.fitlins_parity import fit_fitlins_reference_ols
 from cross_testing.harness import (
     Caveat,
     ParityCase,
@@ -22,6 +22,7 @@ from cross_testing.harness import (
     render,
     run,
 )
+from fmrimod.glm import fit_glm_from_suffstats
 
 
 Array = NDArray[np.float64]
@@ -113,17 +114,26 @@ def nilearn_pipeline(inputs: LocalizerInputs) -> PipelineOutput:
 
 
 def fmrimod_pipeline(inputs: LocalizerInputs) -> PipelineOutput:
-    """Fit the Nilearn-generated localizer design with fmrimod's OLS solver."""
+    """Fit Nilearn's localizer design with fmrimod's public OLS path.
 
+    Three user lines: build sufficient statistics, fit, contrast.
+    """
     model = _fit_reference(inputs.img, inputs.events, inputs.mask_img)
     X = model.design_matrices_[0].to_numpy(dtype=np.float64)
     Y = model.masker_.transform(inputs.img)
-    fit = fit_fmrimod_ols(X, Y, inputs.contrast)
-    effect = inputs.contrast @ fit["betas"]
+
+    fit = fit_glm_from_suffstats(
+        model=None,
+        XtX=X.T @ X,
+        XtS=X.T @ Y,
+        StS=np.sum(Y * Y, axis=0),
+        df=float(X.shape[0] - X.shape[1]),
+    )
+    cres = fit.contrast(inputs.contrast)
     return PipelineOutput(
         arrays={
-            "effect_audio_gt_visual": effect,
-            "t_audio_gt_visual": fit["t"],
+            "effect_audio_gt_visual": cres.estimate,
+            "t_audio_gt_visual": cres.stat,
         }
     )
 
