@@ -113,6 +113,53 @@ class TestSbhmAmplitude:
         betas = sbhm_amplitude(Y, X_trials, alpha_coords, K=K)
         assert betas.shape == (N, V)
 
+    def test_rejects_uppercase_method(self, rng):
+        T, N, K, V = 50, 4, 3, 8
+        Y = rng.standard_normal((T, V))
+        X_trials = rng.standard_normal((T, N * K))
+        alpha_coords = rng.standard_normal((K, V))
+        with pytest.raises(ValueError, match="method must be one of"):
+            sbhm_amplitude(Y, X_trials, alpha_coords, method="OASIS_VOXEL", K=K)
+
+
+class TestSbhmConfig:
+    def test_accepts_valid_options(self):
+        cfg = SbhmConfig(
+            r=4,
+            shrink=False,
+            top_k=2,
+            amplitude_method="lss1",
+            ridge_mode="absolute",
+            ridge_lambda=0.05,
+        )
+        assert cfg.r == 4
+        assert cfg.top_k == 2
+        assert cfg.amplitude_method == "lss1"
+        assert cfg.ridge_mode == "absolute"
+
+    def test_is_frozen(self):
+        cfg = SbhmConfig()
+        with pytest.raises(Exception):  # FrozenInstanceError is a dataclasses subclass
+            cfg.amplitude_method = "global_ls"  # type: ignore[misc]
+
+    def test_amplitude_method_is_case_sensitive(self):
+        with pytest.raises(ValueError, match="amplitude_method must be one of"):
+            SbhmConfig(amplitude_method="OASIS_VOXEL")  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize(
+        "kwargs, message",
+        [
+            ({"r": 0}, "r must be a positive integer"),
+            ({"top_k": 0}, "top_k must be a positive integer"),
+            ({"amplitude_method": "bogus"}, "amplitude_method must be one of"),
+            ({"ridge_mode": "bogus"}, "ridge_mode must be one of"),
+            ({"ridge_lambda": -0.1}, "ridge_lambda must be non-negative"),
+        ],
+    )
+    def test_rejects_invalid_options(self, kwargs, message):
+        with pytest.raises(ValueError, match=message):
+            SbhmConfig(**kwargs)
+
 
 class TestSbhmPipeline:
     def test_full_pipeline(self, rng, library_data):

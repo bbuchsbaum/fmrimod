@@ -14,6 +14,7 @@ The primary entry point is :func:`estimate_single_trial`.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Optional
 
 import numpy as np
@@ -151,8 +152,8 @@ def estimate_single_trial(
 
     if method_enum is SingleTrialMethod.OASIS:
         cfg = oasis_config or OasisConfig(return_se=return_se)
-        if return_se:
-            cfg.return_se = True
+        if return_se and not cfg.return_se:
+            cfg = replace(cfg, return_se=True)
         return oasis_single_trial(
             Y, X,
             confounds=confounds,
