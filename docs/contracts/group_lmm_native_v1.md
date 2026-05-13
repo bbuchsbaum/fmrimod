@@ -1,6 +1,6 @@
 # Native Group LMM Contract v1
 
-Status: first native implementation slice.
+Status: native v1 implementation contract for the supported voxelwise subset.
 
 ## Scope
 
@@ -54,5 +54,7 @@ Both reducers return `GroupDataset` with:
 - variance-component assays such as `sigma2`, `vc_intercept`, `vc_resid`, and
   random-slope variance/correlation assays where applicable
 
-The LMM milestone is not fully closed until optional R/fmrigds compiled-path
-parity fixtures cover the supported voxelwise subset.
+Optional R/fmrigds parity coverage lives in
+`tests/test_group/test_fmrigds_reducer_parity.py` and compares the supported
+voxelwise subset against fmrigds reducer outputs when R/fmrigds are available.
+Pooled-theta parity remains explicitly outside native v1.

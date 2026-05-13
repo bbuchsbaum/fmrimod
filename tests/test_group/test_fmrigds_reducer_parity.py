@@ -22,6 +22,8 @@ from fmrimod.group import (
     SampleLabelSpace,
     group_dataset,
     group_dataset_from_group_data,
+    lmm_ri,
+    lmm_ri_slope1,
     reduce,
 )
 from fmrimod.stats import GroupFitRequest, fmrigds_backend_available, group_fit
@@ -186,6 +188,100 @@ result <- switch(
 write_payload(result = result)
 """
 
+_R_LMM_ORACLE = r"""
+args <- commandArgs(trailingOnly = TRUE)
+result_path <- args[[1L]]
+source_dir <- if (length(args) >= 2L) args[[2L]] else ""
+
+if (!requireNamespace("jsonlite", quietly = TRUE)) {
+  stop("jsonlite is required for fmrigds LMM oracle", call. = FALSE)
+}
+if (nzchar(source_dir)) {
+  pkgload::load_all(source_dir, quiet = TRUE)
+} else {
+  suppressPackageStartupMessages(library(fmrigds))
+}
+
+subjects_ri <- sprintf("sub-%02d", 1:8)
+contrasts_ri <- c("baseline", "task")
+u <- c(-0.5, -0.2, 0, 0.1, 0.25, 0.35, -0.15, 0.2)
+eps1 <- matrix(c(
+  -0.10, 0.02, -0.05, 0.01, 0.03, -0.02, 0.04, 0,
+  -0.02, 0.03, 0.01, -0.01, 0.02, 0.04, -0.03, -0.02
+), ncol = 2, byrow = TRUE)
+eps2 <- matrix(c(
+  0.02, -0.01, -0.04, 0.03, 0.01, -0.02, -0.03, 0.02,
+  0, 0.01, 0.03, -0.03, -0.01, 0.02, 0.02, 0
+), ncol = 2, byrow = TRUE)
+beta_ri <- array(NA_real_, dim = c(2, length(subjects_ri), length(contrasts_ri)))
+beta_ri[1, , ] <- cbind(1.2 + u, 1.9 + u) + eps1
+beta_ri[2, , ] <- cbind(-0.4 + u, 0.7 + u) + eps2
+var_ri <- array(0.05, dim = dim(beta_ri))
+g_ri <- new_gds(
+  assays = list(beta = beta_ri, var = var_ri),
+  space = space_sample_labels(c("ROI_1", "ROI_2")),
+  subjects = subjects_ri,
+  contrasts = contrasts_ri
+)
+g_ri <- with_contrast_data(
+  g_ri,
+  data.frame(condition = c(0, 1), row.names = contrasts_ri)
+)
+out_ri <- reduce(
+  as_plan(g_ri),
+  method = "lmm:ri",
+  formula = ~ condition,
+  options = list(fit = "REML", theta_mode = "voxelwise")
+) |> compute()
+
+subjects_s <- sprintf("sub-%02d", 1:10)
+contrasts_s <- c("t0", "t1", "t2")
+time <- c(-1, 0, 1)
+b0 <- c(-0.30, -0.18, -0.12, -0.05, 0, 0.08, 0.13, 0.18, 0.24, 0.31)
+b1 <- c(-0.15, -0.10, -0.06, -0.02, 0.01, 0.05, 0.08, 0.11, 0.15, 0.19)
+eps_s1 <- matrix(c(
+  0.01, -0.02, 0, -0.01, 0.02, 0.01, 0.02, 0, -0.01,
+  0, -0.01, 0.02, -0.02, 0.01, 0, 0.01, 0, -0.02,
+  0, 0.02, -0.01, -0.01, 0.01, 0.02, 0.02, -0.01, 0.01,
+  0, 0.01, -0.01
+), ncol = 3, byrow = TRUE)
+eps_s2 <- matrix(c(
+  -0.01, 0, 0.02, 0.02, -0.01, 0.01, 0, 0.01, -0.02,
+  -0.02, 0.02, 0, 0.01, -0.02, 0.01, 0, 0.01, -0.01,
+  -0.01, 0, 0.02, 0.02, -0.02, 0, 0.01, 0.01, -0.02,
+  -0.02, 0, 0.01
+), ncol = 3, byrow = TRUE)
+beta_s <- array(NA_real_, dim = c(2, length(subjects_s), length(contrasts_s)))
+beta_s[1, , ] <- outer(1.1 + b0, rep(1, length(time))) + outer(0.65 + b1, time) + eps_s1
+beta_s[2, , ] <- outer(-0.3 + 0.8 * b0, rep(1, length(time))) + outer(0.95 + 1.3 * b1, time) + eps_s2
+var_s <- array(0.04, dim = dim(beta_s))
+g_s <- new_gds(
+  assays = list(beta = beta_s, var = var_s),
+  space = space_sample_labels(c("ROI_1", "ROI_2")),
+  subjects = subjects_s,
+  contrasts = contrasts_s
+)
+g_s <- with_contrast_data(g_s, data.frame(time = time, row.names = contrasts_s))
+out_s <- reduce(
+  as_plan(g_s),
+  method = "lmm:ri_slope1",
+  formula = ~ time,
+  options = list(slope = "time", covariance = "diag", fit = "REML", theta_mode = "voxelwise")
+) |> compute()
+
+jsonlite::write_json(
+  list(
+    ri_coef_condition = as.numeric(assay(out_ri, "coef:condition")[, 1, 1]),
+    ri_lambda = as.numeric(assay(out_ri, "lambda")[, 1, 1]),
+    slope_coef_time = as.numeric(assay(out_s, "coef:time")[, 1, 1]),
+    slope_lambda = as.numeric(assay(out_s, "lambda_slope")[, 1, 1])
+  ),
+  result_path,
+  auto_unbox = TRUE,
+  digits = 16
+)
+"""
+
 
 def _candidate_fmrigds_source() -> str | None:
     env = os.environ.get("FMRIGDS_SOURCE_DIR", "").strip()
@@ -270,6 +366,27 @@ def _run_fmrigds_kernel_oracle(kernel: str, **payload: Any) -> dict[str, Any]:
     return result
 
 
+def _run_fmrigds_lmm_oracle() -> dict[str, Any]:
+    backend_opts = _skip_if_no_fmrigds()
+    with tempfile.TemporaryDirectory(prefix="fmrimod-fmrigds-lmm-") as td:
+        result_path = Path(td) / "result.json"
+        cmd = [
+            "Rscript",
+            "-e",
+            _R_LMM_ORACLE,
+            str(result_path),
+            backend_opts.get("fmrigds_source", ""),
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
+        if proc.returncode != 0:
+            pytest.fail(
+                proc.stderr.strip()
+                or proc.stdout.strip()
+                or "fmrigds LMM oracle failed"
+            )
+        return json.loads(result_path.read_text(encoding="utf-8"))
+
+
 def _matrix_group_dataset(assays: dict[str, np.ndarray]):
     first = next(iter(assays.values()))
     n_subjects, n_features = np.asarray(first).shape
@@ -282,6 +399,102 @@ def _matrix_group_dataset(assays: dict[str, np.ndarray]):
         space=SampleLabelSpace([f"f{i + 1}" for i in range(n_features)]),
         subjects=[f"s{i + 1}" for i in range(n_subjects)],
         contrasts=["c1"],
+    )
+
+
+def _lmm_ri_dataset():
+    subjects = [f"sub-{idx:02d}" for idx in range(1, 9)]
+    contrasts = ["baseline", "task"]
+    u = np.array([-0.5, -0.2, 0.0, 0.1, 0.25, 0.35, -0.15, 0.2])
+    eps1 = np.array(
+        [
+            [-0.10, 0.02],
+            [-0.05, 0.01],
+            [0.03, -0.02],
+            [0.04, 0.00],
+            [-0.02, 0.03],
+            [0.01, -0.01],
+            [0.02, 0.04],
+            [-0.03, -0.02],
+        ]
+    )
+    eps2 = np.array(
+        [
+            [0.02, -0.01],
+            [-0.04, 0.03],
+            [0.01, -0.02],
+            [-0.03, 0.02],
+            [0.00, 0.01],
+            [0.03, -0.03],
+            [-0.01, 0.02],
+            [0.02, 0.00],
+        ]
+    )
+    beta = np.empty((2, len(subjects), len(contrasts)), dtype=np.float64)
+    beta[0, :, :] = np.column_stack([1.2 + u, 1.9 + u]) + eps1
+    beta[1, :, :] = np.column_stack([-0.4 + u, 0.7 + u]) + eps2
+    return group_dataset(
+        {"beta": beta},
+        space=SampleLabelSpace(["ROI_1", "ROI_2"]),
+        subjects=subjects,
+        contrasts=contrasts,
+        contrast_data=pd.DataFrame(
+            {"condition": [0.0, 1.0]},
+            index=pd.Index(contrasts, name="contrast"),
+        ),
+    )
+
+
+def _lmm_slope_dataset():
+    subjects = [f"sub-{idx:02d}" for idx in range(1, 11)]
+    contrasts = ["t0", "t1", "t2"]
+    time = np.array([-1.0, 0.0, 1.0])
+    b0 = np.array([-0.30, -0.18, -0.12, -0.05, 0.00, 0.08, 0.13, 0.18, 0.24, 0.31])
+    b1 = np.array([-0.15, -0.10, -0.06, -0.02, 0.01, 0.05, 0.08, 0.11, 0.15, 0.19])
+    eps1 = np.array(
+        [
+            [0.01, -0.02, 0.00],
+            [-0.01, 0.02, 0.01],
+            [0.02, 0.00, -0.01],
+            [0.00, -0.01, 0.02],
+            [-0.02, 0.01, 0.00],
+            [0.01, 0.00, -0.02],
+            [0.00, 0.02, -0.01],
+            [-0.01, 0.01, 0.02],
+            [0.02, -0.01, 0.01],
+            [0.00, 0.01, -0.01],
+        ]
+    )
+    eps2 = np.array(
+        [
+            [-0.01, 0.00, 0.02],
+            [0.02, -0.01, 0.01],
+            [0.00, 0.01, -0.02],
+            [-0.02, 0.02, 0.00],
+            [0.01, -0.02, 0.01],
+            [0.00, 0.01, -0.01],
+            [-0.01, 0.00, 0.02],
+            [0.02, -0.02, 0.00],
+            [0.01, 0.01, -0.02],
+            [-0.02, 0.00, 0.01],
+        ]
+    )
+    beta = np.empty((2, len(subjects), len(contrasts)), dtype=np.float64)
+    beta[0, :, :] = np.outer(1.1 + b0, np.ones_like(time)) + np.outer(0.65 + b1, time) + eps1
+    beta[1, :, :] = (
+        np.outer(-0.3 + 0.8 * b0, np.ones_like(time))
+        + np.outer(0.95 + 1.3 * b1, time)
+        + eps2
+    )
+    return group_dataset(
+        {"beta": beta},
+        space=SampleLabelSpace(["ROI_1", "ROI_2"]),
+        subjects=subjects,
+        contrasts=contrasts,
+        contrast_data=pd.DataFrame(
+            {"time": time},
+            index=pd.Index(contrasts, name="contrast"),
+        ),
     )
 
 
@@ -379,6 +592,44 @@ def test_native_meta_reducers_match_fmrigds_oracle(
             rtol=1e-6,
             atol=1e-8,
         )
+
+
+@pytest.mark.cross_test
+def test_native_lmm_voxelwise_reducers_match_fmrigds_oracle() -> None:
+    oracle = _run_fmrigds_lmm_oracle()
+
+    ri = lmm_ri(_lmm_ri_dataset(), formula="~ condition", theta_mode="voxelwise")
+    np.testing.assert_allclose(
+        ri.assay("coef:condition")[:, 0, 0],
+        np.asarray(oracle["ri_coef_condition"], dtype=np.float64),
+        rtol=1e-5,
+        atol=1e-6,
+    )
+    np.testing.assert_allclose(
+        ri.assay("lambda")[:, 0, 0],
+        np.asarray(oracle["ri_lambda"], dtype=np.float64),
+        rtol=1e-4,
+        atol=1e-3,
+    )
+
+    slope = lmm_ri_slope1(
+        _lmm_slope_dataset(),
+        formula="~ time",
+        slope="time",
+        theta_mode="voxelwise",
+    )
+    np.testing.assert_allclose(
+        slope.assay("coef:time")[:, 0, 0],
+        np.asarray(oracle["slope_coef_time"], dtype=np.float64),
+        rtol=1e-5,
+        atol=1e-6,
+    )
+    np.testing.assert_allclose(
+        slope.assay("lambda_slope")[:, 0, 0],
+        np.asarray(oracle["slope_lambda"], dtype=np.float64),
+        rtol=2e-4,
+        atol=1e-2,
+    )
 
 
 @pytest.mark.cross_test
