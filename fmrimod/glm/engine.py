@@ -29,18 +29,149 @@ from typing import (
     Any,
     ClassVar,
     Dict,
+    Literal,
+    Mapping,
     Optional,
     Protocol,
-    Sequence,
+    Union,
+    cast,
     runtime_checkable,
 )
 
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import DTypeLike, NDArray
 
 from ..model.config import FmriLmConfig
 
 logger = logging.getLogger(__name__)
+
+EngineName = Literal["runwise", "chunkwise", "sketch"]
+SketchKindName = Literal["gaussian", "srht", "countsketch"]
+LandmarkMethodName = Literal["kmeans", "random"]
+
+
+def _validate_positive_int(value: int, *, name: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f"{name} must be a positive integer")
+
+
+def _validate_optional_positive_int(value: Optional[int], *, name: str) -> None:
+    if value is not None:
+        _validate_positive_int(value, name=name)
+
+
+@dataclass(frozen=True)
+class RunwiseEngineOptions:
+    """Typed options for the default runwise GLM engine."""
+
+    n_jobs: int = 1
+    blas_threads: Optional[int] = None
+    compute_dtype: DTypeLike = np.float64
+    cache_projections: bool = False
+    chunk_size: int = 5000
+    name: Literal["runwise"] = field(default="runwise", init=False)
+
+    def __post_init__(self) -> None:
+        _validate_positive_int(self.n_jobs, name="n_jobs")
+        _validate_optional_positive_int(self.blas_threads, name="blas_threads")
+        _validate_positive_int(self.chunk_size, name="chunk_size")
+
+    def fit_kwargs(self) -> Dict[str, object]:
+        return {
+            "n_jobs": self.n_jobs,
+            "blas_threads": self.blas_threads,
+            "compute_dtype": self.compute_dtype,
+            "cache_projections": self.cache_projections,
+            "chunk_size": self.chunk_size,
+        }
+
+
+@dataclass(frozen=True)
+class ChunkwiseEngineOptions:
+    """Typed options for the chunkwise GLM engine."""
+
+    chunk_size: int = 5000
+    n_jobs: int = 1
+    blas_threads: Optional[int] = None
+    compute_dtype: DTypeLike = np.float64
+    cache_projections: bool = False
+    name: Literal["chunkwise"] = field(default="chunkwise", init=False)
+
+    def __post_init__(self) -> None:
+        _validate_positive_int(self.chunk_size, name="chunk_size")
+        _validate_positive_int(self.n_jobs, name="n_jobs")
+        _validate_optional_positive_int(self.blas_threads, name="blas_threads")
+
+    def fit_kwargs(self) -> Dict[str, object]:
+        return {
+            "chunk_size": self.chunk_size,
+            "n_jobs": self.n_jobs,
+            "blas_threads": self.blas_threads,
+            "compute_dtype": self.compute_dtype,
+            "cache_projections": self.cache_projections,
+        }
+
+
+@dataclass(frozen=True)
+class SketchEngineOptions:
+    """Typed options for the sketch/low-rank GLM engine."""
+
+    sketch_kind: SketchKindName = "gaussian"
+    sketch_ratio: float = 0.5
+    use_landmarks: bool = False
+    n_landmarks: int = 500
+    landmark_k: int = 6
+    landmark_method: LandmarkMethodName = "kmeans"
+    ridge: float = 0.0
+    seed: Optional[int] = None
+    coords: Optional[NDArray[np.float64]] = None
+    name: Literal["sketch"] = field(default="sketch", init=False)
+
+    def __post_init__(self) -> None:
+        if self.sketch_kind not in ("gaussian", "srht", "countsketch"):
+            raise ValueError("sketch_kind must be 'gaussian', 'srht', or 'countsketch'")
+        if not (0.0 < float(self.sketch_ratio) <= 1.0):
+            raise ValueError("sketch_ratio must be in (0, 1]")
+        _validate_positive_int(self.n_landmarks, name="n_landmarks")
+        _validate_positive_int(self.landmark_k, name="landmark_k")
+        if self.landmark_method not in ("kmeans", "random"):
+            raise ValueError("landmark_method must be 'kmeans' or 'random'")
+        if self.ridge < 0:
+            raise ValueError("ridge must be >= 0")
+        if self.seed is not None and (
+            isinstance(self.seed, bool) or not isinstance(self.seed, int)
+        ):
+            raise ValueError("seed must be an integer or None")
+        if self.coords is not None:
+            coords = np.asarray(self.coords, dtype=np.float64)
+            if coords.ndim != 2:
+                raise ValueError("coords must be a 2-D array")
+            if not np.all(np.isfinite(coords)):
+                raise ValueError("coords must contain finite values")
+
+    def fit_kwargs(self) -> Dict[str, object]:
+        kwargs: Dict[str, object] = {
+            "sketch_kind": self.sketch_kind,
+            "sketch_ratio": self.sketch_ratio,
+            "use_landmarks": self.use_landmarks,
+            "n_landmarks": self.n_landmarks,
+            "landmark_k": self.landmark_k,
+            "landmark_method": self.landmark_method,
+            "ridge": self.ridge,
+            "seed": self.seed,
+        }
+        if self.coords is not None:
+            kwargs["coords"] = self.coords
+        return kwargs
+
+
+EngineOptions = Union[
+    RunwiseEngineOptions,
+    ChunkwiseEngineOptions,
+    SketchEngineOptions,
+]
+EngineSelector = Union[EngineName, str, EngineOptions]
+DEFAULT_ENGINE_OPTIONS = RunwiseEngineOptions()
 
 # ---------------------------------------------------------------------------
 # Engine protocol
@@ -140,10 +271,10 @@ class EngineResult:
     sigma: NDArray[np.float64]
     dfres: float
     XtXinv: NDArray[np.float64]
-    projections: Optional[list] = None
-    run_results: Optional[list] = None
-    residuals: Optional[list] = None
-    run_X: Optional[list] = None
+    projections: Optional[list[Any]] = None
+    run_results: Optional[list[Any]] = None
+    residuals: Optional[list[Any]] = None
+    run_X: Optional[list[Any]] = None
     ar_params: Optional[NDArray[np.float64]] = None
     robust_weights: Optional[NDArray[np.float64]] = None
     extra: Dict[str, Any] = field(default_factory=dict)
@@ -153,12 +284,12 @@ class EngineResult:
 # Registry
 # ---------------------------------------------------------------------------
 
-_ENGINES: Dict[str, type] = {}
+_ENGINES: Dict[str, type[FittingEngine]] = {}
 _BUILTINS_LOADED = False
 _ENTRY_POINTS_LOADED = False
 
 
-def register_engine(name_or_cls: Any = None, *, name: Optional[str] = None):
+def register_engine(name_or_cls: Any = None, *, name: Optional[str] = None) -> Any:
     """Register a fitting engine class.
 
     Can be used as a decorator (with or without arguments) or called
@@ -194,7 +325,7 @@ def register_engine(name_or_cls: Any = None, *, name: Optional[str] = None):
                 f"Engine class {cls.__name__} has no 'name' attribute "
                 "and no name= was given"
             )
-        _ENGINES[engine_name] = cls
+        _ENGINES[engine_name] = cast(type[FittingEngine], cls)
         return cls
 
     # Called as @register_engine(name="...") or register_engine(cls, name="...")
@@ -207,7 +338,7 @@ def register_engine(name_or_cls: Any = None, *, name: Optional[str] = None):
                     f"Engine class {cls.__name__} has no 'name' attribute "
                     "and no name= was given"
                 )
-            _ENGINES[engine_name] = cls
+            _ENGINES[engine_name] = cast(type[FittingEngine], cls)
             return cls
         return decorator
 
@@ -241,7 +372,7 @@ def _load_entry_points() -> None:
                 try:
                     cls = ep.load()
                     engine_name = getattr(cls, "name", ep.name)
-                    _ENGINES[engine_name] = cls
+                    _ENGINES[engine_name] = cast(type[FittingEngine], cls)
                     logger.debug("Loaded engine %r from entry point %s", engine_name, ep)
                 except Exception:
                     logger.warning(
@@ -298,6 +429,28 @@ def get_engine(name: str) -> FittingEngine:
             f"Unknown engine {name!r}. Available: {available}"
         )
     return cls()
+
+
+def resolve_engine(
+    engine: EngineSelector = DEFAULT_ENGINE_OPTIONS,
+    legacy_kwargs: Mapping[str, object] | None = None,
+) -> tuple[FittingEngine, Dict[str, object]]:
+    """Resolve a public engine selector into an engine and typed fit kwargs.
+
+    ``str`` selectors preserve the legacy extension/entry-point surface.
+    ``*EngineOptions`` selectors are the typed public path and reject extra
+    keyword bags so validation happens at option construction time.
+    """
+    legacy = dict(legacy_kwargs or {})
+    if isinstance(engine, str):
+        return get_engine(engine), legacy
+
+    if legacy:
+        raise ValueError(
+            "fmri_lm: pass either a typed engine options object or legacy "
+            "engine keyword arguments, not both"
+        )
+    return get_engine(engine.name), engine.fit_kwargs()
 
 
 def list_engines() -> list[str]:

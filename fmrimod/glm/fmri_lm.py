@@ -8,10 +8,20 @@ information, and methods for computing contrasts.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Sequence,
+    Union,
+    cast,
+    runtime_checkable,
+)
 
 import numpy as np
-import pandas as pd
 from numpy.typing import NDArray
 
 from ..model.config import FmriLmConfig
@@ -21,11 +31,34 @@ from .contrasts import (
     contrast_t,
     contrast_t_batch,
 )
-from .effective_df import effective_df
+from .engine import DEFAULT_ENGINE_OPTIONS, EngineResult, EngineSelector
 from .solver import Projection
 
 if TYPE_CHECKING:
+    from fmrimod.dataset import FmriDataset
+    from fmrimod.dataset.protocols import DatasetProtocol
     from fmrimod.glm.spatial import SpatialContext
+    from fmrimod.model.fmri_model import FmriModel
+    from fmrimod.spec import Spec, Term
+
+
+@runtime_checkable
+class FmriModelLike(Protocol):
+    """Runtime-checkable interface required by GLM fitting engines."""
+
+    @property
+    def dataset(self) -> object:
+        """Dataset associated with the model."""
+        ...
+
+    @property
+    def n_runs(self) -> int:
+        """Number of runs in the model."""
+        ...
+
+    def design_matrix_array(self, run: int = 0) -> NDArray[np.float64]:
+        """Return the design matrix for a run."""
+        ...
 
 
 @dataclass
@@ -67,12 +100,12 @@ class FmriLm:
     sigma: NDArray[np.float64]
     residual_df: float
     XtXinv: NDArray[np.float64]
-    model: object
+    model: FmriModelLike
     config: FmriLmConfig
     contrasts: Dict[str, ContrastResult] = field(default_factory=dict)
     ar_params: Optional[NDArray[np.float64]] = None
     robust_weights: Optional[NDArray[np.float64]] = None
-    run_results: Optional[List] = None
+    run_results: Optional[List[Any]] = None
     projections: Optional[List[Projection]] = None
     _named_weights_cache: Optional[Dict[str, NDArray[np.float64]]] = field(
         default=None,
@@ -92,9 +125,12 @@ class FmriLm:
         ``SE_{j,v} = sigma_v * sqrt(XtXinv_{j,j})``
         """
         diag_XtXinv = np.diag(self.XtXinv)
-        return self.sigma[np.newaxis, :] * np.sqrt(
-            np.maximum(diag_XtXinv, 0.0)
-        )[:, np.newaxis]
+        return np.asarray(
+            self.sigma[np.newaxis, :] * np.sqrt(
+                np.maximum(diag_XtXinv, 0.0)
+            )[:, np.newaxis],
+            dtype=np.float64,
+        )
 
     def tstat(self) -> NDArray[np.float64]:
         """Return t-statistics for each coefficient, shape ``(p, V)``."""
@@ -116,7 +152,7 @@ class FmriLm:
 
     def contrast(
         self,
-        spec: Union[NDArray[np.float64], str, dict],
+        spec: Union[NDArray[np.float64], str, dict[str, Any]],
         name: Optional[str] = None,
     ) -> ContrastResult:
         """Compute a contrast on the fitted model.
@@ -142,8 +178,11 @@ class FmriLm:
                 return self.contrasts[spec]
             # Look up from model's contrast weights
             if self._named_weights_cache is None:
+                contrast_weights = getattr(self.model, "contrast_weights", None)
                 self._named_weights_cache = (
-                    self.model.contrast_weights() if hasattr(self.model, "contrast_weights") else {}  # type: ignore[union-attr]
+                    cast(Dict[str, NDArray[np.float64]], contrast_weights())
+                    if callable(contrast_weights)
+                    else {}
                 )
             cw = self._named_weights_cache
             if spec not in cw:
@@ -274,16 +313,16 @@ class FmriLm:
 
 
 def fmri_lm(
-    spec_or_model: Any,
-    dataset_or_config: Any = None,
+    spec_or_model: "Spec | Term | str | Sequence[object] | FmriModelLike",
+    dataset_or_config: "FmriDataset | FmriLmConfig | None" = None,
     *,
-    baseline: Any = None,
-    block: Optional[Union[str, NDArray]] = None,
-    durations: Optional[Union[str, float, NDArray]] = None,
+    baseline: object = None,
+    block: Optional[Union[str, NDArray[np.float64]]] = None,
+    durations: Optional[Union[str, float, NDArray[np.float64]]] = None,
     precision: Optional[float] = None,
     config: Optional[FmriLmConfig] = None,
-    engine: str = "runwise",
-    **engine_kwargs,
+    engine: EngineSelector = DEFAULT_ENGINE_OPTIONS,
+    **engine_kwargs: object,
 ) -> FmriLm:
     """Fit a GLM to fMRI data.
 
@@ -326,10 +365,14 @@ def fmri_lm(
     config
         Fitting configuration. Defaults to plain OLS.
     engine
-        Engine name. Built-ins: ``"runwise"`` (default OLS), ``"chunkwise"``,
-        ``"sketch"``.
+        Typed engine options object. Built-ins are
+        :class:`~fmrimod.glm.engine.RunwiseEngineOptions`,
+        :class:`~fmrimod.glm.engine.ChunkwiseEngineOptions`, and
+        :class:`~fmrimod.glm.engine.SketchEngineOptions`. Legacy string engine
+        names remain accepted for compatibility.
     **engine_kwargs
-        Forwarded to the engine's ``fit()`` method.
+        Legacy keyword bag forwarded to the engine's ``fit()`` method when
+        ``engine`` is a string. Do not mix with typed engine options.
 
     Returns
     -------
@@ -346,9 +389,10 @@ def fmri_lm(
 
     Sketch engine::
 
-        >>> fit = fm.fmri_lm(model, engine="sketch", sketch_ratio=0.5)
+        >>> from fmrimod.glm import SketchEngineOptions
+        >>> fit = fm.fmri_lm(model, engine=SketchEngineOptions(sketch_ratio=0.5))
     """
-    from .engine import EngineResult, get_engine
+    from .engine import resolve_engine
 
     # -- Resolve second positional: dataset vs. config -----------------------
     if isinstance(dataset_or_config, FmriLmConfig):
@@ -368,7 +412,7 @@ def fmri_lm(
                 "fmri_lm: got a pre-built model and a dataset. "
                 "Pass either (spec, dataset, ...) or (model, ...), not both."
             )
-        model = spec_or_model
+        model = cast(FmriModelLike, spec_or_model)
     else:
         if dataset is None:
             raise ValueError(
@@ -376,7 +420,7 @@ def fmri_lm(
                 "second argument when the first argument is a spec."
             )
         model = _build_model_from_spec(
-            spec=spec_or_model,
+            spec=cast("Spec | Term | str | Sequence[object]", spec_or_model),
             dataset=dataset,
             baseline=baseline,
             block=block,
@@ -388,9 +432,9 @@ def fmri_lm(
         config = FmriLmConfig()
 
     # Resolve and run the engine
-    eng = get_engine(engine)
+    eng, fit_kwargs = resolve_engine(engine, engine_kwargs)
     eng.preflight(model, config)
-    fit_result: EngineResult = eng.fit(model, config, **engine_kwargs)
+    fit_result: EngineResult = eng.fit(model, config, **fit_kwargs)
 
     # Handle AR modeling if configured
     ar_params = fit_result.ar_params
@@ -425,24 +469,20 @@ def fmri_lm(
     )
 
 
-def _is_fmri_model_like(obj: Any) -> bool:
-    """Duck-type check for an FmriModel-shaped object."""
-    return (
-        hasattr(obj, "design_matrix_array")
-        and hasattr(obj, "dataset")
-        and hasattr(obj, "n_runs")
-    )
+def _is_fmri_model_like(obj: object) -> bool:
+    """Check for the public :class:`FmriModelLike` fitting protocol."""
+    return isinstance(obj, FmriModelLike)
 
 
 def _build_model_from_spec(
     *,
-    spec: Any,
-    dataset: Any,
-    baseline: Any,
-    block: Any,
-    durations: Any,
+    spec: "Spec | Term | str | Sequence[object]",
+    dataset: "FmriDataset",
+    baseline: object,
+    block: object,
+    durations: object,
     precision: Optional[float],
-) -> Any:
+) -> "FmriModel":
     """Build an :class:`FmriModel` from a spec + :class:`FmriDataset`.
 
     Accepts either a typed :class:`fmrimod.spec.Spec` / :class:`Term` tree or
@@ -495,7 +535,7 @@ def _build_model_from_spec(
             precision=precision,
         )
         bm = baseline if baseline is not None else default_bm
-        return FmriModel(em, bm, dataset)
+        return FmriModel(em, bm, cast("DatasetProtocol", dataset))
 
     # -- Legacy string / list path --------------------------------------
     em_kwargs: Dict[str, Any] = dict(
@@ -507,30 +547,30 @@ def _build_model_from_spec(
     if precision is not None:
         em_kwargs["precision"] = precision
 
-    em = _build_event(spec, **em_kwargs)
+    em = _build_event(cast(Any, spec), **em_kwargs)
 
     bm = baseline
     if bm is None:
         bm = _build_baseline(basis="constant", sframe=sf, intercept="runwise")
 
-    return FmriModel(em, bm, dataset)
+    return FmriModel(em, bm, cast("DatasetProtocol", dataset))
 
 
-def _engine_result_to_dict(er: object) -> Dict:
+def _engine_result_to_dict(er: "EngineResult") -> Dict[str, Any]:
     """Convert an EngineResult to the legacy dict format."""
     return {
-        "betas": er.betas,  # type: ignore[attr-defined]
-        "sigma": er.sigma,  # type: ignore[attr-defined]
-        "dfres": er.dfres,  # type: ignore[attr-defined]
-        "XtXinv": er.XtXinv,  # type: ignore[attr-defined]
-        "projections": er.projections,  # type: ignore[attr-defined]
-        "run_results": er.run_results,  # type: ignore[attr-defined]
-        "residuals": er.residuals,  # type: ignore[attr-defined]
-        "run_X": er.run_X,  # type: ignore[attr-defined]
+        "betas": er.betas,
+        "sigma": er.sigma,
+        "dfres": er.dfres,
+        "XtXinv": er.XtXinv,
+        "projections": er.projections,
+        "run_results": er.run_results,
+        "residuals": er.residuals,
+        "run_X": er.run_X,
     }
 
 
-def _dict_to_engine_result(d: Dict, original: object) -> object:
+def _dict_to_engine_result(d: Dict[str, Any], original: "EngineResult") -> "EngineResult":
     """Update an EngineResult from a legacy dict (after AR/robust)."""
     from .engine import EngineResult
 

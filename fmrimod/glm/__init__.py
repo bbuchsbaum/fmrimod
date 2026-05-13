@@ -28,13 +28,18 @@ from .compat import (
 )
 from .contrasts import ContrastResult, contrast_f, contrast_t
 from .engine import (
+    DEFAULT_ENGINE_OPTIONS,
+    ChunkwiseEngineOptions,
     EngineResult,
     FittingEngine,
+    RunwiseEngineOptions,
+    SketchEngineOptions,
     get_engine,
     list_engines,
     register_engine,
+    resolve_engine,
 )
-from .fmri_lm import FmriLm, fmri_lm
+from .fmri_lm import FmriLm, FmriModelLike, fmri_lm
 from .solver import Projection, fast_lm_matrix, fast_preproject
 from .spatial import SpatialContext
 
@@ -70,8 +75,14 @@ __all__ = [
     "hrf_smoothing_kernel",
     "estimate",
     "FittingEngine",
+    "FmriModelLike",
     "EngineResult",
+    "RunwiseEngineOptions",
+    "ChunkwiseEngineOptions",
+    "SketchEngineOptions",
+    "DEFAULT_ENGINE_OPTIONS",
     "register_engine",
     "get_engine",
+    "resolve_engine",
     "list_engines",
 ]

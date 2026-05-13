@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from fmrimod.glm.engine import ChunkwiseEngineOptions
 from fmrimod.glm.fmri_lm import fmri_lm
 from fmrimod.model.config import FmriLmConfig, SoftSubspaceOptions, VolumeWeightOptions
 
@@ -48,7 +49,7 @@ def test_chunkwise_matches_runwise_ols():
     cfg = FmriLmConfig()
 
     runwise = fmri_lm(model, cfg, engine="runwise")
-    chunked = fmri_lm(model, cfg, engine="chunkwise", chunk_size=13)
+    chunked = fmri_lm(model, cfg, engine=ChunkwiseEngineOptions(chunk_size=13))
 
     np.testing.assert_allclose(chunked.betas, runwise.betas, atol=1e-10)
     np.testing.assert_allclose(chunked.sigma, runwise.sigma, atol=1e-10)

@@ -4,12 +4,16 @@ import numpy as np
 import pytest
 
 from fmrimod.glm.engine import (
+    _ENGINES,
+    ChunkwiseEngineOptions,
     EngineResult,
     FittingEngine,
+    RunwiseEngineOptions,
+    SketchEngineOptions,
     get_engine,
     list_engines,
     register_engine,
-    _ENGINES,
+    resolve_engine,
 )
 from fmrimod.model.config import FmriLmConfig
 
@@ -37,6 +41,33 @@ class TestEngineRegistry:
     def test_unknown_engine_raises(self):
         with pytest.raises(KeyError, match="Unknown engine"):
             get_engine("nonexistent_engine_xyz")
+
+    def test_resolve_typed_runwise_options(self):
+        eng, kwargs = resolve_engine(RunwiseEngineOptions(n_jobs=2, chunk_size=17))
+
+        assert eng.name == "runwise"
+        assert kwargs["n_jobs"] == 2
+        assert kwargs["chunk_size"] == 17
+
+    def test_resolve_typed_chunkwise_options(self):
+        eng, kwargs = resolve_engine(
+            ChunkwiseEngineOptions(chunk_size=13, n_jobs=2, blas_threads=1)
+        )
+
+        assert eng.name == "chunkwise"
+        assert kwargs["chunk_size"] == 13
+        assert kwargs["n_jobs"] == 2
+        assert kwargs["blas_threads"] == 1
+
+    def test_typed_engine_options_reject_legacy_kwargs(self):
+        with pytest.raises(ValueError, match="typed engine options"):
+            resolve_engine(ChunkwiseEngineOptions(), {"chunk_size": 13})
+
+    def test_typed_engine_options_validate_at_construction(self):
+        with pytest.raises(ValueError, match="chunk_size"):
+            ChunkwiseEngineOptions(chunk_size=0)
+        with pytest.raises(ValueError, match="sketch_ratio"):
+            SketchEngineOptions(sketch_ratio=0.0)
 
     def test_register_with_decorator(self):
         @register_engine

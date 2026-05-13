@@ -12,6 +12,7 @@ import pandas as pd
 import pytest
 
 import fmrimod as fm
+from fmrimod.glm.engine import ChunkwiseEngineOptions
 from fmrimod.glm.fmri_lm import FmriLm, _is_fmri_model_like, fmri_lm
 from fmrimod.model.config import FmriLmConfig
 
@@ -189,11 +190,7 @@ def test_fmri_lm_falls_back_to_single_block_when_no_run_column(synthetic_run):
 
 
 def test_fmri_lm_double_config_raises(synthetic_run):
-    events, Y, tr = synthetic_run
-    ds = fm.fmri_dataset(Y, tr=tr, events=events)
-    # The positional second arg here is a dataset, so it should NOT trigger
-    # the "double config" error.  Only triggers when a config sits in both
-    # positions.
+    _, Y, _ = synthetic_run
     cfg = FmriLmConfig()
 
     class _DummyDataset:
@@ -213,6 +210,14 @@ def test_fmri_lm_double_config_raises(synthetic_run):
 
     with pytest.raises(ValueError, match="both positionally and as a kwarg"):
         fmri_lm(_DummyModel(), cfg, config=FmriLmConfig())
+
+
+def test_fmri_lm_rejects_typed_engine_options_with_legacy_kwargs(synthetic_run):
+    events, Y, tr = synthetic_run
+    ds = fm.fmri_dataset(Y, tr=tr, events=events)
+
+    with pytest.raises(ValueError, match="typed engine options"):
+        fmri_lm("hrf(trial_type)", ds, engine=ChunkwiseEngineOptions(), chunk_size=13)
 
 
 def test_is_fmri_model_like_helper():
