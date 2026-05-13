@@ -13,7 +13,7 @@ project:
 
 website:
   title: "fmrimod"
-  description: "fMRI signal modeling, from HRF specification to design matrices and regression."
+  description: "Typed, composable fMRI design and statistical modeling in Python."
   site-url: "https://bbuchsbaum.github.io/fmrimod/"
   repo-url: "https://github.com/bbuchsbaum/fmrimod"
   repo-actions: [edit, issue]
@@ -38,6 +38,8 @@ website:
         href: tutorials/index.qmd
       - text: "Reference"
         href: reference/index.qmd
+      - text: "Mission"
+        href: "https://github.com/bbuchsbaum/fmrimod/blob/main/MISSION.md"
     right:
       - icon: github
         href: "https://github.com/bbuchsbaum/fmrimod"

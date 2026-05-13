@@ -58,6 +58,16 @@ Migration guides:
 - `docs/source/design/fmrireg_migration.rst` maps R `fmrireg` workflows to Python.
 - `docs/source/design/fmrilss_migration.rst` maps R `fmrilss` workflows to Python.
 
+## Contributing & coordination
+
+Agents and humans working in this repo share two coordination surfaces:
+
+- [`AGENTS.md`](AGENTS.md) — canonical agent instructions (mote tracker, build
+  & test, session protocol, commit conventions). `CLAUDE.md` symlinks to it.
+- [`message_board.md`](message_board.md) — `mote discuss` ground rules and
+  command crib for the public discussion board (`general-discussion` is the
+  catch-all topic).
+
 ## License
 
 GPL-3.0-or-later
