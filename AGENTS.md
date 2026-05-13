@@ -37,6 +37,31 @@ backend. The data substrate is the dogfooded sibling Python port
 of `neuroim2`); friction with neuroim-python is fixed in
 neuroim-python, not routed around in fmrimod.
 
+## Module Map
+
+Subpackages and modules, grouped by their R-source lineage. The
+four-stage seam `dataset → model/glm → contrast/stats → group` runs
+left-to-right across the modeling rows.
+
+| Lineage | Domain | Subpackages / modules |
+| --- | --- | --- |
+| `fmrihrf` | HRFs, regressors, convolution | `hrf/`, `regressor/`, `convolve.py`, `condition_basis.py`, `hrf_dispatch.py`, `hrf_integration.py` |
+| `fmridesign` | Event/baseline design, contrasts | `events/`, `design/`, `contrast/`, `baseline/`, `basis/`, `formula/`, `convolve_design.py`, `covariate.py`, `design_colmap.py` |
+| `fmrireg` | First-level GLM, robust/lowrank variants | `model/`, `glm/`, `robust/`, `lowrank/`, `residualize.py`, `trialwise.py` |
+| `fmrilss` | Single-trial (LSS) estimation | `single/`, `betas/` |
+| `fmriAR` | AR modeling, whitening | `ar/`, `backends/` |
+| `fmrigds` | Group stats and organization | `group/` (native), `stats/` (dispatch + R bridge) |
+| `fmridataset` | Dataset containers | `dataset/` (with `dataset/adapters/` for neuroim, nibabel, BIDS) |
+
+**Cross-cutting / glue.** `bids/` (BIDS Stats Model translator), `io/`,
+`simulate/`, `visualization/`, `plotting.py`, `cli.py`, `afni.py`,
+`accessors.py`, `dispatch.py`, `extension_registry.py`, `types.py`,
+`validate.py`, `sampling.py`, `naming.py`, `utils/`.
+
+**In-flight.** `spec/` (declarative design-spec layer),
+`dataset/adapters/neuroim_adapter.py` (neuroim-python adapter). Treat
+these as moving targets until they land in a thematic commit.
+
 ## Build & Test
 
 ```bash

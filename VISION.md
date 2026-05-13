@@ -18,6 +18,21 @@ real first-class designs but is unreachable from a Python stack. Each one
 is a partial answer. None of them lets a thoughtful researcher *and* a
 thoughtful engineer share the same artifact.
 
+## Why an underdog can win here
+
+fmrimod does not win by breadth, incumbency, or compatibility with every
+historical workflow. It wins by focus.
+
+The advantage is that we can make hard architectural choices early:
+typed values over string registries, composable analysis objects over
+stateful pipelines, flagship workflows over API sprawl, and explicit
+caveats over quiet drift. Larger projects have to preserve more surface
+area; fmrimod can use each parity failure as design pressure.
+
+The bet is that a smaller library with stricter contracts can move
+faster than a larger ecosystem whose abstractions are already socially
+and technically expensive to change.
+
 **fmrimod's vision is to be that shared artifact.** Specifically:
 
 - **A unified Python ecosystem, not a transliterated R one.** fmrimod
@@ -39,6 +54,12 @@ thoughtful engineer share the same artifact.
   agreement with the R sources is then proven case-by-case in
   `./benchmarks` use-case workflows and the `cross_testing/` parity
   matrix. Parity is a property of behavior, not of API shape.
+  Parity also does not mean copying another library's vocabulary. When
+  a reference library exposes an ambiguous or overloaded quantity,
+  fmrimod defines the statistical object explicitly and tests that
+  object directly. A multi-row F contrast, for example, has raw contrast
+  effects, an F statistic, degrees of freedom, and p-values; these are
+  distinct public quantities, not one generic "effect size".
 - **Parity is the floor, not the ceiling.** Matching Nilearn and
   FitLins is the baseline fmrimod ships from, not the destination. On
   every workflow we touch we commit to *exceeding* the current Python
@@ -86,6 +107,10 @@ high-level API until it breaks, then drop to NumPy" as the normal mode.
 fmrimod is the high-level API that does not break, the place where new
 modeling research lands first, and the canonical Python home of the
 fmri\* R ecosystem.
+
+> *The artifact is the argument.* No marketing layer sits between the
+> work and the verdict — the flagship benchmarks, the parity gates, and
+> the wall-clock numbers decide what fmrimod is.
 
 ---
 

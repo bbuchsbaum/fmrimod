@@ -20,6 +20,12 @@ Python distribution with modular internals:
   must re-export from `fmrimod.dataset` and must not contain independent
   implementation logic.
 
+This plan is subordinate to the repo mission and vision: `fmridataset` is not
+being folded in to achieve mechanical export parity. It is being folded in to
+make the load-bearing `fmri_dataset -> fmri_lm -> contrast -> group_fit` seam
+typed, inspectable, parity-validated, and strong enough for the flagship
+workflows in `./benchmarks/` and `cross_testing/`.
+
 ## Source Of Truth Rule
 
 There are two source-of-truth levels, and both must stay singular:
@@ -56,7 +62,9 @@ needs a real inventory and contract-test gate before implementation starts.
 
 Make `fmrimod.dataset` the single implementation source of truth for dataset
 IO and containers, while preserving a deliberate compatibility path for users
-of `fmridataset`.
+of `fmridataset`. The winning Python shape is allowed to differ from the R
+surface when that improves typing, composition, neuroim integration, or the
+end-to-end modeling workflow.
 
 ### Users
 
@@ -80,15 +88,44 @@ of `fmridataset`.
   only when the canonical behavior is implemented.
 - The `fmridataset` compatibility package, if retained, contains no independent
   implementation logic.
+- Every ported dataset object supports the four-stage seam:
+  `fmri_dataset -> fmri_lm -> contrast -> group_fit`.
+- Workflow-bearing functionality is prioritized over donor export completeness.
+  Donor names that do not support a flagship workflow may remain unported when
+  they are classified as `internal_only` or `scoped_out` with a reason.
+- Real image, mask, and contrast pathways should route through
+  `neuroim-python` typed containers. Direct `nibabel` use belongs at IO
+  boundaries only.
+- Any semantic divergence from R `fmridataset`, Nilearn, FitLins, or SPM that
+  affects a flagship workflow must be recorded in `docs/contracts/CAVEATS.md`
+  with an owner and exit criterion.
 
 ### Non-Goals
 
 - This PRD does not require porting every backend in the first implementation
   slice.
+- This PRD does not require porting every donor export. The inventory prevents
+  ambiguity; it does not force low-leverage API accretion.
 - This PRD does not require keeping R-compatible semantics when they conflict
   with established `fmrimod` timing semantics.
 - This PRD does not permit a second source of truth in beads, release notes, or
   a parallel API spreadsheet.
+
+### Mission-Aligned Prioritization
+
+When implementation order is ambiguous, choose the path that improves flagship
+workflow quality first:
+
+1. Does it strengthen `dataset -> lm -> contrast -> group_fit`?
+2. Does it replace ad hoc NumPy/nibabel handling with typed neuroim-compatible
+   containers at the right boundary?
+3. Does it make an analysis more inspectable, serializable, or reproducible?
+4. Does it retire a caveat or enable a benchmark/parity workflow?
+5. Does it preserve a thin `fmridataset` facade without adding a second
+   implementation?
+
+If the answer is no to all five, the work is backlog even if the donor package
+exports a function for it.
 
 ### Canonical Definitions
 
@@ -637,12 +674,17 @@ Current status:
 3. Merge or retire temporary `fmrimod.dataset.compat.LatentDataset`.
 4. Ensure study and group containers use the same mask and timing validation
    rules as single-subject datasets.
+5. Shape study/group/latent objects around the production seam:
+   dataset construction, first-level fitting, contrast output, and group
+   reduction.
 
 Exit criteria:
 
 - Study, latent, group, selector, and series tests pass after import remapping.
 - There is one `LatentDataset` class.
 - There is one chunk/data-series representation.
+- At least one study/group object path feeds a modeling or group-reduction
+  workflow without dropping into ad hoc NumPy reshaping.
 
 ### Phase 6: Port BIDS-HDF5 Last
 
@@ -656,12 +698,16 @@ Exit criteria:
    - parcellated `n_features` comes from `/parcellation/cluster_ids`;
    - latent `n_features` comes from `/latent_meta/n_components`;
    - `reconstruct_voxels(scan_name)` validates `basis @ loadings.T + offset`.
+4. Keep direct `nibabel` and PyBIDS use at ingestion/IO boundaries. Canonical
+   in-memory image/mask/contrast objects should be neuroim-compatible.
 
 Exit criteria:
 
 - `tests/test_bids_h5_dataset.py` equivalent passes under `fmrimod.dataset`.
 - BIDS-HDF5 tests do not require full BIDS directory ingestion unless the
   `bids` extra is installed.
+- A BIDS-HDF5-backed dataset can enter the same modeling path as a matrix
+  dataset where the required data are present.
 
 ### Phase 7: Integrate With Modeling Workflows
 
@@ -672,12 +718,16 @@ Exit criteria:
 3. Replace positional `get_data(run)` usage with explicit run access.
 4. Ensure `matrix_dataset(...)` returns an object that can flow directly into
    `fmri_lm`, LSS/LSA/OASIS helpers, and simulation examples.
+5. Add or update at least one flagship-style benchmark/parity workflow when a
+   dataset feature becomes workflow-bearing.
 
 Exit criteria:
 
 - Existing model, GLM, single-trial, and simulation tests pass.
 - At least one end-to-end test fits a GLM from a canonical `matrix_dataset`.
 - At least one chunked fit path uses the canonical chunk contract.
+- Any unavoidable divergence from R/Nilearn/FitLins behavior is documented in
+  `docs/contracts/CAVEATS.md` with an owning mote and retirement criterion.
 
 ### Phase 8: Add The Compatibility Package
 
@@ -735,6 +785,8 @@ Current status:
 3. Add one `fmrimod.dataset` API overview.
 4. Update examples so dataset IO appears as the substrate for modeling, not as
    a separate project.
+5. Align examples with the mission: typed composition first, convenience
+   wrappers only as thin facades.
 
 Exit criteria:
 
@@ -787,6 +839,11 @@ Use these extras in `pyproject.toml`:
 The base install should remain NumPy/Pandas/SciPy-oriented and must support
 matrix datasets and modeling workflows without heavy IO dependencies.
 
+Optional IO extras are implementation details of dataset ingestion and storage,
+not alternate modeling pathways. Once data are loaded, downstream modeling
+should see the same canonical dataset/series/chunk contracts regardless of
+whether the source was matrix, HDF5, NIfTI, Zarr, BIDS-HDF5, or neuroim.
+
 ## Reviewable Work Packages
 
 These are the natural patch boundaries. If beads are created, use these titles
@@ -795,13 +852,15 @@ and point each bead to this section instead of copying the details.
 1. Dataset consolidation inventory and contract tests.
 2. Canonical `SamplingFrame` and dataset protocol reconciliation.
 3. Backend protocol, registry, and matrix backend port.
-4. HDF5, NIfTI, Zarr, and latent backend port.
-5. Dataset constructors, methods, chunking, selectors, and series port.
-6. Study/group dataset port.
-7. BIDS-HDF5 reader and writer port.
-8. Modeling integration: GLM, single-trial, simulation, examples.
-9. Compatibility `fmridataset` facade.
-10. Documentation consolidation and release gate.
+4. Latent dataset/backend port, retiring the temporary helper.
+5. Study/group dataset port aligned with group inference.
+6. Optional backend extras and constructors.
+7. HDF5, NIfTI, Zarr backend port using canonical backend contracts.
+8. BIDS-HDF5 reader and writer port.
+9. Modeling integration: GLM, single-trial, simulation, examples, and
+   benchmark/parity workflows.
+10. Compatibility `fmridataset` facade.
+11. Documentation consolidation and release gate.
 
 ## Completion Definition
 
@@ -818,6 +877,10 @@ The consolidation is complete only when all of these are true:
   ported or explicitly classified as `scoped_out` in this file.
 - Existing `fmrimod` modeling tests pass against the canonical dataset objects.
 - Optional backends are extras, not hard base dependencies.
+- Workflow-bearing dataset paths are validated through the same modeling seam,
+  not just through import or constructor smoke tests.
+- Any active dataset-related parity caveat is either closed or has a mote owner
+  and concrete retirement criterion in `docs/contracts/CAVEATS.md`.
 
 ## Maintenance Rule
 
