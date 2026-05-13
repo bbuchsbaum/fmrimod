@@ -4,12 +4,17 @@ import numpy as np
 import pytest
 
 from fmrimod.hrf.core import HRF
+from fmrimod.hrf.functions import bspline_hrf, gamma_hrf
 from fmrimod.hrf.generators import (
-    gen_hrf, gen_hrf_set, make_hrf,
-    bspline_generator, fir_generator, fourier_generator, daguerre_generator
+    bspline_generator,
+    daguerre_generator,
+    fir_generator,
+    fourier_generator,
+    gen_hrf,
+    gen_hrf_set,
+    make_hrf,
 )
-from fmrimod.hrf.library import SPM_CANONICAL, GAMMA_HRF
-from fmrimod.hrf.functions import gamma_hrf, bspline_hrf
+from fmrimod.hrf.library import GAMMA_HRF, SPM_CANONICAL
 
 
 class TestGenHRF:
@@ -274,10 +279,12 @@ class TestMakeHRF:
         t = np.arange(0, 20, 0.5)
         assert np.allclose(hrf(t), SPM_CANONICAL(t))
     
-    def test_make_hrf_with_params_string(self):
-        """Test make_hrf with parameterized string."""
-        hrf = make_hrf("bspline(n_basis=7, degree=3)")
+    def test_make_hrf_with_params_string_retired(self):
+        """Parameterized string DSL is retired in favor of typed constructors."""
+        with pytest.raises(ValueError, match="string-DSL HRF specs.*retired"):
+            make_hrf("bspline(n_basis=7, degree=3)")
 
+        hrf = bspline_generator(n_basis=7, degree=3)
         assert isinstance(hrf, HRF)
         assert hrf.nbasis == 7
     

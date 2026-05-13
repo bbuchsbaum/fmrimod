@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ast
 from typing import Any, Callable, Dict, Optional, Sequence, Union
 
 import numpy as np
@@ -271,72 +270,53 @@ def make_hrf(
     lag: float = 0.0,
     normalize: bool = False,
 ) -> HRF:
-    """Create an HRF from a specification string or dictionary.
-    
-    This function provides a flexible way to create HRFs from specifications.
-    
+    """Create an HRF from a typed specification.
+
+    Accepted forms:
+
+    - A plain canonical name or alias (``"spmg1"``, ``"bspline"``,
+      ``"spm_canonical"``). The string is routed through
+      :func:`fmrimod.hrf.aliases._normalize_hrf_name`.
+    - A dict with a ``"type"`` key plus per-kind parameters
+      (``{"type": "gamma", "shape": 6, "rate": 1}``).
+    - An :class:`HRF` instance (returned as-is, with ``lag`` /
+      ``normalize`` applied).
+
+    The legacy string-DSL form (``"bspline(N=7, degree=3)"``) was
+    retired by bead ``bd-01KRGCZD8QC6W4XE73JW0DJK5A``: callers that
+    want parameterised construction should call the typed generator
+    directly (``bspline_generator(n_basis=7, degree=3)``) or
+    ``get_hrf("bspline", n_basis=7, degree=3)``.
+
     Args:
-        hrf_spec: Either a string like "bspline(N=7)" or a dict with 'type' and parameters
-        lag: Optional temporal lag
-        normalize: If True, normalize to unit peak
-        
+        hrf_spec: Plain string name, dict spec, or :class:`HRF` instance.
+        lag: Optional temporal lag.
+        normalize: If True, normalize to unit peak per basis.
+
     Returns:
-        Generated HRF
-        
-    Examples:
-        make_hrf("spmg1")
-        make_hrf("bspline(N=7, degree=3)")
-        make_hrf({"type": "gamma", "shape": 6, "rate": 1})
+        Generated HRF.
+
+    Raises:
+        ValueError: If the string contains ``(`` (retired DSL form) or
+            the canonical name is unknown.
     """
     if isinstance(hrf_spec, str):
-        # Parse string specification
-        if '(' in hrf_spec:
-            # Extract function name and parameters
-            func_name = hrf_spec[:hrf_spec.index('(')]
-            params_str = hrf_spec[hrf_spec.index('(')+1:-1]
-            
-            # Parse parameters
-            params = {}
-            if params_str:
-                for param in params_str.split(','):
-                    key, value = param.strip().split('=')
-                    # Try to convert to appropriate type
-                    try:
-                        params[key.strip()] = ast.literal_eval(value.strip())
-                    except (ValueError, SyntaxError):
-                        params[key.strip()] = value.strip()
-            
-            # If parameters are provided, prefer generators over pre-defined HRFs
-            # Try adding "hrf_" prefix to find generators
-            if params and not func_name.startswith("hrf_"):
-                try:
-                    return gen_hrf(f"hrf_{func_name}", lag=lag, normalize=normalize, **params)
-                except ValueError:
-                    # Fall back to original name
-                    pass
-        else:
-            func_name = hrf_spec
-            params = {}
-    elif isinstance(hrf_spec, dict):
-        # Dictionary specification
-        func_name = hrf_spec.get('type', 'spmg1')
-        params = {k: v for k, v in hrf_spec.items() if k != 'type'}
-        
-        # If parameters are provided, prefer generators over pre-defined HRFs
-        if params and not func_name.startswith("hrf_"):
-            try:
-                return gen_hrf(f"hrf_{func_name}", lag=lag, normalize=normalize, **params)
-            except ValueError:
-                # Fall back to original name
-                pass
-    elif isinstance(hrf_spec, HRF):
+        if "(" in hrf_spec:
+            raise ValueError(
+                "string-DSL HRF specs (e.g. \"bspline(N=7)\") are retired; "
+                "use bspline_generator(n_basis=7) or "
+                "get_hrf('bspline', n_basis=7) instead. See "
+                "bd-01KRGCZD8QC6W4XE73JW0DJK5A."
+            )
         return gen_hrf(hrf_spec, lag=lag, normalize=normalize)
-    else:
-        # Fallback for callable or object-like specs
-        return gen_hrf(hrf_spec, lag=lag, normalize=normalize)
-    
-    # Create HRF using gen_hrf
-    return gen_hrf(func_name, lag=lag, normalize=normalize, **params)
+
+    if isinstance(hrf_spec, dict):
+        func_name = hrf_spec.get("type", "spmg1")
+        params = {k: v for k, v in hrf_spec.items() if k != "type"}
+        return gen_hrf(func_name, lag=lag, normalize=normalize, **params)
+
+    # HRF instance or callable.
+    return gen_hrf(hrf_spec, lag=lag, normalize=normalize)
 
 
 def tent_generator(

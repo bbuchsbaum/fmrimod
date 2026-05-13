@@ -11,7 +11,6 @@ import csv
 import json
 import os
 import sys
-import warnings
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -536,27 +535,29 @@ def _read_events_table(path: str) -> pd.DataFrame:
 
 
 def _get_cli_hrf(opts: Mapping[str, Any], *, allow_decorators: bool = True):
-    kwargs = {
-        "nbasis": _as_scalar_integer(opts["nbasis"], "nbasis"),
-        "n_basis": _as_scalar_integer(opts["nbasis"], "nbasis"),
-        "span": _as_scalar_numeric(opts["span"], "span"),
-    }
+    kwargs = _cli_hrf_constructor_kwargs(opts)
     lag = _as_scalar_numeric(opts.get("lag", "0"), "lag") if allow_decorators else 0.0
     width = _as_scalar_numeric(opts.get("width", "0"), "width") if allow_decorators else 0.0
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message=r"Parameters .* ignored for pre-defined HRF",
-            category=UserWarning,
-        )
-        return get_hrf(
-            str(opts["hrf"]),
-            lag=lag,
-            width=width,
-            summate=bool(opts.get("summate", True)),
-            normalize=bool(opts.get("normalize")),
-            **kwargs,
-        )
+    return get_hrf(
+        str(opts["hrf"]),
+        lag=lag,
+        width=width,
+        summate=bool(opts.get("summate", True)),
+        normalize=bool(opts.get("normalize")),
+        **kwargs,
+    )
+
+
+def _cli_hrf_constructor_kwargs(opts: Mapping[str, Any]) -> dict[str, object]:
+    name = str(opts["hrf"]).strip().lower()
+    nbasis = _as_scalar_integer(opts["nbasis"], "nbasis")
+    span = _as_scalar_numeric(opts["span"], "span")
+
+    if name in {"bspline", "hrf_bspline", "fir", "hrf_fir", "fourier", "hrf_fourier", "daguerre", "hrf_daguerre"}:
+        return {"n_basis": nbasis, "span": span}
+    if name in {"tent", "hrf_tent", "sine"}:
+        return {"nbasis": nbasis, "span": span}
+    return {}
 
 
 def _parse_numeric_list(value: Any, name: str) -> np.ndarray:

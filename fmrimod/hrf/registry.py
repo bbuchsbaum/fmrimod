@@ -4,23 +4,63 @@ from __future__ import annotations
 
 import inspect
 import logging
-from typing import Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union, cast
 
+from .aliases import HRFName, _normalize_hrf_name
 from .core import HRF
 
 logger = logging.getLogger(__name__)
 from .library import PREDEFINED_HRFS
 
+HRFEntry = Union[HRF, Callable[..., HRF]]
+
 # Global HRF registry
-_HRF_REGISTRY: Dict[str, Union[HRF, Callable]] = {}
+_HRF_REGISTRY: Dict[str, HRFEntry] = {}
 
 # Initialize with predefined HRFs
-_HRF_REGISTRY.update(PREDEFINED_HRFS)
+_HRF_REGISTRY.update(cast(Dict[str, HRFEntry], PREDEFINED_HRFS))
+
+
+def _callable_params(func: Callable[..., object]) -> tuple[set[str], bool]:
+    sig = inspect.signature(func)
+    params = sig.parameters
+    accepts_var_kwargs = any(
+        p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()
+    )
+    return set(params), accepts_var_kwargs
+
+
+def _validate_kwargs(kind: str, kwargs: dict[str, object], accepted: set[str]) -> None:
+    unknown = sorted(set(kwargs) - accepted)
+    if unknown:
+        raise ValueError(
+            f"Unknown parameter(s) for HRF {kind!r}: {', '.join(unknown)}. "
+            f"Accepted parameters: {', '.join(sorted(accepted))}."
+        )
+
+
+def _instantiate_predefined_hrf(
+    kind: str,
+    hrf: HRF,
+    kwargs: dict[str, object],
+) -> HRF:
+    cls = type(hrf)
+    accepted, accepts_var_kwargs = _callable_params(cls)
+    ctor_kwargs = dict(kwargs)
+    if (
+        "n_basis" in ctor_kwargs
+        and "nbasis" in accepted
+        and "n_basis" not in accepted
+    ):
+        ctor_kwargs["nbasis"] = ctor_kwargs.pop("n_basis")
+    if not accepts_var_kwargs:
+        _validate_kwargs(kind, ctor_kwargs, accepted)
+    return cls(**cast(Any, ctor_kwargs))
 
 
 def _add_to_registry(
     name: str,
-    hrf: Union[HRF, Callable],
+    hrf: HRFEntry,
     aliases: Optional[List[str]] = None
 ) -> None:
     """Add an HRF to the registry.
@@ -40,18 +80,21 @@ def _add_to_registry(
 
 
 def get_hrf(
-    name: str,
+    name: Union[HRFName, str],
     lag: float = 0.0,
     width: float = 0.0,
     summate: bool = True,
     normalize: bool = False,
     block_width: Optional[float] = None,
-    **kwargs,
+    **kwargs: object,
 ) -> HRF:
     """Get an HRF from the registry by name.
 
     Args:
-        name: Name of the HRF (case-insensitive)
+        name: Canonical HRF name (typed via :data:`HRFName`) or an
+            accepted alias (``"spm"``, ``"hrf_bspline"``, ...). Aliases
+            are collapsed through :func:`aliases._normalize_hrf_name`
+            before registry lookup.
         lag: Time shift to apply to the HRF (in seconds)
         width: Block width in seconds. For generators that define a ``width``
             argument (e.g., ``boxcar``, ``weighted``), this value is routed to
@@ -67,48 +110,53 @@ def get_hrf(
         HRF object
 
     Raises:
-        ValueError: If HRF name not found in registry
+        ValueError: If HRF name not found in registry or alias table.
     """
-    name_lower = name.lower()
+    canonical = _normalize_hrf_name(name)
 
-    if name_lower not in _HRF_REGISTRY:
-        available = list_available_hrfs()
+    if canonical not in _HRF_REGISTRY:
+        available = [str(x) for x in list_available_hrfs()]
         raise ValueError(
-            f"HRF '{name}' not found in registry. "
+            f"HRF {name!r} (normalized to {canonical!r}) not found in registry. "
             f"Available HRFs: {', '.join(available)}"
         )
 
-    hrf_or_gen = _HRF_REGISTRY[name_lower]
+    hrf_or_gen = _HRF_REGISTRY[canonical]
     kwargs_local = dict(kwargs)
+
+    generator_key = f"hrf_{canonical}"
+    if kwargs_local and generator_key in _HRF_REGISTRY:
+        maybe_generator = _HRF_REGISTRY[generator_key]
+        if callable(maybe_generator) and not isinstance(maybe_generator, HRF):
+            hrf_or_gen = maybe_generator
 
     # If it's already an HRF-like object (HRF or duck-typed), return it
     _is_hrf_obj = isinstance(hrf_or_gen, HRF) or (
         hasattr(hrf_or_gen, 'evaluate') and hasattr(hrf_or_gen, 'name')
         and hasattr(hrf_or_gen, 'nbasis') and not inspect.isfunction(hrf_or_gen)
     )
+    result: HRF
     if _is_hrf_obj:
         if kwargs_local:
-            # Warn that parameters are ignored for pre-defined HRFs
-            import warnings
-            warnings.warn(
-                f"Parameters {kwargs_local} ignored for pre-defined HRF '{name}'",
-                UserWarning
-            )
-        result = hrf_or_gen
+            if not isinstance(hrf_or_gen, HRF):
+                raise ValueError(
+                    f"Parameters {kwargs_local} cannot be applied to non-HRF "
+                    f"object {name!r}."
+                )
+            result = _instantiate_predefined_hrf(canonical, hrf_or_gen, kwargs_local)
+        else:
+            result = cast(HRF, hrf_or_gen)
     else:
         # Otherwise it's a generator function. Route width correctly when the
         # generator itself takes a width parameter.
-        sig = inspect.signature(hrf_or_gen)
-        params = sig.parameters
-        accepts_var_kwargs = any(
-            p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()
-        )
+        generator = cast(Callable[..., HRF], hrf_or_gen)
+        accepted, accepts_var_kwargs = _callable_params(generator)
 
         decorator_width = width if block_width is None else block_width
         if (
             block_width is None
             and width != 0
-            and "width" in params
+            and "width" in accepted
             and "width" not in kwargs_local
         ):
             kwargs_local["width"] = width
@@ -118,9 +166,10 @@ def get_hrf(
         if accepts_var_kwargs:
             gen_kwargs = kwargs_local
         else:
-            gen_kwargs = {k: v for k, v in kwargs_local.items() if k in params}
+            _validate_kwargs(canonical, kwargs_local, accepted)
+            gen_kwargs = kwargs_local
 
-        result = hrf_or_gen(**gen_kwargs)
+        result = generator(**gen_kwargs)
 
         width = decorator_width
 
@@ -143,7 +192,9 @@ def get_hrf(
     return result
 
 
-def list_available_hrfs(details: bool = False) -> Union[List[str], List[dict]]:
+def list_available_hrfs(
+    details: bool = False,
+) -> Union[List[str], List[dict[str, object]]]:
     """List registered HRF names and optional metadata.
 
     Args:
@@ -167,17 +218,16 @@ def list_available_hrfs(details: bool = False) -> Union[List[str], List[dict]]:
         if hrf_id not in id_to_primary:
             id_to_primary[hrf_id] = name
 
-    result = []
+    result: List[dict[str, object]] = []
     for name in names:
         hrf = _HRF_REGISTRY[name]
         hrf_id = id(hrf)
-        is_hrf_obj = isinstance(hrf, HRF)
-        hrf_type = "object" if is_hrf_obj else "generator"
-
         nbasis_default: Optional[Union[int, float]] = None
-        if is_hrf_obj:
+        if isinstance(hrf, HRF):
+            hrf_type = "object"
             nbasis_default = hrf.nbasis
         else:
+            hrf_type = "generator"
             # Try to inspect generator defaults for basis count.
             try:
                 sig = inspect.signature(hrf)
@@ -205,7 +255,7 @@ def list_available_hrfs(details: bool = False) -> Union[List[str], List[dict]]:
 
 def register_hrf(
     name: str,
-    hrf: Union[HRF, Callable],
+    hrf: HRFEntry,
     aliases: Optional[List[str]] = None,
     force: bool = False
 ) -> None:
@@ -275,13 +325,13 @@ def clear_registry(keep_predefined: bool = True) -> None:
     """
     if keep_predefined:
         _HRF_REGISTRY.clear()
-        _HRF_REGISTRY.update(PREDEFINED_HRFS)
+        _HRF_REGISTRY.update(cast(Dict[str, HRFEntry], PREDEFINED_HRFS))
     else:
         _HRF_REGISTRY.clear()
 
 
 # Register HRF generator functions
-def _register_generators():
+def _register_generators() -> None:
     """Register HRF generator functions with the registry."""
     try:
         from .generators import (
