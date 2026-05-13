@@ -33,9 +33,9 @@ follow-up beads execute the retirement per module.
 | `fmrimod/glm/compat.py` | 642 | 17 | 15 | 0 (flows via subpackage) | Migration surface; matrix-fit helpers promoted in `536677e` |
 | `fmrimod/dataset/compat.py` | 464 | 16 | 13 | 3 | Migration surface; `LatentDataset` is unique |
 | `fmrimod/simulate/compat.py` | 338 | 3 | 3 | 1 | Migration surface |
-| `fmrimod/stats/meta_compat.py` | 296 | 5 | 0 (ships via `fmrimod.stats.meta`) | n/a (added in this amendment) | Low-level meta-analysis matrix helpers |
+| `fmrimod/stats/meta_compat.py` | 296 | 5 | 5 | 0 (flows via subpackage) | Low-level R-name meta-analysis helpers |
 | `fmrimod/ar/compat.py` | 157 | 2 | 0 (ar-level only) | 1 | Typed convenience constructors |
-| **Total** | **1897** | **43** | **31** | **5** | |
+| **Total** | **1897** | **45** | **38** | **5** | |
 
 "Direct external callers" counts files outside the compat module itself
 and outside the subpackage's `__init__.py` re-export — i.e. real
@@ -136,18 +136,19 @@ in this codebase without breaking real users.
 **Module docstring:** "Low-level fmrireg-style meta-analysis matrix
 helpers."
 
-These functions are wired through `fmrimod.stats.meta` (not directly
-re-exported from `fmrimod` top-level), so retirement does not require
-S2 steward approval — but the housing is still a misnomer if any of
-them are typed primitives rather than R-name shims.
+All five exports are top-level promoted via `fmrimod.__all__` (lines
+610-614 in `fmrimod/__init__.py`); the lazy-loader map routes them to
+`fmrimod.stats` (lines 321-324, 354). Retirement is therefore S2 by
+the public-API auto-escalator, *not* S1 — correcting the initial
+reading of this amendment.
 
 | Export | Public-API impact | Class | Tier | Typed replacement target |
 | --- | --- | --- | --- | --- |
-| `fmri_meta_fit` | not top-level (via `stats.meta`) | Migration surface | S1 | `fmrimod.group.meta_fe(...)` / `meta_re(...)` already canonical |
-| `fmri_meta_fit_cov` | not top-level | Migration surface | S1 | Method on the canonical native reducer |
-| `fmri_meta_fit_contrasts` | not top-level | Migration surface | S1 | Compose canonical reducer + `ContrastResult` |
-| `fmri_meta_fit_extended` | not top-level | Migration surface | S1 | Same as above with covariate inputs |
-| `meta_effective_n` | not top-level | Internal helper | S0 to promote | Move to `fmrimod/group/diagnostics.py`; numeric utility, not R-name parity |
+| `fmri_meta_fit` | top-level | Migration surface | S2 | `fmrimod.group.meta_fe(...)` / `meta_re(...)` already canonical |
+| `fmri_meta_fit_cov` | top-level | Migration surface | S2 | Method on the canonical native reducer |
+| `fmri_meta_fit_contrasts` | top-level | Migration surface | S2 | Compose canonical reducer + `ContrastResult` |
+| `fmri_meta_fit_extended` | top-level | Migration surface | S2 | Same as above with covariate inputs |
+| `meta_effective_n` | top-level | Internal helper | S2 to promote | Move to `fmrimod/group/diagnostics.py`; numeric utility, not R-name parity |
 
 **stats/meta_compat.py overlaps the native `fmrimod.group` reducers.**
 The native path (`fmrimod.group.meta_fe`, `meta_re`, etc.) is the
