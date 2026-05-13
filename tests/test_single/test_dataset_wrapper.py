@@ -124,3 +124,93 @@ def test_wrapper_method_dispatch_matches_string_and_enum():
     result_lsa = estimate_single_trial_from_dataset(ds, spec, method="lsa")
     assert isinstance(result_lsa, SingleTrialResult)
     assert result_lsa.betas.shape[0] == len(events)
+
+
+# --- Slice 2 (bd-01KRGY6P904YY530FWD1974QRS): dataset-derived metadata ---
+
+
+def test_wrapper_populates_trial_table_aligned_with_betas():
+    """trial_table carries the events rows in 1:1 order with betas rows."""
+    ds, spec, events = _build_dataset_and_spec()
+    result = estimate_single_trial_from_dataset(ds, spec, method="lss")
+
+    assert result.trial_table is not None
+    assert len(result.trial_table) == result.betas.shape[0]
+    # Onsets preserved in order — proves the slice is aligned, not just sized.
+    np.testing.assert_array_equal(
+        np.asarray(result.trial_table["onset"]),
+        np.asarray(events["onset"]),
+    )
+
+
+def test_wrapper_populates_run_labels_from_block_column():
+    """run_labels is a tuple of per-trial block ids when events carry a run col."""
+    ds, spec, events = _build_dataset_and_spec()
+    result = estimate_single_trial_from_dataset(ds, spec, method="lss")
+
+    assert result.run_labels is not None
+    assert isinstance(result.run_labels, tuple)
+    assert len(result.run_labels) == result.betas.shape[0]
+    assert result.run_labels == tuple(events["run"].tolist())
+
+
+def test_wrapper_populates_spatial_descriptor_from_dataset_mask():
+    """spatial_descriptor reflects mask shape and in-mask voxel count."""
+    from fmrimod.single import SpatialDescriptor
+
+    ds, spec, _ = _build_dataset_and_spec()
+    result = estimate_single_trial_from_dataset(ds, spec, method="lss")
+
+    assert isinstance(result.spatial_descriptor, SpatialDescriptor)
+    assert result.spatial_descriptor.n_voxels == result.betas.shape[1]
+    mask = np.asarray(ds.get_mask())
+    assert result.spatial_descriptor.mask_shape == tuple(mask.shape)
+    assert result.spatial_descriptor.mask_n_true == int(mask.astype(bool).sum())
+
+
+def test_wrapper_subject_id_is_none_when_dataset_carries_none():
+    """Unannotated datasets report subject_id=None — no inference."""
+    ds, spec, _ = _build_dataset_and_spec()
+    result = estimate_single_trial_from_dataset(ds, spec, method="lss")
+
+    assert result.subject_id is None
+
+
+def test_wrapper_subject_id_uses_direct_attribute_when_present():
+    """subject_id picks up dataset.subject_id when the dataset advertises one."""
+    ds, spec, _ = _build_dataset_and_spec()
+    # Tag the dataset post-hoc — the wrapper only reads via getattr.
+    ds.subject_id = "sub-007"
+
+    result = estimate_single_trial_from_dataset(ds, spec, method="lss")
+    assert result.subject_id == "sub-007"
+
+
+def test_matrix_first_path_leaves_metadata_fields_none():
+    """estimate_single_trial(Y, X) leaves all new metadata fields None.
+
+    Backward-compat invariant: matrix-first callers don't gain a forced
+    pandas/spatial dependency through Slice 2.
+    """
+    rng = np.random.default_rng(7)
+    n_time, n_trials, n_voxels = 50, 4, 5
+    X = rng.standard_normal((n_time, n_trials)).astype(np.float64)
+    Y = X @ rng.standard_normal((n_trials, n_voxels)) + 0.01 * rng.standard_normal(
+        (n_time, n_voxels)
+    )
+    result = estimate_single_trial(Y.astype(np.float64), X, method="lss")
+
+    assert result.trial_table is None
+    assert result.run_labels is None
+    assert result.subject_id is None
+    assert result.spatial_descriptor is None
+
+
+def test_spatial_descriptor_rejects_negative_dims():
+    """SpatialDescriptor validates its integer fields."""
+    from fmrimod.single import SpatialDescriptor
+
+    with pytest.raises(ValueError, match="n_voxels"):
+        SpatialDescriptor(n_voxels=-1, mask_shape=(4,), mask_n_true=0)
+    with pytest.raises(ValueError, match="mask_n_true"):
+        SpatialDescriptor(n_voxels=4, mask_shape=(4,), mask_n_true=-1)

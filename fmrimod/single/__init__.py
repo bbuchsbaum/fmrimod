@@ -28,6 +28,7 @@ from ._types import (
     SingleTrialMethod,
     SingleTrialMethodLike,
     SingleTrialResult,
+    SpatialDescriptor,
     VoxelHrfResult,
 )
 from .item import (
@@ -256,9 +257,13 @@ def estimate_single_trial_from_dataset(
     -------
     SingleTrialResult
         Carries ``trial_labels`` derived from the trialwise term column
-        names. Richer trial/run/subject metadata and spatial-identity
-        capability label are deferred to follow-on slices of
-        ``bd-01KRGQCT34QWSYKQ38BVFHD51E``.
+        names plus dataset-derived metadata: ``trial_table`` (the events
+        slice aligned with ``betas`` rows), ``run_labels`` (per-trial
+        block/run id when the events table carries one), ``subject_id``
+        (when the dataset advertises one), and ``spatial_descriptor``
+        (the capability label describing the voxel space the betas live
+        in). Matrix-first :func:`estimate_single_trial` callers continue
+        to leave all four metadata fields ``None``.
     """
     # Build the EventModel via the design module directly. The typed
     # fmrimod.spec compile path does not yet special-case trialwise() terms
@@ -316,7 +321,7 @@ def estimate_single_trial_from_dataset(
 
     Y = np.asarray(dataset.get_data(), dtype=np.float64)
 
-    return estimate_single_trial(
+    result = estimate_single_trial(
         Y, X,
         method=method,
         confounds=confounds,
@@ -331,6 +336,93 @@ def estimate_single_trial_from_dataset(
         baseline_regressors=baseline_regressors,
         include_intercept=include_intercept,
     )
+
+    _attach_dataset_metadata(
+        result,
+        dataset=dataset,
+        events_df=events_df,
+        block_column=resolved_block if isinstance(resolved_block, str) else None,
+    )
+    return result
+
+
+def _resolve_subject_id(dataset: object) -> object | None:
+    """Look up the dataset's subject identifier, if it carries one.
+
+    Checks ``dataset.subject_id`` first (single-subject datasets), then
+    falls back to the singleton entry of ``dataset.subject_ids`` (typed
+    multi-subject containers that nonetheless wrap one subject). Returns
+    ``None`` if neither surface is present or the latter is empty/has
+    multiple entries (the single-trial wrapper currently fits one subject
+    at a time, so an ambiguous multi-entry list is treated as "no id").
+    """
+    direct = getattr(dataset, "subject_id", None)
+    if direct is not None:
+        return direct
+    ids = getattr(dataset, "subject_ids", None)
+    if ids is None:
+        return None
+    try:
+        seq = list(ids)
+    except TypeError:
+        return None
+    if len(seq) == 1:
+        return seq[0]
+    return None
+
+
+def _build_spatial_descriptor(
+    dataset: object, n_voxels: int
+) -> "SpatialDescriptor | None":
+    """Construct a :class:`SpatialDescriptor` from the dataset's mask, if any."""
+    get_mask = getattr(dataset, "get_mask", None)
+    if not callable(get_mask):
+        return None
+    try:
+        mask = np.asarray(get_mask())
+    except Exception:
+        return None
+    return SpatialDescriptor(
+        n_voxels=int(n_voxels),
+        mask_shape=tuple(int(d) for d in mask.shape),
+        mask_n_true=int(np.asarray(mask, dtype=bool).sum()),
+    )
+
+
+def _attach_dataset_metadata(
+    result: "SingleTrialResult",
+    *,
+    dataset: object,
+    events_df: object,
+    block_column: str | None,
+) -> None:
+    """Populate dataset-derived metadata fields on ``result`` in-place.
+
+    Mutates the ``SingleTrialResult`` returned by the matrix-first
+    dispatcher so the dataset-path wrapper carries trial/run/subject
+    metadata plus a spatial-identity label. No-op for fields the
+    dataset cannot supply (e.g. missing block column, no mask).
+    """
+    n_trials = int(result.betas.shape[0])
+    n_voxels = int(result.betas.shape[1]) if result.betas.ndim == 2 else 0
+
+    # Trial table is meaningful only when events rows map 1:1 to trials.
+    # Multi-basis trialwise (n_trials * K rows of betas) leaves the table
+    # field None rather than risk a misaligned slice.
+    try:
+        n_rows = int(len(events_df))
+    except TypeError:
+        n_rows = -1
+    if n_rows == n_trials:
+        try:
+            result.trial_table = events_df.reset_index(drop=True).copy()
+        except Exception:
+            result.trial_table = None
+        if block_column is not None and block_column in events_df.columns:
+            result.run_labels = tuple(events_df[block_column].tolist())
+
+    result.subject_id = _resolve_subject_id(dataset)
+    result.spatial_descriptor = _build_spatial_descriptor(dataset, n_voxels)
 
 
 def _extract_trialwise_labels(event_model: object) -> list[str] | None:
@@ -380,6 +472,7 @@ __all__ = [
     "SingleTrialResult",
     "SingleTrialMethod",
     "SingleTrialMethodLike",
+    "SpatialDescriptor",
     "OasisConfig",
     "SbhmConfig",
     "PrewhitenConfig",

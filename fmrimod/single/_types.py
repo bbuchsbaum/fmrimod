@@ -8,10 +8,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 class SingleTrialMethod(str, Enum):
@@ -46,6 +49,47 @@ _RIDGE_MODES: frozenset[str] = frozenset({"none", "fractional", "absolute"})
 _AMPLITUDE_METHODS: frozenset[str] = frozenset({"global_ls", "lss1", "oasis_voxel"})
 
 
+@dataclass(frozen=True)
+class SpatialDescriptor:
+    """Spatial-identity / capability label for a beta volume.
+
+    Captures *where* a single-trial beta vector lives so downstream
+    consumers can decide whether two results are spatially comparable
+    without re-reading the source dataset. Populated only when
+    :class:`SingleTrialResult` is produced from a typed
+    :class:`~fmrimod.dataset.FmriDataset`; matrix-first callers of
+    :func:`~fmrimod.single.estimate_single_trial` leave the result's
+    ``spatial_descriptor`` field set to ``None``.
+
+    Attributes
+    ----------
+    n_voxels : int
+        Number of beta columns, i.e. ``betas.shape[1]``.
+    mask_shape : tuple of int
+        Shape of the spatial mask as returned by ``dataset.get_mask().shape``.
+        For volumetric datasets this is the 3D grid shape; for flattened
+        backends it is a 1-tuple.
+    mask_n_true : int
+        Number of in-mask voxels (``int(mask.sum())``). When equal to
+        ``n_voxels`` the betas live in the in-mask subspace; a mismatch
+        indicates the wrapper consumed all-voxel data rather than the
+        masked subset.
+    """
+
+    n_voxels: int
+    mask_shape: Tuple[int, ...]
+    mask_n_true: int
+
+    def __post_init__(self) -> None:
+        if int(self.n_voxels) != self.n_voxels or self.n_voxels < 0:
+            raise ValueError("n_voxels must be a non-negative integer")
+        object.__setattr__(self, "n_voxels", int(self.n_voxels))
+        object.__setattr__(self, "mask_shape", tuple(int(d) for d in self.mask_shape))
+        if int(self.mask_n_true) != self.mask_n_true or self.mask_n_true < 0:
+            raise ValueError("mask_n_true must be a non-negative integer")
+        object.__setattr__(self, "mask_n_true", int(self.mask_n_true))
+
+
 @dataclass
 class SingleTrialResult:
     """Result of single-trial beta estimation.
@@ -67,6 +111,23 @@ class SingleTrialResult:
         the method supports it and it was requested.
     extra : dict
         Method-specific extras (e.g. SBHM match info, OASIS diagnostics).
+    trial_table : pandas.DataFrame or None
+        Per-trial event metadata aligned with ``betas`` rows. Populated
+        only when the result was produced by
+        :func:`~fmrimod.single.estimate_single_trial_from_dataset`; the
+        matrix-first :func:`~fmrimod.single.estimate_single_trial` path
+        leaves this ``None``.
+    run_labels : tuple or None
+        Per-trial run/block label, one entry per ``betas`` row. Sourced
+        from the events ``run``/``block`` column when present. ``None``
+        for matrix-first callers.
+    subject_id : object or None
+        Subject identifier carried by the dataset (``dataset.subject_id``
+        or the singleton entry of ``dataset.subject_ids``). ``None`` when
+        the dataset does not advertise one.
+    spatial_descriptor : SpatialDescriptor or None
+        Spatial-identity label describing the voxel space the betas live
+        in. Populated only on the dataset path.
     """
 
     betas: NDArray[np.float64]
@@ -75,6 +136,10 @@ class SingleTrialResult:
     residual_df: float = 0.0
     se: Optional[NDArray[np.float64]] = None
     extra: dict[str, Any] = field(default_factory=dict)
+    trial_table: Optional["pd.DataFrame"] = None
+    run_labels: Optional[Tuple[Any, ...]] = None
+    subject_id: Optional[Any] = None
+    spatial_descriptor: Optional[SpatialDescriptor] = None
 
 
 @dataclass(frozen=True)
