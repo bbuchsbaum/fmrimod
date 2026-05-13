@@ -263,10 +263,16 @@ class TestContrastSpecConstruction:
         assert c_diff.B.expr == "condition == 'B'"
 
     def test_input_validation(self):
-        """Test input validation for contrast constructors."""
-        # Non-Formula A
+        """Test input validation for contrast constructors.
+
+        As of bd-01KRFMD3F66TENJMP6BQYE32HC the constructors accept Formula,
+        string, dict, and callable for predicate inputs. Truly invalid types
+        (numbers, None) still raise; strings are now valid sugar for
+        ``Formula(string)``.
+        """
+        # Numbers are not valid predicates.
         with pytest.raises(TypeError):
-            unit_contrast("not a formula", name="test")
+            unit_contrast(42, name="test")
 
         # Non-string name
         with pytest.raises(TypeError):
@@ -279,6 +285,10 @@ class TestContrastSpecConstruction:
         # Too few levels for pairwise
         with pytest.raises(ValueError):
             pairwise_contrasts(["A"], facname="condition")
+
+        # Strings are now ACCEPTED — they auto-wrap to Formula.
+        spec = unit_contrast("condition == 'A'", name="A_str")
+        assert spec.A.expr == "condition == 'A'"
 
 
 # ============================================================================

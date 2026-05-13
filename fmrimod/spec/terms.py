@@ -1,0 +1,204 @@
+"""Typed Term and Spec dataclasses.
+
+This is the canonical, IDE-introspectable representation of an fMRI design.
+The string formula parser (``fmrimod.event_model("hrf(trial_type)")``) is
+treated as sugar that compiles down to the same Spec tree.
+
+Composition with ``+``::
+
+    spec = (
+        hrf("trial_type", basis="spm")
+        + drift("cosine", cutoff=128)
+        + intercept(per="run")
+    )
+
+Terms are frozen so they can be hashed, pickled, and diffed; the actual
+design-matrix realisation happens via :func:`fmrimod.spec._compile.compile`.
+"""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import Any, Callable, Literal, Mapping, Optional, Sequence, Tuple, Union
+
+import pandas as pd
+
+from ..hrf.core import HRF
+
+
+Predicate = Union[str, Mapping[str, Any], Callable[[pd.DataFrame], Any]]
+
+
+# -- Base classes ------------------------------------------------------------
+
+
+class Term(ABC):
+    """Marker base class for spec terms.
+
+    A ``Term`` describes one or more design columns. It is intentionally
+    decoupled from realisation: a Term knows *what* it represents, not *how*
+    to evaluate it.  Lowering happens in :func:`fmrimod.spec._compile.compile`.
+    """
+
+    # All concrete Terms are frozen dataclasses; the ABC only marks the type.
+
+    def __add__(self, other: "Term | Spec") -> "Spec":
+        """Compose terms into a :class:`Spec`."""
+        return Spec(events=()).__add__(self).__add__(other)
+
+
+@dataclass(frozen=True)
+class HrfTerm(Term):
+    """Event-related HRF term: variables convolved with an HRF basis.
+
+    Parameters
+    ----------
+    variables
+        One or more column names from the event table. Multiple names indicate
+        an interaction term (Cartesian over factor levels).
+    hrf
+        HRF basis. Either an :class:`~fmrimod.hrf.HRF` instance or a registry
+        key string (e.g. ``"spm"``, ``"spmg3"``, ``"gamma"``).
+    contrasts
+        Optional :class:`~fmrimod.contrast.ContrastSpec` objects attached to
+        this term (filled in by bd-01KRFMD3F66TENJMP6BQYE32HC).
+    modulators
+        Parametric modulators (filled in by a follow-up bead;
+        accepted-but-not-yet-realised in v1).
+    durations
+        Per-event duration; either a column name in the event table or a
+        scalar.  ``None`` defers to the spec-level default.
+    lag
+        Temporal offset in seconds applied to the HRF before convolution.
+    subset
+        Optional ``where`` predicate restricting the events used for this
+        term. Accepts a dict (``{"block": 1}``), a string predicate
+        (``"block <= 3"``), or a callable.
+    prefix
+        Optional column-name prefix.
+    id
+        Optional explicit term identifier (otherwise derived from variables).
+    """
+
+    variables: Tuple[str, ...]
+    hrf: Union[HRF, str] = "spm"
+    contrasts: Tuple[Any, ...] = ()
+    modulators: Tuple[Any, ...] = ()
+    durations: Union[str, float, None] = None
+    lag: float = 0.0
+    subset: Optional[Predicate] = None
+    prefix: Optional[str] = None
+    id: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class Drift(Term):
+    """Polynomial / spline / cosine drift basis.
+
+    Compiled into the baseline block of :func:`baseline_model`.
+    """
+
+    basis: Literal["constant", "poly", "bs", "ns", "cosine"] = "constant"
+    degree: int = 1
+    cutoff: Optional[float] = None  # high-pass cutoff for cosine drift
+
+
+@dataclass(frozen=True)
+class Intercept(Term):
+    """Block / global / suppressed intercept."""
+
+    per: Literal["run", "global", "none"] = "run"
+
+
+@dataclass(frozen=True)
+class Confounds(Term):
+    """Nuisance regressors (motion, physio, etc.)."""
+
+    columns: Tuple[str, ...]
+    source: Optional[pd.DataFrame] = None
+
+
+# -- Composition container ---------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Spec:
+    """An ordered collection of event and baseline terms.
+
+    Use the ``+`` operator to compose:
+
+    >>> spec = hrf("trial_type") + drift("cosine", cutoff=128) + intercept()
+
+    The container distinguishes *event* terms (HrfTerm, parametric variants)
+    from *baseline* terms (Drift, Intercept, Confounds). Composition routes
+    each term to the correct bucket automatically.
+    """
+
+    events: Tuple[Term, ...] = ()
+    baseline: Tuple[Term, ...] = ()
+
+    @staticmethod
+    def _is_event_term(term: Term) -> bool:
+        return isinstance(term, HrfTerm)
+
+    @staticmethod
+    def _is_baseline_term(term: Term) -> bool:
+        return isinstance(term, (Drift, Intercept, Confounds))
+
+    def __add__(self, other: "Term | Spec") -> "Spec":
+        if isinstance(other, Spec):
+            return Spec(
+                events=self.events + other.events,
+                baseline=self.baseline + other.baseline,
+            )
+        if isinstance(other, Term):
+            if Spec._is_event_term(other):
+                return Spec(events=self.events + (other,), baseline=self.baseline)
+            if Spec._is_baseline_term(other):
+                return Spec(events=self.events, baseline=self.baseline + (other,))
+            raise TypeError(f"Unrecognised Term subtype: {type(other).__name__}")
+        return NotImplemented  # type: ignore[return-value]
+
+    def __radd__(self, other: "Term") -> "Spec":
+        if isinstance(other, Term):
+            return Spec().__add__(other).__add__(self)
+        return NotImplemented  # type: ignore[return-value]
+
+    def __iter__(self):
+        yield from self.events
+        yield from self.baseline
+
+    def __len__(self) -> int:
+        return len(self.events) + len(self.baseline)
+
+    @property
+    def terms(self) -> Tuple[Term, ...]:
+        """All terms, events then baseline, in declaration order."""
+        return self.events + self.baseline
+
+
+# -- Utility -----------------------------------------------------------------
+
+
+def is_spec(obj: Any) -> bool:
+    """Return True iff *obj* is a :class:`Spec` or a single :class:`Term`."""
+    return isinstance(obj, (Spec, Term))
+
+
+def as_spec(obj: Spec | Term | Sequence[Term]) -> Spec:
+    """Coerce a Term, list of Terms, or Spec into a canonical :class:`Spec`."""
+    if isinstance(obj, Spec):
+        return obj
+    if isinstance(obj, Term):
+        return Spec() + obj
+    if isinstance(obj, (list, tuple)):
+        out = Spec()
+        for t in obj:
+            if not isinstance(t, Term):
+                raise TypeError(
+                    f"as_spec: expected Term in sequence, got {type(t).__name__}"
+                )
+            out = out + t
+        return out
+    raise TypeError(f"as_spec: cannot coerce {type(obj).__name__} to Spec")

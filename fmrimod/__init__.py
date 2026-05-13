@@ -37,6 +37,47 @@ from .hrf_dispatch import as_hrf
 from .sampling import SamplingFrame
 from .regressor import regressor, regressor_set, null_regressor
 
+# ── Typed Spec / Term tree (bd-01KRFMD3CXMEMHZXBKP9T0EAK6) ─────────────
+# Bind the spec builders at the top level. The submodule ``fmrimod.hrf``
+# remains importable via the Python import system (``from fmrimod.hrf import
+# HRF_SPMG1``); only attribute access on the top-level ``fmrimod`` package
+# resolves to the spec builder.
+from .spec import (
+    Spec,
+    Term,
+    HrfTerm,
+    Drift,
+    Intercept,
+    Confounds,
+    as_spec,
+    is_spec,
+)
+from .spec.builders import (
+    drift as drift,
+    intercept as intercept,
+    confounds as confounds,
+)
+# Note: ``hrf`` and ``trialwise`` are intentionally NOT bound at top level —
+# the existing ``fmrimod/hrf/`` and ``fmrimod/trialwise.py`` submodules own
+# those attribute slots. Use ``from fmrimod.spec import hrf, trialwise`` to
+# get the Spec-tree builders.
+
+# ── Contrast taxonomy (bd-01KRFMD3F66TENJMP6BQYE32HC) ──────────────────
+# Re-export the existing constructors so users don't have to dig under
+# ``fmrimod.contrast``.  ``contrast`` itself remains the submodule.
+from .contrast import (
+    pair_contrast as pair_contrast,
+    unit_contrast as unit_contrast,
+    oneway_contrast as oneway_contrast,
+    interaction_contrast as interaction_contrast,
+    poly_contrast as poly_contrast,
+    column_contrast as column_contrast,
+    contrast_set as contrast_set,
+    pairwise_contrasts as pairwise_contrasts,
+    one_against_all_contrast as one_against_all_contrast,
+    sliding_window_contrasts as sliding_window_contrasts,
+)
+
 # ── Pre-defined HRFs (most commonly used) ────────────────────────────
 from .hrf.library import (
     SPM_CANONICAL, SPM_WITH_DERIVATIVE, SPM_WITH_DISPERSION,
@@ -543,6 +584,24 @@ def fmri_lm(*args, **kwargs):
     from .glm.fmri_lm import fmri_lm as _fmri_lm
     return _fmri_lm(*args, **kwargs)
 
+
+def combine_runs(*args, **kwargs):
+    """Pool per-run :class:`FmriLm` fits via fixed-effects IVW.
+
+    See :func:`fmrimod.glm.combine.combine_runs`.
+    """
+    from .glm.combine import combine_runs as _combine_runs
+    return _combine_runs(*args, **kwargs)
+
+
+def combine_contrasts(*args, **kwargs):
+    """Pool per-run :class:`ContrastResult` objects via fixed-effects IVW.
+
+    See :func:`fmrimod.glm.combine.combine_contrasts`.
+    """
+    from .glm.combine import combine_contrasts as _combine_contrasts
+    return _combine_contrasts(*args, **kwargs)
+
 def soft_subspace_options(*args, **kwargs):
     """Create soft-subspace options for GLM fitting."""
     from .model import soft_subspace_options as _soft_subspace_options
@@ -894,6 +953,30 @@ __all__ = [
     "spm_canonical",
     "gamma_hrf",
     "gaussian_hrf",
+    # Spec / Term builders (``hrf`` and ``trialwise`` live under
+    # ``fmrimod.spec`` because their names collide with existing submodules)
+    "drift",
+    "intercept",
+    "confounds",
+    "Spec",
+    "Term",
+    "HrfTerm",
+    "Drift",
+    "Intercept",
+    "Confounds",
+    "as_spec",
+    "is_spec",
+    # Contrast taxonomy (R-parity constructors)
+    "pair_contrast",
+    "unit_contrast",
+    "oneway_contrast",
+    "interaction_contrast",
+    "poly_contrast",
+    "column_contrast",
+    "contrast_set",
+    "pairwise_contrasts",
+    "one_against_all_contrast",
+    "sliding_window_contrasts",
     # HRF registry
     "get_hrf",
     "list_available_hrfs",
@@ -992,6 +1075,8 @@ __all__ = [
     "hrf_spmg1",
     # GLM fitting
     "fmri_lm",
+    "combine_runs",
+    "combine_contrasts",
     "soft_subspace_options",
     "soft_projection",
     "apply_soft_projection",

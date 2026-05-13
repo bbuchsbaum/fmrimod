@@ -7,7 +7,7 @@ or directly on design matrix columns.
 
 from __future__ import annotations
 
-from typing import Optional, Union, List, Dict, Any, Literal
+from typing import Callable, Mapping, Optional, Union, List, Dict, Any, Literal
 from itertools import combinations
 import warnings
 
@@ -20,6 +20,60 @@ class Formula:
         return self.expr
     def __repr__(self):
         return f"Formula({self.expr!r})"
+
+
+# Predicate inputs accepted by the contrast constructors. ``Formula`` is the
+# original strict type; ``dict`` / ``str`` are the ergonomic v1 conveniences;
+# ``callable`` is the escape hatch (stored on the Formula object's ``_fn``
+# attribute, resolved later when contrast weights are computed).
+Predicate = Union[Formula, str, Mapping[str, Any], Callable[..., Any]]
+
+
+def _dict_to_predicate_string(d: Mapping[str, Any]) -> str:
+    """Render a ``{column: value}`` dict as a Python-evaluable predicate.
+
+    Multi-key dicts are joined with ``&`` (AND).  String values are quoted.
+    """
+    parts: List[str] = []
+    for k, v in d.items():
+        if isinstance(v, str):
+            parts.append(f"{k} == {v!r}")
+        elif isinstance(v, (list, tuple, set)):
+            # Membership predicate: column ∈ values
+            quoted = ", ".join(repr(x) if isinstance(x, str) else str(x) for x in v)
+            parts.append(f"{k} in ({quoted})")
+        else:
+            parts.append(f"{k} == {v}")
+    return " & ".join(parts) if parts else "True"
+
+
+def _to_formula(predicate: Predicate, *, arg_name: str = "predicate") -> Formula:
+    """Coerce a predicate input to a :class:`Formula`.
+
+    Accepts:
+
+    - :class:`Formula` — returned unchanged.
+    - ``str`` — wrapped as ``Formula(expr)``.
+    - ``Mapping[str, Any]`` — rendered to a string predicate via
+      :func:`_dict_to_predicate_string` and wrapped.
+    - ``callable`` — wrapped in a Formula with the callable attached as
+      ``_fn``; the contrast-weights resolver should evaluate it against the
+      term's condition cells when weights are computed.
+    """
+    if isinstance(predicate, Formula):
+        return predicate
+    if isinstance(predicate, str):
+        return Formula(predicate)
+    if isinstance(predicate, Mapping):
+        return Formula(_dict_to_predicate_string(predicate))
+    if callable(predicate):
+        wrapped = Formula(f"<callable {arg_name}>")
+        wrapped._fn = predicate  # type: ignore[attr-defined]
+        return wrapped
+    raise TypeError(
+        f"{arg_name} must be a Formula, dict, string, or callable; got "
+        f"{type(predicate).__name__}"
+    )
 
 
 class ContrastSpec:
@@ -319,48 +373,26 @@ class ContrastSet(list):
 
 
 def contrast(
-    form: Formula,
+    form: Predicate,
     name: str,
-    where: Optional[Formula] = None
+    where: Optional[Predicate] = None
 ) -> ContrastFormulaSpec:
     """Define a linear contrast using a formula expression.
-    
-    Parameters
-    ----------
-    form : Formula
-        Formula describing the contrast (e.g., ~ A - B)
-    name : str
-        Label for the contrast
-    where : Formula, optional
-        Expression defining subset for contrast
-        
-    Returns
-    -------
-    ContrastFormulaSpec
-        Contrast specification
-        
-    Examples
-    --------
-    >>> # A minus B contrast
-    >>> c = contrast(~ A - B, name="A_vs_B")
-    >>> 
-    >>> # With subsetting
-    >>> c = contrast(~ A - B, name="A_vs_B_block1", where=~ block == 1)
+
+    Accepts a :class:`Formula`, a string predicate, a dict, or a callable for
+    ``form`` and ``where``.
     """
-    if not isinstance(form, Formula):
-        raise TypeError("form must be a Formula")
     if not isinstance(name, str):
         raise TypeError("name must be a string")
-    if where is not None and not isinstance(where, Formula):
-        raise TypeError("where must be a Formula")
-    
-    return ContrastFormulaSpec(name=name, A=form, where=where)
+    form_f = _to_formula(form, arg_name="form")
+    where_f = _to_formula(where, arg_name="where") if where is not None else None
+    return ContrastFormulaSpec(name=name, A=form_f, where=where_f)
 
 
 def unit_contrast(
-    A: Formula,
+    A: Predicate,
     name: str,
-    where: Optional[Formula] = None
+    where: Optional[Predicate] = None
 ) -> UnitContrastSpec:
     """Construct a contrast that sums to 1 (for testing against baseline).
     
@@ -386,21 +418,18 @@ def unit_contrast(
     >>> # Test within specific blocks
     >>> con2 = unit_contrast(~ Face, name="Face_early", where=~ block <= 3)
     """
-    if not isinstance(A, Formula):
-        raise TypeError("A must be a Formula")
     if not isinstance(name, str):
         raise TypeError("name must be a string")
-    if where is not None and not isinstance(where, Formula):
-        raise TypeError("where must be a Formula")
-        
-    return UnitContrastSpec(name=name, A=A, where=where)
+    A_f = _to_formula(A, arg_name="A")
+    where_f = _to_formula(where, arg_name="where") if where is not None else None
+    return UnitContrastSpec(name=name, A=A_f, where=where_f)
 
 
 def pair_contrast(
-    A: Formula,
-    B: Formula, 
+    A: Predicate,
+    B: Predicate,
     name: str,
-    where: Optional[Formula] = None
+    where: Optional[Predicate] = None,
 ) -> PairContrastSpec:
     """Construct a sum-to-zero contrast between two logical expressions.
     
@@ -433,17 +462,20 @@ def pair_contrast(
     >>> c = pair_contrast(~ stimulus == "face" & emotion == "happy",
     ...                   ~ stimulus == "face" & emotion == "sad",
     ...                   name="happy_vs_sad_faces")
+    >>>
+    >>> # Dict / string predicate forms (v1 convenience):
+    >>> c = pair_contrast({"condition": "face"}, {"condition": "house"},
+    ...                   name="face_vs_house")
+    >>> c = pair_contrast("condition == 'face' & block <= 3",
+    ...                   "condition == 'house' & block <= 3",
+    ...                   name="early_face_vs_house")
     """
-    if not isinstance(A, Formula):
-        raise TypeError("A must be a Formula")
-    if not isinstance(B, Formula):
-        raise TypeError("B must be a Formula")
     if not isinstance(name, str):
         raise TypeError("name must be a string")
-    if where is not None and not isinstance(where, Formula):
-        raise TypeError("where must be a Formula")
-        
-    return PairContrastSpec(name=name, A=A, B=B, where=where)
+    A_f = _to_formula(A, arg_name="A")
+    B_f = _to_formula(B, arg_name="B")
+    where_f = _to_formula(where, arg_name="where") if where is not None else None
+    return PairContrastSpec(name=name, A=A_f, B=B_f, where=where_f)
 
 
 def column_contrast(
@@ -505,11 +537,11 @@ def column_contrast(
 
 
 def poly_contrast(
-    A: Formula,
+    A: Predicate,
     name: str,
-    where: Optional[Formula] = None,
+    where: Optional[Predicate] = None,
     degree: int = 1,
-    value_map: Optional[Dict[str, float]] = None
+    value_map: Optional[Dict[str, float]] = None,
 ) -> PolyContrastSpec:
     """Create polynomial contrasts for testing trends across ordered factor levels.
     
@@ -542,30 +574,27 @@ def poly_contrast(
     >>> pcon = poly_contrast(~ dose, name="dose_cubic", degree=3,
     ...                      value_map={"low": 0, "med": 2, "high": 5})
     """
-    if not isinstance(A, Formula):
-        raise TypeError("A must be a Formula")
     if not isinstance(name, str):
         raise TypeError("name must be a string")
     if not isinstance(degree, int) or degree < 1:
         raise ValueError("degree must be a positive integer")
-    if where is not None and not isinstance(where, Formula):
-        raise TypeError("where must be a Formula")
     if value_map is not None and not isinstance(value_map, dict):
         raise TypeError("value_map must be a dict")
-        
+    A_f = _to_formula(A, arg_name="A")
+    where_f = _to_formula(where, arg_name="where") if where is not None else None
     return PolyContrastSpec(
-        A=A,
+        A=A_f,
         name=name,
-        where=where,
+        where=where_f,
         degree=degree,
-        value_map=value_map
+        value_map=value_map,
     )
 
 
 def oneway_contrast(
-    A: Formula,
+    A: Predicate,
     name: str,
-    where: Optional[Formula] = None
+    where: Optional[Predicate] = None,
 ) -> OnewayContrastSpec:
     """Create a one-way contrast specification.
     
@@ -587,21 +616,20 @@ def oneway_contrast(
     --------
     >>> # Main effect contrast
     >>> con = oneway_contrast(~ condition, name="Main_condition")
+    >>> # Dict / string predicate (v1 convenience)
+    >>> con = oneway_contrast({"condition": ["face", "house"]}, name="cat_main")
     """
-    if not isinstance(A, Formula):
-        raise TypeError("A must be a Formula")
     if not isinstance(name, str):
         raise TypeError("name must be a string")
-    if where is not None and not isinstance(where, Formula):
-        raise TypeError("where must be a Formula")
-        
-    return OnewayContrastSpec(name=name, A=A, where=where)
+    A_f = _to_formula(A, arg_name="A")
+    where_f = _to_formula(where, arg_name="where") if where is not None else None
+    return OnewayContrastSpec(name=name, A=A_f, where=where_f)
 
 
 def interaction_contrast(
-    A: Formula,
+    A: Predicate,
     name: str,
-    where: Optional[Formula] = None
+    where: Optional[Predicate] = None,
 ) -> InteractionContrastSpec:
     """Create an interaction contrast specification.
     
@@ -624,14 +652,11 @@ def interaction_contrast(
     >>> # Two-way interaction
     >>> con = interaction_contrast(~ condition * time, name="condition_by_time")
     """
-    if not isinstance(A, Formula):
-        raise TypeError("A must be a Formula")
     if not isinstance(name, str):
         raise TypeError("name must be a string")
-    if where is not None and not isinstance(where, Formula):
-        raise TypeError("where must be a Formula")
-        
-    return InteractionContrastSpec(name=name, A=A, where=where)
+    A_f = _to_formula(A, arg_name="A")
+    where_f = _to_formula(where, arg_name="where") if where is not None else None
+    return InteractionContrastSpec(name=name, A=A_f, where=where_f)
 
 
 def contrast_set(*contrasts) -> ContrastSet:

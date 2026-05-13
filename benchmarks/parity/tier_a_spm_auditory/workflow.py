@@ -1,9 +1,9 @@
 """SPM auditory fmrimod-vs-Nilearn parity workflow.
 
-The case intentionally uses a deterministic sparse mask to keep the public
-workflow fast while still exercising real NIfTI data, Nilearn's
-``FirstLevelModel``, fmrimod's HRF/design construction, and fmrimod's OLS
-solver.
+The fmrimod side uses the canonical ``fm.fmri_dataset`` + ``fm.fmri_lm`` entry
+points: three lines of user code to go from a NIfTI + events to a fitted
+contrast. The Nilearn reference pipeline still uses ``FirstLevelModel``
+verbatim.
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ from nilearn.image import load_img, new_img_like
 from numpy.typing import NDArray
 
 import fmrimod as fm
-from cross_testing.fitlins_parity import fit_fmrimod_ols
 from cross_testing.harness import (
     Caveat,
     ParityCase,
@@ -118,52 +117,33 @@ def nilearn_pipeline(inputs: SpmAuditoryInputs) -> PipelineOutput:
 
 
 def fmrimod_pipeline(inputs: SpmAuditoryInputs) -> PipelineOutput:
-    """Run the matching fmrimod design and OLS fit on the same masked data."""
+    """Run the SPM auditory parity case through the canonical fmrimod API.
 
-    n_scans = int(inputs.img.shape[-1])
-    sampling_frame = fm.SamplingFrame(blocklens=[n_scans], tr=TR)
-    events = inputs.events.assign(run=1)
-
-    event_model = fm.event_model(
-        "hrf(trial_type)",
-        data=events,
-        sampling_frame=sampling_frame,
-        block="run",
-        durations="duration",
-        precision=0.02,
+    Three lines of user code: dataset → fit → contrast. The remaining work is
+    extracting the design column for parity reporting and applying the HRF
+    normalization rescale required by the ``spm-auditory-hrf-grid-scale``
+    caveat — both go away when bd-01KRFMD3MWB4BNB7S01TNJY26Y lands.
+    """
+    ds = fm.fmri_dataset(
+        inputs.img,
+        mask=inputs.mask_img,
+        tr=TR,
+        events=inputs.events.assign(run=1),
     )
-    baseline = fm.baseline_model(
-        basis="constant",
-        sframe=sampling_frame,
-        intercept="global",
+    fit = fm.fmri_lm("hrf(trial_type)", ds, precision=0.02)
+    cres = fit.contrast(np.array([1.0, 0.0], dtype=np.float64))
+
+    event_column = np.asarray(
+        fit.model.event_model.design_matrix[:, 0], dtype=np.float64
     )
-
-    event_column = np.asarray(event_model.design_matrix[:, 0], dtype=np.float64)
-    intercept = np.asarray(baseline.design_matrix[:, 0], dtype=np.float64)
-    design = np.column_stack([event_column, intercept])
-
     reference_event = inputs.reference_design[CONTRAST_NAME].to_numpy()
     scale = float((event_column @ reference_event) / (event_column @ event_column))
-    data = FirstLevelModel(
-        t_r=TR,
-        hrf_model="spm",
-        drift_model=None,
-        noise_model="ols",
-        mask_img=inputs.mask_img,
-        standardize=False,
-        signal_scaling=False,
-        minimize_memory=False,
-        verbose=0,
-    )
-    data.fit(inputs.img, events=inputs.events)
-    Y = data.masker_.transform(inputs.img)
 
-    fit = fit_fmrimod_ols(design, Y, np.array([1.0, 0.0], dtype=np.float64))
     return PipelineOutput(
         arrays={
             "design_listening": event_column,
-            "effect_listening": fit["betas"][0] / scale,
-            "t_listening": fit["t"],
+            "effect_listening": cres.estimate / scale,
+            "t_listening": cres.stat,
         }
     )
 

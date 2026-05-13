@@ -8,7 +8,7 @@ information, and methods for computing contrasts.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -256,37 +256,62 @@ class FmriLm:
 
 
 def fmri_lm(
-    model: object,
+    spec_or_model: Any,
+    dataset_or_config: Any = None,
+    *,
+    baseline: Any = None,
+    block: Optional[Union[str, NDArray]] = None,
+    durations: Optional[Union[str, float, NDArray]] = None,
+    precision: Optional[float] = None,
     config: Optional[FmriLmConfig] = None,
     engine: str = "runwise",
     **engine_kwargs,
 ) -> FmriLm:
     """Fit a GLM to fMRI data.
 
-    This is the main user-facing entry point.  It takes an
-    :class:`~fmrimod.model.FmriModel` and an :class:`FmriLmConfig`
-    and returns a fitted :class:`FmriLm` result object.
+    Canonical form (matches R ``fmrireg::fmri_lm``)::
 
-    The *engine* parameter selects the fitting strategy.  Built-in
-    engines are ``"runwise"`` (default OLS with meta-analytic pooling),
-    ``"chunkwise"`` (voxel-chunked OLS), and ``"sketch"``
-    (randomised low-rank solver).  Third-party engines
-    can be registered via Python entry points or
-    :func:`~fmrimod.glm.engine.register_engine`.
+        fit = fmri_lm(spec, dataset)
+        fit = fmri_lm(spec, dataset, config=FmriLmConfig(ar="ar1"))
+
+    Legacy form (pre-built model)::
+
+        fit = fmri_lm(model)
+        fit = fmri_lm(model, FmriLmConfig())
 
     Parameters
     ----------
-    model : FmriModel
-        The model specification (design + data).
-    config : FmriLmConfig, optional
-        Fitting configuration.  Defaults to plain OLS.
-    engine : str
-        Name of the fitting engine (default ``"runwise"``).
-        See :func:`~fmrimod.glm.engine.list_engines` for available
-        engines.
+    spec_or_model
+        Either a *spec* (R-style formula string, list of
+        :class:`~fmrimod.formula.base.Term`, or
+        :class:`~fmrimod.formula.base.EventModelBuilder`) or a pre-built
+        :class:`~fmrimod.model.FmriModel`-like object. The second positional
+        argument is interpreted accordingly.
+    dataset_or_config
+        When ``spec_or_model`` is a spec: the :class:`FmriDataset` to fit
+        (must carry an event table). When ``spec_or_model`` is a model: an
+        :class:`FmriLmConfig` (back-compat positional). May be omitted in
+        either case.
+    baseline
+        Optional pre-built :class:`~fmrimod.baseline.BaselineModel`. If not
+        provided in the spec path, defaults to ``constant`` basis with
+        runwise intercepts.
+    block
+        Block/run column name or array passed to
+        :func:`~fmrimod.event_model`. Auto-detected from ``run`` or ``block``
+        columns when omitted.
+    durations
+        Event durations passed to :func:`~fmrimod.event_model`. Auto-detected
+        from a ``duration`` column when present.
+    precision
+        Temporal precision for HRF convolution.
+    config
+        Fitting configuration. Defaults to plain OLS.
+    engine
+        Engine name. Built-ins: ``"runwise"`` (default OLS), ``"chunkwise"``,
+        ``"sketch"``.
     **engine_kwargs
-        Additional keyword arguments forwarded to the engine's
-        ``fit()`` method.
+        Forwarded to the engine's ``fit()`` method.
 
     Returns
     -------
@@ -295,22 +320,51 @@ def fmri_lm(
 
     Examples
     --------
-    >>> from fmrimod.model import FmriModel, FmriLmConfig
-    >>> from fmrimod.glm import fmri_lm
-    >>>
-    >>> result = fmri_lm(fmri_model)
-    >>> result.betas.shape  # (n_columns, n_voxels)
-    >>> t_result = result.contrast(np.array([1, -1, 0, 0]))
+    Canonical three-line shape::
 
-    Using the sketch engine::
+        >>> ds = fm.fmri_dataset(img, mask=mask, tr=2.0, events=events)
+        >>> fit = fm.fmri_lm("hrf(trial_type)", ds)
+        >>> fit.contrast("trial_type[listening]")
 
-        >>> result = fmri_lm(model, engine="sketch", sketch_ratio=0.5)
+    Sketch engine::
 
-    Using the chunkwise engine::
-
-        >>> result = fmri_lm(model, engine="chunkwise", chunk_size=5000)
+        >>> fit = fm.fmri_lm(model, engine="sketch", sketch_ratio=0.5)
     """
     from .engine import EngineResult, get_engine
+
+    # -- Resolve second positional: dataset vs. config -----------------------
+    if isinstance(dataset_or_config, FmriLmConfig):
+        if config is not None and config is not dataset_or_config:
+            raise ValueError(
+                "fmri_lm: `config` was passed both positionally and as a kwarg"
+            )
+        config = dataset_or_config
+        dataset = None
+    else:
+        dataset = dataset_or_config
+
+    # -- Resolve first positional: spec vs. model ---------------------------
+    if _is_fmri_model_like(spec_or_model):
+        if dataset is not None:
+            raise ValueError(
+                "fmri_lm: got a pre-built model and a dataset. "
+                "Pass either (spec, dataset, ...) or (model, ...), not both."
+            )
+        model = spec_or_model
+    else:
+        if dataset is None:
+            raise ValueError(
+                "fmri_lm(spec, dataset) requires an FmriDataset as the "
+                "second argument when the first argument is a spec."
+            )
+        model = _build_model_from_spec(
+            spec=spec_or_model,
+            dataset=dataset,
+            baseline=baseline,
+            block=block,
+            durations=durations,
+            precision=precision,
+        )
 
     if config is None:
         config = FmriLmConfig()
@@ -351,6 +405,96 @@ def fmri_lm(
         run_results=fit_result.run_results,
         projections=fit_result.projections,
     )
+
+
+def _is_fmri_model_like(obj: Any) -> bool:
+    """Duck-type check for an FmriModel-shaped object."""
+    return (
+        hasattr(obj, "design_matrix_array")
+        and hasattr(obj, "dataset")
+        and hasattr(obj, "n_runs")
+    )
+
+
+def _build_model_from_spec(
+    *,
+    spec: Any,
+    dataset: Any,
+    baseline: Any,
+    block: Any,
+    durations: Any,
+    precision: Optional[float],
+) -> Any:
+    """Build an :class:`FmriModel` from a spec + :class:`FmriDataset`.
+
+    Accepts either a typed :class:`fmrimod.spec.Spec` / :class:`Term` tree or
+    a legacy string formula / list-of-Terms. The typed path lowers via
+    :func:`fmrimod.spec.compile`; the string path uses
+    :func:`fmrimod.event_model` directly.
+    """
+    from ..baseline.baseline_model import baseline_model as _build_baseline
+    from ..design.event_model import event_model as _build_event
+    from ..model.fmri_model import FmriModel
+    from ..spec import Spec, Term, compile as _compile_spec
+
+    events_df = getattr(dataset, "event_table", None)
+    if events_df is None:
+        raise ValueError(
+            "fmri_lm(spec, dataset) requires the dataset to carry an event "
+            "table; pass `events=` to fmri_dataset(...) or supply a pre-built "
+            "FmriModel instead."
+        )
+
+    sf = dataset.get_sampling_frame()
+
+    # Auto-detect block column.
+    resolved_block = block
+    if resolved_block is None:
+        if "run" in events_df.columns:
+            resolved_block = "run"
+        elif "block" in events_df.columns:
+            resolved_block = "block"
+        else:
+            resolved_block = np.ones(len(events_df), dtype=int)
+
+    # Auto-detect durations column.
+    resolved_durations = durations
+    if resolved_durations is None:
+        if "duration" in events_df.columns:
+            resolved_durations = "duration"
+        else:
+            resolved_durations = 0
+
+    # -- Typed Spec / Term path -----------------------------------------
+    if isinstance(spec, (Spec, Term)):
+        em, default_bm = _compile_spec(
+            spec,
+            data=events_df,
+            sampling_frame=sf,
+            block=resolved_block,
+            durations=resolved_durations,
+            precision=precision,
+        )
+        bm = baseline if baseline is not None else default_bm
+        return FmriModel(em, bm, dataset)
+
+    # -- Legacy string / list path --------------------------------------
+    em_kwargs: Dict[str, Any] = dict(
+        data=events_df,
+        block=resolved_block,
+        sampling_frame=sf,
+        durations=resolved_durations,
+    )
+    if precision is not None:
+        em_kwargs["precision"] = precision
+
+    em = _build_event(spec, **em_kwargs)
+
+    bm = baseline
+    if bm is None:
+        bm = _build_baseline(basis="constant", sframe=sf, intercept="runwise")
+
+    return FmriModel(em, bm, dataset)
 
 
 def _engine_result_to_dict(er: object) -> Dict:
