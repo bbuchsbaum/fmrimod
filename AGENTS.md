@@ -141,9 +141,10 @@ When ending a work session:
    for everything you progressed.
 3. **Run quality gates** — at minimum `python3.9 -m pytest tests/ -k "not rpy2"`
    for code touches; add `cross_testing/` runs for parity/benchmark changes.
-4. **Commit and push** — `git add <files> && git commit && git push`. Mote
-   ops files under `.mote/ops/` are checked in alongside code; include them in
-   the same commit so coordination state ships with the change.
+4. **Commit and push** — `git add <files> && git commit && git push`. The
+   `.mote/` store is local coordination state and remains ignored by git; the
+   portable record is the bead id, relevant board post ids, and a concise
+   commit message / final handoff that names what changed.
 5. **Provide handoff context** — note open beads, pending reservations, and
    any blockers in your final message.
 
