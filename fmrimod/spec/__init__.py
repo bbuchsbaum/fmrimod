@@ -13,7 +13,7 @@ to work and is now treated as syntactic sugar that compiles down to the same
 Spec tree.
 """
 
-from ._compile import compile, compile_baseline, compile_events
+from ._compile import compile, compile_baseline, compile_events, legacy_formula_to_spec
 from .builders import confounds, drift, hrf, intercept, trialwise
 from .terms import (
     Confounds,
@@ -49,4 +49,5 @@ __all__ = [
     "compile",
     "compile_events",
     "compile_baseline",
+    "legacy_formula_to_spec",
 ]

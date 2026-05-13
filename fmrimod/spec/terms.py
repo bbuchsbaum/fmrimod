@@ -93,6 +93,10 @@ class HrfTerm(Term):
         Optional fixed HRF normalization mode. ``"spm"`` uses the Nilearn
         SPM reference-grid scale; ``"unit_peak"`` and ``"unit_integral"``
         provide explicit amplitude/integral normalization.
+    normalize
+        If True, peak-normalize realised regressors after convolution.
+    summate
+        Whether overlapping HRF responses are summed during convolution.
     """
 
     variables: Tuple[str, ...]
@@ -105,6 +109,8 @@ class HrfTerm(Term):
     prefix: Optional[str] = None
     id: Optional[str] = None
     norm: Optional[NormMode] = None
+    normalize: bool = False
+    summate: bool = True
 
 
 @dataclass(frozen=True)

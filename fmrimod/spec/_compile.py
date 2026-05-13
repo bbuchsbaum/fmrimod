@@ -8,7 +8,7 @@ string formula parser.
 
 from __future__ import annotations
 
-from typing import Any, Literal, Tuple, cast
+from typing import Any, Literal, Sequence, Tuple, cast
 
 import numpy as np
 import pandas as pd
@@ -51,6 +51,8 @@ def _hrf_term_to_event_model_term(term: HrfTerm) -> Any:
         events,
         hrf=_resolve_hrf(term),
         name=term.id,
+        normalize=term.normalize,
+        summate=term.summate,
     )
     if term.contrasts:
         lowered._kwargs["contrasts"] = term.contrasts
@@ -65,6 +67,70 @@ def _hrf_term_to_event_model_term(term: HrfTerm) -> Any:
     if term.lag:
         lowered._kwargs["lag"] = term.lag
     return lowered
+
+
+def _event_model_term_to_hrf_term(term: Any) -> HrfTerm:
+    """Convert a legacy formula Term to the typed HrfTerm representation."""
+    events = getattr(term, "events", None)
+    hrf_value = getattr(term, "hrf", None)
+    if not events or hrf_value is None:
+        raise TypeError("Only HRF-bearing event terms can lower to HrfTerm")
+
+    extra = getattr(term, "_kwargs", {}) or {}
+    contrasts = extra.get("contrasts", ())
+    modulators = extra.get("modulators", ())
+    if contrasts is None:
+        contrasts = ()
+    if modulators is None:
+        modulators = ()
+
+    return HrfTerm(
+        variables=tuple(str(event) for event in events),
+        hrf=hrf_value,
+        contrasts=tuple(contrasts),
+        modulators=tuple(modulators),
+        durations=extra.get("durations"),
+        lag=float(extra.get("lag", 0.0)),
+        subset=extra.get("subset"),
+        prefix=extra.get("prefix"),
+        id=getattr(term, "name", None),
+        normalize=bool(extra.get("normalize", getattr(term, "normalize", False))),
+        summate=bool(extra.get("summate", getattr(term, "summate", True))),
+    )
+
+
+def legacy_formula_to_spec(formula: str | Sequence[object]) -> Spec:
+    """Convert supported legacy formula inputs into typed :class:`Spec`.
+
+    This adapter intentionally supports the HRF-bearing formula subset first.
+    Plain unconvolved event terms, basis transforms, trialwise terms, and custom
+    builders continue through the legacy event-model path until they have a
+    typed representation with equivalent semantics.
+    """
+    from ..formula.base import Term as EventModelTerm
+
+    terms: list[object]
+    if isinstance(formula, str):
+        from ..formula.parser import parse_formula
+
+        terms = list(parse_formula(formula, for_event_model=True))
+    elif isinstance(formula, Sequence):
+        terms = list(formula)
+    else:
+        raise TypeError(
+            "legacy_formula_to_spec expects a formula string or sequence of terms"
+        )
+
+    out = Spec()
+    for term in terms:
+        if isinstance(term, str):
+            raise TypeError("String items in formula sequences are not typed HRF terms")
+        if not isinstance(term, EventModelTerm):
+            raise TypeError(
+                f"Unsupported legacy formula item: {type(term).__name__}"
+            )
+        out = out + _event_model_term_to_hrf_term(term)
+    return out
 
 
 def compile_events(

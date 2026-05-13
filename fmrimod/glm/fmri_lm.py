@@ -487,13 +487,14 @@ def _build_model_from_spec(
 
     Accepts either a typed :class:`fmrimod.spec.Spec` / :class:`Term` tree or
     a legacy string formula / list-of-Terms. The typed path lowers via
-    :func:`fmrimod.spec.compile`; the string path uses
+    :func:`fmrimod.spec.compile`. Supported legacy HRF formulas are first
+    adapted into the typed spec tree; unsupported legacy forms fall back to
     :func:`fmrimod.event_model` directly.
     """
     from ..baseline.baseline_model import baseline_model as _build_baseline
     from ..design.event_model import event_model as _build_event
     from ..model.fmri_model import FmriModel
-    from ..spec import Spec, Term
+    from ..spec import Spec, Term, legacy_formula_to_spec
     from ..spec import compile as _compile_spec
 
     events_df = getattr(dataset, "event_table", None)
@@ -528,6 +529,24 @@ def _build_model_from_spec(
     if isinstance(spec, (Spec, Term)):
         em, default_bm = _compile_spec(
             spec,
+            data=events_df,
+            sampling_frame=sf,
+            block=resolved_block,
+            durations=resolved_durations,
+            precision=precision,
+        )
+        bm = baseline if baseline is not None else default_bm
+        return FmriModel(em, bm, cast("DatasetProtocol", dataset))
+
+    # -- Convertible legacy HRF formula/list path -----------------------
+    try:
+        typed_spec = legacy_formula_to_spec(cast(Any, spec))
+    except (TypeError, ValueError, NotImplementedError):
+        typed_spec = None
+
+    if typed_spec is not None:
+        em, default_bm = _compile_spec(
+            typed_spec,
             data=events_df,
             sampling_frame=sf,
             block=resolved_block,

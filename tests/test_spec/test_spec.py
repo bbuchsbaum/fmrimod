@@ -22,6 +22,7 @@ from fmrimod.spec import (  # noqa: F401
     as_spec,
     hrf,
     is_spec,
+    legacy_formula_to_spec,
     trialwise,
 )
 from fmrimod.spec import (
@@ -39,6 +40,12 @@ def test_hrf_builder_returns_frozen_hrfterm():
     # Frozen — attribute assignment should fail.
     with pytest.raises(Exception):
         term.variables = ("other",)  # type: ignore[misc]
+
+
+def test_hrf_builder_carries_convolution_options():
+    term = hrf("trial_type", basis="spmg1", normalize=True, summate=False)
+    assert term.normalize is True
+    assert term.summate is False
 
 
 def test_hrf_builder_interaction_term():
@@ -183,6 +190,94 @@ def test_compile_typed_spec_bypasses_string_formula_parser(synthetic_run, monkey
     assert em is not None
     assert bm is not None
     assert em.design_matrix.shape[0] == Y.shape[0]
+
+
+def test_compile_typed_spec_preserves_hrf_options(synthetic_run):
+    events, _Y, tr = synthetic_run
+    ds = fm.fmri_dataset(np.zeros((60, 2)), tr=tr, events=events)
+
+    spec = (
+        hrf(
+            "trial_type",
+            basis="spmg1",
+            normalize=True,
+            summate=False,
+            durations="duration",
+            subset={"trial_type": "listening"},
+            prefix="stim",
+            id="stim_term",
+            lag=1.25,
+        )
+        + fm.intercept(per="run")
+    )
+    em, _bm = compile_spec(
+        spec,
+        data=events,
+        sampling_frame=ds.sampling_frame,
+        block="run",
+        durations="duration",
+    )
+
+    lowered = em.terms[0]
+    assert lowered.events == ["trial_type"]
+    assert lowered.hrf == "spmg1"
+    assert lowered.name == "stim_term"
+    assert lowered.normalize is True
+    assert lowered.summate is False
+    assert lowered.kwargs["durations"] == "duration"
+    assert lowered.kwargs["subset"] == {"trial_type": "listening"}
+    assert lowered.kwargs["prefix"] == "stim"
+    assert lowered.kwargs["lag"] == 1.25
+
+
+def test_legacy_formula_to_spec_preserves_hrf_options():
+    spec = legacy_formula_to_spec(
+        (
+            "onset ~ hrf(trial_type, basis='spmg1', normalize=True, "
+            "summate=False, id='stim_term', prefix='stim', lag=1.25, "
+            "durations='duration', subset='trial_type == \"listening\"')"
+        )
+    )
+
+    assert isinstance(spec, Spec)
+    term = spec.events[0]
+    assert isinstance(term, HrfTerm)
+    assert term.variables == ("trial_type",)
+    assert term.hrf == "spmg1"
+    assert term.id == "stim_term"
+    assert term.normalize is True
+    assert term.summate is False
+    assert term.prefix == "stim"
+    assert term.lag == 1.25
+    assert term.durations == "duration"
+    assert term.subset == 'trial_type == "listening"'
+
+
+def test_legacy_functional_terms_to_spec_preserve_hrf_options():
+    from fmrimod.formula import hrf as formula_hrf
+    from fmrimod.formula import term as formula_term
+
+    spec = legacy_formula_to_spec(
+        [
+            formula_term("trial_type")
+            | formula_hrf(
+                "spmg1",
+                normalize=True,
+                summate=False,
+                prefix="stim",
+                durations="duration",
+            )
+        ]
+    )
+
+    term = spec.events[0]
+    assert isinstance(term, HrfTerm)
+    assert term.variables == ("trial_type",)
+    assert term.hrf == "spmg1"
+    assert term.normalize is True
+    assert term.summate is False
+    assert term.prefix == "stim"
+    assert term.durations == "duration"
 
 
 def test_compile_baseline_only_spec_uses_default_constant_intercept(synthetic_run):

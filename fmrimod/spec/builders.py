@@ -51,6 +51,8 @@ def hrf(
     prefix: Optional[str] = None,
     id: Optional[str] = None,
     norm: Optional[NormMode] = None,
+    normalize: bool = False,
+    summate: bool = True,
 ) -> HrfTerm:
     """Build an :class:`HrfTerm`.
 
@@ -83,6 +85,8 @@ def hrf(
         prefix=prefix,
         id=id,
         norm=_validate_norm(norm),
+        normalize=bool(normalize),
+        summate=bool(summate),
     )
 
 
@@ -136,6 +140,8 @@ def trialwise(
     prefix: Optional[str] = None,
     id: Optional[str] = "trial",
     norm: Optional[NormMode] = None,
+    normalize: bool = False,
+    summate: bool = True,
 ) -> HrfTerm:
     """Build a per-trial beta-series term (LSS-friendly).
 
@@ -152,4 +158,6 @@ def trialwise(
         prefix=prefix,
         id=id,
         norm=_validate_norm(norm),
+        normalize=bool(normalize),
+        summate=bool(summate),
     )

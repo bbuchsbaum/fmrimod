@@ -42,10 +42,10 @@ still permissive in ways that will not scale:
 - A few R exports or extension points, notably contrast mask helpers, still
   need an explicit Python decision.
 
-## First Slice Landed
+## Landed Slices
 
-The first slice makes the highest-signal problems executable without changing
-the public formula entry point:
+The first two slices make the highest-signal problems executable while keeping
+legacy formula entry points available:
 
 - `parse_formula(..., for_event_model=True)` now preserves core HRF term
   controls (`normalize`, `summate`, `id`) and retains remaining parsed HRF
@@ -57,6 +57,14 @@ the public formula entry point:
 - Baseline nuisance diagnostics now mirror fmridesign's public behavior:
   `check_nuisance()`, `clean_nuisance()`, and
   `baseline_model(..., nuisance_check={"warn","error","drop","none"})`.
+- Typed `HrfTerm` now carries `normalize` and `summate` directly.
+- `legacy_formula_to_spec()` converts supported HRF-bearing string/list
+  formula inputs into typed `Spec` trees without losing `durations`, `subset`,
+  `prefix`, `lag`, or naming controls.
+- `fmri_lm("hrf(...)", dataset)` now tries the typed `Spec` lowering path
+  before falling back to the legacy direct `event_model()` path.
+  Focused spec/glm and design-seam tests cover string formula and functional
+  formula-list adapters.
 
 ## Remaining Work Items
 

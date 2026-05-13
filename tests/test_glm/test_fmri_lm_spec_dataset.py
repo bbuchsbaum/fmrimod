@@ -60,6 +60,55 @@ def test_fmri_lm_canonical_spec_dataset_call(synthetic_run):
     assert fit.betas.shape == (fit.n_coefficients, fit.n_voxels)
 
 
+def test_fmri_lm_hrf_formula_routes_through_typed_spec(synthetic_run, monkeypatch):
+    """Convertible HRF formulas should reach event_model as typed terms."""
+    events, Y, tr = synthetic_run
+    ds = fm.fmri_dataset(Y, tr=tr, events=events)
+
+    from fmrimod.design import event_model as event_model_module
+
+    original_event_model = event_model_module.event_model
+
+    def guard_no_string_formula(formula, *args, **kwargs):
+        if isinstance(formula, str):
+            raise AssertionError("fmri_lm should adapt HRF formulas to typed Spec")
+        return original_event_model(formula, *args, **kwargs)
+
+    monkeypatch.setattr(event_model_module, "event_model", guard_no_string_formula)
+
+    fit = fmri_lm(
+        "hrf(trial_type, basis='spmg1', normalize=True, summate=False)",
+        ds,
+    )
+
+    assert isinstance(fit, FmriLm)
+    term = fit.model.event_model.terms[0]
+    assert term.normalize is True
+    assert term.summate is False
+
+
+def test_fmri_lm_functional_formula_routes_through_typed_spec(synthetic_run):
+    """Functional/list HRF formulas should adapt into the typed Spec path."""
+    events, Y, tr = synthetic_run
+    ds = fm.fmri_dataset(Y, tr=tr, events=events)
+
+    from fmrimod.formula import hrf as formula_hrf
+    from fmrimod.formula import term as formula_term
+
+    fit = fmri_lm(
+        [
+            formula_term("trial_type")
+            | formula_hrf("spmg1", normalize=True, summate=False)
+        ],
+        ds,
+    )
+
+    assert isinstance(fit, FmriLm)
+    term = fit.model.event_model.terms[0]
+    assert term.normalize is True
+    assert term.summate is False
+
+
 def test_fmri_lm_spec_dataset_with_config_kwarg(synthetic_run):
     events, Y, tr = synthetic_run
     ds = fm.fmri_dataset(Y, tr=tr, events=events)
