@@ -1,7 +1,13 @@
 """Statistical inference utilities."""
 
+from __future__ import annotations
+
 import sys
 import types
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from fmrimod.accessors import EstimateOrContrastMap
 
 from .backends import available_second_level_backends, fmrigds_backend_available
 from .inference import (
@@ -52,10 +58,15 @@ __all__ = [
 
 
 class _CallableStatsModule(types.ModuleType):
-    def __call__(self, *args, **kwargs):
+    def __call__(
+        self,
+        x: object,
+        type: str = "estimates",
+        **kwargs: object,
+    ) -> EstimateOrContrastMap:
         from fmrimod.accessors import stats as _accessor_stats
 
-        return _accessor_stats(*args, **kwargs)
+        return _accessor_stats(x, type=type, **kwargs)
 
 
 sys.modules[__name__].__class__ = _CallableStatsModule

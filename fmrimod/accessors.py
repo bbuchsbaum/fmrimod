@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence, Union
+from typing import Dict, List, Optional, Sequence, Union
 
 import numpy as np
 import pandas as pd
@@ -10,15 +10,24 @@ from numpy.typing import NDArray
 from scipy import stats as sp_stats
 
 
-def _as_array(value: Any) -> NDArray[np.float64]:
+EstimateOrContrastMap = Union[NDArray[np.float64], Dict[str, NDArray[np.float64]]]
+"""Common accessor return shape.
+
+For ``type='estimates'`` the accessor returns a per-coefficient float
+array; for ``type='contrasts'`` or ``type='F'`` it returns a dict
+keyed by contrast name. The union names that contract explicitly so
+callers no longer have to read the body to learn what comes back."""
+
+
+def _as_array(value: object) -> NDArray[np.float64]:
     return np.asarray(value, dtype=np.float64)
 
 
-def _model_from_result(x: Any) -> Any:
+def _model_from_result(x: object) -> object:
     return getattr(x, "model", x)
 
 
-def coef_names(x: Any, include_baseline: bool = True, **kwargs) -> list[str]:
+def coef_names(x: object, include_baseline: bool = True, **kwargs) -> list[str]:
     """Return coefficient names for a model or fitted GLM result."""
     model = _model_from_result(x)
     if hasattr(model, "design_matrix"):
@@ -41,7 +50,11 @@ def coef_names(x: Any, include_baseline: bool = True, **kwargs) -> list[str]:
     raise NotImplementedError(f"coef_names not implemented for {type(x)}")
 
 
-def ar_parameters(x: Any, scope: str = "average", **kwargs) -> Optional[Any]:
+def ar_parameters(
+    x: object,
+    scope: str = "average",
+    **kwargs,
+) -> Optional[Union[NDArray[np.float64], List[NDArray[np.float64]]]]:
     """Return AR parameters stored on an ``FmriLm``-like result."""
     if scope not in {"average", "per_run", "raw"}:
         raise ValueError("scope must be 'average', 'per_run', or 'raw'")
@@ -62,7 +75,7 @@ def ar_parameters(x: Any, scope: str = "average", **kwargs) -> Optional[Any]:
     return np.nanmean(arr, axis=-1)
 
 
-def standard_error(x: Any, type: str = "estimates", **kwargs) -> Any:
+def standard_error(x: object, type: str = "estimates", **kwargs) -> EstimateOrContrastMap:
     """Return standard errors for coefficient estimates or contrasts."""
     if type == "estimates":
         method = getattr(x, "se", None)
@@ -80,12 +93,12 @@ def standard_error(x: Any, type: str = "estimates", **kwargs) -> Any:
     raise ValueError("type must be 'estimates' or 'contrasts'")
 
 
-def se(x: Any, *args, **kwargs) -> Any:
+def se(x: object, type: str = "estimates", **kwargs) -> EstimateOrContrastMap:
     """Alias for :func:`standard_error`."""
-    return standard_error(x, *args, **kwargs)
+    return standard_error(x, type=type, **kwargs)
 
 
-def stats(x: Any, type: str = "estimates", **kwargs) -> Any:
+def stats(x: object, type: str = "estimates", **kwargs) -> EstimateOrContrastMap:
     """Return coefficient, t-contrast, or F-contrast statistics."""
     if type == "estimates":
         method = getattr(x, "tstat", None)
@@ -106,7 +119,7 @@ def stats(x: Any, type: str = "estimates", **kwargs) -> Any:
     raise ValueError("type must be 'estimates', 'contrasts', or 'F'")
 
 
-def p_values(x: Any, type: str = "estimates", **kwargs) -> Any:
+def p_values(x: object, type: str = "estimates", **kwargs) -> EstimateOrContrastMap:
     """Return two-sided p-values for coefficient estimates or contrasts."""
     if type == "estimates":
         t = stats(x, type="estimates")
@@ -122,12 +135,12 @@ def p_values(x: Any, type: str = "estimates", **kwargs) -> Any:
     raise ValueError("type must be 'estimates', 'contrasts', or 'F'")
 
 
-def pvalues(x: Any, *args, **kwargs) -> Any:
+def pvalues(x: object, type: str = "estimates", **kwargs) -> EstimateOrContrastMap:
     """Alias for :func:`p_values`."""
-    return p_values(x, *args, **kwargs)
+    return p_values(x, type=type, **kwargs)
 
 
-def zscores(x: Any, type: str = "estimates", **kwargs) -> Any:
+def zscores(x: object, type: str = "estimates", **kwargs) -> EstimateOrContrastMap:
     """Convert two-sided p-values and statistic signs to z scores."""
     if type == "estimates":
         t = stats(x, type="estimates")
@@ -142,7 +155,7 @@ def zscores(x: Any, type: str = "estimates", **kwargs) -> Any:
     }
 
 
-def _coef_matrix(x: Any, include_baseline: bool = True) -> NDArray[np.float64]:
+def _coef_matrix(x: object, include_baseline: bool = True) -> NDArray[np.float64]:
     method = getattr(x, "coef", None)
     if callable(method):
         vals = method()
@@ -158,7 +171,7 @@ def _coef_matrix(x: Any, include_baseline: bool = True) -> NDArray[np.float64]:
 
 
 def coef_image(
-    x: Any,
+    x: object,
     coef: Union[int, str] = 0,
     statistic: str = "estimate",
     mask: Optional[NDArray[np.bool_]] = None,
@@ -198,7 +211,7 @@ def coef_image(
     return out
 
 
-def get_data(x: Any, run: int = 0, **kwargs) -> NDArray[np.float64]:
+def get_data(x: object, run: int = 0, **kwargs) -> NDArray[np.float64]:
     """Return run data from a dataset-like object."""
     method = getattr(x, "get_data", None)
     if callable(method):
@@ -206,14 +219,14 @@ def get_data(x: Any, run: int = 0, **kwargs) -> NDArray[np.float64]:
     raise NotImplementedError(f"get_data not implemented for {type(x)}")
 
 
-def get_data_matrix(x: Any, **kwargs) -> NDArray[np.float64]:
+def get_data_matrix(x: object, **kwargs) -> NDArray[np.float64]:
     """Return all run data concatenated along time."""
     if hasattr(x, "n_runs") and hasattr(x, "get_data"):
         return np.vstack([get_data(x, run=i, **kwargs) for i in range(int(x.n_runs))])
     return get_data(x, **kwargs)
 
 
-def get_mask(x: Any, **kwargs) -> NDArray[np.bool_]:
+def get_mask(x: object, **kwargs) -> NDArray[np.bool_]:
     """Return a boolean mask from a dataset-like object."""
     method = getattr(x, "get_mask", None)
     if callable(method):
@@ -224,7 +237,7 @@ def get_mask(x: Any, **kwargs) -> NDArray[np.bool_]:
     raise NotImplementedError(f"get_mask not implemented for {type(x)}")
 
 
-def get_formula(x: Any, **kwargs) -> Optional[str]:
+def get_formula(x: object, **kwargs) -> Optional[str]:
     """Return the stored formula when available, otherwise a term summary."""
     obj = _model_from_result(x)
     direct = getattr(obj, "formula", None)
@@ -241,7 +254,7 @@ def get_formula(x: Any, **kwargs) -> Optional[str]:
     return None
 
 
-def get_subjects(x: Any, **kwargs) -> list[str]:
+def get_subjects(x: object, **kwargs) -> list[str]:
     """Return subject identifiers from a group-data object."""
     subjects = getattr(x, "subjects", None)
     if subjects is not None:
@@ -252,14 +265,14 @@ def get_subjects(x: Any, **kwargs) -> list[str]:
     raise NotImplementedError(f"get_subjects not implemented for {type(x)}")
 
 
-def n_subjects(x: Any, **kwargs) -> int:
+def n_subjects(x: object, **kwargs) -> int:
     """Return the number of subjects in a group-data object."""
     if hasattr(x, "n_subjects"):
         return int(getattr(x, "n_subjects"))
     return len(get_subjects(x))
 
 
-def get_covariates(x: Any, **kwargs) -> Optional[pd.DataFrame]:
+def get_covariates(x: object, **kwargs) -> Optional[pd.DataFrame]:
     """Return group-data covariates."""
     cov = getattr(x, "covariates", None)
     if cov is None:
@@ -267,7 +280,7 @@ def get_covariates(x: Any, **kwargs) -> Optional[pd.DataFrame]:
     return cov.copy() if isinstance(cov, pd.DataFrame) else cov
 
 
-def get_rois(x: Any, **kwargs) -> list[str]:
+def get_rois(x: object, **kwargs) -> list[str]:
     """Return ROI labels from CSV-backed group data when present."""
     data = getattr(x, "data", None)
     if isinstance(data, dict):
@@ -278,7 +291,7 @@ def get_rois(x: Any, **kwargs) -> list[str]:
     return []
 
 
-def get_contrasts(x: Any, **kwargs) -> Any:
+def get_contrasts(x: object, **kwargs) -> list[str]:
     """Return contrast names/specifications from fitted or group-data objects."""
     contrasts = getattr(x, "contrasts", None)
     if isinstance(contrasts, dict):
@@ -295,7 +308,7 @@ def get_contrasts(x: Any, **kwargs) -> Any:
     return []
 
 
-def tidy(x: Any, type: str = "estimates", **kwargs) -> pd.DataFrame:
+def tidy(x: object, type: str = "estimates", **kwargs) -> pd.DataFrame:
     """Return a long-form DataFrame of estimates, SEs, statistics, and p-values."""
     if type == "estimates":
         estimates = _coef_matrix(x, include_baseline=True)
@@ -341,7 +354,16 @@ def tidy(x: Any, type: str = "estimates", **kwargs) -> pd.DataFrame:
     raise ValueError("type must be 'estimates', 'contrasts', or 'F'")
 
 
-def fitted_hrf(x: Any, sample_at: Sequence[float], **kwargs) -> dict[str, Any]:
+FittedHrfPayload = Dict[str, Union[NDArray[np.float64], pd.DataFrame]]
+"""Per-term entry returned by :func:`fitted_hrf`: ``{'pred': ndarray,
+'design': dataframe}``."""
+
+
+def fitted_hrf(
+    x: object,
+    sample_at: Sequence[float],
+    **kwargs,
+) -> Dict[str, FittedHrfPayload]:
     """Best-effort fitted HRF reconstruction from event-term coefficients."""
     sample = _as_array(sample_at)
     if np.any(~np.isfinite(sample)):
@@ -354,7 +376,7 @@ def fitted_hrf(x: Any, sample_at: Sequence[float], **kwargs) -> dict[str, Any]:
     terms = getattr(event_model, "terms", [])
     col_indices = getattr(event_model, "column_indices", {}) or {}
     betas = _coef_matrix(x, include_baseline=True)
-    out: dict[str, Any] = {}
+    out: Dict[str, FittedHrfPayload] = {}
 
     for idx, term in enumerate(terms):
         term_name = getattr(term, "name", f"term_{idx}")
@@ -385,7 +407,7 @@ def fitted_hrf(x: Any, sample_at: Sequence[float], **kwargs) -> dict[str, Any]:
     return out
 
 
-def tidy_fitted_hrf(x: Any, sample_at: Sequence[float], **kwargs) -> pd.DataFrame:
+def tidy_fitted_hrf(x: object, sample_at: Sequence[float], **kwargs) -> pd.DataFrame:
     """Return fitted HRF reconstructions in long tabular form."""
     rows = []
     for term, payload in fitted_hrf(x, sample_at=sample_at, **kwargs).items():
