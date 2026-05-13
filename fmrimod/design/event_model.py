@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from itertools import product as iter_product
-from typing import Dict, List, Optional, Union, Any
+from typing import Any, Dict, List, Mapping, Optional, Union
 import warnings
 
 import numpy as np
@@ -147,6 +147,7 @@ class EventModel(ModelProtocol):
         name: Optional[str] = None,
         precision: Optional[float] = None,
         blockids: Optional[Array] = None,
+        data: Optional[pd.DataFrame] = None,
     ):
         """Initialize event model."""
         self.terms = terms
@@ -155,6 +156,11 @@ class EventModel(ModelProtocol):
         self.name = name or "EventModel"
         self.precision = precision or 0.3
         self._blockids = np.asarray(blockids) if blockids is not None else None
+        # Raw event table (when available). Used to resolve term-level
+        # ``subset=`` predicates against the original DataFrame columns;
+        # this is the only path that can reach columns the convolver
+        # otherwise wouldn't keep (e.g. ``block``, an accuracy flag).
+        self._data = data
 
         # Cached values
         self._design_matrix = None
@@ -211,10 +217,87 @@ class EventModel(ModelProtocol):
         event_terms = []
         for term in self.terms:
             event_term = self._create_single_event_term(term)
+            event_term = self._apply_term_subset(term, event_term)
             event_terms.append(event_term)
 
         self._event_terms = event_terms
         return event_terms
+
+    def _term_subset_spec(self, term: Term) -> Any:
+        """Return the ``subset=`` predicate declared on a term, or ``None``."""
+        extra = getattr(term, "_kwargs", None) or {}
+        return extra.get("subset")
+
+    def _resolve_subset_mask(self, subset: Any, term_name: str) -> Array:
+        """Evaluate a term-level subset predicate against the events table.
+
+        Accepts the same shapes the typed ``hrf(..., subset=...)`` builder
+        documents:
+
+        - ``dict``: an AND of equality clauses, ``{"block": 1, "valid": True}``.
+        - ``str``: a pandas ``.eval`` predicate, e.g. ``"block <= 3"``.
+        - ``callable``: a function taking the events DataFrame and
+          returning a boolean array.
+
+        Returns a 1-D boolean array of length ``len(events)``.
+        """
+        if self._data is None:
+            raise ValueError(
+                f"term '{term_name}' declares subset={subset!r} but the "
+                f"EventModel was constructed without the raw events "
+                f"DataFrame; rebuild via event_model(..., data=df, ...)."
+            )
+        df = self._data
+        if callable(subset):
+            mask = subset(df)
+        elif isinstance(subset, str):
+            try:
+                mask = df.eval(subset)
+            except Exception as exc:
+                raise ValueError(
+                    f"term '{term_name}' subset string {subset!r} could "
+                    f"not be evaluated against the events table: {exc}"
+                ) from exc
+        elif isinstance(subset, Mapping):
+            mask_arr = np.ones(len(df), dtype=bool)
+            for key, value in subset.items():
+                if key not in df.columns:
+                    raise ValueError(
+                        f"term '{term_name}' subset key {key!r} is not a "
+                        f"column of the events table; columns: "
+                        f"{list(df.columns)!r}"
+                    )
+                mask_arr &= (df[key].to_numpy() == value)
+            mask = mask_arr
+        else:
+            raise TypeError(
+                f"term '{term_name}' subset must be a dict, predicate "
+                f"string, or callable; got {type(subset).__name__}"
+            )
+        mask_arr = np.asarray(mask, dtype=bool)
+        if mask_arr.shape != (len(df),):
+            raise ValueError(
+                f"term '{term_name}' subset predicate returned a mask of "
+                f"shape {mask_arr.shape}; expected ({len(df)},)"
+            )
+        return mask_arr
+
+    def _apply_term_subset(self, term: Term, event_term: EventTerm) -> EventTerm:
+        """Filter an event term to its declared subset, if any."""
+        subset = self._term_subset_spec(term)
+        if subset is None:
+            return event_term
+        mask = self._resolve_subset_mask(subset, term.name)
+        if not np.any(mask):
+            raise ValueError(
+                f"term '{term.name}' subset={subset!r} matched zero events"
+            )
+        # Reuse the existing block-subsetting helper; onset_shift=0 keeps
+        # global onsets intact.
+        filtered = self._subset_event_term(event_term, mask, onset_shift=0.0)
+        if filtered is None:  # pragma: no cover - guarded by np.any above
+            return event_term
+        return filtered
 
     def _create_single_event_term(self, term: Term) -> EventTerm:
         """Create an EventTerm from a single Term specification.
@@ -1939,6 +2022,7 @@ def event_model(
         sampling_info=sf,
         precision=precision,
         blockids=blockids,
+        data=data,
     )
 
 

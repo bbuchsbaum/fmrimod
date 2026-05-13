@@ -43,13 +43,15 @@ are placed onto the looked-up indices.
 
 Pattern B parity claim
 ----------------------
-fmrimod realises the concatenated design via the typed spec. Both
-engines solve OLS on that single concatenated ``X`` via the matrix-
-first path (``fast_lm_matrix`` on fmrimod, ``run_glm`` on Nilearn) —
-the default ``fmri_lm`` strategy on multi-run datasets is per-run +
-pool, which gives identical betas but a slightly different variance
-estimate (per-run sigma vs concatenated sigma); the matrix-first path
-keeps the comparison strictly cross-engine on a single shared design.
+fmrimod realises the concatenated design via the typed spec and
+solves it through the typed ``fmri_lm(spec, ds, engine="concat")``
+path — a single OLS on the stacked ``X`` / ``Y`` with
+``dfres = n - rank``. Nilearn's ``run_glm`` is fed the same realised
+``X`` for a strict cross-engine comparison. The default ``fmri_lm``
+strategy on multi-run datasets is per-run + pool, which gives
+identical betas (~1e-12) but estimates variance per-run rather than
+over the concatenated residual; the concat engine is the right
+choice when contrast vectors span runs.
 
 The compared quantities:
 
@@ -89,8 +91,6 @@ from cross_testing.harness import (
 )
 from fmrimod.dataset.constructors import matrix_dataset
 from fmrimod.design.columns import DesignColumns
-from fmrimod.glm.contrasts import contrast_f, contrast_t
-from fmrimod.glm.solver import fast_lm_matrix, fast_preproject
 from fmrimod.spec import drift, hrf, intercept
 
 Array = NDArray[np.float64]
@@ -313,38 +313,33 @@ def nilearn_pipeline(inputs: MultirunInputs) -> PipelineOutput:
 
 
 def fmrimod_pipeline(inputs: MultirunInputs) -> PipelineOutput:
-    """fmrimod matrix-first OLS on the realised concatenated design.
+    """Typed fmrimod path: ``fmri_lm(spec, ds, engine="concat")``.
 
-    Uses :func:`fast_lm_matrix` directly to fit a single concatenated
-    design (rather than the default per-run + pool strategy of
-    :func:`fmri_lm`) so the variance estimate uses the concatenated
-    residuals and the t/F denominators match Nilearn's single-design
-    convention exactly.
+    The concat engine fits a single OLS on the stacked concatenated
+    ``X`` and ``Y`` with ``dfres = n - rank``, so the variance
+    denominator matches Nilearn's single-design convention exactly.
+    The default ``runwise`` strategy gives identical betas (~1e-12) but
+    estimates variance per-run; for cross-run contrasts we want
+    single-design semantics.
     """
-    proj = fast_preproject(inputs.design)
-    lm = fast_lm_matrix(inputs.design, inputs.data, proj)
-    sigma = np.sqrt(lm.sigma2)
+    spec = (
+        hrf("trial_type", "run_label", basis="spm", norm="spm")
+        + drift("poly", degree=2)
+        + intercept(per="run")
+    )
+    ds = matrix_dataset(
+        inputs.data, tr=TR, run_length=RUN_LENGTH, event_table=inputs.events
+    )
+    fit = fm.fmri_lm(spec, ds, engine="concat")
 
-    t_main = contrast_t(
-        inputs.c_main_A_minus_B, lm.betas, proj.XtXinv, sigma, lm.dfres,
-        name="main_A_minus_B",
-    )
-    t_run_diff = contrast_t(
-        inputs.c_run_diff_A, lm.betas, proj.XtXinv, sigma, lm.dfres,
-        name="run_diff_A",
-    )
-    t_inter = contrast_t(
-        inputs.c_trial_x_run, lm.betas, proj.XtXinv, sigma, lm.dfres,
-        name="trial_x_run",
-    )
-    f_task = contrast_f(
-        inputs.c_task_F, lm.betas, proj.XtXinv, sigma, lm.dfres,
-        name="task_omnibus",
-    )
+    t_main = fit.contrast(inputs.c_main_A_minus_B, name="main_A_minus_B")
+    t_run_diff = fit.contrast(inputs.c_run_diff_A, name="run_diff_A")
+    t_inter = fit.contrast(inputs.c_trial_x_run, name="trial_x_run")
+    f_task = fit.contrast(inputs.c_task_F, name="task_omnibus")
 
     return PipelineOutput(
         arrays={
-            "design": inputs.design,
+            "design": fit.model.design_matrix_array(run=None),
             "effect_main_A_minus_B": np.asarray(t_main.estimate, np.float64),
             "t_main_A_minus_B": np.asarray(t_main.stat, np.float64),
             "effect_run_diff_A": np.asarray(t_run_diff.estimate, np.float64),
@@ -356,7 +351,9 @@ def fmrimod_pipeline(inputs: MultirunInputs) -> PipelineOutput:
                 t_inter.stat, np.float64
             ),
             "f_task_omnibus": np.asarray(f_task.stat, np.float64),
-            "rank": np.array([int(proj.rank)], dtype=np.float64),
+            "rank": np.array(
+                [int(fit.condition_report().runs[0].rank)], dtype=np.float64
+            ),
         }
     )
 

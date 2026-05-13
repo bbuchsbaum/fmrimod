@@ -899,12 +899,23 @@ def _warn_if_ill_conditioned(fit: "FmriLm") -> None:
     betas on the aliased columns are not uniquely identified. The
     warning surfaces this so a typed-API user is not silently working
     with a rank-deficient design.
+
+    Orthogonal multi-run designs are a benign source of per-run rank
+    deficiency: each run's sub-design legitimately has zero columns
+    where the *other* runs' task / intercept regressors live, so each
+    per-run projection reports ``is_full_rank=False`` even though the
+    concatenated design is full rank and the pooled solve is exact.
+    We check the concatenated rank and suppress the warning in that
+    case, so the diagnostic only fires when the realised design is
+    *actually* aliased.
     """
     projections = fit.projections or []
     deficient = [
         (idx, proj) for idx, proj in enumerate(projections) if not proj.is_full_rank
     ]
     if not deficient:
+        return
+    if _concatenated_design_is_full_rank(fit):
         return
     report = fit.condition_report()
     parts = []
@@ -933,6 +944,28 @@ def _warn_if_ill_conditioned(fit: "FmriLm") -> None:
         UserWarning,
         stacklevel=2,
     )
+
+
+def _concatenated_design_is_full_rank(fit: "FmriLm") -> bool:
+    """Return ``True`` iff the run-concatenated design matrix is full rank.
+
+    Used to suppress the per-run rank-deficiency warning on orthogonal
+    multi-run designs where each per-run sub-X is rank-deficient but the
+    stacked X is full rank (and the per-run pooled OLS is identical to
+    the single-design solve).
+    """
+    projections = fit.projections or []
+    if len(projections) <= 1:
+        return False
+    try:
+        X = np.asarray(
+            fit.model.design_matrix_array(run=None), dtype=np.float64
+        )
+    except Exception:  # pragma: no cover - design probe is best-effort
+        return False
+    if X.size == 0 or X.shape[1] == 0:
+        return False
+    return int(np.linalg.matrix_rank(X)) == X.shape[1]
 
 
 def _is_fmri_model_like(obj: object) -> bool:
