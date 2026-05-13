@@ -8,12 +8,14 @@ information, and methods for computing contrasts.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 from typing import (
     TYPE_CHECKING,
     Any,
     Dict,
     List,
     Literal,
+    Mapping,
     Optional,
     Protocol,
     Sequence,
@@ -69,6 +71,63 @@ class FitProvenance:
     ar_status: CarryStatus = "not_yet_carried"
     mask_mode: Optional[MaskMode] = None
     mask_status: CarryStatus = "not_yet_carried"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a JSON-compatible provenance payload."""
+        return {
+            "schema_version": "FitProvenance/v1",
+            "fmrimod_version": self.fmrimod_version,
+            "solver_path": self.solver_path,
+            "hrf_norm_modes": list(self.hrf_norm_modes),
+            "seed": self.seed,
+            "seed_status": self.seed_status,
+            "ar_config": None if self.ar_config is None else {
+                "struct": self.ar_config.struct,
+                "p": self.ar_config.p,
+                "iter_gls": self.ar_config.iter_gls,
+                "global_ar": self.ar_config.global_ar,
+                "voxelwise": self.ar_config.voxelwise,
+                "exact_first": self.ar_config.exact_first,
+                "censor": self.ar_config.censor,
+                "method": self.ar_config.method,
+                "q": self.ar_config.q,
+                "p_max": self.ar_config.p_max,
+                "pooling": self.ar_config.pooling,
+                "convergence_tol": self.ar_config.convergence_tol,
+                "parcels": None,
+            },
+            "ar_status": self.ar_status,
+            "mask_mode": self.mask_mode,
+            "mask_status": self.mask_status,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "FitProvenance":
+        """Reconstruct a provenance object from :meth:`to_dict` output."""
+        if payload.get("schema_version") != "FitProvenance/v1":
+            raise ValueError("unsupported FitProvenance schema_version")
+        ar_payload = payload.get("ar_config")
+        ar_config = None if ar_payload is None else AROptions(**dict(ar_payload))
+        return cls(
+            fmrimod_version=str(payload["fmrimod_version"]),
+            solver_path=str(payload["solver_path"]),
+            hrf_norm_modes=tuple(payload["hrf_norm_modes"]),
+            seed=payload.get("seed"),
+            seed_status=cast(SeedStatus, payload["seed_status"]),
+            ar_config=ar_config,
+            ar_status=cast(CarryStatus, payload["ar_status"]),
+            mask_mode=cast(Optional[MaskMode], payload.get("mask_mode")),
+            mask_status=cast(CarryStatus, payload["mask_status"]),
+        )
+
+    def to_json(self) -> str:
+        """Serialize provenance as stable, sorted JSON."""
+        return json.dumps(self.to_dict(), sort_keys=True, separators=(",", ":"))
+
+    @classmethod
+    def from_json(cls, payload: str) -> "FitProvenance":
+        """Reconstruct provenance from :meth:`to_json` output."""
+        return cls.from_dict(json.loads(payload))
 
 
 def _term_norm_mode(term: Any) -> Optional[NormMode]:

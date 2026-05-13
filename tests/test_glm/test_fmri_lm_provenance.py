@@ -136,3 +136,31 @@ def test_provenance_constructor_defaults_match_slice_a() -> None:
     assert prov.ar_status == "not_yet_carried"
     assert prov.mask_mode is None
     assert prov.mask_status == "not_yet_carried"
+
+
+def test_fit_provenance_json_round_trips_status_fields() -> None:
+    """Serialization preserves value slots and explicit status companions."""
+    prov = FitProvenance(
+        fmrimod_version="0.1.0",
+        solver_path="RunwiseEngine",
+        hrf_norm_modes=("spm", None),
+        seed=None,
+        seed_status="not_randomized",
+        ar_config=None,
+        ar_status="not_yet_carried",
+        mask_mode=None,
+        mask_status="not_yet_carried",
+    )
+
+    payload = prov.to_dict()
+    assert payload["schema_version"] == "FitProvenance/v1"
+    assert payload["hrf_norm_modes"] == ["spm", None]
+    assert payload["seed"] is None
+    assert payload["seed_status"] == "not_randomized"
+    assert payload["ar_config"] is None
+    assert payload["ar_status"] == "not_yet_carried"
+    assert payload["mask_mode"] is None
+    assert payload["mask_status"] == "not_yet_carried"
+
+    assert FitProvenance.from_dict(payload) == prov
+    assert FitProvenance.from_json(prov.to_json()) == prov
