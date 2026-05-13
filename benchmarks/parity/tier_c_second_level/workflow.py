@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from nilearn.glm.second_level import SecondLevelModel
 from numpy.typing import NDArray
+from scipy import stats as sp_stats
 
 from cross_testing.harness import (
     ParityCase,
@@ -95,6 +96,7 @@ def nilearn_pipeline(inputs: SecondLevelInputs) -> PipelineOutput:
             "one_sample_t": one.masker_.transform(one_maps["stat"]),
             "age_effect": reg.masker_.transform(age_maps["effect_size"]),
             "age_t": reg.masker_.transform(age_maps["stat"]),
+            "age_p_signed_one_sided": reg.masker_.transform(age_maps["p_value"]),
         }
     )
 
@@ -130,6 +132,14 @@ def fmrimod_pipeline(inputs: SecondLevelInputs) -> PipelineOutput:
             "one_sample_t": one.statistic[:, 0],
             "age_effect": reg.assay("coef:age")[:, 0, 0],
             "age_t": reg.assay("t_coef:age")[:, 0, 0],
+            # Nilearn's SecondLevelModel exposes a signed one-sided p-value
+            # derived from the t statistic. fmrimod's native p_coef assays
+            # stay two-sided; this benchmark quantity is named explicitly so
+            # parity does not redefine the public group p-value contract.
+            "age_p_signed_one_sided": sp_stats.t.sf(
+                reg.assay("t_coef:age")[:, 0, 0],
+                df=len(inputs.images) - 2,
+            ),
         }
     )
 
@@ -146,6 +156,7 @@ def make_case() -> ParityCase:
             "one_sample_t": ParityTolerance(rtol=1e-6, atol=1e-6),
             "age_effect": ParityTolerance(rtol=1e-7, atol=1e-8),
             "age_t": ParityTolerance(rtol=1e-6, atol=1e-6),
+            "age_p_signed_one_sided": ParityTolerance(rtol=2e-5, atol=2e-8),
         },
     )
 

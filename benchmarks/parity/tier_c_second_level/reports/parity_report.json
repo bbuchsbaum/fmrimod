@@ -5,11 +5,11 @@
     "age_effect": {
       "failed_gates": [],
       "gate": "allclose+pearson+spearman",
-      "mae": 2.369076558401216e-09,
-      "max_abs": 6.221501008818464e-09,
+      "mae": 2.369076567247503e-09,
+      "max_abs": 6.221501092085191e-09,
       "name": "age_effect",
       "passes": true,
-      "pearson_r": 0.9999999999999998,
+      "pearson_r": 0.9999999999999997,
       "rank_candidate": 1,
       "rank_reference": 1,
       "scale": 1.0,
@@ -28,14 +28,40 @@
         "rtol": 1e-07
       }
     },
+    "age_p_signed_one_sided": {
+      "failed_gates": [],
+      "gate": "allclose+pearson+spearman",
+      "mae": 4.198226524872325e-09,
+      "max_abs": 8.45432502893928e-08,
+      "name": "age_p_signed_one_sided",
+      "passes": true,
+      "pearson_r": 0.9999999999999998,
+      "rank_candidate": 1,
+      "rank_reference": 1,
+      "scale": 1.0,
+      "shape": [
+        27
+      ],
+      "spearman_rho": 0.9999999999999999,
+      "tolerance": {
+        "allow_rescale": false,
+        "atol": 2e-08,
+        "check_allclose": true,
+        "max_abs": null,
+        "max_mae": null,
+        "min_pearson": 0.999,
+        "min_spearman": 0.999,
+        "rtol": 2e-05
+      }
+    },
     "age_t": {
       "failed_gates": [],
       "gate": "allclose+pearson+spearman",
-      "mae": 4.56303374582673e-07,
-      "max_abs": 2.409137735526201e-06,
+      "mae": 4.563033757386413e-07,
+      "max_abs": 2.4091377444079853e-06,
       "name": "age_t",
       "passes": true,
-      "pearson_r": 0.9999999999999974,
+      "pearson_r": 0.9999999999999976,
       "rank_candidate": 1,
       "rank_reference": 1,
       "scale": 1.0,
@@ -57,7 +83,7 @@
     "one_sample_effect": {
       "failed_gates": [],
       "gate": "allclose+pearson+spearman",
-      "mae": 1.9251439783882115e-09,
+      "mae": 1.925143983014141e-09,
       "max_abs": 5.035095562710978e-09,
       "name": "one_sample_effect",
       "passes": true,
@@ -83,11 +109,11 @@
     "one_sample_t": {
       "failed_gates": [],
       "gate": "allclose+pearson+spearman",
-      "mae": 3.505674660769992e-07,
+      "mae": 3.5056746608522307e-07,
       "max_abs": 2.6292118278092858e-06,
       "name": "one_sample_t",
       "passes": true,
-      "pearson_r": 0.999999999999997,
+      "pearson_r": 0.9999999999999969,
       "rank_candidate": 1,
       "rank_reference": 1,
       "scale": 1.0,

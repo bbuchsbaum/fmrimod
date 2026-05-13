@@ -72,7 +72,14 @@ For v1 canonical outputs:
 
 - Existing `fmri_meta` and `fmri_ttest` behavior remains unchanged.
 - `group_fit` delegates to parity implementations after normalization.
-- Correction is applied post-fit on canonical p-values.
+- Canonical `GroupFitResult.p` values are two-sided unless a future estimator
+  explicitly documents a different alternative.
+- Nilearn `SecondLevelModel` reports signed one-sided p-values for t maps.
+  Parity workflows that compare this quantity must name it separately (for
+  example `age_p_signed_one_sided`) and must not map it onto native
+  `p_coef:<term>` assays.
+- Correction is applied post-fit on canonical p-values, not on separately
+  named Nilearn signed-p parity quantities.
 - Spatial correction requires explicit grouping (`group_ids`) in v1.
 - `backend="fmrigds-r"` is available as an explicit R fmrigds oracle/fallback with capability checks.
 - `backend="fmrigds"` is retired from dispatch to avoid treating the R bridge as the native production path.

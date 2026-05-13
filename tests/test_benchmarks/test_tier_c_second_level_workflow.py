@@ -26,6 +26,8 @@ def test_tier_c_age_outputs_are_mapped_from_ols_assays() -> None:
 
     assert 'assay("coef:age")' in source
     assert 'assay("t_coef:age")' in source
+    assert 'assay("p_coef:age")' not in source
+    assert "age_p_signed_one_sided" in source
 
 
 def test_tier_c_second_level_has_no_caveats() -> None:
@@ -33,3 +35,11 @@ def test_tier_c_second_level_has_no_caveats() -> None:
 
     assert case.declared_caveats == ()
     assert case.tolerances["age_t"].check_allclose
+    assert case.tolerances["age_p_signed_one_sided"].check_allclose
+
+
+def test_tier_c_age_p_parity_is_named_signed_quantity() -> None:
+    outputs = workflow.fmrimod_pipeline(workflow.make_inputs()).arrays
+
+    assert "age_p_signed_one_sided" in outputs
+    assert outputs["age_p_signed_one_sided"].ndim == 1
