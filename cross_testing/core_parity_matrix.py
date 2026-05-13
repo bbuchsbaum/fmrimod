@@ -1881,11 +1881,7 @@ def run_ws10_performance_decomposition_parity(
                 return_fitted=True,
                 check_finite=False,
             )
-            residuals = (
-                Y_ar - fit_ols.fitted
-                if fit_ols.fitted is not None
-                else Y_ar - X_ar @ fit_ols.betas
-            )
+            residuals = Y_ar - X_ar @ np.asarray(fit_ols.betas, dtype=np.float64)
             ta0 = time.perf_counter()
             phi_hat = estimate_ar(
                 residuals,
