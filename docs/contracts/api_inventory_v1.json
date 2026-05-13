@@ -1,10 +1,10 @@
 {
   "counts": {
     "all_names": 194,
-    "any_in_signature": 7,
+    "any_in_signature": 1,
     "callable": 192,
     "classes": 11,
-    "opaque_forwarder": 135
+    "opaque_forwarder": 132
   },
   "fmrimod_version": "0.1.0",
   "rows": [
@@ -55,7 +55,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": true,
@@ -63,7 +63,7 @@
       "name": "HRF",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.hrf.core",
-      "runtime_signature": "(name: 'str', nbasis: 'int' = 1, span: 'float' = 24.0, params: 'Dict[str, Any]' = <factory>, param_names: 'Optional[list[str]]' = None) -> None",
+      "runtime_signature": "(name: 'str', nbasis: 'int' = 1, span: 'float' = 24.0, params: 'Dict[str, HrfParamValue]' = <factory>, param_names: 'Optional[list[str]]' = None) -> None",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -295,7 +295,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": true,
@@ -303,7 +303,7 @@
       "name": "HrfTerm",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.spec.terms",
-      "runtime_signature": "(variables: 'Tuple[str, ...]', hrf: 'Union[HRF, str]' = 'spm', contrasts: 'Tuple[Any, ...]' = (), modulators: 'Tuple[Any, ...]' = (), durations: 'Union[str, float, None]' = None, lag: 'float' = 0.0, subset: 'Optional[Predicate]' = None, prefix: 'Optional[str]' = None, id: 'Optional[str]' = None, norm: 'Optional[NormMode]' = None, normalize: 'bool' = False, summate: 'bool' = True) -> None",
+      "runtime_signature": "(variables: 'Tuple[str, ...]', hrf: 'Union[HRF, str]' = 'spm', contrasts: 'Tuple[ContrastSpec, ...]' = (), modulators: 'Tuple[str, ...]' = (), durations: 'Union[str, float, None]' = None, lag: 'float' = 0.0, subset: 'Optional[Predicate]' = None, prefix: 'Optional[str]' = None, id: 'Optional[str]' = None, norm: 'Optional[NormMode]' = None, normalize: 'bool' = False, summate: 'bool' = True) -> None",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -325,30 +325,30 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": true,
       "is_function": false,
       "name": "Poly",
-      "opaque_forwarder": true,
+      "opaque_forwarder": false,
       "owner_module": "fmrimod.basis.polynomial",
-      "runtime_signature": "(*args: Any, degree: Optional[int] = None, intercept: Optional[bool] = None, raw: bool = False, name: Optional[str] = None)",
+      "runtime_signature": "(degree: int, intercept: bool = True, raw: bool = False, name: Optional[str] = None) -> None",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": true,
       "is_function": false,
       "name": "RobustScale",
-      "opaque_forwarder": true,
+      "opaque_forwarder": false,
       "owner_module": "fmrimod.basis.transform",
-      "runtime_signature": "(*args: Any, center: bool = True, scale: str = 'mad', constant: float = 1.4826, name: Optional[str] = None)",
+      "runtime_signature": "(center: bool = True, scale: str = 'mad', constant: float = 1.4826, name: Optional[str] = None) -> None",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -415,15 +415,15 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": true,
       "is_function": false,
       "name": "Scale",
-      "opaque_forwarder": true,
+      "opaque_forwarder": false,
       "owner_module": "fmrimod.basis.transform",
-      "runtime_signature": "(*args: Any, center: bool = True, scale: bool = True, name: Optional[str] = None)",
+      "runtime_signature": "(center: bool = True, scale: bool = True, name: Optional[str] = None) -> None",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -1555,7 +1555,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1563,7 +1563,7 @@
       "name": "gen_hrf",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.hrf.generators",
-      "runtime_signature": "(hrf: 'Union[HRF, Callable, str]', lag: 'float' = 0.0, width: 'float' = 0.0, precision: 'float' = 0.1, half_life: 'float' = inf, summate: 'bool' = True, normalize: 'bool' = False, name: 'Optional[str]' = None, span: 'Optional[float]' = None, **kwargs: 'Any') -> 'HRF'",
+      "runtime_signature": "(hrf: 'Union[HRF, Callable, str]', lag: 'float' = 0.0, width: 'float' = 0.0, precision: 'float' = 0.1, half_life: 'float' = inf, summate: 'bool' = True, normalize: 'bool' = False, name: 'Optional[str]' = None, span: 'Optional[float]' = None, **kwargs: 'HrfParamValue') -> 'HRF'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2042,7 +2042,7 @@
       "is_function": false,
       "name": "hrf_spmg1",
       "opaque_forwarder": true,
-      "owner_module": null,
+      "owner_module": "functools",
       "runtime_signature": "(*args, **kwargs)",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
