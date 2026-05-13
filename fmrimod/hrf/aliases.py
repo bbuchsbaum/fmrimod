@@ -103,7 +103,7 @@ def _normalize_hrf_name(name: str) -> HRFName:
     out = _ALIASES.get(key)
     if out is None:
         raise ValueError(
-            f"HRF name {name!r} not recognized. "
+            f"HRF name {name!r} not found in registry or alias table. "
             f"Available: {sorted(set(_ALIASES.values()))}."
         )
     return out

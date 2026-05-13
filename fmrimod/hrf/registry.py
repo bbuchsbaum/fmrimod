@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import math
 from typing import Any, Callable, Dict, List, Optional, Union, cast
 
 from .aliases import HRFName, _normalize_hrf_name
@@ -39,6 +40,22 @@ def _validate_kwargs(kind: str, kwargs: dict[str, object], accepted: set[str]) -
         )
 
 
+def _normalize_generator_kwargs(kind: str, kwargs: dict[str, object]) -> dict[str, object]:
+    """Normalize legacy parameter aliases before constructor validation."""
+    out = dict(kwargs)
+    if kind == "gamma" and "scale" in out:
+        if "rate" in out:
+            raise ValueError("Use either gamma scale or rate, not both.")
+        try:
+            scale = float(cast(Any, out.pop("scale")))
+        except (TypeError, ValueError):
+            raise ValueError("gamma scale must be numeric") from None
+        if not math.isfinite(scale) or scale <= 0:
+            raise ValueError("gamma scale must be finite and > 0")
+        out["rate"] = 1.0 / scale
+    return out
+
+
 def _instantiate_predefined_hrf(
     kind: str,
     hrf: HRF,
@@ -46,7 +63,7 @@ def _instantiate_predefined_hrf(
 ) -> HRF:
     cls = type(hrf)
     accepted, accepts_var_kwargs = _callable_params(cls)
-    ctor_kwargs = dict(kwargs)
+    ctor_kwargs = _normalize_generator_kwargs(kind, kwargs)
     if (
         "n_basis" in ctor_kwargs
         and "nbasis" in accepted
@@ -122,7 +139,7 @@ def get_hrf(
         )
 
     hrf_or_gen = _HRF_REGISTRY[canonical]
-    kwargs_local = dict(kwargs)
+    kwargs_local = _normalize_generator_kwargs(canonical, dict(kwargs))
 
     generator_key = f"hrf_{canonical}"
     if kwargs_local and generator_key in _HRF_REGISTRY:
