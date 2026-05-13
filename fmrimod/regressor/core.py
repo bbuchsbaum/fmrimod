@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass, field
-from typing import Any, Callable, List, Optional, Tuple, Union, cast
+from typing import Any, Callable, List, Literal, Optional, Tuple, Union, cast, overload
 
 import numpy as np
 import scipy
@@ -265,6 +265,27 @@ class Regressor:
             resolution
         )
 
+    @overload
+    def evaluate(
+        self,
+        grid: ArrayLike,
+        precision: float = ...,
+        method: ConvolutionMethod = ...,
+        sparse: Literal[False] = ...,
+        normalize: bool = ...,
+    ) -> NDArray[np.float64]: ...
+
+    @overload
+    def evaluate(
+        self,
+        grid: ArrayLike,
+        precision: float = ...,
+        method: ConvolutionMethod = ...,
+        *,
+        sparse: Literal[True],
+        normalize: bool = ...,
+    ) -> scipy.sparse.csr_matrix: ...
+
     def evaluate(
         self,
         grid: ArrayLike,
@@ -283,7 +304,11 @@ class Regressor:
             normalize: Whether to normalize each column to unit peak
 
         Returns:
-            Evaluated regressor values at grid points
+            Evaluated regressor values at grid points. The exact type
+            is decidable from ``sparse``: ``Literal[False]`` returns a
+            dense ``NDArray``, ``Literal[True]`` returns a
+            :class:`scipy.sparse.csr_matrix`. ``@overload`` is declared
+            so static checkers narrow the return type at the call site.
         """
         grid = np.asarray(grid, dtype=np.float64)
 
@@ -484,6 +509,25 @@ class RegressorSet:
     regressors: List[Regressor]
     levels: List[str]
     
+    @overload
+    def evaluate(
+        self,
+        grid: ArrayLike,
+        precision: float = ...,
+        method: ConvolutionMethod = ...,
+        sparse: Literal[False] = ...,
+    ) -> NDArray[np.float64]: ...
+
+    @overload
+    def evaluate(
+        self,
+        grid: ArrayLike,
+        precision: float = ...,
+        method: ConvolutionMethod = ...,
+        *,
+        sparse: Literal[True],
+    ) -> scipy.sparse.csr_matrix: ...
+
     def evaluate(
         self,
         grid: ArrayLike,
@@ -492,15 +536,18 @@ class RegressorSet:
         sparse: bool = False
     ) -> Union[NDArray[np.float64], scipy.sparse.csr_matrix]:
         """Evaluate all regressors to create design matrix.
-        
+
         Args:
             grid: Time points at which to evaluate
             precision: Temporal precision
             method: Evaluation method
             sparse: Whether to return sparse matrix
-            
+
         Returns:
-            Design matrix with columns for each regressor
+            Design matrix with columns for each regressor. ``@overload``
+            narrows the return: ``sparse=False`` (default) yields a
+            dense ``NDArray``, ``sparse=True`` yields a
+            :class:`scipy.sparse.csr_matrix`.
         """
         # Evaluate each regressor
         results = []

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional, Union
+from typing import List, Literal, Optional, Union, overload
 
 import numpy as np
 import pandas as pd
@@ -12,6 +12,44 @@ from scipy.sparse import csr_matrix
 
 from .convolution import ConvolutionMethod
 from .core import Regressor, RegressorSet
+
+
+@overload
+def regressor_design(
+    regressors: Union[Regressor, RegressorSet, List[Regressor]],
+    grid: ArrayLike,
+    precision: float = ...,
+    method: ConvolutionMethod = ...,
+    sparse: Literal[False] = ...,
+    include_intercept: bool = ...,
+    column_names: None = ...,
+) -> NDArray[np.float64]: ...
+
+
+@overload
+def regressor_design(
+    regressors: Union[Regressor, RegressorSet, List[Regressor]],
+    grid: ArrayLike,
+    precision: float = ...,
+    method: ConvolutionMethod = ...,
+    sparse: Literal[False] = ...,
+    include_intercept: bool = ...,
+    *,
+    column_names: List[str],
+) -> pd.DataFrame: ...
+
+
+@overload
+def regressor_design(
+    regressors: Union[Regressor, RegressorSet, List[Regressor]],
+    grid: ArrayLike,
+    precision: float = ...,
+    method: ConvolutionMethod = ...,
+    *,
+    sparse: Literal[True],
+    include_intercept: bool = ...,
+    column_names: Optional[List[str]] = ...,
+) -> scipy.sparse.csr_matrix: ...
 
 
 def regressor_design(
