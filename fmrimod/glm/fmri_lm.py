@@ -189,6 +189,25 @@ def _seed_provenance(
     return None, "not_randomized"
 
 
+def _mask_mode_provenance(model: Any) -> tuple[Optional[MaskMode], CarryStatus]:
+    """Infer mask mode from the fitted dataset without adding new API."""
+    dataset = getattr(model, "dataset", None)
+    if dataset is None or not hasattr(dataset, "get_mask"):
+        return None, "unknown"
+    try:
+        mask = np.asarray(dataset.get_mask(), dtype=bool)
+    except Exception:
+        return None, "unknown"
+
+    if mask.size == 0:
+        return None, "unknown"
+    if bool(np.all(mask)):
+        return "none", "carried"
+    if mask.ndim >= 3:
+        return "volume", "carried"
+    return "explicit", "carried"
+
+
 def _build_fit_provenance(
     model: Any,
     config: FmriLmConfig,
@@ -206,6 +225,7 @@ def _build_fit_provenance(
     )
     solver_path = type(engine).__name__
     seed, seed_status = _seed_provenance(engine, fit_kwargs)
+    mask_mode, mask_status = _mask_mode_provenance(model)
     return FitProvenance(
         fmrimod_version=_fmrimod_version,
         solver_path=solver_path,
@@ -214,6 +234,8 @@ def _build_fit_provenance(
         seed_status=seed_status,
         ar_config=config.ar,
         ar_status="carried",
+        mask_mode=mask_mode,
+        mask_status=mask_status,
     )
 
 if TYPE_CHECKING:

@@ -17,7 +17,21 @@ import fmrimod as fm
 from fmrimod.glm import SketchEngineOptions
 from fmrimod.glm.fmri_lm import FitProvenance, FmriLm
 from fmrimod.model.config import AROptions, FmriLmConfig
+from fmrimod.dataset import FmriDataset
+from fmrimod.dataset.adapters.numpy_adapter import NumpyAdapter
+from fmrimod.sampling import SamplingFrame
 from fmrimod.spec import hrf as hrf_term
+
+
+def _events() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "onset": [10.0, 30.0],
+            "duration": [2.0, 2.0],
+            "trial_type": ["A", "B"],
+            "run": [1, 1],
+        }
+    )
 
 
 def _build_minimal_fit() -> FmriLm:
@@ -27,16 +41,7 @@ def _build_minimal_fit() -> FmriLm:
     tr = 2.0
     bold = rng.standard_normal((n_time, n_voxels)).astype(np.float64)
 
-    events = pd.DataFrame(
-        {
-            "onset": [10.0, 30.0],
-            "duration": [2.0, 2.0],
-            "trial_type": ["A", "B"],
-            "run": [1, 1],
-        }
-    )
-
-    ds = fm.fmri_dataset(bold, tr=tr, events=events)
+    ds = fm.fmri_dataset(bold, tr=tr, events=_events())
     return fm.fmri_lm(hrf_term("trial_type", norm="spm"), ds)
 
 
@@ -107,11 +112,11 @@ def test_slice_a_populates_three_fields() -> None:
 
 
 def test_slice_a_other_fields_carry_status() -> None:
-    """Unwired fields explicitly carry status companions.
+    """Every provenance field carries an explicit status companion.
 
     The pushback in work-requests/post-01KRGWDM1A4HE5FWW6P6E7QWBE required
-    status-bearing on every field that cannot truthfully populate today;
-    a None default would be a typed-looking escape hatch.
+    status-bearing on every field; a None default would be a typed-looking
+    escape hatch.
     """
     fit = _build_minimal_fit()
     prov = fit.provenance
@@ -122,8 +127,44 @@ def test_slice_a_other_fields_carry_status() -> None:
     assert prov.ar_config is not None
     assert prov.ar_config.struct == "iid"
     assert prov.ar_status == "carried"
-    assert prov.mask_mode is None
-    assert prov.mask_status == "not_yet_carried"
+    assert prov.mask_mode == "none"
+    assert prov.mask_status == "carried"
+
+
+def test_fit_provenance_records_explicit_flat_mask_mode() -> None:
+    """A nontrivial flat dataset mask is recorded as explicit masking."""
+    rng = np.random.default_rng(4)
+    ds = fm.fmri_dataset(
+        rng.standard_normal((60, 4)).astype(np.float64),
+        tr=2.0,
+        events=_events(),
+        mask=np.array([True, False, True, True]),
+    )
+
+    fit = fm.fmri_lm(hrf_term("trial_type"), ds)
+
+    assert fit.provenance is not None
+    assert fit.provenance.mask_mode == "explicit"
+    assert fit.provenance.mask_status == "carried"
+
+
+def test_fit_provenance_records_volume_mask_mode() -> None:
+    """A 3-D dataset mask is recorded as volume masking."""
+    rng = np.random.default_rng(5)
+    bold = rng.standard_normal((60, 4)).astype(np.float64)
+    mask = np.array([[[True], [False]], [[True], [True]]], dtype=bool)
+    adapter = NumpyAdapter(
+        bold,
+        SamplingFrame(blocklens=[60], tr=2.0),
+        mask=mask,
+    )
+    ds = FmriDataset(adapter, event_table=_events())
+
+    fit = fm.fmri_lm(hrf_term("trial_type"), ds)
+
+    assert fit.provenance is not None
+    assert fit.provenance.mask_mode == "volume"
+    assert fit.provenance.mask_status == "carried"
 
 
 def test_fit_provenance_records_typed_sketch_seed() -> None:
