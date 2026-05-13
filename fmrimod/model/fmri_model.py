@@ -194,9 +194,24 @@ class FmriModel:
 
     # -- Internal helpers --
 
+    @staticmethod
+    def _as_named_frame(
+        dm: object,
+        names: object = None,
+    ) -> pd.DataFrame:
+        """Return *dm* as a DataFrame, preserving supplied column names."""
+        frame = dm if isinstance(dm, pd.DataFrame) else pd.DataFrame(dm)
+        if names is not None:
+            colnames = list(names)
+            if len(colnames) == frame.shape[1]:
+                frame = frame.copy()
+                frame.columns = colnames
+        return frame
+
     def _get_event_dm(self, run: Optional[int]) -> pd.DataFrame:
         """Get event design matrix, optionally for a single run."""
         em = self._event_model
+        colnames = getattr(em, "column_names", None)
         if run is not None:
             if hasattr(em, "design_matrix"):
                 dm = em.design_matrix
@@ -207,15 +222,16 @@ class FmriModel:
                 else:
                     dm_slice = dm.iloc[starts[run] : ends[run]]
                 if isinstance(dm_slice, pd.DataFrame):
-                    return dm_slice.reset_index(drop=True)
-                return pd.DataFrame(dm_slice)
+                    return self._as_named_frame(
+                        dm_slice.reset_index(drop=True),
+                        colnames,
+                    )
+                return self._as_named_frame(dm_slice, colnames)
             raise TypeError("event_model does not have a design_matrix attribute")
 
         if hasattr(em, "design_matrix"):
             dm = em.design_matrix
-            if isinstance(dm, np.ndarray):
-                return pd.DataFrame(dm)
-            return dm if isinstance(dm, pd.DataFrame) else pd.DataFrame(dm)
+            return self._as_named_frame(dm, colnames)
         raise TypeError("event_model does not have a design_matrix attribute")
 
     def _get_baseline_dm(self, run: Optional[int]) -> pd.DataFrame:
@@ -225,6 +241,7 @@ class FmriModel:
             raise TypeError("baseline_model does not have a design_matrix method")
 
         dm = None
+        colnames = getattr(bm, "column_names", None)
 
         # Prefer baseline generic dispatch if available; fall back to the
         # object's design_matrix attribute otherwise.
@@ -256,9 +273,7 @@ class FmriModel:
             else:
                 dm = np.asarray(dm)[start:end]
 
-        if isinstance(dm, np.ndarray):
-            return pd.DataFrame(dm)
-        return dm if isinstance(dm, pd.DataFrame) else pd.DataFrame(dm)
+        return self._as_named_frame(dm, colnames)
 
     def _run_slices(self) -> tuple:
         """Compute start/end row indices for each run."""

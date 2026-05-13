@@ -5,15 +5,16 @@ import pandas as pd
 import pytest
 
 import fmrimod
-from fmrimod.model.fmri_model import FmriModel
 from fmrimod.betas.extraction import estimate_betas_lss, estimate_betas_ols
+from fmrimod.model.fmri_model import FmriModel
 
 
 class _DummyEvent:
     """Minimal event model exposing an ndarray design matrix."""
 
-    def __init__(self, design_matrix):
+    def __init__(self, design_matrix, column_names=None):
         self.design_matrix = design_matrix
+        self.column_names = column_names
 
 
 class _DummyBaseline:
@@ -23,8 +24,9 @@ class _DummyBaseline:
 class _DummyBaselineWithDesign:
     """Minimal baseline model exposing a design matrix attribute."""
 
-    def __init__(self, design_matrix):
+    def __init__(self, design_matrix, column_names=None):
         self.design_matrix = design_matrix
+        self.column_names = column_names
 
 
 class _DummyDataset:
@@ -93,6 +95,28 @@ class TestFmriModelRunwiseNdarray:
         arr = model.design_matrix_array(run=0)
         assert arr.dtype == np.float64
         assert arr.shape == (2, 3)
+
+    def test_design_matrix_preserves_component_column_names(self):
+        event_dm = np.arange(12).reshape(6, 2)
+        baseline_dm = np.ones((6, 2))
+        model = FmriModel(
+            _DummyEvent(event_dm, column_names=["condition_a", "condition_b"]),
+            _DummyBaselineWithDesign(
+                baseline_dm,
+                column_names=["drift_linear", "motion_x"],
+            ),
+            _DummyDataset([3, 3]),
+        )
+
+        full = model.design_matrix()
+        run0 = model.design_matrix(run=0)
+        assert list(full.columns) == [
+            "condition_a",
+            "condition_b",
+            "drift_linear",
+            "motion_x",
+        ]
+        assert list(run0.columns) == list(full.columns)
 
     def test_column_index_partition_is_consistent(self):
         event_dm = np.arange(18).reshape(6, 3)

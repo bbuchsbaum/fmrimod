@@ -6,7 +6,6 @@ import pytest
 
 from cross_testing.harness import render, run
 
-
 pytestmark = pytest.mark.parity
 
 pytest.importorskip("nilearn")
@@ -16,6 +15,8 @@ pytest.importorskip("nibabel")
 @pytest.mark.parametrize(
     "module_name",
     [
+        "benchmarks.parity.tier_a_f_confound_drift.workflow",
+        "benchmarks.parity.tier_a_f_confound_drift.public_workflow",
         "benchmarks.parity.tier_a_fiac.workflow",
         "benchmarks.parity.tier_a_localizer_fixed_effects.workflow",
     ],
