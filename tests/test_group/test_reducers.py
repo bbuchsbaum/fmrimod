@@ -58,7 +58,15 @@ def test_meta_fe_matches_inverse_variance_mean() -> None:
         out.assay("z_g")[0, 0, 0],
         expected / np.sqrt(expected_var),
     )
-    assert set(out.assay_names()) == {"I2", "Q", "beta_g", "p_g", "se_g", "var_g", "z_g"}
+    assert set(out.assay_names()) == {
+        "I2",
+        "Q",
+        "beta_g",
+        "p_g",
+        "se_g",
+        "var_g",
+        "z_g",
+    }
 
 
 def test_reduce_dispatches_registered_meta_fe() -> None:
@@ -232,7 +240,9 @@ def test_meta_fe_reg_matches_weighted_least_squares() -> None:
     assert out.metadata["predictor_names"] == ("Intercept", "age")
     np.testing.assert_allclose(out.assay("coef:Intercept")[0, 0, 0], expected_coef[0])
     np.testing.assert_allclose(out.assay("coef:age")[0, 0, 0], expected_coef[1])
-    np.testing.assert_allclose(out.assay("se_coef:age")[0, 0, 0], np.sqrt(expected_cov[1, 1]))
+    np.testing.assert_allclose(
+        out.assay("se_coef:age")[0, 0, 0], np.sqrt(expected_cov[1, 1])
+    )
 
 
 def test_meta_re_reg_reports_dl_tau2_and_dispatches() -> None:
@@ -284,7 +294,9 @@ def test_perm_onesample_uses_supplied_sign_matrix() -> None:
     for s in signs:
         sy = s * y
         null_t.append(np.mean(sy) / (np.std(sy, ddof=1) / np.sqrt(3)))
-    expected_perm = np.mean(np.abs(null_t) >= abs(expected_t))
+    expected_perm = (np.sum(np.abs(null_t) >= abs(expected_t)) + 1.0) / (
+        len(null_t) + 1.0
+    )
 
     np.testing.assert_allclose(out.assay("beta_g")[0, 0, 0], 2.0)
     np.testing.assert_allclose(out.assay("t_g")[0, 0, 0], expected_t)
