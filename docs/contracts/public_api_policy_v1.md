@@ -57,7 +57,8 @@ The stable surface of fmrimod consists of:
   `FmriLmConfig` (and its option dataclasses), `FitProvenance` (the
   fit-level reproducibility metadata attached to `FmriLm.provenance`,
   operationalizing VISION.md:99-103 with explicit status fields for
-  not-yet-wired provenance slots), `ContrastSpec` and result
+  not-yet-wired provenance slots), `ReplayResult`, `ContrastDelta`,
+  `ReplayContractError`, `ContrastSpec` and result
   objects, `GroupDataset`, `GroupSpace`, and the canonical reducer set
   under `fmrimod.group`.
 - **Package-level compatibility modules** named in the inventory's

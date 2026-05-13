@@ -193,6 +193,7 @@ from .ar import compat
 # ── Formula functions (lazy to avoid shadowing hrf subpackage) ───────
 from functools import partial as _partial
 
+
 def hrf_formula(*args, **kwargs):
     """HRF formula function. See :func:`fmrimod.formula.functional.hrf`."""
     from .formula.functional import hrf as _hrf_func
@@ -284,6 +285,7 @@ _LAZY_ATTRS: dict[str, tuple[str, str]] = {
     "compute_lm_contrasts": ("fmrimod.glm", "compute_lm_contrasts"),
     "compute_lm_contrasts_from_suffstats": ("fmrimod.glm", "compute_lm_contrasts_from_suffstats"),
     "condition_map": ("fmrimod.utils", "condition_map"),
+    "ContrastDelta": ("fmrimod.glm", "ContrastDelta"),
     "contrast_weights": ("fmrimod.contrast", "contrast_weights"),
     "create_design_matrix_from_benchmark": ("fmrimod.dataset", "create_design_matrix_from_benchmark"),
     "data_chunks": ("fmrimod.dataset", "data_chunks"),
@@ -355,6 +357,10 @@ _LAZY_ATTRS: dict[str, tuple[str, str]] = {
     "paired_diff_block": ("fmrimod.glm", "paired_diff_block"),
     "pvalues": ("fmrimod.accessors", "pvalues"),
     "r_to_z": ("fmrimod.stats", "r_to_z"),
+    "replay": ("fmrimod.glm", "replay"),
+    "replay_fits": ("fmrimod.glm", "replay_fits"),
+    "ReplayContractError": ("fmrimod.glm", "ReplayContractError"),
+    "ReplayResult": ("fmrimod.glm", "ReplayResult"),
     "read_fmri_config": ("fmrimod.dataset", "read_fmri_config"),
     "read_h5_full": ("fmrimod.dataset", "read_h5_full"),
     "read_nifti_full": ("fmrimod.dataset", "read_nifti_full"),
@@ -520,6 +526,7 @@ __all__ = [
     "RobustScale",
     "condition_basis_list",
     "condition_map",
+    "ContrastDelta",
     "evaluate",
     "acquisition_onsets",
     "amplitudes",
@@ -609,6 +616,10 @@ __all__ = [
     "write_results",
     "t_to_d",
     "r_to_z",
+    "replay",
+    "replay_fits",
+    "ReplayContractError",
+    "ReplayResult",
     "z_to_r",
     "simulate_simple_dataset",
     "simulate_bold_signal",

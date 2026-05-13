@@ -97,6 +97,25 @@ present as value slots with explicit status fields while their wiring lands in
 follow-up slices. Existing serialized or in-memory ``FmriLm`` objects from older
 versions may not have this attribute populated.
 
+Replay Comparisons
+------------------
+
+Use ``fm.replay_fits`` when two ``FmriLm`` objects already exist and should be
+compared without recomputing a large first-level model. By default it compares
+the intersection of compatible named contrasts and reports names dropped from
+either side. Pass ``named_contrasts=...`` to require exact named contrast
+availability; missing names, empty intersections, statistic-shape mismatches,
+or contrast degrees-of-freedom mismatches raise ``ReplayContractError``.
+
+``fm.replay`` is the convenience facade for fitting two specs on the same
+dataset and then delegating to ``replay_fits``.
+
+.. code-block:: python
+
+   result = fm.replay_fits(fit_a, fit_b)
+   for delta in result.contrast_deltas:
+       print(delta.name, delta.max_abs_delta, delta.median_abs_delta)
+
 Configuration: OLS, AR, Robust, Weights
 ---------------------------------------
 

@@ -54,6 +54,13 @@ from .fmri_lm import (
     IncompleteFitProvenanceError,
     fmri_lm,
 )
+from .replay import (
+    ContrastDelta,
+    ReplayContractError,
+    ReplayResult,
+    replay,
+    replay_fits,
+)
 from .solver import Projection, fast_lm_matrix, fast_preproject
 from .spatial import SpatialContext
 
@@ -63,6 +70,11 @@ __all__ = [
     "FitProvenance",
     "CompleteFitProvenance",
     "IncompleteFitProvenanceError",
+    "replay",
+    "replay_fits",
+    "ReplayContractError",
+    "ReplayResult",
+    "ContrastDelta",
     "fast_preproject",
     "fast_lm_matrix",
     "Projection",

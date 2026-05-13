@@ -1,10 +1,10 @@
 {
   "counts": {
-    "all_names": 199,
+    "all_names": 204,
     "any_in_signature": 1,
-    "callable": 197,
-    "classes": 18,
-    "opaque_forwarder": 39
+    "callable": 202,
+    "classes": 21,
+    "opaque_forwarder": 40
   },
   "fmrimod_version": "0.1.0",
   "rows": [
@@ -21,6 +21,21 @@
       "runtime_signature": "(columns: 'Tuple[str, ...]', source: 'Optional[pd.DataFrame]' = None) -> None",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
+      "compatibility_status": "review_pending",
+      "has_any_in_signature": false,
+      "has_untagged_kwargs_dict": false,
+      "is_callable": true,
+      "is_class": true,
+      "is_function": false,
+      "name": "ContrastDelta",
+      "opaque_forwarder": false,
+      "owner_module": "fmrimod.glm.replay",
+      "runtime_signature": "(name: 'str', stat_type: \"Literal['t', 'F']\", value_a: 'float', value_b: 'float', max_abs_delta: 'float', median_abs_delta: 'float', df_a: 'float | tuple[object, ...]', df_b: 'float | tuple[object, ...]', df_match: 'bool') -> None",
+      "signature_source": "inspect.signature",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -351,6 +366,36 @@
       "runtime_signature": "(degree: int, intercept: bool = True, raw: bool = False, name: Optional[str] = None) -> None",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
+      "compatibility_status": "review_pending",
+      "has_any_in_signature": false,
+      "has_untagged_kwargs_dict": false,
+      "is_callable": true,
+      "is_class": true,
+      "is_function": false,
+      "name": "ReplayContractError",
+      "opaque_forwarder": false,
+      "owner_module": "fmrimod.glm.replay",
+      "runtime_signature": "(message: 'str', weak_fields: 'tuple[str, ...]' = (), repair_path: 'str | None' = None) -> None",
+      "signature_source": "inspect.signature",
+      "tier": "compat",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
+      "compatibility_status": "review_pending",
+      "has_any_in_signature": false,
+      "has_untagged_kwargs_dict": false,
+      "is_callable": true,
+      "is_class": true,
+      "is_function": false,
+      "name": "ReplayResult",
+      "opaque_forwarder": false,
+      "owner_module": "fmrimod.glm.replay",
+      "runtime_signature": "(diff: \"'SpecDiff'\", fit_a: \"'FmriLm'\", fit_b: \"'FmriLm'\", contrast_deltas: 'tuple[ContrastDelta, ...]', dropped_from_a: 'tuple[str, ...]' = (), dropped_from_b: 'tuple[str, ...]' = ()) -> None",
+      "signature_source": "inspect.signature",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -2571,6 +2616,36 @@
       "runtime_signature": "(onsets: 'ArrayLike', fac: 'ArrayLike', hrf: 'HRFLike' = 'spmg1', duration: 'Union[float, ArrayLike]' = 0.0, amplitude: 'Union[float, ArrayLike]' = 1.0, span: 'Optional[float]' = None, summate: 'bool' = True) -> 'RegressorSet'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
+      "compatibility_status": "review_pending",
+      "has_any_in_signature": false,
+      "has_untagged_kwargs_dict": false,
+      "is_callable": true,
+      "is_class": false,
+      "is_function": true,
+      "name": "replay",
+      "opaque_forwarder": true,
+      "owner_module": "fmrimod.glm.replay",
+      "runtime_signature": "(spec_a: \"'Spec | Term | str | Sequence[object]'\", spec_b: \"'Spec | Term | str | Sequence[object]'\", dataset: \"'FmriDataset'\", *, config: \"'FmriLmConfig | None'\" = None, named_contrasts: 'Sequence[str] | None' = None, **fit_kwargs: 'object') -> 'ReplayResult'",
+      "signature_source": "inspect.signature",
+      "tier": "compat",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
+      "compatibility_status": "review_pending",
+      "has_any_in_signature": false,
+      "has_untagged_kwargs_dict": false,
+      "is_callable": true,
+      "is_class": false,
+      "is_function": true,
+      "name": "replay_fits",
+      "opaque_forwarder": false,
+      "owner_module": "fmrimod.glm.replay",
+      "runtime_signature": "(fit_a: \"'FmriLm'\", fit_b: \"'FmriLm'\", *, named_contrasts: 'Sequence[str] | None' = None) -> 'ReplayResult'",
+      "signature_source": "inspect.signature",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
