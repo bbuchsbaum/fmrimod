@@ -25,8 +25,9 @@ def test_fitlins_cli_derivative_tree_parity(tmp_path):
     assert len(result.deltas) == 6
     assert all(delta.passes for delta in result.deltas)
     assert {delta.caveat_id for delta in result.deltas if delta.caveat_id} == {
-        "fitlins-nilearn-ar1-stat-covariance"
+        "fitlins-ar1-coefficient-binning"
     }
+    assert any(delta.gate.startswith("caveat-bypassed:") for delta in result.deltas)
     assert result.design_columns == [
         "trial_type.ice_cream",
         "trial_type.cake",
@@ -38,4 +39,4 @@ def test_fitlins_cli_derivative_tree_parity(tmp_path):
     json_path, md_path = render_fitlins_cli_derivative_report(result, tmp_path / "report")
     payload = json.loads(json_path.read_text())
     assert payload["status"] == "pass_with_caveats"
-    assert md_path.exists()
+    assert "| map | gate |" in md_path.read_text()

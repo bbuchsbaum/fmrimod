@@ -17,9 +17,10 @@ import pandas as pd
 from nilearn.glm.first_level.hemodynamic_models import compute_regressor
 
 import fmrimod as fm
-from cross_testing.fitlins_ar1_parity import fit_fmrimod_ar1
 from cross_testing.harness import ParityCase, ParityTolerance, PipelineOutput, render, run
+from fmrimod.ar import ar_whiten_matrix, estimate_ar
 from fmrimod.bids import translate_run_node
+from fmrimod.glm.solver import fast_lm_matrix, fast_preproject
 
 
 def _stats_model() -> dict:
@@ -187,6 +188,7 @@ class DerivativeDelta:
     max_abs: float
     mae: float
     pearson_r: float
+    gate: str
     passes: bool
     caveat_id: str | None = None
 
@@ -321,6 +323,10 @@ def _fit_fmrimod_derivatives(paths: dict[str, Path], fitlins_out: Path, fmrimod_
     Y = data[mask].T
     mean = np.maximum(Y.mean(axis=0), 1.0)
     Y = 100.0 * (Y / mean - 1.0)
+    ols = fast_lm_matrix(X, Y, fast_preproject(X), return_fitted=False)
+    residuals = Y - X @ ols.betas
+    ar1 = estimate_ar(residuals, order=1, voxelwise=True).reshape(-1)
+    ar1_bins = (ar1 * 100).astype(int) / 100.0
     fmrimod_files: list[str] = []
     columns = list(design.columns)
     contrast_specs = {
@@ -331,14 +337,20 @@ def _fit_fmrimod_derivatives(paths: dict[str, Path], fitlins_out: Path, fmrimod_
         contrast = np.zeros(len(columns), dtype=np.float64)
         for column, weight in weights.items():
             contrast[columns.index(column)] = weight
-        fit = fit_fmrimod_ar1(X, Y, contrast, iter_gls=2, voxelwise=False)
-        effect = contrast @ fit["betas"]
-        tstat = fit["t"]
-        with np.errstate(divide="ignore", invalid="ignore"):
-            variance = np.where(
-                np.abs(tstat) > np.finfo(np.float64).eps,
-                (effect / tstat) ** 2,
-                0.0,
+        effect = np.zeros(Y.shape[1], dtype=np.float64)
+        variance = np.zeros(Y.shape[1], dtype=np.float64)
+        tstat = np.zeros(Y.shape[1], dtype=np.float64)
+        for ar1_bin in np.unique(ar1_bins):
+            cols_idx = ar1_bins == ar1_bin
+            Xw, Yw = ar_whiten_matrix(X, Y[:, cols_idx], np.array([ar1_bin]))
+            projection = fast_preproject(Xw, check_finite=False)
+            fit = fast_lm_matrix(Xw, Yw, projection, check_finite=False)
+            effect[cols_idx] = contrast @ fit.betas
+            variance[cols_idx] = fit.sigma2 * float(
+                contrast @ projection.XtXinv @ contrast
+            )
+            tstat[cols_idx] = effect[cols_idx] / np.sqrt(
+                np.maximum(variance[cols_idx], np.finfo(np.float64).eps)
             )
         outputs = {"effect": effect, "variance": variance, "t": tstat}
         for stat_name, values in outputs.items():
@@ -373,6 +385,7 @@ def _compare_derivatives(
                     max_abs=float("inf"),
                     mae=float("inf"),
                     pearson_r=0.0,
+                    gate="missing_file",
                     passes=False,
                     caveat_id=None,
                 )
@@ -392,11 +405,20 @@ def _compare_derivatives(
             else 1.0
         )
         is_effect = "_stat-effect_" in str(rel)
-        caveat_id = None if is_effect else "fitlins-nilearn-ar1-stat-covariance"
+        is_t = "_stat-t_" in str(rel)
+        is_variance = "_stat-variance_" in str(rel)
+        caveat_id = None if is_effect else "fitlins-ar1-coefficient-binning"
+        gate = "max_abs+pearson" if is_effect or is_t else "max_abs"
+        if caveat_id:
+            gate = f"caveat-bypassed:{gate}"
         passes = (
-            (max_abs <= 2e-2 and pearson >= 0.99)
+            (max_abs <= 2e-3 and pearson >= 0.99)
             if is_effect
-            else np.isfinite(max_abs) and np.isfinite(mae)
+            else (max_abs <= 0.15 and pearson >= 0.99)
+            if is_t
+            else (max_abs <= 2e-3)
+            if is_variance
+            else False
         )
         deltas.append(
             DerivativeDelta(
@@ -404,6 +426,7 @@ def _compare_derivatives(
                 max_abs=max_abs,
                 mae=mae,
                 pearson_r=pearson,
+                gate=gate,
                 passes=bool(passes),
                 caveat_id=caveat_id,
             )
@@ -510,9 +533,9 @@ def run_fitlins_cli_derivative_parity(work_dir: Path | None = None) -> FitlinsCl
         caveats=[
             "Comparison is scoped to run-level design, effect, variance, and t maps; "
             "FitLins-only p/z/report/rSquare/log-likelihood outputs are inventoried but not recomputed.",
-            "fitlins-nilearn-ar1-stat-covariance: t and variance maps are compared voxel-wise "
-            "and reported, but not gated on tight equality because FitLins/Nilearn AR(1) "
-            "covariance/statistic handling is not identical to the current fmrimod AR whitening path.",
+            "fitlins-ar1-coefficient-binning: t and variance maps use voxelwise AR(1) "
+            "coefficients binned to 0.01 in this fixture. Remaining deltas reflect small "
+            "AR coefficient estimation/binning differences rather than contrast algebra.",
         ],
     )
     if owns_tmp:
@@ -539,12 +562,12 @@ def render_fitlins_cli_derivative_report(
         "",
         "## Compared Maps",
         "",
-        "| map | max_abs | mae | pearson_r | caveat | pass |",
-        "| --- | ---: | ---: | ---: | --- | --- |",
+        "| map | gate | max_abs | mae | pearson_r | caveat | pass |",
+        "| --- | --- | ---: | ---: | ---: | --- | --- |",
     ]
     for delta in result.deltas:
         lines.append(
-            f"| {delta.name} | {delta.max_abs:.6g} | {delta.mae:.6g} | "
+            f"| {delta.name} | {delta.gate} | {delta.max_abs:.6g} | {delta.mae:.6g} | "
             f"{delta.pearson_r:.6g} | {delta.caveat_id or ''} | "
             f"{'yes' if delta.passes else 'no'} |"
         )
