@@ -6,8 +6,8 @@ Includes volume weighting, soft subspace projection, and censoring.
 from __future__ import annotations
 
 import os
-from typing import Optional, Tuple, Union
 import warnings
+from typing import Optional, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -278,7 +278,7 @@ def extract_nuisance_timeseries(
         Nuisance mask specification:
         - 1-D boolean/numeric vector
         - 3-D boolean/numeric array
-        - path/path-like to a NIfTI mask file (requires nibabel)
+        - path/path-like to a NIfTI mask file (read through neuroim)
     dataset_mask : NDArray[bool], optional
         Full dataset spatial mask (typically 3-D). When provided and
         ``nuisance_mask`` is in full-volume space, it is mapped into
@@ -296,12 +296,15 @@ def extract_nuisance_timeseries(
     mask_obj = nuisance_mask
     if isinstance(mask_obj, (str, bytes, os.PathLike)):
         try:
-            import nibabel as nib  # type: ignore[import-not-found]
+            from neuroim import read_image
         except Exception as exc:  # pragma: no cover - import guard
             raise ImportError(
-                "nuisance_mask path support requires nibabel to be installed"
+                "nuisance_mask path support requires neuroim to be installed"
             ) from exc
-        mask_arr = np.asarray(nib.load(os.fspath(mask_obj)).get_fdata(), dtype=bool)
+        mask_arr = np.asarray(
+            read_image(os.fspath(mask_obj), type="vol").as_array(),
+            dtype=bool,
+        )
     else:
         mask_arr = np.asarray(mask_obj)
 

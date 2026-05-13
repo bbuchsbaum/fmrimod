@@ -1,9 +1,7 @@
 """BIDS-Stats-Model export for GLM results.
 
-Writes fitted GLM results (betas, contrasts, statistics) as NIfTI
-images with BIDS-compliant filenames and JSON sidecar metadata.
-
-Requires ``nibabel`` (optional dependency).
+Writes fitted GLM results (betas, contrasts, statistics) as NIfTI images with
+BIDS-compliant filenames and JSON sidecar metadata.
 """
 
 from __future__ import annotations
@@ -98,7 +96,7 @@ def _make_nifti_image(
     mask: NDArray[np.bool_],
     affine: NDArray[np.float64],
 ) -> Any:
-    """Create a NIfTI image from a 1-D voxel vector and mask.
+    """Create a neuroim volume from a 1-D voxel vector and mask.
 
     Parameters
     ----------
@@ -111,15 +109,9 @@ def _make_nifti_image(
 
     Returns
     -------
-    nib.Nifti1Image
+    neuroim.DenseNeuroVol
     """
-    try:
-        import nibabel as nib
-    except ImportError as e:
-        raise ImportError(
-            "nibabel is required for BIDS export. "
-            "Install with: pip install fmrimod[nibabel]"
-        ) from e
+    from neuroim import DenseNeuroVol, NeuroSpace
 
     if data_3d.ndim == 1:
         vol = np.zeros(mask.shape, dtype=np.float64)
@@ -127,7 +119,15 @@ def _make_nifti_image(
     else:
         vol = data_3d
 
-    return nib.Nifti1Image(vol.astype(np.float32), affine)
+    space = NeuroSpace(dim=vol.shape, trans=np.asarray(affine, dtype=np.float64))
+    return DenseNeuroVol(vol.astype(np.float32), space)
+
+
+def _write_nifti_image(img: Any, out_path: Path) -> None:
+    """Write a neuroim volume as NIfTI."""
+    from neuroim import write_vol
+
+    write_vol(img, out_path, data_type="FLOAT")
 
 
 def write_betas(
@@ -156,13 +156,6 @@ def write_betas(
     list of Path
         Paths to written files.
     """
-    try:
-        import nibabel as nib
-    except ImportError as e:
-        raise ImportError(
-            "nibabel required for BIDS export: pip install fmrimod[nibabel]"
-        ) from e
-
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -177,7 +170,7 @@ def write_betas(
         )
         img = _make_nifti_image(betas[i], mask, affine)
         out_path = output_dir / fname
-        nib.save(img, str(out_path))
+        _write_nifti_image(img, out_path)
         written.append(out_path)
 
     # JSON sidecar
@@ -222,13 +215,6 @@ def write_contrasts(
     -------
     list of Path
     """
-    try:
-        import nibabel as nib
-    except ImportError as e:
-        raise ImportError(
-            "nibabel required for BIDS export: pip install fmrimod[nibabel]"
-        ) from e
-
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -252,7 +238,7 @@ def write_contrasts(
             )
             img = _make_nifti_image(data, mask, affine)
             out_path = output_dir / fname
-            nib.save(img, str(out_path))
+            _write_nifti_image(img, out_path)
             written.append(out_path)
 
         # JSON sidecar per contrast

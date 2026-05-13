@@ -14,13 +14,12 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
 from numbers import Integral
+from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 import numpy as np
 import pandas as pd
-
 
 ALLOWED_FORMATS = ("h5", "nifti", "csv", "fmrilm")
 
@@ -84,14 +83,14 @@ def _validate_files(paths: Sequence[str], *, name: str, validate: bool) -> None:
 def _nifti_shape(path: str) -> tuple[int, int, int]:
     """Read the first three spatial dimensions from a NIfTI file."""
     try:
-        import nibabel as nib  # type: ignore[import-not-found]
+        from neuroim import read_image
     except Exception as exc:  # pragma: no cover - optional dependency behavior
         raise ImportError(
-            "nifti validation requires optional dependency 'nibabel'. "
-            "Install with: pip install fmrimod[nibabel]"
+            "nifti validation requires optional dependency 'neuroim'. "
+            "Install neuroim-python to validate NIfTI group data."
         ) from exc
 
-    data = np.asarray(nib.load(path).get_fdata())
+    data = np.asarray(read_image(path, type="vol").as_array())
     if data.ndim < 3:
         raise ValueError(f"Expected at least 3D NIfTI file, got shape {data.shape}")
 

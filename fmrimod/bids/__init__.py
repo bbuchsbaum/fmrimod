@@ -1,6 +1,6 @@
 """BIDS-Stats-Model export for GLM results.
 
-Requires ``nibabel`` for NIfTI output.
+NIfTI output is routed through ``neuroim``.
 """
 
 from .export import (

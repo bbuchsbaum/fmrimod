@@ -213,11 +213,11 @@ def read_nifti_full(gd: GroupData, use_mask: Optional[bool] = None) -> Dict[str,
     """Read full NIfTI-backed group data into subject-by-voxel matrices."""
     if not isinstance(gd, GroupData) or gd.format != "nifti":
         raise TypeError("Input must be NIfTI-backed GroupData")
-    import nibabel as nib
+    from neuroim import read_image
 
     mask = None
     if gd.data.get("mask") is not None:
-        mask = np.asarray(nib.load(gd.data["mask"]).get_fdata()) > 0
+        mask = np.asarray(read_image(gd.data["mask"], type="vol").as_array()) > 0
     if use_mask is None:
         use_mask = mask is not None
 
@@ -228,7 +228,7 @@ def read_nifti_full(gd: GroupData, use_mask: Optional[bool] = None) -> Dict[str,
             continue
         rows = []
         for path in paths:
-            arr = np.asarray(nib.load(path).get_fdata(), dtype=np.float64)
+            arr = np.asarray(read_image(path, type="vol").as_array(), dtype=np.float64)
             rows.append(arr[mask].ravel() if use_mask and mask is not None else arr.ravel())
         out[stat] = np.vstack(rows)
     if "var" not in out and "se" in out:
