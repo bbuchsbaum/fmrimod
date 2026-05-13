@@ -125,6 +125,13 @@ class TestRegressor:
         
         with pytest.raises(ValueError, match="span must be a positive"):
             regressor([10, 30], span=np.inf)
+
+    def test_explicit_span_overrides_hrf_span(self):
+        """A user-supplied span must not be overwritten by the HRF default."""
+        reg = regressor([10, 30], hrf="spmg1", span=12.0)
+
+        assert reg.hrf.span == 24.0
+        assert reg.span == 12.0
     
     def test_hrf_string(self):
         """Test HRF creation from string."""

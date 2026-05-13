@@ -96,7 +96,10 @@ class Regressor:
     hrf: Union[HRF, List[HRF]]
     duration: NDArray[np.float64] = field(default_factory=lambda: np.array([0.0]))
     amplitude: NDArray[np.float64] = field(default_factory=lambda: np.array([1.0]))
-    span: float = 40.0
+    # ``None`` means "derive span from the HRF"; a numeric value is honored as
+    # the user-supplied override. After ``__post_init__`` ``self.span`` is
+    # always a positive finite float.
+    span: Optional[float] = None
     summate: bool = True
     filtered_all: bool = field(default=False, init=False)
 
@@ -126,9 +129,10 @@ class Regressor:
         if len(self.onsets) == 1 and np.isnan(self.onsets[0]):
             self.onsets = np.array([], dtype=np.float64)
 
-        # Validate span early
-        if not np.isfinite(self.span) or self.span <= 0:
-            raise ValueError("span must be a positive, finite number")
+        # Validate explicit span; None means "derive from HRF later".
+        if self.span is not None:
+            if not np.isfinite(self.span) or self.span <= 0:
+                raise ValueError("span must be a positive, finite number")
 
         n_onsets = len(self.onsets)
 
@@ -205,15 +209,26 @@ class Regressor:
                 "to coerce strings or callables."
             )
 
-        # Update span from HRF only if not explicitly set
-        if hasattr(self, '_span_set'):
-            pass
-        elif _hrf_is_list:
-            hrf_list = cast(List[HRF], self.hrf)
-            if len(hrf_list) > 0:
-                self.span = max(h.span for h in hrf_list)
-        elif hasattr(self.hrf, 'span') and self.hrf.span is not None:
-            self.span = self.hrf.span
+        # Resolve span: explicit value wins; otherwise derive from the HRF.
+        if self.span is None:
+            if _hrf_is_list:
+                hrf_list = cast(List[HRF], self.hrf)
+                derived = (
+                    max(h.span for h in hrf_list) if len(hrf_list) > 0 else 40.0
+                )
+            else:
+                hrf_single = cast(HRF, self.hrf)
+                derived = (
+                    hrf_single.span
+                    if getattr(hrf_single, "span", None) is not None
+                    else 40.0
+                )
+            self.span = float(derived)
+            if not np.isfinite(self.span) or self.span <= 0:
+                raise ValueError(
+                    "Derived span from HRF is not a positive, finite number; "
+                    "supply span= explicitly."
+                )
     
     def neural_input(
         self, 
@@ -235,7 +250,7 @@ class Regressor:
             if len(self.onsets) > 0:
                 end = np.max(self.onsets + self.duration) + 10.0
             else:
-                end = start + self.span
+                end = start + cast(float, self.span)
         
         return neural_input_core(
             self.onsets, 
@@ -305,6 +320,7 @@ class Regressor:
 
         # --- Trial-varying HRF path (per-event loop) ---
         hrf_value = self.hrf
+        span = cast(float, self.span)
         if isinstance(hrf_value, list):
             from .convolution import convolve_hrf_per_event
             keep_idx = np.where(keep)[0]
@@ -314,7 +330,7 @@ class Regressor:
                 durations=self.duration[keep_idx],
                 amplitudes=self.amplitude[keep_idx],
                 hrfs=[hrf_value[i] for i in keep_idx],
-                span=self.span,
+                span=span,
                 precision=precision,
                 summate=self.summate,
             )
@@ -326,7 +342,7 @@ class Regressor:
                 durations=self.duration[keep],
                 amplitudes=self.amplitude[keep],
                 hrf=hrf_value,
-                span=self.span,
+                span=span,
                 precision=precision,
                 method=method,
                 summate=self.summate
@@ -410,7 +426,7 @@ def regressor(
     hrf: HRFLike = "spmg1",
     duration: Union[float, ArrayLike] = 0.0,
     amplitude: Union[float, ArrayLike] = 1.0,
-    span: float = 40.0,
+    span: Optional[float] = None,
     summate: bool = True
 ) -> Regressor:
     """Create a Regressor object.
@@ -509,7 +525,7 @@ def regressor_set(
     hrf: HRFLike = "spmg1",
     duration: Union[float, ArrayLike] = 0.0,
     amplitude: Union[float, ArrayLike] = 1.0,
-    span: float = 40.0,
+    span: Optional[float] = None,
     summate: bool = True
 ) -> RegressorSet:
     """Create a set of regressors for multiple conditions.
