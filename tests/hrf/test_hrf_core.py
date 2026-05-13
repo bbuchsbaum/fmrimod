@@ -250,6 +250,69 @@ class TestBasisHRFTypedFields:
             LWUBasisHRF(theta0=(1.0, 2.0))  # type: ignore[arg-type]
 
 
+class TestDecoratorComposition:
+    """Decorators return typed subclasses that preserve the base HRF.
+
+    See bead ``bd-01KRGCYXE7CQTT86MW7FRR309A``; locks the contract that
+    structural composition is introspectable rather than opaque.
+    """
+
+    def test_lagged_preserves_base(self):
+        from fmrimod.hrf.decorators import LaggedHRF, lag_hrf
+
+        lagged = lag_hrf(SPM_CANONICAL, 2.0)
+        assert isinstance(lagged, LaggedHRF)
+        assert lagged.base is SPM_CANONICAL
+        assert lagged.lag == 2.0
+
+    def test_blocked_preserves_base(self):
+        from fmrimod.hrf.decorators import BlockedHRF, block_hrf
+
+        blocked = block_hrf(SPM_CANONICAL, width=4.0)
+        assert isinstance(blocked, BlockedHRF)
+        assert blocked.base is SPM_CANONICAL
+        assert blocked.width == 4.0
+
+    def test_bound_basis_preserves_components(self):
+        from fmrimod.hrf.core import BoundBasisHRF
+
+        combined = SPM_CANONICAL + GAMMA_HRF  # __add__ -> bind_basis
+        assert isinstance(combined, BoundBasisHRF)
+        assert combined.components == (SPM_CANONICAL, GAMMA_HRF)
+        assert combined.nbasis == SPM_CANONICAL.nbasis + GAMMA_HRF.nbasis
+
+    def test_lag_validates_finiteness_at_construction(self):
+        from fmrimod.hrf.decorators import LaggedHRF
+
+        with pytest.raises(ValueError, match="lag must be finite"):
+            LaggedHRF(base=SPM_CANONICAL, lag=float("inf"))
+
+    def test_block_validates_width_at_construction(self):
+        from fmrimod.hrf.decorators import BlockedHRF
+
+        with pytest.raises(ValueError, match="width must be finite"):
+            BlockedHRF(base=SPM_CANONICAL, width=float("inf"))
+
+    def test_block_validates_precision_at_construction(self):
+        from fmrimod.hrf.decorators import BlockedHRF
+
+        with pytest.raises(ValueError, match="precision must be finite and positive"):
+            BlockedHRF(base=SPM_CANONICAL, width=4.0, precision=0.0)
+
+    def test_evaluate_block_matches_blocked_hrf(self):
+        """HRF.evaluate(duration=d) now delegates to BlockedHRF.
+
+        Both paths must agree numerically; this catches drift if either
+        the inline quadrature or the BlockedHRF implementation diverges.
+        """
+        from fmrimod.hrf.decorators import BlockedHRF
+
+        grid = np.linspace(0, 24, 80)
+        via_evaluate = SPM_CANONICAL.evaluate(grid, duration=4.0)
+        via_blocked = BlockedHRF(base=SPM_CANONICAL, width=4.0)(grid)
+        assert np.allclose(via_evaluate, via_blocked)
+
+
 class TestAsHRF:
     """Test as_hrf function."""
     

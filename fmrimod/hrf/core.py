@@ -57,76 +57,57 @@ class HRF(ABC):
         normalize: bool = False,
     ) -> NDArray[np.float64]:
         """Evaluate HRF with optional block duration.
-        
-        This method extends basic HRF evaluation to handle sustained stimuli
-        by convolving the HRF with a boxcar function of specified duration.
-        
+
+        Block convolution delegates to :class:`BlockedHRF` so the
+        quadrature lives in exactly one place.
+
         Args:
             grid: Time points at which to evaluate
             duration: Duration of block/sustained stimulus in seconds
             precision: Temporal precision for convolution in seconds
             summate: If True, responses accumulate; if False, averaged
-            normalize: If True, normalize result to unit peak
-            
+            normalize: If True, normalize result to unit peak per basis
+
         Returns:
             Evaluated HRF values at grid points
         """
         grid = np.asarray(grid)
-        
+
         if len(grid) == 0:
             raise ValueError("grid must contain at least one time point")
         if np.any(np.isnan(grid)):
             raise ValueError("grid cannot contain NaN values")
         if precision <= 0:
             raise ValueError("precision must be positive")
-        
-        # For zero or negligible duration, just evaluate directly
+
         if duration < precision:
             result = self(grid)
-        else:
-            from .decorators import _block_offsets_weights
-
-            quad_offsets, quad_weights = _block_offsets_weights(duration, precision)
-
-            # Evaluate HRF at each quadrature offset
-            hmat_list = [self(grid - o) for o in quad_offsets]
-
-            is_multi_basis = self.nbasis > 1 and hmat_list[0].ndim == 2
-
-            if is_multi_basis:
-                weighted = [vals * wt for vals, wt in zip(hmat_list, quad_weights)]
-                result = weighted[0].copy()
-                for w in weighted[1:]:
-                    result += w
-                if not summate:
-                    weight_sum = np.sum(quad_weights)
-                    if weight_sum > 0:
-                        result = result / weight_sum
-            else:
-                hmat = np.column_stack(hmat_list)  # (len(grid), n_offsets)
-                result = hmat @ quad_weights
-                if not summate:
-                    weight_sum = np.sum(quad_weights)
-                    if weight_sum > 0:
-                        result = result / weight_sum
-        
-        # Normalize if requested
-        if normalize:
-            if self.nbasis > 1 and result.ndim == 2:
-                # Normalize each basis function separately
-                for i in range(self.nbasis):
-                    max_val = np.max(np.abs(result[:, i]))
+            # Optional per-basis unit-peak normalization for the no-block path.
+            if normalize:
+                if self.nbasis > 1 and result.ndim == 2:
+                    for i in range(self.nbasis):
+                        max_val = np.max(np.abs(result[:, i]))
+                        if max_val > 0:
+                            result[:, i] = result[:, i] / max_val
+                else:
+                    max_val = np.max(np.abs(result))
                     if max_val > 0:
-                        result[:, i] /= max_val
-            else:
-                max_val = np.max(np.abs(result))
-                if max_val > 0:
-                    result /= max_val
-        
-        # Ensure proper output shape for single time point
+                        result = result / max_val
+        else:
+            from .decorators import BlockedHRF
+
+            blocked = BlockedHRF(
+                base=self,
+                width=float(duration),
+                precision=precision,
+                summate=summate,
+                normalize_output=normalize,
+            )
+            result = blocked(grid)
+
         if len(grid) == 1 and self.nbasis > 1:
             result = result.reshape(1, -1)
-            
+
         return result
     
     def from_coefficients(self, coefficients: ArrayLike) -> Callable[[ArrayLike], NDArray[np.float64]]:
@@ -304,56 +285,67 @@ def as_hrf(
     )
 
 
+@dataclass
+class BoundBasisHRF(HRF):
+    """HRF formed by column-binding multiple HRF components.
+
+    ``components`` is the structural seam preserved across the
+    composition: downstream code can introspect which HRFs were bound
+    instead of pattern-matching on a generated name. See bead
+    ``bd-01KRGCYXE7CQTT86MW7FRR309A`` for the migration away from the
+    earlier ``FunctionHRF``-wrapped form.
+    """
+
+    name: str = ""
+    nbasis: int = 1
+    span: float = 24.0
+    components: tuple[HRF, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.components:
+            raise ValueError("BoundBasisHRF requires at least one component")
+        # Derive identity / span / nbasis from the components rather than
+        # accepting whatever the parent dataclass defaults handed us.
+        self.name = " + ".join(c.name for c in self.components)
+        self.nbasis = sum(c.nbasis for c in self.components)
+        self.span = max(c.span for c in self.components)
+        combined_params: Dict[str, Any] = {}
+        for c in self.components:
+            for key, value in c.params.items():
+                combined_params[f"{c.name}_{key}"] = value
+        self.params = combined_params
+        self.param_names = list(combined_params.keys()) if combined_params else None
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        t = np.asarray(t)
+        results = []
+        for component in self.components:
+            result = component(t)
+            if component.nbasis == 1 and result.ndim == 1:
+                result = result.reshape(-1, 1)
+            results.append(result)
+        return np.hstack(results)
+
+
 def bind_basis(*hrfs: HRF) -> HRF:
     """Combine multiple HRF objects into a single multi-basis HRF.
-    
+
     Args:
         *hrfs: HRF objects to combine
-        
+
     Returns:
-        Combined HRF with concatenated basis functions
+        Combined HRF with concatenated basis functions. A single input is
+        returned unchanged; two or more inputs produce a :class:`BoundBasisHRF`
+        whose ``components`` tuple preserves the originals for structural
+        introspection.
     """
     if len(hrfs) == 0:
         raise ValueError("At least one HRF must be provided")
-    
+
     if len(hrfs) == 1:
         return hrfs[0]
-    
-    # Calculate total basis count and maximum span
-    total_nbasis = sum(hrf.nbasis for hrf in hrfs)
-    max_span = max(hrf.span for hrf in hrfs)
-    
-    # Combine names
-    names = [hrf.name for hrf in hrfs]
-    combined_name = " + ".join(names)
-    
-    # Combine parameters
-    combined_params = {}
-    for i, hrf in enumerate(hrfs):
-        for key, value in hrf.params.items():
-            combined_params[f"{hrf.name}_{key}"] = value
-    
-    def combined_func(t: ArrayLike) -> NDArray[np.float64]:
-        """Evaluate combined basis functions."""
-        t = np.asarray(t)
-        results = []
-        
-        for hrf in hrfs:
-            result = hrf(t)
-            if hrf.nbasis == 1 and result.ndim == 1:
-                result = result.reshape(-1, 1)
-            results.append(result)
-        
-        # Concatenate along basis dimension
-        return np.hstack(results)
-    
-    return FunctionHRF(
-        func=combined_func,
-        name=combined_name,
-        nbasis=total_nbasis,
-        span=max_span,
-        params=combined_params,
-    )
+
+    return BoundBasisHRF(components=tuple(hrfs))
 
 
 def hrf_from_coefficients(hrf: HRF, coefficients: ArrayLike) -> HRF:

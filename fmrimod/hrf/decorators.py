@@ -1,12 +1,23 @@
-"""HRF decorator functions for modifying HRF behavior."""
+"""HRF decorator functions for modifying HRF behavior.
+
+The decorator factories (``lag_hrf``, ``block_hrf``, ``normalize_hrf``)
+return *typed* HRF subclasses (``LaggedHRF`` / ``BlockedHRF`` /
+``_PeakNormalizedHRF``) rather than opaque ``FunctionHRF`` wrappers, so
+downstream code can introspect the decoration chain via the ``base``
+attribute and pattern-match on subclass identity. See bead
+``bd-01KRGCYXE7CQTT86MW7FRR309A``.
+"""
 
 from __future__ import annotations
 
-from typing import Optional, Union, Callable
+import math
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, Optional, Union
+
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from .core import HRF, FunctionHRF, as_hrf
+from .core import HRF, FunctionHRF, as_hrf, bind_basis
 
 
 def _block_offsets_weights(width: float, precision: float):
@@ -39,125 +50,113 @@ def _block_offsets_weights(width: float, precision: float):
     return offsets, weights
 
 
-def lag_hrf(hrf: HRF, lag: float) -> HRF:
-    """Apply temporal lag to an HRF.
-    
-    This decorator shifts the HRF in time by the specified lag amount.
-    
-    Args:
-        hrf: The HRF to lag
-        lag: Time lag in seconds (must be finite)
-        
-    Returns:
-        New HRF with temporal lag applied
-        
-    Raises:
-        ValueError: If lag is not finite
+@dataclass
+class LaggedHRF(HRF):
+    """HRF shifted in time by a fixed ``lag``.
+
+    ``base`` is preserved so callers can introspect the chain. The
+    inherited ``params`` dict is mirrored with ``_lag`` for cross-testing
+    readers during the transition window; bead
+    ``bd-01KRGCZJ6JAA4BKRTNQ91P2PE5`` retires the mirror.
     """
-    if not np.isfinite(lag):
-        raise ValueError("lag must be finite")
-    
-    # Create lagged function
-    def lagged_func(t: ArrayLike) -> NDArray[np.float64]:
-        """Evaluate lagged HRF."""
-        t = np.asarray(t)
-        return hrf(t - lag)
-    
-    # Create new HRF with updated attributes
-    new_name = f"{hrf.name}_lag({lag})"
-    new_span = hrf.span + max(0, lag)
-    new_params = hrf.params.copy()
-    new_params['_lag'] = lag
-    
-    return FunctionHRF(
-        func=lagged_func,
-        name=new_name,
-        nbasis=hrf.nbasis,
-        span=new_span,
-        params=new_params,
-    )
+
+    name: str = ""
+    nbasis: int = 1
+    span: float = 24.0
+    base: Optional[HRF] = None
+    lag: float = 0.0
+
+    def __post_init__(self) -> None:
+        if self.base is None:
+            raise ValueError("LaggedHRF requires `base`")
+        if not np.isfinite(self.lag):
+            raise ValueError("lag must be finite")
+        self.name = f"{self.base.name}_lag({self.lag})"
+        self.nbasis = self.base.nbasis
+        self.span = self.base.span + max(0.0, self.lag)
+        new_params = dict(self.base.params)
+        new_params["_lag"] = self.lag
+        self.params = new_params
+        self.param_names = self.base.param_names
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        assert self.base is not None  # for type checkers; __post_init__ guarantees
+        return self.base(np.asarray(t) - self.lag)
 
 
-def block_hrf(
-    hrf: HRF,
-    width: float,
-    precision: float = 0.1,
-    half_life: float = float('inf'),
-    summate: bool = True,
-    normalize: bool = False,
-) -> HRF:
-    """Create a blocked/sustained version of an HRF.
-    
-    This decorator convolves the HRF with a boxcar function to model
-    sustained stimulation.
-    
-    Args:
-        hrf: The HRF to block
-        width: Duration of the block in seconds (must be finite)
-        precision: Temporal precision for convolution (must be finite and positive)
-        half_life: Half-life for exponential decay (default: no decay)
-        summate: If True, responses accumulate (peak grows with duration);
-            if False, responses are averaged (same shape, peak stays constant)
-        normalize: If True, normalize result to unit peak
-        
-    Returns:
-        New HRF representing blocked response
-        
-    Raises:
-        ValueError: If parameters are invalid
+@dataclass
+class BlockedHRF(HRF):
+    """HRF convolved with a boxcar of duration ``width`` via trapezoidal quadrature.
+
+    Optionally applies an exponential half-life decay across the block
+    and normalizes per basis when ``normalize=True``.
     """
-    if not np.isfinite(width):
-        raise ValueError("width must be finite")
-    if not np.isfinite(precision) or precision <= 0:
-        raise ValueError("precision must be finite and positive")
-    if half_life <= 0:
-        raise ValueError("half_life must be positive")
-    
-    # For very small widths, just return the original HRF
-    if width <= precision:
-        return hrf
 
-    orig_nbasis = hrf.nbasis
+    name: str = ""
+    nbasis: int = 1
+    span: float = 24.0
+    base: Optional[HRF] = None
+    width: float = 0.0
+    precision: float = 0.1
+    half_life: float = float("inf")
+    summate: bool = True
+    normalize_output: bool = False
 
-    # Create blocked function using trapezoidal quadrature
-    def blocked_func(t: ArrayLike) -> NDArray[np.float64]:
-        """Evaluate blocked HRF via trapezoidal quadrature."""
+    def __post_init__(self) -> None:
+        if self.base is None:
+            raise ValueError("BlockedHRF requires `base`")
+        if not np.isfinite(self.width):
+            raise ValueError("width must be finite")
+        if not np.isfinite(self.precision) or self.precision <= 0:
+            raise ValueError("precision must be finite and positive")
+        if self.half_life <= 0:
+            raise ValueError("half_life must be positive")
+        self.name = f"{self.base.name}_block(w={self.width})"
+        self.nbasis = self.base.nbasis
+        self.span = self.base.span + self.width
+        new_params = dict(self.base.params)
+        new_params.update({
+            "_width": self.width,
+            "_precision": self.precision,
+            "_half_life": self.half_life,
+            "_summate": self.summate,
+            "_normalize": self.normalize_output,
+        })
+        self.params = new_params
+        self.param_names = self.base.param_names
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        assert self.base is not None
         t = np.asarray(t)
+        quad_offsets, quad_weights = _block_offsets_weights(self.width, self.precision)
 
-        quad_offsets, quad_weights = _block_offsets_weights(width, precision)
+        # Evaluate the base HRF at each quadrature offset, applying per-offset
+        # decay when a finite half-life is configured.
+        if not np.isfinite(self.half_life):
+            decay = np.ones_like(quad_offsets)
+        else:
+            decay = np.exp(-np.log(2) * quad_offsets / self.half_life)
 
-        # Evaluate HRF at each offset, applying per-offset decay
-        hmat_list = []
-        for offset in quad_offsets:
-            decay_factor = (
-                1.0 if not np.isfinite(half_life)
-                else np.exp(-np.log(2) * offset / half_life)
-            )
-            vals = hrf(t - offset) * decay_factor
-            hmat_list.append(vals)
+        hmat_list = [self.base(t - offset) * d for offset, d in zip(quad_offsets, decay)]
 
-        if orig_nbasis == 1:
-            # Stack columns: each entry is shape (len(t),)
+        if self.base.nbasis == 1:
             hmat = np.column_stack(hmat_list)  # (len(t), n_offsets)
             result = hmat @ quad_weights
-            if not summate:
-                # Same convolution shape but amplitude doesn't grow with duration
-                weight_sum = np.sum(quad_weights)
+            if not self.summate:
+                weight_sum = float(np.sum(quad_weights))
                 if weight_sum > 0:
                     result = result / weight_sum
         else:
-            # Multi-basis: each entry is shape (len(t), nbasis)
             weighted = [vals * wt for vals, wt in zip(hmat_list, quad_weights)]
             result = weighted[0].copy()
             for w in weighted[1:]:
                 result += w
-            if not summate:
-                weight_sum = np.sum(quad_weights)
+            if not self.summate:
+                weight_sum = float(np.sum(quad_weights))
                 if weight_sum > 0:
                     result = result / weight_sum
 
-        # Normalize if requested
-        if normalize:
+        if self.normalize_output:
             if result.ndim == 2:
                 for i in range(result.shape[1]):
                     max_val = np.max(np.abs(result[:, i]))
@@ -169,92 +168,128 @@ def block_hrf(
                     result /= max_val
 
         return result
-    
-    # Create new HRF with updated attributes
-    new_name = f"{hrf.name}_block(w={width})"
-    new_span = hrf.span + width
-    new_params = hrf.params.copy()
-    new_params.update({
-        '_width': width,
-        '_precision': precision,
-        '_half_life': half_life,
-        '_summate': summate,
-        '_normalize': normalize,
-    })
-    
-    return FunctionHRF(
-        func=blocked_func,
-        name=new_name,
-        nbasis=hrf.nbasis,
-        span=new_span,
-        params=new_params,
+
+
+@dataclass
+class _PeakNormalizedHRF(HRF):
+    """HRF rescaled per-basis to unit peak.
+
+    Semantically distinct from ``normalization._NormalizedHRF`` (which
+    normalizes all columns by a single scalar). Step 5 of the epic
+    (bead ``bd-01KRGCZ6QJME1JD8FD5D4PGC04``) reconciles the two paths.
+    """
+
+    name: str = ""
+    nbasis: int = 1
+    span: float = 24.0
+    base: Optional[HRF] = None
+    # Per-basis peak factor: scalar for single-basis, NDArray for multi-basis.
+    peak: Union[float, NDArray[np.float64]] = 1.0
+
+    def __post_init__(self) -> None:
+        if self.base is None:
+            raise ValueError("_PeakNormalizedHRF requires `base`")
+        self.name = f"{self.base.name}_norm"
+        self.nbasis = self.base.nbasis
+        self.span = self.base.span
+        new_params = dict(self.base.params)
+        new_params["_normalized"] = True
+        self.params = new_params
+        self.param_names = self.base.param_names
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        assert self.base is not None
+        result = self.base(t)
+        if self.base.nbasis == 1:
+            return result / self.peak
+        if result.ndim == 1:
+            result = result.reshape(1, -1)
+        return result / np.asarray(self.peak)[np.newaxis, :]
+
+
+def lag_hrf(hrf: HRF, lag: float) -> HRF:
+    """Apply temporal lag to an HRF.
+
+    Returns a :class:`LaggedHRF` whose ``base`` is the original HRF.
+
+    Args:
+        hrf: The HRF to lag
+        lag: Time lag in seconds (must be finite)
+
+    Returns:
+        Typed lagged HRF.
+
+    Raises:
+        ValueError: If ``lag`` is not finite.
+    """
+    return LaggedHRF(base=hrf, lag=lag)
+
+
+def block_hrf(
+    hrf: HRF,
+    width: float,
+    precision: float = 0.1,
+    half_life: float = float("inf"),
+    summate: bool = True,
+    normalize: bool = False,
+) -> HRF:
+    """Create a blocked/sustained version of an HRF.
+
+    Returns a :class:`BlockedHRF` whose ``base`` is the original. For
+    ``width <= precision`` the original HRF is returned unchanged.
+
+    Args:
+        hrf: The HRF to block.
+        width: Duration of the block in seconds (must be finite).
+        precision: Temporal precision for convolution (must be finite and positive).
+        half_life: Half-life for exponential decay (default: no decay).
+        summate: If True, responses accumulate; if False, averaged.
+        normalize: If True, normalize result to unit peak per basis.
+
+    Returns:
+        Typed blocked HRF (or the original ``hrf`` when ``width <= precision``).
+    """
+    if width <= precision:
+        return hrf
+    return BlockedHRF(
+        base=hrf,
+        width=width,
+        precision=precision,
+        half_life=half_life,
+        summate=summate,
+        normalize_output=normalize,
     )
 
 
 def normalize_hrf(hrf: HRF) -> HRF:
-    """Normalize an HRF to unit peak amplitude.
+    """Normalize an HRF to unit peak amplitude (per basis for multi-basis).
 
-    This decorator scales the HRF so that its maximum absolute value is 1.
+    Returns a :class:`_PeakNormalizedHRF` whose ``base`` is the original.
+    Sampling for peak detection mirrors the R reference: at least 1001
+    samples, at most 20001, with step ~0.01 sec over the HRF span.
 
     Args:
-        hrf: The HRF to normalize
+        hrf: The HRF to normalize.
 
     Returns:
-        New HRF with unit peak amplitude
+        Typed normalized HRF.
     """
-    # Sample HRF to find peak (use high resolution matching R reference)
-    import math
     ref_n = max(1001, min(20001, math.ceil(hrf.span / 0.01) + 1))
     t_sample = np.linspace(0, hrf.span, ref_n)
-    hrf_sample = hrf(t_sample)
-    
-    # Find peak values
+    sample = hrf(t_sample)
+
     if hrf.nbasis == 1:
-        peak = np.max(np.abs(hrf_sample))
+        peak: Union[float, NDArray[np.float64]] = float(np.max(np.abs(sample)))
         if peak == 0:
-            peak = 1.0  # Avoid division by zero
+            peak = 1.0
     else:
-        # For multi-basis, normalize each separately
-        peak = np.zeros(hrf.nbasis)
+        peaks = np.zeros(hrf.nbasis)
         for i in range(hrf.nbasis):
-            peak[i] = np.max(np.abs(hrf_sample[:, i]))
-            if peak[i] == 0:
-                peak[i] = 1.0
-    
-    # Create normalized function
-    def normalized_func(t: ArrayLike) -> NDArray[np.float64]:
-        """Evaluate normalized HRF."""
-        result = hrf(t)
-        
-        if hrf.nbasis == 1:
-            return result / peak
-        else:
-            # Ensure result is 2D for multi-basis
-            if result.ndim == 1:
-                result = result.reshape(1, -1)
-            
-            # Normalize each basis
-            normalized = result / peak[np.newaxis, :]
-            
-            # Handle single time point output shape
-            t_array = np.asarray(t)
-            if t_array.ndim == 0 or (t_array.ndim == 1 and len(t_array) == 1):
-                return normalized
-            else:
-                return normalized
-    
-    # Create new HRF with updated attributes
-    new_name = f"{hrf.name}_norm"
-    new_params = hrf.params.copy()
-    new_params['_normalized'] = True
-    
-    return FunctionHRF(
-        func=normalized_func,
-        name=new_name,
-        nbasis=hrf.nbasis,
-        span=hrf.span,
-        params=new_params,
-    )
+            p = float(np.max(np.abs(sample[:, i])))
+            peaks[i] = p if p > 0 else 1.0
+        peak = peaks
+
+    return _PeakNormalizedHRF(base=hrf, peak=peak)
 
 
 def gen_hrf_lagged(
@@ -263,33 +298,30 @@ def gen_hrf_lagged(
     name: Optional[str] = None,
 ) -> HRF:
     """Generate a set of lagged HRFs.
-    
+
     Creates a multi-basis HRF with each basis function being the original
     HRF shifted by different lag amounts.
-    
+
     Args:
-        hrf: Base HRF or function to lag
-        lags: Array of lag values in seconds
-        name: Optional name for the combined HRF
-        
+        hrf: Base HRF or function to lag.
+        lags: Array of lag values in seconds.
+        name: Optional name for the combined HRF.
+
     Returns:
-        Multi-basis HRF with lagged versions
+        Multi-basis HRF with lagged versions (a :class:`BoundBasisHRF`
+        when there are multiple lags, or a :class:`LaggedHRF` for one).
     """
-    # Ensure HRF object
     if not isinstance(hrf, HRF):
         hrf = as_hrf(hrf)
-    
+
     lags = np.atleast_1d(np.asarray(lags, dtype=np.float64))
-    
-    # Create lagged HRFs
+
     lagged_hrfs = [lag_hrf(hrf, lag) for lag in lags]
-    
-    # Combine them
-    from .core import bind_basis
     combined = bind_basis(*lagged_hrfs)
-    
-    # Set custom name if provided
+
     if name is not None:
+        # bind_basis returns the single HRF unchanged when len(lags) == 1, so
+        # name overrides flow through unchanged regardless of count.
         combined = FunctionHRF(
             func=combined,
             name=name,
@@ -297,7 +329,7 @@ def gen_hrf_lagged(
             span=combined.span,
             params=combined.params,
         )
-    
+
     return combined
 
 
@@ -318,50 +350,43 @@ def gen_hrf_blocked(
     hrf: Union[HRF, Callable],
     widths: ArrayLike,
     precision: float = 0.1,
-    half_life: float = float('inf'),
+    half_life: float = float("inf"),
     summate: bool = True,
     normalize: bool = False,
     name: Optional[str] = None,
 ) -> HRF:
     """Generate a set of blocked HRFs with different widths.
-    
-    Creates a multi-basis HRF with each basis function being the original
-    HRF convolved with boxcars of different widths.
-    
+
     Args:
-        hrf: Base HRF or function to block
-        widths: Array of block widths in seconds
-        precision: Temporal precision for convolution
-        half_life: Half-life for exponential decay
-        summate: If True, responses accumulate; if False, averaged
-        normalize: If True, normalize each basis
-        name: Optional name for the combined HRF
-        
+        hrf: Base HRF or function to block.
+        widths: Array of block widths in seconds.
+        precision: Temporal precision for convolution.
+        half_life: Half-life for exponential decay.
+        summate: If True, responses accumulate; if False, averaged.
+        normalize: If True, normalize each basis.
+        name: Optional name for the combined HRF.
+
     Returns:
-        Multi-basis HRF with blocked versions
+        Multi-basis HRF with blocked versions.
     """
-    # Ensure HRF object
     if not isinstance(hrf, HRF):
         hrf = as_hrf(hrf)
-    
+
     widths = np.atleast_1d(np.asarray(widths, dtype=np.float64))
-    
-    # Create blocked HRFs
+
     blocked_hrfs = []
     for width in widths:
         if width == 0 and normalize:
-            # For width=0, block_hrf returns original, so normalize manually
+            # block_hrf returns the original for width <= precision; when the
+            # caller also asked for normalization, apply it explicitly.
             blocked_hrfs.append(normalize_hrf(hrf))
         else:
             blocked_hrfs.append(
-                block_hrf(hrf, width, precision, half_life, summate, normalize)
+                block_hrf(hrf, float(width), precision, half_life, summate, normalize)
             )
-    
-    # Combine them
-    from .core import bind_basis
+
     combined = bind_basis(*blocked_hrfs)
-    
-    # Set custom name if provided
+
     if name is not None:
         combined = FunctionHRF(
             func=combined,
@@ -370,7 +395,7 @@ def gen_hrf_blocked(
             span=combined.span,
             params=combined.params,
         )
-    
+
     return combined
 
 
@@ -378,7 +403,7 @@ def hrf_blocked(
     hrf: Optional[Union[HRF, Callable]] = None,
     width: ArrayLike = 5.0,
     precision: float = 0.1,
-    half_life: float = float('inf'),
+    half_life: float = float("inf"),
     summate: bool = True,
     normalize: bool = False,
     name: Optional[str] = None,
