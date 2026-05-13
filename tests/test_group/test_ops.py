@@ -127,7 +127,7 @@ def test_posthoc_dispatches_registered_alias() -> None:
 
 def test_reduce_and_write_out_are_explicit_phase_gaps() -> None:
     ds = _dataset()
-    with pytest.raises(UnsupportedGroupFeatureError, match="R fmrigds oracle"):
+    with pytest.raises(UnsupportedGroupFeatureError, match="fmrigds-r"):
         reduce(ds, method="lmm:ri")
     with pytest.raises(UnsupportedGroupFeatureError, match="format='h5'"):
         write_out(ds, "out.csv", format="csv")
@@ -147,7 +147,7 @@ def test_reduce_emits_progress_events() -> None:
 
 def test_reduce_emits_progress_error_event() -> None:
     events: list[GroupProgressEvent] = []
-    with pytest.raises(UnsupportedGroupFeatureError, match="R fmrigds oracle"):
+    with pytest.raises(UnsupportedGroupFeatureError, match="fmrigds-r"):
         reduce(_dataset(), method="lmm:ri", progress=events.append)
 
     assert [event.stage for event in events] == ["start", "error"]

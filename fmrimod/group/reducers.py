@@ -155,6 +155,113 @@ def _design_matrix(
     return np.asarray(design, dtype=np.float64), list(design.columns)
 
 
+def _lmm_formula(formula: str) -> str:
+    if "|" in formula:
+        raise UnsupportedGroupFeatureError(
+            "LMM reducers do not support lmer-style random-effects syntax; "
+            "choose method='lmm:ri' or method='lmm:ri_slope1' and pass reducer options"
+        )
+    clean = formula.strip()
+    if not clean:
+        clean = "~ 1"
+    if not clean.startswith("~"):
+        raise AdapterContractError("LMM formula must be one-sided, e.g. '~ condition'")
+    return clean
+
+
+def _lmm_observation_data(dataset: GroupDataset) -> pd.DataFrame:
+    subject_rows = (
+        pd.DataFrame(index=pd.Index(dataset.subjects, name="subject"))
+        if dataset.col_data is None
+        else dataset.col_data.copy()
+    )
+    subject_rows = subject_rows.copy()
+    subject_rows.index = pd.Index(dataset.subjects, name="subject")
+    if "subject" in subject_rows.columns:
+        subject_rows = subject_rows.drop(columns=["subject"])
+
+    contrast_rows = (
+        pd.DataFrame(index=pd.Index(dataset.contrasts, name="contrast"))
+        if dataset.contrast_data is None
+        else dataset.contrast_data.copy()
+    )
+    contrast_rows = contrast_rows.copy()
+    contrast_rows.index = pd.Index(dataset.contrasts, name="contrast")
+    if "contrast" in contrast_rows.columns:
+        contrast_rows = contrast_rows.drop(columns=["contrast"])
+    contrast_rows["contrast"] = list(dataset.contrasts)
+
+    rows: list[pd.DataFrame] = []
+    for subject in dataset.subjects:
+        subj = subject_rows.loc[[subject]].reset_index(drop=True)
+        repeated_subj = pd.concat([subj] * dataset.n_contrasts, ignore_index=True)
+        block = pd.concat(
+            [
+                pd.DataFrame({"subject": [subject] * dataset.n_contrasts}),
+                repeated_subj,
+                contrast_rows.reset_index(drop=True),
+            ],
+            axis=1,
+        )
+        rows.append(block)
+    obs = pd.concat(rows, ignore_index=True)
+    obs["subject"] = pd.Categorical(obs["subject"], categories=list(dataset.subjects))
+    obs["contrast"] = pd.Categorical(obs["contrast"], categories=list(dataset.contrasts))
+    return obs
+
+
+def _lmm_fixed_design(
+    dataset: GroupDataset,
+    *,
+    formula: str,
+) -> tuple[pd.DataFrame, NDArray[np.float64], list[str]]:
+    obs = _lmm_observation_data(dataset)
+    design = dmatrix(_lmm_formula(formula), obs, return_type="dataframe")
+    X = np.asarray(design, dtype=np.float64)
+    if not np.all(np.isfinite(X)):
+        raise AdapterContractError("LMM fixed-effects design contains non-finite values")
+    return obs, X, list(design.columns)
+
+
+def _lmm_beta_matrix(dataset: GroupDataset) -> NDArray[np.float64]:
+    beta = dataset.assay("beta")
+    return beta.reshape(dataset.n_samples, dataset.n_subjects * dataset.n_contrasts).T
+
+
+def _lmm_not_available(message: str) -> UnsupportedGroupFeatureError:
+    return UnsupportedGroupFeatureError(
+        f"{message}. Use backend='fmrigds-r' as the explicit R oracle/fallback "
+        "during migration, or use theta_mode='voxelwise' for the native "
+        "statsmodels first slice where supported."
+    )
+
+
+def _fit_mixedlm_feature(
+    y: NDArray[np.float64],
+    X: NDArray[np.float64],
+    groups: Any,
+    exog_re: NDArray[np.float64],
+    *,
+    reml: bool,
+    covariance: Literal["diag", "full"] = "full",
+) -> Any:
+    try:
+        from statsmodels.regression.mixed_linear_model import MixedLM, MixedLMParams
+    except Exception as exc:  # pragma: no cover - dependency declared by package
+        raise UnsupportedGroupFeatureError(
+            "native LMM reducers require optional dependency 'statsmodels'"
+        ) from exc
+
+    model = MixedLM(endog=y, exog=X, groups=groups, exog_re=exog_re)
+    fit_options: dict[str, Any] = {}
+    if covariance == "diag" and exog_re.shape[1] > 1:
+        fit_options["free"] = MixedLMParams.from_components(
+            fe_params=np.ones(X.shape[1]),
+            cov_re=np.eye(exog_re.shape[1]),
+        )
+    return model.fit(reml=reml, method="lbfgs", disp=False, **fit_options)
+
+
 def _flatten_feature_axis(arr: NDArray[np.float64]) -> NDArray[np.float64]:
     return np.transpose(arr, (1, 0, 2)).reshape(
         arr.shape[1], arr.shape[0] * arr.shape[2]
@@ -1182,14 +1289,264 @@ def lmm_unavailable(
     )
 
 
-def lmm_ri(dataset: GroupDataset, **options: Any) -> GroupDataset:
-    """Placeholder for the native random-intercept LMM reducer milestone."""
-    return lmm_unavailable(dataset, method="lmm:ri", **options)
+def _lmm_result_dataset(
+    dataset: GroupDataset,
+    assays: dict[str, NDArray[np.float64]],
+    *,
+    method: str,
+    metadata: dict[str, Any],
+) -> GroupDataset:
+    return GroupDataset(
+        assays=assays,
+        space=dataset.space,
+        subjects=["meta"],
+        contrasts=["model"],
+        col_data=pd.DataFrame(index=pd.Index(["meta"], name="subject")),
+        row_data=dataset.row_data,
+        contrast_data=pd.DataFrame(
+            {"label": ["model"]},
+            index=pd.Index(["model"], name="contrast"),
+        ),
+        metadata={
+            **dict(dataset.metadata),
+            "operation": "reduce",
+            "reduce_method": method,
+            **metadata,
+        },
+    )
 
 
-def lmm_ri_slope1(dataset: GroupDataset, **options: Any) -> GroupDataset:
-    """Placeholder for the native random-intercept plus one-slope LMM reducer."""
-    return lmm_unavailable(dataset, method="lmm:ri_slope1", **options)
+def _flat_lmm(values: NDArray[np.float64]) -> NDArray[np.float64]:
+    return values.reshape(values.shape[0], 1, 1)
+
+
+def lmm_ri(
+    dataset: GroupDataset,
+    *,
+    formula: str = "~ 1",
+    fit: Literal["REML", "ML"] = "REML",
+    theta_mode: Literal["pooled", "voxelwise"] = "pooled",
+) -> GroupDataset:
+    """Native random-intercept LMM reducer for voxelwise theta mode."""
+    if theta_mode != "voxelwise":
+        raise _lmm_not_available(
+            "native lmm:ri currently supports theta_mode='voxelwise' only"
+        )
+    if fit not in ("REML", "ML"):
+        raise AdapterContractError("fit must be 'REML' or 'ML'")
+
+    obs, X, predictor_names = _lmm_fixed_design(dataset, formula=formula)
+    y_mat = _lmm_beta_matrix(dataset)
+    n_obs, n_samples = y_mat.shape
+    pcols = X.shape[1]
+    groups = obs["subject"].to_numpy()
+    exog_re = np.ones((n_obs, 1), dtype=np.float64)
+    df_val = float(max(n_obs - pcols, 1))
+
+    coef = np.full((pcols, n_samples), np.nan, dtype=np.float64)
+    se_coef = np.full((pcols, n_samples), np.nan, dtype=np.float64)
+    t_coef = np.full((pcols, n_samples), np.nan, dtype=np.float64)
+    p_coef = np.full((pcols, n_samples), np.nan, dtype=np.float64)
+    sigma2 = np.full(n_samples, np.nan, dtype=np.float64)
+    vc_intercept = np.full(n_samples, np.nan, dtype=np.float64)
+    log_lik = np.full(n_samples, np.nan, dtype=np.float64)
+    converged = np.zeros(n_samples, dtype=np.float64)
+    lambda_intercept = np.full(n_samples, np.nan, dtype=np.float64)
+
+    for feature_idx in range(n_samples):
+        y = y_mat[:, feature_idx]
+        if not np.all(np.isfinite(y)):
+            continue
+        try:
+            result = _fit_mixedlm_feature(
+                y,
+                X,
+                groups,
+                exog_re,
+                reml=fit == "REML",
+            )
+        except Exception:
+            continue
+        fe = np.asarray(result.fe_params, dtype=np.float64)
+        se = np.asarray(result.bse_fe, dtype=np.float64)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            t_val = fe / se
+            p_val = 2.0 * sp_stats.t.sf(np.abs(t_val), df_val)
+        scale = float(result.scale)
+        cov_re = np.asarray(result.cov_re, dtype=np.float64)
+        vc_i = float(cov_re[0, 0]) if cov_re.size else np.nan
+        coef[:, feature_idx] = fe
+        se_coef[:, feature_idx] = se
+        t_coef[:, feature_idx] = t_val
+        p_coef[:, feature_idx] = p_val
+        sigma2[feature_idx] = scale
+        vc_intercept[feature_idx] = vc_i
+        log_lik[feature_idx] = float(result.llf)
+        converged[feature_idx] = 1.0 if bool(getattr(result, "converged", False)) else 0.0
+        lambda_intercept[feature_idx] = vc_i / scale if scale > 0 else np.nan
+
+    df_res = np.full(n_samples, df_val, dtype=np.float64)
+    assays: dict[str, NDArray[np.float64]] = {
+        "sigma2": _flat_lmm(sigma2),
+        "vc_intercept": _flat_lmm(vc_intercept),
+        "vc_resid": _flat_lmm(sigma2),
+        "df_res": _flat_lmm(df_res),
+        "logLik": _flat_lmm(log_lik),
+        "converged": _flat_lmm(converged),
+        "lambda": _flat_lmm(lambda_intercept),
+    }
+    for pred_idx, name in enumerate(predictor_names):
+        assays[f"coef:{name}"] = _flat_lmm(coef[pred_idx])
+        assays[f"se_coef:{name}"] = _flat_lmm(se_coef[pred_idx])
+        assays[f"t_coef:{name}"] = _flat_lmm(t_coef[pred_idx])
+        assays[f"p_coef:{name}"] = _flat_lmm(p_coef[pred_idx])
+
+    return _lmm_result_dataset(
+        dataset,
+        assays,
+        method="lmm:ri",
+        metadata={
+            "formula": formula,
+            "fit": fit,
+            "theta_mode": theta_mode,
+            "predictor_names": tuple(predictor_names),
+            "engine": "statsmodels.MixedLM",
+        },
+    )
+
+
+def lmm_ri_slope1(
+    dataset: GroupDataset,
+    *,
+    formula: str = "~ 1",
+    slope: str | None = None,
+    covariance: Literal["diag", "full"] = "diag",
+    fit: Literal["REML", "ML"] = "REML",
+    theta_mode: Literal["pooled", "voxelwise"] = "pooled",
+    center_slope: bool = False,
+) -> GroupDataset:
+    """Native random-intercept plus one-slope LMM for voxelwise full covariance."""
+    if slope is None or not slope:
+        raise AdapterContractError("lmm:ri_slope1 requires a slope option")
+    if theta_mode != "voxelwise":
+        raise _lmm_not_available(
+            "native lmm:ri_slope1 currently supports theta_mode='voxelwise' only"
+        )
+    if covariance not in ("diag", "full"):
+        raise AdapterContractError("covariance must be 'diag' or 'full'")
+    if fit not in ("REML", "ML"):
+        raise AdapterContractError("fit must be 'REML' or 'ML'")
+
+    obs, X, predictor_names = _lmm_fixed_design(dataset, formula=formula)
+    if slope not in obs:
+        raise AdapterContractError(f"slope variable '{slope}' is not present")
+    slope_values = np.asarray(obs[slope], dtype=np.float64)
+    if not np.all(np.isfinite(slope_values)):
+        raise AdapterContractError(f"slope variable '{slope}' must be numeric and finite")
+    if center_slope:
+        slope_values = slope_values - float(np.mean(slope_values))
+    if len(np.unique(slope_values)) < 2:
+        raise AdapterContractError(f"slope variable '{slope}' must vary")
+
+    y_mat = _lmm_beta_matrix(dataset)
+    n_obs, n_samples = y_mat.shape
+    pcols = X.shape[1]
+    groups = obs["subject"].to_numpy()
+    exog_re = np.column_stack([np.ones(n_obs, dtype=np.float64), slope_values])
+    df_val = float(max(n_obs - pcols, 1))
+
+    coef = np.full((pcols, n_samples), np.nan, dtype=np.float64)
+    se_coef = np.full((pcols, n_samples), np.nan, dtype=np.float64)
+    t_coef = np.full((pcols, n_samples), np.nan, dtype=np.float64)
+    p_coef = np.full((pcols, n_samples), np.nan, dtype=np.float64)
+    sigma2 = np.full(n_samples, np.nan, dtype=np.float64)
+    vc_intercept = np.full(n_samples, np.nan, dtype=np.float64)
+    vc_slope = np.full(n_samples, np.nan, dtype=np.float64)
+    vc_cov = np.full(n_samples, np.nan, dtype=np.float64)
+    log_lik = np.full(n_samples, np.nan, dtype=np.float64)
+    converged = np.zeros(n_samples, dtype=np.float64)
+    lambda_intercept = np.full(n_samples, np.nan, dtype=np.float64)
+    lambda_slope = np.full(n_samples, np.nan, dtype=np.float64)
+    lambda_cov = np.full(n_samples, np.nan, dtype=np.float64)
+    corr = np.full(n_samples, np.nan, dtype=np.float64)
+
+    for feature_idx in range(n_samples):
+        y = y_mat[:, feature_idx]
+        if not np.all(np.isfinite(y)):
+            continue
+        try:
+            result = _fit_mixedlm_feature(
+                y,
+                X,
+                groups,
+                exog_re,
+                reml=fit == "REML",
+                covariance=covariance,
+            )
+        except Exception:
+            continue
+        fe = np.asarray(result.fe_params, dtype=np.float64)
+        se = np.asarray(result.bse_fe, dtype=np.float64)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            t_val = fe / se
+            p_val = 2.0 * sp_stats.t.sf(np.abs(t_val), df_val)
+        scale = float(result.scale)
+        cov_re = np.asarray(result.cov_re, dtype=np.float64)
+        vc_i = float(cov_re[0, 0])
+        vc_s = float(cov_re[1, 1])
+        vc_is = float(cov_re[0, 1])
+        coef[:, feature_idx] = fe
+        se_coef[:, feature_idx] = se
+        t_coef[:, feature_idx] = t_val
+        p_coef[:, feature_idx] = p_val
+        sigma2[feature_idx] = scale
+        vc_intercept[feature_idx] = vc_i
+        vc_slope[feature_idx] = vc_s
+        vc_cov[feature_idx] = vc_is
+        log_lik[feature_idx] = float(result.llf)
+        converged[feature_idx] = 1.0 if bool(getattr(result, "converged", False)) else 0.0
+        lambda_intercept[feature_idx] = vc_i / scale if scale > 0 else np.nan
+        lambda_slope[feature_idx] = vc_s / scale if scale > 0 else np.nan
+        lambda_cov[feature_idx] = vc_is / scale if scale > 0 else np.nan
+        denom = np.sqrt(vc_i * vc_s)
+        corr[feature_idx] = vc_is / denom if denom > 0 else 0.0
+
+    df_res = np.full(n_samples, df_val, dtype=np.float64)
+    assays: dict[str, NDArray[np.float64]] = {
+        "sigma2": _flat_lmm(sigma2),
+        "vc_intercept": _flat_lmm(vc_intercept),
+        "vc_slope": _flat_lmm(vc_slope),
+        "vc_cov_intercept_slope": _flat_lmm(vc_cov),
+        "vc_resid": _flat_lmm(sigma2),
+        "df_res": _flat_lmm(df_res),
+        "logLik": _flat_lmm(log_lik),
+        "converged": _flat_lmm(converged),
+        "lambda_intercept": _flat_lmm(lambda_intercept),
+        "lambda_slope": _flat_lmm(lambda_slope),
+        "lambda_cov_intercept_slope": _flat_lmm(lambda_cov),
+        "corr_intercept_slope": _flat_lmm(corr),
+    }
+    for pred_idx, name in enumerate(predictor_names):
+        assays[f"coef:{name}"] = _flat_lmm(coef[pred_idx])
+        assays[f"se_coef:{name}"] = _flat_lmm(se_coef[pred_idx])
+        assays[f"t_coef:{name}"] = _flat_lmm(t_coef[pred_idx])
+        assays[f"p_coef:{name}"] = _flat_lmm(p_coef[pred_idx])
+
+    return _lmm_result_dataset(
+        dataset,
+        assays,
+        method="lmm:ri_slope1",
+        metadata={
+            "formula": formula,
+            "slope": slope,
+            "covariance": covariance,
+            "fit": fit,
+            "theta_mode": theta_mode,
+            "center_slope": bool(center_slope),
+            "predictor_names": tuple(predictor_names),
+            "engine": "statsmodels.MixedLM",
+        },
+    )
 
 
 def register_core_reducers(*, overwrite: bool = True) -> None:

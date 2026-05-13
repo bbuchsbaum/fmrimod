@@ -505,14 +505,148 @@ def test_hot_reducer_parallel_options_are_validated() -> None:
         )
 
 
-def test_lmm_reducers_are_explicit_native_milestone_gaps() -> None:
+def _lmm_repeated_dataset():
+    subjects = [f"sub-{idx:02d}" for idx in range(1, 9)]
+    contrasts = ["baseline", "task"]
+    u = np.array([-0.5, -0.2, 0.0, 0.1, 0.25, 0.35, -0.15, 0.2])
+    eps1 = np.array(
+        [
+            [-0.10, 0.02],
+            [-0.05, 0.01],
+            [0.03, -0.02],
+            [0.04, 0.00],
+            [-0.02, 0.03],
+            [0.01, -0.01],
+            [0.02, 0.04],
+            [-0.03, -0.02],
+        ]
+    )
+    eps2 = np.array(
+        [
+            [0.02, -0.01],
+            [-0.04, 0.03],
+            [0.01, -0.02],
+            [-0.03, 0.02],
+            [0.00, 0.01],
+            [0.03, -0.03],
+            [-0.01, 0.02],
+            [0.02, 0.00],
+        ]
+    )
+    beta = np.empty((2, len(subjects), len(contrasts)), dtype=np.float64)
+    beta[0, :, :] = np.column_stack([1.2 + u, 1.9 + u]) + eps1
+    beta[1, :, :] = np.column_stack([-0.4 + u, 0.7 + u]) + eps2
+    return group_dataset(
+        {"beta": beta},
+        space=SampleLabelSpace(["ROI_1", "ROI_2"]),
+        subjects=subjects,
+        contrasts=contrasts,
+        col_data=pd.DataFrame(
+            {"cohort": ["A"] * 4 + ["B"] * 4},
+            index=pd.Index(subjects, name="subject"),
+        ),
+        contrast_data=pd.DataFrame(
+            {"condition": [0.0, 1.0]},
+            index=pd.Index(contrasts, name="contrast"),
+        ),
+    )
+
+
+def _lmm_slope_dataset():
+    subjects = [f"sub-{idx:02d}" for idx in range(1, 11)]
+    contrasts = ["t0", "t1", "t2"]
+    time = np.array([-1.0, 0.0, 1.0])
+    b0 = np.array([-0.30, -0.18, -0.12, -0.05, 0.00, 0.08, 0.13, 0.18, 0.24, 0.31])
+    b1 = np.array([-0.15, -0.10, -0.06, -0.02, 0.01, 0.05, 0.08, 0.11, 0.15, 0.19])
+    eps1 = np.array(
+        [
+            [0.01, -0.02, 0.00],
+            [-0.01, 0.02, 0.01],
+            [0.02, 0.00, -0.01],
+            [0.00, -0.01, 0.02],
+            [-0.02, 0.01, 0.00],
+            [0.01, 0.00, -0.02],
+            [0.00, 0.02, -0.01],
+            [-0.01, 0.01, 0.02],
+            [0.02, -0.01, 0.01],
+            [0.00, 0.01, -0.01],
+        ]
+    )
+    eps2 = np.array(
+        [
+            [-0.01, 0.00, 0.02],
+            [0.02, -0.01, 0.01],
+            [0.00, 0.01, -0.02],
+            [-0.02, 0.02, 0.00],
+            [0.01, -0.02, 0.01],
+            [0.00, 0.01, -0.01],
+            [-0.01, 0.00, 0.02],
+            [0.02, -0.02, 0.00],
+            [0.01, 0.01, -0.02],
+            [-0.02, 0.00, 0.01],
+        ]
+    )
+    beta = np.empty((2, len(subjects), len(contrasts)), dtype=np.float64)
+    beta[0, :, :] = np.outer(1.1 + b0, np.ones_like(time)) + np.outer(0.65 + b1, time) + eps1
+    beta[1, :, :] = (
+        np.outer(-0.3 + 0.8 * b0, np.ones_like(time))
+        + np.outer(0.95 + 1.3 * b1, time)
+        + eps2
+    )
+    return group_dataset(
+        {"beta": beta},
+        space=SampleLabelSpace(["ROI_1", "ROI_2"]),
+        subjects=subjects,
+        contrasts=contrasts,
+        contrast_data=pd.DataFrame(
+            {"time": time},
+            index=pd.Index(contrasts, name="contrast"),
+        ),
+    )
+
+
+def test_lmm_ri_voxelwise_theta_runs_natively() -> None:
+    ds = _lmm_repeated_dataset()
+
+    out = lmm_ri(ds, formula="~ condition", theta_mode="voxelwise")
+
+    assert out.subjects == ("meta",)
+    assert out.contrasts == ("model",)
+    assert out.metadata["engine"] == "statsmodels.MixedLM"
+    assert out.metadata["theta_mode"] == "voxelwise"
+    assert out.assay("coef:condition").shape == (2, 1, 1)
+    assert np.all(out.assay("coef:condition")[:, 0, 0] > 0.5)
+    assert np.all(np.isfinite(out.assay("lambda")[:, 0, 0]))
+
+
+def test_lmm_ri_slope1_voxelwise_full_covariance_runs_natively() -> None:
+    ds = _lmm_slope_dataset()
+
+    out = lmm_ri_slope1(
+        ds,
+        formula="~ time",
+        slope="time",
+        theta_mode="voxelwise",
+    )
+
+    assert out.metadata["reduce_method"] == "lmm:ri_slope1"
+    assert out.metadata["covariance"] == "diag"
+    assert "vc_slope" in out.assays
+    assert "corr_intercept_slope" in out.assays
+    assert np.all(out.assay("coef:time")[:, 0, 0] > 0.4)
+    np.testing.assert_allclose(out.assay("corr_intercept_slope")[:, 0, 0], 0.0)
+
+
+def test_lmm_reducers_keep_unsupported_modes_explicit() -> None:
     ds = _fixed_effects_dataset()
 
-    with pytest.raises(UnsupportedGroupFeatureError, match="R fmrigds oracle"):
+    with pytest.raises(UnsupportedGroupFeatureError, match="theta_mode='voxelwise'"):
         lmm_ri(ds)
-    with pytest.raises(UnsupportedGroupFeatureError, match="lmm_core.cpp"):
-        lmm_ri_slope1(ds)
-    with pytest.raises(UnsupportedGroupFeatureError, match="lmm:ri"):
+    with pytest.raises(AdapterContractError, match="slope"):
+        lmm_ri_slope1(ds, theta_mode="voxelwise")
+    with pytest.raises(AdapterContractError, match="not present"):
+        lmm_ri_slope1(ds, slope="condition", theta_mode="voxelwise")
+    with pytest.raises(UnsupportedGroupFeatureError, match="theta_mode='voxelwise'"):
         reduce(ds, method="lmm:ri")
-    with pytest.raises(UnsupportedGroupFeatureError, match="lmm:ri_slope1"):
+    with pytest.raises(AdapterContractError, match="slope"):
         reduce(ds, method="lmm:ri_slope1")
