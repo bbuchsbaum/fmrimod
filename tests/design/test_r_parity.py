@@ -293,7 +293,7 @@ class TestBasisFunctions:
         x = np.array(self.fix["x"])
         r_mat = np.array(self.fix["poly"]["matrix"])
 
-        py_poly = Poly(x, degree=3)
+        py_poly = Poly.from_data(x, degree=3)
         py_mat = py_poly.y
 
         assert py_mat.shape == r_mat.shape, (
@@ -312,7 +312,7 @@ class TestBasisFunctions:
         x = np.array(self.fix["x"])
         r_vals = np.array(self.fix["scale"]["values"])
 
-        py_scale = Scale(x)
+        py_scale = Scale.from_data(x)
         py_vals = np.asarray(py_scale.y).ravel()
 
         np.testing.assert_allclose(py_vals, r_vals, atol=ATOL,
@@ -324,7 +324,7 @@ class TestBasisFunctions:
         x = np.array(self.fix["x"])
         r_vals = np.array(self.fix["robust_scale"]["values"])
 
-        py_robust = RobustScale(x)
+        py_robust = RobustScale.from_data(x)
         py_vals = np.asarray(py_robust.y).ravel()
 
         np.testing.assert_allclose(py_vals, r_vals, atol=ATOL,
