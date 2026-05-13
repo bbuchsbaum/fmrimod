@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -123,7 +123,7 @@ def _max_abs_null(null_stats: NDArray[np.float64]) -> NDArray[np.float64]:
     safe = np.where(np.isfinite(abs_null), abs_null, -np.inf)
     max_abs = np.max(safe, axis=1)
     max_abs[~np.isfinite(max_abs)] = 0.0
-    return max_abs
+    return cast(NDArray[np.float64], max_abs)
 
 
 def _t_p_two_sided(t_value: float, df: float) -> float:
