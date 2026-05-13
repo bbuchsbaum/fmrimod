@@ -2,10 +2,9 @@
 
 import numpy as np
 import pytest
-from scipy import stats as sp_stats
+from scipy import linalg as spl_linalg
 
-from fmrimod.glm.solver import fast_preproject, fast_lm_matrix, Projection
-
+from fmrimod.glm.solver import fast_lm_matrix, fast_preproject
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -19,7 +18,7 @@ def rng():
 @pytest.fixture
 def simple_design(rng):
     """Simple full-rank design: intercept + 2 regressors, 100 obs."""
-    n, p = 100, 3
+    n = 100
     X = np.column_stack([np.ones(n), rng.standard_normal((n, 2))])
     return X
 
@@ -83,6 +82,20 @@ class TestFastPreproject:
         proj = fast_preproject(simple_design)
         betas_hat = proj.Pinv @ Y
         np.testing.assert_allclose(betas_hat, true_betas, atol=0.05)
+
+    def test_pinv_method_matches_scipy_projection(self, simple_design):
+        proj = fast_preproject(simple_design, method="pinv")
+        scipy_pinv, rank = spl_linalg.pinv(simple_design, return_rank=True)
+
+        assert proj.rank == rank
+        assert proj.dfres == simple_design.shape[0] - rank
+        assert proj.XtX is None
+        np.testing.assert_allclose(proj.Pinv, scipy_pinv)
+        np.testing.assert_allclose(proj.XtXinv, scipy_pinv @ scipy_pinv.T)
+
+    def test_unknown_projection_method_raises(self, simple_design):
+        with pytest.raises(ValueError, match="projection method"):
+            fast_preproject(simple_design, method="qr")  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------

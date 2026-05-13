@@ -50,12 +50,13 @@ def _maybe_limit_blas_threads(blas_threads: Optional[int]):
 def _projection_cache_key(
     X: NDArray[np.float64],
     compute_dtype: object,
+    method: str,
 ) -> tuple:
     """Build a stable cache key for a design matrix projection."""
     Xc = np.ascontiguousarray(X, dtype=np.dtype(compute_dtype))
     h = hashlib.blake2b(digest_size=16)
     h.update(memoryview(Xc).cast("B"))
-    return (Xc.shape, Xc.dtype.str, h.digest())
+    return (Xc.shape, Xc.dtype.str, method, h.digest())
 
 
 def _dataset_run_lengths(dataset: object) -> list[int] | None:
@@ -168,13 +169,14 @@ def fit_run_ols(
     proj = None
     cache_key = None
     if projection_cache is not None:
-        cache_key = _projection_cache_key(X_fit, compute_dtype)
+        cache_key = _projection_cache_key(X_fit, compute_dtype, config.solver)
         proj = projection_cache.get(cache_key)
     if proj is None:
         proj = fast_preproject(
             X_fit,
             compute_dtype=compute_dtype,
             check_finite=False,
+            method=config.solver,
         )
         if projection_cache is not None and cache_key is not None:
             projection_cache[cache_key] = proj
@@ -376,6 +378,7 @@ def fit_runwise(
             X_fit,
             compute_dtype=compute_dtype,
             check_finite=False,
+            method=config.solver,
         )
         result = _fit_chunked_lm(
             X_fit,
@@ -628,13 +631,14 @@ def fit_chunkwise(
         proj = None
         cache_key = None
         if proj_cache is not None:
-            cache_key = _projection_cache_key(X_fit, compute_dtype)
+            cache_key = _projection_cache_key(X_fit, compute_dtype, config.solver)
             proj = proj_cache.get(cache_key)
         if proj is None:
             proj = fast_preproject(
                 X_fit,
                 compute_dtype=compute_dtype,
                 check_finite=False,
+                method=config.solver,
             )
             if proj_cache is not None and cache_key is not None:
                 proj_cache[cache_key] = proj

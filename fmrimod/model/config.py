@@ -5,8 +5,8 @@ Ports R's ``fmri_lm_control()`` into Python dataclasses with validation.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import warnings
+from dataclasses import dataclass, field
 from typing import List, Literal, Optional, Union
 
 import numpy as np
@@ -345,12 +345,21 @@ class FmriLmConfig:
         Volume weighting options.
     soft_subspace : SoftSubspaceOptions
         Soft subspace projection options.
+    solver : {"auto", "pinv"}
+        Projection solver for OLS. ``"auto"`` keeps the fast default path;
+        ``"pinv"`` uses a Moore-Penrose projection for strict reference
+        parity workflows.
     """
 
     robust: RobustOptions = field(default_factory=RobustOptions)
     ar: AROptions = field(default_factory=AROptions)
     volume_weights: VolumeWeightOptions = field(default_factory=VolumeWeightOptions)
     soft_subspace: SoftSubspaceOptions = field(default_factory=SoftSubspaceOptions)
+    solver: Literal["auto", "pinv"] = "auto"
+
+    def __post_init__(self) -> None:
+        if self.solver not in ("auto", "pinv"):
+            raise ValueError("solver must be 'auto' or 'pinv'")
 
     def __repr__(self) -> str:
         parts = []
@@ -362,6 +371,8 @@ class FmriLmConfig:
             parts.append(f"vol_weights={self.volume_weights.method}")
         if self.soft_subspace.enabled:
             parts.append("soft_subspace=True")
+        if self.solver != "auto":
+            parts.append(f"solver={self.solver}")
         if not parts:
             parts.append("OLS")
         return f"FmriLmConfig({', '.join(parts)})"
@@ -422,6 +433,7 @@ def fmri_lm_control(
     ar_options: Optional[dict] = None,
     volume_weights_options: Optional[dict] = None,
     soft_subspace_options: Optional[dict] = None,
+    solver: Literal["auto", "pinv"] = "auto",
 ) -> FmriLmConfig:
     """Create an :class:`FmriLmConfig` from dictionaries.
 
@@ -448,4 +460,10 @@ def fmri_lm_control(
     vw = VolumeWeightOptions(**(volume_weights_options or {}))
     ss_opts = dict(soft_subspace_options or {})
     ss = _soft_subspace_options(**ss_opts)
-    return FmriLmConfig(robust=robust, ar=ar, volume_weights=vw, soft_subspace=ss)
+    return FmriLmConfig(
+        robust=robust,
+        ar=ar,
+        volume_weights=vw,
+        soft_subspace=ss,
+        solver=solver,
+    )

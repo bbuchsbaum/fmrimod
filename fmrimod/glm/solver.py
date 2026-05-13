@@ -7,7 +7,7 @@ All operations work on ``(time, voxels)`` matrices for vectorised computation.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Literal, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -134,6 +134,7 @@ def fast_preproject(
     X: NDArray[np.float64],
     compute_dtype: object = np.float64,
     check_finite: bool = True,
+    method: Literal["auto", "pinv"] = "auto",
 ) -> Projection:
     """Pre-compute projection matrices for fast OLS.
 
@@ -149,6 +150,10 @@ def fast_preproject(
         Design matrix, shape ``(n, p)``.
     compute_dtype : numpy dtype-like
         Internal compute dtype (``float64`` default, optional ``float32``).
+    method : {"auto", "pinv"}
+        Projection backend. ``"auto"`` uses the fast stable path and falls
+        back for rank-deficient or ill-conditioned designs. ``"pinv"`` always
+        uses a Moore-Penrose projection.
 
     Returns
     -------
@@ -168,10 +173,25 @@ def fast_preproject(
         raise ValueError(f"X must be 2-D, got shape {X.shape}")
     if X.shape[0] == 0 or X.shape[1] == 0:
         raise ValueError("Design matrix must have at least one row and one column")
+    if method not in ("auto", "pinv"):
+        raise ValueError("projection method must be 'auto' or 'pinv'")
     if check_finite and not np.all(np.isfinite(X)):
         raise ValueError("Design matrix contains NA/Inf values")
 
     n, p = X.shape
+
+    if method == "pinv":
+        Pinv, rank = linalg.pinv(X, return_rank=True, check_finite=False)
+        XtXinv = Pinv @ Pinv.T
+        return Projection(
+            Pinv=Pinv,
+            XtXinv=XtXinv,
+            dfres=float(n - rank),
+            rank=int(rank),
+            is_full_rank=(int(rank) == p),
+            ill_conditioned=(int(rank) != p),
+            XtX=None,
+        )
 
     cond_threshold = 1.0 / np.sqrt(eps)
     used_cholesky = False

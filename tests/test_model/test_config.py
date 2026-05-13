@@ -146,7 +146,7 @@ class TestAROptions:
         assert opts_num.censor == [1, 4, 9]
         assert opts_bool.censor == [True, False, True]
 
-    def test_censor_rejects_invalid_string(self):
+    def test_censor_rejects_invalid_string_short_message(self):
         with pytest.raises(ValueError, match="censor must be"):
             AROptions(censor="bad_mode")
 
@@ -159,7 +159,7 @@ class TestAROptions:
         assert AROptions(censor=[1, 5, 10]).censor == [1, 5, 10]
         assert AROptions(censor=[True, False, True]).censor == [True, False, True]
 
-    def test_censor_rejects_invalid_string(self):
+    def test_censor_rejects_invalid_string_value(self):
         with pytest.raises(ValueError, match="censor must be None, 'auto'"):
             AROptions(censor="bad")
 
@@ -427,3 +427,22 @@ class TestSoftSubspaceOptionsFactory:
         )
 
         assert opts.lam == 0.3
+
+
+class TestFmriLmConfigSolver:
+    def test_solver_defaults_to_auto(self):
+        assert FmriLmConfig().solver == "auto"
+        assert "solver=" not in repr(FmriLmConfig())
+
+    def test_solver_accepts_pinv(self):
+        cfg = FmriLmConfig(solver="pinv")
+
+        assert cfg.solver == "pinv"
+        assert "solver=pinv" in repr(cfg)
+
+    def test_solver_rejects_unknown_value(self):
+        with pytest.raises(ValueError, match="solver must be"):
+            FmriLmConfig(solver="svd")  # type: ignore[arg-type]
+
+    def test_fmri_lm_control_threads_solver(self):
+        assert fmri_lm_control(solver="pinv").solver == "pinv"

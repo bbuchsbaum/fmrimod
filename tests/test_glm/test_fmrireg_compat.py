@@ -81,13 +81,20 @@ def test_fit_contrasts_and_suffstats_build_fmri_lm_results():
     model = _RawModel(x)
     fit = fmrimod.fit_glm_with_config(model, y, FmriLmConfig())
     matrix_fit = fmrimod.fit_glm_from_matrix(x, y, model=model, cfg=FmriLmConfig())
+    pinv_fit = fmrimod.fit_glm_from_matrix(
+        x, y, model=model, cfg=FmriLmConfig(solver="pinv")
+    )
     out = fmrimod.fit_contrasts(fit, {"slope": np.array([0.0, 1.0])})
 
     assert list(out) == ["slope"]
     assert out["slope"].stat.shape == (y.shape[1],)
     np.testing.assert_allclose(matrix_fit.betas, fit.betas)
     np.testing.assert_allclose(matrix_fit.sigma, fit.sigma)
+    np.testing.assert_allclose(pinv_fit.betas, fit.betas)
     assert matrix_fit.provenance is not None
+
+    with pytest.raises(ValueError, match="solver"):
+        FmriLmConfig(solver="qr")  # type: ignore[arg-type]
 
     suff_fit = fmrimod.fit_glm_from_suffstats(
         model,

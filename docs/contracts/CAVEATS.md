@@ -7,7 +7,6 @@ criterion.
 
 | Caveat ID | First appearance | Affected tiers | Owner | Exit criterion |
 | --- | --- | --- | --- | --- |
-| `localizer-tstat-variance-outliers` | `benchmarks/parity/tier_a_localizer_fixed_effects/` | Tier A localizer fixed effects | `bd-01KRGRF4X588F56QT21CPBB7NJ` | Resolve the remaining near-zero-dispersion sparse-mask voxels where Nilearn `run_glm` and fmrimod's X/Y-aware OLS path produce different variance-derived t statistics, then restore the normal allclose gate. |
 | `fitlins-ar1-coefficient-binning` | `benchmarks/parity/tier_b_fitlins_bids/` | Tier B FitLins CLI derivative parity | `bd-01KRGRF4X588F56QT21CPBB7NJ` | Narrow or remove the AR/statistic caveat once t and variance maps meet the standard gate without undocumented tolerance bypasses. |
 
 ## Maintenance Rule

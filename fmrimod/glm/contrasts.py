@@ -403,7 +403,7 @@ def contrast_t(
 
     # t-statistic
     with np.errstate(divide="ignore", invalid="ignore"):
-        tstat = np.where(se > 1e-15, estimate / se, 0.0)
+        tstat = np.where(se > 0.0, estimate / se, 0.0)
 
     # Two-sided p-value
     p_value = _t_two_sided_pvalue(tstat, dfres)
@@ -473,7 +473,7 @@ def contrast_t_batch(
     se = np.sqrt(np.maximum(var_factors, 0.0))[:, np.newaxis] * sigma[np.newaxis, :]
 
     with np.errstate(divide="ignore", invalid="ignore"):
-        tstat = np.where(se > 1e-15, estimates / se, 0.0)
+        tstat = np.where(se > 0.0, estimates / se, 0.0)
     p_value = _t_two_sided_pvalue(tstat, dfres)
 
     if names is None:
@@ -532,7 +532,7 @@ def contrast_f(
         var_factor = con_vec @ XtXinv @ con_vec
         se = sigma * np.sqrt(np.maximum(var_factor, 0.0))
         with np.errstate(divide="ignore", invalid="ignore"):
-            tstat = np.where(se > 1e-15, estimate / se, 0.0)
+            tstat = np.where(se > 0.0, estimate / se, 0.0)
         fstat = np.maximum(tstat * tstat, 0.0)
         p_value = _t_two_sided_pvalue(tstat, dfres)
         return ContrastResult(

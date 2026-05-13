@@ -4,13 +4,13 @@ import numpy as np
 import pytest
 from scipy import stats as sp_stats
 
-from fmrimod.glm.solver import fast_preproject, fast_lm_matrix
 from fmrimod.glm.contrasts import (
-    contrast_t,
-    contrast_t_batch,
     contrast_f,
     contrast_f_vectorized,
+    contrast_t,
+    contrast_t_batch,
 )
+from fmrimod.glm.solver import fast_lm_matrix, fast_preproject
 
 
 @pytest.fixture
@@ -130,6 +130,20 @@ class TestContrastT:
             np.testing.assert_allclose(batch[i].stat, single.stat, atol=1e-12)
             np.testing.assert_allclose(batch[i].se, single.se, atol=1e-12)
             np.testing.assert_allclose(batch[i].p_value, single.p_value, atol=1e-12)
+
+    def test_tiny_nonzero_se_is_not_suppressed(self):
+        """Finite tiny SEs still carry valid reference t statistics."""
+        con = np.array([1.0])
+        betas = np.array([[5.0e-15]])
+        xtxinv = np.array([[1.0]])
+        sigma = np.array([1.0e-15])
+
+        single = contrast_t(con, betas, xtxinv, sigma, dfres=20.0)
+        batch = contrast_t_batch(np.atleast_2d(con), betas, xtxinv, sigma, 20.0)[0]
+
+        assert single.se[0] == 1.0e-15
+        assert single.stat[0] == 5.0
+        assert batch.stat[0] == 5.0
 
 
 class TestContrastF:

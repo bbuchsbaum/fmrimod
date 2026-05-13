@@ -15,7 +15,6 @@ from numpy.typing import NDArray
 
 from cross_testing.fitlins_parity import fit_fitlins_reference_ols
 from cross_testing.harness import (
-    Caveat,
     ParityCase,
     ParityTolerance,
     PipelineOutput,
@@ -23,7 +22,7 @@ from cross_testing.harness import (
     run,
 )
 from fmrimod.glm import fit_glm_from_matrix
-
+from fmrimod.model.config import FmriLmConfig
 
 Array = NDArray[np.float64]
 TR = 2.4
@@ -116,14 +115,16 @@ def nilearn_pipeline(inputs: LocalizerInputs) -> PipelineOutput:
 def fmrimod_pipeline(inputs: LocalizerInputs) -> PipelineOutput:
     """Fit Nilearn's localizer design with fmrimod's public OLS path.
 
-    The X/Y-aware path preserves residual information needed for
-    cancellation-safe variance recovery on sparse boundary voxels.
+    Strict reference parity uses the explicit Moore-Penrose solver backend.
+    The default fast path is numerically stable, but it can produce slightly
+    different residual variance on sparse boundary voxels because it takes a
+    different algebraic route through the same least-squares problem.
     """
     model = _fit_reference(inputs.img, inputs.events, inputs.mask_img)
     X = model.design_matrices_[0].to_numpy(dtype=np.float64)
     Y = model.masker_.transform(inputs.img)
 
-    fit = fit_glm_from_matrix(X, Y)
+    fit = fit_glm_from_matrix(X, Y, cfg=FmriLmConfig(solver="pinv"))
     cres = fit.contrast(inputs.contrast)
     return PipelineOutput(
         arrays={
@@ -134,32 +135,15 @@ def fmrimod_pipeline(inputs: LocalizerInputs) -> PipelineOutput:
 
 
 def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
-    caveat = Caveat(
-        caveat_id="localizer-tstat-variance-outliers",
-        quantity="t_audio_gt_visual",
-        reason=(
-            "fmrimod now uses an X/Y-aware OLS path with explicit residual RSS "
-            "recovery, but Nilearn run_glm still differs on a small set of "
-            "near-zero-dispersion sparse-mask voxels; the parity gate therefore "
-            "uses MAE and rank stability for the t map."
-        ),
-        expected="effect equality with low-MAE, high-rank-correlation t statistics",
-        link="docs/contracts/fitlins_nilearn_overlap_v1.md#reference-workflow-tiers",
-    )
     return ParityCase(
         name="tier_a_localizer_audio_gt_visual",
         fmrimod_pipeline=fmrimod_pipeline,
         reference_pipeline=nilearn_pipeline,
         inputs=load_inputs(max_voxels=max_voxels),
-        declared_caveats=(caveat,),
+        declared_caveats=(),
         tolerances={
             "effect_audio_gt_visual": ParityTolerance(rtol=1e-6, atol=1e-7),
-            "t_audio_gt_visual": ParityTolerance(
-                check_allclose=False,
-                min_pearson=0.95,
-                min_spearman=0.99,
-                max_mae=0.03,
-            ),
+            "t_audio_gt_visual": ParityTolerance(rtol=1e-6, atol=1e-7),
         },
     )
 

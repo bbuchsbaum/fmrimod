@@ -122,16 +122,227 @@
       "replacement_target": "Replace externally realized Nilearn design matrices with fmri_dataset -> fmri_lm per-run fits, then keep combine_runs as the fixed-effects pooling seam."
     },
     {
+      "benchmark_id": "tier_a_factorial_2x2",
+      "evidence_level": "workflow_parity",
+      "public_seam": true,
+      "workflow_path": "benchmarks/parity/tier_a_factorial_2x2/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_factorial_2x2/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_factorial_2x2/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_factorial_2x2/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> typed factorial contrasts",
+      "caveats": [],
+      "timings": {
+        "status": "not_recorded",
+        "next": "record design-realization and fit timings after promoting the factorial case to docs"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.spec.HrfTerm",
+        "fmrimod.design.DesignColumns",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.glm.ContrastResult"
+      ],
+      "fmrimod_expresses_better": "The crossed task-by-valence design is authored as typed factors and resolved through design-column metadata instead of manual pseudo-trial-type and contrast-index bookkeeping.",
+      "receipt": {
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_a_factorial_2x2.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier_a_factorial_3x3_parametric",
+      "evidence_level": "workflow_parity",
+      "public_seam": true,
+      "workflow_path": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_factorial_3x3_parametric/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> typed factorial and parametric contrasts",
+      "caveats": [],
+      "timings": {
+        "status": "not_recorded",
+        "next": "record design-realization and fit timings after the 3x3 parametric case is promoted to docs"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.spec.HrfTerm",
+        "fmrimod.design.DesignColumns",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.glm.ConditionReport",
+        "fmrimod.glm.ContrastResult"
+      ],
+      "fmrimod_expresses_better": "The nine-cell factorial and per-cell parametric modulator remain inspectable typed terms, including NaN-modulator recovery and rank diagnostics, instead of becoming duplicated event labels.",
+      "receipt": {
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_a_factorial_3x3_parametric.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier_a_fir_unconstrained_hrf",
+      "evidence_level": "workflow_parity",
+      "public_seam": true,
+      "workflow_path": "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_fir_unconstrained_hrf/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> OmnibusContrast",
+      "caveats": [],
+      "timings": {
+        "status": "not_recorded",
+        "next": "record FIR design and fit timings after the unconstrained-HRF case is promoted to docs"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.spec.HrfTerm",
+        "fmrimod.contrast.OmnibusContrast",
+        "fmrimod.design.DesignColumns",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.glm.ContrastResult"
+      ],
+      "fmrimod_expresses_better": "The FIR lag expansion and omnibus hypothesis are carried as typed basis and contrast intent rather than hand-enumerated lag column indices.",
+      "receipt": {
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_a_fir_unconstrained_hrf.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier_a_multicollinear_baseline",
+      "evidence_level": "workflow_parity",
+      "public_seam": true,
+      "workflow_path": "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_multicollinear_baseline/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> condition_report -> contrast",
+      "caveats": [],
+      "timings": {
+        "status": "not_recorded",
+        "next": "record rank-diagnostic overhead separately from solver time"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.spec.ConfoundTerm",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.glm.ConditionReport",
+        "fmrimod.glm.ContrastResult"
+      ],
+      "fmrimod_expresses_better": "The rank-deficient nuisance design produces explicit aliased-column diagnostics and condition reports while preserving identifiable contrast parity.",
+      "receipt": {
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_a_multicollinear_baseline.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier_a_multirun_concat",
+      "evidence_level": "workflow_parity",
+      "public_seam": true,
+      "workflow_path": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_multirun_concat/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_multirun_concat/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_multirun_concat/workflow.py::fmrimod_pipeline: matrix_dataset -> fmri_lm -> cross-run contrasts",
+      "caveats": [],
+      "timings": {
+        "status": "not_recorded",
+        "next": "record concatenated-design realization and fit timings once the case is promoted to docs"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.spec.HrfTerm",
+        "fmrimod.spec.DriftTerm",
+        "fmrimod.design.DesignColumns",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.glm.ContrastResult"
+      ],
+      "fmrimod_expresses_better": "Run-specific task, drift, and intercept columns remain addressable by typed run and condition metadata, making cross-run contrasts explicit rather than hand-built.",
+      "receipt": {
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_a_multirun_concat.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier_a_parametric_modulation",
+      "evidence_level": "workflow_parity",
+      "public_seam": true,
+      "workflow_path": "benchmarks/parity/tier_a_parametric_modulation/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_parametric_modulation/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_parametric_modulation/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_parametric_modulation/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> typed parametric contrasts",
+      "caveats": [],
+      "timings": {
+        "status": "not_recorded",
+        "next": "record parametric-design realization and fit timings once the case is promoted to docs"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.spec.HrfTerm",
+        "fmrimod.design.DesignColumns",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.glm.ContrastResult"
+      ],
+      "fmrimod_expresses_better": "Main effects and continuous modulators are authored in one typed HRF term and resolved by design metadata instead of duplicated event rows or convolver-order guesses.",
+      "receipt": {
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_a_parametric_modulation.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ]
+      }
+    },
+    {
       "benchmark_id": "tier_a_localizer_fixed_effects",
       "evidence_level": "numerical_canary",
       "public_seam": false,
       "workflow_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py",
       "report_path": "benchmarks/parity/tier_a_localizer_fixed_effects/reports/parity_report.json",
       "reference_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py::nilearn_pipeline",
-      "fmrimod_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py::fmrimod_pipeline: fit_glm_from_suffstats -> contrast",
-      "caveats": [
-        "localizer-tstat-variance-outliers"
-      ],
+      "fmrimod_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py::fmrimod_pipeline: fit_glm_from_matrix(solver='pinv') -> contrast",
+      "caveats": [],
       "replacement_target": "Build a companion workflow through fmri_dataset -> fmri_lm -> contrast using fmrimod-owned event and design objects."
     },
     {
