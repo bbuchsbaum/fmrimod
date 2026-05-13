@@ -1,9 +1,9 @@
 {
   "counts": {
-    "all_names": 198,
+    "all_names": 199,
     "any_in_signature": 1,
-    "callable": 196,
-    "classes": 17,
+    "callable": 197,
+    "classes": 18,
     "opaque_forwarder": 57
   },
   "fmrimod_version": "0.1.0",
@@ -470,6 +470,21 @@
       "owner_module": "fmrimod.spec.diff",
       "runtime_signature": "(added_events: 'Tuple[HrfTerm, ...]' = (), removed_events: 'Tuple[HrfTerm, ...]' = (), changed_events: 'Tuple[TermDiff, ...]' = (), added_baseline: 'Tuple[Term, ...]' = (), removed_baseline: 'Tuple[Term, ...]' = (), changed_baseline: 'Tuple[TermDiff, ...]' = ()) -> None",
       "signature_source": "inspect.signature",
+      "tier": "review_pending",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
+      "compatibility_status": "review_pending",
+      "has_any_in_signature": false,
+      "has_untagged_kwargs_dict": false,
+      "is_callable": true,
+      "is_class": true,
+      "is_function": false,
+      "name": "SpecSerializationError",
+      "opaque_forwarder": false,
+      "owner_module": "fmrimod.spec.serialize",
+      "runtime_signature": null,
+      "signature_source": "introspection_failed",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
@@ -2733,7 +2748,7 @@
       "name": "soft_subspace_options",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.model.config",
-      "runtime_signature": "(*, enabled: 'bool' = False, nuisance_matrix: 'Optional[NDArray]' = None, nuisance_mask: 'Optional[object]' = None, lam: \"Union[float, Literal['auto', 'gcv'], object]\" = <object object at 0x7f5e13d01ed0>, warn_redundant: 'bool' = True, **kwargs) -> 'SoftSubspaceOptions'",
+      "runtime_signature": "(*, enabled: 'bool' = False, nuisance_matrix: 'Optional[NDArray]' = None, nuisance_mask: 'Optional[object]' = None, lam: \"Union[float, Literal['auto', 'gcv'], object]\" = <object object at 0x7f7d657b5ed0>, warn_redundant: 'bool' = True, **kwargs) -> 'SoftSubspaceOptions'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
