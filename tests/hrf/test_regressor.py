@@ -1,14 +1,15 @@
 """Tests for Regressor functionality."""
 
-import pytest
-import numpy as np
 import typing
+
+import numpy as np
+import pytest
 from numpy.testing import assert_array_almost_equal, assert_array_equal
 from scipy.sparse import issparse
 
+from fmrimod.hrf import HRF, get_hrf
 from fmrimod.regressor import Regressor, RegressorSet, neural_input, regressor_design
 from fmrimod.regressor.core import regressor, regressor_set
-from fmrimod.hrf import HRF, get_hrf
 
 
 class TestRegressor:

@@ -2,23 +2,31 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Callable, Literal, Union, Optional, List, Tuple
-import numpy as np
-from numpy.typing import ArrayLike, NDArray
 import warnings
+from dataclasses import dataclass, field
+from typing import Any, Callable, List, Literal, Optional, Tuple, Union, cast
+
+import numpy as np
 import scipy
+from numpy.typing import ArrayLike, NDArray
 from scipy.sparse import csr_matrix
 
-from ..hrf import HRF, get_hrf
+from ..hrf import HRF
 from ..hrf.generators import make_hrf
-from .neural_input import neural_input_core
 from .convolution import convolve_hrf
+from .neural_input import neural_input_core
 
 # The factory input type. Strings and callables are coerced to HRF via
 # make_hrf() in _coerce_hrf(); the stored Regressor.hrf field is strictly
 # typed below (Union[HRF, List[HRF]]).
-HRFLike = Union[HRF, str, Callable, List[Union[HRF, str, Callable]]]
+HRFSpec = Union[HRF, str, Callable[..., object]]
+HRFLike = Union[HRFSpec, List[HRFSpec]]
+
+
+def _coerce_one_hrf(hrf: HRFSpec) -> HRF:
+    if isinstance(hrf, HRF):
+        return hrf
+    return make_hrf(cast(Union[str, dict[str, Any], HRF], hrf), lag=0)
 
 
 def _coerce_hrf(hrf: HRFLike) -> Union[HRF, List[HRF]]:
@@ -28,10 +36,8 @@ def _coerce_hrf(hrf: HRFLike) -> Union[HRF, List[HRF]]:
     pass through unchanged. List inputs are coerced element-wise.
     """
     if isinstance(hrf, list):
-        return [h if isinstance(h, HRF) else make_hrf(h, lag=0) for h in hrf]
-    if isinstance(hrf, HRF):
-        return hrf
-    return make_hrf(hrf, lag=0)
+        return [_coerce_one_hrf(h) for h in hrf]
+    return _coerce_one_hrf(hrf)
 
 
 def _recycle_or_error(
@@ -104,11 +110,12 @@ class Regressor:
     @property
     def nbasis(self) -> int:
         """Number of HRF basis functions (must be consistent across list)."""
-        if self.hrf_is_list:
-            return self.hrf[0].nbasis if len(self.hrf) > 0 else 1
-        return self.hrf.nbasis
+        hrf = self.hrf
+        if isinstance(hrf, list):
+            return hrf[0].nbasis if len(hrf) > 0 else 1
+        return hrf.nbasis
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate and process inputs after initialization."""
         # Convert inputs to numpy arrays
         self.onsets = np.asarray(self.onsets, dtype=np.float64)
@@ -145,9 +152,10 @@ class Regressor:
                 raise ValueError("duration cannot be negative")
 
         # --- Handle list-of-HRFs (trial-varying) ---
-        _hrf_is_list = isinstance(self.hrf, list)
-        if _hrf_is_list:
-            for i, h in enumerate(self.hrf):
+        hrf_value = self.hrf
+        _hrf_is_list = isinstance(hrf_value, list)
+        if isinstance(hrf_value, list):
+            for i, h in enumerate(hrf_value):
                 if not isinstance(h, HRF):
                     raise TypeError(
                         f"Regressor.hrf list element {i} must be an HRF; "
@@ -155,17 +163,18 @@ class Regressor:
                         "to coerce strings or callables."
                     )
             # Recycle length-1 list
-            if len(self.hrf) == 1 and n_onsets > 0:
-                self.hrf = self.hrf * n_onsets
-            elif len(self.hrf) != n_onsets and n_onsets > 0:
+            if len(hrf_value) == 1 and n_onsets > 0:
+                hrf_value = hrf_value * n_onsets
+                self.hrf = hrf_value
+            elif len(hrf_value) != n_onsets and n_onsets > 0:
                 raise ValueError(
                     f"`hrf` list must have length 1 or {n_onsets}, "
-                    f"got {len(self.hrf)}."
+                    f"got {len(hrf_value)}."
                 )
             # Validate consistent nbasis
-            if len(self.hrf) > 0:
-                nb0 = self.hrf[0].nbasis
-                for i, h in enumerate(self.hrf):
+            if len(hrf_value) > 0:
+                nb0 = hrf_value[0].nbasis
+                for i, h in enumerate(hrf_value):
                     if h.nbasis != nb0:
                         raise ValueError(
                             f"All HRFs in list must have the same nbasis. "
@@ -183,7 +192,8 @@ class Regressor:
                 self.duration = self.duration[keep_indices]
                 self.amplitude = self.amplitude[keep_indices]
                 if _hrf_is_list:
-                    self.hrf = [self.hrf[i] for i in keep_indices]
+                    hrf_list = cast(List[HRF], self.hrf)
+                    self.hrf = [hrf_list[i] for i in keep_indices]
         else:
             self.filtered_all = True
 
@@ -199,8 +209,9 @@ class Regressor:
         if hasattr(self, '_span_set'):
             pass
         elif _hrf_is_list:
-            if len(self.hrf) > 0:
-                self.span = max(h.span for h in self.hrf)
+            hrf_list = cast(List[HRF], self.hrf)
+            if len(hrf_list) > 0:
+                self.span = max(h.span for h in hrf_list)
         elif hasattr(self.hrf, 'span') and self.hrf.span is not None:
             self.span = self.hrf.span
     
@@ -293,7 +304,8 @@ class Regressor:
             return result
 
         # --- Trial-varying HRF path (per-event loop) ---
-        if self.hrf_is_list:
+        hrf_value = self.hrf
+        if isinstance(hrf_value, list):
             from .convolution import convolve_hrf_per_event
             keep_idx = np.where(keep)[0]
             result = convolve_hrf_per_event(
@@ -301,7 +313,7 @@ class Regressor:
                 onsets=self.onsets[keep_idx],
                 durations=self.duration[keep_idx],
                 amplitudes=self.amplitude[keep_idx],
-                hrfs=[self.hrf[i] for i in keep_idx],
+                hrfs=[hrf_value[i] for i in keep_idx],
                 span=self.span,
                 precision=precision,
                 summate=self.summate,
@@ -313,7 +325,7 @@ class Regressor:
                 onsets=self.onsets[keep],
                 durations=self.duration[keep],
                 amplitudes=self.amplitude[keep],
-                hrf=self.hrf,
+                hrf=hrf_value,
                 span=self.span,
                 precision=precision,
                 method=method,
@@ -340,7 +352,14 @@ class Regressor:
 
         return result
     
-    def plot(self, grid=None, precision: float = 0.33, show_onsets: bool = True, ax=None, **kwargs):
+    def plot(
+        self,
+        grid: ArrayLike | None = None,
+        precision: float = 0.33,
+        show_onsets: bool = True,
+        ax: Any = None,
+        **kwargs: Any,
+    ) -> object:
         """Plot this regressor.  See :func:`fmrimod.plotting.plot_regressor`."""
         from ..plotting import plot_regressor
         return plot_regressor(self, grid=grid, precision=precision, show_onsets=show_onsets, ax=ax, **kwargs)
@@ -366,10 +385,11 @@ class Regressor:
     def __repr__(self) -> str:
         """String representation of Regressor."""
         n_events = len(self.onsets)
-        if self.hrf_is_list:
-            hrf_desc = f"list[{len(self.hrf)} HRFs]"
+        hrf_value = self.hrf
+        if isinstance(hrf_value, list):
+            hrf_desc = f"list[{len(hrf_value)} HRFs]"
         else:
-            hrf_desc = f"'{getattr(self.hrf, 'name', 'custom')}'"
+            hrf_desc = f"'{getattr(hrf_value, 'name', 'custom')}'"
         parts = [
             f"Regressor(n_events={n_events}",
             f"hrf={hrf_desc}",
@@ -419,10 +439,10 @@ def regressor(
         >>> reg_tv = regressor(onsets=[10, 30], hrf=[h1, h2])
     """
     return Regressor(
-        onsets=onsets,
+        onsets=np.asarray(onsets, dtype=np.float64),
         hrf=_coerce_hrf(hrf),
-        duration=duration,
-        amplitude=amplitude,
+        duration=np.asarray(duration, dtype=np.float64),
+        amplitude=np.asarray(amplitude, dtype=np.float64),
         span=span,
         summate=summate
     )
@@ -447,7 +467,7 @@ class RegressorSet:
         self,
         grid: ArrayLike,
         precision: float = 0.33,
-        method: str = "conv",
+        method: Literal["conv", "fft", "direct"] = "conv",
         sparse: bool = False
     ) -> Union[NDArray[np.float64], scipy.sparse.csr_matrix]:
         """Evaluate all regressors to create design matrix.
@@ -521,7 +541,7 @@ def regressor_set(
     # Convert inputs
     onsets = np.asarray(onsets, dtype=np.float64)
     fac = np.asarray(fac)
-    hrf = _coerce_hrf(hrf)
+    hrf_typed = _coerce_hrf(hrf)
 
     # Match R as.factor() level ordering: sorted unique values.
     if np.issubdtype(fac.dtype, np.number):
@@ -545,7 +565,7 @@ def regressor_set(
         if np.any(idx):
             reg = Regressor(
                 onsets=onsets[idx],
-                hrf=hrf,
+                hrf=hrf_typed,
                 duration=duration[idx],
                 amplitude=amplitude[idx],
                 span=span,
@@ -555,7 +575,7 @@ def regressor_set(
             # Empty regressor for this level
             reg = Regressor(
                 onsets=np.array([]),
-                hrf=hrf,
+                hrf=hrf_typed,
                 duration=np.array([]),
                 amplitude=np.array([]),
                 span=span,
@@ -584,4 +604,9 @@ def null_regressor(hrf: Optional[HRFLike] = None, span: float = 24.0) -> Regress
         hrf_typed: Union[HRF, List[HRF]] = SPM_CANONICAL
     else:
         hrf_typed = _coerce_hrf(hrf)
-    return Regressor(onsets=np.array([]), hrf=hrf_typed, amplitude=0.0, span=span)
+    return Regressor(
+        onsets=np.array([], dtype=np.float64),
+        hrf=hrf_typed,
+        amplitude=np.array([0.0], dtype=np.float64),
+        span=span,
+    )
