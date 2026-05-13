@@ -8,6 +8,7 @@ import pytest
 
 from fmrimod.dataset import (
     group_data_from_csv,
+    group_data_from_fmrilm,
     group_data_from_h5,
     group_data_from_nifti,
 )
@@ -21,6 +22,18 @@ from fmrimod.group import (
     group_dataset_from_group_data,
     register_core_adapters,
 )
+
+
+class _DummyFmriLm:
+    def __init__(self, offset: float = 0.0) -> None:
+        self.betas = np.array(
+            [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+            dtype=np.float64,
+        ) + offset
+        self.se = np.full((2, 3), 0.5 + offset, dtype=np.float64)
+        self.tstat = self.betas / self.se
+        self.n_voxels = 3
+        self.coef_names = ("intercept", "task")
 
 
 def test_group_dataset_validates_assay_axis_contract() -> None:
@@ -181,6 +194,26 @@ def test_group_dataset_from_group_data_h5_materializes_axis_cube(tmp_path) -> No
     assert ds.col_data["age"].tolist() == [20, 30]
     np.testing.assert_allclose(ds.assay("beta")[:, :, 0], np.array([[1.0, 2.0], [2.0, 3.0]]))
     np.testing.assert_allclose(ds.assay("var")[:, :, 0], np.array([[0.01, 0.01], [0.04, 0.04]]))
+
+
+def test_group_dataset_from_group_data_fmrilm_materializes_coefficients() -> None:
+    gd = group_data_from_fmrilm(
+        [_DummyFmriLm(), _DummyFmriLm(offset=1.0)],
+        subjects=["s1", "s2"],
+        stat=("beta", "se", "tstat"),
+    )
+
+    ds = group_dataset_from_group_data(gd)
+
+    assert adapter_registry.is_registered("fmrilm")
+    assert ds.metadata["source_format"] == "fmrilm"
+    assert ds.subjects == ("s1", "s2")
+    assert ds.contrasts == ("intercept", "task")
+    assert ds.space.labels == ("sample1", "sample2", "sample3")
+    np.testing.assert_allclose(ds.assay("beta")[:, 0, 0], np.array([1.0, 2.0, 3.0]))
+    np.testing.assert_allclose(ds.assay("beta")[:, 1, 1], np.array([5.0, 6.0, 7.0]))
+    np.testing.assert_allclose(ds.assay("se")[:, 0, 0], np.full(3, 0.5))
+    assert "t" in ds.assays
 
 
 def test_group_dataset_from_group_data_nifti_materializes_voxel_space(tmp_path) -> None:

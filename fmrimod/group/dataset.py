@@ -407,12 +407,157 @@ def _group_dataset_from_nifti_group_data(data: Any) -> GroupDataset:
     )
 
 
+def _maybe_call(value: Any) -> Any:
+    return value() if callable(value) else value
+
+
+def _as_lm_stat_matrix(value: Any, *, stat: str) -> NDArray[np.float64]:
+    arr = np.asarray(_maybe_call(value), dtype=np.float64)
+    if arr.ndim == 1:
+        arr = arr[np.newaxis, :]
+    if arr.ndim != 2:
+        raise AdapterContractError(
+            f"fmrilm statistic '{stat}' must be a 1-D or 2-D array"
+        )
+    return arr
+
+
+def _canonical_lm_stat(stat: str) -> str:
+    aliases = {
+        "betas": "beta",
+        "estimate": "beta",
+        "effect": "beta",
+        "stderr": "se",
+        "std_error": "se",
+        "tstat": "t",
+        "stat": "t",
+        "pvalue": "p",
+        "p_value": "p",
+    }
+    return aliases.get(stat, stat)
+
+
+def _lm_contrast_stat_matrix(
+    lm: Any,
+    stat: str,
+    contrast_name: str,
+) -> NDArray[np.float64]:
+    contrasts = getattr(lm, "contrasts", None)
+    if not isinstance(contrasts, Mapping) or contrast_name not in contrasts:
+        raise AdapterContractError(
+            f"fmrilm object does not contain stored contrast '{contrast_name}'"
+        )
+    contrast = contrasts[contrast_name]
+    if stat == "beta":
+        return _as_lm_stat_matrix(contrast.estimate, stat=stat)
+    if stat == "se":
+        se = getattr(contrast, "se", None)
+        if se is None:
+            raise AdapterContractError("stored fmrilm contrast does not expose se")
+        return _as_lm_stat_matrix(se, stat=stat)
+    if stat in ("t", "z"):
+        return _as_lm_stat_matrix(contrast.stat, stat=stat)
+    if stat == "p":
+        return _as_lm_stat_matrix(contrast.p_value, stat=stat)
+    if stat == "var":
+        se = getattr(contrast, "se", None)
+        if se is None:
+            raise AdapterContractError("stored fmrilm contrast does not expose se")
+        return _as_lm_stat_matrix(se, stat=stat) ** 2
+    raise AdapterContractError(f"fmrilm contrast statistic '{stat}' is not supported")
+
+
+def _lm_stat_matrix(
+    lm: Any,
+    stat: str,
+    contrast_name: str | None,
+) -> NDArray[np.float64]:
+    if contrast_name is not None:
+        return _lm_contrast_stat_matrix(lm, stat, contrast_name)
+    if stat == "beta":
+        return _as_lm_stat_matrix(lm.betas, stat=stat)
+    if stat == "se":
+        return _as_lm_stat_matrix(lm.se, stat=stat)
+    if stat == "var":
+        return _as_lm_stat_matrix(lm.se, stat=stat) ** 2
+    if stat in ("t", "z"):
+        return _as_lm_stat_matrix(lm.tstat, stat=stat)
+    if stat == "p" and hasattr(lm, "p"):
+        return _as_lm_stat_matrix(lm.p, stat=stat)
+    raise AdapterContractError(f"fmrilm statistic '{stat}' is not supported")
+
+
+def _lm_contrast_labels(lm: Any, *, n_contrasts: int) -> tuple[str, ...]:
+    raw = getattr(lm, "coef_names", None)
+    if raw is None:
+        raw = getattr(lm, "coefficient_names", None)
+    if raw is not None:
+        labels = tuple(str(x) for x in _maybe_call(raw))
+        if len(labels) == n_contrasts:
+            return labels
+    return tuple(f"c{i + 1}" for i in range(n_contrasts))
+
+
+def _group_dataset_from_fmrilm_group_data(data: Any) -> GroupDataset:
+    lm_list = list(data.data["lm_list"])
+    if not lm_list:
+        raise AdapterContractError("fmrilm GroupData requires at least one model")
+    requested_stats = tuple(
+        _canonical_lm_stat(str(stat))
+        for stat in data.data.get("stat", ("beta", "se"))
+    )
+    contrast_name = data.data.get("contrast")
+    if contrast_name is not None:
+        contrast_name = str(contrast_name)
+
+    first_matrix = _lm_stat_matrix(lm_list[0], requested_stats[0], contrast_name)
+    n_contrasts, n_samples = (
+        (1, first_matrix.shape[1]) if contrast_name else first_matrix.shape
+    )
+    contrasts = (
+        (contrast_name,)
+        if contrast_name is not None
+        else _lm_contrast_labels(lm_list[0], n_contrasts=n_contrasts)
+    )
+    shape = (n_samples, len(lm_list), n_contrasts)
+    assays: dict[str, NDArray[np.float64]] = {
+        stat: np.empty(shape, dtype=np.float64) for stat in requested_stats
+    }
+    for subject_idx, lm in enumerate(lm_list):
+        for stat in requested_stats:
+            matrix = _lm_stat_matrix(lm, stat, contrast_name)
+            if contrast_name is not None and matrix.shape[0] != 1:
+                raise AdapterContractError("stored fmrilm contrast statistic must be 1-D")
+            if matrix.shape != (n_contrasts, n_samples):
+                raise AdapterContractError(
+                    "all fmrilm statistics must have matching coefficient x sample shape"
+                )
+            assays[stat][:, subject_idx, :] = matrix.T
+
+    samples = _sample_labels(n_samples)
+    return GroupDataset(
+        assays=assays,
+        space=SampleLabelSpace(samples),
+        subjects=tuple(str(x) for x in data.subjects),
+        contrasts=contrasts,
+        col_data=data.covariates,
+        row_data=pd.DataFrame(index=pd.Index(samples, name="sample")),
+        contrast_data=pd.DataFrame(index=pd.Index(contrasts, name="contrast")),
+        metadata={"source_format": "fmrilm"},
+    )
+
+
 def register_core_adapters(*, overwrite: bool = True) -> None:
     """Register built-in GroupData materializers."""
     for name, function, description in (
         ("csv", _group_dataset_from_csv_group_data, "CSV GroupData materializer"),
         ("h5", _group_dataset_from_h5_group_data, "HDF5 GroupData materializer"),
         ("nifti", _group_dataset_from_nifti_group_data, "NIfTI GroupData materializer"),
+        (
+            "fmrilm",
+            _group_dataset_from_fmrilm_group_data,
+            "fmri_lm GroupData materializer",
+        ),
     ):
         adapter_registry.register(
             name,
