@@ -345,6 +345,61 @@ def _pearson(candidate: Array, reference: Array) -> float | None:
     return float(np.corrcoef(cand, ref)[0, 1])
 
 
+def _median_ratio(candidate: Array, reference: Array) -> float | None:
+    if candidate.shape != reference.shape or candidate.size == 0:
+        return None
+    mask = (
+        np.isfinite(candidate)
+        & np.isfinite(reference)
+        & (np.abs(reference) > np.finfo(np.float64).eps)
+    )
+    if not np.any(mask):
+        return None
+    return float(np.median(candidate[mask] / reference[mask]))
+
+
+def _rank_deficient_stat_scale_diagnostics(
+    inputs: ProbeInputs,
+    fmrimod: EngineProbe,
+) -> dict[str, float | None]:
+    """Explain the known rank-deficient t-stat scale delta.
+
+    Nilearn's OLS result reports ``df_residuals = n - rank(X)``, but its
+    dispersion estimate divides RSS by ``n - p``. fmrimod uses ``n - rank(X)``
+    for both the reported residual df and residual-variance denominator.
+    In a rank-deficient design this creates a global t-stat scale ratio while
+    leaving effects and voxel rankings unchanged.
+    """
+
+    n_scans, n_columns = inputs.design.shape
+    nilearn_dispersion_denom = float(n_scans - n_columns)
+    fmrimod_dispersion_denom = fmrimod.df_residual
+    proj = fast_preproject(inputs.design)
+    pinv = np.linalg.pinv(inputs.design)
+    nilearn_cov = pinv @ pinv.T
+    fmrimod_cov_factor = float(inputs.contrast @ proj.XtXinv @ inputs.contrast)
+    nilearn_cov_factor = float(inputs.contrast @ nilearn_cov @ inputs.contrast)
+    expected_ratio: float | None
+    if (
+        fmrimod_dispersion_denom is not None
+        and np.isfinite(fmrimod_dispersion_denom)
+        and nilearn_dispersion_denom > 0.0
+    ):
+        expected_ratio = float(
+            np.sqrt(fmrimod_dispersion_denom / nilearn_dispersion_denom)
+        )
+    else:
+        expected_ratio = None
+    return {
+        "contrast_covariance_factor_delta": abs(
+            fmrimod_cov_factor - nilearn_cov_factor
+        ),
+        "fmrimod_dispersion_denominator_rank_df": fmrimod_dispersion_denom,
+        "nilearn_dispersion_denominator_column_df": nilearn_dispersion_denom,
+        "expected_stat_scale_ratio_from_dof": expected_ratio,
+    }
+
+
 def _case_status(
     inputs: ProbeInputs,
     fmrimod: EngineProbe,
@@ -363,9 +418,27 @@ def _case_status(
             and nilearn.finite_stat_fraction == 1.0
         )
         diagnostic_ok = bool(fmrimod.aliased_columns) and fmrimod.ill_conditioned is True
-        status = "pass" if effect_ok and stat_ok and diagnostic_ok else "fail"
+        scale_explained = (
+            comparisons["stat_scale_ratio_median"] is not None
+            and comparisons["expected_stat_scale_ratio_from_dof"] is not None
+            and comparisons["contrast_covariance_factor_delta"] is not None
+            and comparisons["contrast_covariance_factor_delta"] < 1e-10
+            and np.isclose(
+                comparisons["stat_scale_ratio_median"],
+                comparisons["expected_stat_scale_ratio_from_dof"],
+                rtol=1e-10,
+                atol=1e-12,
+            )
+        )
+        status = (
+            "pass"
+            if effect_ok and stat_ok and diagnostic_ok and scale_explained
+            else "fail"
+        )
         verdict = (
-            "both engines recover numerically; fmrimod is neater on diagnostics"
+            "effects agree; t-stat scale drift is explained by the "
+            "residual-variance DoF convention, not covariance pseudoinverse "
+            "choice; fmrimod is neater on diagnostics"
             if status == "pass"
             else "recoverable rank-deficiency contract regressed"
         )
@@ -393,7 +466,10 @@ def run_case(inputs: ProbeInputs) -> CaseReport:
         "max_abs_stat_delta": _max_abs_delta(fmrimod_stat, nilearn_stat),
         "effect_pearson": _pearson(fmrimod_effect, nilearn_effect),
         "stat_pearson": _pearson(fmrimod_stat, nilearn_stat),
+        "stat_scale_ratio_median": _median_ratio(fmrimod_stat, nilearn_stat),
     }
+    if inputs.case_id == "survivable_rank_deficiency":
+        comparisons.update(_rank_deficient_stat_scale_diagnostics(inputs, fmrimod))
     status, verdict = _case_status(inputs, fmrimod, nilearn, comparisons)
     return CaseReport(
         case_id=inputs.case_id,
@@ -458,6 +534,26 @@ def render(report: dict[str, Any], out_dir: Path) -> tuple[Path, Path]:
                 fpolicy=case["fmrimod"]["undefined_t_policy"],
                 npolicy=case["nilearn"]["undefined_t_policy"],
                 verdict=case["verdict"],
+            )
+        )
+    lines.extend(["", "## Scale Diagnostics", ""])
+    for case in report["cases"]:
+        ratio = case["comparisons"].get("stat_scale_ratio_median")
+        expected = case["comparisons"].get("expected_stat_scale_ratio_from_dof")
+        if ratio is None or expected is None:
+            continue
+        lines.append(
+            "- `{case_id}`: median fmrimod/nilearn t-stat ratio "
+            "`{ratio:.12g}`; expected from DoF convention `{expected:.12g}` "
+            "(fmrimod dispersion denominator n-rank, Nilearn dispersion "
+            "denominator n-p; covariance-factor delta `{cov_delta:.3g}`).".format(
+                case_id=case["case_id"],
+                ratio=ratio,
+                expected=expected,
+                cov_delta=case["comparisons"].get(
+                    "contrast_covariance_factor_delta",
+                    float("nan"),
+                ),
             )
         )
     md_path.write_text("\n".join(lines) + "\n")
