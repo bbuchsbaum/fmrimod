@@ -216,7 +216,6 @@ def _cli_eval(args: list[str]) -> int:
         duration=_as_scalar_numeric(opts["duration"], "duration"),
         precision=_as_scalar_numeric(opts["precision"], "precision"),
         summate=bool(opts["summate"]),
-        normalize=bool(opts.get("normalize")),
     )
     values = values * _as_scalar_numeric(opts["amplitude"], "amplitude")
     _write_cli_table(

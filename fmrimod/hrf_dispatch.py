@@ -8,11 +8,11 @@ For the full HRF basis library (SPM, Gamma, B-spline, FIR, etc.), see
 :mod:`fmrimod.hrf`.
 """
 
-from typing import Dict, Optional, Union, Callable, List
+from typing import Callable, Dict, Literal, Optional, Union, cast
+
 import numpy as np
 
 from .types import HRFProtocol
-from ._warnings import suppress_fmrimod_warnings
 
 
 class SimpleHRF(HRFProtocol):
@@ -317,13 +317,15 @@ def boxcar_hrf_gen(
                 f"event_data must be DataFrame or dict, got {type(event_data)}"
             )
 
-        return [
-            boxcar_generator(
-                width=max(float(dur), min_duration),
-                normalize=normalize
-            )
-            for dur in durations
-        ]
+        # ``normalize=True`` on boxcar_generator was retired
+        # (bd-01KRGCZ6QJME1JD8FD5D4PGC04); set amplitude=1/width explicitly,
+        # which is what the retired flag did internally.
+        hrfs = []
+        for dur in durations:
+            w = max(float(dur), min_duration)
+            amplitude = 1.0 / w if normalize else 1.0
+            hrfs.append(boxcar_generator(width=w, amplitude=amplitude))
+        return hrfs
 
     return generator
 
@@ -333,11 +335,13 @@ def duration_hrf_gen(
     min_duration: float = 0.0
 ) -> Callable:
     """Factory for duration-modulated HRF generation."""
-    from .hrf.library import SPM_CANONICAL
+    from .hrf.core import HRF
     from .hrf.decorators import block_hrf
+    from .hrf.library import SPM_CANONICAL
 
     if base is None:
         base = SPM_CANONICAL
+    base_hrf = cast(HRF, base)
 
     def generator(event_data):
         if hasattr(event_data, 'iloc'):
@@ -349,14 +353,19 @@ def duration_hrf_gen(
                 f"event_data must be DataFrame or dict, got {type(event_data)}"
             )
 
+        # ``block_hrf(normalize=True)`` was retired
+        # (bd-01KRGCZ6QJME1JD8FD5D4PGC04); compose the typed wrappers
+        # explicitly: ``normalize(block_hrf(...), 'unit_peak_per_basis')``.
+        from .hrf.normalization import normalize as _normalize
+
         hrfs = []
         for dur in durations:
             dur = max(float(dur), min_duration)
             if dur == 0:
-                hrfs.append(base)
+                hrfs.append(base_hrf)
             else:
                 hrfs.append(
-                    block_hrf(base, width=dur, normalize=True)
+                    _normalize(block_hrf(base_hrf, width=dur), "unit_peak_per_basis")
                 )
 
         return hrfs
@@ -373,6 +382,9 @@ def weighted_hrf_gen(
 ) -> Callable:
     """Factory for weighted HRF generation from list columns."""
     from .hrf.generators import weighted_generator
+    if method not in ("constant", "linear"):
+        raise ValueError("method must be 'constant' or 'linear'")
+    method_lit = cast(Literal["constant", "linear"], method)
 
     def generator(event_data):
         if hasattr(event_data, 'iloc'):
@@ -388,20 +400,35 @@ def weighted_hrf_gen(
                 f"event_data must be DataFrame or dict, got {type(event_data)}"
             )
 
+        # ``weighted_generator(normalize=True)`` was retired
+        # (bd-01KRGCZ6QJME1JD8FD5D4PGC04); scale weights explicitly here.
         hrfs = []
         for times, weights, onset in zip(times_list, weights_list, onsets):
             if relative:
-                rel_times = times
+                rel_times = np.asarray(times, dtype=np.float64)
             else:
                 rel_times = np.array(times) - float(onset)
 
-            hrf = weighted_generator(
-                times=rel_times,
-                weights=weights,
-                method=method,
-                normalize=normalize
+            w = np.asarray(weights, dtype=np.float64)
+            if normalize:
+                if method == "constant":
+                    denom = float(np.sum(w[:-1]))
+                    if abs(denom) > 1e-10:
+                        w = w / denom
+                else:  # linear
+                    intervals = np.diff(rel_times)
+                    avg_w = (w[:-1] + w[1:]) / 2.0
+                    integral = float(np.sum(intervals * avg_w))
+                    if abs(integral) > 1e-10:
+                        w = w / integral
+
+            hrfs.append(
+                weighted_generator(
+                    times=rel_times.tolist(),
+                    weights=w.tolist(),
+                    method=method_lit,
+                )
             )
-            hrfs.append(hrf)
 
         return hrfs
 

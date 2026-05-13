@@ -8,7 +8,6 @@ from .decorators import (
     hrf_blocked,
     hrf_lagged,
     lag_hrf,
-    normalize_hrf,
 )
 from .derivatives import deriv
 from .empirical import empirical_hrf, gen_empirical_hrf
@@ -115,7 +114,7 @@ __all__ = [
     "HRF_TIME", "HRF_MEXHAT", "HRF_INV_LOGIT", "HRF_HALF_COSINE", "HRF_SINE",
     "HRF_LWU", "HRF_LWU_BASIS",
     # Decorators
-    "lag_hrf", "block_hrf", "normalize_hrf",
+    "lag_hrf", "block_hrf",
     "gen_hrf_lagged", "gen_hrf_blocked",
     "hrf_lagged", "hrf_blocked",
     # Generators

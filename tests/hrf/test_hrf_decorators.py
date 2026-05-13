@@ -5,10 +5,18 @@ import pytest
 
 from fmrimod.hrf.core import HRF, as_hrf
 from fmrimod.hrf.decorators import (
-    lag_hrf, block_hrf, normalize_hrf,
-    gen_hrf_lagged, gen_hrf_blocked
+    block_hrf,
+    gen_hrf_blocked,
+    gen_hrf_lagged,
+    lag_hrf,
 )
 from fmrimod.hrf.library import SPM_CANONICAL, SPM_WITH_DERIVATIVE
+from fmrimod.hrf.normalization import normalize as _normalize
+
+
+def _normalize_per_basis(hrf):
+    """Test-only adapter: matches the retired decorator's per-basis semantic."""
+    return _normalize(hrf, "unit_peak_per_basis")
 
 
 def _trapezoid_compat(y, x):
@@ -156,16 +164,21 @@ class TestBlockHRF:
             total_count = len(decay_vals)
             assert smaller_count / total_count > 0.8  # At least 80% should be smaller in magnitude
     
-    def test_block_hrf_normalize(self):
-        """Test block with normalization."""
+    def test_block_hrf_normalize_retired(self):
+        """block_hrf(normalize=True) retired (bd-01KRGCZ6QJME1JD8FD5D4PGC04).
+
+        The replacement composes the typed wrappers explicitly:
+        ``normalize(block_hrf(...), 'unit_peak_per_basis')``.
+        """
+        with pytest.raises(ValueError, match="retired"):
+            block_hrf(SPM_CANONICAL, 5.0, normalize=True)
+
         t = np.arange(0, 30, 0.2)
-        width = 5.0
-        
-        blocked_norm = block_hrf(SPM_CANONICAL, width, normalize=True)
+        blocked_norm = _normalize_per_basis(block_hrf(SPM_CANONICAL, 5.0))
         result = blocked_norm(t)
-        
-        # Should be normalized to unit peak
-        assert abs(np.max(np.abs(result)) - 1.0) < 1e-6
+        # 1e-3 tolerance reflects the gap between the reference grid used
+        # for peak detection (~0.02 s) and the evaluation grid here (0.2 s).
+        assert abs(np.max(np.abs(result)) - 1.0) < 1e-3
     
     def test_block_hrf_validation(self):
         """Test input validation."""
@@ -179,20 +192,20 @@ class TestBlockHRF:
             block_hrf(SPM_CANONICAL, width=1.0, half_life=-1)
 
 
-class TestNormalizeHRF:
-    """Test normalize_hrf decorator."""
+class TestNormalizePerBasis:
+    """Test the replacement for the retired normalize_hrf decorator."""
     
-    def test_normalize_hrf_single_basis(self):
+    def test_normalize_per_basis_single_basis(self):
         """Test normalization of single-basis HRF."""
         # Create unnormalized HRF
         def unnorm_func(t):
             return 5.0 * SPM_CANONICAL(t)  # Scaled by 5
         
         unnorm_hrf = as_hrf(unnorm_func, name="unnorm")
-        norm_hrf = normalize_hrf(unnorm_hrf)
+        norm_hrf = _normalize_per_basis(unnorm_hrf)
         
         # Check attributes
-        assert "_norm" in norm_hrf.name
+        assert "[norm=" in norm_hrf.name
         assert norm_hrf.params['_normalized'] == True
         
         # Check peak is approximately 1
@@ -200,7 +213,7 @@ class TestNormalizeHRF:
         result = norm_hrf(t)
         assert abs(np.max(np.abs(result)) - 1.0) < 0.001  # Allow 0.1% error
     
-    def test_normalize_hrf_multi_basis(self):
+    def test_normalize_per_basis_multi_basis(self):
         """Test normalization of multi-basis HRF."""
         # Create scaled version
         def scaled_func(t):
@@ -210,7 +223,7 @@ class TestNormalizeHRF:
             return result
         
         scaled_hrf = as_hrf(scaled_func, name="scaled", nbasis=2)
-        norm_hrf = normalize_hrf(scaled_hrf)
+        norm_hrf = _normalize_per_basis(scaled_hrf)
         
         t = np.arange(0, 20, 0.1)
         result = norm_hrf(t)
@@ -219,10 +232,10 @@ class TestNormalizeHRF:
         assert abs(np.max(np.abs(result[:, 0])) - 1.0) < 0.001
         assert abs(np.max(np.abs(result[:, 1])) - 1.0) < 0.001
     
-    def test_normalize_hrf_already_normalized(self):
+    def test_normalize_per_basis_already_normalized(self):
         """Test normalizing already normalized HRF."""
         # SPM canonical should already be close to normalized
-        norm_hrf = normalize_hrf(SPM_CANONICAL)
+        norm_hrf = _normalize_per_basis(SPM_CANONICAL)
         
         t = np.arange(0, 20, 0.1)
         original = SPM_CANONICAL(t)

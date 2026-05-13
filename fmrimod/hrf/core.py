@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
+
+if TYPE_CHECKING:
+    from .normalization import NormMode
 
 
 @dataclass
@@ -54,19 +57,20 @@ class HRF(ABC):
         duration: float = 0,
         precision: float = 0.1,
         summate: bool = True,
-        normalize: bool = False,
+        normalize: bool | None = None,
     ) -> NDArray[np.float64]:
         """Evaluate HRF with optional block duration.
 
         Block convolution delegates to :class:`BlockedHRF` so the
-        quadrature lives in exactly one place.
+        quadrature lives in exactly one place. Normalization is a
+        separate transformation; call :meth:`normalize` first.
 
         Args:
             grid: Time points at which to evaluate
             duration: Duration of block/sustained stimulus in seconds
             precision: Temporal precision for convolution in seconds
             summate: If True, responses accumulate; if False, averaged
-            normalize: If True, normalize result to unit peak per basis
+            normalize: Retired. Use ``hrf.normalize(mode).evaluate(...)``.
 
         Returns:
             Evaluated HRF values at grid points
@@ -79,20 +83,14 @@ class HRF(ABC):
             raise ValueError("grid cannot contain NaN values")
         if precision <= 0:
             raise ValueError("precision must be positive")
+        if normalize is not None:
+            raise ValueError(
+                "HRF.evaluate(normalize=...) is retired; "
+                "use normalize(hrf, mode) before evaluate()."
+            )
 
         if duration < precision:
             result = self(grid)
-            # Optional per-basis unit-peak normalization for the no-block path.
-            if normalize:
-                if self.nbasis > 1 and result.ndim == 2:
-                    for i in range(self.nbasis):
-                        max_val = np.max(np.abs(result[:, i]))
-                        if max_val > 0:
-                            result[:, i] = result[:, i] / max_val
-                else:
-                    max_val = np.max(np.abs(result))
-                    if max_val > 0:
-                        result = result / max_val
         else:
             from .decorators import BlockedHRF
 
@@ -101,7 +99,6 @@ class HRF(ABC):
                 width=float(duration),
                 precision=precision,
                 summate=summate,
-                normalize_output=normalize,
             )
             result = blocked(grid)
 
@@ -179,11 +176,11 @@ class HRF(ABC):
             normalize=normalize,
         )
 
-    def normalize(self) -> "HRF":
-        """Return a new HRF normalized to unit peak."""
-        from .decorators import normalize_hrf
+    def normalize(self, mode: "NormMode" = "unit_peak") -> "HRF":
+        """Return a new HRF normalized via :func:`fmrimod.hrf.normalize`."""
+        from .normalization import normalize
 
-        return normalize_hrf(self)
+        return normalize(self, mode)
 
     # -- Composition --
 

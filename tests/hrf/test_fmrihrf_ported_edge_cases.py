@@ -11,10 +11,12 @@ from fmrimod.hrf.generators import fourier_generator
 from fmrimod.hrf.library import (
     BSPLINE_HRF,
     GAUSSIAN_HRF,
+    LWUHRF,
     SPM_CANONICAL,
     SPM_WITH_DERIVATIVE,
     SPM_WITH_DISPERSION,
 )
+from fmrimod.hrf.normalization import normalize
 from fmrimod.hrf.penalty import penalty_matrix
 from fmrimod.sampling import SamplingFrame
 
@@ -84,12 +86,19 @@ def test_lwu_response_normalisation_and_derivative_basis():
     raw = hrf_lwu(t, tau=6, sigma=2, rho=0.4)
     assert raw.shape == t.shape
 
-    height = hrf_lwu(t, tau=6, sigma=2, rho=0.4, normalize="height")
-    assert np.max(np.abs(height)) == pytest.approx(1)
+    height = normalize(LWUHRF(tau=6, sigma=2, rho=0.4), "unit_peak")(t)
+    # 1e-2 tolerance: the peak factor is computed on a dense reference grid,
+    # while ``t`` here is coarse (0.5 s step) and the analytic LWU peak lies
+    # between sampled grid points.
+    assert np.max(np.abs(height)) == pytest.approx(1, abs=1e-2)
 
-    with pytest.warns(UserWarning, match="area"):
-        area = hrf_lwu(t, tau=6, sigma=2, rho=0.4, normalize="area")
-    np.testing.assert_allclose(area, raw)
+    with pytest.raises(ValueError, match="normalize='height'.*retired"):
+        hrf_lwu(t, tau=6, sigma=2, rho=0.4, normalize="height")
+
+    # normalize='area' on hrf_lwu is retired (bd-01KRGCZ6QJME1JD8FD5D4PGC04);
+    # callers must compose the typed API explicitly instead.
+    with pytest.raises(ValueError, match="normalize='area'.*retired"):
+        hrf_lwu(t, tau=6, sigma=2, rho=0.4, normalize="area")
 
     theta = np.array([6.0, 2.0, 0.4])
     t_basis = np.arange(0, 21, 1)

@@ -1,22 +1,18 @@
 """Tests to ensure equivalence with R fmrihrf package test coverage."""
 
 import numpy as np
+import pandas as pd
 import pytest
-from scipy.linalg import toeplitz
 from scipy.sparse import issparse
 
-from fmrimod.sampling import SamplingFrame
-from fmrimod import get_hrf, as_hrf, regressor, regressor_set
-from fmrimod.hrf.core import hrf_from_coefficients
-from fmrimod.hrf.reconstruction import reconstruction_matrix
-from fmrimod.hrf.penalty import penalty_matrix
+from fmrimod import as_hrf, get_hrf, regressor, regressor_set
 from fmrimod.hrf import hrf_library
+from fmrimod.hrf.core import hrf_from_coefficients
 from fmrimod.hrf.generators import gamma_generator
-from fmrimod.utils.misc import (
-    single_trial_regressor, hrf_toeplitz,
-    recycle_or_error
-)
-import pandas as pd
+from fmrimod.hrf.penalty import penalty_matrix
+from fmrimod.hrf.reconstruction import reconstruction_matrix
+from fmrimod.sampling import SamplingFrame
+from fmrimod.utils.misc import hrf_toeplitz, recycle_or_error, single_trial_regressor
 
 
 class TestHRFToeplitz:
@@ -336,10 +332,14 @@ class TestBoxcarHRFEquivalence:
         np.testing.assert_array_equal(y, expected)
 
     def test_normalized_boxcar(self):
-        """R: hrf_boxcar(width=5, normalize=TRUE) -> amplitude = 1/5."""
+        """R: hrf_boxcar(width=5, normalize=TRUE) -> amplitude = 1/5.
+
+        ``normalize=True`` retired by bd-01KRGCZ6QJME1JD8FD5D4PGC04; the
+        equivalent Python composition is ``amplitude=1/width`` explicitly.
+        """
         from fmrimod.hrf.functions import boxcar_hrf
         t = np.array([0, 2.5])
-        y = boxcar_hrf(t, width=5.0, normalize=True)
+        y = boxcar_hrf(t, width=5.0, amplitude=1.0 / 5.0)
         np.testing.assert_allclose(y, [0.2, 0.2])
 
     def test_boxcar_as_hrf_span(self):

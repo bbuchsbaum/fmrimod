@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import inspect
 import logging
-from typing import Dict, List, Optional, Union, Callable
+from typing import Callable, Dict, List, Optional, Union
 
 from .core import HRF
 
 logger = logging.getLogger(__name__)
 from .library import PREDEFINED_HRFS
-
 
 # Global HRF registry
 _HRF_REGISTRY: Dict[str, Union[HRF, Callable]] = {}
@@ -137,8 +136,9 @@ def get_hrf(
         result = lag_hrf(result, lag=lag)
 
     if normalize:
-        from .decorators import normalize_hrf
-        result = normalize_hrf(result)
+        from .normalization import normalize as _normalize
+
+        result = _normalize(result, "unit_peak_per_basis")
 
     return result
 
@@ -285,9 +285,14 @@ def _register_generators():
     """Register HRF generator functions with the registry."""
     try:
         from .generators import (
-            gamma_generator, bspline_generator, fir_generator,
-            fourier_generator, daguerre_generator,
-            tent_generator, boxcar_generator, weighted_generator,
+            boxcar_generator,
+            bspline_generator,
+            daguerre_generator,
+            fir_generator,
+            fourier_generator,
+            gamma_generator,
+            tent_generator,
+            weighted_generator,
         )
 
         # HRF generators

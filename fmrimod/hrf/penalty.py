@@ -20,7 +20,7 @@ from numpy.typing import NDArray
 from scipy.linalg import block_diag
 
 from .core import HRF, BoundBasisHRF
-from .decorators import BlockedHRF, LaggedHRF, _PeakNormalizedHRF
+from .decorators import BlockedHRF, LaggedHRF
 from .library import (
     FIRHRF,
     BSplineHRF,
@@ -68,14 +68,6 @@ def _penalty_lagged(
 @penalty_matrix.register
 def _penalty_blocked(
     hrf: BlockedHRF, order: int = 2, **kwargs: object
-) -> NDArray[np.float64]:
-    assert hrf.base is not None
-    return penalty_matrix(hrf.base, order, **kwargs)
-
-
-@penalty_matrix.register
-def _penalty_peak_normalized(
-    hrf: _PeakNormalizedHRF, order: int = 2, **kwargs: object
 ) -> NDArray[np.float64]:
     assert hrf.base is not None
     return penalty_matrix(hrf.base, order, **kwargs)

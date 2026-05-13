@@ -14,11 +14,12 @@ readers; bead ``bd-01KRGCZJ6JAA4BKRTNQ91P2PE5`` retires that mirror.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+from ..hrf_dispatch import SimpleHRF
 from .core import HRF
 from .functions import (
     bspline_hrf,
@@ -35,8 +36,6 @@ from .functions import (
     hrf_time,
 )
 from .spm_hrf import SPMG1_HRF, SPMG2_HRF, SPMG3_HRF
-from ..hrf_dispatch import SimpleHRF
-
 
 # --- Single-basis kernels --------------------------------------------------
 
@@ -235,12 +234,12 @@ class DaguerreHRF(HRF):
         return daguerre_basis(t, n_basis=self.nbasis, scale=self.scale)
 
 
-@dataclass
+@dataclass(init=False)
 class LWUHRF(HRF):
     """Lag-Width-Undershoot HRF.
 
-    Validates ``sigma``, ``rho`` and ``normalize`` at construction so the
-    kernel doesn't need to re-check on every call.
+    Normalization is a separate typed wrapper; construct ``LWUHRF`` and
+    pass it to :func:`fmrimod.hrf.normalize` when scaling is needed.
     """
 
     name: str = "lwu"
@@ -249,25 +248,60 @@ class LWUHRF(HRF):
     tau: float = 6.0
     sigma: float = 2.5
     rho: float = 0.35
-    normalize: Literal["none", "height", "area"] = "none"
+    _legacy_normalize: Literal["none", "height", "area"] = field(
+        default="none", init=False, repr=False
+    )
+
+    def __init__(
+        self,
+        name: str = "lwu",
+        nbasis: int = 1,
+        span: float = 30.0,
+        params: dict[str, Any] | None = None,
+        param_names: list[str] | None = None,
+        tau: float = 6.0,
+        sigma: float = 2.5,
+        rho: float = 0.35,
+        normalize: Literal["none", "height", "area"] = "none",
+    ) -> None:
+        self.name = name
+        self.nbasis = nbasis
+        self.span = span
+        self.params = {} if params is None else dict(params)
+        self.param_names = param_names
+        self.tau = tau
+        self.sigma = sigma
+        self.rho = rho
+        self._legacy_normalize = normalize
+        self.__post_init__()
 
     def __post_init__(self) -> None:
         if self.sigma <= 0.05:
             raise ValueError("sigma must be > 0.05")
         if not 0 <= self.rho <= 1.5:
             raise ValueError("rho must be between 0 and 1.5")
-        if self.normalize not in ("none", "height", "area"):
+        if self._legacy_normalize == "area":
+            raise ValueError(
+                "normalize='area' on LWUHRF is retired; "
+                "use normalize(LWUHRF(...), 'unit_integral')"
+            )
+        if self._legacy_normalize == "height":
+            raise ValueError(
+                "normalize='height' on LWUHRF is retired; "
+                "use normalize(LWUHRF(...), 'unit_peak')"
+            )
+        if self._legacy_normalize != "none":
             raise ValueError("normalize must be 'none', 'height', or 'area'")
         self.params = {
             "tau": self.tau, "sigma": self.sigma, "rho": self.rho,
-            "normalize": self.normalize,
+            "normalize": self._legacy_normalize,
         }
         self.param_names = ["tau", "sigma", "rho", "normalize"]
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         return hrf_lwu(
             t, tau=self.tau, sigma=self.sigma, rho=self.rho,
-            normalize=self.normalize,
+            normalize=self._legacy_normalize,
         )
 
 
@@ -286,7 +320,12 @@ class LWUBasisHRF(HRF):
     def __post_init__(self) -> None:
         if len(self.theta0) != 3:
             raise ValueError("theta0 must have length 3 [tau, sigma, rho]")
-        if self.normalize_primary not in ("none", "height"):
+        if self.normalize_primary == "height":
+            raise ValueError(
+                "normalize_primary='height' on LWUBasisHRF is retired; "
+                "use normalize(LWUBasisHRF(...), 'unit_peak')"
+            )
+        if self.normalize_primary != "none":
             raise ValueError("normalize_primary must be 'none' or 'height'")
         # params back-compat keeps the list form ([..]) since cross_testing
         # readers may rely on it; the typed field is a tuple.

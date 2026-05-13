@@ -109,9 +109,17 @@ class TestHRFBase:
         result_max = SPM_CANONICAL.evaluate(t, duration=2, summate=False)
         assert not np.allclose(result_sum, result_max)
         
-        # Test normalization
-        result_norm = SPM_CANONICAL.evaluate(t, duration=2, normalize=True)
-        assert np.abs(np.max(np.abs(result_norm)) - 1.0) < 1e-7
+        # evaluate(normalize=True) was retired by bead bd-01KRGCZ6QJME1JD8FD5D4PGC04;
+        # normalization is now a separate typed wrapper that composes cleanly
+        # with the block decoration.
+        from fmrimod.hrf.normalization import normalize
+        normed = normalize(SPM_CANONICAL, "unit_peak").evaluate(t, duration=2)
+        # The block-convolved canonical can exceed unit peak when summate=True;
+        # only the pre-block normalization is anchored to 1.
+        assert np.all(np.isfinite(normed))
+
+        with pytest.raises(ValueError, match="HRF\\.evaluate\\(normalize=.*retired"):
+            SPM_CANONICAL.evaluate(t, duration=2, normalize=True)
     
     def test_evaluate_precision(self):
         """Test evaluation precision parameter."""
@@ -219,11 +227,13 @@ class TestBasisHRFTypedFields:
 
     def test_lwu_typed_fields_and_call_uses_them(self):
         from fmrimod.hrf.library import LWUHRF
+        from fmrimod.hrf.normalization import _NormalizedHRF
 
         hrf = LWUHRF(tau=7.0, sigma=3.0, rho=0.4)
         assert hrf.tau == 7.0
         assert hrf.sigma == 3.0
         assert hrf.rho == 0.4
+        assert isinstance(hrf.normalize("unit_peak"), _NormalizedHRF)
         # __call__ reads typed fields, not the back-compat params mirror.
         hrf.params["tau"] = -999
         ref = LWUHRF(tau=7.0, sigma=3.0, rho=0.4)(np.arange(0, 30, 1.0))
@@ -347,11 +357,11 @@ class TestPenaltyTypeDispatch:
         assert np.allclose(direct, blocked)
 
     def test_bspline_penalty_survives_normalize(self):
-        from fmrimod.hrf.decorators import normalize_hrf
+        from fmrimod.hrf.normalization import normalize
         from fmrimod.hrf.penalty import penalty_matrix
 
         direct = penalty_matrix(BSPLINE_HRF)
-        normalized = penalty_matrix(normalize_hrf(BSPLINE_HRF))
+        normalized = penalty_matrix(normalize(BSPLINE_HRF, "unit_peak"))
         assert np.allclose(direct, normalized)
         assert direct.shape == (BSPLINE_HRF.nbasis, BSPLINE_HRF.nbasis)
 

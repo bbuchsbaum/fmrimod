@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import warnings
-from typing import Literal, Optional, Union, Sequence
+from typing import Literal, Optional, Sequence
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
-from scipy import stats, special, interpolate
+from scipy import interpolate, special, stats
 
 # Constant used in SPM canonical HRF parameterization
 _SPM_C = 1.274527e-13
@@ -630,7 +629,7 @@ def hrf_lwu(
         tau: Lag of main Gaussian (time-to-peak)
         sigma: Width of main Gaussian (must be > 0.05)
         rho: Amplitude of undershoot (0 to 1.5)
-        normalize: Normalization type ('none' or 'height')
+        normalize: Retired. Use ``normalize(LWUHRF(...), mode)``.
         
     Returns:
         HRF values at time points
@@ -642,28 +641,27 @@ def hrf_lwu(
         raise ValueError("sigma must be > 0.05")
     if not 0 <= rho <= 1.5:
         raise ValueError("rho must be between 0 and 1.5")
-    if normalize not in ["none", "height", "area"]:
-        raise ValueError("normalize must be 'none', 'height', or 'area'")
-    
-    # Main positive Gaussian component
-    term1 = np.exp(-((t - tau)**2) / (2 * sigma**2))
-    
-    # Undershoot Gaussian component
-    term2 = rho * np.exp(-((t - (tau + 2 * sigma))**2) / (2 * (1.6 * sigma)**2))
-    
-    response = term1 - term2
-    
-    if normalize == "height":
-        max_abs_val = np.max(np.abs(response))
-        if max_abs_val > 1e-10:
-            response = response / max_abs_val
-    elif normalize == "area":
-        warnings.warn(
-            "normalize='area' is not implemented; returning unnormalised LWU HRF",
-            UserWarning,
-            stacklevel=2,
+    if normalize == "area":
+        raise ValueError(
+            "normalize='area' on hrf_lwu is retired; "
+            "use normalize(LWUHRF(...), 'unit_integral')"
         )
-    
+    if normalize == "height":
+        raise ValueError(
+            "normalize='height' on hrf_lwu is retired; "
+            "use normalize(LWUHRF(...), 'unit_peak')"
+        )
+    if normalize != "none":
+        raise ValueError("normalize must be 'none', 'height', or 'area'")
+
+    # Main positive Gaussian component
+    term1 = np.exp(-((t - tau) ** 2) / (2 * sigma ** 2))
+
+    # Undershoot Gaussian component
+    term2 = rho * np.exp(-((t - (tau + 2 * sigma)) ** 2) / (2 * (1.6 * sigma) ** 2))
+
+    response = term1 - term2
+
     return response
 
 
@@ -680,7 +678,7 @@ def hrf_basis_lwu(
     Args:
         theta0: Expansion point [tau0, sigma0, rho0]
         t: Time points in seconds
-        normalize_primary: Normalization for primary HRF ('none' or 'height')
+        normalize_primary: Retired. Must be ``"none"``.
         
     Returns:
         Matrix of basis functions (len(t) x 4)
@@ -690,11 +688,16 @@ def hrf_basis_lwu(
     
     if len(theta0) != 3:
         raise ValueError("theta0 must have length 3 [tau, sigma, rho]")
+    if normalize_primary != "none":
+        raise ValueError(
+            "normalize_primary on hrf_basis_lwu is retired; "
+            "use normalize(LWUBasisHRF(...), mode)."
+        )
     
     tau0, sigma0, rho0 = theta0
     
     # Primary HRF at expansion point
-    h0 = hrf_lwu(t, tau0, sigma0, rho0, normalize=normalize_primary)
+    h0 = hrf_lwu(t, tau0, sigma0, rho0, normalize="none")
     
     # Compute partial derivatives numerically
     eps = 1e-5
@@ -729,15 +732,14 @@ def boxcar_hrf(
     """Boxcar (step function) HRF.
 
     Returns a constant value for ``0 <= t < width``, zero elsewhere.
-    When ``normalize=True`` the amplitude is set to ``1/width`` so that
-    the integral equals 1 and the GLM coefficient estimates the mean
-    signal in the window.
+    Inline normalization is retired; set ``amplitude`` explicitly or
+    normalize an HRF object with :func:`fmrimod.hrf.normalize`.
 
     Args:
         t: Time points in seconds.
         width: Duration of the boxcar in seconds (must be > 0).
         amplitude: Height of the boxcar.
-        normalize: If True, set ``amplitude = 1/width``.
+        normalize: Retired. Use ``amplitude=1/width`` or ``normalize(...)``.
 
     Returns:
         HRF values at time points *t*.
@@ -746,7 +748,10 @@ def boxcar_hrf(
         raise ValueError("`width` must be positive.")
 
     if normalize:
-        amplitude = 1.0 / width
+        raise ValueError(
+            "boxcar_hrf(normalize=True) is retired; "
+            "set amplitude=1/width or use normalize(boxcar_generator(...), mode)."
+        )
 
     t = np.asarray(t, dtype=np.float64)
     return np.where((t >= 0) & (t < width), amplitude, 0.0)
@@ -776,14 +781,14 @@ def weighted_hrf(
             provided, *width* is ignored.
         method: ``"constant"`` (step / piece-wise constant) or
             ``"linear"`` (linear interpolation).
-        normalize: If True, scale weights so they sum (constant) or
-            integrate (linear) to 1.
+        normalize: Retired. Scale weights explicitly or use
+            ``normalize(weighted_generator(...), mode)``.
 
     Returns:
         HRF values at time points *t*.
     """
-    weights = np.asarray(weights, dtype=np.float64)
-    if len(weights) < 2:
+    weights_arr = np.asarray(weights, dtype=np.float64)
+    if len(weights_arr) < 2:
         raise ValueError("`weights` must have at least 2 elements.")
 
     if method not in ("constant", "linear"):
@@ -791,42 +796,35 @@ def weighted_hrf(
 
     # Resolve time points
     if times is not None:
-        times = np.asarray(times, dtype=np.float64)
-        if len(times) < 2:
+        times_arr = np.asarray(times, dtype=np.float64)
+        if len(times_arr) < 2:
             raise ValueError("`times` must have at least 2 elements.")
-        if len(times) != len(weights):
+        if len(times_arr) != len(weights_arr):
             raise ValueError("`times` and `weights` must have the same length.")
-        if not np.all(np.diff(times) > 0):
+        if not np.all(np.diff(times_arr) > 0):
             raise ValueError("`times` must be strictly increasing.")
-        if times[0] < 0:
+        if times_arr[0] < 0:
             raise ValueError("`times` must start at 0 or later.")
     elif width is not None:
         if width <= 0:
             raise ValueError("`width` must be positive.")
-        times = np.linspace(0, width, len(weights))
+        times_arr = np.linspace(0, width, len(weights_arr))
     else:
         raise ValueError("Either `width` or `times` must be provided.")
 
-    # Normalize
     if normalize:
-        if method == "constant":
-            weight_sum = np.sum(weights[:-1])
-            if abs(weight_sum) > 1e-10:
-                weights = weights / weight_sum
-        else:
-            intervals = np.diff(times)
-            avg_w = (weights[:-1] + weights[1:]) / 2.0
-            integral = np.sum(intervals * avg_w)
-            if abs(integral) > 1e-10:
-                weights = weights / integral
+        raise ValueError(
+            "weighted_hrf(normalize=True) is retired; "
+            "scale weights explicitly or use normalize(weighted_generator(...), mode)."
+        )
 
     # Build interpolation function and evaluate
     t = np.asarray(t, dtype=np.float64)
     kind = "zero" if method == "constant" else "linear"
     interp_func = interpolate.interp1d(
-        times, weights, kind=kind, bounds_error=False, fill_value=0.0
+        times_arr, weights_arr, kind=kind, bounds_error=False, fill_value=0.0
     )
     result = interp_func(t)
     # Ensure zero outside the domain
-    result = np.where((t < times[0]) | (t > times[-1]), 0.0, result)
-    return result
+    result = np.where((t < times_arr[0]) | (t > times_arr[-1]), 0.0, result)
+    return np.asarray(result, dtype=np.float64)

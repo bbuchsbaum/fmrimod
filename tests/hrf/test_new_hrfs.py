@@ -5,11 +5,11 @@ import pytest
 
 from fmrimod.hrf.functions import boxcar_hrf, weighted_hrf
 from fmrimod.hrf.generators import (
+    boxcar_generator,
     tent_generator,
-    boxcar_generator, weighted_generator,
+    weighted_generator,
 )
 from fmrimod.hrf.registry import get_hrf
-
 
 # ── boxcar_hrf ──────────────────────────────────────────────────────
 
@@ -30,11 +30,20 @@ class TestBoxcarHRF:
         np.testing.assert_array_equal(y, [2.5, 2.5, 2.5, 0.0])
 
     def test_normalize(self):
+        """``normalize=True`` was retired (bd-01KRGCZ6QJME1JD8FD5D4PGC04).
+
+        The replacement is to pass ``amplitude=1/width`` explicitly, which is
+        what the retired flag did internally. A regression test makes sure the
+        retired form fails loud rather than silently no-oping.
+        """
         width = 4.0
         t = np.array([0, 1, 2, 3, 4])
-        y = boxcar_hrf(t, width=width, normalize=True)
+        y = boxcar_hrf(t, width=width, amplitude=1.0 / width)
         assert y[0] == pytest.approx(1.0 / width)
         assert y[-1] == 0.0  # t == width is outside
+
+        with pytest.raises(ValueError, match="normalize=True.*retired"):
+            boxcar_hrf(t, width=width, normalize=True)
 
     def test_invalid_width(self):
         with pytest.raises(ValueError, match="positive"):
@@ -43,7 +52,12 @@ class TestBoxcarHRF:
             boxcar_hrf(np.array([0, 1]), width=-1)
 
     def test_generator(self):
-        hrf = boxcar_generator(width=3.0, normalize=True)
+        # ``normalize=True`` retired; the test now pins the explicit-amplitude
+        # path that callers must use after bd-01KRGCZ6QJME1JD8FD5D4PGC04.
+        with pytest.raises(ValueError, match="normalize=True.*retired"):
+            boxcar_generator(width=3.0, normalize=True)
+
+        hrf = boxcar_generator(width=3.0, amplitude=1.0 / 3.0)
         assert hrf.name == "boxcar[3]"
         assert hrf.span == 3.0
         assert hrf.nbasis == 1
@@ -91,18 +105,33 @@ class TestWeightedHRF:
         assert y[2] == pytest.approx(1.0)
 
     def test_normalize_constant(self):
+        """``normalize=True`` retired; callers scale weights explicitly."""
         t = np.array([0.0, 1.0, 2.0, 3.0])
-        y = weighted_hrf(t, weights=[1.0, 1.0, 1.0, 1.0], width=3.0,
-                         method="constant", normalize=True)
-        # Sum of weights[:-1] should be 1 after normalize
-        # (last weight has no interval in constant mode)
+        # The retired flag divided weights so sum(weights[:-1]) == 1; do that
+        # by hand.
+        weights = np.array([1.0, 1.0, 1.0, 1.0]) / 3.0
+        y = weighted_hrf(t, weights=weights, width=3.0, method="constant")
         assert y[0] == pytest.approx(1.0 / 3.0, abs=0.01)
+
+        with pytest.raises(ValueError, match="normalize=True.*retired"):
+            weighted_hrf(t, weights=[1.0, 1.0, 1.0, 1.0], width=3.0,
+                         method="constant", normalize=True)
 
     def test_normalize_linear(self):
         t = np.array([0.0, 5.0])
-        y = weighted_hrf(t, weights=[1.0, 1.0], width=5.0,
-                         method="linear", normalize=True)
-        # Integral of constant-1 over [0,5] = 5, so normalized = 1/5
+        with pytest.raises(ValueError, match="normalize=True.*retired"):
+            weighted_hrf(
+                t,
+                weights=[1.0, 1.0],
+                width=5.0,
+                method="linear",
+                normalize=True,
+            )
+
+        # Retired flag divided by trapezoidal integral; for constant-1 over
+        # [0, 5] that's 5, hence weights /= 5.
+        weights = np.array([1.0, 1.0]) / 5.0
+        y = weighted_hrf(t, weights=weights, width=5.0, method="linear")
         assert y[0] == pytest.approx(1.0 / 5.0)
 
     def test_zero_outside_domain(self):

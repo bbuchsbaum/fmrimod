@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import ast
-from typing import Union, Optional, Callable, Any, Dict, Sequence
+from typing import Any, Callable, Dict, Optional, Sequence, Union
+
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from .core import HRF, FunctionHRF, as_hrf, bind_basis
-from .decorators import lag_hrf, block_hrf
-from .functions import gamma_hrf, bspline_hrf, fir_basis, fourier_hrf, boxcar_hrf, weighted_hrf, daguerre_basis
+from .decorators import block_hrf, lag_hrf
+from .functions import (
+    boxcar_hrf,
+    weighted_hrf,
+)
 
 
 def gen_hrf(
@@ -87,8 +91,9 @@ def gen_hrf(
     
     # Apply normalization if requested
     if normalize:
-        from .decorators import normalize_hrf
-        base_hrf = normalize_hrf(base_hrf)
+        from .normalization import normalize as _normalize
+
+        base_hrf = _normalize(base_hrf, "unit_peak_per_basis")
 
     # Apply name and/or span if specified
     if name is not None:
@@ -420,7 +425,12 @@ def boxcar_generator(
     Returns:
         Boxcar HRF.
     """
-    eff_amp = 1.0 / width if normalize else amplitude
+    if normalize:
+        raise ValueError(
+            "boxcar_generator(normalize=True) is retired; "
+            "set amplitude=1/width or use normalize(boxcar_generator(...), mode)."
+        )
+    eff_amp = amplitude
 
     def boxcar_func(t: ArrayLike) -> NDArray[np.float64]:
         return boxcar_hrf(t, width=width, amplitude=eff_amp)
@@ -455,6 +465,11 @@ def weighted_generator(
     Returns:
         Weighted HRF.
     """
+    if normalize:
+        raise ValueError(
+            "weighted_generator(normalize=True) is retired; "
+            "scale weights explicitly or use normalize(weighted_generator(...), mode)."
+        )
     _weights = np.asarray(weights, dtype=np.float64)
 
     if times is not None:
