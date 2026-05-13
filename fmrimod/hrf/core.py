@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Callable, Dict, Optional, Sequence, Union
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -13,13 +13,23 @@ if TYPE_CHECKING:
     from .normalization import NormMode
 
 
+HrfParamValue = Union[int, float, str, bool, Sequence[float]]
+"""Value types accepted in :attr:`HRF.params`.
+
+Every HRF subclass populates ``params`` with primitive scalars (kind
+parameters like ``shape``, ``rate``, ``n_basis``), short string flags
+(``method``), boolean toggles, or short numeric sequences (``weights``,
+``times``). The alias names this contract so the signature stays out of
+``Any``-typed territory."""
+
+
 @dataclass
 class HRF(ABC):
     """Base class for Hemodynamic Response Functions.
-    
+
     An HRF object represents a hemodynamic response function that can be evaluated
     at arbitrary time points. HRFs can have one or more basis functions.
-    
+
     Attributes:
         name: Name of the HRF
         nbasis: Number of basis functions
@@ -30,7 +40,7 @@ class HRF(ABC):
     name: str
     nbasis: int = 1
     span: float = 24.0
-    params: Dict[str, Any] = field(default_factory=dict)
+    params: Dict[str, HrfParamValue] = field(default_factory=dict)
     param_names: Optional[list[str]] = None
     
     def __post_init__(self) -> None:
@@ -220,7 +230,7 @@ class FunctionHRF(HRF):
         name: Optional[str] = None,
         nbasis: int = 1,
         span: float = 24.0,
-        params: Optional[Dict[str, Any]] = None,
+        params: Optional[Dict[str, HrfParamValue]] = None,
         param_names: Optional[list[str]] = None,
     ):
         """Initialize FunctionHRF.
@@ -306,7 +316,7 @@ class BoundBasisHRF(HRF):
         self.name = " + ".join(c.name for c in self.components)
         self.nbasis = sum(c.nbasis for c in self.components)
         self.span = max(c.span for c in self.components)
-        combined_params: Dict[str, Any] = {}
+        combined_params: Dict[str, HrfParamValue] = {}
         for c in self.components:
             for key, value in c.params.items():
                 combined_params[f"{c.name}_{key}"] = value

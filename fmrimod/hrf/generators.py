@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Optional, Sequence, Union
+from typing import Callable, Dict, Optional, Sequence, Union
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from .core import HRF, FunctionHRF, as_hrf, bind_basis
+from .core import HRF, FunctionHRF, HrfParamValue, as_hrf, bind_basis
 from .decorators import block_hrf, lag_hrf
 from .functions import (
     boxcar_hrf,
@@ -25,7 +25,7 @@ def gen_hrf(
     normalize: bool = False,
     name: Optional[str] = None,
     span: Optional[float] = None,
-    **kwargs: Any,
+    **kwargs: HrfParamValue,
 ) -> HRF:
     """Generate an HRF with optional lag and block width.
 
@@ -266,7 +266,7 @@ def daguerre_generator(
 
 
 def make_hrf(
-    hrf_spec: Union[str, Dict[str, Any], HRF],
+    hrf_spec: Union[str, Dict[str, HrfParamValue], HRF],
     lag: float = 0.0,
     normalize: bool = False,
 ) -> HRF:
