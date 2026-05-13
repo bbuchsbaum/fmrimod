@@ -26,6 +26,7 @@ from numpy.typing import NDArray
 
 from ..model.config import FmriLmConfig
 from .contrasts import (
+    ContrastIntent,
     ContrastResult,
     contrast_f_vectorized,
     contrast_t,
@@ -35,6 +36,7 @@ from .engine import DEFAULT_ENGINE_OPTIONS, EngineResult, EngineSelector
 from .solver import Projection
 
 if TYPE_CHECKING:
+    from fmrimod.contrast.omnibus import OmnibusContrast
     from fmrimod.dataset import FmriDataset
     from fmrimod.dataset.protocols import DatasetProtocol
     from fmrimod.glm.spatial import SpatialContext
@@ -187,7 +189,15 @@ class FmriLm:
         if isinstance(spec, OmnibusContrast):
             weights = spec.resolve(self.design_columns())
             return self._compute_contrast(
-                weights, name=name or spec.display_name
+                weights,
+                name=name or spec.display_name,
+                intent=ContrastIntent(
+                    kind="omnibus",
+                    name=name or spec.display_name,
+                    term=spec.term,
+                    levels=spec.levels,
+                    rows=int(weights.shape[0]),
+                ),
             )
 
         if isinstance(spec, str):
@@ -204,22 +214,49 @@ class FmriLm:
             cw = self._named_weights_cache
             if spec not in cw:
                 raise KeyError(f"Unknown contrast name: {spec!r}")
-            return self._compute_contrast(cw[spec], name=name or spec)
+            weights = cw[spec]
+            return self._compute_contrast(
+                weights,
+                name=name or spec,
+                intent=ContrastIntent(
+                    kind="named",
+                    name=spec,
+                    rows=int(np.atleast_2d(weights).shape[0]),
+                ),
+            )
 
         if isinstance(spec, dict):
             if "weights" not in spec:
                 raise ValueError("Contrast dict spec must contain 'weights'")
             weights = np.asarray(spec["weights"], dtype=np.float64)
             cname = name or spec.get("name", "contrast")
-            return self._compute_contrast(weights, name=cname)
+            return self._compute_contrast(
+                weights,
+                name=cname,
+                intent=ContrastIntent(
+                    kind="dict",
+                    name=cname,
+                    rows=int(np.atleast_2d(weights).shape[0]),
+                ),
+            )
 
         weights = np.asarray(spec, dtype=np.float64)
-        return self._compute_contrast(weights, name=name or "contrast")
+        cname = name or "contrast"
+        return self._compute_contrast(
+            weights,
+            name=cname,
+            intent=ContrastIntent(
+                kind="array",
+                name=cname,
+                rows=int(np.atleast_2d(weights).shape[0]),
+            ),
+        )
 
     def _compute_contrast(
         self,
         weights: NDArray[np.float64],
         name: str,
+        intent: ContrastIntent | None = None,
     ) -> ContrastResult:
         """Dispatch to t or F contrast based on weight dimensions."""
         weights = np.atleast_1d(weights)
@@ -233,9 +270,50 @@ class FmriLm:
                 weights, self.betas, self.XtXinv, self.sigma,
                 self.residual_df, name=name,
             )
+        if intent is None:
+            intent = ContrastIntent(
+                kind="array",
+                name=name,
+                rows=int(np.atleast_2d(weights).shape[0]),
+            )
+        column_details = self._touched_column_details(weights)
+        result.intent = intent
+        result.touched_columns = tuple(
+            str(column["name"]) for column in column_details
+        )
+        result.touched_column_details = column_details
         result.spatial = self._spatial_context()
         self.contrasts[name] = result
         return result
+
+    def _touched_column_details(
+        self,
+        weights: NDArray[np.float64],
+    ) -> tuple[dict[str, Any], ...]:
+        """Return realized design-column details touched by a contrast."""
+        weights_2d = np.atleast_2d(np.asarray(weights, dtype=np.float64))
+        active = np.flatnonzero(np.any(np.abs(weights_2d) > 0.0, axis=0))
+        try:
+            columns = self.design_columns()
+        except (AttributeError, TypeError):
+            columns = ()
+        if not columns:
+            return tuple(
+                {
+                    "name": f"column[{int(index)}]",
+                    "index": int(index),
+                    "term": None,
+                    "level": None,
+                    "condition": None,
+                    "basis_ix": None,
+                    "provenance": {},
+                }
+                for index in active
+            )
+        return tuple(
+            _design_column_detail(columns[int(index)], fallback_index=int(index))
+            for index in active
+        )
 
     def _spatial_context(self) -> SpatialContext | None:
         """Return the spatial context for this fit, if its model exposes one.
@@ -294,7 +372,17 @@ class FmriLm:
                 self.residual_df,
                 names=t_names,
             )
-            for res in t_results:
+            for res, weights in zip(t_results, t_weights):
+                column_details = self._touched_column_details(weights)
+                res.intent = ContrastIntent(
+                    kind="named",
+                    name=res.name,
+                    rows=1,
+                )
+                res.touched_columns = tuple(
+                    str(column["name"]) for column in column_details
+                )
+                res.touched_column_details = column_details
                 res.spatial = ctx
                 self.contrasts[res.name] = res
                 out[res.name] = res
@@ -308,6 +396,16 @@ class FmriLm:
                 self.residual_df,
                 name=cname,
             )
+            column_details = self._touched_column_details(w_arr)
+            res.intent = ContrastIntent(
+                kind="named",
+                name=cname,
+                rows=int(np.atleast_2d(w_arr).shape[0]),
+            )
+            res.touched_columns = tuple(
+                str(column["name"]) for column in column_details
+            )
+            res.touched_column_details = column_details
             res.spatial = ctx
             self.contrasts[cname] = res
             out[cname] = res
@@ -327,6 +425,42 @@ class FmriLm:
             ")",
         ]
         return "\n".join(parts)
+
+
+def _design_column_detail(
+    column: object,
+    *,
+    fallback_index: int | None = None,
+) -> dict[str, Any]:
+    """Return JSON-ready metadata for one realized design column."""
+    if not hasattr(column, "name"):
+        return {
+            "name": str(column),
+            "index": -1 if fallback_index is None else fallback_index,
+            "term": None,
+            "level": None,
+            "condition": None,
+            "basis_ix": None,
+            "basis_name": None,
+            "basis_total": None,
+            "role": None,
+            "model_source": None,
+            "provenance": {},
+        }
+    provenance = getattr(column, "provenance", None)
+    return {
+        "name": str(getattr(column, "name")),
+        "index": int(getattr(column, "index")),
+        "term": getattr(column, "term", None),
+        "level": getattr(column, "level", None),
+        "condition": getattr(column, "condition", None),
+        "basis_ix": getattr(column, "basis_ix", None),
+        "basis_name": getattr(column, "basis_name", None),
+        "basis_total": getattr(column, "basis_total", None),
+        "role": getattr(column, "role", None),
+        "model_source": getattr(column, "model_source", None),
+        "provenance": dict(provenance) if provenance is not None else {},
+    }
 
 
 def fmri_lm(
@@ -606,7 +740,10 @@ def _engine_result_to_dict(er: "EngineResult") -> Dict[str, Any]:
     }
 
 
-def _dict_to_engine_result(d: Dict[str, Any], original: "EngineResult") -> "EngineResult":
+def _dict_to_engine_result(
+    d: Dict[str, Any],
+    original: "EngineResult",
+) -> "EngineResult":
     """Update an EngineResult from a legacy dict (after AR/robust)."""
     from .engine import EngineResult
 

@@ -26,7 +26,13 @@ from .compat import (
     soft_projection,
     t_to_beta_se,
 )
-from .contrasts import ContrastResult, contrast_f, contrast_t
+from .contrasts import (
+    ContrastExplanation,
+    ContrastIntent,
+    ContrastResult,
+    contrast_f,
+    contrast_t,
+)
 from .engine import (
     DEFAULT_ENGINE_OPTIONS,
     ChunkwiseEngineOptions,
@@ -51,6 +57,8 @@ __all__ = [
     "Projection",
     "contrast_t",
     "contrast_f",
+    "ContrastExplanation",
+    "ContrastIntent",
     "ContrastResult",
     "combine_runs",
     "combine_contrasts",

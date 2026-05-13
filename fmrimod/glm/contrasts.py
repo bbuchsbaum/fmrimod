@@ -19,6 +19,63 @@ from scipy import special as sp_special
 from fmrimod.glm.spatial import SpatialContext
 
 
+@dataclass(frozen=True)
+class ContrastIntent:
+    """Structured record of how a contrast was requested."""
+
+    kind: str
+    name: str | None = None
+    term: str | None = None
+    levels: tuple[str, ...] = ()
+    rows: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-ready representation of the contrast intent."""
+        return {
+            "kind": self.kind,
+            "name": self.name,
+            "term": self.term,
+            "levels": list(self.levels),
+            "rows": self.rows,
+        }
+
+
+@dataclass(frozen=True)
+class ContrastExplanation:
+    """Structured explanation for a fitted contrast result."""
+
+    name: str
+    intent: dict[str, Any]
+    touched_columns: tuple[str, ...]
+    statistic: dict[str, Any]
+    design_columns: tuple[dict[str, Any], ...] = ()
+    caveats: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-ready explanation dictionary."""
+        return {
+            "name": self.name,
+            "intent": self.intent,
+            "touched_columns": list(self.touched_columns),
+            "design_columns": list(self.design_columns),
+            "statistic": dict(self.statistic),
+            "caveats": list(self.caveats),
+        }
+
+    def to_markdown(self) -> str:
+        """Render a compact human-readable explanation."""
+        family = self.statistic["family"]
+        columns = ", ".join(self.touched_columns) or "(none recorded)"
+        caveats = ", ".join(self.caveats) or "none"
+        return (
+            f"### {self.name}\n\n"
+            f"- intent: {self.intent.get('kind')}\n"
+            f"- statistic: {family}\n"
+            f"- touched columns: {columns}\n"
+            f"- caveats: {caveats}\n"
+        )
+
+
 def _validate_f_contrast_matrix(
     con_mat: NDArray[np.float64], n_coefficients: int
 ) -> NDArray[np.float64]:
@@ -120,6 +177,65 @@ class ContrastResult:
     df: float | tuple[Any, ...]
     stat_type: str
     spatial: SpatialContext | None = None
+    intent: ContrastIntent | dict[str, Any] | None = None
+    touched_columns: tuple[str, ...] = ()
+    touched_column_details: tuple[dict[str, Any], ...] = ()
+    caveats: tuple[str, ...] = ()
+
+    # -- Explanation --
+
+    def explain(self) -> ContrastExplanation:
+        """Return structured explanation data for this contrast result."""
+        intent = self._intent_dict()
+        statistic: dict[str, Any] = {
+            "family": self.stat_type,
+            "n_voxels": int(np.asarray(self.stat).size),
+        }
+        if self.stat_type == "F":
+            df_num, df_den = self.df
+            statistic.update(
+                {
+                    "df": [float(df_num), float(df_den)],
+                    "df_num": float(df_num),
+                    "df_den": float(df_den),
+                }
+            )
+        else:
+            statistic.update(
+                {
+                    "df": float(self.df),
+                    "df_resid": float(self.df),
+                }
+            )
+        return ContrastExplanation(
+            name=self.name,
+            intent=intent,
+            touched_columns=tuple(self.touched_columns),
+            statistic=statistic,
+            design_columns=tuple(self.touched_column_details),
+            caveats=tuple(self.caveats),
+        )
+
+    def summary(self) -> dict[str, Any]:
+        """Return a JSON-ready structured summary of this contrast."""
+        return self.explain().to_dict()
+
+    def _intent_dict(self) -> dict[str, Any]:
+        """Normalize stored intent metadata for public explanation output."""
+        if isinstance(self.intent, ContrastIntent):
+            return self.intent.to_dict()
+        if isinstance(self.intent, dict):
+            out = dict(self.intent)
+            if isinstance(out.get("levels"), tuple):
+                out["levels"] = list(out["levels"])
+            return out
+        return {
+            "kind": "unspecified",
+            "name": self.name,
+            "term": None,
+            "levels": [],
+            "rows": None,
+        }
 
     # -- Reverse converters --
 

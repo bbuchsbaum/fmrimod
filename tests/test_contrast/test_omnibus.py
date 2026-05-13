@@ -93,9 +93,24 @@ def _inferred(
 def test_omnibus_resolves_to_one_row_per_named_level() -> None:
     columns = DesignColumns(
         (
-            _declared("trial_type.condition_a", 0, term="trial_type", level="condition_a"),
-            _declared("trial_type.condition_b", 1, term="trial_type", level="condition_b"),
-            _declared("trial_type.condition_c", 2, term="trial_type", level="condition_c"),
+            _declared(
+                "trial_type.condition_a",
+                0,
+                term="trial_type",
+                level="condition_a",
+            ),
+            _declared(
+                "trial_type.condition_b",
+                1,
+                term="trial_type",
+                level="condition_b",
+            ),
+            _declared(
+                "trial_type.condition_c",
+                2,
+                term="trial_type",
+                level="condition_c",
+            ),
         )
     )
 
@@ -116,8 +131,18 @@ def test_omnibus_resolves_to_one_row_per_named_level() -> None:
 def test_omnibus_with_no_levels_includes_every_term_column() -> None:
     columns = DesignColumns(
         (
-            _declared("trial_type.condition_a", 0, term="trial_type", level="condition_a"),
-            _declared("trial_type.condition_b", 1, term="trial_type", level="condition_b"),
+            _declared(
+                "trial_type.condition_a",
+                0,
+                term="trial_type",
+                level="condition_a",
+            ),
+            _declared(
+                "trial_type.condition_b",
+                1,
+                term="trial_type",
+                level="condition_b",
+            ),
         )
     )
 
@@ -131,10 +156,34 @@ def test_omnibus_with_no_levels_includes_every_term_column() -> None:
 def test_omnibus_emits_one_row_per_basis_when_term_has_multiple_bases() -> None:
     columns = DesignColumns(
         (
-            _declared("trial_type.condition_a_b1", 0, term="trial_type", level="condition_a", basis_ix=1),
-            _declared("trial_type.condition_a_b2", 1, term="trial_type", level="condition_a", basis_ix=2),
-            _declared("trial_type.condition_b_b1", 2, term="trial_type", level="condition_b", basis_ix=1),
-            _declared("trial_type.condition_b_b2", 3, term="trial_type", level="condition_b", basis_ix=2),
+            _declared(
+                "trial_type.condition_a_b1",
+                0,
+                term="trial_type",
+                level="condition_a",
+                basis_ix=1,
+            ),
+            _declared(
+                "trial_type.condition_a_b2",
+                1,
+                term="trial_type",
+                level="condition_a",
+                basis_ix=2,
+            ),
+            _declared(
+                "trial_type.condition_b_b1",
+                2,
+                term="trial_type",
+                level="condition_b",
+                basis_ix=1,
+            ),
+            _declared(
+                "trial_type.condition_b_b2",
+                3,
+                term="trial_type",
+                level="condition_b",
+                basis_ix=2,
+            ),
         )
     )
 
@@ -159,7 +208,12 @@ def test_display_name_defaults_to_term_plus_suffix() -> None:
 def test_unknown_term_raises_design_provenance_error_naming_term() -> None:
     columns = DesignColumns(
         (
-            _declared("trial_type.condition_a", 0, term="trial_type", level="condition_a"),
+            _declared(
+                "trial_type.condition_a",
+                0,
+                term="trial_type",
+                level="condition_a",
+            ),
         )
     )
 
@@ -173,8 +227,18 @@ def test_unknown_term_raises_design_provenance_error_naming_term() -> None:
 def test_inferred_term_provenance_is_refused_with_named_weak_fields() -> None:
     columns = DesignColumns(
         (
-            _inferred("trial_type.condition_a", 0, term="trial_type", level="condition_a"),
-            _inferred("trial_type.condition_b", 1, term="trial_type", level="condition_b"),
+            _inferred(
+                "trial_type.condition_a",
+                0,
+                term="trial_type",
+                level="condition_a",
+            ),
+            _inferred(
+                "trial_type.condition_b",
+                1,
+                term="trial_type",
+                level="condition_b",
+            ),
         )
     )
 
@@ -192,8 +256,18 @@ def test_inferred_term_provenance_is_refused_with_named_weak_fields() -> None:
 def test_unknown_level_raises_design_provenance_error_naming_level() -> None:
     columns = DesignColumns(
         (
-            _declared("trial_type.condition_a", 0, term="trial_type", level="condition_a"),
-            _declared("trial_type.condition_b", 1, term="trial_type", level="condition_b"),
+            _declared(
+                "trial_type.condition_a",
+                0,
+                term="trial_type",
+                level="condition_a",
+            ),
+            _declared(
+                "trial_type.condition_b",
+                1,
+                term="trial_type",
+                level="condition_b",
+            ),
         )
     )
 
@@ -312,8 +386,56 @@ def test_fit_contrast_accepts_omnibus_and_matches_manual_weights() -> None:
     )
 
     assert typed_result.name == "conditions_omnibus"
+    assert typed_result.intent is not None
+    assert typed_result.intent.kind == "omnibus"
+    assert typed_result.intent.term == "trial_type"
+    assert typed_result.intent.levels == ("condition_a", "condition_b")
+    assert typed_result.intent.rows == 2
+    assert typed_result.touched_columns == (
+        columns[a_index].name,
+        columns[b_index].name,
+    )
     np.testing.assert_allclose(typed_result.stat, manual_result.stat)
     np.testing.assert_allclose(typed_result.estimate, manual_result.estimate)
+
+
+def test_fit_contrast_explain_returns_structured_omnibus_fields() -> None:
+    fit, _design, *_ = _build_fit_with_synthetic_data(
+        n_voxels=3,
+        seed=20260514,
+    )
+
+    result = fit.contrast(
+        OmnibusContrast(
+            "trial_type",
+            levels=("condition_a", "condition_b"),
+            name="conditions_omnibus",
+        )
+    )
+
+    explanation = result.explain()
+    summary = result.summary()
+
+    assert explanation.intent["kind"] == "omnibus"
+    assert explanation.intent["term"] == "trial_type"
+    assert explanation.intent["levels"] == ["condition_a", "condition_b"]
+    assert explanation.statistic["family"] == "F"
+    assert explanation.statistic["df_num"] == 2.0
+    assert explanation.statistic["df_den"] == result.df[1]
+    assert explanation.caveats == ()
+    assert any("condition_a" in name for name in explanation.touched_columns)
+    assert any("condition_b" in name for name in explanation.touched_columns)
+    assert [column["level"] for column in explanation.design_columns] == [
+        "condition_a",
+        "condition_b",
+    ]
+    assert all(
+        column["provenance"]["level"] == "declared"
+        for column in explanation.design_columns
+    )
+    assert summary["statistic"]["family"] == "F"
+    assert summary["design_columns"][0]["provenance"]["term"] == "declared"
+    assert summary["caveats"] == []
 
 
 def test_array_contrast_path_still_works_alongside_omnibus() -> None:
@@ -324,6 +446,11 @@ def test_array_contrast_path_still_works_alongside_omnibus() -> None:
     t_weights[1] = -1.0
     result = fit.contrast(t_weights, name="a_minus_b")
     assert result.name == "a_minus_b"
+    assert result.intent is not None
+    assert result.intent.kind == "array"
+    assert result.summary()["statistic"]["family"] == "t"
+    assert result.summary()["statistic"]["df_resid"] == result.df
+    assert len(result.summary()["touched_columns"]) == 2
     assert result.stat.shape == (2,)
 
 
