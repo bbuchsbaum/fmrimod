@@ -11,12 +11,9 @@ Reproduces Nilearn's ``run_glm(..., noise_model='ar1')`` convention:
    re-fit OLS on the whitened pair.
 5. Optionally repeat (Cochrane-Orcutt-style) for ``iter_gls > 1``.
 
-The whitened-then-grouped pass is exact Nilearn parity at the AR(1) level
-once the bin width is matched. The binning step is what was historically
-documented as the ``fitlins-ar1-coefficient-binning`` caveat — exposing it
-as a first-class option in :class:`fmrimod.model.AROptions` and a
-top-level :func:`fmrimod.ar1_nilearn` helper removes the caveat from
-parity reports.
+The whitened-then-grouped pass is the reference-parity path for FitLins'
+Nilearn estimator once the bin width is matched. The binning step is exposed
+as an explicit option rather than hidden as a caveat in parity reports.
 """
 
 from __future__ import annotations
@@ -28,10 +25,8 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy import special as sp_special
 
-from .estimation import estimate_ar
-from .whitening import ar_whiten_matrix
 from ..glm.solver import fast_lm_matrix, fast_preproject
-
+from .whitening import ar_whiten_matrix
 
 Array = NDArray[np.float64]
 
@@ -124,6 +119,25 @@ def _t_and_p(
         t_vals = np.where(variance > 1e-30, estimate / np.sqrt(variance), 0.0)
     p_vals = 2.0 * sp_special.stdtr(dfres, -np.abs(t_vals))
     return t_vals, p_vals
+
+
+def _estimate_ar1_nilearn_yule_walker(residuals: Array) -> Array:
+    """Estimate voxelwise AR(1) coefficients with Nilearn's convention."""
+    x = np.asarray(residuals, dtype=np.float64).T
+    if x.ndim != 2:
+        raise ValueError("residuals must be a 2-D time-by-voxel matrix")
+    n_voxels, n_timepoints = x.shape
+    if n_timepoints < 2:
+        return np.zeros(n_voxels, dtype=np.float64)
+
+    y = x - x.mean()
+    r0 = np.einsum("ij,ij->i", y, y) / float(n_timepoints * n_timepoints)
+    r1 = np.einsum("ij,ij->i", y[:, :-1], y[:, 1:]) / float(
+        (n_timepoints - 1) * n_timepoints
+    )
+    with np.errstate(divide="ignore", invalid="ignore"):
+        phi = np.where(r0 > 0.0, r1 / r0, 0.0)
+    return np.asarray(phi, dtype=np.float64)
 
 
 def ar1_nilearn(
@@ -229,7 +243,7 @@ def ar1_nilearn(
     outputs: dict = {}
     for _ in range(config.iter_gls):
         residuals = Y_base - X_base @ beta_for_residual
-        phi = estimate_ar(residuals, order=1, voxelwise=True)
+        phi = _estimate_ar1_nilearn_yule_walker(residuals)
         outputs = _grouped_fit(phi)
         beta_for_residual = outputs["betas"]
 

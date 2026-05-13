@@ -7,7 +7,6 @@ criterion.
 
 | Caveat ID | First appearance | Affected tiers | Owner | Exit criterion |
 | --- | --- | --- | --- | --- |
-| `fitlins-ar1-coefficient-binning` | `benchmarks/parity/tier_b_fitlins_bids/` | Tier B FitLins CLI derivative parity | `bd-01KRGRF4X588F56QT21CPBB7NJ` | Narrow or remove the AR/statistic caveat once t and variance maps meet the standard gate without undocumented tolerance bypasses. |
 
 ## Maintenance Rule
 

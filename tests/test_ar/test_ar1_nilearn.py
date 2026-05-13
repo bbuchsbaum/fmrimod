@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 
 from fmrimod.ar import (
-    Ar1NilearnConfig,
     DEFAULT_BIN_WIDTH,
+    Ar1NilearnConfig,
     ar1_nilearn,
     bin_ar1_coefficients,
 )
@@ -76,8 +76,9 @@ def test_ar1_nilearn_passes_recovers_signal_under_strong_ar():
 
 
 def test_ar1_nilearn_matches_nilearn_run_glm():
-    """Beta / t agreement with ``nilearn.glm.first_level.run_glm`` (ar1)."""
+    """Statistic agreement with ``nilearn.glm.first_level.run_glm`` (ar1)."""
     nilearn_fl = pytest.importorskip("nilearn.glm.first_level")
+    nilearn_contrasts = pytest.importorskip("nilearn.glm.contrasts")
 
     X, Y, c, _ = _synthetic_ar1(n_v=120, phi=0.4)
     out = ar1_nilearn(X, Y, contrast=c, coefficient_bin_width=0.01)
@@ -92,11 +93,16 @@ def test_ar1_nilearn_matches_nilearn_run_glm():
             theta = theta.T
         nilearn_betas[:, mask] = theta
 
-    # Per-voxel beta correlation should be extremely high (modulo phi-bin
-    # boundaries).
-    for j in range(n_p):
-        r = np.corrcoef(out["betas"][j], nilearn_betas[j])[0, 1]
-        assert r > 0.999, f"beta {j} corr {r}"
+    contrast = nilearn_contrasts.compute_contrast(
+        labels, estimates, c, stat_type="t"
+    )
+
+    np.testing.assert_allclose(out["betas"], nilearn_betas, atol=1e-12, rtol=1e-12)
+    np.testing.assert_allclose(out["effect"], contrast.effect, atol=1e-12, rtol=1e-12)
+    np.testing.assert_allclose(
+        out["variance"], contrast.variance, atol=1e-12, rtol=1e-12
+    )
+    np.testing.assert_allclose(out["t"], contrast.stat(), atol=1e-12, rtol=1e-12)
 
 
 def test_ar1_nilearn_config_validation():

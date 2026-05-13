@@ -353,9 +353,7 @@
       "report_path": "benchmarks/parity/tier_b_fitlins_bids/reports/parity_report.json",
       "reference_path": "benchmarks/parity/tier_b_fitlins_bids/workflow.py::manual_pipeline and FitLins CLI derivative fixture",
       "fmrimod_path": "benchmarks/parity/tier_b_fitlins_bids/workflow.py::translated_pipeline plus ar1_nilearn derivative writer",
-      "caveats": [
-        "fitlins-ar1-coefficient-binning"
-      ],
+      "caveats": [],
       "replacement_target": "Route translated BIDS Stats Model nodes into fmri_dataset -> fmri_lm once the typed spec compiler covers the required transforms."
     },
     {

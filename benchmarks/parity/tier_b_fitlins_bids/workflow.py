@@ -17,10 +17,15 @@ import pandas as pd
 from nilearn.glm.first_level.hemodynamic_models import compute_regressor
 
 import fmrimod as fm
-from cross_testing.harness import ParityCase, ParityTolerance, PipelineOutput, render, run
+from cross_testing.harness import (
+    ParityCase,
+    ParityTolerance,
+    PipelineOutput,
+    render,
+    run,
+)
 from fmrimod.ar import Ar1NilearnConfig, ar1_nilearn
 from fmrimod.bids import translate_run_node
-
 
 CLI_DERIVATIVE_AR_CONFIG = Ar1NilearnConfig(
     iter_gls=1,
@@ -400,10 +405,7 @@ def _compare_derivatives(
         is_effect = "_stat-effect_" in str(rel)
         is_t = "_stat-t_" in str(rel)
         is_variance = "_stat-variance_" in str(rel)
-        caveat_id = None if is_effect else "fitlins-ar1-coefficient-binning"
         gate = "max_abs+pearson" if is_effect or is_t else "max_abs"
-        if caveat_id:
-            gate = f"caveat-bypassed:{gate}"
         passes = (
             (max_abs <= 2e-3 and pearson >= 0.99)
             if is_effect
@@ -421,7 +423,7 @@ def _compare_derivatives(
                 pearson_r=pearson,
                 gate=gate,
                 passes=bool(passes),
-                caveat_id=caveat_id,
+                caveat_id=None,
             )
         )
     return deltas
@@ -441,7 +443,9 @@ def run_fitlins_cli_derivative_parity(work_dir: Path | None = None) -> FitlinsCl
     fmrimod_out = work_dir / "fmrimod-out"
     fitlins_work = work_dir / "fitlins-work"
     repo_root = Path(__file__).resolve().parents[3]
-    fitlins_project = repo_root / "fitlins"
+    fitlins_project = repo_root / "vendor" / "fitlins"
+    if not fitlins_project.exists():
+        fitlins_project = repo_root / "fitlins"
     cli_patch = (
         "import sys;"
         "import nipype.utils.profiler as profiler;"
@@ -456,14 +460,7 @@ def run_fitlins_cli_derivative_parity(work_dir: Path | None = None) -> FitlinsCl
         "sys.argv=['fitlins']+sys.argv[1:];"
         "raise SystemExit(main())"
     )
-    cmd = [
-        "uv",
-        "run",
-        "--project",
-        str(fitlins_project),
-        "python",
-        "-c",
-        cli_patch,
+    common_args = [
         str(paths["bids_dir"]),
         str(fitlins_out),
         "run",
@@ -482,10 +479,33 @@ def run_fitlins_cli_derivative_parity(work_dir: Path | None = None) -> FitlinsCl
         "--space",
         "T1w",
     ]
+    if (fitlins_project / "pyproject.toml").exists():
+        cmd = [
+            "uv",
+            "run",
+            "--project",
+            str(fitlins_project),
+            "python",
+            "-c",
+            cli_patch,
+            *common_args,
+        ]
+        cwd = fitlins_project
+    else:
+        cmd = [
+            "uvx",
+            "--from",
+            "fitlins",
+            "python",
+            "-c",
+            cli_patch,
+            *common_args,
+        ]
+        cwd = repo_root
     start = time.perf_counter()
     proc = subprocess.run(
         cmd,
-        cwd=fitlins_project,
+        cwd=cwd,
         env={
             **os.environ,
             "MPLCONFIGDIR": str(work_dir / "matplotlib-cache"),
@@ -527,9 +547,6 @@ def run_fitlins_cli_derivative_parity(work_dir: Path | None = None) -> FitlinsCl
         caveats=[
             "Comparison is scoped to run-level design, effect, variance, and t maps; "
             "FitLins-only p/z/report/rSquare/log-likelihood outputs are inventoried but not recomputed.",
-            "fitlins-ar1-coefficient-binning: t and variance maps use voxelwise AR(1) "
-            "coefficients binned to 0.01 in this fixture. Remaining deltas reflect small "
-            "AR coefficient estimation/binning differences rather than contrast algebra.",
         ],
     )
     if owns_tmp:
