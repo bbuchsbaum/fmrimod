@@ -236,7 +236,9 @@
       "report_path": "benchmarks/parity/tier_a_multicollinear_baseline/reports/parity_report.json",
       "reference_path": "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py::nilearn_pipeline",
       "fmrimod_path": "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> condition_report -> contrast",
-      "caveats": [],
+      "caveats": [
+        "dfres-n-minus-rank"
+      ],
       "timings": {
         "status": "not_recorded",
         "next": "record rank-diagnostic overhead separately from solver time"
