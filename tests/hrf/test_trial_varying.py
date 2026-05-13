@@ -5,7 +5,7 @@ import pytest
 
 from fmrimod.hrf.generators import boxcar_generator
 from fmrimod.hrf.library import SPM_CANONICAL
-from fmrimod.regressor.core import regressor, Regressor
+from fmrimod.regressor.core import regressor
 
 
 class TestTrialVaryingRegressor:

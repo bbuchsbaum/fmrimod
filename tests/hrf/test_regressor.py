@@ -9,7 +9,13 @@ from numpy.testing import assert_array_almost_equal, assert_array_equal
 from scipy.sparse import issparse
 
 from fmrimod.hrf import HRF, get_hrf
-from fmrimod.regressor import Regressor, RegressorSet, neural_input, regressor_design
+from fmrimod.regressor import (
+    NeuralInput,
+    Regressor,
+    RegressorSet,
+    neural_input,
+    regressor_design,
+)
 from fmrimod.regressor.core import regressor, regressor_set
 
 
@@ -369,13 +375,18 @@ class TestNeuralInput:
     def test_neural_input_function(self):
         """Test standalone neural_input function."""
         reg = regressor([10, 30, 50], duration=2)
-        
+
         result = neural_input(reg, start=0, end=60, resolution=1.0)
-        
-        assert isinstance(result, dict)
-        assert 'time' in result
-        assert 'neural_input' in result
-        assert len(result['time']) == len(result['neural_input'])
+
+        assert isinstance(result, NeuralInput)
+        assert len(result.time) == len(result.values)
+
+    def test_neural_input_is_frozen(self):
+        """NeuralInput is immutable; field assignment must raise."""
+        reg = regressor([10, 30, 50], duration=2)
+        result = neural_input(reg, start=0, end=60, resolution=1.0)
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            result.time = np.array([0.0])  # type: ignore[misc]
 
 
 class TestRegressorDesign:

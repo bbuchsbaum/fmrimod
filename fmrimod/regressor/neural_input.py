@@ -2,14 +2,32 @@
 
 from __future__ import annotations
 
-from typing import Tuple, Optional, TYPE_CHECKING, Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Optional, Tuple
+
 import numpy as np
-from numpy.typing import ArrayLike, NDArray
+from numpy.typing import NDArray
 
 if TYPE_CHECKING:
     from .core import Regressor
 else:
     Regressor = Any
+
+
+@dataclass(frozen=True)
+class NeuralInput:
+    """Time-locked neural input series produced by :func:`neural_input`.
+
+    Attributes
+    ----------
+    time : NDArray[np.float64]
+        Time grid in seconds.
+    values : NDArray[np.float64]
+        Neural input values, same length as ``time``.
+    """
+
+    time: NDArray[np.float64]
+    values: NDArray[np.float64]
 
 
 def neural_input_core(
@@ -129,28 +147,23 @@ def neural_input(
     reg: "Regressor",
     start: float = 0.0,
     end: Optional[float] = None,
-    resolution: float = 0.33
-) -> dict:
+    resolution: float = 0.33,
+) -> NeuralInput:
     """Generate neural input time series from a Regressor.
-    
+
     Args:
         reg: Regressor object
         start: Start time in seconds
         end: End time in seconds (if None, auto-determined)
         resolution: Time resolution in seconds
-        
+
     Returns:
-        Dictionary with 'time' and 'neural_input' arrays
-        
+        :class:`NeuralInput` with ``time`` and ``values`` arrays.
+
     Examples:
         >>> reg = regressor(onsets=[10, 30, 50], duration=2)
-        >>> input = neural_input(reg, start=0, end=60)
-        >>> plt.plot(input['time'], input['neural_input'])
+        >>> ni = neural_input(reg, start=0, end=60)
+        >>> plt.plot(ni.time, ni.values)
     """
-    # Use the regressor's neural_input method
-    time, neural = reg.neural_input(start, end, resolution)
-    
-    return {
-        'time': time,
-        'neural_input': neural
-    }
+    time, values = reg.neural_input(start, end, resolution)
+    return NeuralInput(time=time, values=values)
