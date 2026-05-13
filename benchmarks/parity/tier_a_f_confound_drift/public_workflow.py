@@ -7,6 +7,7 @@ GLM as the numerical reference on the realised public design matrix.
 
 from __future__ import annotations
 
+import argparse
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -25,6 +26,8 @@ from cross_testing.harness import (
     render,
     run,
 )
+from fmrimod.contrast import OmnibusContrast
+from fmrimod.design import DesignColumns
 from fmrimod.spec import confounds, drift, hrf, intercept
 
 Array = NDArray[np.float64]
@@ -40,9 +43,11 @@ class PublicFContrastInputs:
     confounds: pd.DataFrame
     data: Array
     design: pd.DataFrame
+    design_columns: DesignColumns
     spec: Any
     t_contrast: Array
-    f_contrast: Array
+    omnibus: OmnibusContrast
+    reference_f_contrast: Array
 
 
 def _center_scale(values: Array) -> Array:
@@ -103,7 +108,7 @@ def _public_design(
     events: pd.DataFrame,
     confound_df: pd.DataFrame,
     n_scans: int,
-) -> tuple[Any, pd.DataFrame]:
+) -> tuple[Any, pd.DataFrame, DesignColumns]:
     spec = _make_spec(confound_df)
     dataset = fm.fmri_dataset(
         np.zeros((n_scans, 1), dtype=np.float64),
@@ -111,7 +116,7 @@ def _public_design(
         events=events,
     )
     fit = fm.fmri_lm(spec, dataset)
-    return spec, fit.model.design_matrix(run=0)
+    return spec, fit.model.design_matrix(run=0), fit.design_columns()
 
 
 def _contrast_vector(columns: list[str], weights: dict[str, float]) -> Array:
@@ -145,9 +150,14 @@ def load_inputs(max_voxels: int = MAX_VOXELS) -> PublicFContrastInputs:
     n_voxels = min(int(max_voxels), MAX_VOXELS)
     events = _events()
     confound_df = _confounds(n_scans)
-    spec, design = _public_design(events, confound_df, n_scans)
+    spec, design, design_columns = _public_design(events, confound_df, n_scans)
     columns = list(design.columns)
     condition_a, condition_b = _find_condition_columns(columns)
+    omnibus = OmnibusContrast(
+        "trial_type",
+        levels=("condition_a", "condition_b"),
+        name="conditions_omnibus",
+    )
 
     t_contrast = _contrast_vector(
         columns,
@@ -156,12 +166,7 @@ def load_inputs(max_voxels: int = MAX_VOXELS) -> PublicFContrastInputs:
             condition_b: -1.0,
         },
     )
-    f_contrast = np.vstack(
-        [
-            _contrast_vector(columns, {condition_a: 1.0}),
-            _contrast_vector(columns, {condition_b: 1.0}),
-        ]
-    )
+    reference_f_contrast = omnibus.resolve(design_columns)
 
     rng = np.random.default_rng(20260513)
     betas = np.zeros((design.shape[1], n_voxels), dtype=np.float64)
@@ -177,9 +182,11 @@ def load_inputs(max_voxels: int = MAX_VOXELS) -> PublicFContrastInputs:
         confounds=confound_df,
         data=data.astype(np.float64),
         design=design,
+        design_columns=design_columns,
         spec=spec,
         t_contrast=t_contrast,
-        f_contrast=f_contrast,
+        omnibus=omnibus,
+        reference_f_contrast=reference_f_contrast,
     )
 
 
@@ -197,7 +204,7 @@ def nilearn_pipeline(inputs: PublicFContrastInputs) -> PipelineOutput:
     f_result = compute_contrast(
         labels,
         estimates,
-        inputs.f_contrast,
+        inputs.reference_f_contrast,
         stat_type="F",
     )
     return PipelineOutput(
@@ -222,10 +229,7 @@ def fmrimod_pipeline(inputs: PublicFContrastInputs) -> PipelineOutput:
         inputs.t_contrast,
         name="condition_a_minus_b",
     )
-    f_result = fit.contrast(
-        inputs.f_contrast,
-        name="conditions_omnibus",
-    )
+    f_result = fit.contrast(inputs.omnibus)
     return PipelineOutput(
         arrays={
             "design": fit.model.design_matrix_array(run=0),
@@ -251,10 +255,18 @@ def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
     )
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--out-dir",
+        type=Path,
+        default=Path(__file__).resolve().parent / "reports" / "public",
+        help="Directory where the parity report should be rendered.",
+    )
+    args = parser.parse_args(argv)
+
     result = run(make_case())
-    out_dir = Path(__file__).resolve().parent / "reports" / "public"
-    render(result, out_dir)
+    render(result, args.out_dir)
     if result.status == "fail":
         raise SystemExit(1)
 

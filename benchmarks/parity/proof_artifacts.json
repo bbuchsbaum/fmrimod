@@ -20,7 +20,13 @@
         "fmrimod.glm.FmriLm",
         "fmrimod.glm.ContrastResult"
       ],
-      "fmrimod_expresses_better": "The user-facing path keeps HRF normalization, dataset construction, fitting, and contrast evaluation as typed inspectable objects instead of a stateful FirstLevelModel call."
+      "fmrimod_expresses_better": "The user-facing path keeps HRF normalization, dataset construction, fitting, and contrast evaluation as typed inspectable objects instead of a stateful FirstLevelModel call.",
+      "receipt": {
+        "status": "static_snapshot",
+        "reason": "workflow is already public-seam evidence, but does not yet expose a receipt-safe --out-dir regeneration command",
+        "date": "2026-05-13",
+        "owner": "parity-maintainers"
+      }
     },
     {
       "benchmark_id": "tier_a_f_confound_drift",
@@ -38,10 +44,27 @@
       "typed_objects": [
         "fmrimod.dataset.FmriDataset",
         "fmrimod.spec.Spec",
+        "fmrimod.design.DesignColumns",
+        "fmrimod.contrast.OmnibusContrast",
         "fmrimod.glm.FmriLm",
         "fmrimod.glm.ContrastResult"
       ],
-      "fmrimod_expresses_better": "The F contrast and drift/confound structure are represented in the fmrimod spec and fit result instead of living only as realized NumPy arrays."
+      "fmrimod_expresses_better": "The F contrast intent, drift terms, confounds, and design-column provenance are represented as typed fmrimod objects; the realised F matrix is only the Nilearn reference adapter.",
+      "receipt": {
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_a_f_confound_drift.public_workflow",
+          "--out-dir",
+          "benchmarks/parity/tier_a_f_confound_drift/reports_public"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ]
+      }
     },
     {
       "benchmark_id": "tier_a_fiac",
@@ -99,6 +122,12 @@
         "fmrimod.stats.GroupFitResult"
       ],
       "fmrimod_expresses_better": "The group path carries effect-size standard errors and model intent as explicit request fields rather than hiding them inside a fitted second-level estimator.",
+      "receipt": {
+        "status": "static_snapshot",
+        "reason": "workflow still carries an active second-level p-value caveat and has not yet been wired to receipt-safe report regeneration",
+        "date": "2026-05-13",
+        "owner": "parity-maintainers"
+      },
       "replacement_target": "Retire the normal-vs-t caveat by comparing against a statistically matching native second-level reference, not Nilearn's OLS variance model."
     },
     {
