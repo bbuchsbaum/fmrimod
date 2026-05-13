@@ -14,6 +14,17 @@ from numpy.typing import NDArray
 from scipy import linalg
 
 
+def _rss_needs_direct_residual(
+    rss: NDArray[np.float64],
+    yTy: NDArray[np.float64],
+    fitted_ss: NDArray[np.float64],
+) -> NDArray[np.bool_]:
+    """Flag voxels where sufficient-stat RSS is dominated by cancellation."""
+    scale = np.maximum(yTy, np.abs(fitted_ss))
+    threshold = np.sqrt(np.finfo(np.float64).eps) * np.maximum(scale, 1.0)
+    return rss <= threshold
+
+
 def _resolve_compute_dtype(dtype: object) -> np.dtype:
     """Normalize and validate solver compute dtype."""
     dt = np.dtype(dtype)
@@ -287,7 +298,13 @@ def fast_lm_matrix(
         else:
             XtY = X.T @ Y
         yTy = np.sum(Y * Y, axis=0)
-        rss = yTy - np.einsum("ij,ij->j", betas, XtY)
+        fitted_ss = np.einsum("ij,ij->j", betas, XtY)
+        rss = yTy - fitted_ss
+        unstable = _rss_needs_direct_residual(rss, yTy, fitted_ss)
+        if np.any(unstable):
+            residuals = Y[:, unstable] - X @ betas[:, unstable]
+            rss = rss.copy()
+            rss[unstable] = np.sum(residuals ** 2, axis=0)
         rss = np.maximum(rss, 0.0)
         fitted = None
 
