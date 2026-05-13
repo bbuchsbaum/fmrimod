@@ -363,6 +363,13 @@ def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
         tolerances={
             "design": ParityTolerance(rtol=0.0, atol=0.0),
             "effect_task_main": ParityTolerance(rtol=1e-8, atol=1e-9),
+            # Rescale-gated t/F: Nilearn's run_glm uses df_residual = n - p
+            # regardless of rank, while fmrimod uses the textbook n - rank
+            # (see fmrimod/glm/solver.py). On this fixture that produces a
+            # scale factor of sqrt(151/152) on t and 151/152 on F. We
+            # intentionally do not match Nilearn's incorrect DoF, but we
+            # still want a tight parity gate, so allow_rescale + Pearson=1
+            # pin the agreement to the expected scale ratio.
             "t_task_main": ParityTolerance(
                 check_allclose=False,
                 allow_rescale=True,

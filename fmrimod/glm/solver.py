@@ -249,6 +249,12 @@ def fast_preproject(
     return Projection(
         Pinv=Pinv,
         XtXinv=XtXinv,
+        # dfres = n - rank, not n - p. This is the textbook residual-DoF
+        # choice for a rank-deficient design: only `rank` linearly
+        # independent columns subtract a DoF from the residual. Nilearn's
+        # run_glm uses n - p regardless of rank, which silently inflates
+        # t/F denominators when X is rank-deficient; we intentionally do
+        # not match that.
         dfres=float(n - rank),
         rank=rank,
         is_full_rank=(rank == p),
