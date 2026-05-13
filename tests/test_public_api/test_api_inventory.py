@@ -161,6 +161,104 @@ def test_spine_names_are_tier_assigned() -> None:
     )
 
 
+_INTERNAL_AUDIT_PATH = REPO_ROOT / "docs" / "contracts" / "internal_any_audit.json"
+_INTERNAL_REQUIRED_ROW_KEYS = frozenset({
+    "module",
+    "qualname",
+    "lineno",
+    "endlineno",
+    "is_async",
+    "has_any_annotation",
+    "has_var_kwargs",
+    "has_var_args_any",
+})
+
+
+def _load_internal_audit() -> dict:
+    if not _INTERNAL_AUDIT_PATH.exists():
+        pytest.fail(
+            f"internal audit missing at {_INTERNAL_AUDIT_PATH}; "
+            f"regenerate with `python scripts/api_inventory.py --mode internal`"
+        )
+    return json.loads(_INTERNAL_AUDIT_PATH.read_text())
+
+
+def test_internal_audit_schema_is_v1() -> None:
+    payload = _load_internal_audit()
+    assert payload.get("schema_version") == "internal_any_audit/v1"
+
+
+def test_internal_audit_rows_carry_all_required_columns() -> None:
+    for row in _load_internal_audit()["rows"]:
+        missing = _INTERNAL_REQUIRED_ROW_KEYS - set(row)
+        assert not missing, (
+            f"internal audit row {row.get('module')}::{row.get('qualname')} "
+            f"missing columns: {sorted(missing)}"
+        )
+
+
+def test_internal_audit_counts_track_live_probe() -> None:
+    """The on-disk audit matches a fresh AST walk.
+
+    Failure means the audit JSON was hand-edited or fmrimod source has
+    changed since the audit was last regenerated. Either regenerate via
+    ``python scripts/api_inventory.py --mode internal`` or treat the
+    delta as a real soundness regression and review.
+    """
+    import sys
+
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    try:
+        from api_inventory import build_internal_audit
+    finally:
+        sys.path.pop(0)
+
+    live = build_internal_audit()
+    on_disk = _load_internal_audit()
+    assert live["counts"] == on_disk["counts"], (
+        f"internal audit counts drifted between live probe and on-disk:\n"
+        f"  live:    {live['counts']}\n"
+        f"  on disk: {on_disk['counts']}"
+    )
+
+
+def test_internal_audit_any_count_does_not_silently_grow() -> None:
+    """Pin the internal Any-annotation baseline.
+
+    The gap between public-surface ``Any`` (~1) and internal ``Any``
+    (~hundreds) is what the scathing-read post in
+    ``general-discussion/post-01KRHT4H90S9695V0PWRW32Q6Y`` flagged.
+    Adding new internal ``Any`` annotations in fmrimod modules should
+    require a visible diff against this baseline, not slip past the
+    public-surface inventory's narrower gate.
+
+    To intentionally raise the baseline (e.g. you've added a new
+    module wholesale and the `Any` is genuinely needed), update both
+    the audit JSON and this assertion in the same commit with a
+    board-linked rationale.
+    """
+    counts = _load_internal_audit()["counts"]
+    # Baseline pinned at the moment the internal audit landed; raise
+    # only with explicit board-linked rationale in the same commit.
+    BASELINE_WITH_ANY = 394
+    assert counts["with_any_annotation"] <= BASELINE_WITH_ANY, (
+        f"internal Any-annotation count grew from {BASELINE_WITH_ANY} "
+        f"to {counts['with_any_annotation']}; raise the baseline with "
+        f"rationale or narrow the offending Any."
+    )
+
+
+def test_internal_audit_var_kwargs_count_does_not_silently_grow() -> None:
+    """Pin the internal ``**kwargs`` baseline (165 at audit landing)."""
+    counts = _load_internal_audit()["counts"]
+    BASELINE_WITH_VAR_KWARGS = 165
+    assert counts["with_var_kwargs"] <= BASELINE_WITH_VAR_KWARGS, (
+        f"internal **kwargs count grew from {BASELINE_WITH_VAR_KWARGS} "
+        f"to {counts['with_var_kwargs']}; raise the baseline with "
+        f"rationale or type the kwargs."
+    )
+
+
 def test_spine_review_names_have_documented_soundness_debt() -> None:
     """Every ``spine_review`` row carries a real soundness flag.
 

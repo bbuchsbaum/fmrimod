@@ -20,6 +20,7 @@ visible diff against the JSON, not as a quiet rename.
 from __future__ import annotations
 
 import argparse
+import ast
 import inspect
 import json
 import re
@@ -28,8 +29,11 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+PACKAGE_ROOT = REPO_ROOT / "fmrimod"
 INVENTORY_PATH = REPO_ROOT / "docs" / "contracts" / "api_inventory_v1.json"
+INTERNAL_AUDIT_PATH = REPO_ROOT / "docs" / "contracts" / "internal_any_audit.json"
 SCHEMA_VERSION = "api_inventory/v1"
+INTERNAL_SCHEMA_VERSION = "internal_any_audit/v1"
 
 # Default sentinel reprs include process-local memory addresses
 # (e.g., ``<object object at 0x7f5609721ed0>``) that vary across machines
@@ -186,6 +190,117 @@ def build_inventory(overlay_source: Path | None = None) -> Dict[str, Any]:
     }
 
 
+def _annotation_has_any(annotation: Any) -> bool:
+    """Return True if an AST annotation contains a typing.Any reference.
+
+    Catches ``Any``, ``typing.Any``, and ``Any`` nested inside subscripts /
+    unions (``Optional[Any]``, ``Dict[str, Any]``, ``Union[X, Any]``).
+    """
+    if annotation is None:
+        return False
+    for node in ast.walk(annotation):
+        if isinstance(node, ast.Name) and node.id == "Any":
+            return True
+        if (
+            isinstance(node, ast.Attribute)
+            and node.attr == "Any"
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "typing"
+        ):
+            return True
+    return False
+
+
+def _classify_function_node(
+    node: Any,  # ast.FunctionDef | ast.AsyncFunctionDef
+    module: str,
+) -> Dict[str, Any]:
+    """Classify a function/method definition for the internal audit."""
+    args = node.args
+    has_any = False
+    has_var_args_any = False
+    has_var_kwargs = False
+
+    for arg in args.args + args.kwonlyargs + args.posonlyargs:
+        if _annotation_has_any(arg.annotation):
+            has_any = True
+    if args.vararg is not None:
+        if _annotation_has_any(args.vararg.annotation):
+            has_var_args_any = True
+            has_any = True
+    if args.kwarg is not None:
+        # **kwargs is the opaque-forwarder shape regardless of annotation.
+        has_var_kwargs = True
+        if _annotation_has_any(args.kwarg.annotation) or args.kwarg.annotation is None:
+            has_any = has_any or args.kwarg.annotation is None or _annotation_has_any(args.kwarg.annotation)
+
+    if _annotation_has_any(node.returns):
+        has_any = True
+
+    return {
+        "module": module,
+        "qualname": node.name,
+        "lineno": int(node.lineno),
+        "endlineno": int(getattr(node, "end_lineno", node.lineno) or node.lineno),
+        "is_async": isinstance(node, ast.AsyncFunctionDef),
+        "has_any_annotation": has_any,
+        "has_var_kwargs": has_var_kwargs,
+        "has_var_args_any": has_var_args_any,
+    }
+
+
+def build_internal_audit() -> Dict[str, Any]:
+    """Walk every ``fmrimod/**.py`` file and audit Any/`**kwargs` usage.
+
+    Complements :func:`build_inventory` (which audits only ``fmrimod.__all__``)
+    by surfacing soundness debt in private/internal modules. The audit is
+    AST-based so it doesn't trigger import-time side effects or depend on
+    optional runtime dependencies.
+    """
+    rows: List[Dict[str, Any]] = []
+    files_scanned = 0
+    parse_failures = 0
+    for path in sorted(PACKAGE_ROOT.rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
+        rel = path.relative_to(REPO_ROOT)
+        module = str(rel).replace("/", ".").removesuffix(".py")
+        try:
+            tree = ast.parse(path.read_text(), filename=str(rel))
+        except SyntaxError:
+            parse_failures += 1
+            continue
+        files_scanned += 1
+        # Track qualname stack so methods carry their owning class.
+        def _walk(scope_qual: str, parent: Any) -> None:
+            for child in ast.iter_child_nodes(parent):
+                if isinstance(child, ast.ClassDef):
+                    new_scope = f"{scope_qual}{child.name}." if scope_qual else f"{child.name}."
+                    _walk(new_scope, child)
+                elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    row = _classify_function_node(child, module)
+                    row["qualname"] = f"{scope_qual}{child.name}"
+                    rows.append(row)
+                    # Functions can contain nested functions; recurse for completeness.
+                    _walk(f"{scope_qual}{child.name}.", child)
+        _walk("", tree)
+
+    rows.sort(key=lambda r: (r["module"], r["lineno"]))
+    counts = {
+        "files_scanned": files_scanned,
+        "parse_failures": parse_failures,
+        "total_functions": len(rows),
+        "with_any_annotation": sum(1 for r in rows if r["has_any_annotation"]),
+        "with_var_kwargs": sum(1 for r in rows if r["has_var_kwargs"]),
+        "with_var_args_any": sum(1 for r in rows if r["has_var_args_any"]),
+    }
+    return {
+        "schema_version": INTERNAL_SCHEMA_VERSION,
+        "counts": counts,
+        "rows": rows,
+    }
+
+
 def _format_json(payload: Dict[str, Any]) -> str:
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
@@ -193,44 +308,69 @@ def _format_json(payload: Dict[str, Any]) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--mode",
+        choices=("inventory", "internal"),
+        default="inventory",
+        help=(
+            "'inventory' (default) regenerates the public-API inventory from "
+            "fmrimod.__all__; 'internal' regenerates the AST-based audit of "
+            "Any/**kwargs in non-__all__ modules."
+        ),
+    )
+    parser.add_argument(
         "--check",
         action="store_true",
-        help="Exit non-zero if the on-disk inventory differs from a fresh probe.",
+        help="Exit non-zero if the on-disk artifact differs from a fresh probe.",
     )
     parser.add_argument(
         "--out",
         type=Path,
-        default=INVENTORY_PATH,
-        help="Output path (default: docs/contracts/api_inventory_v1.json).",
+        default=None,
+        help=(
+            "Output path. Defaults to docs/contracts/api_inventory_v1.json "
+            "for --mode inventory, or docs/contracts/internal_any_audit.json "
+            "for --mode internal."
+        ),
     )
     args = parser.parse_args()
 
-    payload = build_inventory()
+    if args.mode == "inventory":
+        payload = build_inventory()
+        default_out = INVENTORY_PATH
+        summary_keys = ("all_names", "callable", "opaque_forwarder", "any_in_signature")
+    else:
+        payload = build_internal_audit()
+        default_out = INTERNAL_AUDIT_PATH
+        summary_keys = (
+            "files_scanned",
+            "total_functions",
+            "with_any_annotation",
+            "with_var_kwargs",
+            "with_var_args_any",
+        )
+
+    out_path = args.out or default_out
     rendered = _format_json(payload)
 
     if args.check:
-        if not args.out.exists():
-            print(f"inventory missing: {args.out}", file=sys.stderr)
+        if not out_path.exists():
+            print(f"artifact missing: {out_path}", file=sys.stderr)
             return 2
-        on_disk = args.out.read_text()
+        on_disk = out_path.read_text()
         if on_disk != rendered:
             print(
-                f"inventory at {args.out} is stale relative to the live probe.\n"
-                "Regenerate with: python scripts/api_inventory.py",
+                f"{out_path} is stale relative to the live probe.\n"
+                f"Regenerate with: python scripts/api_inventory.py --mode {args.mode}",
                 file=sys.stderr,
             )
             return 1
         return 0
 
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(rendered)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(rendered)
     counts = payload["counts"]
-    print(
-        f"wrote {args.out}: __all__={counts['all_names']}, "
-        f"callable={counts['callable']}, "
-        f"opaque_forwarder={counts['opaque_forwarder']}, "
-        f"any_in_signature={counts['any_in_signature']}"
-    )
+    summary = ", ".join(f"{k}={counts[k]}" for k in summary_keys if k in counts)
+    print(f"wrote {out_path}: {summary}")
     return 0
 
 
