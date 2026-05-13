@@ -1,6 +1,19 @@
 # Trio Port Completion Audit v1
 
-Status: Complete as of pushed `main` handoff
+> **ARCHIVED — pre-MISSION-rewrite snapshot (2026-05-11).**
+> This audit declared the trio port "complete" against
+> [`trio_port_goal_v1.md`](trio_port_goal_v1.md), which is itself now
+> archived. Under the current [`MISSION.md`](../../../MISSION.md),
+> completion is defined by flagship-workflow strict-gate parity (see
+> [`./benchmarks/parity/`](../../../benchmarks/) and the active rows in
+> [`docs/contracts/CAVEATS.md`](../CAVEATS.md)) plus the typed
+> end-to-end baseline tracked in
+> [`GOVERNANCE.md`](../../../GOVERNANCE.md). The "complete" conclusion
+> below is **not** a current claim. Treat the evidence table as a
+> historical snapshot of test/doc anchors as of 2026-05-11.
+
+Status: Archived 2026-05-13 — superseded by MISSION / GOVERNANCE.
+Original status when written: Complete as of pushed `main` handoff
 
 ## Objective Restated
 

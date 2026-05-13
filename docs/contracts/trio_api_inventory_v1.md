@@ -1,20 +1,50 @@
 # Trio API Inventory v1
 
-Status: Current inventory with explicit evidence anchors
+Status: Current surface map for the `fmrihrf` / `fmridesign` / `fmrireg`
+lineage. **Not** a completion target.
 
 ## Purpose
 
-This inventory maps exported user-facing names from the R packages `fmrihrf`, `fmridesign`, and `fmrireg` to the current Python `fmrimod` surface. It is a coverage artifact for `docs/contracts/trio_port_goal_v1.md`, not proof of full numerical parity by itself.
+This inventory maps exported user-facing names from the R packages
+`fmrihrf`, `fmridesign`, and `fmrireg` to the current Python `fmrimod`
+surface. It is a **coverage map** — a record of where each R export
+lands (or deliberately does not land) in Python — not a definition of
+"done."
 
-Public API stability policy is defined in
-`docs/contracts/trio_public_api_policy_v1.md`.
+Under the current [`MISSION.md`](../../MISSION.md), the completion bar
+for fmrimod is flagship-workflow strict-gate parity (see
+[`./benchmarks/parity/`](../../benchmarks/) and the active rows in
+[`CAVEATS.md`](CAVEATS.md)), plus the typed end-to-end baseline
+operationalized in [`GOVERNANCE.md`](../../GOVERNANCE.md).
+Function-by-function R coverage is **explicitly deprioritized** there;
+this inventory exists to make coverage *legible*, not to chase it to
+zero.
+
+Stability semantics for rows below are defined in
+[`public_api_policy_v1.md`](public_api_policy_v1.md). Scope note:
+`fmrimod` covers seven R sibling packages, not three. The four
+non-trio packages (`fmrilss`, `fmriAR`, `fmrigds`, `fmridataset`) are
+tracked in their own per-package contracts under `docs/contracts/`
+(e.g. `fmrilss_test_surface_v1.md`, `fmriar_parity_audit_v1.md`,
+`fmridataset_consolidation_plan_v1.md`); a unified seven-package
+inventory has not yet been authored and will replace this file when it
+is.
 
 Statuses:
 
-- `ported`: matching Python API exists and is treated as part of the stable port surface, with concrete evidence anchors below.
-- `pythonized`: behavior is represented by an intentionally different Python API or naming convention.
-- `pending`: no clear Python API was found; current summary should remain at zero pending rows.
-- `scoped_out`: not intended to become a public Python API, usually because it is an R helper, CLI installer, or Rcpp implementation detail.
+- `ported`: matching Python API exists and is treated as part of the
+  stable fmrimod surface (per `public_api_policy_v1.md`), with
+  concrete evidence anchors below.
+- `pythonized`: behavior is represented by an intentionally different
+  Python API or naming convention. R-shape compatibility is not
+  implied.
+- `scoped_out`: not intended to become a public Python API. Reasons
+  include R-only install/CLI helpers, Rcpp implementation details now
+  exposed through higher-level Python functions, leading-dot R
+  helpers, or niche R surfaces no flagship workflow exercises.
+- `pending`: no clear Python API exists yet. `pending` is a
+  current-state marker, **not** a commitment to port. Rows may move
+  to `scoped_out` when no flagship workflow demands them.
 
 ## Summary
 
@@ -24,12 +54,25 @@ Statuses:
 | `fmridesign` | 94 | 87 | 7 | 0 | 0 |
 | `fmrireg` | 171 | 147 | 16 | 0 | 8 |
 
-## Immediate Audit Priorities
+These counts are a snapshot of *coverage*, not progress against a
+completion target. The completion picture lives in the flagship
+benchmarks and `CAVEATS.md`.
 
-- Keep this inventory synchronized with public API changes and new parity evidence.
-- Split high-level public API parity from low-level implementation-detail parity, especially for `fmrireg` Rcpp exports and engine internals.
-- Preserve scoped-out rationales for R helpers, CLI installers, and Rcpp implementation details.
-- Treat the Tests/evidence column as a concrete anchor, not as proof that each row has independent numerical parity. Full parity evidence is summarized in `docs/contracts/trio_verification_transcript_v1.md`.
+## Maintenance
+
+- Keep this inventory synchronized with public API changes for rows
+  that touch the four-stage seam or a documented flagship workflow.
+  Coverage changes for non-flagship-exercised rows are encouraged but
+  not gated.
+- Split high-level public API parity from low-level implementation-
+  detail parity, especially for `fmrireg` Rcpp exports and engine
+  internals.
+- Preserve scoped-out rationales for R helpers, CLI installers, and
+  Rcpp implementation details.
+- Treat the Tests/evidence column as a concrete anchor, not as proof
+  that each row has independent numerical parity. Active parity
+  caveats are tracked in `CAVEATS.md`; historical trio-port completion
+  evidence is archived under `archive/trio_verification_transcript_v1.md`.
 
 ## fmrihrf
 
@@ -54,7 +97,7 @@ Statuses:
 | `durations` | `ported` | fmrimod.utils.generics.durations | tests/hrf/test_sampling_frame.py; tests/hrf/test_fmrihrf_export_compat.py | docs/source/hrf/api/index.rst; docs/source/hrf/quickstart.rst; docs/source/hrf/vignettes/index.rst | Python module symbol covered by the listed namespace tests and documentation anchors. |
 | `empirical_hrf` | `ported` | fmrimod.hrf.empirical.empirical_hrf | tests/hrf/test_fmrihrf_export_compat.py; tests/hrf/test_r_equivalence.py; cross_testing/test_hrf_equivalence.py | docs/source/hrf/api/index.rst; docs/source/hrf/quickstart.rst; docs/source/hrf/vignettes/index.rst | Python module symbol covered by the listed namespace tests and documentation anchors. |
 | `evaluate` | `pythonized` | fmrimod.evaluate / object.evaluate(...) | tests/hrf/test_fmrihrf_export_compat.py; tests/hrf/test_hrf_core.py; tests/hrf/test_r_equivalence.py | docs/contracts/trio_api_inventory_v1.md | Python delegate helper over object methods/callables, not a full R S3 generic. |
-| `fmrihrf_cli` | `scoped_out` | none | none | docs/contracts/trio_api_inventory_v1.md; docs/contracts/trio_port_goal_v1.md | No Python CLI contract has been accepted for v1. |
+| `fmrihrf_cli` | `scoped_out` | none | none | docs/contracts/trio_api_inventory_v1.md; docs/contracts/archive/trio_port_goal_v1.md | No Python CLI contract has been accepted for v1. |
 | `gen_empirical_hrf` | `ported` | fmrimod.gen_empirical_hrf / fmrimod.hrf.empirical.gen_empirical_hrf | tests/hrf/test_fmrihrf_export_compat.py | docs/contracts/trio_api_inventory_v1.md | R-compatible alias for the Python empirical_hrf constructor. |
 | `gen_hrf` | `ported` | fmrimod.gen_hrf | tests/hrf/test_fmrihrf_export_compat.py; tests/hrf/test_r_equivalence.py; cross_testing/test_hrf_equivalence.py | docs/source/hrf/api/index.rst; docs/source/hrf/quickstart.rst; docs/source/hrf/vignettes/index.rst | Exact top-level Python public symbol. |
 | `gen_hrf_blocked` | `ported` | fmrimod.hrf.decorators.gen_hrf_blocked | tests/hrf/test_hrf_decorators.py; tests/hrf/test_fmrihrf_export_compat.py | docs/source/hrf/api/index.rst; docs/source/hrf/quickstart.rst; docs/source/hrf/vignettes/index.rst | Python module symbol covered by the listed namespace tests and documentation anchors. |
@@ -88,7 +131,7 @@ Statuses:
 | `hrf_time` | `ported` | fmrimod.hrf.functions.hrf_time | tests/hrf/test_new_hrfs.py; tests/hrf/test_r_equivalence.py; cross_testing/test_hrf_equivalence.py | docs/source/hrf/api/index.rst; docs/source/hrf/quickstart.rst; docs/source/hrf/vignettes/index.rst | Python module symbol covered by the listed namespace tests and documentation anchors. |
 | `hrf_toeplitz` | `ported` | fmrimod.utils.misc.hrf_toeplitz | tests/hrf/test_regressor.py; tests/hrf/test_fmrihrf_export_compat.py; cross_testing/test_regressor_equivalence.py | docs/source/hrf/api/index.rst; docs/source/hrf/quickstart.rst; docs/source/hrf/vignettes/index.rst | Python module symbol covered by the listed namespace tests and documentation anchors. |
 | `hrf_weighted` | `pythonized` | fmrimod.hrf.functions.weighted_hrf | tests/hrf/test_fmrihrf_export_compat.py; tests/hrf/test_r_equivalence.py; cross_testing/test_hrf_equivalence.py | docs/source/hrf/api/index.rst; docs/source/hrf/quickstart.rst; docs/source/hrf/vignettes/index.rst | Python function name places hrf suffix at end. |
-| `install_cli` | `scoped_out` | none | none | docs/contracts/trio_api_inventory_v1.md; docs/contracts/trio_port_goal_v1.md | R package install helper is not a Python package API requirement. |
+| `install_cli` | `scoped_out` | none | none | docs/contracts/trio_api_inventory_v1.md; docs/contracts/archive/trio_port_goal_v1.md | R package install helper is not a Python package API requirement. |
 | `lag_hrf` | `ported` | fmrimod.lag_hrf | tests/hrf/test_fmrihrf_export_compat.py; tests/hrf/test_r_equivalence.py; cross_testing/test_hrf_equivalence.py | docs/source/hrf/api/index.rst; docs/source/hrf/quickstart.rst; docs/source/hrf/vignettes/index.rst | Exact top-level Python public symbol. |
 | `list_available_hrfs` | `ported` | fmrimod.list_available_hrfs | tests/hrf/test_fmrihrf_export_compat.py; tests/hrf/test_r_equivalence.py; cross_testing/test_hrf_equivalence.py | docs/source/hrf/api/index.rst; docs/source/hrf/quickstart.rst; docs/source/hrf/vignettes/index.rst | Exact top-level Python public symbol. |
 | `make_hrf` | `ported` | fmrimod.hrf.generators.make_hrf | tests/hrf/test_hrf_generators.py; tests/hrf/test_fmrihrf_export_compat.py | docs/source/hrf/api/index.rst; docs/source/hrf/quickstart.rst; docs/source/hrf/vignettes/index.rst | Python module symbol covered by the listed namespace tests and documentation anchors. |
@@ -211,7 +254,7 @@ Statuses:
 
 | R export | Status | Python surface | Tests/evidence | Docs | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `.resample_param` | `scoped_out` | internal only | none | docs/contracts/trio_api_inventory_v1.md; docs/contracts/trio_port_goal_v1.md | Leading-dot R helper is internal, not a Python public API. |
+| `.resample_param` | `scoped_out` | internal only | none | docs/contracts/trio_api_inventory_v1.md; docs/contracts/archive/trio_port_goal_v1.md | Leading-dot R helper is internal, not a Python public API. |
 | `BSpline` | `ported` | fmrimod.basis.spline.BSpline | tests/design/test_basis.py; tests/design/test_basis_comprehensive.py; tests/design/test_basis_functions.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Python module symbol covered by the listed namespace tests and documentation anchors. |
 | `Fcontrasts` | `ported` | fmrimod.contrast.fcontrast.Fcontrasts | tests/design/test_contrast.py; tests/design/test_contrast_system.py; tests/design/test_fcontrast.py; tests/design/test_event_model_contrasts.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Python module symbol covered by the listed namespace tests and documentation anchors. |
 | `HRF` | `ported` | fmrimod.HRF | tests/test_accessors.py; tests/test_dataset/test_top_level_constructors.py; tests/test_glm/test_fmrireg_compat.py; tests/test_stats/test_meta_compat.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Exact top-level Python public symbol. |
@@ -284,8 +327,9 @@ Statuses:
 | `flip_sign` | `ported` | fmrimod.flip_sign / fmrimod.glm.flip_sign | tests/test_glm/test_fmrireg_compat.py | docs/source/design/fmrireg_migration.rst | Flips signed coefficient/statistic payloads in mapping-style fit summaries. |
 | `fmri_dataset` | `ported` | fmrimod.fmri_dataset | tests/test_dataset/test_fmrireg_compat.py; tests/test_dataset/test_top_level_constructors.py; tests/test_dataset/test_group_data.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Exact top-level Python public symbol. |
 | `fmri_latent_lm` | `pythonized` | fmrimod.fmri_latent_lm / fmrimod.dataset.fmri_latent_lm | tests/test_dataset/test_fmrireg_compat.py | docs/source/design/fmrireg_migration.rst | Python fits latent score matrices through the explicit model/config contract rather than R formula/block/LatentNeuroVec dispatch. |
-| `fmri_lm` | `ported` | fmrimod.fmri_lm | tests/test_glm/test_fmrireg_compat.py; tests/test_glm/test_engine.py; tests/test_glm/test_rpy2_parity.py; tests/test_single/test_lsa.py; tests/test_single/test_lss.py; tests/test_single/test_estimate_hrf.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Exact top-level Python public symbol. |
+| `fmri_lm` | `ported` | fmrimod.fmri_lm | tests/test_glm/test_fmrireg_compat.py; tests/test_glm/test_engine.py; tests/test_glm/test_rpy2_parity.py; tests/test_single/test_lsa.py; tests/test_single/test_lss.py; tests/test_single/test_estimate_hrf.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Exact top-level Python public symbol. Returns an `FmriLm` result carrying a typed `FitProvenance` (Slice A: fmrimod_version, solver_path, hrf_norm_modes; remaining VISION.md:99-103 value slots remain `None` with explicit status fields until Slices B/C/D land). |
 | `fmri_lm_control` | `pythonized` | fmrimod.model.config.FmriLmConfig | tests/test_model/test_config.py; tests/test_model/test_fmri_model.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Python uses config dataclasses/options. |
+| *(none — Python-native)* | `pythonized` | fmrimod.glm.fmri_lm.FitProvenance | tests/test_glm/test_fmri_lm_provenance.py | docs/contracts/public_api_policy_v1.md | Operational reproducibility metadata attached to `FmriLm.provenance`. Operationalizes VISION.md:99-103. Closed frozen dataclass with six value slots plus explicit status fields for currently unwired seed, AR config, and mask mode. |
 | `fmri_mem_dataset` | `ported` | fmrimod.fmri_mem_dataset / fmrimod.dataset.fmri_mem_dataset | tests/test_dataset/test_fmrireg_compat.py | docs/source/design/fmrireg_migration.rst | R-style alias for in-memory matrix dataset construction. |
 | `fmri_meta` | `ported` | fmrimod.fmri_meta | tests/test_stats/test_meta_compat.py; tests/test_stats/test_group_fit_interface.py; tests/test_stats/test_spatial_fdr.py; tests/test_stats/test_ttest.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Exact top-level Python public symbol. |
 | `fmri_meta_fit` | `ported` | fmrimod.fmri_meta_fit / fmrimod.stats.fmri_meta_fit | tests/test_stats/test_meta_compat.py; tests/test_stats/test_group_fit_interface.py | docs/source/design/fmrireg_migration.rst | Low-level matrix meta-regression helper for effect and variance matrices. |
@@ -296,7 +340,7 @@ Statuses:
 | `fmri_ols_fit` | `ported` | fmrimod.fmri_ols_fit / fmrimod.glm.fmri_ols_fit | tests/test_glm/test_fmrireg_compat.py | docs/source/design/fmrireg_migration.rst | Matrix OLS helper returning beta, SE, t, and df summaries, including a voxelwise-covariate path. |
 | `fmri_rlm` | `pythonized` | fmrimod.fmri_rlm / fmrimod.fmri_lm(..., FmriLmConfig(robust=...)) | tests/test_glm/test_fmrireg_compat.py; tests/test_robust/test_irls.py; tests/test_robust/test_estimators.py | docs/source/design/fmrireg_migration.rst | Python robust GLM uses explicit model/config objects rather than R formula/block/dataset arguments. |
 | `fmri_ttest` | `ported` | fmrimod.fmri_ttest | tests/test_glm/test_fmrireg_compat.py; tests/test_glm/test_engine.py; tests/test_glm/test_rpy2_parity.py; tests/test_single/test_lsa.py; tests/test_single/test_lss.py; tests/test_single/test_estimate_hrf.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Exact top-level Python public symbol. |
-| `fmrireg_cli` | `scoped_out` | none | none | docs/contracts/trio_api_inventory_v1.md; docs/contracts/trio_port_goal_v1.md | No Python CLI contract has been accepted for v1. |
+| `fmrireg_cli` | `scoped_out` | none | none | docs/contracts/trio_api_inventory_v1.md; docs/contracts/archive/trio_port_goal_v1.md | No Python CLI contract has been accepted for v1. |
 | `gen_hrf` | `ported` | fmrimod.gen_hrf | tests/test_accessors.py; tests/test_dataset/test_top_level_constructors.py; tests/test_glm/test_fmrireg_compat.py; tests/test_stats/test_meta_compat.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Exact top-level Python public symbol. |
 | `generate_interaction_contrast` | `ported` | fmrimod.generate_interaction_contrast | tests/test_accessors.py; tests/test_dataset/test_top_level_constructors.py; tests/test_glm/test_fmrireg_compat.py; tests/test_stats/test_meta_compat.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Exact top-level Python public symbol. |
 | `generate_main_effect_contrast` | `ported` | fmrimod.generate_main_effect_contrast | tests/test_accessors.py; tests/test_dataset/test_top_level_constructors.py; tests/test_glm/test_fmrireg_compat.py; tests/test_stats/test_meta_compat.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Exact top-level Python public symbol. |
@@ -320,7 +364,7 @@ Statuses:
 | `hrf` | `pythonized` | fmrimod.hrf_formula / fmrimod.formula.functional.hrf | tests/design/test_formula.py; tests/design/test_convolve_formula_hrf.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Top-level hrf name is package submodule; formula helper is hrf_formula. |
 | `hrf_smoothing_kernel` | `ported` | fmrimod.hrf_smoothing_kernel / fmrimod.glm.hrf_smoothing_kernel | tests/test_glm/test_fmrireg_compat.py | docs/source/design/fmrireg_migration.rst | Computes a trialwise-design temporal smoothing kernel from the Python formula/design surface. |
 | `hrf_spmg1` | `ported` | fmrimod.hrf_spmg1 | tests/test_accessors.py; tests/test_dataset/test_top_level_constructors.py; tests/test_glm/test_fmrireg_compat.py; tests/test_stats/test_meta_compat.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Exact top-level Python public symbol. |
-| `install_cli` | `scoped_out` | none | none | docs/contracts/trio_api_inventory_v1.md; docs/contracts/trio_port_goal_v1.md | R package install helper is not a Python package API requirement. |
+| `install_cli` | `scoped_out` | none | none | docs/contracts/trio_api_inventory_v1.md; docs/contracts/archive/trio_port_goal_v1.md | R package install helper is not a Python package API requirement. |
 | `interaction_contrast` | `ported` | fmrimod.contrast.contrast_spec.interaction_contrast | tests/design/test_contrast.py; tests/design/test_contrast_system.py; tests/design/test_fcontrast.py; tests/design/test_event_model_contrasts.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Python module symbol covered by the listed namespace tests and documentation anchors. |
 | `is_categorical` | `ported` | fmrimod.utils.generics.is_categorical | tests/design/test_generics.py; tests/design/test_dispatch_columns.py; tests/design/test_dispatch_event_generics.py; tests/design/test_dispatch_design_matrix.py; tests/design/test_utils.py; tests/design/test_event_utils.py; tests/design/test_term_utils.py; tests/design/test_naming.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Python module symbol covered by the listed namespace tests and documentation anchors. |
 | `is_continuous` | `ported` | fmrimod.utils.generics.is_continuous | tests/design/test_generics.py; tests/design/test_dispatch_columns.py; tests/design/test_dispatch_event_generics.py; tests/design/test_dispatch_design_matrix.py; tests/design/test_utils.py; tests/design/test_event_utils.py; tests/design/test_term_utils.py; tests/design/test_naming.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Python module symbol covered by the listed namespace tests and documentation anchors. |
@@ -331,13 +375,13 @@ Statuses:
 | `lowrank_control` | `ported` | fmrimod.lowrank_control / fmrimod.glm.lowrank_control | tests/test_glm/test_fmrireg_compat.py | docs/source/design/fmrireg_migration.rst | Creates low-rank/sketch fitting control options with conversion to Python engine kwargs. |
 | `matrix_dataset` | `ported` | fmrimod.matrix_dataset | tests/test_dataset/test_fmrireg_compat.py; tests/test_dataset/test_top_level_constructors.py; tests/test_dataset/test_group_data.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Exact top-level Python public symbol. |
 | `meta_effective_n` | `ported` | fmrimod.meta_effective_n / fmrimod.stats.meta_effective_n | tests/test_stats/test_meta_compat.py | docs/source/design/fmrireg_migration.rst | Computes inverse-variance effective sample size from within-study variance and tau2. |
-| `meta_fit_vcov_cpp` | `scoped_out` | none | none | docs/contracts/trio_api_inventory_v1.md; docs/contracts/trio_port_goal_v1.md | Rcpp implementation detail; Python should expose high-level meta behavior only. |
-| `mixed_solve_cpp` | `scoped_out` | none | none | docs/contracts/trio_api_inventory_v1.md; docs/contracts/trio_port_goal_v1.md | Rcpp implementation detail; Python should expose high-level solver behavior only. |
+| `meta_fit_vcov_cpp` | `scoped_out` | none | none | docs/contracts/trio_api_inventory_v1.md; docs/contracts/archive/trio_port_goal_v1.md | Rcpp implementation detail; Python should expose high-level meta behavior only. |
+| `mixed_solve_cpp` | `scoped_out` | none | none | docs/contracts/trio_api_inventory_v1.md; docs/contracts/archive/trio_port_goal_v1.md | Rcpp implementation detail; Python should expose high-level solver behavior only. |
 | `n_subjects` | `ported` | fmrimod.n_subjects / fmrimod.accessors.n_subjects | tests/test_accessors.py; tests/test_dataset/test_group_data.py | docs/source/design/fmrireg_migration.rst | R-style subject-count accessor for group-data objects. |
 | `nbasis` | `ported` | fmrimod.utils.generics.nbasis | tests/design/test_basis.py; tests/design/test_basis_comprehensive.py; tests/design/test_basis_functions.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Python module symbol covered by the listed namespace tests and documentation anchors. |
 | `nuisance` | `pythonized` | fmrimod.baseline / covariate helpers | tests/test_accessors.py; tests/test_dataset/test_top_level_constructors.py; tests/test_glm/test_fmrireg_compat.py; tests/test_stats/test_meta_compat.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Python represents nuisance terms through explicit baseline and covariate APIs. |
-| `ols_t_cpp` | `scoped_out` | none | none | docs/contracts/trio_api_inventory_v1.md; docs/contracts/trio_port_goal_v1.md | Rcpp implementation detail; Python should expose high-level stats behavior only. |
-| `ols_t_vcov_cpp` | `scoped_out` | none | none | docs/contracts/trio_api_inventory_v1.md; docs/contracts/trio_port_goal_v1.md | Rcpp implementation detail; Python should expose high-level stats behavior only. |
+| `ols_t_cpp` | `scoped_out` | none | none | docs/contracts/trio_api_inventory_v1.md; docs/contracts/archive/trio_port_goal_v1.md | Rcpp implementation detail; Python should expose high-level stats behavior only. |
+| `ols_t_vcov_cpp` | `scoped_out` | none | none | docs/contracts/trio_api_inventory_v1.md; docs/contracts/archive/trio_port_goal_v1.md | Rcpp implementation detail; Python should expose high-level stats behavior only. |
 | `one_against_all_contrast` | `ported` | fmrimod.contrast.contrast_spec.one_against_all_contrast | tests/design/test_contrast.py; tests/design/test_contrast_system.py; tests/design/test_fcontrast.py; tests/design/test_event_model_contrasts.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Python module symbol covered by the listed namespace tests and documentation anchors. |
 | `oneway_contrast` | `ported` | fmrimod.contrast.contrast_spec.oneway_contrast | tests/design/test_contrast.py; tests/design/test_contrast_system.py; tests/design/test_fcontrast.py; tests/design/test_event_model_contrasts.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Python module symbol covered by the listed namespace tests and documentation anchors. |
 | `onsets` | `ported` | fmrimod.utils.generics.onsets | tests/design/test_generics.py; tests/design/test_dispatch_columns.py; tests/design/test_dispatch_event_generics.py; tests/design/test_dispatch_design_matrix.py; tests/design/test_utils.py; tests/design/test_event_utils.py; tests/design/test_term_utils.py; tests/design/test_naming.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Python module symbol covered by the listed namespace tests and documentation anchors. |
@@ -378,7 +422,7 @@ Statuses:
 | `trialwise` | `ported` | fmrimod.trialwise.trialwise | tests/test_single/test_lsa.py; tests/test_single/test_lss.py; tests/test_single/test_estimate_hrf.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Python module symbol covered by the listed namespace tests and documentation anchors. |
 | `unit_contrast` | `ported` | fmrimod.contrast.contrast_spec.unit_contrast | tests/design/test_contrast.py; tests/design/test_contrast_system.py; tests/design/test_fcontrast.py; tests/design/test_event_model_contrasts.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Python module symbol covered by the listed namespace tests and documentation anchors. |
 | `volume_weights` | `ported` | fmrimod.volume_weights | tests/test_stats/test_meta_compat.py; tests/test_stats/test_group_fit_interface.py; tests/test_stats/test_spatial_fdr.py; tests/test_stats/test_ttest.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Exact top-level Python public symbol. |
-| `welch_t_cpp` | `scoped_out` | none | none | docs/contracts/trio_api_inventory_v1.md; docs/contracts/trio_port_goal_v1.md | Rcpp implementation detail; Python should expose high-level t-test behavior only. |
+| `welch_t_cpp` | `scoped_out` | none | none | docs/contracts/trio_api_inventory_v1.md; docs/contracts/archive/trio_port_goal_v1.md | Rcpp implementation detail; Python should expose high-level t-test behavior only. |
 | `write_results` | `ported` | fmrimod.write_results | tests/test_io/test_write_results.py; tests/test_dataset/test_fmrireg_compat.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Exact top-level Python public symbol. |
 | `z_to_r` | `ported` | fmrimod.z_to_r | tests/test_stats/test_meta_compat.py; tests/test_stats/test_group_fit_interface.py; tests/test_stats/test_spatial_fdr.py; tests/test_stats/test_ttest.py | docs/source/design/fmrireg_migration.rst; docs/source/design/api/index.rst; README.md | Exact top-level Python public symbol. |
 | `zscores` | `ported` | fmrimod.zscores / fmrimod.accessors.zscores | tests/test_accessors.py | docs/source/design/fmrireg_migration.rst | Converts coefficient or contrast p-values to signed z-score equivalents. |

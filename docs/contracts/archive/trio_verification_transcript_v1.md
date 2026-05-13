@@ -1,6 +1,16 @@
 # Trio Verification Transcript v1
 
-Status: Complete local transcript for pushed `main`
+> **ARCHIVED — pre-MISSION-rewrite snapshot (2026-05-12).**
+> Command transcript for the trio-port completion claim that is itself
+> archived. Commands and outputs remain a useful historical record but
+> the framing ("the active trio goal is complete") is not a current
+> claim. The current correctness gate is flagship-workflow strict-gate
+> parity under [`MISSION.md`](../../../MISSION.md) and the loop in
+> [`GOVERNANCE.md`](../../../GOVERNANCE.md). Live parity caveats are
+> listed in [`docs/contracts/CAVEATS.md`](../CAVEATS.md).
+
+Status: Archived 2026-05-13 — superseded by MISSION / GOVERNANCE.
+Original status when written: Complete local transcript for pushed `main`
 
 Date: 2026-05-12
 Actor: `codex-trio-port`

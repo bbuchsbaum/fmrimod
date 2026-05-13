@@ -87,6 +87,16 @@ best-effort fitted response reconstructions from the fitted coefficients.
    hrf_curves = fm.fitted_hrf(fit, sample_at=np.arange(0.0, 24.0, 0.5))
    hrf_table = fm.tidy_fitted_hrf(fit, sample_at=np.arange(0.0, 24.0, 0.5))
 
+Fit Provenance
+--------------
+
+New ``fmri_lm`` results carry ``fit.provenance`` as a typed ``FitProvenance``
+object. Slice A records the fmrimod version, resolved solver path, and HRF
+normalization modes at fit time. Seed, AR configuration, and mask mode are
+present as value slots with explicit status fields while their wiring lands in
+follow-up slices. Existing serialized or in-memory ``FmriLm`` objects from older
+versions may not have this attribute populated.
+
 Configuration: OLS, AR, Robust, Weights
 ---------------------------------------
 

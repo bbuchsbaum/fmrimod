@@ -1,6 +1,26 @@
 # Trio Port Goal Contract v1
 
-Status: Draft
+> **ARCHIVED — pre-MISSION-rewrite snapshot (2026-05-11).**
+> This document defined "done" for a three-package port (`fmrihrf` +
+> `fmridesign` + `fmrireg`) under the framing that function-by-function
+> R coverage was the completion target. That framing is superseded by:
+>
+> - [`MISSION.md`](../../../MISSION.md) — flagship-benchmark-driven
+>   design across **seven** sibling R packages; function-by-function
+>   coverage is explicitly *deprioritized*.
+> - [`VISION.md`](../../../VISION.md) — "exceed, not match" on
+>   speed/design/elegance/power.
+> - [`GOVERNANCE.md`](../../../GOVERNANCE.md) — the operating loop and
+>   the cross-module invariants G1–G7.
+> - [`public_api_policy_v1.md`](../public_api_policy_v1.md) — the
+>   refreshed stability contract.
+>
+> The deliverables D1–D8 below are still useful as a historical record
+> of what the trio port asserted at the time; they should not be cited
+> as the current definition of "done."
+
+Status: Archived 2026-05-13 — superseded by MISSION / GOVERNANCE.
+Original status when written: Draft
 
 ## Objective
 

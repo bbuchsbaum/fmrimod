@@ -13,9 +13,11 @@ from typing import (
     Any,
     Dict,
     List,
+    Literal,
     Optional,
     Protocol,
     Sequence,
+    Tuple,
     Union,
     cast,
     runtime_checkable,
@@ -24,7 +26,8 @@ from typing import (
 import numpy as np
 from numpy.typing import NDArray
 
-from ..model.config import FmriLmConfig
+from ..hrf.normalization import NormMode
+from ..model.config import AROptions, FmriLmConfig
 from .contrasts import (
     ContrastIntent,
     ContrastResult,
@@ -34,6 +37,66 @@ from .contrasts import (
 )
 from .engine import DEFAULT_ENGINE_OPTIONS, EngineResult, EngineSelector
 from .solver import Projection
+
+
+# ── Fit-level reproducibility metadata (VISION.md:99-103) ────────────────
+
+MaskMode = Literal["volume", "surface", "explicit", "none"]
+SeedStatus = Literal["not_randomized", "randomized", "unknown", "not_yet_carried"]
+CarryStatus = Literal["carried", "unknown", "not_yet_carried"]
+
+
+@dataclass(frozen=True)
+class FitProvenance:
+    """Operational reproducibility metadata carried on every fit.
+
+    Operationalizes the VISION.md:99-103 commitment that "designs and
+    fits carry the seed, the solver path, the HRF normalization knob,
+    the AR configuration, the masking mode, and the version that
+    produced them." Slice A of that work (bd-01KRGWNV5WGD71QZ1E6YY3ACRG)
+    populates the three trivially-derivable fields at fit time. The
+    other three value slots remain ``None`` with explicit companion
+    status fields until the wiring slices land. The dataclass shape is
+    otherwise closed.
+    """
+
+    fmrimod_version: str
+    solver_path: str
+    hrf_norm_modes: Tuple[Optional[NormMode], ...]
+    seed: Optional[int] = None
+    seed_status: SeedStatus = "not_randomized"
+    ar_config: Optional[AROptions] = None
+    ar_status: CarryStatus = "not_yet_carried"
+    mask_mode: Optional[MaskMode] = None
+    mask_status: CarryStatus = "not_yet_carried"
+
+
+def _term_norm_mode(term: Any) -> Optional[NormMode]:
+    """Recover the declared HRF normalization mode for a term, if any."""
+    hrf = getattr(term, "hrf", None)
+    if hrf is None:
+        return None
+    mode = getattr(hrf, "norm_mode", None)
+    if mode is None:
+        return None
+    return cast(NormMode, mode)
+
+
+def _build_fit_provenance(model: Any, engine: Any) -> FitProvenance:
+    """Construct the Slice A provenance object from a fitted model."""
+    from fmrimod import __version__ as _fmrimod_version
+
+    event_model = getattr(model, "event_model", model)
+    terms = getattr(event_model, "terms", ())
+    hrf_norm_modes: Tuple[Optional[NormMode], ...] = tuple(
+        _term_norm_mode(t) for t in terms
+    )
+    solver_path = type(engine).__name__
+    return FitProvenance(
+        fmrimod_version=_fmrimod_version,
+        solver_path=solver_path,
+        hrf_norm_modes=hrf_norm_modes,
+    )
 
 if TYPE_CHECKING:
     from fmrimod.contrast.omnibus import OmnibusContrast
@@ -109,6 +172,7 @@ class FmriLm:
     robust_weights: Optional[NDArray[np.float64]] = None
     run_results: Optional[List[Any]] = None
     projections: Optional[List[Projection]] = None
+    provenance: Optional[FitProvenance] = None
     _named_weights_cache: Optional[Dict[str, NDArray[np.float64]]] = field(
         default=None,
         init=False,
@@ -617,6 +681,7 @@ def fmri_lm(
         robust_weights=robust_weights,
         run_results=fit_result.run_results,
         projections=fit_result.projections,
+        provenance=_build_fit_provenance(model, eng),
     )
 
 

@@ -1,6 +1,15 @@
 # Trio Pending API Workplan v1
 
-Status: Active
+> **ARCHIVED — pre-MISSION-rewrite snapshot (2026-05-11).**
+> This workplan drove inventory `pending` rows to zero. The current
+> [`MISSION.md`](../../../MISSION.md) explicitly *deprioritizes*
+> function-by-function R coverage in favor of flagship workflows, so
+> "drive pending to zero" is no longer the gating contract.
+> Cross-module work is now coordinated through the governance loop in
+> [`GOVERNANCE.md`](../../../GOVERNANCE.md) and mote beads.
+
+Status: Archived 2026-05-13 — superseded by MISSION / GOVERNANCE.
+Original status when written: Active
 
 ## Purpose
 
