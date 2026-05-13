@@ -15,9 +15,11 @@ from .errors import GroupSchemaError, UnsupportedGroupFeatureError
 from .space import (
     BasisSpace,
     GroupSpace,
+    Hemisphere,
     ParcelSpace,
     SampleLabelSpace,
     StorageMode,
+    SurfaceSpace,
     VoxelSpace,
 )
 
@@ -139,6 +141,16 @@ def _write_space(group: Any, space: GroupSpace) -> None:
         basis.attrs["k"] = int(space.n_components)
         if space.basis_name is not None:
             basis.attrs["basis_name"] = space.basis_name
+    elif isinstance(space, SurfaceSpace):
+        surface = group.create_group("surface")
+        surface.create_dataset(
+            "vertices",
+            data=np.asarray(space.vertices, dtype=np.float64),
+        )
+        surface.create_dataset("faces", data=np.asarray(space.faces, dtype=np.int64))
+        surface.attrs["hemi"] = space.hemi
+        if space.template_id is not None:
+            surface.attrs["template_id"] = space.template_id
     else:
         raise UnsupportedGroupFeatureError(
             f"HDF5 writer does not yet support space kind '{space.kind}'"
@@ -180,6 +192,20 @@ def _read_space(group: Any) -> GroupSpace:
         if isinstance(basis_name, bytes):
             basis_name = basis_name.decode("utf-8")
         return BasisSpace(int(basis.attrs["k"]), basis_name=basis_name)
+    if kind == "surface":
+        surface = group["surface"]
+        hemi = surface.attrs["hemi"]
+        if isinstance(hemi, bytes):
+            hemi = hemi.decode("utf-8")
+        template_id = surface.attrs.get("template_id")
+        if isinstance(template_id, bytes):
+            template_id = template_id.decode("utf-8")
+        return SurfaceSpace(
+            vertices=np.asarray(surface["vertices"][()], dtype=np.float64),
+            faces=np.asarray(surface["faces"][()], dtype=np.intp),
+            hemi=cast(Hemisphere, str(hemi)),
+            template_id=template_id,
+        )
     raise GroupSchemaError(f"Unsupported HDF5 space type: {kind}")
 
 

@@ -10,6 +10,7 @@ from fmrimod.group import (
     GDS_H5_VERSION,
     GroupSchemaError,
     SampleLabelSpace,
+    SurfaceSpace,
     UnsupportedGroupFeatureError,
     VoxelSpace,
     group_dataset,
@@ -120,6 +121,33 @@ def test_hdf5_roundtrip_voxel_space_zero_based_mask(tmp_path) -> None:
     assert isinstance(got.space, VoxelSpace)
     np.testing.assert_array_equal(got.space.mask_idx, np.array([0, 3]))
     assert got.space.storage == "packed"
+
+
+def test_hdf5_roundtrip_surface_space(tmp_path) -> None:
+    vertices = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ]
+    )
+    faces = np.array([[0, 1, 2]], dtype=np.intp)
+    ds = group_dataset(
+        {"beta": np.ones((3, 1, 1))},
+        space=SurfaceSpace(vertices=vertices, faces=faces, hemi="L", template_id="fsaverage"),
+        subjects=["s1"],
+        contrasts=["c1"],
+    )
+    path = tmp_path / "surface.h5"
+
+    write_hdf5(ds, path)
+    got = read_hdf5(path)
+
+    assert isinstance(got.space, SurfaceSpace)
+    assert got.space.hemi == "L"
+    assert got.space.template_id == "fsaverage"
+    np.testing.assert_allclose(got.space.vertices, vertices)
+    np.testing.assert_array_equal(got.space.faces, faces)
 
 
 def test_hdf5_reader_rejects_r_serialized_alignments(tmp_path) -> None:
