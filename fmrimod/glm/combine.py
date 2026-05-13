@@ -222,7 +222,12 @@ def combine_contrasts(
 
     se_pool = np.sqrt(np.maximum(var_pool, 0.0))
 
-    df_pool = float(sum(float(r.df) for r in results))
+    dfs: list[float] = []
+    for result in results:
+        if isinstance(result.df, tuple):
+            raise ValueError("combine_contrasts: t-contrast df must be scalar")
+        dfs.append(float(result.df))
+    df_pool = float(sum(dfs))
     with np.errstate(divide="ignore", invalid="ignore"):
         t_pool = np.where(se_pool > 1e-15, effect_pool / se_pool, 0.0)
     p_pool = 2.0 * sp_special.stdtr(df_pool, -np.abs(t_pool))

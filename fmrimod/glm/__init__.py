@@ -6,7 +6,6 @@ datasets.
 """
 
 from .combine import CombinedFmriLm, combine_contrasts, combine_runs
-from .spatial import SpatialContext
 from .compat import (
     LowRankControl,
     SoftProjection,
@@ -37,6 +36,7 @@ from .engine import (
 )
 from .fmri_lm import FmriLm, fmri_lm
 from .solver import Projection, fast_lm_matrix, fast_preproject
+from .spatial import SpatialContext
 
 __all__ = [
     "fmri_lm",

@@ -7,26 +7,30 @@ exported as a :class:`neuroim.DenseNeuroVol` or NIfTI file.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Sequence, Tuple, Union
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
 
 
-def _spacing_from_affine(affine: NDArray[np.float64]) -> Tuple[float, float, float]:
-    """Pull voxel sizes from a 4×4 affine."""
+def _spacing_from_affine(
+    affine: NDArray[np.float64],
+) -> tuple[float, float, float]:
+    """Pull voxel sizes from a 4x4 affine."""
     if affine.shape == (4, 4):
         scale = np.linalg.norm(affine[:3, :3], axis=0)
         return (float(scale[0]), float(scale[1]), float(scale[2]))
-    raise ValueError(f"Expected 4×4 affine; got shape {affine.shape}")
+    raise ValueError(f"Expected 4x4 affine; got shape {affine.shape}")
 
 
-def _origin_from_affine(affine: NDArray[np.float64]) -> Tuple[float, float, float]:
+def _origin_from_affine(
+    affine: NDArray[np.float64],
+) -> tuple[float, float, float]:
     if affine.shape == (4, 4):
         return (float(affine[0, 3]), float(affine[1, 3]), float(affine[2, 3]))
-    raise ValueError(f"Expected 4×4 affine; got shape {affine.shape}")
+    raise ValueError(f"Expected 4x4 affine; got shape {affine.shape}")
 
 
 @dataclass(frozen=True)
@@ -41,7 +45,7 @@ class SpatialContext:
     spatial_shape : tuple
         ``mask.shape``, repeated here for convenience.
     affine : NDArray[float] or None
-        4×4 voxel-to-world affine. Optional; falls back to identity.
+        4x4 voxel-to-world affine. Optional; falls back to identity.
     spacing : tuple of float, optional
         Voxel spacing in mm. Inferred from ``affine`` when not given.
     origin : tuple of float, optional
@@ -49,10 +53,10 @@ class SpatialContext:
     """
 
     mask: NDArray[np.bool_]
-    spatial_shape: Tuple[int, int, int]
-    affine: Optional[NDArray[np.float64]] = None
-    spacing: Optional[Tuple[float, float, float]] = None
-    origin: Optional[Tuple[float, float, float]] = None
+    spatial_shape: tuple[int, int, int]
+    affine: NDArray[np.float64] | None = None
+    spacing: tuple[float, float, float] | None = None
+    origin: tuple[float, float, float] | None = None
 
     def __post_init__(self) -> None:
         if self.mask.shape != self.spatial_shape:
@@ -88,7 +92,7 @@ class SpatialContext:
 
     def to_neuro_space(self) -> Any:
         """Build a 3-D ``neuroim.NeuroSpace`` for this context."""
-        import neuroim  # type: ignore[import-not-found]
+        import neuroim  # type: ignore[import-untyped]
 
         spacing = self.spacing
         origin = self.origin
@@ -120,7 +124,7 @@ class SpatialContext:
         Non-mask voxels are filled with ``fill`` (defaults to 0.0 for clean
         NIfTI export; pass ``fill=np.nan`` for diagnostic visualization).
         """
-        import neuroim  # type: ignore[import-not-found]
+        import neuroim
 
         volume = self.reconstruct(vec, fill=fill, dtype=np.float64)
         return neuroim.DenseNeuroVol(volume, self.to_neuro_space(), label=label)
@@ -128,13 +132,13 @@ class SpatialContext:
     def write_nifti(
         self,
         vec: NDArray,
-        path: Union[str, Path],
+        path: str | Path,
         *,
         label: str = "",
         fill: float = 0.0,
     ) -> Path:
         """Write a flat voxel vector to disk as a NIfTI volume."""
-        import neuroim  # type: ignore[import-not-found]
+        import neuroim
 
         vol = self.to_neurovol(vec, label=label, fill=fill)
         out = Path(path)
@@ -144,7 +148,7 @@ class SpatialContext:
     # -- Construction --
 
     @classmethod
-    def from_dataset(cls, dataset: Any) -> Optional["SpatialContext"]:
+    def from_dataset(cls, dataset: Any) -> SpatialContext | None:
         """Pull a :class:`SpatialContext` off a dataset / adapter, if possible.
 
         Returns ``None`` for non-spatial datasets (e.g. a bare matrix adapter
@@ -163,7 +167,7 @@ class SpatialContext:
         if mask_arr.ndim != 3:
             return None
 
-        affine: Optional[NDArray[np.float64]] = None
+        affine: NDArray[np.float64] | None = None
         get_affine = getattr(dataset, "get_affine", None)
         if callable(get_affine):
             try:
@@ -173,17 +177,24 @@ class SpatialContext:
 
         # Pull spacing/origin from a NeuroVec source if available, since
         # that's the truthiest in the adapter; otherwise derive from affine.
-        # FmriDataset wraps the adapter in ``_source`` — peek through it.
-        spacing: Optional[Tuple[float, float, float]] = None
-        origin: Optional[Tuple[float, float, float]] = None
+        # FmriDataset wraps the adapter in ``_source``; peek through it.
+        spacing: tuple[float, float, float] | None = None
+        origin: tuple[float, float, float] | None = None
         adapter = dataset if hasattr(dataset, "_vecs") else getattr(dataset, "_source", None)
         vecs = getattr(adapter, "_vecs", None) if adapter is not None else None
         if vecs:
             space = getattr(vecs[0], "space", None)
             if space is not None and getattr(space, "ndim", 0) >= 3:
                 try:
-                    spacing = tuple(float(v) for v in space.spacing[:3])
-                    origin = tuple(float(v) for v in space.origin[:3])
+                    spacing_raw = tuple(float(v) for v in space.spacing[:3])
+                    origin_raw = tuple(float(v) for v in space.origin[:3])
+                    if len(spacing_raw) == 3 and len(origin_raw) == 3:
+                        spacing = (
+                            spacing_raw[0],
+                            spacing_raw[1],
+                            spacing_raw[2],
+                        )
+                        origin = (origin_raw[0], origin_raw[1], origin_raw[2])
                 except Exception:
                     spacing = origin = None
         if affine is None and adapter is not None:
@@ -196,14 +207,18 @@ class SpatialContext:
 
         return cls(
             mask=mask_arr,
-            spatial_shape=tuple(int(d) for d in mask_arr.shape),
+            spatial_shape=(
+                int(mask_arr.shape[0]),
+                int(mask_arr.shape[1]),
+                int(mask_arr.shape[2]),
+            ),
             affine=affine,
             spacing=spacing,
             origin=origin,
         )
 
     @classmethod
-    def from_model(cls, model: Any) -> Optional["SpatialContext"]:
+    def from_model(cls, model: Any) -> SpatialContext | None:
         """Pull a context off ``model.dataset`` if accessible."""
         if model is None:
             return None

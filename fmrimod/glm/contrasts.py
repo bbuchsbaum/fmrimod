@@ -6,16 +6,17 @@ for linear contrasts of regression coefficients.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Union
 import warnings
+from collections.abc import Sequence
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy import special as sp_special
 
-from .spatial import SpatialContext
+from fmrimod.glm.spatial import SpatialContext
 
 
 def _validate_f_contrast_matrix(
@@ -114,11 +115,11 @@ class ContrastResult:
     name: str
     estimate: NDArray[np.float64]
     stat: NDArray[np.float64]
-    se: Optional[NDArray[np.float64]]
+    se: NDArray[np.float64] | None
     p_value: NDArray[np.float64]
-    df: Union[float, tuple]
+    df: float | tuple[Any, ...]
     stat_type: str
-    spatial: Optional[SpatialContext] = None
+    spatial: SpatialContext | None = None
 
     # -- Reverse converters --
 
@@ -161,7 +162,7 @@ class ContrastResult:
         kind: str = "stat",
         *,
         fill: float = 0.0,
-        label: Optional[str] = None,
+        label: str | None = None,
     ) -> Any:
         """Return a ``neuroim.DenseNeuroVol`` for one statistic.
 
@@ -182,7 +183,7 @@ class ContrastResult:
 
     def to_neurovec(
         self,
-        kinds: Optional[Sequence[str]] = None,
+        kinds: Sequence[str] | None = None,
         *,
         fill: float = 0.0,
     ) -> Any:
@@ -197,7 +198,7 @@ class ContrastResult:
         fill : float
             Out-of-mask fill value (defaults to 0.0).
         """
-        import neuroim  # type: ignore[import-not-found]
+        import neuroim  # type: ignore[import-untyped]
 
         ctx = self._require_spatial()
         if kinds is None:
@@ -206,7 +207,7 @@ class ContrastResult:
                 if self.stat_type == "t"
                 else ("stat", "p_value")
             )
-        vols = []
+        vols: list[NDArray[np.float64]] = []
         for kind in kinds:
             if kind in ("estimate", "effect", "effect_size", "beta"):
                 est = np.asarray(self.estimate, dtype=np.float64)
@@ -225,7 +226,7 @@ class ContrastResult:
 
     def to_nifti(
         self,
-        path: Union[str, Path],
+        path: str | Path,
         *,
         kind: str = "stat",
         fill: float = 0.0,
@@ -235,7 +236,12 @@ class ContrastResult:
         Returns the resolved :class:`pathlib.Path`.
         """
         ctx = self._require_spatial()
-        return ctx.write_nifti(self._vector_for(kind), path, label=f"{self.name}.{kind}", fill=fill)
+        return ctx.write_nifti(
+            self._vector_for(kind),
+            path,
+            label=f"{self.name}.{kind}",
+            fill=fill,
+        )
 
 
 def contrast_t(
@@ -272,7 +278,7 @@ def contrast_t(
     if len(con_vec) != p:
         raise ValueError(f"Contrast vector length {len(con_vec)} != {p} coefficients")
 
-    # Estimate: c' B  →  (V,)
+    # Estimate: c' B -> (V,)
     estimate = con_vec @ betas
 
     # Variance of contrast: c' (X'X)^{-1} c * sigma^2
@@ -303,7 +309,7 @@ def contrast_t_batch(
     XtXinv: NDArray[np.float64],
     sigma: NDArray[np.float64],
     dfres: float,
-    names: Optional[list[str]] = None,
+    names: list[str] | None = None,
     name_prefix: str = "t-contrast",
 ) -> list[ContrastResult]:
     """Compute multiple t-contrasts in one vectorized pass.

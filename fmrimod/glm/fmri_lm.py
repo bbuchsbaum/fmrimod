@@ -8,21 +8,24 @@ information, and methods for computing contrasts.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
 from ..model.config import FmriLmConfig
-from .solver import Projection
 from .contrasts import (
     ContrastResult,
+    contrast_f_vectorized,
     contrast_t,
     contrast_t_batch,
-    contrast_f_vectorized,
 )
 from .effective_df import effective_df
+from .solver import Projection
+
+if TYPE_CHECKING:
+    from fmrimod.glm.spatial import SpatialContext
 
 
 @dataclass
@@ -178,12 +181,12 @@ class FmriLm:
         self.contrasts[name] = result
         return result
 
-    def _spatial_context(self) -> Optional["SpatialContext"]:
+    def _spatial_context(self) -> SpatialContext | None:
         """Return the spatial context for this fit, if its model exposes one.
 
         Cached so repeated contrast calls don't re-walk the adapter.
         """
-        from .spatial import SpatialContext
+        from fmrimod.glm.spatial import SpatialContext
 
         if not hasattr(self, "_spatial_context_cache"):
             self._spatial_context_cache = SpatialContext.from_model(self.model)
@@ -450,7 +453,8 @@ def _build_model_from_spec(
     from ..baseline.baseline_model import baseline_model as _build_baseline
     from ..design.event_model import event_model as _build_event
     from ..model.fmri_model import FmriModel
-    from ..spec import Spec, Term, compile as _compile_spec
+    from ..spec import Spec, Term
+    from ..spec import compile as _compile_spec
 
     events_df = getattr(dataset, "event_table", None)
     if events_df is None:
