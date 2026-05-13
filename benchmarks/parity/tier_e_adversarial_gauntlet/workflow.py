@@ -27,6 +27,7 @@ from nilearn.glm.contrasts import compute_contrast
 from nilearn.glm.first_level import run_glm
 from numpy.typing import NDArray
 
+from benchmarks.parity.adversarial_schema import validate_adversarial_report
 from fmrimod.glm.contrasts import contrast_t
 from fmrimod.glm.solver import fast_lm_matrix, fast_preproject
 
@@ -495,7 +496,7 @@ def run_gauntlet(max_voxels: int = MAX_VOXELS, seed: int = 20260513) -> dict[str
     )
     cases = tuple(run_case(item) for item in inputs)
     status = "pass" if all(case.status in {"pass", "boundary_observed"} for case in cases) else "fail"
-    return _json_safe(
+    report = _json_safe(
         {
             "schema_version": SCHEMA_VERSION,
             "name": "tier_e_adversarial_gauntlet",
@@ -507,6 +508,8 @@ def run_gauntlet(max_voxels: int = MAX_VOXELS, seed: int = 20260513) -> dict[str
             "cases": cases,
         }
     )
+    validate_adversarial_report(report)
+    return report
 
 
 def render(report: dict[str, Any], out_dir: Path) -> tuple[Path, Path]:
