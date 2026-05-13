@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 
 from fmrimod.dataset import group_data_from_csv, group_data_from_h5
-from fmrimod.group import group_dataset_from_group_data
+from fmrimod.group import derive, group_dataset_from_group_data
 from fmrimod.group import reduce as group_reduce
 from fmrimod.stats import (
     GroupFitRequest,
@@ -135,6 +135,89 @@ def test_group_fit_meta_h5_formula_uses_native_group_regression(tmp_path):
     np.testing.assert_allclose(got.estimate[:, 1], native.assay("coef:age")[:, 0, 0])
     np.testing.assert_allclose(got.se[:, 1], native.assay("se_coef:age")[:, 0, 0])
     np.testing.assert_allclose(got.p[:, 1], native.assay("p_coef:age")[:, 0, 0])
+
+
+def test_group_fit_h5_stouffer_combine_uses_native_group_reducer(tmp_path):
+    h5py = pytest.importorskip("h5py")
+    z_by_subject = [
+        np.array([1.0, 2.0]),
+        np.array([2.0, 3.0]),
+        np.array([3.0, 4.0]),
+    ]
+    paths = []
+    for subject_idx, z_values in enumerate(z_by_subject, start=1):
+        path = tmp_path / f"sub-{subject_idx:02d}.h5"
+        with h5py.File(path, "w") as handle:
+            handle.create_dataset("z", data=z_values)
+        paths.append(path)
+    gd = group_data_from_h5(
+        paths,
+        subjects=["s1", "s2", "s3"],
+        contrast="faces",
+        stat=("z",),
+    )
+
+    got = group_fit(GroupFitRequest(data=gd, model="meta", combine="stouffer"))
+    native = group_reduce(group_dataset_from_group_data(gd), method="combine:stouffer")
+
+    assert got.method == "combine:stouffer"
+    assert got.predictor_names == ["combined"]
+    assert got.metadata["source"] == "fmrimod.group"
+    assert got.metadata["reduce_method"] == "combine:stouffer"
+    np.testing.assert_allclose(got.statistic[:, 0], native.assay("z_g")[:, 0, 0])
+    np.testing.assert_allclose(got.estimate[:, 0], native.assay("z_g")[:, 0, 0])
+    np.testing.assert_allclose(got.p[:, 0], native.assay("p_g")[:, 0, 0])
+    assert np.all(np.isnan(got.se))
+
+
+def test_group_fit_h5_fisher_combine_derives_p_values(tmp_path):
+    h5py = pytest.importorskip("h5py")
+    paths = []
+    for subject_idx, z_values in enumerate(([1.0, 1.5], [2.0, 2.5]), start=1):
+        path = tmp_path / f"sub-{subject_idx:02d}.h5"
+        with h5py.File(path, "w") as handle:
+            handle.create_dataset("z", data=np.asarray(z_values))
+        paths.append(path)
+    gd = group_data_from_h5(
+        paths,
+        subjects=["s1", "s2"],
+        contrast="faces",
+        stat=("z",),
+    )
+
+    got = group_fit(GroupFitRequest(data=gd, model="meta", combine="fisher"))
+    native = group_reduce(
+        derive(group_dataset_from_group_data(gd), "p"),
+        method="combine:fisher",
+    )
+
+    assert got.method == "combine:fisher"
+    np.testing.assert_allclose(got.statistic[:, 0], native.assay("chi2")[:, 0, 0])
+    np.testing.assert_allclose(got.p[:, 0], native.assay("p_g")[:, 0, 0])
+
+
+def test_group_fit_csv_fisher_combine_uses_native_group_reducer():
+    frame = pd.DataFrame(
+        {
+            "subject": ["s1", "s2", "s1", "s2"],
+            "roi": ["r1", "r1", "r2", "r2"],
+            "p": [0.01, 0.02, 0.20, 0.30],
+        }
+    )
+    gd = group_data_from_csv(
+        frame,
+        effect_cols={"p": "p"},
+        subject_col="subject",
+        roi_col="roi",
+    )
+
+    got = group_fit(GroupFitRequest(data=gd, model="meta", combine="fisher"))
+    native = group_reduce(group_dataset_from_group_data(gd), method="combine:fisher")
+
+    assert got.method == "combine:fisher"
+    assert got.metadata["source_format"] == "csv"
+    np.testing.assert_allclose(got.statistic[:, 0], native.assay("chi2")[:, 0, 0])
+    np.testing.assert_allclose(got.p[:, 0], native.assay("p_g")[:, 0, 0])
 
 
 def test_group_fit_normalizes_aliases_for_weights_and_correction():

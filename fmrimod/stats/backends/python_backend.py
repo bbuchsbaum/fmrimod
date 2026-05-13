@@ -34,6 +34,8 @@ class PythonParityBackend:
 
     def fit(self, request: GroupFitRequest) -> GroupFitResult:
         if request.model == "meta":
+            if request.combine is not None:
+                return self._fit_native_group_combine(request)
             if getattr(request.data, "format", None) in ("h5", "nifti"):
                 return self._fit_native_group_meta(request)
             meta_out = fmri_meta(
@@ -59,6 +61,55 @@ class PythonParityBackend:
             return self._from_ttest(ttest_out, request)
 
         raise ValueError("model must be one of: meta, ttest")
+
+    def _fit_native_group_combine(self, request: GroupFitRequest) -> GroupFitResult:
+        from fmrimod.group import derive, group_dataset_from_group_data
+        from fmrimod.group import reduce as group_reduce
+
+        if request.formula.replace(" ", "") not in ("~1", "1"):
+            raise NotImplementedError(
+                "native group combine currently supports intercept-only formulas"
+            )
+        if request.robust != "none":
+            raise NotImplementedError(
+                "native group combine does not support robust meta fitting"
+            )
+
+        combine_method = _normalize_combine_method(request.combine)
+        dataset = group_dataset_from_group_data(request.data)
+        options = _combine_options(request, dataset.n_subjects, combine_method)
+        if combine_method == "combine:stouffer" and "z" not in dataset.assays:
+            dataset = derive(dataset, "z")
+        elif (
+            combine_method in ("combine:fisher", "combine:lancaster")
+            and "p" not in dataset.assays
+        ):
+            dataset = derive(dataset, "p")
+
+        reduced = group_reduce(dataset, method=combine_method, **options)
+        stat_assay = "z_g" if "z_g" in reduced.assays else "chi2"
+        statistic = _flatten_group_assay(reduced, stat_assay)
+        p = _flatten_group_assay(reduced, "p_g")
+        return GroupFitResult(
+            estimate=statistic,
+            se=np.full_like(statistic, np.nan),
+            statistic=statistic,
+            p=p,
+            q=None,
+            tau2=None,
+            predictor_names=["combined"],
+            feature_names=_group_feature_names(dataset),
+            model="meta",
+            method=combine_method,
+            formula=request.formula,
+            backend=self.name,
+            metadata={
+                "source": "fmrimod.group",
+                "reduce_method": combine_method,
+                "source_format": getattr(request.data, "format", None),
+                "combine": request.combine,
+            },
+        )
 
     def _fit_native_group_meta(self, request: GroupFitRequest) -> GroupFitResult:
         from fmrimod.group import group_dataset_from_group_data
@@ -201,6 +252,65 @@ def _flatten_regression_assays(
         for name in predictor_names
     ]
     return np.column_stack(cols).astype(np.float64, copy=False)
+
+
+def _normalize_combine_method(combine: str | None) -> str:
+    key = "" if combine is None else str(combine).strip().lower()
+    aliases = {
+        "stouffer": "combine:stouffer",
+        "combine:stouffer": "combine:stouffer",
+        "fisher": "combine:fisher",
+        "combine:fisher": "combine:fisher",
+        "lancaster": "combine:lancaster",
+        "combine:lancaster": "combine:lancaster",
+    }
+    try:
+        return aliases[key]
+    except KeyError as exc:
+        raise ValueError(
+            "combine must be one of: stouffer, fisher, lancaster"
+        ) from exc
+
+
+def _custom_subject_weights(
+    request: GroupFitRequest,
+    n_subjects: int,
+) -> NDArray[np.float64] | None:
+    if request.weights != "custom":
+        return None
+    if request.weights_custom is None:
+        raise ValueError("weights='custom' requires weights_custom")
+    weights = np.asarray(request.weights_custom, dtype=np.float64)
+    if weights.shape != (n_subjects,):
+        raise ValueError("combine custom weights must have shape (n_subjects,)")
+    if not np.all(np.isfinite(weights)):
+        raise ValueError("combine custom weights must be finite")
+    return weights
+
+
+def _combine_options(
+    request: GroupFitRequest,
+    n_subjects: int,
+    combine_method: str,
+) -> dict[str, Any]:
+    options: dict[str, Any] = {}
+    merged_options = {**dict(request.backend_options), **dict(request.extra_options)}
+    if "min_subjects" in merged_options:
+        options["min_subjects"] = int(merged_options["min_subjects"])
+
+    weights = _custom_subject_weights(request, n_subjects)
+    if weights is not None and combine_method == "combine:fisher":
+        raise ValueError("combine='fisher' does not support custom weights")
+    if combine_method == "combine:stouffer" and weights is not None:
+        options["weights"] = weights
+    if combine_method == "combine:lancaster":
+        dfw = merged_options.get("dfw", weights)
+        if dfw is None:
+            raise ValueError(
+                "combine='lancaster' requires dfw in backend_options or extra_options"
+            )
+        options["dfw"] = np.asarray(dfw, dtype=np.float64)
+    return options
 
 
 def _group_sample_names(dataset: Any) -> list[str]:
