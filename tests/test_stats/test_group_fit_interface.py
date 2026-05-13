@@ -7,6 +7,8 @@ import pandas as pd
 import pytest
 
 from fmrimod.dataset import group_data_from_csv, group_data_from_h5
+from fmrimod.group import group_dataset_from_group_data
+from fmrimod.group import reduce as group_reduce
 from fmrimod.stats import (
     GroupFitRequest,
     available_second_level_backends,
@@ -86,6 +88,53 @@ def test_group_fit_meta_h5_uses_native_group_reducer(tmp_path):
     assert got.metadata["source"] == "fmrimod.group"
     assert got.metadata["source_format"] == "h5"
     assert got.metadata["reduce_method"] == "meta:fe"
+
+
+def test_group_fit_meta_h5_formula_uses_native_group_regression(tmp_path):
+    h5py = pytest.importorskip("h5py")
+    ages = np.array([0.0, 1.0, 2.0])
+    paths = []
+    for subject_idx, age in enumerate(ages, start=1):
+        path = tmp_path / f"sub-{subject_idx:02d}.h5"
+        with h5py.File(path, "w") as handle:
+            handle.create_dataset(
+                "beta",
+                data=np.asarray([1.0 + age, 2.0 + 2.0 * age]),
+            )
+            handle.create_dataset("se", data=np.array([0.1, 0.2]))
+        paths.append(path)
+    gd = group_data_from_h5(
+        paths,
+        subjects=["s1", "s2", "s3"],
+        covariates=pd.DataFrame({"age": ages}),
+        contrast="faces",
+        stat=("beta", "se"),
+    )
+
+    got = group_fit(
+        GroupFitRequest(
+            data=gd,
+            model="meta",
+            effects="fixed",
+            formula="~ 1 + age",
+        )
+    )
+    native = group_reduce(
+        group_dataset_from_group_data(gd),
+        method="meta:fe_reg",
+        formula="~ 1 + age",
+    )
+
+    assert got.predictor_names == ["Intercept", "age"]
+    assert got.metadata["source"] == "fmrimod.group"
+    assert got.metadata["reduce_method"] == "meta:fe_reg"
+    np.testing.assert_allclose(
+        got.estimate[:, 0],
+        native.assay("coef:Intercept")[:, 0, 0],
+    )
+    np.testing.assert_allclose(got.estimate[:, 1], native.assay("coef:age")[:, 0, 0])
+    np.testing.assert_allclose(got.se[:, 1], native.assay("se_coef:age")[:, 0, 0])
+    np.testing.assert_allclose(got.p[:, 1], native.assay("p_coef:age")[:, 0, 0])
 
 
 def test_group_fit_normalizes_aliases_for_weights_and_correction():

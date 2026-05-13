@@ -64,11 +64,6 @@ class PythonParityBackend:
         from fmrimod.group import group_dataset_from_group_data
         from fmrimod.group import reduce as group_reduce
 
-        if request.formula.replace(" ", "") not in ("~1", "1"):
-            raise NotImplementedError(
-                "native group Python backend currently supports H5/NIfTI meta "
-                "requests only for intercept-only formulas"
-            )
         if request.robust != "none":
             raise NotImplementedError(
                 "native group Python backend does not yet support robust meta fitting"
@@ -92,6 +87,33 @@ class PythonParityBackend:
             )
 
         dataset = group_dataset_from_group_data(request.data)
+        if request.formula.replace(" ", "") not in ("~1", "1"):
+            reducer_method = {"fe": "meta:fe_reg", "dl": "meta:re_reg"}[method]
+            reduced = group_reduce(dataset, method=reducer_method, formula=request.formula)
+            predictor_names = list(reduced.metadata["predictor_names"])
+            tau2 = None
+            if "tau2" in reduced.assays:
+                tau2 = _flatten_group_assay(reduced, "tau2")
+            return GroupFitResult(
+                estimate=_flatten_regression_assays(reduced, predictor_names, "coef"),
+                se=_flatten_regression_assays(reduced, predictor_names, "se_coef"),
+                statistic=_flatten_regression_assays(reduced, predictor_names, "z_coef"),
+                p=_flatten_regression_assays(reduced, predictor_names, "p_coef"),
+                q=None,
+                tau2=tau2,
+                predictor_names=predictor_names,
+                feature_names=_group_feature_names(dataset),
+                model="meta",
+                method=method,
+                formula=request.formula,
+                backend=self.name,
+                metadata={
+                    "source": "fmrimod.group",
+                    "reduce_method": reducer_method,
+                    "source_format": getattr(request.data, "format", None),
+                },
+            )
+
         reduced = group_reduce(dataset, method=reducer_method)
         tau2 = None
         if "tau2" in reduced.assays:
@@ -167,6 +189,18 @@ def _flatten_group_assay(
 ) -> NDArray[np.float64]:
     values = np.asarray(dataset.assay(assay)[:, 0, :], dtype=np.float64)
     return values.reshape(dataset.n_samples * dataset.n_contrasts, 1)
+
+
+def _flatten_regression_assays(
+    dataset: Any,
+    predictor_names: list[str],
+    prefix: str,
+) -> NDArray[np.float64]:
+    cols = [
+        _flatten_group_assay(dataset, f"{prefix}:{name}")[:, 0]
+        for name in predictor_names
+    ]
+    return np.column_stack(cols).astype(np.float64, copy=False)
 
 
 def _group_sample_names(dataset: Any) -> list[str]:
