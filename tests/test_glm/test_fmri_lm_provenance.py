@@ -8,6 +8,7 @@ truthfully populated yet carry explicit status companions.
 from __future__ import annotations
 
 import dataclasses
+import json
 
 import numpy as np
 import pandas as pd
@@ -25,6 +26,7 @@ from fmrimod.glm.fmri_lm import (
 )
 from fmrimod.model.config import AROptions, FmriLmConfig
 from fmrimod.sampling import SamplingFrame
+from fmrimod.spec import Spec
 from fmrimod.spec import hrf as hrf_term
 
 
@@ -141,6 +143,39 @@ def test_slice_a_other_fields_carry_status() -> None:
     assert prov.ar_status == "carried"
     assert prov.mask_mode == "none"
     assert prov.mask_status == "carried"
+
+
+def test_spec_from_dict_branch_carries_all_fit_provenance_fields() -> None:
+    """Spec.from_dict payloads still populate replay-critical provenance."""
+    rng = np.random.default_rng(14)
+    ds = fm.fmri_dataset(
+        rng.standard_normal((60, 4)).astype(np.float64),
+        tr=2.0,
+        events=_events(),
+    )
+    original = Spec() + hrf_term("trial_type", norm="spm")
+    payload = json.loads(json.dumps(original.to_dict()))
+    rebuilt = Spec.from_dict(payload)
+
+    fit = fm.fmri_lm(
+        rebuilt,
+        ds,
+        engine=SketchEngineOptions(sketch_ratio=1.0, seed=314),
+    )
+
+    assert fit.provenance is not None
+    prov = fit.provenance
+    assert prov.fmrimod_version == fm.__version__
+    assert prov.solver_path == "SketchEngine"
+    assert prov.hrf_norm_modes == ("spm",)
+    assert prov.seed == 314
+    assert prov.seed_status == "randomized"
+    assert prov.ar_config is not None
+    assert prov.ar_config.struct == "iid"
+    assert prov.ar_status == "carried"
+    assert prov.mask_mode == "none"
+    assert prov.mask_status == "carried"
+    assert prov.require_complete().provenance is prov
 
 
 def test_complete_provenance_boundary_accepts_replay_ready_fit() -> None:
