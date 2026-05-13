@@ -1281,11 +1281,11 @@ def lmm_unavailable(
     method: Literal["lmm:ri", "lmm:ri_slope1"],
     **options: Any,
 ) -> GroupDataset:
-    """Explicit native gap for fmrigds LMM reducers."""
+    """Explicit fallback guidance for unsupported native LMM configurations."""
     raise UnsupportedGroupFeatureError(
-        f"{method} is not yet implemented natively in fmrimod.group. "
-        "Use the explicit R fmrigds oracle/fallback during migration, or wait for "
-        "the dedicated native LMM milestone against fmrigds lmm_core.cpp."
+        f"{method} is supported natively for theta_mode='voxelwise' in "
+        "fmrimod.group. Use backend='fmrigds-r' as the explicit R fmrigds "
+        "oracle/fallback for pooled-theta or full fmrigds lmm_core.cpp behavior."
     )
 
 
@@ -1614,13 +1614,20 @@ def register_core_reducers(*, overwrite: bool = True) -> None:
     reducer_registry.register(
         "lmm:ri",
         lmm_ri,
-        description="Native LMM random-intercept reducer milestone placeholder",
+        description=(
+            "Native LMM random-intercept reducer for theta_mode='voxelwise'; "
+            "pooled-theta fmrigds behavior remains an explicit fmrigds-r fallback"
+        ),
         overwrite=overwrite,
     )
     reducer_registry.register(
         "lmm:ri_slope1",
         lmm_ri_slope1,
-        description="Native LMM random-intercept plus one-slope reducer milestone placeholder",
+        description=(
+            "Native LMM random-intercept plus one-slope reducer for "
+            "theta_mode='voxelwise'; pooled-theta fmrigds behavior remains an "
+            "explicit fmrigds-r fallback"
+        ),
         overwrite=overwrite,
     )
 

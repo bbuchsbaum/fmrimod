@@ -650,3 +650,12 @@ def test_lmm_reducers_keep_unsupported_modes_explicit() -> None:
         reduce(ds, method="lmm:ri")
     with pytest.raises(AdapterContractError, match="slope"):
         reduce(ds, method="lmm:ri_slope1")
+
+
+def test_lmm_registry_descriptions_reflect_native_voxelwise_v1() -> None:
+    for method in ("lmm:ri", "lmm:ri_slope1"):
+        description = reducer_registry.get_info(method)["description"]
+        assert "theta_mode='voxelwise'" in description
+        assert "fmrigds-r fallback" in description
+        for forbidden in ("place" + "holder", "mile" + "stone"):
+            assert forbidden not in description
