@@ -38,6 +38,12 @@ from .afni import afni_phi_ar3, afni_phi_ar5, afni_restricted_plan
 from .diagnostics import acorr_diagnostics, sandwich_from_whitened_resid
 from .compat import plan_from_phi, whiten_with_phi
 from .integration import iterative_gls, iterative_ar_gls
+from .nilearn_ar1 import (
+    Ar1NilearnConfig,
+    DEFAULT_BIN_WIDTH,
+    ar1_nilearn,
+    bin_ar1_coefficients,
+)
 
 __all__ = [
     # Plan / result
@@ -86,4 +92,9 @@ __all__ = [
     # Integration
     "iterative_gls",
     "iterative_ar_gls",
+    # Nilearn-compatible AR(1)
+    "ar1_nilearn",
+    "Ar1NilearnConfig",
+    "bin_ar1_coefficients",
+    "DEFAULT_BIN_WIDTH",
 ]
