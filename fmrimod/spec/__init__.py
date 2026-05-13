@@ -16,6 +16,7 @@ Spec tree.
 from ._compile import compile, compile_baseline, compile_events, legacy_formula_to_spec
 from .builders import confounds, drift, hrf, intercept, trialwise
 from .diff import FieldDiff, SpecDiff, TermDiff, spec_diff
+from .serialize import SCHEMA_VERSION, SpecSerializationError
 from .terms import (
     Confounds,
     Drift,
@@ -51,6 +52,9 @@ __all__ = [
     "SpecDiff",
     "TermDiff",
     "FieldDiff",
+    # Serialization
+    "SCHEMA_VERSION",
+    "SpecSerializationError",
     # Compilation
     "compile",
     "compile_events",

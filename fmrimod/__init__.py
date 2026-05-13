@@ -51,6 +51,7 @@ from .spec import (
     Confounds,
     FieldDiff,
     SpecDiff,
+    SpecSerializationError,
     TermDiff,
     as_spec,
     is_spec,
@@ -446,6 +447,7 @@ __all__ = [
     "SpecDiff",
     "TermDiff",
     "FieldDiff",
+    "SpecSerializationError",
     # Contrast taxonomy (R-parity constructors)
     "pair_contrast",
     "unit_contrast",

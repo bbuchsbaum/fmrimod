@@ -24,6 +24,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Dict,
     Iterator,
     Literal,
     Mapping,
@@ -216,6 +217,25 @@ class Spec:
         from .diff import spec_diff
 
         return spec_diff(self, other)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize this :class:`Spec` to a JSON-safe dict.
+
+        The inverse of :meth:`from_dict`. See
+        :mod:`fmrimod.spec.serialize` for the supported value set and
+        the explicit-error behavior on shapes that don't round-trip
+        (e.g. inline callables, DataFrame payloads).
+        """
+        from .serialize import to_dict
+
+        return to_dict(self)
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "Spec":
+        """Reconstruct a :class:`Spec` from :meth:`to_dict` output."""
+        from .serialize import from_dict
+
+        return from_dict(payload)
 
 
 # -- Utility -----------------------------------------------------------------
