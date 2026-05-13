@@ -21,14 +21,13 @@ from numpy.typing import NDArray
 
 import fmrimod as fm
 from cross_testing.harness import (
-    Caveat,
     ParityCase,
     ParityTolerance,
     PipelineOutput,
     render,
     run,
 )
-
+from fmrimod.spec import hrf as hrf_term
 
 Array = NDArray[np.float64]
 
@@ -119,10 +118,8 @@ def nilearn_pipeline(inputs: SpmAuditoryInputs) -> PipelineOutput:
 def fmrimod_pipeline(inputs: SpmAuditoryInputs) -> PipelineOutput:
     """Run the SPM auditory parity case through the canonical fmrimod API.
 
-    Three lines of user code: dataset → fit → contrast. The remaining work is
-    extracting the design column for parity reporting and applying the HRF
-    normalization rescale required by the ``spm-auditory-hrf-grid-scale``
-    caveat — both go away when bd-01KRFMD3MWB4BNB7S01TNJY26Y lands.
+    Three lines of user code: dataset → fit → contrast. ``norm="spm"`` puts
+    the HRF on Nilearn's unit-integral scale; no post-hoc rescaling needed.
     """
     ds = fm.fmri_dataset(
         inputs.img,
@@ -130,44 +127,34 @@ def fmrimod_pipeline(inputs: SpmAuditoryInputs) -> PipelineOutput:
         tr=TR,
         events=inputs.events.assign(run=1),
     )
-    fit = fm.fmri_lm("hrf(trial_type)", ds, precision=0.02)
+    fit = fm.fmri_lm(hrf_term("trial_type", norm="spm"), ds, precision=0.02)
     cres = fit.contrast(np.array([1.0, 0.0], dtype=np.float64))
-
-    event_column = np.asarray(
-        fit.model.event_model.design_matrix[:, 0], dtype=np.float64
-    )
-    reference_event = inputs.reference_design[CONTRAST_NAME].to_numpy()
-    scale = float((event_column @ reference_event) / (event_column @ event_column))
 
     return PipelineOutput(
         arrays={
-            "design_listening": event_column,
-            "effect_listening": cres.estimate / scale,
+            "design_listening": np.asarray(
+                fit.model.event_model.design_matrix[:, 0], dtype=np.float64
+            ),
+            "effect_listening": cres.estimate,
             "t_listening": cres.stat,
         }
     )
 
 
 def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
-    """Build the P1 SPM auditory parity case."""
+    """Build the P1 SPM auditory parity case.
 
-    caveat = Caveat(
-        caveat_id="spm-auditory-hrf-grid-scale",
-        quantity="design_listening,effect_listening,t_listening",
-        reason=(
-            "fmrimod and Nilearn use different SPM HRF normalization and "
-            "sampling-grid conventions; design is evaluated with explicit "
-            "scale alignment and maps are judged by rank/correlation envelopes."
-        ),
-        expected="high correlation with non-zero absolute deltas",
-        link="docs/contracts/fitlins_nilearn_overlap_v1.md#p1-harness-and-canary",
-    )
+    With ``hrf(..., norm="spm")`` the design column lands on Nilearn's
+    unit-integral scale, closing the historical ~0.002 amplitude gap. A
+    small residual (~4 %) remains because Nilearn's ``_gamma_difference_hrf``
+    uses ``scipy.stats.gamma.pdf`` while fmrimod evaluates the SPM
+    ``exp(-t) * (a1*t^P1 - C*t^P2)`` parameterization at the same grid.
+    """
     return ParityCase(
         name="tier_a_spm_auditory",
         fmrimod_pipeline=fmrimod_pipeline,
         reference_pipeline=nilearn_pipeline,
         inputs=load_inputs(max_voxels=max_voxels),
-        declared_caveats=(caveat,),
         tolerances={
             "design_listening": ParityTolerance(
                 check_allclose=False,

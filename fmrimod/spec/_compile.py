@@ -9,7 +9,7 @@ the public API surface.
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Tuple
+from typing import Any, Literal, Mapping, Tuple, cast
 
 import numpy as np
 import pandas as pd
@@ -17,6 +17,9 @@ import pandas as pd
 from ..hrf.core import HRF
 from ..hrf.registry import get_hrf
 from .terms import Confounds, Drift, HrfTerm, Intercept, Spec, Term
+
+BaselineBasis = Literal["constant", "poly", "bs", "ns"]
+BaselineIntercept = Literal["runwise", "global", "none"]
 
 
 def _hrf_label(hrf_obj: HRF | str) -> str:
@@ -37,6 +40,27 @@ def _hrf_label(hrf_obj: HRF | str) -> str:
         "FIR_HRF": "fir",
     }
     return short.get(name, name or "spm")
+
+
+def _resolve_normalized_hrf_label(term: HrfTerm) -> str:
+    """If ``term.norm`` is set, register a normalized HRF and return its label.
+
+    Otherwise return ``_hrf_label(term.hrf)``.
+    """
+    if term.norm is None:
+        return _hrf_label(term.hrf)
+
+    from ..hrf.normalization import normalize
+    from ..hrf.registry import _HRF_REGISTRY, register_hrf
+
+    base = term.hrf
+    if isinstance(base, str):
+        base = get_hrf(base)
+    normalized = normalize(base, term.norm)
+    label = f"__norm_{term.norm}_{id(base)}__"
+    if label.lower() not in _HRF_REGISTRY:
+        register_hrf(label, normalized)
+    return label
 
 
 def _format_subset(subset: Any) -> str | None:
@@ -61,7 +85,7 @@ def _hrf_term_to_formula(term: HrfTerm) -> str:
     if not term.variables:
         raise ValueError("HrfTerm has no variables to render")
     var_part = ", ".join(term.variables)
-    extras = [f"basis={_hrf_label(term.hrf)!r}"]
+    extras = [f"basis={_resolve_normalized_hrf_label(term)!r}"]
     subset_str = _format_subset(term.subset)
     if subset_str is not None:
         extras.append(f"subset={subset_str!r}")
@@ -146,12 +170,13 @@ def compile_baseline(
     drift_term = drifts[0] if drifts else None
     intercept_term = intercepts[0] if intercepts else None
 
-    basis: str = drift_term.basis if drift_term else "constant"
+    basis = cast(BaselineBasis, drift_term.basis if drift_term else "constant")
     degree: int = drift_term.degree if drift_term else 1
     intercept_kind: str = intercept_term.per if intercept_term else "runwise"
     # Map our "run" convention to the legacy "runwise" label.
     if intercept_kind == "run":
         intercept_kind = "runwise"
+    intercept = cast(BaselineIntercept, intercept_kind)
 
     nuisance_list = None
     if confounds:
@@ -170,7 +195,7 @@ def compile_baseline(
         basis=basis,
         degree=degree,
         sframe=sampling_frame,
-        intercept=intercept_kind,
+        intercept=intercept,
         nuisance_list=nuisance_list,
     )
 

@@ -18,14 +18,24 @@ design-matrix realisation happens via :func:`fmrimod.spec._compile.compile`.
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Any, Callable, Literal, Mapping, Optional, Sequence, Tuple, Union
+from abc import ABC
+from dataclasses import dataclass
+from typing import (
+    Any,
+    Callable,
+    Iterator,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import pandas as pd
 
 from ..hrf.core import HRF
-
+from ..hrf.normalization import NormMode
 
 Predicate = Union[str, Mapping[str, Any], Callable[[pd.DataFrame], Any]]
 
@@ -79,6 +89,10 @@ class HrfTerm(Term):
         Optional column-name prefix.
     id
         Optional explicit term identifier (otherwise derived from variables).
+    norm
+        Optional fixed HRF normalization mode. ``"spm"`` uses the Nilearn
+        SPM reference-grid scale; ``"unit_peak"`` and ``"unit_integral"``
+        provide explicit amplitude/integral normalization.
     """
 
     variables: Tuple[str, ...]
@@ -90,6 +104,7 @@ class HrfTerm(Term):
     subset: Optional[Predicate] = None
     prefix: Optional[str] = None
     id: Optional[str] = None
+    norm: Optional[NormMode] = None
 
 
 @dataclass(frozen=True)
@@ -158,14 +173,14 @@ class Spec:
             if Spec._is_baseline_term(other):
                 return Spec(events=self.events, baseline=self.baseline + (other,))
             raise TypeError(f"Unrecognised Term subtype: {type(other).__name__}")
-        return NotImplemented  # type: ignore[return-value]
+        return NotImplemented
 
     def __radd__(self, other: "Term") -> "Spec":
         if isinstance(other, Term):
             return Spec().__add__(other).__add__(self)
-        return NotImplemented  # type: ignore[return-value]
+        return NotImplemented
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Term]:
         yield from self.events
         yield from self.baseline
 

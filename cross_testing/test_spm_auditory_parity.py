@@ -6,7 +6,6 @@ import pytest
 
 from cross_testing.harness import render, run
 
-
 pytestmark = pytest.mark.parity
 
 pytest.importorskip("nilearn")
@@ -24,8 +23,8 @@ def test_spm_auditory_case_passes_and_renders(tmp_path):
     except Exception as exc:
         pytest.skip(f"SPM auditory dataset unavailable: {exc}")
 
-    assert result.status == "pass_with_caveats"
-    assert "spm-auditory-hrf-grid-scale" in {
+    assert result.status == "pass"
+    assert "spm-auditory-hrf-grid-scale" not in {
         caveat.caveat_id for caveat in result.caveats
     }
     assert all(delta.passes for delta in result.deltas.values())
