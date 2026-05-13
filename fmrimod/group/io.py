@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import base64
 import json
+from collections.abc import Mapping, Sequence
 from io import StringIO
 from pathlib import Path
 from typing import Any, cast
@@ -23,8 +25,12 @@ from .space import (
     VoxelSpace,
 )
 
-GDS_H5_VERSION = "gds-h5/0.1"
-GDS_H5_SUPPORTED_PREFIX = "gds-h5/0."
+GDS_H5_VERSION = "gds-h5/1.0"
+GDS_H5_SUPPORTED_PREFIXES = ("gds-h5/0.", "gds-h5/1.")
+ALIGNMENT_FAMILIES_METADATA_KEY = "alignment_families"
+OPAQUE_ALIGNMENT_FAMILIES_METADATA_KEY = "opaque_alignment_families"
+ALIGNMENT_MANIFEST_FORMAT = "fmrimod.alignment_manifest"
+ALIGNMENT_MANIFEST_VERSION = "gds-h5/1.0-alignment"
 
 
 def _import_h5py() -> Any:
@@ -113,9 +119,223 @@ def _read_schema_version(gds: Any) -> str:
     if "version" not in gds:
         raise GroupSchemaError("HDF5 /gds is missing schema version")
     version = _read_text_dataset(gds, "version")
-    if not version.startswith(GDS_H5_SUPPORTED_PREFIX):
+    if not any(version.startswith(prefix) for prefix in GDS_H5_SUPPORTED_PREFIXES):
         raise GroupSchemaError(f"Unsupported GDS HDF5 schema version: {version}")
     return version
+
+
+def _metadata_payload(dataset: GroupDataset) -> dict[str, Any]:
+    metadata = dict(dataset.metadata)
+    metadata.pop(ALIGNMENT_FAMILIES_METADATA_KEY, None)
+    metadata.pop(OPAQUE_ALIGNMENT_FAMILIES_METADATA_KEY, None)
+    return metadata
+
+
+def _validate_hdf5_name(value: Any, *, kind: str) -> str:
+    name = str(value)
+    if not name or "/" in name:
+        raise GroupSchemaError(f"{kind} name must be non-empty and must not contain '/'")
+    return name
+
+
+def _json_safe(value: Any, *, context: str) -> Any:
+    try:
+        json.dumps(value)
+    except TypeError as exc:
+        raise GroupSchemaError(f"{context} must be JSON-serializable") from exc
+    return value
+
+
+def _write_alignment_families(group: Any, dataset: GroupDataset) -> None:
+    raw = dataset.metadata.get(ALIGNMENT_FAMILIES_METADATA_KEY)
+    if raw is None:
+        return
+    if not isinstance(raw, Mapping):
+        raise GroupSchemaError("metadata['alignment_families'] must be a mapping")
+
+    alignments = group.create_group("alignments")
+    alignments.attrs["format"] = ALIGNMENT_MANIFEST_FORMAT
+    alignments.attrs["schema_version"] = GDS_H5_VERSION
+    for family_key, family_raw in raw.items():
+        family_name = _validate_hdf5_name(family_key, kind="alignment family")
+        if not isinstance(family_raw, Mapping):
+            raise GroupSchemaError(f"alignment family '{family_name}' must be a mapping")
+
+        entries_raw = family_raw.get("entries", ())
+        if isinstance(entries_raw, (str, bytes)) or not isinstance(entries_raw, Sequence):
+            raise GroupSchemaError(
+                f"alignment family '{family_name}' entries must be a sequence"
+            )
+
+        family = alignments.create_group(family_name)
+        family.attrs["format"] = ALIGNMENT_MANIFEST_FORMAT
+        family.attrs["schema_version"] = ALIGNMENT_MANIFEST_VERSION
+        matrices = family.create_group("matrices")
+        manifest: dict[str, Any] = {
+            "schema_version": ALIGNMENT_MANIFEST_VERSION,
+            "format": ALIGNMENT_MANIFEST_FORMAT,
+            "family": family_name,
+            "entries": [],
+        }
+        for key, value in family_raw.items():
+            key_str = str(key)
+            if key_str in {"entries", "schema_version", "format", "family"}:
+                continue
+            manifest[key_str] = _json_safe(
+                value,
+                context=f"alignment family '{family_name}' field '{key_str}'",
+            )
+
+        seen_entries: set[str] = set()
+        manifest_entries = cast(list[dict[str, Any]], manifest["entries"])
+        for idx, entry_raw in enumerate(entries_raw):
+            if not isinstance(entry_raw, Mapping):
+                raise GroupSchemaError(
+                    f"alignment family '{family_name}' entry {idx} must be a mapping"
+                )
+            if "matrix" not in entry_raw:
+                raise GroupSchemaError(
+                    f"alignment family '{family_name}' entry {idx} is missing matrix"
+                )
+            entry_name = _validate_hdf5_name(
+                entry_raw.get("name", f"matrix_{idx}"),
+                kind=f"alignment family '{family_name}' entry",
+            )
+            if entry_name in seen_entries:
+                raise GroupSchemaError(
+                    f"alignment family '{family_name}' has duplicate entry '{entry_name}'"
+                )
+            seen_entries.add(entry_name)
+
+            matrix = np.asarray(entry_raw["matrix"], dtype=np.float64)
+            if matrix.ndim != 2:
+                raise GroupSchemaError(
+                    f"alignment family '{family_name}' entry '{entry_name}' "
+                    "matrix must be 2-D"
+                )
+            matrices.create_dataset(entry_name, data=matrix)
+
+            manifest_entry: dict[str, Any] = {}
+            for key, value in entry_raw.items():
+                key_str = str(key)
+                if key_str == "matrix":
+                    continue
+                manifest_entry[key_str] = _json_safe(
+                    value,
+                    context=(
+                        f"alignment family '{family_name}' entry '{entry_name}' "
+                        f"field '{key_str}'"
+                    ),
+                )
+            manifest_entry["name"] = entry_name
+            manifest_entry["matrix_dataset"] = f"matrices/{entry_name}"
+            manifest_entry["shape"] = list(matrix.shape)
+            manifest_entry["dtype"] = "float64"
+            manifest_entries.append(manifest_entry)
+
+        _write_json_dataset(family, "manifest", manifest)
+
+
+def _read_opaque_dataset(dataset: Any) -> dict[str, Any]:
+    raw = dataset[()]
+    if isinstance(raw, bytes):
+        try:
+            return {"encoding": "utf-8", "payload": raw.decode("utf-8")}
+        except UnicodeDecodeError:
+            return {
+                "encoding": "base64",
+                "payload": base64.b64encode(raw).decode("ascii"),
+            }
+    if isinstance(raw, str):
+        return {"encoding": "utf-8", "payload": raw}
+
+    arr = np.asarray(raw)
+    return {
+        "encoding": "base64",
+        "payload": base64.b64encode(arr.tobytes()).decode("ascii"),
+        "dtype": str(arr.dtype),
+        "shape": list(arr.shape),
+    }
+
+
+def _read_alignment_families(
+    group: Any,
+    *,
+    allow_opaque_alignments: bool,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    if "alignments" not in group or len(group["alignments"]) == 0:
+        return None, None
+
+    alignment_families: dict[str, Any] = {}
+    opaque_families: dict[str, Any] = {}
+    alignments = group["alignments"]
+    for family_name in alignments:
+        family = alignments[family_name]
+        if "manifest" in family:
+            manifest = json.loads(_read_text_dataset(family, "manifest"))
+            if manifest.get("format") != ALIGNMENT_MANIFEST_FORMAT:
+                raise GroupSchemaError(
+                    f"Unsupported alignment manifest format for family '{family_name}'"
+                )
+            if manifest.get("schema_version") != ALIGNMENT_MANIFEST_VERSION:
+                raise GroupSchemaError(
+                    f"Unsupported alignment manifest version for family '{family_name}'"
+                )
+            entries_raw = manifest.get("entries", [])
+            if isinstance(entries_raw, (str, bytes)) or not isinstance(
+                entries_raw,
+                Sequence,
+            ):
+                raise GroupSchemaError(
+                    f"alignment manifest entries for family '{family_name}' "
+                    "must be a sequence"
+                )
+            entries: list[dict[str, Any]] = []
+            for idx, entry_raw in enumerate(entries_raw):
+                if not isinstance(entry_raw, Mapping):
+                    raise GroupSchemaError(
+                        f"alignment manifest entry {idx} for family "
+                        f"'{family_name}' must be a mapping"
+                    )
+                matrix_dataset = entry_raw.get("matrix_dataset")
+                if not isinstance(matrix_dataset, str):
+                    raise GroupSchemaError(
+                        f"alignment manifest entry {idx} for family "
+                        f"'{family_name}' is missing matrix_dataset"
+                    )
+                try:
+                    matrix_raw = family[matrix_dataset][()]
+                except KeyError as exc:
+                    raise GroupSchemaError(
+                        f"alignment matrix dataset '{matrix_dataset}' is missing "
+                        f"for family '{family_name}'"
+                    ) from exc
+                entry = dict(entry_raw)
+                entry["matrix"] = np.asarray(matrix_raw, dtype=np.float64)
+                entries.append(entry)
+            family_manifest = dict(manifest)
+            family_manifest["entries"] = entries
+            alignment_families[str(family_name)] = family_manifest
+            continue
+
+        if "serialized" in family:
+            if not allow_opaque_alignments:
+                raise UnsupportedGroupFeatureError(
+                    "R-serialized map families in /gds/alignments are not "
+                    "semantically supported; pass allow_opaque_alignments=True "
+                    "to preserve the raw payload as metadata"
+                )
+            opaque_families[str(family_name)] = {
+                "format": "r-serialized-opaque",
+                "serialized": _read_opaque_dataset(family["serialized"]),
+            }
+            continue
+
+        raise UnsupportedGroupFeatureError(
+            f"Unsupported alignment family '{family_name}' in /gds/alignments"
+        )
+
+    return alignment_families or None, opaque_families or None
 
 
 def _write_space(group: Any, space: GroupSpace) -> None:
@@ -232,8 +452,10 @@ def write_hdf5(dataset: GroupDataset, path: str | Path) -> Path:
         for name, arr in dataset.assays.items():
             assays.create_dataset(name, data=np.asarray(arr, dtype=np.float64))
 
+        _write_alignment_families(gds, dataset)
+
         metadata = gds.create_group("metadata")
-        _write_json_dataset(metadata, "json", dict(dataset.metadata))
+        _write_json_dataset(metadata, "json", _metadata_payload(dataset))
 
         provenance = gds.create_group("provenance")
         _write_json_dataset(provenance, "json", _provenance_payload(dataset))
@@ -248,14 +470,10 @@ def read_hdf5(path: str | Path, *, allow_opaque_alignments: bool = False) -> Gro
             raise GroupSchemaError("HDF5 file does not contain /gds")
         gds = h5["gds"]
         version = _read_schema_version(gds)
-        if (
-            "alignments" in gds
-            and len(gds["alignments"]) > 0
-            and not allow_opaque_alignments
-        ):
-            raise UnsupportedGroupFeatureError(
-                "R-serialized map families in /gds/alignments are not semantically supported"
-            )
+        alignment_families, opaque_alignment_families = _read_alignment_families(
+            gds,
+            allow_opaque_alignments=allow_opaque_alignments,
+        )
 
         subjects = _read_strings(gds["axes"], "subjects")
         contrasts = _read_strings(gds["axes"], "contrasts")
@@ -276,6 +494,10 @@ def read_hdf5(path: str | Path, *, allow_opaque_alignments: bool = False) -> Gro
             metadata["hdf5_provenance"] = json.loads(
                 _read_text_dataset(gds["provenance"], "json")
             )
+        if alignment_families is not None:
+            metadata[ALIGNMENT_FAMILIES_METADATA_KEY] = alignment_families
+        if opaque_alignment_families is not None:
+            metadata[OPAQUE_ALIGNMENT_FAMILIES_METADATA_KEY] = opaque_alignment_families
 
     return GroupDataset(
         assays=assays,

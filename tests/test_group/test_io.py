@@ -167,6 +167,103 @@ def test_hdf5_reader_rejects_r_serialized_alignments(tmp_path) -> None:
         read_hdf5(path)
 
 
+def test_hdf5_reader_can_preserve_r_serialized_alignments_as_opaque(tmp_path) -> None:
+    ds = group_dataset(
+        {"beta": np.ones((1, 1, 1))},
+        space=SampleLabelSpace(["r1"]),
+        subjects=["s1"],
+        contrasts=["c1"],
+    )
+    path = tmp_path / "opaque_alignment.h5"
+    write_hdf5(ds, path)
+    with h5py.File(path, "a") as h5:
+        family = h5["gds"].create_group("alignments").create_group("native")
+        family.create_dataset("serialized", data="A\n1\n262153\n")
+
+    got = read_hdf5(path, allow_opaque_alignments=True)
+
+    opaque = got.metadata["opaque_alignment_families"]["native"]
+    assert opaque["format"] == "r-serialized-opaque"
+    assert opaque["serialized"]["encoding"] == "utf-8"
+    assert opaque["serialized"]["payload"].startswith("A\n1\n")
+
+
+def test_hdf5_roundtrips_language_neutral_alignment_manifest(tmp_path) -> None:
+    matrix = np.array(
+        [
+            [1.0, 0.0, 0.0, 2.0],
+            [0.0, 1.0, 0.0, 3.0],
+            [0.0, 0.0, 1.0, 4.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    ds = group_dataset(
+        {"beta": np.ones((1, 1, 1))},
+        space=SampleLabelSpace(["r1"]),
+        subjects=["s1"],
+        contrasts=["c1"],
+        metadata={
+            "analysis": "alignment-demo",
+            "alignment_families": {
+                "native_to_mni": {
+                    "description": "portable affine transform",
+                    "entries": [
+                        {
+                            "name": "affine",
+                            "kind": "affine",
+                            "source_space": "native",
+                            "target_space": "MNI152NLin2009cAsym",
+                            "matrix": matrix,
+                        }
+                    ],
+                }
+            },
+        },
+    )
+    path = tmp_path / "manifest_alignment.h5"
+
+    write_hdf5(ds, path)
+    with h5py.File(path, "r") as h5:
+        assert h5["gds/version"][()].decode("utf-8") == "gds-h5/1.0"
+        family = h5["gds/alignments/native_to_mni"]
+        assert "manifest" in family
+        assert "matrices/affine" in family
+        np.testing.assert_allclose(family["matrices/affine"][()], matrix)
+    got = read_hdf5(path)
+
+    assert got.metadata["analysis"] == "alignment-demo"
+    families = got.metadata["alignment_families"]
+    family = families["native_to_mni"]
+    assert family["format"] == "fmrimod.alignment_manifest"
+    assert family["schema_version"] == "gds-h5/1.0-alignment"
+    assert family["description"] == "portable affine transform"
+    entry = family["entries"][0]
+    assert entry["name"] == "affine"
+    assert entry["kind"] == "affine"
+    assert entry["source_space"] == "native"
+    assert entry["target_space"] == "MNI152NLin2009cAsym"
+    assert entry["matrix_dataset"] == "matrices/affine"
+    np.testing.assert_allclose(entry["matrix"], matrix)
+
+
+def test_hdf5_reader_accepts_scoped_legacy_v0_schema(tmp_path) -> None:
+    ds = group_dataset(
+        {"beta": np.ones((1, 1, 1))},
+        space=SampleLabelSpace(["r1"]),
+        subjects=["s1"],
+        contrasts=["c1"],
+    )
+    path = tmp_path / "legacy.h5"
+    write_hdf5(ds, path)
+    with h5py.File(path, "a") as h5:
+        del h5["gds"]["version"]
+        h5["gds"].create_dataset("version", data="gds-h5/0.1", dtype=h5py.string_dtype())
+
+    got = read_hdf5(path)
+
+    assert got.metadata["schema_version"] == "gds-h5/0.1"
+
+
 def test_hdf5_reader_rejects_unsupported_schema_version(tmp_path) -> None:
     ds = group_dataset(
         {"beta": np.ones((1, 1, 1))},
@@ -178,7 +275,7 @@ def test_hdf5_reader_rejects_unsupported_schema_version(tmp_path) -> None:
     write_hdf5(ds, path)
     with h5py.File(path, "a") as h5:
         del h5["gds"]["version"]
-        h5["gds"].create_dataset("version", data="gds-h5/1.0", dtype=h5py.string_dtype())
+        h5["gds"].create_dataset("version", data="gds-h5/2.0", dtype=h5py.string_dtype())
 
     with pytest.raises(GroupSchemaError, match="Unsupported GDS HDF5 schema version"):
         read_hdf5(path)
