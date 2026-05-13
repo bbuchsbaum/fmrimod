@@ -161,24 +161,17 @@ def gamma_generator(
     name: Optional[str] = None,
 ) -> HRF:
     """Generate Gamma HRF with custom parameters.
-    
-    Args:
-        shape: Shape parameter of the gamma distribution
-        rate: Rate parameter of the gamma distribution
-        name: Optional custom name
-        
-    Returns:
-        Gamma HRF
+
+    Returns a typed :class:`GammaHRF` instance.
     """
-    def gamma_func(t: ArrayLike) -> NDArray[np.float64]:
-        return gamma_hrf(t, shape=shape, rate=rate)
-    
-    return FunctionHRF(
-        func=gamma_func,
+    from .library import GammaHRF
+
+    return GammaHRF(
         name=name or f"gamma_s{shape}_r{rate}",
         nbasis=1,
         span=24.0,
-        params={"shape": shape, "rate": rate},
+        shape=shape,
+        rate=rate,
     )
 
 
@@ -190,24 +183,15 @@ def bspline_generator(
 ) -> HRF:
     """Generate B-spline basis HRF.
 
-    Args:
-        n_basis: Number of basis functions
-        degree: Degree of B-splines (3 for cubic)
-        span: Temporal span of the basis set
-        name: Optional custom name
-
-    Returns:
-        B-spline basis HRF
+    Returns a typed :class:`BSplineHRF` instance.
     """
-    def bspline_func(t: ArrayLike) -> NDArray[np.float64]:
-        return bspline_hrf(t, n_basis=n_basis, degree=degree, span=span)
+    from .library import BSplineHRF
 
-    return FunctionHRF(
-        func=bspline_func,
+    return BSplineHRF(
         name=name or f"bspline_N{n_basis}_d{degree}",
         nbasis=n_basis,
         span=span,
-        params={"n_basis": n_basis, "degree": degree},
+        degree=degree,
     )
 
 
@@ -218,23 +202,14 @@ def fir_generator(
 ) -> HRF:
     """Generate FIR (Finite Impulse Response) basis HRF.
 
-    Args:
-        n_basis: Number of basis functions
-        span: Temporal span of the basis set
-        name: Optional custom name
-
-    Returns:
-        FIR basis HRF
+    Returns a typed :class:`FIRHRF` instance.
     """
-    def fir_func(t: ArrayLike) -> NDArray[np.float64]:
-        return fir_basis(t, n_basis=n_basis, span=span)
+    from .library import FIRHRF
 
-    return FunctionHRF(
-        func=fir_func,
+    return FIRHRF(
         name=name or f"fir_N{n_basis}",
         nbasis=n_basis,
         span=span,
-        params={"n_basis": n_basis},
     )
 
 
@@ -245,23 +220,14 @@ def fourier_generator(
 ) -> HRF:
     """Generate Fourier basis HRF.
 
-    Args:
-        n_basis: Number of basis functions
-        span: Temporal span of the basis set
-        name: Optional custom name
-
-    Returns:
-        Fourier basis HRF
+    Returns a typed :class:`FourierHRF` instance.
     """
-    def fourier_func(t: ArrayLike) -> NDArray[np.float64]:
-        return fourier_hrf(t, n_basis=n_basis, span=span)
+    from .library import FourierHRF
 
-    return FunctionHRF(
-        func=fourier_func,
+    return FourierHRF(
         name=name or f"fourier_N{n_basis}",
         nbasis=n_basis,
         span=span,
-        params={"n_basis": n_basis},
     )
 
 
@@ -283,17 +249,15 @@ def daguerre_generator(
         name: Optional custom name
 
     Returns:
-        Daguerre basis HRF
+        Typed :class:`DaguerreHRF` instance.
     """
-    def daguerre_func(t: ArrayLike) -> NDArray[np.float64]:
-        return daguerre_basis(t, n_basis=n_basis, scale=scale)
+    from .library import DaguerreHRF
 
-    return FunctionHRF(
-        func=daguerre_func,
+    return DaguerreHRF(
         name=name or "daguerre",
         nbasis=n_basis,
         span=span,
-        params={"n_basis": n_basis, "scale": scale},
+        scale=scale,
     )
 
 
@@ -377,26 +341,18 @@ def tent_generator(
 ) -> HRF:
     """Generate tent (degree-1 B-spline) basis HRF.
 
-    A tent basis is a B-spline basis with ``degree=1``, producing
-    piecewise-linear hat functions.
-
-    Args:
-        nbasis: Number of basis functions.
-        span: Temporal span of the basis set in seconds.
-        name: Optional custom name.
-
-    Returns:
-        Tent basis HRF.
+    A tent basis *is* a B-spline with ``degree=1`` and piecewise-linear
+    hat functions, so it shares the BSpline typed kind. The ``name``
+    keeps the ``tent`` prefix for backwards compatibility with callers
+    that inspect ``hrf.name``.
     """
-    def tent_func(t: ArrayLike) -> NDArray[np.float64]:
-        return bspline_hrf(t, n_basis=nbasis, degree=1, span=span)
+    from .library import BSplineHRF
 
-    return FunctionHRF(
-        func=tent_func,
+    return BSplineHRF(
         name=name or f"tent_N{nbasis}",
         nbasis=nbasis,
         span=span,
-        params={"n_basis": nbasis, "degree": 1, "span": span},
+        degree=1,
     )
 
 
