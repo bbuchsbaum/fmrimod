@@ -146,6 +146,7 @@ addopts = [
 testpaths = ["tests"]
 markers = [
     "benchmark: marks tests as performance benchmarks",
+    "parity: marks tests that compare fmrimod against external reference workflows",
     "slow: marks tests as slow",
     "cross_test: marks tests that require R packages via rpy2",
     "rpy2: tests that compare results against R via rpy2",

@@ -257,11 +257,11 @@ def fit_fitlins_reference_ols(X: Array, Y: Array, contrast: Array) -> Dict[str, 
 
     labels, estimates = run_glm(Y, X, noise_model="ols")
     try:
-        # Older nilearn/nistats APIs.
-        cres = compute_contrast(labels, estimates, contrast, contrast_type="t")
-    except TypeError:
         # Current nilearn API.
         cres = compute_contrast(labels, estimates, contrast, stat_type="t")
+    except TypeError:
+        # Older nilearn/nistats APIs.
+        cres = compute_contrast(labels, estimates, contrast, contrast_type="t")
 
     n_regressors = X.shape[1]
     n_voxels = Y.shape[1]

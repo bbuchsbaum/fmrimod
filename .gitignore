@@ -24,6 +24,8 @@ coverage.xml
 *.swo
 uv.lock
 cross_testing/reports/
+benchmarks/parity/*/reports/
+benchmarks/performance/results/
 docs/_build/
 docs/_site/
 docs/.quarto/
