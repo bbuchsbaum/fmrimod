@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
@@ -13,7 +14,7 @@ from numpy.typing import NDArray
 
 from .dtypes import as_group_float_array
 from .errors import AdapterContractError, UnsupportedGroupFeatureError
-from .space import GroupSpace, SampleLabelSpace
+from .space import GroupSpace, SampleLabelSpace, VoxelSpace
 
 
 def _coerce_axis(values: Sequence[Any], *, name: str) -> tuple[str, ...]:
@@ -204,15 +205,23 @@ def group_dataset(
 def group_dataset_from_group_data(data: Any) -> GroupDataset:
     """Convert existing ``fmrimod.dataset.GroupData`` into ``GroupDataset``.
 
-    The first implementation supports the existing CSV/long-table loader and
-    preserves its axis conventions. Other source formats stay behind their
-    existing loaders until native HDF5/NIfTI adapters are added.
+    This adapter reuses the existing ``fmrimod.dataset.group_data`` loaders and
+    materializes their supported group-level formats into the native
+    ``sample x subject x contrast`` contract.
     """
-    if getattr(data, "format", None) != "csv":
-        raise UnsupportedGroupFeatureError(
-            "group_dataset_from_group_data currently supports only csv GroupData"
-        )
+    data_format = getattr(data, "format", None)
+    if data_format == "csv":
+        return _group_dataset_from_csv_group_data(data)
+    if data_format == "h5":
+        return _group_dataset_from_h5_group_data(data)
+    if data_format == "nifti":
+        return _group_dataset_from_nifti_group_data(data)
+    raise UnsupportedGroupFeatureError(
+        f"group_dataset_from_group_data does not support GroupData format={data_format!r}"
+    )
 
+
+def _group_dataset_from_csv_group_data(data: Any) -> GroupDataset:
     payload = data.data
     frame = payload["data"].copy()
     effect_cols = dict(payload["effect_cols"])
@@ -267,4 +276,128 @@ def group_dataset_from_group_data(data: Any) -> GroupDataset:
         row_data=pd.DataFrame(index=pd.Index(samples, name="sample")),
         contrast_data=pd.DataFrame(index=pd.Index(contrasts, name="contrast")),
         metadata={"source_format": "csv"},
+    )
+
+
+def _single_contrast(data: Any) -> tuple[str, ...]:
+    contrast = data.data.get("contrast")
+    return ("c1",) if contrast is None else (str(contrast),)
+
+
+def _sample_labels(n_samples: int) -> tuple[str, ...]:
+    return tuple(f"sample{i + 1}" for i in range(n_samples))
+
+
+def _group_dataset_from_h5_group_data(data: Any) -> GroupDataset:
+    from fmrimod.dataset.compat import read_h5_full
+
+    stats = tuple(str(stat) for stat in data.data.get("stat", ("beta", "se")))
+    raw = read_h5_full(data, stat=stats)
+    if raw.ndim != 3:
+        raise AdapterContractError("H5 GroupData reader must return voxels x subjects x stats")
+    samples = _sample_labels(int(raw.shape[0]))
+    assays = {
+        stat: np.asarray(raw[:, :, stat_idx], dtype=np.float64)[:, :, np.newaxis]
+        for stat_idx, stat in enumerate(stats)
+    }
+
+    return GroupDataset(
+        assays=assays,
+        space=SampleLabelSpace(samples),
+        subjects=tuple(str(x) for x in data.subjects),
+        contrasts=_single_contrast(data),
+        col_data=data.covariates,
+        row_data=pd.DataFrame(index=pd.Index(samples, name="sample")),
+        contrast_data=pd.DataFrame(index=pd.Index(_single_contrast(data), name="contrast")),
+        metadata={
+            "source_format": "h5",
+            "paths": tuple(str(path) for path in data.data.get("paths", ())),
+        },
+    )
+
+
+def _first_nifti_path(data: Any) -> str | None:
+    for key in ("beta_paths", "se_paths", "var_paths", "t_paths"):
+        paths = data.data.get(key)
+        if paths:
+            return str(paths[0])
+    return None
+
+
+def _nifti_space(data: Any, *, n_samples: int) -> GroupSpace:
+    try:
+        nib = cast(Any, importlib.import_module("nibabel"))
+    except Exception as exc:  # pragma: no cover - optional dependency behavior
+        raise UnsupportedGroupFeatureError(
+            "NIfTI GroupData materialization requires optional dependency 'nibabel'"
+        ) from exc
+
+    path = str(data.data["mask"]) if data.data.get("mask") is not None else _first_nifti_path(data)
+    if path is None:
+        return SampleLabelSpace(_sample_labels(n_samples))
+
+    img = nib.load(path)
+    shape = tuple(int(x) for x in img.shape[:3])
+    affine = np.asarray(img.affine, dtype=np.float64)
+    template_id = data.data.get("target_space")
+    if data.data.get("mask") is not None:
+        mask = np.asarray(img.get_fdata()) > 0
+        mask_idx = np.flatnonzero(mask.ravel()).astype(np.intp)
+        if mask_idx.size != n_samples:
+            raise AdapterContractError(
+                "NIfTI mask sample count must match materialized assay samples"
+            )
+        return VoxelSpace(
+            shape=shape,
+            affine=affine,
+            mask_idx=mask_idx,
+            storage="packed",
+            template_id=template_id,
+        )
+
+    if int(np.prod(shape)) != n_samples:
+        return SampleLabelSpace(_sample_labels(n_samples))
+    return VoxelSpace(shape=shape, affine=affine, template_id=template_id)
+
+
+def _group_dataset_from_nifti_group_data(data: Any) -> GroupDataset:
+    from fmrimod.dataset.compat import read_nifti_full
+
+    try:
+        payload = read_nifti_full(data)
+    except ImportError as exc:  # pragma: no cover - optional dependency behavior
+        raise UnsupportedGroupFeatureError(
+            "NIfTI GroupData materialization requires the existing NIfTI reader dependencies"
+        ) from exc
+    subjects = tuple(str(x) for x in data.subjects)
+    n_subjects = len(subjects)
+    assays: dict[str, NDArray[np.float64]] = {}
+    n_samples: int | None = None
+    for name, values in payload.items():
+        arr = np.asarray(values, dtype=np.float64)
+        if arr.ndim == 2:
+            if arr.shape[0] != n_subjects:
+                raise AdapterContractError(
+                    f"NIfTI assay '{name}' rows must match number of subjects"
+                )
+            assays[name] = arr.T[:, :, np.newaxis]
+            n_samples = int(arr.shape[1])
+        elif arr.ndim == 1 and arr.shape[0] == n_subjects and n_samples is not None:
+            assays[name] = np.broadcast_to(
+                arr.reshape(1, n_subjects, 1),
+                (n_samples, n_subjects, 1),
+            ).copy()
+    if not assays or n_samples is None:
+        raise AdapterContractError("NIfTI GroupData did not materialize any assays")
+
+    contrasts = _single_contrast(data)
+    return GroupDataset(
+        assays=assays,
+        space=_nifti_space(data, n_samples=n_samples),
+        subjects=subjects,
+        contrasts=contrasts,
+        col_data=data.covariates,
+        row_data=None,
+        contrast_data=pd.DataFrame(index=pd.Index(contrasts, name="contrast")),
+        metadata={"source_format": "nifti"},
     )

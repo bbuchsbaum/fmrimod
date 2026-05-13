@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import h5py
 import numpy as np
 import pytest
 
@@ -16,6 +15,8 @@ from fmrimod.group import (
     write_hdf5,
     write_out,
 )
+
+h5py = pytest.importorskip("h5py")
 
 
 def test_hdf5_roundtrip_sample_label_space(tmp_path) -> None:
@@ -91,4 +92,3 @@ def test_hdf5_reader_rejects_r_serialized_alignments(tmp_path) -> None:
 
     with pytest.raises(UnsupportedGroupFeatureError, match="map families"):
         read_hdf5(path)
-

@@ -6,12 +6,16 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fmrimod.dataset import group_data_from_csv, group_data_from_h5
+from fmrimod.dataset import (
+    group_data_from_csv,
+    group_data_from_h5,
+    group_data_from_nifti,
+)
 from fmrimod.group import (
     AdapterContractError,
     GroupDataset,
     SampleLabelSpace,
-    UnsupportedGroupFeatureError,
+    VoxelSpace,
     group_dataset,
     group_dataset_from_group_data,
 )
@@ -136,11 +140,76 @@ def test_group_dataset_from_group_data_csv_injects_missing_axes() -> None:
     np.testing.assert_allclose(ds.assay("beta")[0, :, 0], np.array([1.0, 2.0]))
 
 
-def test_group_dataset_from_group_data_rejects_unported_formats(tmp_path) -> None:
-    path = tmp_path / "sub-01.h5"
-    path.touch()
-    gd = group_data_from_h5(path, subjects=["s1"], validate=False)
+def test_group_dataset_from_group_data_h5_materializes_axis_cube(tmp_path) -> None:
+    h5py = pytest.importorskip("h5py")
+    paths = []
+    for subject_idx in range(2):
+        path = tmp_path / f"sub-{subject_idx + 1:02d}.h5"
+        with h5py.File(path, "w") as handle:
+            handle.create_dataset("beta", data=np.array([1.0, 2.0]) + subject_idx)
+            handle.create_dataset("se", data=np.array([0.1, 0.2]))
+        paths.append(path)
 
-    with pytest.raises(UnsupportedGroupFeatureError, match="only csv"):
-        group_dataset_from_group_data(gd)
+    covariates = pd.DataFrame({"age": [20, 30]})
+    gd = group_data_from_h5(
+        paths,
+        subjects=["s1", "s2"],
+        covariates=covariates,
+        contrast="faces",
+        stat=("beta", "var"),
+    )
 
+    ds = group_dataset_from_group_data(gd)
+
+    assert ds.metadata["source_format"] == "h5"
+    assert ds.subjects == ("s1", "s2")
+    assert ds.contrasts == ("faces",)
+    assert ds.space.labels == ("sample1", "sample2")
+    assert ds.col_data is not None
+    assert ds.col_data["age"].tolist() == [20, 30]
+    np.testing.assert_allclose(ds.assay("beta")[:, :, 0], np.array([[1.0, 2.0], [2.0, 3.0]]))
+    np.testing.assert_allclose(ds.assay("var")[:, :, 0], np.array([[0.01, 0.01], [0.04, 0.04]]))
+
+
+def test_group_dataset_from_group_data_nifti_materializes_voxel_space(tmp_path) -> None:
+    nib = pytest.importorskip("nibabel")
+    pytest.importorskip("neuroim")
+
+    affine = np.eye(4)
+    beta_paths = []
+    se_paths = []
+    for subject_idx in range(2):
+        beta_path = tmp_path / f"sub-{subject_idx + 1:02d}_beta.nii.gz"
+        se_path = tmp_path / f"sub-{subject_idx + 1:02d}_se.nii.gz"
+        nib.save(
+            nib.Nifti1Image(np.array([[[subject_idx + 1.0]], [[10.0]]]), affine),
+            beta_path,
+        )
+        nib.save(
+            nib.Nifti1Image(np.full((2, 1, 1), 0.5), affine),
+            se_path,
+        )
+        beta_paths.append(beta_path)
+        se_paths.append(se_path)
+    mask_path = tmp_path / "mask.nii.gz"
+    nib.save(nib.Nifti1Image(np.array([[[1.0]], [[0.0]]]), affine), mask_path)
+
+    gd = group_data_from_nifti(
+        beta_paths=beta_paths,
+        se_paths=se_paths,
+        subjects=["s1", "s2"],
+        mask=mask_path,
+        target_space="MNI152",
+        validate=False,
+    )
+
+    ds = group_dataset_from_group_data(gd)
+
+    assert ds.metadata["source_format"] == "nifti"
+    assert ds.subjects == ("s1", "s2")
+    assert ds.contrasts == ("c1",)
+    assert isinstance(ds.space, VoxelSpace)
+    assert ds.space.template_id == "MNI152"
+    np.testing.assert_array_equal(ds.space.mask_idx, np.array([0]))
+    np.testing.assert_allclose(ds.assay("beta")[:, :, 0], np.array([[1.0, 2.0]]))
+    np.testing.assert_allclose(ds.assay("var")[:, :, 0], np.array([[0.25, 0.25]]))

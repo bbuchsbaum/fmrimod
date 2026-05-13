@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
-import h5py  # type: ignore[import-untyped]
 import numpy as np
 
 from .dataset import GroupDataset
@@ -23,15 +22,25 @@ from .space import (
 GDS_H5_VERSION = "gds-h5/0.1"
 
 
-def _string_dtype() -> h5py.Datatype:
-    return h5py.string_dtype(encoding="utf-8")
+def _import_h5py() -> Any:
+    try:
+        import h5py  # type: ignore[import-untyped]
+    except Exception as exc:  # pragma: no cover - optional dependency behavior
+        raise UnsupportedGroupFeatureError(
+            "native group HDF5 I/O requires optional dependency 'h5py'"
+        ) from exc
+    return h5py
 
 
-def _write_strings(group: h5py.Group, name: str, values: list[str]) -> None:
+def _string_dtype() -> Any:
+    return _import_h5py().string_dtype(encoding="utf-8")
+
+
+def _write_strings(group: Any, name: str, values: list[str]) -> None:
     group.create_dataset(name, data=np.asarray(values, dtype=object), dtype=_string_dtype())
 
 
-def _read_strings(group: h5py.Group, name: str) -> tuple[str, ...]:
+def _read_strings(group: Any, name: str) -> tuple[str, ...]:
     raw = group[name][()]
     return tuple(
         item.decode("utf-8") if isinstance(item, bytes) else str(item)
@@ -39,7 +48,7 @@ def _read_strings(group: h5py.Group, name: str) -> tuple[str, ...]:
     )
 
 
-def _write_space(group: h5py.Group, space: GroupSpace) -> None:
+def _write_space(group: Any, space: GroupSpace) -> None:
     group.attrs["type"] = space.kind
     if isinstance(space, VoxelSpace):
         voxel = group.create_group("voxel")
@@ -68,7 +77,7 @@ def _write_space(group: h5py.Group, space: GroupSpace) -> None:
         )
 
 
-def _read_space(group: h5py.Group) -> GroupSpace:
+def _read_space(group: Any) -> GroupSpace:
     kind_raw = group.attrs.get("type")
     kind = kind_raw.decode("utf-8") if isinstance(kind_raw, bytes) else str(kind_raw)
     if kind == "voxel":
@@ -108,6 +117,7 @@ def _read_space(group: h5py.Group) -> GroupSpace:
 
 def write_hdf5(dataset: GroupDataset, path: str | Path) -> Path:
     """Write a scoped ``/gds`` HDF5 file."""
+    h5py = _import_h5py()
     out = Path(path)
     with h5py.File(out, "w") as h5:
         gds = h5.create_group("gds")
@@ -134,6 +144,7 @@ def write_hdf5(dataset: GroupDataset, path: str | Path) -> Path:
 
 def read_hdf5(path: str | Path, *, allow_opaque_alignments: bool = False) -> GroupDataset:
     """Read a scoped ``/gds`` HDF5 file."""
+    h5py = _import_h5py()
     with h5py.File(path, "r") as h5:
         if "gds" not in h5:
             raise GroupSchemaError("HDF5 file does not contain /gds")
