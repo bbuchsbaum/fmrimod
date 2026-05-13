@@ -14,6 +14,7 @@ from fmrimod.group import (
     group_dataset,
     mask,
     posthoc,
+    posthoc_registry,
     reduce,
     subset,
     write_out,
@@ -106,6 +107,22 @@ def test_posthoc_adds_q_assay_columnwise() -> None:
 
     assert "q" in out.assays
     np.testing.assert_allclose(out.assay("q")[:, 0, 0], np.array([0.03, 0.03, 0.5]))
+
+
+def test_posthoc_dispatches_registered_alias() -> None:
+    assert posthoc_registry.is_registered("fdr:by")
+    ds = group_dataset(
+        {"p": np.array([[[0.01]], [[0.02]], [[0.50]]])},
+        space=SampleLabelSpace(["r1", "r2", "r3"]),
+        subjects=["s1"],
+        contrasts=["c1"],
+    )
+
+    out = posthoc(ds, "fdr:by")
+
+    assert out.metadata["posthoc"] == "fdr:by"
+    assert "q" in out.assays
+    assert np.all(np.isfinite(out.assay("q")))
 
 
 def test_reduce_and_write_out_are_explicit_phase_gaps() -> None:

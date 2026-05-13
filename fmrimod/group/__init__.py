@@ -21,7 +21,17 @@ from .errors import (
     UnsupportedGroupFeatureError,
 )
 from .io import GDS_H5_VERSION, read_hdf5, write_hdf5
-from .ops import derive, mask, posthoc, reduce, subset, write_out
+from .ops import (
+    derive,
+    mask,
+    posthoc,
+    posthoc_bh,
+    posthoc_by,
+    reduce,
+    register_core_posthoc,
+    subset,
+    write_out,
+)
 from .progress import (
     GroupProgressEvent,
     ProgressCallback,
@@ -115,8 +125,11 @@ __all__ = [
     "perm_twosample",
     "posthoc_registry",
     "posthoc",
+    "posthoc_bh",
+    "posthoc_by",
     "reduce",
     "reducer_registry",
+    "register_core_posthoc",
     "register_core_reducers",
     "read_hdf5",
     "subset",

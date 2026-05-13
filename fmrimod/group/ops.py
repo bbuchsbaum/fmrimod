@@ -19,7 +19,7 @@ from .errors import (
 )
 from .io import write_hdf5
 from .progress import ProgressCallback, ProgressReporter, emit_progress
-from .registry import reducer_registry
+from .registry import posthoc_registry, reducer_registry
 
 
 def _normalize_axis_index(
@@ -153,26 +153,71 @@ def derive(
     )
 
 
+def _fdr_posthoc_column(
+    p_values: NDArray[np.float64],
+    *,
+    alpha: float,
+    method: Literal["bh", "by"],
+) -> NDArray[np.float64]:
+    _, q_values = fdr_correction(p_values, alpha=alpha, method=method)
+    return np.asarray(q_values, dtype=np.float64)
+
+
+def posthoc_bh(
+    p_values: NDArray[np.float64],
+    *,
+    alpha: float = 0.05,
+) -> NDArray[np.float64]:
+    """Benjamini-Hochberg FDR correction for one p-value vector."""
+    return _fdr_posthoc_column(p_values, alpha=alpha, method="bh")
+
+
+def posthoc_by(
+    p_values: NDArray[np.float64],
+    *,
+    alpha: float = 0.05,
+) -> NDArray[np.float64]:
+    """Benjamini-Yekutieli FDR correction for one p-value vector."""
+    return _fdr_posthoc_column(p_values, alpha=alpha, method="by")
+
+
+def register_core_posthoc(*, overwrite: bool = True) -> None:
+    """Register built-in native posthoc methods."""
+    for name, function, description in (
+        ("bh", posthoc_bh, "Benjamini-Hochberg FDR correction"),
+        ("fdr:bh", posthoc_bh, "Benjamini-Hochberg FDR correction"),
+        ("by", posthoc_by, "Benjamini-Yekutieli FDR correction"),
+        ("fdr:by", posthoc_by, "Benjamini-Yekutieli FDR correction"),
+    ):
+        posthoc_registry.register(
+            name,
+            function,
+            description=description,
+            overwrite=overwrite,
+        )
+
+
 def posthoc(
     dataset: GroupDataset,
-    method: Literal["bh", "by", "fdr:bh", "fdr:by"] = "bh",
+    method: str = "bh",
     *,
     alpha: float = 0.05,
 ) -> GroupDataset:
     """Apply columnwise FDR correction to the ``p`` assay and add ``q``."""
-    method_map = {"bh": "bh", "by": "by", "fdr:bh": "bh", "fdr:by": "by"}
-    if method not in method_map:
+    try:
+        posthoc_fn = posthoc_registry.get(method)
+    except GroupRegistryError as exc:
         raise UnsupportedGroupFeatureError(
-            "posthoc currently supports only bh, by, fdr:bh, and fdr:by"
-        )
+            "posthoc currently supports only registered methods: "
+            + ", ".join(posthoc_registry.list_names())
+        ) from exc
     p = _require_assay(dataset, "p")
     q = np.empty_like(p)
     for subject_idx in range(p.shape[1]):
         for contrast_idx in range(p.shape[2]):
-            _, q_col = fdr_correction(
+            q_col = posthoc_fn(
                 p[:, subject_idx, contrast_idx],
                 alpha=alpha,
-                method=method_map[method],
             )
             q[:, subject_idx, contrast_idx] = q_col
 
@@ -250,3 +295,6 @@ def write_out(
     raise UnsupportedGroupFeatureError(
         "native group write_out currently supports only format='h5'"
     )
+
+
+register_core_posthoc()
