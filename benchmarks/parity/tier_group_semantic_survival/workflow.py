@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -71,11 +72,15 @@ def run_demo(
     max_voxels: int = 32,
 ) -> SemanticSurvivalResult:
     """Run the group-facing semantic-survival demo."""
+    timings: dict[str, float] = {}
+    start = time.perf_counter()
     inputs = load_inputs(max_voxels=max_voxels)
+    timings["load_inputs_seconds"] = float(time.perf_counter() - start)
     subjects = tuple(f"sub-{idx + 1:02d}" for idx in range(n_subjects))
     stats = []
     explanations: list[dict[str, Any]] = []
 
+    first_level_start = time.perf_counter()
     for subject_index, _subject in enumerate(subjects):
         data = _subject_data(
             inputs,
@@ -87,7 +92,9 @@ def run_demo(
         contrast = fit.contrast(inputs.omnibus)
         stats.append(np.asarray(contrast.stat, dtype=np.float64))
         explanations.append(contrast.summary())
+    timings["first_level_seconds"] = float(time.perf_counter() - first_level_start)
 
+    group_build_start = time.perf_counter()
     group_values = np.stack(stats, axis=1)[:, :, np.newaxis]
     first_explanation = explanations[0]
     contrast_name = inputs.omnibus.display_name
@@ -120,7 +127,10 @@ def run_demo(
             "contrast_explanation": first_explanation,
         },
     )
+    timings["group_dataset_seconds"] = float(time.perf_counter() - group_build_start)
+    group_fit_start = time.perf_counter()
     group_result = ols_voxelwise(group, formula="~ 1")
+    timings["group_fit_seconds"] = float(time.perf_counter() - group_fit_start)
 
     report = {
         "name": "tier_group_semantic_survival",
@@ -140,6 +150,11 @@ def run_demo(
             "n_samples": group.n_samples,
             "contrasts": list(group.contrasts),
             "contrast_data": contrast_data.reset_index().to_dict(orient="records"),
+        },
+        "timings": {
+            "status": "recorded",
+            "seconds": float(sum(timings.values())),
+            "stages": timings,
         },
     }
     return SemanticSurvivalResult(
@@ -162,7 +177,7 @@ def main(argv: list[str] | None = None) -> None:
     args.out_dir.mkdir(parents=True, exist_ok=True)
     result = run_demo()
     report_path = args.out_dir / "semantic_survival_report.json"
-    report_path.write_text(json.dumps(result.report, indent=2, sort_keys=True))
+    report_path.write_text(json.dumps(result.report, indent=2, sort_keys=True) + "\n")
 
 
 if __name__ == "__main__":

@@ -8,6 +8,8 @@ verbatim.
 
 from __future__ import annotations
 
+import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -115,20 +117,45 @@ def nilearn_pipeline(inputs: SpmAuditoryInputs) -> PipelineOutput:
     )
 
 
-def fmrimod_pipeline(inputs: SpmAuditoryInputs) -> PipelineOutput:
+def _elapsed_seconds(fn: Any) -> tuple[Any, float]:
+    start = time.perf_counter()
+    value = fn()
+    return value, float(time.perf_counter() - start)
+
+
+def fmrimod_pipeline(
+    inputs: SpmAuditoryInputs,
+    *,
+    timing_sink: dict[str, float] | None = None,
+) -> PipelineOutput:
     """Run the SPM auditory parity case through the canonical fmrimod API.
 
     Three lines of user code: dataset → fit → contrast. ``norm="spm"`` puts
     the HRF on Nilearn's unit-integral scale; no post-hoc rescaling needed.
     """
-    ds = fm.fmri_dataset(
-        inputs.img,
-        mask=inputs.mask_img,
-        tr=TR,
-        events=inputs.events.assign(run=1),
+    ds, dataset_seconds = _elapsed_seconds(
+        lambda: fm.fmri_dataset(
+            inputs.img,
+            mask=inputs.mask_img,
+            tr=TR,
+            events=inputs.events.assign(run=1),
+        )
     )
-    fit = fm.fmri_lm(hrf_term("trial_type", norm="spm"), ds, precision=0.02)
-    cres = fit.contrast(np.array([1.0, 0.0], dtype=np.float64))
+    fit, fit_seconds = _elapsed_seconds(
+        lambda: fm.fmri_lm(hrf_term("trial_type", norm="spm"), ds, precision=0.02)
+    )
+    cres, contrast_seconds = _elapsed_seconds(
+        lambda: fit.contrast(np.array([1.0, 0.0], dtype=np.float64))
+    )
+
+    if timing_sink is not None:
+        timing_sink.update(
+            {
+                "dataset_seconds": dataset_seconds,
+                "fit_seconds": fit_seconds,
+                "contrast_seconds": contrast_seconds,
+            }
+        )
 
     return PipelineOutput(
         arrays={
@@ -141,7 +168,11 @@ def fmrimod_pipeline(inputs: SpmAuditoryInputs) -> PipelineOutput:
     )
 
 
-def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
+def make_case(
+    max_voxels: int = MAX_VOXELS,
+    *,
+    timing_sink: dict[str, float] | None = None,
+) -> ParityCase:
     """Build the P1 SPM auditory parity case.
 
     With ``hrf(..., norm="spm")`` the design column lands on Nilearn's
@@ -152,7 +183,10 @@ def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
     """
     return ParityCase(
         name="tier_a_spm_auditory",
-        fmrimod_pipeline=fmrimod_pipeline,
+        fmrimod_pipeline=lambda inputs: fmrimod_pipeline(
+            inputs,
+            timing_sink=timing_sink,
+        ),
         reference_pipeline=nilearn_pipeline,
         inputs=load_inputs(max_voxels=max_voxels),
         tolerances={
@@ -180,9 +214,17 @@ def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
 
 
 def main() -> None:
-    result = run(make_case())
+    timings: dict[str, float] = {}
+    result = run(make_case(timing_sink=timings))
     out_dir = Path(__file__).resolve().parent / "reports"
-    render(result, out_dir)
+    json_path, _ = render(result, out_dir)
+    payload = json.loads(json_path.read_text())
+    payload["timings"] = {
+        "status": "recorded",
+        "seconds": float(sum(timings.values())),
+        "stages": timings,
+    }
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     if result.status == "fail":
         raise SystemExit(1)
 

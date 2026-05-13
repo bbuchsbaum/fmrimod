@@ -24,10 +24,29 @@ PUBLIC_SEAM_FIELDS = {
     "typed_objects",
     "fmrimod_expresses_better",
 }
+NUMERIC_TIMING_FIELDS = ("seconds", "seconds_total", "wall_seconds")
 
 
 def _load_manifest() -> dict:
     return json.loads(MANIFEST.read_text())
+
+
+def _has_numeric_timing_payload(timings: object) -> bool:
+    if not isinstance(timings, dict):
+        return False
+    if any(
+        isinstance(timings.get(field), (int, float))
+        and not isinstance(timings.get(field), bool)
+        for field in NUMERIC_TIMING_FIELDS
+    ):
+        return True
+    stages = timings.get("stages")
+    if not isinstance(stages, dict) or not stages:
+        return False
+    return all(
+        isinstance(value, (int, float)) and not isinstance(value, bool)
+        for value in stages.values()
+    )
 
 
 def _walk_caveat_ids(value: object) -> set[str]:
@@ -161,6 +180,33 @@ def test_public_or_flagship_artifacts_declare_receipt_status() -> None:
                 f"{item['benchmark_id']} has unknown receipt status "
                 f"{receipt['status']!r}"
             )
+
+
+def test_flagship_workflows_are_complete_public_proof_receipts() -> None:
+    """Flagship rows must be real proof receipts, not aspirational labels."""
+    for item in _load_manifest()["artifacts"]:
+        if item["evidence_level"] != "flagship_workflow":
+            continue
+
+        bid = item["benchmark_id"]
+        assert item["public_seam"] is True, f"{bid} must be a public seam"
+        assert item["typed_objects"], f"{bid} must name typed-object receipts"
+        assert item["fmrimod_expresses_better"], (
+            f"{bid} must explain the typed fmrimod advantage"
+        )
+        assert not item.get("replacement_target"), (
+            f"{bid} is already flagship_workflow and must not carry a "
+            f"replacement_target"
+        )
+
+        timings = item.get("timings")
+        assert isinstance(timings, dict), f"{bid} must carry timings metadata"
+        assert timings.get("status") == "recorded", (
+            f"{bid} must have recorded timings, not {timings.get('status')!r}"
+        )
+        assert _has_numeric_timing_payload(timings), (
+            f"{bid} timings must include numeric seconds or numeric stages"
+        )
 
 
 def test_canaries_name_the_public_workflow_that_should_replace_them() -> None:

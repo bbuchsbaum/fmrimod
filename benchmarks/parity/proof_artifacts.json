@@ -11,8 +11,14 @@
       "fmrimod_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> contrast",
       "caveats": [],
       "timings": {
-        "status": "not_recorded",
-        "next": "wire stage-level timers into the parity harness before treating the report as complete marketing evidence"
+        "status": "recorded",
+        "seconds": 0.0935906670000004,
+        "stages": {
+          "contrast_seconds": 0.0030698749999999997,
+          "dataset_seconds": 0.01582687500000013,
+          "fit_seconds": 0.07469391700000028
+        },
+        "source": "benchmarks/parity/tier_a_spm_auditory/reports/parity_report.json"
       },
       "typed_objects": [
         "fmrimod.dataset.FmriDataset",
@@ -83,8 +89,15 @@
       "fmrimod_path": "benchmarks/parity/tier_group_semantic_survival/workflow.py::run_demo: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
       "caveats": [],
       "timings": {
-        "status": "not_recorded",
-        "next": "add stage-level timings once the README-grade group demo is promoted to docs"
+        "status": "recorded",
+        "seconds": 0.0991808759999997,
+        "stages": {
+          "first_level_seconds": 0.0372889169999997,
+          "group_dataset_seconds": 0.00018512499999978616,
+          "group_fit_seconds": 0.0014443750000001643,
+          "load_inputs_seconds": 0.060262459000000046
+        },
+        "source": "benchmarks/parity/tier_group_semantic_survival/reports/semantic_survival_report.json"
       },
       "typed_objects": [
         "fmrimod.dataset.FmriDataset",

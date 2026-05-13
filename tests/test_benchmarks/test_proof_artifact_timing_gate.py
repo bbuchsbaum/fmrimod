@@ -36,9 +36,7 @@ MANIFEST = REPO_ROOT / "benchmarks" / "parity" / "proof_artifacts.json"
 # the assertions below verify that, so a no-op flip of `status` from
 # "not_recorded" to "recorded" without a payload still fails the test.
 _PENDING_TIMING_ROWS = frozenset({
-    "tier_a_spm_auditory",
     "tier_a_f_confound_drift",
-    "tier_group_semantic_survival",
     "tier_a_factorial_2x2",
     "tier_a_factorial_3x3_parametric",
     "tier_a_fir_unconstrained_hrf",

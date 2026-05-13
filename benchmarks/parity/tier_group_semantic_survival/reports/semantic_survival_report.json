@@ -41,5 +41,15 @@
     "n_subjects": 5
   },
   "name": "tier_group_semantic_survival",
-  "status": "pass"
+  "status": "pass",
+  "timings": {
+    "seconds": 0.03181174997007474,
+    "stages": {
+      "first_level_seconds": 0.017229874967597425,
+      "group_dataset_seconds": 0.0002246249932795763,
+      "group_fit_seconds": 0.0011361250071786344,
+      "load_inputs_seconds": 0.013221125002019107
+    },
+    "status": "recorded"
+  }
 }
