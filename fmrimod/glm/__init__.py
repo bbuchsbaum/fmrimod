@@ -14,8 +14,6 @@ from .compat import (
     compute_lm_contrasts_from_suffstats,
     estimate,
     fit_contrasts,
-    fit_glm_from_matrix,
-    fit_glm_from_suffstats,
     fit_glm_on_transformed_series,
     fit_glm_with_config,
     flip_sign,
@@ -54,6 +52,7 @@ from .fmri_lm import (
     IncompleteFitProvenanceError,
     fmri_lm,
 )
+from .matrix import fit_glm_from_matrix, fit_glm_from_suffstats
 from .replay import (
     ContrastDelta,
     ReplayContractError,

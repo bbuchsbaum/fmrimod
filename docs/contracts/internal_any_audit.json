@@ -1,6 +1,6 @@
 {
   "counts": {
-    "files_scanned": 215,
+    "files_scanned": 216,
     "parse_failures": 0,
     "total_functions": 1963,
     "with_any_annotation": 394,
@@ -10109,212 +10109,112 @@
       "qualname": "fit_contrasts"
     },
     {
-      "endlineno": 392,
+      "endlineno": 407,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 389,
+      "lineno": 388,
       "module": "fmrimod.glm.compat",
-      "qualname": "_MatrixDataset.__init__"
+      "qualname": "fit_glm_on_transformed_series"
     },
     {
-      "endlineno": 397,
-      "has_any_annotation": false,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 394,
-      "module": "fmrimod.glm.compat",
-      "qualname": "_MatrixDataset.get_data"
-    },
-    {
-      "endlineno": 400,
-      "has_any_annotation": false,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 399,
-      "module": "fmrimod.glm.compat",
-      "qualname": "_MatrixDataset.get_censor"
-    },
-    {
-      "endlineno": 408,
-      "has_any_annotation": true,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 404,
-      "module": "fmrimod.glm.compat",
-      "qualname": "_MatrixModel.__init__"
-    },
-    {
-      "endlineno": 413,
+      "endlineno": 426,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
       "lineno": 410,
       "module": "fmrimod.glm.compat",
-      "qualname": "_MatrixModel.design_matrix_array"
-    },
-    {
-      "endlineno": 423,
-      "has_any_annotation": false,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 415,
-      "module": "fmrimod.glm.compat",
-      "qualname": "_MatrixModel.design_matrix"
-    },
-    {
-      "endlineno": 428,
-      "has_any_annotation": false,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 425,
-      "module": "fmrimod.glm.compat",
-      "qualname": "_MatrixModel.contrast_weights"
-    },
-    {
-      "endlineno": 436,
-      "has_any_annotation": false,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 431,
-      "module": "fmrimod.glm.compat",
-      "qualname": "_design_matrix_from_model"
-    },
-    {
-      "endlineno": 458,
-      "has_any_annotation": false,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 439,
-      "module": "fmrimod.glm.compat",
-      "qualname": "fit_glm_on_transformed_series"
-    },
-    {
-      "endlineno": 477,
-      "has_any_annotation": false,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 461,
-      "module": "fmrimod.glm.compat",
       "qualname": "fit_glm_with_config"
     },
     {
-      "endlineno": 509,
+      "endlineno": 479,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 480,
-      "module": "fmrimod.glm.compat",
-      "qualname": "fit_glm_from_matrix"
-    },
-    {
-      "endlineno": 542,
-      "has_any_annotation": false,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 512,
-      "module": "fmrimod.glm.compat",
-      "qualname": "fit_glm_from_suffstats"
-    },
-    {
-      "endlineno": 595,
-      "has_any_annotation": false,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 545,
+      "lineno": 429,
       "module": "fmrimod.glm.compat",
       "qualname": "fmri_ols_fit"
     },
     {
-      "endlineno": 602,
+      "endlineno": 486,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
-      "lineno": 598,
+      "lineno": 482,
       "module": "fmrimod.glm.compat",
       "qualname": "fmri_rlm"
     },
     {
-      "endlineno": 620,
+      "endlineno": 504,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 614,
+      "lineno": 498,
       "module": "fmrimod.glm.compat",
       "qualname": "LowRankControl.to_engine_kwargs"
     },
     {
-      "endlineno": 638,
+      "endlineno": 522,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 623,
+      "lineno": 507,
       "module": "fmrimod.glm.compat",
       "qualname": "lowrank_control"
     },
     {
-      "endlineno": 683,
+      "endlineno": 567,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 641,
+      "lineno": 525,
       "module": "fmrimod.glm.compat",
       "qualname": "paired_diff_block"
     },
     {
-      "endlineno": 708,
+      "endlineno": 592,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 686,
+      "lineno": 570,
       "module": "fmrimod.glm.compat",
       "qualname": "flip_sign"
     },
     {
-      "endlineno": 719,
+      "endlineno": 603,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 711,
+      "lineno": 595,
       "module": "fmrimod.glm.compat",
       "qualname": "t_to_beta_se"
     },
     {
-      "endlineno": 753,
+      "endlineno": 637,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 722,
+      "lineno": 606,
       "module": "fmrimod.glm.compat",
       "qualname": "hrf_smoothing_kernel"
     },
     {
-      "endlineno": 758,
+      "endlineno": 642,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
-      "lineno": 756,
+      "lineno": 640,
       "module": "fmrimod.glm.compat",
       "qualname": "estimate"
     },
@@ -11207,6 +11107,106 @@
       "lineno": 1133,
       "module": "fmrimod.glm.fmri_lm",
       "qualname": "_dict_to_engine_result"
+    },
+    {
+      "endlineno": 33,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 30,
+      "module": "fmrimod.glm.matrix",
+      "qualname": "_MatrixDataset.__init__"
+    },
+    {
+      "endlineno": 38,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 35,
+      "module": "fmrimod.glm.matrix",
+      "qualname": "_MatrixDataset.get_data"
+    },
+    {
+      "endlineno": 41,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 40,
+      "module": "fmrimod.glm.matrix",
+      "qualname": "_MatrixDataset.get_censor"
+    },
+    {
+      "endlineno": 54,
+      "has_any_annotation": true,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 45,
+      "module": "fmrimod.glm.matrix",
+      "qualname": "_MatrixModel.__init__"
+    },
+    {
+      "endlineno": 59,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 56,
+      "module": "fmrimod.glm.matrix",
+      "qualname": "_MatrixModel.design_matrix_array"
+    },
+    {
+      "endlineno": 71,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 61,
+      "module": "fmrimod.glm.matrix",
+      "qualname": "_MatrixModel.design_matrix"
+    },
+    {
+      "endlineno": 76,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 73,
+      "module": "fmrimod.glm.matrix",
+      "qualname": "_MatrixModel.contrast_weights"
+    },
+    {
+      "endlineno": 84,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 79,
+      "module": "fmrimod.glm.matrix",
+      "qualname": "_design_matrix_from_model"
+    },
+    {
+      "endlineno": 116,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 87,
+      "module": "fmrimod.glm.matrix",
+      "qualname": "fit_glm_from_matrix"
+    },
+    {
+      "endlineno": 149,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 119,
+      "module": "fmrimod.glm.matrix",
+      "qualname": "fit_glm_from_suffstats"
     },
     {
       "endlineno": 63,

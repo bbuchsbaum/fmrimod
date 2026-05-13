@@ -32,6 +32,16 @@ def _toy_xy():
     return x, y
 
 
+def test_matrix_fit_helpers_live_under_matrix_module_without_public_break():
+    import fmrimod.glm as glm
+    from fmrimod.glm import matrix
+
+    assert glm.fit_glm_from_matrix is matrix.fit_glm_from_matrix
+    assert glm.fit_glm_from_suffstats is matrix.fit_glm_from_suffstats
+    assert fmrimod.fit_glm_from_matrix is matrix.fit_glm_from_matrix
+    assert fmrimod.fit_glm_from_suffstats is matrix.fit_glm_from_suffstats
+
+
 def test_soft_projection_object_matches_low_level_projection():
     rng = np.random.default_rng(1)
     n = 30
