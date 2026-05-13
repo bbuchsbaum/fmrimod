@@ -8,6 +8,7 @@ information, and methods for computing contrasts.
 from __future__ import annotations
 
 import json
+import warnings
 from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
@@ -38,7 +39,7 @@ from .contrasts import (
     contrast_t_batch,
 )
 from .engine import DEFAULT_ENGINE_OPTIONS, EngineResult, EngineSelector
-from .solver import Projection
+from .solver import ConditionReport, Projection, RunConditionReport
 
 # ── Fit-level reproducibility metadata (VISION.md:99-103) ────────────────
 
@@ -360,6 +361,69 @@ class FmriLm:
         if not callable(design_columns):
             raise TypeError("fitted model does not expose design_columns()")
         return design_columns()
+
+    # -- Rank diagnostics --
+
+    def condition_report(self) -> ConditionReport:
+        """Return rank/conditioning diagnostics for the fitted design.
+
+        For each run, reports the design-matrix column count, numerical
+        rank, residual degrees of freedom, and a best-effort list of
+        column names that the rank-revealing QR identified as linearly
+        dependent on earlier columns. Aggregate-level
+        :attr:`ConditionReport.is_full_rank`,
+        :attr:`ConditionReport.ill_conditioned`, and
+        :attr:`ConditionReport.aliased_columns` summarise across runs.
+
+        Useful for diagnosing collinear nuisance regressors, aliased task
+        regressors, or any other design pathology routing the OLS solve
+        through the SVD pseudoinverse path.
+        """
+        projections = self.projections or []
+        names: list[str] | None
+        try:
+            names = list(self.design_columns().names)
+        except Exception:  # pragma: no cover - design without typed columns
+            names = None
+
+        runs: list[RunConditionReport] = []
+        for run_idx, proj in enumerate(projections):
+            aliased: tuple[str, ...]
+            if names is not None and proj.aliased_indices:
+                aliased = tuple(
+                    names[i] if 0 <= i < len(names) else f"col_{i}"
+                    for i in proj.aliased_indices
+                )
+            else:
+                aliased = tuple(
+                    f"col_{i}" for i in proj.aliased_indices
+                )
+            runs.append(
+                RunConditionReport(
+                    run=run_idx,
+                    n_columns=int(self.n_coefficients),
+                    rank=int(proj.rank),
+                    is_full_rank=bool(proj.is_full_rank),
+                    ill_conditioned=bool(proj.ill_conditioned),
+                    dfres=float(proj.dfres),
+                    aliased_columns=aliased,
+                )
+            )
+        return ConditionReport(runs=tuple(runs))
+
+    @property
+    def is_full_rank(self) -> bool:
+        """True iff every run's realised design matrix is full rank."""
+        projections = self.projections or []
+        if not projections:
+            return True
+        return all(proj.is_full_rank for proj in projections)
+
+    @property
+    def ill_conditioned(self) -> bool:
+        """True iff any run's solve was routed through the SVD pseudoinverse."""
+        projections = self.projections or []
+        return any(proj.ill_conditioned for proj in projections)
 
     # -- Contrast computation --
 
@@ -810,7 +874,7 @@ def fmri_lm(
         legacy, robust_weights = robust_refit(model, config, legacy)
         fit_result = _dict_to_engine_result(legacy, fit_result)
 
-    return FmriLm(
+    fit = FmriLm(
         betas=fit_result.betas,
         sigma=fit_result.sigma,
         residual_df=fit_result.dfres,
@@ -822,6 +886,52 @@ def fmri_lm(
         run_results=fit_result.run_results,
         projections=fit_result.projections,
         provenance=_build_fit_provenance(model, config, eng, fit_kwargs),
+    )
+    _warn_if_ill_conditioned(fit)
+    return fit
+
+
+def _warn_if_ill_conditioned(fit: "FmriLm") -> None:
+    """Emit a UserWarning when any run's design is rank-deficient.
+
+    The pseudoinverse path produces a valid minimum-norm solution and
+    contrasts in the row space of X remain estimable, but individual
+    betas on the aliased columns are not uniquely identified. The
+    warning surfaces this so a typed-API user is not silently working
+    with a rank-deficient design.
+    """
+    projections = fit.projections or []
+    deficient = [
+        (idx, proj) for idx, proj in enumerate(projections) if not proj.is_full_rank
+    ]
+    if not deficient:
+        return
+    report = fit.condition_report()
+    parts = []
+    for run in report.runs:
+        if run.is_full_rank:
+            continue
+        names = (
+            ", ".join(run.aliased_columns)
+            if run.aliased_columns
+            else "<unidentified>"
+        )
+        parts.append(
+            f"run={run.run}: rank={run.rank}/{run.n_columns}, "
+            f"dfres={run.dfres:g}, aliased columns: {names}"
+        )
+    detail = "; ".join(parts)
+    warnings.warn(
+        "fmri_lm(): realised design is rank-deficient. The solver fell "
+        "back to the SVD pseudoinverse path, so contrasts in the row "
+        "space of X (e.g. linear combinations of identifiable columns) "
+        "stay estimable, but individual betas on the aliased columns "
+        "are not uniquely identified. "
+        f"{detail}. Inspect fit.condition_report() or pass "
+        "nuisance_check='drop' to baseline_model() to prune redundant "
+        "regressors.",
+        UserWarning,
+        stacklevel=2,
     )
 
 

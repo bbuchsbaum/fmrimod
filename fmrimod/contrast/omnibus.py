@@ -37,17 +37,26 @@ class OmnibusContrast:
         Optional tuple of factor-level labels to include, matching
         ``DesignColumn.level``. When empty, every column carrying the named
         term contributes one row to the resulting F matrix.
+    basis_ix
+        Optional tuple of 1-indexed basis-function positions to include,
+        matching ``DesignColumn.basis_ix``. When empty, every basis function
+        present for the selected levels contributes a row. Useful for
+        multi-basis HRFs (e.g. FIR, spmg3) when only a subset of lags is of
+        interest.
     name
         Optional contrast name; defaults to ``"<term>_omnibus"``.
     """
 
     term: str
     levels: tuple[str, ...] = ()
+    basis_ix: tuple[int, ...] = ()
     name: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.levels, tuple):
             object.__setattr__(self, "levels", tuple(self.levels))
+        if not isinstance(self.basis_ix, tuple):
+            object.__setattr__(self, "basis_ix", tuple(self.basis_ix))
 
     @property
     def display_name(self) -> str:
@@ -121,6 +130,29 @@ class OmnibusContrast:
                         "check requested level names against the event-table "
                         "values, or remove the levels= constraint to include "
                         "every column carrying the term."
+                    ),
+                )
+
+        if self.basis_ix:
+            wanted_basis = set(self.basis_ix)
+            available_basis = sorted({
+                col.basis_ix for col in selected if col.basis_ix is not None
+            })
+            selected = [col for col in selected if col.basis_ix in wanted_basis]
+            present_basis = {
+                col.basis_ix for col in selected if col.basis_ix is not None
+            }
+            missing_basis = wanted_basis - present_basis
+            if missing_basis:
+                raise DesignProvenanceError(
+                    f"OmnibusContrast(term={self.term!r}): no design columns "
+                    f"match basis_ix={sorted(missing_basis)!r}; "
+                    f"available basis_ix={available_basis!r}",
+                    weak_fields=("basis_ix",),
+                    repair_path=(
+                        "check requested basis_ix against the HRF's nbasis, "
+                        "or remove the basis_ix= constraint to include every "
+                        "basis function carrying the term."
                     ),
                 )
 

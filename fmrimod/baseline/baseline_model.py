@@ -1216,28 +1216,31 @@ def _make_nuisance_term(
         number of blocks, or if row counts are inconsistent.
     """
     block_lens = _get_block_lengths(sframe)
-    matrices = [
-        mat.to_numpy(dtype=float)
-        for mat in _as_nuisance_matrices(nuisance_list, sframe)
-    ]
-    
+    nuisance_dfs = list(_as_nuisance_matrices(nuisance_list, sframe))
+    matrices = [df.to_numpy(dtype=float) for df in nuisance_dfs]
+
     # Create block diagonal matrix
     full_matrix = _block_diagonal(matrices)
-    
-    # Generate column names and indices
+
+    # Generate column names and indices. Preserve user-supplied column
+    # labels when available so rank/aliasing diagnostics surface the
+    # original confound name ("motion_y") rather than the synthetic
+    # "nuis_runN_cM" placeholder.
     col_names = []
     col_indices = []
     current_col = 0
-    
-    for i, mat in enumerate(matrices):
-        n_cols = mat.shape[1]
+
+    for i, df in enumerate(nuisance_dfs):
         block_cols = []
-        
-        for j in range(n_cols):
-            col_names.append(f'nuis_run{i+1}_c{j+1}')
+        for j, source_name in enumerate(list(df.columns)):
+            label = str(source_name)
+            placeholder = label == "" or label.lower() == "nan" or label.startswith("V")
+            if placeholder and label[1:].isdigit():
+                col_names.append(f'nuis_run{i+1}_c{j+1}')
+            else:
+                col_names.append(f'nuis_run{i+1}_{label}')
             block_cols.append(current_col)
             current_col += 1
-        
         col_indices.append(block_cols)
     
     # Generate row indices

@@ -632,10 +632,12 @@ class EventModel(ModelProtocol):
         nb = max(int(basis_total or 1), 1)
         facts = []
         if nb > 1 and len(column_names) == len(condition_tags) * nb:
+            # Condition-major to match the convolver's per-level hstack:
+            # outer loop over conditions, inner loop over basis functions.
             expanded = [
                 (condition, level, basis_ix)
-                for basis_ix in range(1, nb + 1)
                 for condition, level in zip(condition_tags, levels)
+                for basis_ix in range(1, nb + 1)
             ]
         else:
             expanded = [
@@ -693,9 +695,44 @@ class EventModel(ModelProtocol):
         event_term: EventTerm,
         condition_tags: List[str],
     ) -> List[str]:
-        """Return raw level labels when construction metadata has them."""
+        """Return raw level labels when construction metadata has them.
+
+        For mixed categorical/continuous interactions, the convolver iterates
+        over the Cartesian product of categorical levels (outer) and then
+        each continuous event's columns (inner), so the level identity per
+        column is the categorical level-combo string. Returning that here —
+        instead of the placeholder ``get_column_names()`` tags — lets typed
+        contrast resolution (``DesignColumns.where(level=...)``) find the
+        per-condition parametric columns.
+        """
         if event_term.interaction:
-            return condition_tags
+            if event_term.is_categorical:
+                return list(condition_tags)
+            cat_events = [
+                e for e in event_term.events if e.event_type == "categorical"
+            ]
+            cont_events = [
+                e for e in event_term.events if e.event_type != "categorical"
+            ]
+            if not cat_events:
+                return list(condition_tags)
+            cont_count = 0
+            for cont in cont_events:
+                if cont.event_type == "matrix":
+                    cont_count += int(getattr(cont, "n_columns", 1))
+                elif cont.event_type == "basis":
+                    cont_count += int(getattr(cont, "n_basis", 1))
+                else:
+                    cont_count += 1
+            cont_count = max(cont_count, 1)
+            level_lists = [list(e.levels) for e in cat_events]
+            combo_strings = [":".join(combo) for combo in iter_product(*level_lists)]
+            levels = [combo for combo in combo_strings for _ in range(cont_count)]
+            if len(levels) != len(condition_tags):
+                # Mismatch: fall back to placeholder tags so we never claim
+                # provenance we cannot justify.
+                return list(condition_tags)
+            return levels
         event = event_term.events[0]
         if event.event_type == "categorical":
             return [str(level) for level in event.levels]

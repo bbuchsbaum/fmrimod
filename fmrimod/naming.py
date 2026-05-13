@@ -387,20 +387,24 @@ def add_basis_suffix(cond_tags: List[str], nb: int) -> List[str]:
     Examples
     --------
     >>> add_basis_suffix(['cond.A', 'cond.B'], nb=2)
-    ['cond.A_b01', 'cond.B_b01', 'cond.A_b02', 'cond.B_b02']
+    ['cond.A_b01', 'cond.A_b02', 'cond.B_b01', 'cond.B_b02']
     >>> add_basis_suffix(['cond.A'], nb=1)
     ['cond.A']
     """
     if nb <= 1:
         return cond_tags
-    
-    # Expand in basis-major order to match fmridesign:
-    # [cond1_b01, cond2_b01, ..., cond1_b02, cond2_b02, ...]
+
+    # Expand in condition-major order, matching what the categorical
+    # convolver produces (hstack of per-level (n_samples, nb) blocks):
+    # [cond1_b01, cond1_b02, ..., cond1_b<nb>, cond2_b01, ...].
+    # Earlier versions used basis-major order, which mis-aligned the column
+    # names and column_facts with the realised design matrix for any
+    # multi-basis HRF with more than one condition.
     result = []
-    for j in range(1, nb + 1):
-        for tag in cond_tags:
+    for tag in cond_tags:
+        for j in range(1, nb + 1):
             result.append(tag + basis_suffix(j, nb))
-    
+
     return result
 
 

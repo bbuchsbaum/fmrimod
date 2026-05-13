@@ -78,10 +78,13 @@ class HrfTerm(Term):
         Optional :class:`~fmrimod.contrast.ContrastSpec` objects attached to
         this term (filled in by bd-01KRFMD3F66TENJMP6BQYE32HC).
     modulators
-        Names of parametric-modulator columns from the event table. The
-        slot is typed but realisation is deferred to a follow-up bead;
-        v1 accepts the names and passes them through to the lowered
-        event-model term, where they are ignored until that landing.
+        Names of parametric-modulator columns from the event table. Each
+        modulator expands into one additional event-model term during
+        compilation, mirroring the legacy ``trial_type:hrf(...) +
+        trial_type:rt:hrf(...)`` formula path. The main term keeps any
+        declared ``contrasts``; the parametric terms inherit the same HRF,
+        ``durations``, ``lag``, ``subset``, ``prefix``, ``normalize`` and
+        ``summate``.
     durations
         Per-event duration; either a column name in the event table or a
         scalar.  ``None`` defers to the spec-level default.
