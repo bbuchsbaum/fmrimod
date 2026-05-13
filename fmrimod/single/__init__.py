@@ -204,8 +204,165 @@ def estimate_single_trial(
     raise ValueError(f"Unknown method: {method!r}")
 
 
+def estimate_single_trial_from_dataset(
+    dataset: object,
+    spec: object,
+    *,
+    method: SingleTrialMethodLike = "lss",
+    confounds: NDArray[np.float64] | None = None,
+    return_se: bool = False,
+    block: object = None,
+    durations: object = None,
+    precision: float | None = None,
+    prewhiten: PrewhitenConfig | None = None,
+    nuisance_projector: NuisanceProjector | None = None,
+    chunk_size: int | None = None,
+    oasis_config: OasisConfig | None = None,
+    sbhm_config: SbhmConfig | None = None,
+    sbhm_library: SbhmLibrary | None = None,
+    include_intercept: bool = False,
+) -> SingleTrialResult:
+    """Estimate per-trial betas from an FmriDataset and trialwise spec.
+
+    Public-seam alternative to :func:`estimate_single_trial` that consumes a
+    :class:`~fmrimod.dataset.FmriDataset` plus a spec containing a
+    :func:`~fmrimod.trialwise` construction, builds the trial design matrix
+    from spec + dataset events, and delegates to
+    :func:`estimate_single_trial`.
+
+    Parameters
+    ----------
+    dataset : FmriDataset
+        Typed dataset carrying time-series data and an event table.
+    spec : str or list of Term or EventModelBuilder
+        Trialwise specification. Slice 1 accepts whatever
+        :func:`fmrimod.event_model` accepts: a string formula such as
+        ``"trialwise()"`` or ``"trialwise(add_sum=True)"``, a list of
+        :class:`~fmrimod.formula.base.Term` objects, or a builder.
+        Routing typed :class:`~fmrimod.spec.Spec`/``Term`` trees through this
+        wrapper waits on the typed compile path learning the trialwise
+        placeholder lowering (separate follow-on slice).
+    method : SingleTrialMethod or literal string
+        Estimator selector; see :func:`estimate_single_trial`.
+    confounds, return_se, prewhiten, nuisance_projector, chunk_size,
+        oasis_config, sbhm_config, sbhm_library, include_intercept
+        Forwarded to :func:`estimate_single_trial`.
+    block, durations, precision
+        Forwarded to :func:`fmrimod.event_model`. ``block`` and ``durations``
+        default to event-table column auto-detection (``run``/``block`` and
+        ``duration``).
+
+    Returns
+    -------
+    SingleTrialResult
+        Carries ``trial_labels`` derived from the trialwise term column
+        names. Richer trial/run/subject metadata and spatial-identity
+        capability label are deferred to follow-on slices of
+        ``bd-01KRGQCT34QWSYKQ38BVFHD51E``.
+    """
+    # Build the EventModel via the design module directly. The typed
+    # fmrimod.spec compile path does not yet special-case trialwise() terms
+    # (the _trialwise_placeholder_ event is only resolved by
+    # fmrimod.design.event_model); routing trialwise designs through the
+    # established design entry point is the working path for Slice 1.
+    # Imports are local to avoid a fmrimod.single → fmrimod.design import
+    # cycle at module load.
+    from ..design.event_model import event_model as _build_event_model
+
+    events_df = getattr(dataset, "event_table", None)
+    if events_df is None:
+        raise ValueError(
+            "estimate_single_trial_from_dataset(dataset, spec) requires the "
+            "dataset to carry an event table; pass events= to "
+            "fmri_dataset(...) so the trialwise spec can be compiled."
+        )
+
+    sampling_frame = dataset.get_sampling_frame()
+
+    resolved_block = block
+    if resolved_block is None:
+        if "run" in events_df.columns:
+            resolved_block = "run"
+        elif "block" in events_df.columns:
+            resolved_block = "block"
+        else:
+            resolved_block = np.ones(len(events_df), dtype=int)
+
+    resolved_durations = durations
+    if resolved_durations is None and "duration" in events_df.columns:
+        resolved_durations = "duration"
+
+    event_model = _build_event_model(
+        formula=spec,
+        data=events_df,
+        block=resolved_block,
+        sampling_frame=sampling_frame,
+        durations=resolved_durations,
+        precision=precision,
+    )
+
+    trial_labels = _extract_trialwise_labels(event_model)
+    if not trial_labels:
+        raise ValueError(
+            "estimate_single_trial_from_dataset(dataset, spec) requires the "
+            "spec to contain a trialwise() term; the compiled event model "
+            "has no trialwise columns."
+        )
+
+    X = np.ascontiguousarray(
+        np.asarray(event_model.design_matrix, dtype=np.float64)
+    )
+    baseline_regressors: NDArray[np.float64] | None = None
+
+    Y = np.asarray(dataset.get_data(), dtype=np.float64)
+
+    return estimate_single_trial(
+        Y, X,
+        method=method,
+        confounds=confounds,
+        trial_labels=trial_labels,
+        return_se=return_se,
+        prewhiten=prewhiten,
+        nuisance_projector=nuisance_projector,
+        chunk_size=chunk_size,
+        oasis_config=oasis_config,
+        sbhm_config=sbhm_config,
+        sbhm_library=sbhm_library,
+        baseline_regressors=baseline_regressors,
+        include_intercept=include_intercept,
+    )
+
+
+def _extract_trialwise_labels(event_model: object) -> list[str] | None:
+    """Return the column names belonging to trialwise term(s) in ``event_model``.
+
+    Returns ``None`` when no trialwise terms are present; an empty list is
+    treated as the same signal.
+    """
+    terms = getattr(event_model, "terms", None)
+    if not terms:
+        return None
+    column_indices = getattr(event_model, "column_indices", None)
+    if column_indices is None:
+        return None
+    column_names = getattr(event_model, "column_names", None)
+    if column_names is None:
+        return None
+    labels: list[str] = []
+    for term in terms:
+        if not getattr(term, "_is_trialwise", False):
+            continue
+        positions = column_indices.get(getattr(term, "name", None))
+        if positions is None:
+            continue
+        for i in positions:
+            labels.append(column_names[i])
+    return labels or None
+
+
 __all__ = [
     "estimate_single_trial",
+    "estimate_single_trial_from_dataset",
     "lss_single_trial",
     "lsa_single_trial",
     "oasis_single_trial",
