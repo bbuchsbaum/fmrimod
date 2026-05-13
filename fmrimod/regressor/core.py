@@ -15,6 +15,24 @@ from ..hrf.generators import make_hrf
 from .neural_input import neural_input_core
 from .convolution import convolve_hrf
 
+# The factory input type. Strings and callables are coerced to HRF via
+# make_hrf() in _coerce_hrf(); the stored Regressor.hrf field is strictly
+# typed below (Union[HRF, List[HRF]]).
+HRFLike = Union[HRF, str, Callable, List[Union[HRF, str, Callable]]]
+
+
+def _coerce_hrf(hrf: HRFLike) -> Union[HRF, List[HRF]]:
+    """Normalize a user-supplied HRF spec to a typed HRF or list of HRFs.
+
+    Strings and callables are resolved through :func:`make_hrf`; HRF values
+    pass through unchanged. List inputs are coerced element-wise.
+    """
+    if isinstance(hrf, list):
+        return [h if isinstance(h, HRF) else make_hrf(h, lag=0) for h in hrf]
+    if isinstance(hrf, HRF):
+        return hrf
+    return make_hrf(hrf, lag=0)
+
 
 def _recycle_or_error(
     values: ArrayLike, 
@@ -129,12 +147,13 @@ class Regressor:
         # --- Handle list-of-HRFs (trial-varying) ---
         _hrf_is_list = isinstance(self.hrf, list)
         if _hrf_is_list:
-            # Validate every element
             for i, h in enumerate(self.hrf):
-                if isinstance(h, str):
-                    self.hrf[i] = make_hrf(h, lag=0)
-                elif not isinstance(h, HRF):
-                    self.hrf[i] = make_hrf(h, lag=0)
+                if not isinstance(h, HRF):
+                    raise TypeError(
+                        f"Regressor.hrf list element {i} must be an HRF; "
+                        f"got {type(h).__name__}. Use the regressor() factory "
+                        "to coerce strings or callables."
+                    )
             # Recycle length-1 list
             if len(self.hrf) == 1 and n_onsets > 0:
                 self.hrf = self.hrf * n_onsets
@@ -169,11 +188,12 @@ class Regressor:
             self.filtered_all = True
 
         # Ensure HRF is valid (single-HRF case)
-        if not _hrf_is_list:
-            if isinstance(self.hrf, str):
-                self.hrf = make_hrf(self.hrf, lag=0)
-            elif not isinstance(self.hrf, HRF):
-                self.hrf = make_hrf(self.hrf, lag=0)
+        if not _hrf_is_list and not isinstance(self.hrf, HRF):
+            raise TypeError(
+                f"Regressor.hrf must be an HRF or list of HRFs; "
+                f"got {type(self.hrf).__name__}. Use the regressor() factory "
+                "to coerce strings or callables."
+            )
 
         # Update span from HRF only if not explicitly set
         if hasattr(self, '_span_set'):
@@ -367,7 +387,7 @@ class Regressor:
 
 def regressor(
     onsets: ArrayLike,
-    hrf: Union[HRF, List[HRF], str, Callable] = "spmg1",
+    hrf: HRFLike = "spmg1",
     duration: Union[float, ArrayLike] = 0.0,
     amplitude: Union[float, ArrayLike] = 1.0,
     span: float = 40.0,
@@ -400,7 +420,7 @@ def regressor(
     """
     return Regressor(
         onsets=onsets,
-        hrf=hrf,
+        hrf=_coerce_hrf(hrf),
         duration=duration,
         amplitude=amplitude,
         span=span,
@@ -466,7 +486,7 @@ class RegressorSet:
 def regressor_set(
     onsets: ArrayLike,
     fac: ArrayLike,
-    hrf: Union[HRF, str, Callable] = "spmg1",
+    hrf: HRFLike = "spmg1",
     duration: Union[float, ArrayLike] = 0.0,
     amplitude: Union[float, ArrayLike] = 1.0,
     span: float = 40.0,
@@ -501,6 +521,7 @@ def regressor_set(
     # Convert inputs
     onsets = np.asarray(onsets, dtype=np.float64)
     fac = np.asarray(fac)
+    hrf = _coerce_hrf(hrf)
 
     # Match R as.factor() level ordering: sorted unique values.
     if np.issubdtype(fac.dtype, np.number):
@@ -545,14 +566,14 @@ def regressor_set(
     return RegressorSet(regressors=regressors, levels=levels_list)
 
 
-def null_regressor(hrf=None, span: float = 24.0):
+def null_regressor(hrf: Optional[HRFLike] = None, span: float = 24.0) -> Regressor:
     """Create a null (empty) regressor with no events.
 
     Convenience function for creating a Regressor with zero events,
     used as a placeholder or baseline regressor.
 
     Args:
-        hrf: HRF object to associate (default: SPM_CANONICAL)
+        hrf: HRF object, string name, or callable (default: SPM_CANONICAL)
         span: Temporal span (default: 24.0)
 
     Returns:
@@ -560,5 +581,7 @@ def null_regressor(hrf=None, span: float = 24.0):
     """
     if hrf is None:
         from ..hrf.library import SPM_CANONICAL
-        hrf = SPM_CANONICAL
-    return Regressor(onsets=np.array([]), hrf=hrf, amplitude=0.0, span=span)
+        hrf_typed: Union[HRF, List[HRF]] = SPM_CANONICAL
+    else:
+        hrf_typed = _coerce_hrf(hrf)
+    return Regressor(onsets=np.array([]), hrf=hrf_typed, amplitude=0.0, span=span)

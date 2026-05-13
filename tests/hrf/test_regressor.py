@@ -136,9 +136,30 @@ class TestRegressor:
         """Test HRF object input."""
         hrf = get_hrf("gamma")
         reg = regressor([10, 30], hrf=hrf)
-        
+
         assert reg.hrf is hrf
-    
+
+    def test_direct_regressor_rejects_unresolved_hrf(self):
+        """Constructing Regressor directly with a string/callable must raise.
+
+        The string/callable surface lives only on the regressor() factory, so
+        the dataclass is honest about what it actually stores.
+        """
+        with pytest.raises(TypeError, match="must be an HRF"):
+            Regressor(
+                onsets=np.array([10.0]),
+                duration=np.array([0.0]),
+                amplitude=np.array([1.0]),
+                hrf="spmg1",
+            )
+        with pytest.raises(TypeError, match="list element"):
+            Regressor(
+                onsets=np.array([10.0]),
+                duration=np.array([0.0]),
+                amplitude=np.array([1.0]),
+                hrf=["spmg1"],
+            )
+
     def test_neural_input_generation(self):
         """Test neural input generation."""
         onsets = [10, 30, 50]
