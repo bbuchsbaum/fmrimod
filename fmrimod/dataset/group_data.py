@@ -131,10 +131,10 @@ def _looks_like_fmri_lm(obj: Any) -> bool:
     return all(hasattr(obj, attr) for attr in required_attrs)
 
 
-def detect_group_data_format(data: Any) -> str:
+def detect_group_data_format(data: object) -> str:
     """Best-effort format detection for group_data inputs."""
-    def _as_path_string(value: Any) -> str:
-        return str(Path(value))
+    def _as_path_string(value: object) -> str:
+        return str(Path(value))  # type: ignore[arg-type]
 
     if isinstance(data, (str, os.PathLike)):
         data = [data]
@@ -309,8 +309,8 @@ def group_data_from_nifti(
 
 
 def group_data_from_csv(
-    data: Sequence[Any] | str | pd.DataFrame | os.PathLike,
-    effect_cols: Mapping[str, str] | Sequence[str] | Sequence[str] | Mapping[Any, Any],
+    data: str | pd.DataFrame | os.PathLike,
+    effect_cols: Mapping[str, str] | Sequence[str],
     subject_col: str = "subject",
     roi_col: Optional[str] = None,
     contrast_col: Optional[str] = None,
@@ -405,7 +405,7 @@ def group_data_from_csv(
 
 
 def group_data_from_fmrilm(
-    lm_list: Sequence[Any],
+    lm_list: Sequence[object],
     contrast: Optional[str] = None,
     stat: Sequence[str] = ("beta", "se"),
     subjects: Optional[Sequence[str]] = None,
@@ -438,9 +438,9 @@ def group_data_from_fmrilm(
 
 
 def group_data(
-    data: Any,
+    data: object,
     format: str = "auto",
-    **kwargs: Any,
+    **kwargs: object,
 ) -> GroupData:
     """Create a ``GroupData`` object from various supported inputs."""
     if format not in ("auto", *ALLOWED_FORMATS):

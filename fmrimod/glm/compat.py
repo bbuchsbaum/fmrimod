@@ -97,7 +97,7 @@ def soft_projection(
     N: ArrayLike,
     lam: Union[float, str] = "auto",
     Y: Optional[ArrayLike] = None,
-    **kwargs: Any,
+    **kwargs: object,
 ) -> SoftProjection:
     """Create a ridge-regularized nuisance projection.
 
@@ -224,9 +224,9 @@ def _contrast_to_array(spec: Any, p: int, columns: Optional[list[str]]) -> NDArr
 
 def _split_contrasts(
     p: int,
-    contrasts: Optional[Mapping[str, Any]],
-    t_contrasts: Optional[Mapping[str, Any]],
-    f_contrasts: Optional[Mapping[str, Any]],
+    contrasts: Optional[Mapping[str, object]],
+    t_contrasts: Optional[Mapping[str, object]],
+    f_contrasts: Optional[Mapping[str, object]],
     columns: Optional[list[str]],
 ) -> tuple[Dict[str, NDArray[np.float64]], Dict[str, NDArray[np.float64]]]:
     t_out: Dict[str, NDArray[np.float64]] = {}
@@ -286,9 +286,9 @@ def compute_lm_contrasts(
     df: float,
     sigma: Optional[ArrayLike] = None,
     sigma2: Optional[ArrayLike] = None,
-    contrasts: Optional[Mapping[str, Any]] = None,
-    t_contrasts: Optional[Mapping[str, Any]] = None,
-    f_contrasts: Optional[Mapping[str, Any]] = None,
+    contrasts: Optional[Mapping[str, object]] = None,
+    t_contrasts: Optional[Mapping[str, object]] = None,
+    f_contrasts: Optional[Mapping[str, object]] = None,
     columns: Optional[Sequence[str]] = None,
     output: str = "stacked",
     robust_weights: Optional[ArrayLike] = None,
@@ -335,7 +335,7 @@ def compute_lm_contrasts_from_suffstats(
     df: float,
     sigma: Optional[ArrayLike] = None,
     sigma2: Optional[ArrayLike] = None,
-    **kwargs: Any,
+    **kwargs: object,
 ) -> Union[pd.DataFrame, Dict[str, ContrastResult]]:
     """Compute contrast statistics from design/data sufficient statistics."""
     XtX_arr = np.asarray(XtX, dtype=np.float64)
@@ -364,15 +364,15 @@ def compute_lm_contrasts_from_suffstats(
 
 
 def fit_contrasts(
-    object: Any,
-    contrasts: Mapping[str, Any],
+    fit: object,
+    contrasts: Mapping[str, object],
     output: str = "list",
-    **kwargs: Any,
+    **kwargs: object,
 ) -> Union[Dict[str, ContrastResult], pd.DataFrame]:
     """Fit contrasts on an ``FmriLm`` result or raw matrix payload."""
-    if isinstance(object, FmriLm):
-        results = object.compute_contrasts(
-            {str(name): _contrast_to_array(spec, object.n_coefficients, None) for name, spec in contrasts.items()}
+    if isinstance(fit, FmriLm):
+        results = fit.compute_contrasts(
+            {str(name): _contrast_to_array(spec, fit.n_coefficients, None) for name, spec in contrasts.items()}
         )
         if output == "list":
             return results
@@ -380,9 +380,9 @@ def fit_contrasts(
             return pd.concat([_contrast_result_frame(res) for res in results.values()], ignore_index=True)
         raise ValueError("output must be 'list' or 'stacked'")
 
-    if isinstance(object, Mapping):
-        return compute_lm_contrasts(contrasts=contrasts, output=output, **object, **kwargs)
-    raise TypeError("object must be an FmriLm result or a matrix payload mapping")
+    if isinstance(fit, Mapping):
+        return compute_lm_contrasts(contrasts=contrasts, output=output, **fit, **kwargs)
+    raise TypeError("fit must be an FmriLm result or a matrix payload mapping")
 
 
 class _MatrixDataset:
@@ -428,7 +428,7 @@ class _MatrixModel:
         return {}
 
 
-def _design_matrix_from_model(model: Any) -> NDArray[np.float64]:
+def _design_matrix_from_model(model: object) -> NDArray[np.float64]:
     if hasattr(model, "design_matrix_array"):
         return np.asarray(model.design_matrix_array(run=0), dtype=np.float64)
     if hasattr(model, "design_matrix"):
@@ -437,10 +437,10 @@ def _design_matrix_from_model(model: Any) -> NDArray[np.float64]:
 
 
 def fit_glm_on_transformed_series(
-    model: Any,
+    model: object,
     Y: ArrayLike,
     cfg: Optional[FmriLmConfig] = None,
-    dataset: Optional[Any] = None,
+    dataset: Optional[object] = None,
     strategy: str = "external",
     engine: str = "runwise",
 ) -> FmriLm:
@@ -459,10 +459,10 @@ def fit_glm_on_transformed_series(
 
 
 def fit_glm_with_config(
-    model: Any,
+    model: object,
     Y: ArrayLike,
     cfg: Optional[FmriLmConfig] = None,
-    dataset: Optional[Any] = None,
+    dataset: Optional[object] = None,
     strategy: str = "external",
     engine: str = "runwise",
 ) -> FmriLm:
@@ -480,7 +480,7 @@ def fit_glm_with_config(
 def fit_glm_from_matrix(
     X: ArrayLike,
     Y: ArrayLike,
-    model: Any = None,
+    model: object = None,
     cfg: Optional[FmriLmConfig] = None,
     strategy: str = "external",
     engine: str = "runwise",
@@ -510,13 +510,13 @@ def fit_glm_from_matrix(
 
 
 def fit_glm_from_suffstats(
-    model: Any,
+    model: object,
     XtX: ArrayLike,
     XtS: ArrayLike,
     StS: ArrayLike,
     df: float,
     cfg: Optional[FmriLmConfig] = None,
-    dataset: Optional[Any] = None,
+    dataset: Optional[object] = None,
     strategy: str = "external",
     engine: str = "suffstats",
 ) -> FmriLm:
@@ -548,7 +548,7 @@ def fmri_ols_fit(
     voxelwise: Optional[ArrayLike] = None,
     center_voxelwise: bool = True,
     voxel_name: str = "voxel_cov",
-) -> Dict[str, Any]:
+) -> Dict[str, object]:
     """Fit matrix OLS and return beta, SE, and t matrices."""
     Y_arr = np.asarray(Y, dtype=np.float64)
     X_arr = np.asarray(X, dtype=np.float64)
@@ -595,7 +595,7 @@ def fmri_ols_fit(
     }
 
 
-def fmri_rlm(model: Any, config: Optional[FmriLmConfig] = None, **kwargs: Any) -> FmriLm:
+def fmri_rlm(model: object, config: Optional[FmriLmConfig] = None, **kwargs: object) -> FmriLm:
     """Fit a robust GLM using the normal Python ``fmri_lm`` model contract."""
     base = config or FmriLmConfig()
     cfg = replace(base, robust=replace(base.robust, enabled=True))
@@ -604,15 +604,15 @@ def fmri_rlm(model: Any, config: Optional[FmriLmConfig] = None, **kwargs: Any) -
 
 @dataclass
 class LowRankControl:
-    parcels: Optional[Any] = None
+    parcels: Optional[object] = None
     landmarks: Optional[int] = None
     k_neighbors: int = 16
-    time_sketch: Optional[Mapping[str, Any]] = None
+    time_sketch: Optional[Mapping[str, object]] = None
     ncomp: Optional[int] = None
     noise_pcs: int = 0
 
-    def to_engine_kwargs(self) -> Dict[str, Any]:
-        out: Dict[str, Any] = {}
+    def to_engine_kwargs(self) -> Dict[str, object]:
+        out: Dict[str, object] = {}
         if self.time_sketch:
             out.update(dict(self.time_sketch))
         if self.ncomp is not None:
@@ -621,10 +621,10 @@ class LowRankControl:
 
 
 def lowrank_control(
-    parcels: Optional[Any] = None,
+    parcels: Optional[object] = None,
     landmarks: Optional[int] = None,
     k_neighbors: int = 16,
-    time_sketch: Optional[Mapping[str, Any]] = None,
+    time_sketch: Optional[Mapping[str, object]] = None,
     ncomp: Optional[int] = None,
     noise_pcs: int = 0,
 ) -> LowRankControl:
@@ -639,10 +639,10 @@ def lowrank_control(
 
 
 def paired_diff_block(
-    blkA: Mapping[str, Any],
-    blkB: Mapping[str, Any],
+    blkA: Mapping[str, object],
+    blkB: Mapping[str, object],
     rho: ArrayLike = 0,
-) -> Dict[str, Any]:
+) -> Dict[str, object]:
     """Compute paired within-subject differences for group-data blocks."""
     YA = np.asarray(blkA["Y"], dtype=np.float64)
     YB = np.asarray(blkB["Y"], dtype=np.float64)
@@ -683,7 +683,7 @@ def paired_diff_block(
     }
 
 
-def flip_sign(fit: Any, coef: Optional[Sequence[str]] = None) -> Any:
+def flip_sign(fit: object, coef: Optional[Sequence[str]] = None) -> object:
     """Flip coefficient-like signed outputs in a mapping or fitted object."""
     names = set(coef or [])
     elements = ("beta", "t", "z", "z_contrast", "t_contrast")
@@ -753,6 +753,6 @@ def hrf_smoothing_kernel(
     return K[keep, keep]
 
 
-def estimate(*args: Any, **kwargs: Any) -> None:
+def estimate(*args: object, **kwargs: object) -> None:
     """Deprecated fmrireg helper retained only to guide migration."""
     raise RuntimeError("estimate() is deprecated. Use estimate_betas() instead.")

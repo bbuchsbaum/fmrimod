@@ -81,6 +81,11 @@ def empirical_hrf(
     )
 
 
-def gen_empirical_hrf(*args, **kwargs) -> HRF:
+def gen_empirical_hrf(
+    t: ArrayLike,
+    y: ArrayLike,
+    name: str = "empirical_hrf",
+    span: Optional[float] = None,
+) -> HRF:
     """R-compatible alias for :func:`empirical_hrf`."""
-    return empirical_hrf(*args, **kwargs)
+    return empirical_hrf(t, y, name=name, span=span)

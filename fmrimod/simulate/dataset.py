@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Callable, Optional, Union
 
 import numpy as np
 from numpy.typing import NDArray
 
+from ..hrf.core import HRF
 from ..sampling import SamplingFrame
 from ..regressor import regressor
+
+
+HrfSpec = Union[HRF, Callable[..., NDArray[np.float64]], str]
+"""Accepted HRF specifier: typed HRF, registry key, or callable."""
 
 
 def simulate_simple_dataset(
@@ -16,7 +21,7 @@ def simulate_simple_dataset(
     nreps: int = 12,
     tr: float = 1.5,
     snr: float = 0.5,
-    hrf: Any = None,
+    hrf: Optional[HrfSpec] = None,
     seed: int | None = None,
 ) -> dict[str, NDArray[np.float64] | list[str]]:
     """Simulate a small multi-condition dataset with additive Gaussian noise.

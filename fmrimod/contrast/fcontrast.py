@@ -1,5 +1,7 @@
 """F-contrast matrices for testing main effects and interactions."""
 
+from __future__ import annotations
+
 from typing import Dict, List, Optional, Union, TYPE_CHECKING
 import numpy as np
 from functools import reduce, singledispatch

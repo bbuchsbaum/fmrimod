@@ -125,7 +125,7 @@ def data_chunks(
 
 
 def voxel_index_chunks(
-    x: Any,
+    x: object,
     nchunks: int | None = None,
     chunk_size: int | None = None,
 ) -> list[NDArray[np.intp]]:

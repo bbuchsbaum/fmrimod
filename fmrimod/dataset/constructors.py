@@ -38,9 +38,9 @@ from .protocols import DatasetProtocol
 
 
 def fmri_dataset(
-    img: Any = None,
+    img: object = None,
     *,
-    mask: Any = None,
+    mask: object = None,
     tr: float | Sequence[float] | None = None,
     events: pd.DataFrame | None = None,
     censor: NDArray[np.bool_] | list[NDArray[np.bool_]] | None = None,

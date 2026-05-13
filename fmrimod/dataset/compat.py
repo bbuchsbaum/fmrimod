@@ -3,25 +3,33 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, Mapping, Optional, Sequence
+from typing import Callable, Dict, Mapping, Optional, Sequence, Union
 
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 
+from ..hrf.core import HRF, HrfParamValue
 from ..sampling import SamplingFrame
 from .fmri_dataset import FmriDataset
 from .group_data import GroupData
 
-_BASIS_REGISTRY: Dict[str, Callable[..., Any]] = {}
+
+# An HRF specifier mirrors what the registry / `gen_hrf` accept.
+HrfSpec = Union[HRF, Callable[..., NDArray[np.float64]], str]
+"""HRF specifier accepted by the dataset-compat builders: typed HRF
+instance, registry key string, or callable returning HRF samples."""
+
+_BASIS_REGISTRY: Dict[str, Callable[..., object]] = {}
 
 
 def fmri_mem_dataset(
-    data: Any,
-    tr: Any,
-    run_length: Optional[Any] = None,
+    data: Union[ArrayLike, Sequence[ArrayLike]],
+    tr: Union[float, Sequence[float]],
+    run_length: Optional[Union[int, Sequence[int]]] = None,
     *,
     event_table: Optional[pd.DataFrame] = None,
     mask: Optional[NDArray[np.bool_]] = None,
@@ -96,10 +104,10 @@ class LatentDataset:
 
 
 def latent_dataset(
-    scores: Any,
-    loadings: Optional[Any] = None,
+    scores: ArrayLike,
+    loadings: Optional[ArrayLike] = None,
     tr: float = 1.0,
-    run_length: Optional[Any] = None,
+    run_length: Optional[Union[int, Sequence[int]]] = None,
     *,
     event_table: Optional[pd.DataFrame] = None,
 ) -> LatentDataset:
@@ -121,8 +129,19 @@ def latent_dataset(
     return LatentDataset(scores_arr, None if loadings is None else np.asarray(loadings), sf, event_table)
 
 
-def fmri_latent_lm(model: Any, dataset: LatentDataset, config: Optional[Any] = None, **kwargs: Any) -> Any:
-    """Fit a GLM to latent scores using the normal Python model/config contract."""
+def fmri_latent_lm(
+    model: object,
+    dataset: LatentDataset,
+    config: Optional[object] = None,
+    **kwargs: object,
+) -> object:
+    """Fit a GLM to latent scores using the normal Python model/config contract.
+
+    ``model`` is an ``FmriModel`` and ``config`` an ``FmriLmConfig``;
+    both are typed as ``object`` to avoid a heavy import cycle through
+    the GLM layer at this compat surface. The return is the concrete
+    ``FmriLm`` produced by ``fit_glm_with_config`` (resolved
+    structurally by callers)."""
     from ..glm import fit_glm_with_config
 
     fit = fit_glm_with_config(model, dataset.scores, cfg=config, dataset=dataset, **kwargs)
@@ -131,7 +150,7 @@ def fmri_latent_lm(model: Any, dataset: LatentDataset, config: Optional[Any] = N
 
 
 def voxel_index_chunks(
-    x: Any,
+    x: object,
     nchunks: Optional[int] = None,
     chunk_size: Optional[int] = None,
 ) -> list[NDArray[np.intp]]:
@@ -141,7 +160,11 @@ def voxel_index_chunks(
     return _voxel_index_chunks(x, nchunks=nchunks, chunk_size=chunk_size)
 
 
-def extract_csv_data(gd: GroupData, roi: Optional[str] = None, contrast: Optional[str] = None) -> Dict[str, Any]:
+def extract_csv_data(
+    gd: GroupData,
+    roi: Optional[str] = None,
+    contrast: Optional[str] = None,
+) -> Dict[str, Union[pd.DataFrame, NDArray[np.float64]]]:
     """Extract effect-size arrays from CSV-backed group data."""
     if not isinstance(gd, GroupData) or gd.format != "csv":
         raise TypeError("Input must be CSV-backed GroupData")
@@ -162,7 +185,9 @@ def extract_csv_data(gd: GroupData, roi: Optional[str] = None, contrast: Optiona
             raise ValueError(f"No data found for contrast: {contrast}")
 
     effect_cols = gd.data["effect_cols"]
-    out: Dict[str, Any] = {"data": df.reset_index(drop=True)}
+    out: Dict[str, Union[pd.DataFrame, NDArray[np.float64]]] = {
+        "data": df.reset_index(drop=True),
+    }
     if "beta" in effect_cols:
         out["beta"] = df[effect_cols["beta"]].to_numpy(dtype=np.float64)
     if "se" in effect_cols:
@@ -238,11 +263,15 @@ def read_nifti_full(gd: GroupData, use_mask: Optional[bool] = None) -> Dict[str,
     return out
 
 
-def read_fmri_config(path: Any) -> Dict[str, Any]:
-    """Read a JSON or YAML fMRI config file into a dictionary."""
-    path = Path(path)
-    text = path.read_text()
-    if path.suffix.lower() == ".json":
+def read_fmri_config(path: Union[str, "os.PathLike[str]"]) -> Dict[str, object]:
+    """Read a JSON or YAML fMRI config file into a dictionary.
+
+    Values are returned as decoded JSON/YAML, so the dict is honestly
+    heterogeneous (``object`` rather than a tighter type).
+    """
+    resolved = Path(path)
+    text = resolved.read_text()
+    if resolved.suffix.lower() == ".json":
         return json.loads(text)
     try:
         import yaml
@@ -252,7 +281,7 @@ def read_fmri_config(path: Any) -> Dict[str, Any]:
     return {} if data is None else dict(data)
 
 
-def register_basis(name: str, constructor: Callable[..., Any]) -> bool:
+def register_basis(name: str, constructor: Callable[..., object]) -> bool:
     """Register a custom basis constructor for resolve_basis."""
     if not isinstance(name, str) or not name:
         raise ValueError("name must be a non-empty string")
@@ -262,7 +291,7 @@ def register_basis(name: str, constructor: Callable[..., Any]) -> bool:
     return True
 
 
-def resolve_basis(name: str, **kwargs: Any) -> Any:
+def resolve_basis(name: str, **kwargs: HrfParamValue) -> object:
     """Resolve a registered basis or fall back to the HRF registry."""
     if name in _BASIS_REGISTRY:
         return _BASIS_REGISTRY[name](**kwargs)
@@ -274,7 +303,7 @@ def resolve_basis(name: str, **kwargs: Any) -> Any:
         raise KeyError(f"Unknown basis {name!r}") from exc
 
 
-def _benchmark_data() -> Dict[str, Dict[str, Any]]:
+def _benchmark_data() -> Dict[str, Dict[str, object]]:
     rng = np.random.default_rng(42)
     n_time = 48
     tr = 1.5
@@ -302,7 +331,7 @@ def _benchmark_data() -> Dict[str, Dict[str, Any]]:
     }
 
 
-def load_benchmark_dataset(dataset_name: str = "BM_Canonical_HighSNR") -> Any:
+def load_benchmark_dataset(dataset_name: str = "BM_Canonical_HighSNR") -> Dict[str, object]:
     """Load a deterministic built-in benchmark fixture."""
     data = _benchmark_data()
     if dataset_name == "all":
@@ -324,7 +353,7 @@ def list_benchmark_datasets() -> pd.DataFrame:
     )
 
 
-def get_benchmark_summary(dataset_name: str) -> Dict[str, Any]:
+def get_benchmark_summary(dataset_name: str) -> Dict[str, object]:
     """Return dimensions and design metadata for a benchmark fixture."""
     dataset = load_benchmark_dataset(dataset_name)
     labels = np.asarray(dataset["condition_labels"], dtype=object)
@@ -351,8 +380,8 @@ def get_benchmark_summary(dataset_name: str) -> Dict[str, Any]:
 
 
 def create_design_matrix_from_benchmark(
-    dataset_name: Any,
-    hrf: Any = "spmg1",
+    dataset_name: Union[str, Mapping[str, object]],
+    hrf: HrfSpec = "spmg1",
     include_intercept: bool = True,
 ) -> pd.DataFrame:
     """Create a condition-wise design matrix for a benchmark fixture."""
@@ -386,9 +415,9 @@ def _safe_cor(x: NDArray[np.float64], y: NDArray[np.float64]) -> float:
 
 def evaluate_method_performance(
     dataset_name: str,
-    estimated_betas: Any,
+    estimated_betas: ArrayLike,
     method_name: str = "Unknown",
-) -> Dict[str, Any]:
+) -> Dict[str, object]:
     """Evaluate estimated condition betas against benchmark ground truth."""
     dataset = load_benchmark_dataset(dataset_name)
     true = np.asarray(dataset["true_betas_condition"], dtype=np.float64)
@@ -421,7 +450,12 @@ def evaluate_method_performance(
     }
 
 
-def design_plot(model: Any, term_name: Optional[str] = None, longnames: bool = False, **kwargs: Any) -> pd.DataFrame:
+def design_plot(
+    model: object,
+    term_name: Optional[str] = None,
+    longnames: bool = False,
+    **kwargs: object,
+) -> pd.DataFrame:
     """Return a long-form design matrix table suitable for plotting."""
     del term_name, longnames, kwargs
     design = model.design_matrix() if hasattr(model, "design_matrix") else model

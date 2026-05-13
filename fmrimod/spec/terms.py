@@ -24,6 +24,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Dict,
     Iterator,
     Literal,
     Mapping,
@@ -40,6 +41,7 @@ from ..hrf.normalization import NormMode
 
 if TYPE_CHECKING:
     from ..contrast.contrast_spec import ContrastSpec
+    from .diff import SpecDiff
 
 Predicate = Union[str, Mapping[str, Any], Callable[[pd.DataFrame], Any]]
 
@@ -206,6 +208,37 @@ class Spec:
     def terms(self) -> Tuple[Term, ...]:
         """All terms, events then baseline, in declaration order."""
         return self.events + self.baseline
+
+    def diff(self, other: "Spec") -> "SpecDiff":
+        """Return a structural :class:`SpecDiff` against ``other``.
+
+        Pure equality (``self == other``) only answers yes/no; this
+        helper reports *what* changed: added/removed/changed terms and
+        the specific fields that diverge on each changed term. See
+        :func:`fmrimod.spec.diff.spec_diff` for the matching rules.
+        """
+        from .diff import spec_diff
+
+        return spec_diff(self, other)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize this :class:`Spec` to a JSON-safe dict.
+
+        The inverse of :meth:`from_dict`. See
+        :mod:`fmrimod.spec.serialize` for the supported value set and
+        the explicit-error behavior on shapes that don't round-trip
+        (e.g. inline callables, DataFrame payloads).
+        """
+        from .serialize import to_dict
+
+        return to_dict(self)
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "Spec":
+        """Reconstruct a :class:`Spec` from :meth:`to_dict` output."""
+        from .serialize import from_dict
+
+        return from_dict(payload)
 
 
 # -- Utility -----------------------------------------------------------------

@@ -1,0 +1,326 @@
+"""JSON-safe serialization for :class:`~fmrimod.spec.Spec` trees.
+
+The vision contract this implements: a checked-in design specification
+must be enough, on its own, to reconstruct the same analysis on a
+different machine. ``Spec.to_dict()`` returns a JSON-safe dict;
+``Spec.from_dict(payload)`` rebuilds an equal Spec from that dict. The
+two are exact inverses for the supported value set.
+
+Schema is versioned (``Spec/v1``) so future format changes can be
+detected at load time rather than silently producing a wrong shape.
+
+What v1 supports
+----------------
+
+- All four Term subclasses (HrfTerm, Drift, Intercept, Confounds).
+- HRF specifiers given as registry-key strings (``"spm"``,
+  ``"spmg3"``, ``"gamma"``, ...).
+- Subset predicates expressed as strings (``"block <= 3"``) or
+  Mappings (``{"block": 1}``).
+- Confounds whose values are resolved against the event table at
+  compile time (i.e. ``Confounds(columns=..., source=None)``).
+
+What v1 deliberately rejects
+----------------------------
+
+- :class:`~fmrimod.hrf.HRF` *instances* as ``HrfTerm.hrf``. Use a
+  registry-key string instead; the typed HRF subclasses are
+  reconstructed at compile time through the registry.
+- Non-empty :attr:`HrfTerm.contrasts`. The contrast taxonomy is its
+  own typed object tree; once the Spec is loaded, attach contrasts
+  through the normal builder.
+- :class:`pandas.DataFrame` payloads on :attr:`Confounds.source`. A
+  spec is the *shape* of an analysis, not its data; ship confound
+  values separately and resolve them against the event table at
+  compile time.
+- Callable subset predicates. Inline lambdas don't admit JSON
+  representation; use the string-predicate or dict form.
+
+Each rejection raises a :class:`SpecSerializationError` whose message
+names the field, the term, and the path forward. The error is
+deliberately loud so checked-in specs cannot drift into a state where
+they are silently incomplete.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Dict, Mapping, Sequence
+
+from .terms import Confounds, Drift, HrfTerm, Intercept, Spec, Term
+
+
+SCHEMA_VERSION = "Spec/v1"
+
+
+class SpecSerializationError(ValueError):
+    """Raised when a Spec value cannot round-trip through to_dict / from_dict."""
+
+
+# ---------------------------------------------------------------------------
+# to_dict
+# ---------------------------------------------------------------------------
+
+
+def to_dict(spec: Spec) -> Dict[str, Any]:
+    """Serialize a :class:`Spec` to a JSON-safe dict.
+
+    The returned payload always carries ``schema_version`` so loaders
+    can detect format drift. See the module docstring for the
+    supported value set.
+    """
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "events": [_encode_term(t) for t in spec.events],
+        "baseline": [_encode_term(t) for t in spec.baseline],
+    }
+
+
+def _encode_term(term: Term) -> Dict[str, Any]:
+    if isinstance(term, HrfTerm):
+        return _encode_hrf_term(term)
+    if isinstance(term, Drift):
+        return _encode_drift(term)
+    if isinstance(term, Intercept):
+        return _encode_intercept(term)
+    if isinstance(term, Confounds):
+        return _encode_confounds(term)
+    raise SpecSerializationError(
+        f"Unknown Term subclass: {type(term).__name__}. "
+        "Spec/v1 supports HrfTerm, Drift, Intercept, and Confounds."
+    )
+
+
+def _encode_hrf_term(term: HrfTerm) -> Dict[str, Any]:
+    if term.contrasts:
+        raise SpecSerializationError(
+            f"HrfTerm(id={term.id!r}, variables={term.variables!r}) carries "
+            f"{len(term.contrasts)} contrasts; Spec/v1 cannot round-trip them. "
+            "Attach contrasts after loading the spec."
+        )
+    if not isinstance(term.hrf, str):
+        raise SpecSerializationError(
+            f"HrfTerm(id={term.id!r}, variables={term.variables!r}).hrf is a "
+            f"{type(term.hrf).__name__} instance; Spec/v1 only serializes "
+            "registry-key strings (e.g. 'spm', 'spmg3', 'gamma'). The typed "
+            "HRF subclasses round-trip through the registry at compile time."
+        )
+    return {
+        "kind": "HrfTerm",
+        "variables": list(term.variables),
+        "hrf": term.hrf,
+        "modulators": list(term.modulators),
+        "durations": term.durations,
+        "lag": term.lag,
+        "subset": _encode_subset(term),
+        "prefix": term.prefix,
+        "id": term.id,
+        "norm": term.norm,
+        "normalize": term.normalize,
+        "summate": term.summate,
+    }
+
+
+def _encode_subset(term: HrfTerm) -> Any:
+    sub = term.subset
+    if sub is None:
+        return None
+    if isinstance(sub, str):
+        return {"kind": "str", "value": sub}
+    if isinstance(sub, Mapping):
+        # Mapping[str, Any]. We don't recurse into the values: they're
+        # typically scalar comparisons (e.g. {"block": 1}) and JSON's
+        # native types cover the supported set. If a caller passes a
+        # nested non-scalar, json.dumps will reject it later with a
+        # clear error -- preferable to silently dropping shape.
+        return {"kind": "dict", "value": dict(sub)}
+    if callable(sub):
+        raise SpecSerializationError(
+            f"HrfTerm(id={term.id!r}, variables={term.variables!r}) has a "
+            "callable `subset` predicate. Inline callables can't round-trip "
+            "through JSON; use a string predicate ('block <= 3') or a dict "
+            "({'block': 1}) instead."
+        )
+    raise SpecSerializationError(
+        f"HrfTerm.subset must be str | Mapping | callable | None, got "
+        f"{type(sub).__name__}."
+    )
+
+
+def _encode_drift(term: Drift) -> Dict[str, Any]:
+    return {
+        "kind": "Drift",
+        "basis": term.basis,
+        "degree": term.degree,
+        "cutoff": term.cutoff,
+    }
+
+
+def _encode_intercept(term: Intercept) -> Dict[str, Any]:
+    return {"kind": "Intercept", "per": term.per}
+
+
+def _encode_confounds(term: Confounds) -> Dict[str, Any]:
+    if term.source is not None:
+        raise SpecSerializationError(
+            "Confounds(source=<DataFrame>) cannot be serialized to a Spec "
+            "payload: a Spec describes the shape of an analysis, not its "
+            "data. Strip `source` before saving and re-attach the DataFrame "
+            "at load time, or save it separately and resolve against the "
+            "event table at compile time."
+        )
+    return {"kind": "Confounds", "columns": list(term.columns)}
+
+
+# ---------------------------------------------------------------------------
+# from_dict
+# ---------------------------------------------------------------------------
+
+
+def from_dict(payload: Mapping[str, Any]) -> Spec:
+    """Reconstruct a :class:`Spec` from :func:`to_dict` output.
+
+    Raises :class:`SpecSerializationError` if the schema version does
+    not match :data:`SCHEMA_VERSION` or any term payload is malformed.
+    """
+    version = payload.get("schema_version")
+    if version != SCHEMA_VERSION:
+        raise SpecSerializationError(
+            f"Spec payload has schema_version={version!r}; this build of "
+            f"fmrimod reads {SCHEMA_VERSION!r}."
+        )
+    events = tuple(_decode_term(p, slot="events") for p in payload.get("events", ()))
+    baseline = tuple(_decode_term(p, slot="baseline") for p in payload.get("baseline", ()))
+    return Spec(events=events, baseline=baseline)
+
+
+_DECODERS: Dict[str, Any] = {}
+
+
+def _register_decoder(kind: str):
+    def deco(fn):
+        _DECODERS[kind] = fn
+        return fn
+    return deco
+
+
+def _decode_term(payload: Mapping[str, Any], *, slot: str) -> Term:
+    if not isinstance(payload, Mapping):
+        raise SpecSerializationError(
+            f"{slot} entry must be a mapping, got {type(payload).__name__}."
+        )
+    kind = payload.get("kind")
+    if not isinstance(kind, str):
+        raise SpecSerializationError(
+            f"{slot} entry is missing the 'kind' discriminator."
+        )
+    decoder = _DECODERS.get(kind)
+    if decoder is None:
+        raise SpecSerializationError(
+            f"Unknown term kind {kind!r} in {slot}; "
+            f"expected one of {sorted(_DECODERS)}."
+        )
+    return decoder(payload)
+
+
+@_register_decoder("HrfTerm")
+def _decode_hrf_term(payload: Mapping[str, Any]) -> HrfTerm:
+    variables = _coerce_str_tuple(payload.get("variables", ()), field="variables")
+    hrf_value = payload.get("hrf", "spm")
+    if not isinstance(hrf_value, str):
+        raise SpecSerializationError(
+            f"HrfTerm.hrf must round-trip as a registry-key string; got "
+            f"{type(hrf_value).__name__}."
+        )
+    modulators = _coerce_str_tuple(payload.get("modulators", ()), field="modulators")
+    return HrfTerm(
+        variables=variables,
+        hrf=hrf_value,
+        contrasts=(),  # Spec/v1 never round-trips contrasts; load-time empty.
+        modulators=modulators,
+        durations=payload.get("durations"),
+        lag=float(payload.get("lag", 0.0)),
+        subset=_decode_subset(payload.get("subset")),
+        prefix=payload.get("prefix"),
+        id=payload.get("id"),
+        norm=payload.get("norm"),
+        normalize=bool(payload.get("normalize", False)),
+        summate=bool(payload.get("summate", True)),
+    )
+
+
+def _decode_subset(value: Any):
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise SpecSerializationError(
+            f"HrfTerm.subset must round-trip as null or a {{'kind', 'value'}} "
+            f"object; got {type(value).__name__}."
+        )
+    kind = value.get("kind")
+    if kind == "str":
+        sub_str = value.get("value")
+        if not isinstance(sub_str, str):
+            raise SpecSerializationError(
+                "HrfTerm.subset {'kind': 'str'} must carry a 'value' string."
+            )
+        return sub_str
+    if kind == "dict":
+        sub_dict = value.get("value")
+        if not isinstance(sub_dict, Mapping):
+            raise SpecSerializationError(
+                "HrfTerm.subset {'kind': 'dict'} must carry a 'value' mapping."
+            )
+        return dict(sub_dict)
+    raise SpecSerializationError(
+        f"HrfTerm.subset payload has unknown 'kind' {kind!r}; "
+        "expected 'str' or 'dict'."
+    )
+
+
+@_register_decoder("Drift")
+def _decode_drift(payload: Mapping[str, Any]) -> Drift:
+    return Drift(
+        basis=payload.get("basis", "constant"),
+        degree=int(payload.get("degree", 1)),
+        cutoff=payload.get("cutoff"),
+    )
+
+
+@_register_decoder("Intercept")
+def _decode_intercept(payload: Mapping[str, Any]) -> Intercept:
+    return Intercept(per=payload.get("per", "run"))
+
+
+@_register_decoder("Confounds")
+def _decode_confounds(payload: Mapping[str, Any]) -> Confounds:
+    columns = _coerce_str_tuple(payload.get("columns", ()), field="columns")
+    if not columns:
+        raise SpecSerializationError("Confounds requires at least one column.")
+    return Confounds(columns=columns, source=None)
+
+
+def _coerce_str_tuple(value: Any, *, field: str) -> tuple:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        raise SpecSerializationError(
+            f"{field} must be a sequence of strings, got {type(value).__name__}."
+        )
+    out = []
+    for i, item in enumerate(value):
+        if not isinstance(item, str):
+            raise SpecSerializationError(
+                f"{field}[{i}] must be a string, got {type(item).__name__}."
+            )
+        out.append(item)
+    return tuple(out)
+
+
+# Self-check at import time: every concrete Term subclass we know
+# about has a decoder wired. Adding a new Term subclass without
+# updating the serializer trips this immediately rather than at run
+# time on the first round-trip attempt.
+_KNOWN_TERMS = (HrfTerm, Drift, Intercept, Confounds)
+for _cls in _KNOWN_TERMS:
+    assert _cls.__name__ in _DECODERS, (
+        f"serialize.py: missing decoder for {_cls.__name__}"
+    )
+del _cls

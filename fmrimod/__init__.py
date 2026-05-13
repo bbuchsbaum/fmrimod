@@ -49,8 +49,13 @@ from .spec import (
     Drift,
     Intercept,
     Confounds,
+    FieldDiff,
+    SpecDiff,
+    SpecSerializationError,
+    TermDiff,
     as_spec,
     is_spec,
+    spec_diff,
 )
 from .spec.builders import (
     drift as drift,
@@ -438,6 +443,11 @@ __all__ = [
     "Confounds",
     "as_spec",
     "is_spec",
+    "spec_diff",
+    "SpecDiff",
+    "TermDiff",
+    "FieldDiff",
+    "SpecSerializationError",
     # Contrast taxonomy (R-parity constructors)
     "pair_contrast",
     "unit_contrast",

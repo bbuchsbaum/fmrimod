@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 from scipy import stats as sp_stats
 
 from .meta import (
@@ -15,7 +15,7 @@ from .meta import (
 )
 
 
-def _as_matrix(x: Any, name: str) -> NDArray[np.float64]:
+def _as_matrix(x: ArrayLike, name: str) -> NDArray[np.float64]:
     arr = np.asarray(x, dtype=np.float64)
     if arr.ndim == 1:
         arr = arr[:, np.newaxis]
@@ -25,9 +25,9 @@ def _as_matrix(x: Any, name: str) -> NDArray[np.float64]:
 
 
 def _validate_yvx(
-    Y: Any,
-    V: Any,
-    X: Any,
+    Y: ArrayLike,
+    V: ArrayLike,
+    X: ArrayLike,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     Y_arr = _as_matrix(Y, "Y")
     V_arr = _as_matrix(V, "V")
@@ -96,15 +96,15 @@ def _pack_cov_tri(covs: list[NDArray[np.float64]]) -> NDArray[np.float64]:
 
 
 def fmri_meta_fit(
-    Y: Any,
-    V: Any,
-    X: Any,
+    Y: ArrayLike,
+    V: ArrayLike,
+    X: ArrayLike,
     method: str = "pm",
     robust: str = "none",
     huber_c: float = 1.345,
     robust_iter: int = 2,
     n_threads: int = 0,
-) -> Dict[str, Any]:
+) -> Dict[str, NDArray[np.float64]]:
     """Fit feature-wise meta-regression from effect and variance matrices."""
     del huber_c, robust_iter, n_threads
     if robust != "none":
@@ -156,15 +156,15 @@ def fmri_meta_fit(
 
 
 def fmri_meta_fit_cov(
-    Y: Any,
-    V: Any,
-    X: Any,
+    Y: ArrayLike,
+    V: ArrayLike,
+    X: ArrayLike,
     method: str = "pm",
     robust: str = "none",
     huber_c: float = 1.345,
     robust_iter: int = 2,
     n_threads: int = 0,
-) -> Dict[str, Any]:
+) -> Dict[str, NDArray[np.float64]]:
     """Fit meta-regression and return packed covariance matrices per feature."""
     out = fmri_meta_fit(Y, V, X, method, robust, huber_c, robust_iter, n_threads)
     Y_arr, V_arr, X_arr = _validate_yvx(Y, V, X)
@@ -182,16 +182,16 @@ def fmri_meta_fit_cov(
 
 
 def fmri_meta_fit_contrasts(
-    Y: Any,
-    V: Any,
-    X: Any,
-    Cmat: Any,
+    Y: ArrayLike,
+    V: ArrayLike,
+    X: ArrayLike,
+    Cmat: ArrayLike,
     method: str = "pm",
     robust: str = "none",
     huber_c: float = 1.345,
     robust_iter: int = 2,
     n_threads: int = 0,
-) -> Dict[str, Any]:
+) -> Dict[str, NDArray[np.float64]]:
     """Fit meta-regression and return exact linear-contrast summaries."""
     out = fmri_meta_fit_cov(Y, V, X, method, robust, huber_c, robust_iter, n_threads)
     X_arr = _as_matrix(X, "X")
@@ -225,18 +225,18 @@ def fmri_meta_fit_contrasts(
 
 
 def fmri_meta_fit_extended(
-    Y: Any,
-    V: Any,
-    X: Any,
+    Y: ArrayLike,
+    V: ArrayLike,
+    X: ArrayLike,
     method: str = "pm",
     robust: str = "none",
     huber_c: float = 1.345,
     robust_iter: int = 2,
-    voxelwise: Optional[Any] = None,
+    voxelwise: Optional[ArrayLike] = None,
     center_voxelwise: bool = True,
     voxel_name: str = "voxel_cov",
     n_threads: int = 0,
-) -> Dict[str, Any]:
+) -> Dict[str, NDArray[np.float64]]:
     """Fit meta-regression with an optional per-feature voxelwise covariate."""
     del voxel_name
     if voxelwise is None:
@@ -288,7 +288,7 @@ def fmri_meta_fit_extended(
     }
 
 
-def meta_effective_n(v: Any, tau2: Any) -> float:
+def meta_effective_n(v: ArrayLike, tau2: ArrayLike) -> float:
     """Compute inverse-variance effective sample size."""
     vv = np.asarray(v, dtype=np.float64)
     tt = np.asarray(tau2, dtype=np.float64)
