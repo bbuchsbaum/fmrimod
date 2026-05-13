@@ -112,3 +112,77 @@ def test_inventory_script_exists() -> None:
         "scripts/api_inventory.py is the generator referenced by the "
         "public_api_policy_v1.md inventory contract; it must exist."
     )
+
+
+# Spine names — the four-stage seam dataset → lm → contrast → group_fit.
+# Tier values are pinned so a future commit cannot silently demote a spine
+# entry by changing its tier in the inventory or by removing it from
+# fmrimod.__all__. Promotion of a new spine name is a visible diff to both
+# this set and the inventory JSON.
+_EXPECTED_SPINE_TIERS = {
+    "fmri_dataset": "spine",
+    "fmri_lm": "spine_review",
+    "fit_glm_from_matrix": "spine",
+    "fit_glm_from_suffstats": "spine",
+    "Spec": "spine",
+    "Term": "spine",
+    "event_model": "spine_review",
+    "baseline_model": "spine",
+    "fmri_meta": "spine",
+    "fmri_ttest": "spine",
+    "group_data_from_fmrilm": "spine",
+    "estimate_single_trial": "spine",
+    "estimate_single_trial_from_dataset": "spine",
+}
+
+
+def test_spine_names_are_tier_assigned() -> None:
+    """The 13 spine names hold their assigned tier values.
+
+    Cheap-pass disqualified: relabeling a spine name to ``review_pending``
+    or removing the row from the inventory would silently regress this
+    audit. The fix for a real demotion is to update ``_EXPECTED_SPINE_TIERS``
+    in the same diff that demotes the name, with a board-linked rationale.
+    """
+    rows_by_name = {row["name"]: row for row in _load_inventory()["rows"]}
+    missing = sorted(set(_EXPECTED_SPINE_TIERS) - set(rows_by_name))
+    assert not missing, (
+        f"spine names absent from inventory: {missing}; either re-add "
+        f"to fmrimod.__all__ or update _EXPECTED_SPINE_TIERS with a "
+        f"board-linked rationale for the demotion."
+    )
+    mismatches = []
+    for name, expected_tier in _EXPECTED_SPINE_TIERS.items():
+        actual = rows_by_name[name]["tier"]
+        if actual != expected_tier:
+            mismatches.append(f"{name}: expected {expected_tier!r}, got {actual!r}")
+    assert not mismatches, (
+        "spine tier drift:\n  " + "\n  ".join(mismatches)
+    )
+
+
+def test_spine_review_names_have_documented_soundness_debt() -> None:
+    """Every ``spine_review`` row carries a real soundness flag.
+
+    The ``spine_review`` tier exists for spine entries that are
+    load-bearing but have a known typing debt — opaque ``**kwargs``,
+    untagged ``Union`` over many cases, or ``Any`` in the resolved
+    signature. If a row is tagged ``spine_review`` but has none of
+    those flags, either the tier is wrong or the audit columns are
+    stale.
+    """
+    rows_by_name = {row["name"]: row for row in _load_inventory()["rows"]}
+    for name, expected_tier in _EXPECTED_SPINE_TIERS.items():
+        if expected_tier != "spine_review":
+            continue
+        row = rows_by_name[name]
+        flagged = (
+            row.get("opaque_forwarder")
+            or row.get("has_any_in_signature")
+            or row.get("has_untagged_kwargs_dict")
+        )
+        assert flagged, (
+            f"{name} is tier={expected_tier!r} but has no documented "
+            f"soundness flag: {row}. Either reclassify or update the "
+            f"introspection in scripts/api_inventory.py."
+        )

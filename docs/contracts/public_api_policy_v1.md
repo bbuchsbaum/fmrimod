@@ -189,6 +189,46 @@ first time) and demotion (a row is removed) are both inventory diffs
 that should be justified in the commit body alongside the policy/tier
 reasoning.
 
+### Tier vocabulary
+
+Each inventory row carries a `tier` field. Until reviewed, every row
+defaults to `"review_pending"`. The discrete tier values, ordered from
+most-load-bearing to least, are:
+
+- `spine` — load-bearing on the four-stage seam
+  `fmri_dataset → fmri_lm → contrast → group_fit`. Sound public
+  surface (no `*args`/`**kwargs` opacity, no `Any`-in-signature, no
+  untagged-Union dispatch). Promotion-locked: removing or
+  signature-changing a `spine` row requires explicit steward review per
+  `GOVERNANCE.md` §10.
+- `spine_review` — load-bearing as above, but with a known typing
+  debt: opaque `**kwargs`, `Any` in resolved signature, or untagged
+  `Union` over many cases. Each `spine_review` row must carry at least
+  one of those flags in its inventory metadata; the regression test
+  `test_spine_review_names_have_documented_soundness_debt` enforces
+  this. The remediation path is recorded in the linked bead;
+  reclassification to `spine` happens when the debt is paid.
+- `compat` — supported public surface that is not on the spine. Stable
+  but does not anchor the flagship workflow. Free to evolve under the
+  ordinary signature-change discipline; not promotion-gated by §10.
+- `compat_pending_fix` — `compat` with a known soundness debt that has
+  a tracking bead but no scheduled fix. Visible to reviewers as
+  "stable enough to depend on, but not the recommended shape."
+- `runtime_check` — name whose `Any`-in-signature is *intentional*
+  (e.g., a runtime predicate like `is_spec(obj: Any) -> bool`,
+  analogous to `isinstance`). Exempt from the no-`Any` invariant on
+  callable signatures by explicit policy.
+- `review_pending` — default for any row not yet reviewed. The
+  freshness gate accepts this value; the spine regression test does
+  not.
+
+The spine baseline at the time of the first tier assignment is
+**13 rows** (11 `spine`, 2 `spine_review`); see
+`tests/test_public_api/test_api_inventory.py::test_spine_names_are_tier_assigned`
+for the exact pinned set. New spine entries land as additions to that
+test's `_EXPECTED_SPINE_TIERS` map in the same commit that promotes
+the name to top-level.
+
 ## Relation to GOVERNANCE.md
 
 | Asks | Answered in |
