@@ -225,6 +225,30 @@ def _meta_reg_dataset() -> object:
     )
 
 
+def _multi_feature_dataset():
+    beta = np.array(
+        [
+            [[1.0, 1.2], [2.0, 2.1], [3.0, 3.2], [4.0, 4.1]],
+            [[1.5, 1.7], [2.4, 2.5], [3.6, 3.8], [4.8, 5.0]],
+            [[0.4, 0.6], [1.0, 1.3], [1.7, 2.0], [2.6, 2.9]],
+        ],
+        dtype=np.float64,
+    )
+    return group_dataset(
+        {"beta": beta, "se": np.ones_like(beta) * 0.5},
+        space=SampleLabelSpace(["r1", "r2", "r3"]),
+        subjects=["s1", "s2", "s3", "s4"],
+        contrasts=["c1", "c2"],
+        col_data=pd.DataFrame({"age": [0.0, 1.0, 2.0, 3.0]}),
+    )
+
+
+def _assert_assays_match(left, right) -> None:
+    assert left.assay_names() == right.assay_names()
+    for name in left.assay_names():
+        np.testing.assert_allclose(left.assay(name), right.assay(name), equal_nan=True)
+
+
 def test_meta_fe_reg_matches_weighted_least_squares() -> None:
     ds = _meta_reg_dataset()
     out = meta_fe_reg(ds, formula="~ 1 + age")
@@ -364,6 +388,61 @@ def test_permutation_reducers_dispatch_from_registry() -> None:
     assert two.metadata["reduce_method"] == "perm:twosample"
 
 
+def test_perm_onesample_parallel_matches_serial() -> None:
+    ds = _multi_feature_dataset()
+    signs = np.array(
+        [
+            [1, 1, 1, 1],
+            [-1, 1, 1, 1],
+            [1, -1, 1, 1],
+            [1, 1, -1, 1],
+            [1, 1, 1, -1],
+        ],
+        dtype=np.int8,
+    )
+
+    serial = perm_onesample(ds, signs=signs, n_jobs=1)
+    parallel = perm_onesample(ds, signs=signs, n_jobs=2, chunk_size=2, blas_threads=1)
+
+    _assert_assays_match(serial, parallel)
+    assert parallel.metadata["n_jobs"] == 2
+    assert parallel.metadata["chunk_size"] == 2
+    assert parallel.metadata["blas_threads"] == 1
+
+
+def test_perm_twosample_parallel_matches_serial() -> None:
+    ds = _multi_feature_dataset()
+    group_mat = np.array(
+        [
+            [0, 0, 1, 1],
+            [0, 1, 0, 1],
+            [1, 0, 1, 0],
+            [1, 1, 0, 0],
+        ],
+        dtype=np.int8,
+    )
+
+    serial = perm_twosample(
+        ds,
+        group=[0, 0, 1, 1],
+        group_mat=group_mat,
+        n_jobs=1,
+    )
+    parallel = perm_twosample(
+        ds,
+        group=[0, 0, 1, 1],
+        group_mat=group_mat,
+        n_jobs=2,
+        chunk_size=2,
+        blas_threads=1,
+    )
+
+    _assert_assays_match(serial, parallel)
+    assert parallel.metadata["n_jobs"] == 2
+    assert parallel.metadata["chunk_size"] == 2
+    assert parallel.metadata["blas_threads"] == 1
+
+
 def test_ols_voxelwise_matches_numpy_least_squares() -> None:
     ds = _meta_reg_dataset()
     out = ols_voxelwise(ds, formula="~ 1 + age", return_cov="tri")
@@ -389,6 +468,41 @@ def test_ols_voxelwise_dispatches_from_registry() -> None:
 
     assert out.metadata["reduce_method"] == "ols:voxelwise"
     assert "t_coef:age" in out.assays
+
+
+def test_ols_voxelwise_parallel_matches_serial() -> None:
+    ds = _multi_feature_dataset()
+
+    serial = ols_voxelwise(ds, formula="~ 1 + age", return_cov="tri", n_jobs=1)
+    parallel = ols_voxelwise(
+        ds,
+        formula="~ 1 + age",
+        return_cov="tri",
+        n_jobs=2,
+        chunk_size=2,
+        blas_threads=1,
+    )
+
+    _assert_assays_match(serial, parallel)
+    assert parallel.metadata["n_jobs"] == 2
+    assert parallel.metadata["chunk_size"] == 2
+    assert parallel.metadata["blas_threads"] == 1
+
+
+def test_hot_reducer_parallel_options_are_validated() -> None:
+    ds = _multi_feature_dataset()
+
+    with pytest.raises(AdapterContractError, match="n_jobs"):
+        perm_onesample(ds, signs=np.ones((1, 4), dtype=np.int8), n_jobs=0)
+    with pytest.raises(AdapterContractError, match="chunk_size"):
+        ols_voxelwise(ds, chunk_size=0)
+    with pytest.raises(AdapterContractError, match="blas_threads"):
+        perm_twosample(
+            ds,
+            group=[0, 0, 1, 1],
+            group_mat=np.array([[0, 0, 1, 1]], dtype=np.int8),
+            blas_threads=0,
+        )
 
 
 def test_lmm_reducers_are_explicit_native_milestone_gaps() -> None:

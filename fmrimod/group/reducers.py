@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, cast
+from collections.abc import Callable, Iterator
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+from math import ceil
+from typing import Any, Literal, TypeVar, cast
 
 import numpy as np
 import pandas as pd
@@ -17,6 +21,69 @@ from .errors import AdapterContractError, UnsupportedGroupFeatureError
 from .registry import reducer_registry
 
 Tail = Literal["two.sided"]
+T = TypeVar("T")
+
+
+@contextmanager
+def _maybe_limit_blas_threads(blas_threads: int | None) -> Iterator[None]:
+    if blas_threads is None:
+        yield
+        return
+    if int(blas_threads) < 1:
+        raise AdapterContractError("blas_threads must be >= 1")
+    try:
+        from threadpoolctl import threadpool_limits  # type: ignore[import-untyped]
+    except Exception:  # pragma: no cover - optional dependency behavior
+        yield
+        return
+    with threadpool_limits(limits=int(blas_threads)):
+        yield
+
+
+def _feature_chunks(
+    n_features: int,
+    *,
+    n_jobs: int = 1,
+    chunk_size: int | None = None,
+) -> tuple[list[tuple[int, int]], int]:
+    if int(n_jobs) < 1:
+        raise AdapterContractError("n_jobs must be >= 1")
+    if chunk_size is not None and int(chunk_size) < 1:
+        raise AdapterContractError("chunk_size must be >= 1")
+    if n_features < 1:
+        return [], 1
+    n_workers = min(int(n_jobs), n_features)
+    size = int(chunk_size) if chunk_size is not None else max(1, ceil(n_features / n_workers))
+    chunks = [
+        (start, min(start + size, n_features))
+        for start in range(0, n_features, size)
+    ]
+    return chunks, min(n_workers, len(chunks))
+
+
+def _run_feature_chunks(
+    n_features: int,
+    worker: Callable[[int, int], T],
+    *,
+    n_jobs: int = 1,
+    chunk_size: int | None = None,
+    blas_threads: int | None = None,
+) -> tuple[list[T], int, int | None]:
+    chunks, n_workers = _feature_chunks(
+        n_features,
+        n_jobs=n_jobs,
+        chunk_size=chunk_size,
+    )
+    if not chunks:
+        return [], n_workers, chunk_size
+    if n_workers == 1:
+        with _maybe_limit_blas_threads(blas_threads):
+            return [worker(start, end) for start, end in chunks], n_workers, chunk_size
+    with _maybe_limit_blas_threads(blas_threads), ThreadPoolExecutor(
+        max_workers=n_workers
+    ) as pool:
+        results = list(pool.map(lambda bounds: worker(*bounds), chunks))
+    return results, n_workers, chunk_size
 
 
 def _beta_and_var(
@@ -584,6 +651,9 @@ def perm_onesample(
     include_observed: bool = False,
     min_subjects: int = 2,
     alternative: Tail = "two.sided",
+    n_jobs: int = 1,
+    chunk_size: int | None = None,
+    blas_threads: int | None = None,
 ) -> GroupDataset:
     """One-sample sign-flip permutation t reducer."""
     if alternative != "two.sided":
@@ -622,33 +692,94 @@ def perm_onesample(
     p_fwer = np.full(n_features, np.nan, dtype=np.float64)
     null_stats = np.full((sign_mat.shape[0], n_features), np.nan, dtype=np.float64)
 
-    for feature_idx in range(n_features):
-        y = beta_2d[:, feature_idx]
-        ok = np.isfinite(y)
-        n_ok = int(np.sum(ok))
-        if n_ok < min_subjects:
-            continue
-        y_ok = y[ok]
-        mean = float(np.mean(y_ok))
-        sd = float(np.std(y_ok, ddof=1))
-        se = sd / np.sqrt(n_ok)
-        if se <= 0 or not np.isfinite(se):
-            continue
-        obs_t = mean / se
-        beta_g[feature_idx] = mean
-        se_g[feature_idx] = se
-        t_g[feature_idx] = obs_t
-        df[feature_idx] = n_ok - 1
-        p_g[feature_idx] = _t_p_two_sided(obs_t, df[feature_idx])
+    def worker(
+        start: int,
+        end: int,
+    ) -> tuple[
+        int,
+        int,
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+    ]:
+        width = end - start
+        beta_chunk = np.full(width, np.nan, dtype=np.float64)
+        se_chunk = np.full(width, np.nan, dtype=np.float64)
+        t_chunk = np.full(width, np.nan, dtype=np.float64)
+        df_chunk = np.full(width, np.nan, dtype=np.float64)
+        p_chunk = np.full(width, np.nan, dtype=np.float64)
+        p_perm_chunk = np.full(width, np.nan, dtype=np.float64)
+        null_chunk = np.full((sign_mat.shape[0], width), np.nan, dtype=np.float64)
 
-        feature_signs = sign_mat[:, ok]
-        perm_y = feature_signs * y_ok[np.newaxis, :]
-        perm_mean = np.mean(perm_y, axis=1)
-        perm_sd = np.std(perm_y, axis=1, ddof=1)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            null_stats[:, feature_idx] = perm_mean / (perm_sd / np.sqrt(n_ok))
-        count = _two_sided_perm_count(null_stats[:, feature_idx], obs_t)
-        p_perm[feature_idx] = (count + 1.0) / (sign_mat.shape[0] + 1.0)
+        for local_idx, feature_idx in enumerate(range(start, end)):
+            y = beta_2d[:, feature_idx]
+            ok = np.isfinite(y)
+            n_ok = int(np.sum(ok))
+            if n_ok < min_subjects:
+                continue
+            y_ok = y[ok]
+            mean = float(np.mean(y_ok))
+            sd = float(np.std(y_ok, ddof=1))
+            se = sd / np.sqrt(n_ok)
+            if se <= 0 or not np.isfinite(se):
+                continue
+            obs_t = mean / se
+            beta_chunk[local_idx] = mean
+            se_chunk[local_idx] = se
+            t_chunk[local_idx] = obs_t
+            df_chunk[local_idx] = n_ok - 1
+            p_chunk[local_idx] = _t_p_two_sided(obs_t, df_chunk[local_idx])
+
+            feature_signs = sign_mat[:, ok]
+            perm_y = feature_signs * y_ok[np.newaxis, :]
+            perm_mean = np.mean(perm_y, axis=1)
+            perm_sd = np.std(perm_y, axis=1, ddof=1)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                null_chunk[:, local_idx] = perm_mean / (perm_sd / np.sqrt(n_ok))
+            count = _two_sided_perm_count(null_chunk[:, local_idx], obs_t)
+            p_perm_chunk[local_idx] = (count + 1.0) / (sign_mat.shape[0] + 1.0)
+
+        return (
+            start,
+            end,
+            beta_chunk,
+            se_chunk,
+            t_chunk,
+            df_chunk,
+            p_chunk,
+            p_perm_chunk,
+            null_chunk,
+        )
+
+    chunks, n_workers, effective_chunk_size = _run_feature_chunks(
+        n_features,
+        worker,
+        n_jobs=n_jobs,
+        chunk_size=chunk_size,
+        blas_threads=blas_threads,
+    )
+    for (
+        start,
+        end,
+        beta_chunk,
+        se_chunk,
+        t_chunk,
+        df_chunk,
+        p_chunk,
+        p_perm_chunk,
+        null_chunk,
+    ) in chunks:
+        beta_g[start:end] = beta_chunk
+        se_g[start:end] = se_chunk
+        t_g[start:end] = t_chunk
+        df[start:end] = df_chunk
+        p_g[start:end] = p_chunk
+        p_perm[start:end] = p_perm_chunk
+        null_stats[:, start:end] = null_chunk
 
     max_abs = _max_abs_null(null_stats)
     for feature_idx in range(n_features):
@@ -682,7 +813,13 @@ def perm_onesample(
         dataset,
         assays,
         method="perm:onesample",
-        metadata={"n_perm": int(sign_mat.shape[0]), "min_subjects": int(min_subjects)},
+        metadata={
+            "n_perm": int(sign_mat.shape[0]),
+            "min_subjects": int(min_subjects),
+            "n_jobs": int(n_workers),
+            "chunk_size": effective_chunk_size,
+            "blas_threads": blas_threads,
+        },
     )
 
 
@@ -697,6 +834,9 @@ def perm_twosample(
     variance: Literal["welch", "pooled"] = "welch",
     min_group: int = 2,
     alternative: Tail = "two.sided",
+    n_jobs: int = 1,
+    chunk_size: int | None = None,
+    blas_threads: int | None = None,
 ) -> GroupDataset:
     """Two-sample label-permutation t reducer."""
     if alternative != "two.sided":
@@ -767,23 +907,84 @@ def perm_twosample(
         diff = m1 - m0
         return diff, se_val, diff / se_val, float(df_val)
 
-    for feature_idx in range(n_features):
-        y = beta_2d[:, feature_idx]
-        ok = np.isfinite(y)
-        y_ok = y[ok]
-        observed_labels = group_codes[ok]
-        diff, se, obs_t, df_val = two_sample_t(y_ok, observed_labels)
-        beta_g[feature_idx] = diff
-        se_g[feature_idx] = se
-        t_g[feature_idx] = obs_t
-        df[feature_idx] = df_val
-        p_g[feature_idx] = _t_p_two_sided(obs_t, df_val)
+    def worker(
+        start: int,
+        end: int,
+    ) -> tuple[
+        int,
+        int,
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+    ]:
+        width = end - start
+        beta_chunk = np.full(width, np.nan, dtype=np.float64)
+        se_chunk = np.full(width, np.nan, dtype=np.float64)
+        t_chunk = np.full(width, np.nan, dtype=np.float64)
+        df_chunk = np.full(width, np.nan, dtype=np.float64)
+        p_chunk = np.full(width, np.nan, dtype=np.float64)
+        p_perm_chunk = np.full(width, np.nan, dtype=np.float64)
+        null_chunk = np.full((perm_mat.shape[0], width), np.nan, dtype=np.float64)
 
-        for perm_idx, labels in enumerate(perm_mat[:, ok]):
-            _, _, perm_t, _ = two_sample_t(y_ok, labels)
-            null_stats[perm_idx, feature_idx] = perm_t
-        count = _two_sided_perm_count(null_stats[1:, feature_idx], obs_t)
-        p_perm[feature_idx] = (count + 1.0) / float(perm_mat.shape[0])
+        for local_idx, feature_idx in enumerate(range(start, end)):
+            y = beta_2d[:, feature_idx]
+            ok = np.isfinite(y)
+            y_ok = y[ok]
+            observed_labels = group_codes[ok]
+            diff, se, obs_t, df_val = two_sample_t(y_ok, observed_labels)
+            beta_chunk[local_idx] = diff
+            se_chunk[local_idx] = se
+            t_chunk[local_idx] = obs_t
+            df_chunk[local_idx] = df_val
+            p_chunk[local_idx] = _t_p_two_sided(obs_t, df_val)
+
+            for perm_idx, labels in enumerate(perm_mat[:, ok]):
+                _, _, perm_t, _ = two_sample_t(y_ok, labels)
+                null_chunk[perm_idx, local_idx] = perm_t
+            count = _two_sided_perm_count(null_chunk[1:, local_idx], obs_t)
+            p_perm_chunk[local_idx] = (count + 1.0) / float(perm_mat.shape[0])
+
+        return (
+            start,
+            end,
+            beta_chunk,
+            se_chunk,
+            t_chunk,
+            df_chunk,
+            p_chunk,
+            p_perm_chunk,
+            null_chunk,
+        )
+
+    chunks, n_workers, effective_chunk_size = _run_feature_chunks(
+        n_features,
+        worker,
+        n_jobs=n_jobs,
+        chunk_size=chunk_size,
+        blas_threads=blas_threads,
+    )
+    for (
+        start,
+        end,
+        beta_chunk,
+        se_chunk,
+        t_chunk,
+        df_chunk,
+        p_chunk,
+        p_perm_chunk,
+        null_chunk,
+    ) in chunks:
+        beta_g[start:end] = beta_chunk
+        se_g[start:end] = se_chunk
+        t_g[start:end] = t_chunk
+        df[start:end] = df_chunk
+        p_g[start:end] = p_chunk
+        p_perm[start:end] = p_perm_chunk
+        null_stats[:, start:end] = null_chunk
 
     max_abs = _max_abs_null(null_stats)
     for feature_idx in range(n_features):
@@ -821,6 +1022,9 @@ def perm_twosample(
             "n_perm": int(perm_mat.shape[0]),
             "variance": variance,
             "min_group": int(min_group),
+            "n_jobs": int(n_workers),
+            "chunk_size": effective_chunk_size,
+            "blas_threads": blas_threads,
         },
     )
 
@@ -836,6 +1040,9 @@ def ols_voxelwise(
     formula: str = "~ 1",
     X: NDArray[np.float64] | None = None,
     return_cov: Literal["none", "tri"] = "none",
+    n_jobs: int = 1,
+    chunk_size: int | None = None,
+    blas_threads: int | None = None,
 ) -> GroupDataset:
     """OLS reducer across subjects for each sample/contrast feature."""
     if return_cov not in ("none", "tri"):
@@ -853,26 +1060,61 @@ def ols_voxelwise(
     df_res = np.full(n_features, np.nan, dtype=np.float64)
     cov_tri = np.full((tri_len, n_features), np.nan, dtype=np.float64)
 
-    for feature_idx in range(n_features):
-        y = beta_2d[:, feature_idx]
-        ok = np.isfinite(y) & np.all(np.isfinite(X_mat), axis=1)
-        if np.sum(ok) <= pcols:
-            continue
-        Xok = X_mat[ok, :]
-        yok = y[ok]
-        xtx_inv = _safe_inverse(Xok.T @ Xok)
-        if xtx_inv is None:
-            continue
-        bhat = xtx_inv @ (Xok.T @ yok)
-        resid = yok - Xok @ bhat
-        df_val = float(np.sum(ok) - pcols)
-        sigma2_val = float(np.sum(resid * resid) / df_val)
-        cov = xtx_inv * sigma2_val
-        coef[:, feature_idx] = bhat
-        se_coef[:, feature_idx] = np.sqrt(np.maximum(np.diag(cov), 0.0))
-        sigma2[feature_idx] = sigma2_val
-        df_res[feature_idx] = df_val
-        cov_tri[:, feature_idx] = _pack_upper_tri(cov)
+    def worker(
+        start: int,
+        end: int,
+    ) -> tuple[
+        int,
+        int,
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        NDArray[np.float64],
+    ]:
+        width = end - start
+        coef_chunk = np.full((pcols, width), np.nan, dtype=np.float64)
+        se_chunk = np.full((pcols, width), np.nan, dtype=np.float64)
+        sigma2_chunk = np.full(width, np.nan, dtype=np.float64)
+        df_chunk = np.full(width, np.nan, dtype=np.float64)
+        cov_chunk = np.full((tri_len, width), np.nan, dtype=np.float64)
+
+        for local_idx, feature_idx in enumerate(range(start, end)):
+            y = beta_2d[:, feature_idx]
+            ok = np.isfinite(y) & np.all(np.isfinite(X_mat), axis=1)
+            if np.sum(ok) <= pcols:
+                continue
+            Xok = X_mat[ok, :]
+            yok = y[ok]
+            xtx_inv = _safe_inverse(Xok.T @ Xok)
+            if xtx_inv is None:
+                continue
+            bhat = xtx_inv @ (Xok.T @ yok)
+            resid = yok - Xok @ bhat
+            df_val = float(np.sum(ok) - pcols)
+            sigma2_val = float(np.sum(resid * resid) / df_val)
+            cov = xtx_inv * sigma2_val
+            coef_chunk[:, local_idx] = bhat
+            se_chunk[:, local_idx] = np.sqrt(np.maximum(np.diag(cov), 0.0))
+            sigma2_chunk[local_idx] = sigma2_val
+            df_chunk[local_idx] = df_val
+            cov_chunk[:, local_idx] = _pack_upper_tri(cov)
+
+        return start, end, coef_chunk, se_chunk, sigma2_chunk, df_chunk, cov_chunk
+
+    chunks, n_workers, effective_chunk_size = _run_feature_chunks(
+        n_features,
+        worker,
+        n_jobs=n_jobs,
+        chunk_size=chunk_size,
+        blas_threads=blas_threads,
+    )
+    for start, end, coef_chunk, se_chunk, sigma2_chunk, df_chunk, cov_chunk in chunks:
+        coef[:, start:end] = coef_chunk
+        se_coef[:, start:end] = se_chunk
+        sigma2[start:end] = sigma2_chunk
+        df_res[start:end] = df_chunk
+        cov_tri[:, start:end] = cov_chunk
 
     assays: dict[str, NDArray[np.float64]] = {
         "sigma2": _unflatten_feature_axis(
@@ -919,6 +1161,9 @@ def ols_voxelwise(
             "formula": formula,
             "predictor_names": tuple(predictor_names),
             "return_cov": return_cov,
+            "n_jobs": int(n_workers),
+            "chunk_size": effective_chunk_size,
+            "blas_threads": blas_threads,
         },
     )
 
