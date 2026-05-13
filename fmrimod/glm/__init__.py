@@ -5,9 +5,7 @@ registry, and the ``fmri_lm()`` entry point for running GLMs on fMRI
 datasets.
 """
 
-from .fmri_lm import fmri_lm, FmriLm
-from .solver import fast_preproject, fast_lm_matrix, Projection
-from .contrasts import contrast_t, contrast_f, ContrastResult
+from .combine import CombinedFmriLm, combine_contrasts, combine_runs
 from .compat import (
     LowRankControl,
     SoftProjection,
@@ -28,13 +26,16 @@ from .compat import (
     soft_projection,
     t_to_beta_se,
 )
+from .contrasts import ContrastResult, contrast_f, contrast_t
 from .engine import (
-    FittingEngine,
     EngineResult,
-    register_engine,
+    FittingEngine,
     get_engine,
     list_engines,
+    register_engine,
 )
+from .fmri_lm import FmriLm, fmri_lm
+from .solver import Projection, fast_lm_matrix, fast_preproject
 
 __all__ = [
     "fmri_lm",
@@ -45,6 +46,9 @@ __all__ = [
     "contrast_t",
     "contrast_f",
     "ContrastResult",
+    "combine_runs",
+    "combine_contrasts",
+    "CombinedFmriLm",
     "SoftProjection",
     "soft_projection",
     "apply_soft_projection",

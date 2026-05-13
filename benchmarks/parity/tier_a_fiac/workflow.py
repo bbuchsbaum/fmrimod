@@ -13,9 +13,15 @@ from nilearn.image import load_img, new_img_like
 from nilearn.maskers import NiftiMasker
 from numpy.typing import NDArray
 
-from cross_testing.fitlins_parity import fit_fmrimod_ols
-from cross_testing.harness import ParityCase, ParityTolerance, PipelineOutput, render, run
-
+import fmrimod as fm
+from cross_testing.harness import (
+    ParityCase,
+    ParityTolerance,
+    PipelineOutput,
+    render,
+    run,
+)
+from fmrimod.glm import fit_glm_from_suffstats
 
 Array = NDArray[np.float64]
 MAX_VOXELS = 2048
@@ -109,45 +115,40 @@ def nilearn_pipeline(inputs: FiacInputs) -> PipelineOutput:
     return PipelineOutput(arrays=arrays)
 
 
-def _fixed_effects_from_runs(
+def _run_fits(
     run_imgs: tuple[Any, Any],
     design_matrices: tuple[Any, Any],
     mask_img: Any,
-    contrast: Array,
-) -> tuple[Array, Array]:
+) -> list[Any]:
+    """Build per-run FmriLm fits from externally supplied design matrices."""
     masker = NiftiMasker(mask_img=mask_img).fit()
-    effects = []
-    variances = []
+    fits = []
     for img, design in zip(run_imgs, design_matrices):
         X = np.asarray(design, dtype=np.float64)
         Y = masker.transform(img)
-        fit = fit_fmrimod_ols(X, Y, contrast)
-        XtXinv = np.linalg.pinv(X.T @ X)
-        var_factor = float(contrast @ XtXinv @ contrast)
-        effects.append(contrast @ fit["betas"])
-        variances.append(np.maximum(var_factor * fit["sigma2"], 1e-30))
-
-    var_stack = np.vstack(variances)
-    effect_stack = np.vstack(effects)
-    fixed_effect = np.mean(effect_stack, axis=0)
-    fixed_var = np.mean(var_stack, axis=0) / var_stack.shape[0]
-    fixed_t = fixed_effect / np.sqrt(fixed_var)
-    return fixed_effect, fixed_t
+        fits.append(
+            fit_glm_from_suffstats(
+                model=None,
+                XtX=X.T @ X,
+                XtS=X.T @ Y,
+                StS=np.sum(Y * Y, axis=0),
+                df=float(X.shape[0] - X.shape[1]),
+            )
+        )
+    return fits
 
 
 def fmrimod_pipeline(inputs: FiacInputs) -> PipelineOutput:
-    """Run fmrimod OLS per run and combine contrasts by fixed effects."""
+    """Run fmrimod OLS per run and pool contrasts via fm.combine_runs."""
+
+    fits = _run_fits(inputs.run_imgs, inputs.design_matrices, inputs.mask_img)
+    combined = fm.combine_runs(fits)
 
     arrays = {}
     for name, contrast in inputs.contrasts.items():
-        effect, t_stat = _fixed_effects_from_runs(
-            inputs.run_imgs,
-            inputs.design_matrices,
-            inputs.mask_img,
-            contrast,
-        )
-        arrays[f"effect_{name}"] = effect
-        arrays[f"t_{name}"] = t_stat
+        result = combined.contrast(contrast, name=name)
+        arrays[f"effect_{name}"] = result.estimate
+        arrays[f"t_{name}"] = result.stat
     return PipelineOutput(arrays=arrays)
 
 
