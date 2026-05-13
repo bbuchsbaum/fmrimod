@@ -1,0 +1,45 @@
+{
+  "caveats": [],
+  "checks": {
+    "contrast_name_survives": [
+      "conditions_omnibus"
+    ],
+    "group_assays": [
+      "beta"
+    ],
+    "group_result_assays": [
+      "coef:Intercept",
+      "df_res",
+      "p_coef:Intercept",
+      "se_coef:Intercept",
+      "sigma2",
+      "t_coef:Intercept"
+    ],
+    "statistic_family": "F",
+    "typed_intent_kind": "omnibus",
+    "typed_intent_levels": [
+      "condition_a",
+      "condition_b"
+    ],
+    "typed_intent_term": "trial_type"
+  },
+  "group": {
+    "contrast_data": [
+      {
+        "contrast": "conditions_omnibus",
+        "intent_kind": "omnibus",
+        "intent_levels": "condition_a,condition_b",
+        "intent_term": "trial_type",
+        "statistic_family": "F",
+        "touched_columns": "trial_type_trial_type.condition_a|trial_type_trial_type.condition_b"
+      }
+    ],
+    "contrasts": [
+      "conditions_omnibus"
+    ],
+    "n_samples": 32,
+    "n_subjects": 5
+  },
+  "name": "tier_group_semantic_survival",
+  "status": "pass"
+}
