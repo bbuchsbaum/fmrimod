@@ -33,3 +33,6 @@ docs/.quarto/
 fitlins/
 worker_agent.md
 .mote/
+.claude/
+.codex/
+vendor/
