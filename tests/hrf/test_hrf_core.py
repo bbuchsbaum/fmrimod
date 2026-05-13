@@ -120,6 +120,57 @@ class TestHRFBase:
         assert np.corrcoef(result_fine, result_coarse)[0, 1] > 0.99
 
 
+class TestSPMGTypedFields:
+    """SPMG HRFs expose their double-gamma parameters as typed dataclass fields.
+
+    See bead ``bd-01KRGCYHKHM07TC5ANX3EEMPQE``; this regression suite locks the
+    typed-field contract so subsequent type-end-to-end steps can't unwind it.
+    """
+
+    def test_spmg1_typed_fields(self):
+        from dataclasses import fields
+        from fmrimod.hrf.spm_hrf import SPMG1_HRF
+
+        hrf = SPMG1_HRF()
+        assert hrf.p1 == 5.0
+        assert hrf.p2 == 15.0
+        assert hrf.a1 == 0.0833
+
+        field_names = {f.name for f in fields(hrf)}
+        assert {"p1", "p2", "a1"}.issubset(field_names)
+
+    def test_spmg1_constructor_overrides(self):
+        from fmrimod.hrf.spm_hrf import SPMG1_HRF
+
+        hrf = SPMG1_HRF(p1=6.0, p2=14.0, a1=0.05)
+        assert hrf.p1 == 6.0
+        assert hrf.p2 == 14.0
+        assert hrf.a1 == 0.05
+        # Back-compat: params dict mirrors the typed fields during transition.
+        assert hrf.params == {"p1": 6.0, "p2": 14.0, "a1": 0.05}
+
+    def test_spmg2_typed_fields_and_call_uses_them(self):
+        from fmrimod.hrf.spm_hrf import SPMG2_HRF
+
+        hrf = SPMG2_HRF(p1=6.0)
+        assert hrf.p1 == 6.0
+        # Mutating params dict must not change the basis: __call__ reads typed
+        # fields, not the dict.
+        hrf.params["p1"] = 99.0
+        result_default_p1 = SPMG2_HRF(p1=6.0)(np.arange(0, 24, 1.0))
+        result_mutated_dict = hrf(np.arange(0, 24, 1.0))
+        assert np.allclose(result_default_p1, result_mutated_dict)
+
+    def test_spmg3_typed_fields(self):
+        from fmrimod.hrf.spm_hrf import SPMG3_HRF
+
+        hrf = SPMG3_HRF(p1=4.5, p2=13.0, a1=0.07)
+        assert hrf.p1 == 4.5
+        assert hrf.p2 == 13.0
+        assert hrf.a1 == 0.07
+        assert hrf.nbasis == 3
+
+
 class TestAsHRF:
     """Test as_hrf function."""
     
