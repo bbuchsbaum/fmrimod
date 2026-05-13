@@ -6,13 +6,16 @@ for linear contrasts of regression coefficients.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Optional, Union
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Sequence, Union
 import warnings
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy import special as sp_special
+
+from .spatial import SpatialContext
 
 
 def _validate_f_contrast_matrix(
@@ -115,6 +118,117 @@ class ContrastResult:
     p_value: NDArray[np.float64]
     df: Union[float, tuple]
     stat_type: str
+    spatial: Optional[SpatialContext] = None
+
+    # -- Reverse converters --
+
+    def _vector_for(self, kind: str) -> NDArray[np.float64]:
+        """Return a 1-D ``(n_voxels,)`` vector for the requested statistic."""
+        if kind in ("stat", "t", "F"):
+            return np.asarray(self.stat, dtype=np.float64).ravel()
+        if kind in ("estimate", "effect", "effect_size", "beta"):
+            est = np.asarray(self.estimate, dtype=np.float64)
+            if est.ndim == 2:
+                if est.shape[0] != 1:
+                    raise ValueError(
+                        f"kind={kind!r} requires a 1-row estimate; "
+                        f"got shape {est.shape}. Use to_neurovec for multi-row "
+                        "F-contrast estimates."
+                    )
+                est = est.ravel()
+            return est
+        if kind in ("se", "std_error"):
+            if self.se is None:
+                raise ValueError(f"kind={kind!r} not available for F-contrasts")
+            return np.asarray(self.se, dtype=np.float64).ravel()
+        if kind in ("p_value", "p", "pvalue"):
+            return np.asarray(self.p_value, dtype=np.float64).ravel()
+        raise ValueError(
+            f"Unknown kind={kind!r}. Choose from: 'stat', 'estimate', 'se', 'p_value'."
+        )
+
+    def _require_spatial(self) -> SpatialContext:
+        if self.spatial is None:
+            raise ValueError(
+                "ContrastResult has no spatial context; call fit.contrast(...) "
+                "on a model whose dataset carries a 3-D mask, or attach a "
+                "SpatialContext manually."
+            )
+        return self.spatial
+
+    def to_neurovol(
+        self,
+        kind: str = "stat",
+        *,
+        fill: float = 0.0,
+        label: Optional[str] = None,
+    ) -> Any:
+        """Return a ``neuroim.DenseNeuroVol`` for one statistic.
+
+        Parameters
+        ----------
+        kind : str
+            One of ``"stat"`` (default), ``"estimate"``, ``"se"``,
+            ``"p_value"``.
+        fill : float
+            Value placed at non-mask voxels. Defaults to 0.0 so the volume
+            writes cleanly to NIfTI; pass ``np.nan`` for diagnostic display.
+        label : str, optional
+            Volume label. Defaults to ``f"{self.name}.{kind}"``.
+        """
+        ctx = self._require_spatial()
+        vec = self._vector_for(kind)
+        return ctx.to_neurovol(vec, label=label or f"{self.name}.{kind}", fill=fill)
+
+    def to_neurovec(
+        self,
+        kinds: Optional[Sequence[str]] = None,
+        *,
+        fill: float = 0.0,
+    ) -> Any:
+        """Return a ``neuroim.DenseNeuroVec`` stacking multiple statistics.
+
+        Parameters
+        ----------
+        kinds : sequence of str, optional
+            Statistic kinds to stack along the 4th dimension. Defaults to
+            ``("estimate", "stat", "p_value")`` for t-contrasts and
+            ``("stat", "p_value")`` for F-contrasts.
+        fill : float
+            Out-of-mask fill value (defaults to 0.0).
+        """
+        import neuroim  # type: ignore[import-not-found]
+
+        ctx = self._require_spatial()
+        if kinds is None:
+            kinds = (
+                ("estimate", "stat", "p_value")
+                if self.stat_type == "t"
+                else ("stat", "p_value")
+            )
+        vols = [ctx.reconstruct(self._vector_for(k), fill=fill) for k in kinds]
+        stacked = np.stack(vols, axis=-1).astype(np.float64)
+        space3d = ctx.to_neuro_space()
+        space4d = neuroim.NeuroSpace(
+            dim=tuple(int(d) for d in stacked.shape),
+            spacing=tuple(float(s) for s in space3d.spacing[:3]) + (1.0,),
+            origin=tuple(float(o) for o in space3d.origin[:3]) + (0.0,),
+        )
+        return neuroim.DenseNeuroVec(stacked, space4d)
+
+    def to_nifti(
+        self,
+        path: Union[str, Path],
+        *,
+        kind: str = "stat",
+        fill: float = 0.0,
+    ) -> Path:
+        """Write one statistic to disk as a NIfTI volume.
+
+        Returns the resolved :class:`pathlib.Path`.
+        """
+        ctx = self._require_spatial()
+        return ctx.write_nifti(self._vector_for(kind), path, label=f"{self.name}.{kind}", fill=fill)
 
 
 def contrast_t(

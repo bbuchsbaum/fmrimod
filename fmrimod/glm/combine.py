@@ -61,6 +61,13 @@ class CombinedFmriLm:
         """Compute a contrast across all runs and pool by ``self.method``."""
         per_run = [f.contrast(spec, name=name) for f in self.fits]
         pooled = combine_contrasts(per_run, method=self.method, name=name)
+        # Propagate spatial context (combine_runs enforced matching n_voxels,
+        # so per-run masks coincide).
+        if pooled.spatial is None:
+            for r in per_run:
+                if r.spatial is not None:
+                    pooled.spatial = r.spatial
+                    break
         self.contrasts[pooled.name] = pooled
         return pooled
 

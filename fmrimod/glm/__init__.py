@@ -6,6 +6,7 @@ datasets.
 """
 
 from .combine import CombinedFmriLm, combine_contrasts, combine_runs
+from .spatial import SpatialContext
 from .compat import (
     LowRankControl,
     SoftProjection,
@@ -49,6 +50,7 @@ __all__ = [
     "combine_runs",
     "combine_contrasts",
     "CombinedFmriLm",
+    "SpatialContext",
     "SoftProjection",
     "soft_projection",
     "apply_soft_projection",

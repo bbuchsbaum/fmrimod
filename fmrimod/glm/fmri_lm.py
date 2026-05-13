@@ -174,8 +174,20 @@ class FmriLm:
                 weights, self.betas, self.XtXinv, self.sigma,
                 self.residual_df, name=name,
             )
+        result.spatial = self._spatial_context()
         self.contrasts[name] = result
         return result
+
+    def _spatial_context(self) -> Optional["SpatialContext"]:
+        """Return the spatial context for this fit, if its model exposes one.
+
+        Cached so repeated contrast calls don't re-walk the adapter.
+        """
+        from .spatial import SpatialContext
+
+        if not hasattr(self, "_spatial_context_cache"):
+            self._spatial_context_cache = SpatialContext.from_model(self.model)
+        return self._spatial_context_cache
 
     def compute_contrasts(
         self,
@@ -212,6 +224,7 @@ class FmriLm:
             else:
                 f_items.append((cname, np.atleast_2d(w_arr)))
 
+        ctx = self._spatial_context()
         if t_weights:
             t_mat = np.vstack(t_weights)
             t_results = contrast_t_batch(
@@ -223,6 +236,7 @@ class FmriLm:
                 names=t_names,
             )
             for res in t_results:
+                res.spatial = ctx
                 self.contrasts[res.name] = res
                 out[res.name] = res
 
@@ -235,6 +249,7 @@ class FmriLm:
                 self.residual_df,
                 name=cname,
             )
+            res.spatial = ctx
             self.contrasts[cname] = res
             out[cname] = res
 
