@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from numpy.testing import assert_allclose
 
 from fmrimod.single._types import SbhmConfig, SingleTrialResult
-from fmrimod.single.sbhm.library import SbhmLibrary, build_sbhm_library
-from fmrimod.single.sbhm.prepass import sbhm_prepass
-from fmrimod.single.sbhm.match import sbhm_match
 from fmrimod.single.sbhm.amplitude import sbhm_amplitude
+from fmrimod.single.sbhm.library import SbhmLibrary, build_sbhm_library
+from fmrimod.single.sbhm.match import sbhm_match
 from fmrimod.single.sbhm.pipeline import sbhm_single_trial
+from fmrimod.single.sbhm.prepass import sbhm_prepass
 
 
 @pytest.fixture

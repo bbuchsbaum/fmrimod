@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
-from fmrimod.single.oasis import oasis_single_trial
 from fmrimod.single._types import OasisConfig, SingleTrialResult
+from fmrimod.single.oasis import oasis_single_trial
 
 
 @pytest.fixture

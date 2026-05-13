@@ -59,10 +59,10 @@ class SingleTrialResult:
 
     betas: NDArray[np.float64]
     method: str
-    trial_labels: Optional[list] = None
+    trial_labels: Optional[list[str]] = None
     residual_df: float = 0.0
     se: Optional[NDArray[np.float64]] = None
-    extra: dict = field(default_factory=dict)
+    extra: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -167,4 +167,4 @@ class VoxelHrfResult:
 
     coefficients: NDArray[np.float64]
     basis: Any
-    conditions: list
+    conditions: list[str]

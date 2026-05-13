@@ -15,7 +15,7 @@ The primary entry point is :func:`estimate_single_trial`.
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -52,13 +52,16 @@ from .mixed import mixed_single_trial
 from .oasis import oasis_single_trial
 from .voxel_hrf import estimate_hrf, estimate_voxel_hrf, lss_with_voxel_hrf
 
+if TYPE_CHECKING:
+    from .sbhm.library import SbhmLibrary
+
 
 def estimate_single_trial(
     Y: NDArray[np.float64],
     X: NDArray[np.float64],
     method: str = "lss",
     confounds: NDArray[np.float64] | None = None,
-    trial_labels: list | None = None,
+    trial_labels: list[str] | None = None,
     return_se: bool = False,
     *,
     prewhiten: PrewhitenConfig | None = None,
@@ -66,7 +69,7 @@ def estimate_single_trial(
     chunk_size: int | None = None,
     oasis_config: OasisConfig | None = None,
     sbhm_config: SbhmConfig | None = None,
-    sbhm_library: object | None = None,
+    sbhm_library: SbhmLibrary | None = None,
     baseline_regressors: NDArray[np.float64] | None = None,
     include_intercept: bool = False,
 ) -> SingleTrialResult:
@@ -151,24 +154,24 @@ def estimate_single_trial(
         )
 
     if method_enum is SingleTrialMethod.OASIS:
-        cfg = oasis_config or OasisConfig(return_se=return_se)
-        if return_se and not cfg.return_se:
-            cfg = replace(cfg, return_se=True)
+        oasis_cfg = oasis_config or OasisConfig(return_se=return_se)
+        if return_se and not oasis_cfg.return_se:
+            oasis_cfg = replace(oasis_cfg, return_se=True)
         return oasis_single_trial(
             Y, X,
             confounds=confounds,
-            config=cfg,
+            config=oasis_cfg,
             trial_labels=trial_labels,
         )
 
     if method_enum is SingleTrialMethod.SBHM:
         # Lazy import to avoid circular dependencies
         from .sbhm.pipeline import sbhm_single_trial
-        cfg = sbhm_config or SbhmConfig()
+        sbhm_cfg = sbhm_config or SbhmConfig()
         return sbhm_single_trial(
             Y, X,
             confounds=confounds,
-            config=cfg,
+            config=sbhm_cfg,
             trial_labels=trial_labels,
             library=sbhm_library,
         )

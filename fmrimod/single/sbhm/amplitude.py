@@ -10,23 +10,23 @@ single-trial regressors and estimates amplitudes using one of three methods:
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Optional
+from typing import Iterator, Optional
 
 import numpy as np
 from numpy.typing import NDArray
 
-from .._types import AmplitudeMethod, OasisConfig, _AMPLITUDE_METHODS
+from .._types import _AMPLITUDE_METHODS, AmplitudeMethod, OasisConfig
 from ..oasis import oasis_single_trial
 
 
 @contextmanager
-def _maybe_limit_blas_threads(blas_threads: Optional[int]):
+def _maybe_limit_blas_threads(blas_threads: Optional[int]) -> Iterator[None]:
     """Limit BLAS threads within a context when threadpoolctl is available."""
     if blas_threads is None:
         yield
         return
     try:
-        from threadpoolctl import threadpool_limits  # type: ignore[import-not-found]
+        from threadpoolctl import threadpool_limits  # type: ignore[import-untyped]
     except Exception:
         yield
         return
@@ -164,7 +164,8 @@ def _lss1_voxel_chunk(
     ctb_bt2 = ctb / bt2_safe
     num = CtY - ctb_bt2 * BtY
     den = CtC - (ctb * ctb) / bt2_safe
-    return num / np.maximum(den, eps)
+    beta = num / np.maximum(den, eps)
+    return np.asarray(beta, dtype=np.float64)
 
 
 def _lss1_voxelwise_chunked(
