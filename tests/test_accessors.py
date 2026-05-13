@@ -176,6 +176,7 @@ def test_typed_literal_aliases_exposed():
     """The Literal type aliases are part of the public accessors surface."""
     assert hasattr(accessors, "AccessorScope")
     assert hasattr(accessors, "AccessorTarget")
+    assert hasattr(accessors, "AccessorStandardErrorTarget")
     assert hasattr(accessors, "AccessorStatistic")
 
 

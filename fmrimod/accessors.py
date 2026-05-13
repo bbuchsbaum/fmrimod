@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import Dict, List, Literal, Optional, Sequence, Union, overload
+from typing import Dict, List, Literal, Optional, Sequence, Union, cast, overload
 
 import numpy as np
 import pandas as pd
@@ -25,6 +25,9 @@ selects named t-contrast results, and ``"F"`` selects named F-contrast
 results. Functions that do not produce F statistics (currently only
 :func:`standard_error`) reject ``"F"``."""
 
+AccessorStandardErrorTarget = Literal["estimates", "contrasts"]
+"""Valid values for ``standard_error(..., type=...)`` and ``se``."""
+
 AccessorStatistic = Literal["estimate", "stat", "se", "pvalue"]
 """Valid canonical values for :func:`coef_image`'s ``statistic`` parameter.
 
@@ -42,7 +45,9 @@ _STATISTIC_ALIASES: Dict[str, AccessorStatistic] = {
     "std_error": "se",
 }
 
-_VALID_STATISTICS: frozenset = frozenset({"estimate", "stat", "se", "pvalue"})
+_VALID_STATISTICS: frozenset[str] = frozenset(
+    {"estimate", "stat", "se", "pvalue"}
+)
 
 
 EstimateOrContrastMap = Union[NDArray[np.float64], Dict[str, NDArray[np.float64]]]
@@ -67,20 +72,28 @@ def _normalize_scope(scope: str) -> AccessorScope:
         raise ValueError(
             f"scope must be one of 'raw', 'per_run', 'average'; got {scope!r}"
         )
-    return scope  # type: ignore[return-value]
+    return cast(AccessorScope, scope)
 
 
-def _normalize_target(target: str, *, allow_f: bool = True) -> AccessorTarget:
-    valid = {"estimates", "contrasts", "F"} if allow_f else {"estimates", "contrasts"}
+def _normalize_standard_error_target(target: str) -> AccessorStandardErrorTarget:
+    valid = {"estimates", "contrasts"}
     if target not in valid:
-        valid_repr = ", ".join(repr(v) for v in sorted(valid))
+        valid_repr = ", ".join(repr(value) for value in sorted(valid))
         raise ValueError(f"type must be one of {valid_repr}; got {target!r}")
-    return target  # type: ignore[return-value]
+    return cast(AccessorStandardErrorTarget, target)
+
+
+def _normalize_target(target: str) -> AccessorTarget:
+    valid = {"estimates", "contrasts", "F"}
+    if target not in valid:
+        valid_repr = ", ".join(repr(value) for value in sorted(valid))
+        raise ValueError(f"type must be one of {valid_repr}; got {target!r}")
+    return cast(AccessorTarget, target)
 
 
 def _normalize_statistic(statistic: str) -> AccessorStatistic:
     if statistic in _VALID_STATISTICS:
-        return statistic  # type: ignore[return-value]
+        return cast(AccessorStatistic, statistic)
     if statistic in _STATISTIC_ALIASES:
         canonical = _STATISTIC_ALIASES[statistic]
         warnings.warn(
@@ -156,10 +169,10 @@ def ar_parameters(
 
 
 def standard_error(
-    x: object, type: AccessorTarget = "estimates"
+    x: object, type: AccessorStandardErrorTarget = "estimates"
 ) -> EstimateOrContrastMap:
     """Return standard errors for coefficient estimates or contrasts."""
-    type = _normalize_target(type, allow_f=False)
+    type = _normalize_standard_error_target(type)
     if type == "estimates":
         method = getattr(x, "se", None)
         if callable(method):
@@ -174,7 +187,9 @@ def standard_error(
     }
 
 
-def se(x: object, type: AccessorTarget = "estimates") -> EstimateOrContrastMap:
+def se(
+    x: object, type: AccessorStandardErrorTarget = "estimates"
+) -> EstimateOrContrastMap:
     """Alias for :func:`standard_error`."""
     return standard_error(x, type=type)
 

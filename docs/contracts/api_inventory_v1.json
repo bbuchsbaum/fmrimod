@@ -663,7 +663,7 @@
       "name": "ar_parameters",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', scope: 'str' = 'average') -> 'Optional[Union[NDArray[np.float64], List[NDArray[np.float64]]]]'",
+      "runtime_signature": "(x: 'object', scope: 'AccessorScope' = 'average') -> 'Optional[Union[object, NDArray[np.float64], List[NDArray[np.float64]]]]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -798,7 +798,7 @@
       "name": "coef_image",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', coef: 'Union[int, str]' = 0, statistic: 'str' = 'estimate', mask: 'Optional[NDArray[np.bool_]]' = None) -> 'NDArray[np.float64]'",
+      "runtime_signature": "(x: 'object', coef: 'Union[int, str]' = 0, statistic: 'AccessorStatistic' = 'estimate', mask: 'Optional[NDArray[np.bool_]]' = None) -> 'NDArray[np.float64]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2433,7 +2433,7 @@
       "name": "p_values",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', type: 'str' = 'estimates') -> 'EstimateOrContrastMap'",
+      "runtime_signature": "(x: 'object', type: 'AccessorTarget' = 'estimates') -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2508,7 +2508,7 @@
       "name": "pvalues",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', type: 'str' = 'estimates') -> 'EstimateOrContrastMap'",
+      "runtime_signature": "(x: 'object', type: 'AccessorTarget' = 'estimates') -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2703,7 +2703,7 @@
       "name": "se",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', type: 'str' = 'estimates') -> 'EstimateOrContrastMap'",
+      "runtime_signature": "(x: 'object', type: 'AccessorStandardErrorTarget' = 'estimates') -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2868,7 +2868,7 @@
       "name": "standard_error",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', type: 'str' = 'estimates') -> 'EstimateOrContrastMap'",
+      "runtime_signature": "(x: 'object', type: 'AccessorStandardErrorTarget' = 'estimates') -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2928,7 +2928,7 @@
       "name": "tidy",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', type: 'str' = 'estimates') -> 'pd.DataFrame'",
+      "runtime_signature": "(x: 'object', type: 'AccessorTarget' = 'estimates') -> 'pd.DataFrame'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -3063,7 +3063,7 @@
       "name": "zscores",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', type: 'str' = 'estimates') -> 'EstimateOrContrastMap'",
+      "runtime_signature": "(x: 'object', type: 'AccessorTarget' = 'estimates') -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
