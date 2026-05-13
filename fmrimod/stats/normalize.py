@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from .interfaces import GroupFitRequest
-
+from fmrimod.stats.interfaces import GroupFitRequest
 
 _METHOD_ALIASES = {
     "fixed": "fe",
@@ -38,8 +37,9 @@ _CORRECTION_ALIASES = {
 _BACKEND_ALIASES = {
     "auto": "auto",
     "python": "python",
-    "fmrigds": "fmrigds",
-    "r": "fmrigds",
+    "fmrigds-r": "fmrigds-r",
+    "r-fmrigds": "fmrigds-r",
+    "r": "fmrigds-r",
 }
 
 
@@ -74,9 +74,11 @@ def normalize_group_fit_request(request: GroupFitRequest) -> GroupFitRequest:
         corr = corr_out
 
     backend_key = str(request.backend).strip().lower()
+    if backend_key == "fmrigds":
+        raise ValueError("backend='fmrigds' is retired; use backend='fmrigds-r' for the R oracle")
     backend = _BACKEND_ALIASES.get(backend_key)
     if backend is None:
-        raise ValueError("backend must be one of: auto, python, fmrigds")
+        raise ValueError("backend must be one of: auto, python, fmrigds-r")
 
     method = _normalize_method(request)
 

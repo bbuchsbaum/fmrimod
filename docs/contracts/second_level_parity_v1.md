@@ -25,7 +25,7 @@ Core fields:
 - `weights`: `"ivw" | "equal" | "custom"`
 - `correction`: `None | "bh" | "by" | "spatial"`
 - `group_ids`: required for `"spatial"` correction
-- `backend`: `"auto" | "python" | "fmrigds"`
+- `backend`: `"auto" | "python" | "fmrigds-r"`
 
 ## Canonical Result
 
@@ -66,7 +66,7 @@ For v1 canonical outputs:
 
 ### Backend aliases
 
-- `r` -> `fmrigds`
+- `r` -> `fmrigds-r`
 
 ## Behavior Guarantees (v1)
 
@@ -74,7 +74,8 @@ For v1 canonical outputs:
 - `group_fit` delegates to parity implementations after normalization.
 - Correction is applied post-fit on canonical p-values.
 - Spatial correction requires explicit grouping (`group_ids`) in v1.
-- `backend="fmrigds"` is available through an R bridge with explicit capability checks.
+- `backend="fmrigds-r"` is available as an explicit R fmrigds oracle/fallback with capability checks.
+- `backend="fmrigds"` is retired from dispatch to avoid treating the R bridge as the native production path.
 
 ## Out of Scope (v1)
 

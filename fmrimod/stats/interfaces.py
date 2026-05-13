@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal, Mapping, Sequence
+from typing import Any, Literal
 
 import numpy as np
 from numpy.typing import NDArray
 
-from ..dataset.group_data import GroupData
-
+from fmrimod.dataset.group_data import GroupData
 
 SecondLevelModel = Literal["meta", "ttest"]
 EffectMode = Literal["fixed", "random"]
@@ -17,7 +17,7 @@ Tau2Method = Literal["dl", "pm", "reml"]
 TTestEngine = Literal["auto", "meta", "classic", "welch"]
 WeightMode = Literal["ivw", "equal", "custom"]
 CorrectionMethod = Literal["bh", "by", "spatial"]
-BackendName = Literal["auto", "python", "fmrigds"]
+BackendName = Literal["auto", "python", "fmrigds-r"]
 
 
 @dataclass(frozen=True)

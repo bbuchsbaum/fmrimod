@@ -72,7 +72,7 @@ def test_group_fit_fmrigds_matches_python_for_fixed_effects():
             data=gd,
             model="meta",
             effects="fixed",
-            backend="fmrigds",
+            backend="fmrigds-r",
             backend_options=backend_opts,
         )
     )
@@ -100,7 +100,7 @@ def test_group_fit_fmrigds_matches_python_for_ttest_fixed():
             data=gd,
             model="ttest",
             effects="fixed",
-            backend="fmrigds",
+            backend="fmrigds-r",
             backend_options=backend_opts,
         )
     )
@@ -119,6 +119,6 @@ def test_group_fit_fmrigds_rejects_pm_until_backend_supports_it():
                 model="meta",
                 effects="random",
                 tau2="pm",
-                backend="fmrigds",
+                backend="fmrigds-r",
             )
         )

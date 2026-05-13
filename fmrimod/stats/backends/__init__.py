@@ -9,16 +9,18 @@ from .python_backend import PythonParityBackend
 
 def available_second_level_backends() -> list[str]:
     """List known backend names."""
-    return ["auto", "python", "fmrigds"]
+    return ["auto", "python", "fmrigds-r"]
 
 
 def resolve_second_level_backend(name: str) -> SecondLevelBackend:
     """Resolve a backend name to an implementation instance."""
     if name in ("auto", "python"):
         return PythonParityBackend()
-    if name == "fmrigds":
+    if name in ("fmrigds-r", "r-fmrigds", "r"):
         return FmrigdsBackend()
-    raise ValueError("backend must be one of: auto, python, fmrigds")
+    if name == "fmrigds":
+        raise ValueError("backend='fmrigds' is retired; use backend='fmrigds-r' for the R oracle")
+    raise ValueError("backend must be one of: auto, python, fmrigds-r")
 
 
 __all__ = [

@@ -93,12 +93,19 @@ def test_group_fit_fmrigds_backend_rejects_unimplemented_mode_explicitly():
         model="meta",
         effects="random",
         tau2="pm",
-        backend="fmrigds",
+        backend="fmrigds-r",
     )
     with pytest.raises(NotImplementedError, match="method='fe' or 'dl'"):
         group_fit(request)
 
 
+def test_group_fit_rejects_legacy_fmrigds_backend_name_with_guidance():
+    gd = _make_csv_group_data()
+    request = GroupFitRequest(data=gd, model="meta", effects="fixed", backend="fmrigds")
+    with pytest.raises(ValueError, match="fmrigds-r"):
+        group_fit(request)
+
+
 def test_available_backends_surface_contains_expected_names():
     backends = available_second_level_backends()
-    assert set(backends) == {"auto", "python", "fmrigds"}
+    assert set(backends) == {"auto", "python", "fmrigds-r"}

@@ -7,12 +7,13 @@ import os
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 import numpy as np
 
-from ..interfaces import GroupFitRequest, GroupFitResult
+from fmrimod.stats.interfaces import GroupFitRequest, GroupFitResult
 
 _DEFAULT_RSCRIPT = "Rscript"
 _BRIDGE_SCRIPT = Path(__file__).with_name("fmrigds_bridge.R")
@@ -183,7 +184,7 @@ def _decode_bridge_result(result: Mapping[str, Any], request: GroupFitRequest) -
         model=str(result.get("model") or request.model),
         method=str(result.get("method") or request.method),
         formula=str(result.get("formula") or request.formula),
-        backend="fmrigds",
+        backend="fmrigds-r",
         metadata=md,
     )
 
@@ -191,7 +192,7 @@ def _decode_bridge_result(result: Mapping[str, Any], request: GroupFitRequest) -
 class FmrigdsBackend:
     """Backend shim for fmrigds delegation via an R bridge script."""
 
-    name = "fmrigds"
+    name = "fmrigds-r"
 
     def fit(self, request: GroupFitRequest) -> GroupFitResult:
         method = str(request.method)
