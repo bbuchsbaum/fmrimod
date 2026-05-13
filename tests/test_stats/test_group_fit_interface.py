@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fmrimod.dataset import group_data_from_csv
+from fmrimod.dataset import group_data_from_csv, group_data_from_h5
 from fmrimod.stats import (
     GroupFitRequest,
     available_second_level_backends,
@@ -60,6 +60,32 @@ def test_group_fit_ttest_matches_fmri_ttest_auto_engine():
     np.testing.assert_allclose(got.p[:, 0], ref.p, atol=1e-12)
     assert got.method == "fe"
     assert got.backend == "python"
+
+
+def test_group_fit_meta_h5_uses_native_group_reducer(tmp_path):
+    h5py = pytest.importorskip("h5py")
+    paths = []
+    for subject_idx, values in enumerate(([1.0, 2.0], [2.0, 4.0]), start=1):
+        path = tmp_path / f"sub-{subject_idx:02d}.h5"
+        with h5py.File(path, "w") as handle:
+            handle.create_dataset("beta", data=np.asarray(values))
+            handle.create_dataset("se", data=np.array([0.1, 0.2]))
+        paths.append(path)
+    gd = group_data_from_h5(
+        paths,
+        subjects=["s1", "s2"],
+        contrast="faces",
+        stat=("beta", "se"),
+    )
+
+    got = group_fit(GroupFitRequest(data=gd, model="meta", effects="fixed"))
+
+    np.testing.assert_allclose(got.estimate[:, 0], np.array([1.5, 3.0]))
+    np.testing.assert_allclose(got.se[:, 0], np.sqrt(np.array([0.005, 0.02])))
+    assert got.feature_names == ["sample1", "sample2"]
+    assert got.metadata["source"] == "fmrimod.group"
+    assert got.metadata["source_format"] == "h5"
+    assert got.metadata["reduce_method"] == "meta:fe"
 
 
 def test_group_fit_normalizes_aliases_for_weights_and_correction():
