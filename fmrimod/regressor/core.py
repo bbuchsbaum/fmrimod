@@ -70,12 +70,13 @@ def _recycle_or_error(
         )
 
 
-@dataclass
+@dataclass(frozen=True)
 class Regressor:
     """Represents event-related regressors for fMRI modeling.
 
-    This class defines event onsets and associates them with a hemodynamic
-    response function (HRF) to generate predicted time courses.
+    Instances are immutable after construction; consumers should build new
+    regressors via the :func:`regressor` factory or :meth:`shift` rather
+    than mutating fields in place.
 
     The *hrf* field may be a single :class:`HRF` object (applied to every
     event) **or** a list of HRF objects for trial-varying designs.  When a
@@ -120,14 +121,16 @@ class Regressor:
 
     def __post_init__(self) -> None:
         """Validate and process inputs after initialization."""
+        _set = object.__setattr__
+
         # Convert inputs to numpy arrays
-        self.onsets = np.asarray(self.onsets, dtype=np.float64)
-        self.duration = np.asarray(self.duration, dtype=np.float64)
-        self.amplitude = np.asarray(self.amplitude, dtype=np.float64)
+        _set(self, "onsets", np.asarray(self.onsets, dtype=np.float64))
+        _set(self, "duration", np.asarray(self.duration, dtype=np.float64))
+        _set(self, "amplitude", np.asarray(self.amplitude, dtype=np.float64))
 
         # Handle single NA onset (represents zero events)
         if len(self.onsets) == 1 and np.isnan(self.onsets[0]):
-            self.onsets = np.array([], dtype=np.float64)
+            _set(self, "onsets", np.array([], dtype=np.float64))
 
         # Validate explicit span; None means "derive from HRF later".
         if self.span is not None:
@@ -145,8 +148,8 @@ class Regressor:
 
         # Recycle duration and amplitude before validation
         if n_onsets > 0:
-            self.duration = _recycle_or_error(self.duration, n_onsets, "duration")
-            self.amplitude = _recycle_or_error(self.amplitude, n_onsets, "amplitude")
+            _set(self, "duration", _recycle_or_error(self.duration, n_onsets, "duration"))
+            _set(self, "amplitude", _recycle_or_error(self.amplitude, n_onsets, "amplitude"))
 
         # Validate duration after recycling (ensures 1-d array)
         if self.duration.size > 0:
@@ -169,7 +172,7 @@ class Regressor:
             # Recycle length-1 list
             if len(hrf_value) == 1 and n_onsets > 0:
                 hrf_value = hrf_value * n_onsets
-                self.hrf = hrf_value
+                _set(self, "hrf", hrf_value)
             elif len(hrf_value) != n_onsets and n_onsets > 0:
                 raise ValueError(
                     f"`hrf` list must have length 1 or {n_onsets}, "
@@ -189,17 +192,17 @@ class Regressor:
         if n_onsets > 0:
             keep_indices = np.where((self.amplitude != 0) & ~np.isnan(self.amplitude))[0]
             filtered_some = len(keep_indices) < n_onsets
-            self.filtered_all = len(keep_indices) == 0
+            _set(self, "filtered_all", len(keep_indices) == 0)
 
             if filtered_some:
-                self.onsets = self.onsets[keep_indices]
-                self.duration = self.duration[keep_indices]
-                self.amplitude = self.amplitude[keep_indices]
+                _set(self, "onsets", self.onsets[keep_indices])
+                _set(self, "duration", self.duration[keep_indices])
+                _set(self, "amplitude", self.amplitude[keep_indices])
                 if _hrf_is_list:
                     hrf_list = cast(List[HRF], self.hrf)
-                    self.hrf = [hrf_list[i] for i in keep_indices]
+                    _set(self, "hrf", [hrf_list[i] for i in keep_indices])
         else:
-            self.filtered_all = True
+            _set(self, "filtered_all", True)
 
         # Ensure HRF is valid (single-HRF case)
         if not _hrf_is_list and not isinstance(self.hrf, HRF):
@@ -223,12 +226,13 @@ class Regressor:
                     if getattr(hrf_single, "span", None) is not None
                     else 40.0
                 )
-            self.span = float(derived)
-            if not np.isfinite(self.span) or self.span <= 0:
+            span_value = float(derived)
+            if not np.isfinite(span_value) or span_value <= 0:
                 raise ValueError(
                     "Derived span from HRF is not a positive, finite number; "
                     "supply span= explicitly."
                 )
+            _set(self, "span", span_value)
     
     def neural_input(
         self, 

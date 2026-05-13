@@ -1,5 +1,6 @@
 """Tests for Regressor functionality."""
 
+import dataclasses
 import typing
 
 import numpy as np
@@ -19,13 +20,23 @@ class TestRegressor:
         """Test basic regressor creation."""
         onsets = [10, 30, 50]
         reg = regressor(onsets)
-        
+
         assert isinstance(reg, Regressor)
         assert_array_equal(reg.onsets, onsets)
         assert len(reg.duration) == 3
         assert len(reg.amplitude) == 3
         assert reg.span == 24.0  # Default SPMG1 span
         assert reg.summate is True
+
+    def test_regressor_is_frozen(self):
+        """Regressor is immutable; field assignment must raise."""
+        reg = regressor(onsets=[10.0, 30.0, 50.0])
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            reg.onsets = np.array([1.0])  # type: ignore[misc]
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            reg.span = 99.0  # type: ignore[misc]
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            reg.filtered_all = True  # type: ignore[misc]
     
     def test_parameter_recycling(self):
         """Test recycling of scalar parameters."""
