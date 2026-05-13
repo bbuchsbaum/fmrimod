@@ -60,8 +60,6 @@ migration code and parity tests less ambiguous."
 | `fit_contrasts` | top-level | Migration surface | S2 | `FmriLm.contrast(...)` (alias-only retirement: emit DeprecationWarning) |
 | `fit_glm_on_transformed_series` | top-level | Migration surface | S2 | `fmri_lm(spec, dataset, config=FmriLmConfig(...))` with prewhitening |
 | `fit_glm_with_config` | top-level | Migration surface | S1 | `fmri_lm(spec_or_model, config=...)` already covers this; redundant alias |
-| `fit_glm_from_matrix` | top-level | **Unique typed entry** | S0 to promote | Keep; rename in place to `fmri_lm_from_matrix` and move out of compat |
-| `fit_glm_from_suffstats` | top-level | **Unique typed entry** | S0 to promote | Same as above |
 | `fmri_ols_fit` | top-level | Migration surface | S2 | `fmri_lm` with OLS engine (`config=FmriLmConfig()` default) |
 | `fmri_rlm` | top-level | Migration surface | S2 | `fmri_lm` with `config=FmriLmConfig(robust=RobustOptions(...))` |
 | `LowRankControl` (class) | top-level | Migration surface | S1 | `LowRankConfig` from `fmrimod/lowrank/` is already the typed equivalent |
