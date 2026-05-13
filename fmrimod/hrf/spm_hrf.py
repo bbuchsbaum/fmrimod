@@ -1,10 +1,9 @@
 """SPM HRF implementations with analytic derivatives.
 
 Typed dataclass subclasses of :class:`HRF`. Each SPMG kind exposes its
-double-gamma parameters as named fields (``p1``, ``p2``, ``a1``) instead
-of stuffing them into the inherited ``params`` dict. The ``params``
-mirror is preserved during the transition window for cross_testing
-readers; see bead ``bd-01KRGCZJ6JAA4BKRTNQ91P2PE5`` for its retirement.
+double-gamma parameters as named fields (``p1``, ``p2``, ``a1``). The
+inherited ``params`` / ``param_names`` mirror is kept as a transition
+surface; evaluation reads the typed fields directly.
 """
 
 from __future__ import annotations
@@ -19,7 +18,11 @@ from .core import HRF
 from .derivatives import spmg1_derivative, spmg1_second_derivative
 from .functions import spm_canonical
 
-_SPM_PARAM_NAMES: tuple[str, ...] = ("p1", "p2", "a1")
+_SPM_PARAM_NAMES = ("p1", "p2", "a1")
+
+
+def _spm_params(p1: float, p2: float, a1: float) -> dict[str, float]:
+    return {"p1": p1, "p2": p2, "a1": a1}
 
 
 @dataclass
@@ -34,7 +37,7 @@ class SPMG1_HRF(HRF):
     a1: float = 0.0833
 
     def __post_init__(self) -> None:
-        self.params = {"p1": self.p1, "p2": self.p2, "a1": self.a1}
+        self.params = _spm_params(self.p1, self.p2, self.a1)
         self.param_names = list(_SPM_PARAM_NAMES)
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
@@ -56,7 +59,7 @@ class SPMG2_HRF(HRF):
     a1: float = 0.0833
 
     def __post_init__(self) -> None:
-        self.params = {"p1": self.p1, "p2": self.p2, "a1": self.a1}
+        self.params = _spm_params(self.p1, self.p2, self.a1)
         self.param_names = list(_SPM_PARAM_NAMES)
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
@@ -95,7 +98,7 @@ class SPMG3_HRF(HRF):
     _DISPERSION_DERIV_DX: ClassVar[float] = 1e-3
 
     def __post_init__(self) -> None:
-        self.params = {"p1": self.p1, "p2": self.p2, "a1": self.a1}
+        self.params = _spm_params(self.p1, self.p2, self.a1)
         self.param_names = list(_SPM_PARAM_NAMES)
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
