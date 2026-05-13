@@ -6,7 +6,7 @@ import pytest
 from fmrimod.hrf.core import HRF, FunctionHRF, as_hrf, bind_basis
 from fmrimod.hrf.library import (
     SPM_CANONICAL, SPM_WITH_DERIVATIVE, SPM_WITH_DISPERSION,
-    GAMMA_HRF, GAUSSIAN_HRF, BSPLINE_HRF, FIR_HRF
+    GAMMA_HRF, GAUSSIAN_HRF, BSPLINE_HRF, FIR_HRF, FOURIER_HRF,
 )
 
 
@@ -311,6 +311,68 @@ class TestDecoratorComposition:
         via_evaluate = SPM_CANONICAL.evaluate(grid, duration=4.0)
         via_blocked = BlockedHRF(base=SPM_CANONICAL, width=4.0)(grid)
         assert np.allclose(via_evaluate, via_blocked)
+
+
+class TestPenaltyTypeDispatch:
+    """penalty_matrix dispatches on HRF type, not hrf.name.
+
+    Regression for the bug where any decorator chain mutated the name
+    string and dropped penalty selection back to ridge silently. See
+    bead ``bd-01KRGCZ1VMBRS9BXWVM1DTDE4M``.
+    """
+
+    def test_spmg2_penalty_survives_lag(self):
+        from fmrimod.hrf.penalty import penalty_matrix
+
+        direct = penalty_matrix(SPM_WITH_DERIVATIVE)
+        lagged = penalty_matrix(SPM_WITH_DERIVATIVE.lag(2.0))
+        assert np.allclose(direct, lagged)
+        # Sanity: SPMG2 penalty leaves canonical column unpenalized and
+        # shrinks the derivative column.
+        assert direct[0, 0] == 0.0
+        assert direct[1, 1] == 2.0
+
+    def test_spmg3_penalty_survives_block(self):
+        from fmrimod.hrf.decorators import block_hrf
+        from fmrimod.hrf.penalty import penalty_matrix
+
+        direct = penalty_matrix(SPM_WITH_DISPERSION)
+        blocked = penalty_matrix(block_hrf(SPM_WITH_DISPERSION, width=4.0))
+        assert np.allclose(direct, blocked)
+
+    def test_bspline_penalty_survives_normalize(self):
+        from fmrimod.hrf.decorators import normalize_hrf
+        from fmrimod.hrf.penalty import penalty_matrix
+
+        direct = penalty_matrix(BSPLINE_HRF)
+        normalized = penalty_matrix(normalize_hrf(BSPLINE_HRF))
+        assert np.allclose(direct, normalized)
+        assert direct.shape == (BSPLINE_HRF.nbasis, BSPLINE_HRF.nbasis)
+
+    def test_fourier_penalty_uses_frequency(self):
+        from fmrimod.hrf.penalty import penalty_matrix
+
+        p = penalty_matrix(FOURIER_HRF)
+        # Diagonal frequencies: ceil([1..nbasis]/2) -> [1, 1, 2, 2, 3]
+        assert np.allclose(np.diag(p), [1, 1, 4, 4, 9])  # squared
+
+    def test_bound_basis_penalty_is_block_diagonal(self):
+        from fmrimod.hrf.penalty import penalty_matrix
+
+        combined = SPM_WITH_DERIVATIVE + BSPLINE_HRF  # 2 + 5 = 7 cols
+        p = penalty_matrix(combined)
+        # Top-left 2x2 must match SPMG2; bottom-right 5x5 must match BSpline.
+        assert np.allclose(p[:2, :2], penalty_matrix(SPM_WITH_DERIVATIVE))
+        assert np.allclose(p[2:, 2:], penalty_matrix(BSPLINE_HRF))
+        # Off-diagonal blocks zero.
+        assert np.allclose(p[:2, 2:], 0)
+        assert np.allclose(p[2:, :2], 0)
+
+    def test_unknown_hrf_defaults_to_ridge(self):
+        from fmrimod.hrf.penalty import penalty_matrix
+
+        p = penalty_matrix(GAMMA_HRF)  # no specialised handler
+        assert np.allclose(p, np.eye(GAMMA_HRF.nbasis))
 
 
 class TestAsHRF:
