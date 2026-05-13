@@ -14,8 +14,9 @@ import pandas as pd
 import pytest
 
 import fmrimod as fm
-from fmrimod.glm.fmri_lm import FitProvenance, FmriLm
 from fmrimod.glm import SketchEngineOptions
+from fmrimod.glm.fmri_lm import FitProvenance, FmriLm
+from fmrimod.model.config import AROptions, FmriLmConfig
 from fmrimod.spec import hrf as hrf_term
 
 
@@ -118,8 +119,9 @@ def test_slice_a_other_fields_carry_status() -> None:
 
     assert prov.seed is None
     assert prov.seed_status == "not_randomized"
-    assert prov.ar_config is None
-    assert prov.ar_status == "not_yet_carried"
+    assert prov.ar_config is not None
+    assert prov.ar_config.struct == "iid"
+    assert prov.ar_status == "carried"
     assert prov.mask_mode is None
     assert prov.mask_status == "not_yet_carried"
 
@@ -182,6 +184,46 @@ def test_fit_provenance_marks_unseeded_sketch_engine_unknown() -> None:
     assert fit.provenance.seed_status == "unknown"
 
 
+def test_fit_provenance_carries_json_safe_ar_config_snapshot() -> None:
+    """Fit provenance carries config.ar without ndarray leaves or parcel loss."""
+    rng = np.random.default_rng(3)
+    events = pd.DataFrame(
+        {
+            "onset": [10.0, 30.0],
+            "duration": [2.0, 2.0],
+            "trial_type": ["A", "B"],
+            "run": [1, 1],
+        }
+    )
+    ds = fm.fmri_dataset(
+        rng.standard_normal((60, 4)).astype(np.float64),
+        tr=2.0,
+        events=events,
+    )
+    config = FmriLmConfig(
+        ar=AROptions(
+            struct="iid",
+            censor=np.array([1, 2]),
+            parcels=np.array([0, 1, 1, 0]),
+        )
+    )
+
+    fit = fm.fmri_lm(hrf_term("trial_type"), ds, config=config)
+
+    assert fit.provenance is not None
+    assert fit.provenance.ar_status == "carried"
+    assert fit.provenance.ar_config is not None
+    assert fit.provenance.ar_config is not config.ar
+    assert fit.provenance.ar_config.struct == "iid"
+    assert fit.provenance.ar_config.censor == [1, 2]
+    assert fit.provenance.ar_config.parcels == [0, 1, 1, 0]
+
+    payload = fit.provenance.to_dict()
+    assert payload["ar_config"]["censor"] == [1, 2]
+    assert payload["ar_config"]["parcels"] == [0, 1, 1, 0]
+    assert FitProvenance.from_json(fit.provenance.to_json()) == fit.provenance
+
+
 def test_provenance_constructor_defaults_match_slice_a() -> None:
     """Direct construction with the three required fields produces Slice A shape."""
     prov = FitProvenance(
@@ -222,4 +264,28 @@ def test_fit_provenance_json_round_trips_status_fields() -> None:
     assert payload["mask_status"] == "not_yet_carried"
 
     assert FitProvenance.from_dict(payload) == prov
+    assert FitProvenance.from_json(prov.to_json()) == prov
+
+
+def test_fit_provenance_normalizes_direct_array_ar_options() -> None:
+    """Direct construction with ndarray AR leaves is still JSON-roundtrippable."""
+    prov = FitProvenance(
+        fmrimod_version="0.1.0",
+        solver_path="RunwiseEngine",
+        hrf_norm_modes=("spm", None),
+        ar_config=AROptions(
+            struct="ar1",
+            censor=np.array([1, 2]),
+            parcels=np.array([0, 1, 1]),
+        ),
+        ar_status="carried",
+    )
+
+    assert prov.ar_config is not None
+    assert prov.ar_config.censor == [1, 2]
+    assert prov.ar_config.parcels == [0, 1, 1]
+
+    payload = prov.to_dict()
+    assert payload["ar_config"]["censor"] == [1, 2]
+    assert payload["ar_config"]["parcels"] == [0, 1, 1]
     assert FitProvenance.from_json(prov.to_json()) == prov

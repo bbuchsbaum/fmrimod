@@ -7,8 +7,8 @@ information, and methods for computing contrasts.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import json
+from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -40,12 +40,48 @@ from .contrasts import (
 from .engine import DEFAULT_ENGINE_OPTIONS, EngineResult, EngineSelector
 from .solver import Projection
 
-
 # ── Fit-level reproducibility metadata (VISION.md:99-103) ────────────────
 
 MaskMode = Literal["volume", "surface", "explicit", "none"]
 SeedStatus = Literal["not_randomized", "randomized", "unknown", "not_yet_carried"]
 CarryStatus = Literal["carried", "unknown", "not_yet_carried"]
+
+
+def _jsonable(value: Any) -> Any:
+    """Convert NumPy/list-like config leaves to stable JSON values."""
+    if value is None or isinstance(value, (str, bool, int, float)):
+        return value
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(v) for v in value]
+    return value
+
+
+def _ar_options_to_dict(ar_config: AROptions) -> Dict[str, Any]:
+    """Serialize AR options without leaving NumPy arrays in the payload."""
+    return {
+        "struct": ar_config.struct,
+        "p": ar_config.p,
+        "iter_gls": ar_config.iter_gls,
+        "global_ar": ar_config.global_ar,
+        "voxelwise": ar_config.voxelwise,
+        "exact_first": ar_config.exact_first,
+        "censor": _jsonable(ar_config.censor),
+        "method": ar_config.method,
+        "q": ar_config.q,
+        "p_max": ar_config.p_max,
+        "pooling": ar_config.pooling,
+        "convergence_tol": ar_config.convergence_tol,
+        "parcels": _jsonable(ar_config.parcels),
+    }
+
+
+def _snapshot_ar_options(ar_config: AROptions) -> AROptions:
+    """Copy AR options into an immutable provenance-friendly shape."""
+    return AROptions(**_ar_options_to_dict(ar_config))
 
 
 @dataclass(frozen=True)
@@ -56,10 +92,10 @@ class FitProvenance:
     fits carry the seed, the solver path, the HRF normalization knob,
     the AR configuration, the masking mode, and the version that
     produced them." Slice A of that work (bd-01KRGWNV5WGD71QZ1E6YY3ACRG)
-    populates the three trivially-derivable fields at fit time. The
-    other three value slots remain ``None`` with explicit companion
-    status fields until the wiring slices land. The dataclass shape is
-    otherwise closed.
+    populates the fields as they become truthfully available. The AR
+    slot stores a JSON-safe snapshot of :class:`AROptions` rather than
+    the mutable config object itself. Value slots that cannot yet be
+    populated remain ``None`` with explicit companion status fields.
     """
 
     fmrimod_version: str
@@ -72,6 +108,15 @@ class FitProvenance:
     mask_mode: Optional[MaskMode] = None
     mask_status: CarryStatus = "not_yet_carried"
 
+    def __post_init__(self) -> None:
+        """Normalize config snapshots even for direct construction."""
+        if self.ar_config is not None:
+            object.__setattr__(
+                self,
+                "ar_config",
+                _snapshot_ar_options(self.ar_config),
+            )
+
     def to_dict(self) -> Dict[str, Any]:
         """Return a JSON-compatible provenance payload."""
         return {
@@ -81,21 +126,9 @@ class FitProvenance:
             "hrf_norm_modes": list(self.hrf_norm_modes),
             "seed": self.seed,
             "seed_status": self.seed_status,
-            "ar_config": None if self.ar_config is None else {
-                "struct": self.ar_config.struct,
-                "p": self.ar_config.p,
-                "iter_gls": self.ar_config.iter_gls,
-                "global_ar": self.ar_config.global_ar,
-                "voxelwise": self.ar_config.voxelwise,
-                "exact_first": self.ar_config.exact_first,
-                "censor": self.ar_config.censor,
-                "method": self.ar_config.method,
-                "q": self.ar_config.q,
-                "p_max": self.ar_config.p_max,
-                "pooling": self.ar_config.pooling,
-                "convergence_tol": self.ar_config.convergence_tol,
-                "parcels": None,
-            },
+            "ar_config": None
+            if self.ar_config is None
+            else _ar_options_to_dict(self.ar_config),
             "ar_status": self.ar_status,
             "mask_mode": self.mask_mode,
             "mask_status": self.mask_status,
@@ -158,6 +191,7 @@ def _seed_provenance(
 
 def _build_fit_provenance(
     model: Any,
+    config: FmriLmConfig,
     engine: Any,
     fit_kwargs: Mapping[str, object] | None = None,
 ) -> FitProvenance:
@@ -178,6 +212,8 @@ def _build_fit_provenance(
         hrf_norm_modes=hrf_norm_modes,
         seed=seed,
         seed_status=seed_status,
+        ar_config=config.ar,
+        ar_status="carried",
     )
 
 if TYPE_CHECKING:
@@ -763,7 +799,7 @@ def fmri_lm(
         robust_weights=robust_weights,
         run_results=fit_result.run_results,
         projections=fit_result.projections,
-        provenance=_build_fit_provenance(model, eng, fit_kwargs),
+        provenance=_build_fit_provenance(model, config, eng, fit_kwargs),
     )
 
 
