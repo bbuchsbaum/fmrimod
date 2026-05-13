@@ -16,8 +16,10 @@ from fmrimod.group import (
     GroupDataset,
     SampleLabelSpace,
     VoxelSpace,
+    adapter_registry,
     group_dataset,
     group_dataset_from_group_data,
+    register_core_adapters,
 )
 
 
@@ -89,6 +91,7 @@ def test_group_dataset_validates_axis_metadata_lengths() -> None:
 
 
 def test_group_dataset_from_group_data_csv_materializes_axis_cube() -> None:
+    assert adapter_registry.is_registered("csv")
     frame = pd.DataFrame(
         {
             "subject": ["s1", "s2", "s1", "s2"],
@@ -117,6 +120,15 @@ def test_group_dataset_from_group_data_csv_materializes_axis_cube() -> None:
     np.testing.assert_allclose(ds.assay("se")[:, :, 0], np.array([[0.1, 0.2], [0.3, 0.4]]))
     assert ds.col_data is not None
     assert ds.col_data["age"].tolist() == [20, 30]
+
+
+def test_register_core_adapters_restores_builtin_registration() -> None:
+    assert adapter_registry.unregister("csv") is True
+    try:
+        register_core_adapters()
+        assert adapter_registry.is_registered("csv")
+    finally:
+        register_core_adapters()
 
 
 def test_group_dataset_from_group_data_csv_injects_missing_axes() -> None:

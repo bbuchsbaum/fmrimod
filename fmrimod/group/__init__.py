@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from .adapters import GroupAdapter, GroupProbe
-from .dataset import GroupDataset, group_dataset, group_dataset_from_group_data
+from .dataset import (
+    GroupDataset,
+    group_dataset,
+    group_dataset_from_group_data,
+    register_core_adapters,
+)
 from .dtypes import (
     GROUP_FLOAT_DTYPE,
     GROUP_INDEX_DTYPE,
@@ -129,6 +134,7 @@ __all__ = [
     "posthoc_by",
     "reduce",
     "reducer_registry",
+    "register_core_adapters",
     "register_core_posthoc",
     "register_core_reducers",
     "read_hdf5",

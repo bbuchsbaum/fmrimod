@@ -13,7 +13,12 @@ import pandas as pd
 from numpy.typing import NDArray
 
 from .dtypes import as_group_float_array
-from .errors import AdapterContractError, UnsupportedGroupFeatureError
+from .errors import (
+    AdapterContractError,
+    GroupRegistryError,
+    UnsupportedGroupFeatureError,
+)
+from .registry import adapter_registry
 from .space import GroupSpace, SampleLabelSpace, VoxelSpace
 
 
@@ -210,15 +215,14 @@ def group_dataset_from_group_data(data: Any) -> GroupDataset:
     ``sample x subject x contrast`` contract.
     """
     data_format = getattr(data, "format", None)
-    if data_format == "csv":
-        return _group_dataset_from_csv_group_data(data)
-    if data_format == "h5":
-        return _group_dataset_from_h5_group_data(data)
-    if data_format == "nifti":
-        return _group_dataset_from_nifti_group_data(data)
-    raise UnsupportedGroupFeatureError(
-        f"group_dataset_from_group_data does not support GroupData format={data_format!r}"
-    )
+    try:
+        adapter = adapter_registry.get(str(data_format))
+    except GroupRegistryError as exc:
+        raise UnsupportedGroupFeatureError(
+            "group_dataset_from_group_data supports only registered GroupData "
+            f"formats: {', '.join(adapter_registry.list_names())}"
+        ) from exc
+    return cast(GroupDataset, adapter(data))
 
 
 def _group_dataset_from_csv_group_data(data: Any) -> GroupDataset:
@@ -401,3 +405,21 @@ def _group_dataset_from_nifti_group_data(data: Any) -> GroupDataset:
         contrast_data=pd.DataFrame(index=pd.Index(contrasts, name="contrast")),
         metadata={"source_format": "nifti"},
     )
+
+
+def register_core_adapters(*, overwrite: bool = True) -> None:
+    """Register built-in GroupData materializers."""
+    for name, function, description in (
+        ("csv", _group_dataset_from_csv_group_data, "CSV GroupData materializer"),
+        ("h5", _group_dataset_from_h5_group_data, "HDF5 GroupData materializer"),
+        ("nifti", _group_dataset_from_nifti_group_data, "NIfTI GroupData materializer"),
+    ):
+        adapter_registry.register(
+            name,
+            function,
+            description=description,
+            overwrite=overwrite,
+        )
+
+
+register_core_adapters()
