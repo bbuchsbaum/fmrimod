@@ -1,11 +1,24 @@
 .. fmrimod documentation master file
 
-Design Matrix Documentation
-===========================
+Legacy Design Source Tree
+=========================
 
-**fmrimod** is a Python implementation of the R fmridesign package for creating and manipulating 
-design matrices for fMRI data analysis. It provides a comprehensive set of tools for experimental 
-design specification, HRF convolution, and statistical contrast definition.
+This Sphinx source tree is retained for migration provenance from the older
+design-package documentation. It is not the canonical rendered site. The
+canonical user-facing docs live in the Quarto files at ``docs/*.qmd`` and
+``docs/tutorials/*.qmd``.
+
+The current project shape is defined by ``MISSION.md`` and ``VISION.md``:
+``fmrimod`` is a typed, composable Python library for fMRI experimental design
+and statistical modeling. The R ``fmridesign`` behavior is an important
+statistical specification, but the Python API is not a mechanical port. Design
+objects are expected to feed the load-bearing public seam:
+
+``fmri_dataset -> fmri_lm -> contrast -> group_fit``
+
+Older pages below may still contain migration examples or R-compatibility
+notes. Treat them as historical reference unless they agree with the current
+Quarto site and contracts.
 
 .. toctree::
    :maxdepth: 2
@@ -32,13 +45,14 @@ design specification, HRF convolution, and statistical contrast definition.
 Features
 --------
 
-* **Formula Interface**: Intuitive formula-based specification of design matrices
-* **Event Models**: Flexible event specification with various basis functions
-* **HRF Library**: Built-in hemodynamic response functions (SPM, AFNI, custom)
-* **Contrasts**: Comprehensive contrast specification and weight computation
-* **Baseline Modeling**: Polynomial and spline-based drift modeling
-* **Visualization**: Design matrix and contrast visualization tools
-* **R Compatibility**: Designed to match R fmridesign functionality
+* **Typed design values**: Event, baseline, HRF, and contrast objects should be
+  inspectable and serializable.
+* **Formula convenience**: Formula strings are authoring sugar for typed design
+  specifications, not the only public shape.
+* **Parity discipline**: R behavior is tested as a reference, and divergences
+  belong in ``docs/contracts/CAVEATS.md``.
+* **Workflow integration**: Design matrices exist to feed the public
+  first-level and group-analysis seam.
 
 Quick Example
 -------------

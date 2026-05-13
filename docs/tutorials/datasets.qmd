@@ -1,6 +1,6 @@
 ---
 title: "Datasets"
-subtitle: "Represent matrix and latent fMRI data with timing metadata."
+subtitle: "Represent fMRI data as typed containers with timing and event metadata."
 jupyter: python3
 execute:
   freeze: auto
@@ -8,7 +8,8 @@ execute:
 
 ## Sampling Frames
 
-`SamplingFrame` describes the acquired time grid, including run lengths.
+`SamplingFrame` describes the acquired time grid, including run lengths. In
+the canonical dataset contract, `samples` are acquisition times in seconds.
 
 ```{python}
 import numpy as np
@@ -22,7 +23,8 @@ sf.samples[:6], sf.blocklens
 ## Matrix Data
 
 Use `matrix_dataset()` when data already live in memory as a time by voxel
-matrix.
+matrix. Real image-backed workflows should route through the dataset adapters
+and, ultimately, neuroim-python containers at the image boundary.
 
 ```{python}
 rng = np.random.default_rng(11)
@@ -48,7 +50,7 @@ dset.n_runs, dset.n_timepoints, dset.n_voxels
 ```
 
 ```{python}
-dset.get_data(0).shape, dset.get_all_data().shape
+dset.get_data(rows=[0, 1, 2], cols=[0, 1]).shape, dset.get_all_data().shape
 ```
 
 ## Latent Data
@@ -74,10 +76,12 @@ latent.n_runs, latent.n_voxels, latent.get_scores(0).shape
 ## Chunking
 
 Chunk helpers make it easy to split voxel-space work into reviewable batches.
+`data_chunks()` yields typed `DataChunk` objects carrying data and indices;
+`voxel_index_chunks()` is the legacy index-only helper.
 
 ```{python}
 chunks = fm.data_chunks(dset, nchunks=4)
-[chunk.size for chunk in chunks]
+[(chunk.chunk_num, chunk.data.shape, chunk.voxel_ind.tolist()) for chunk in chunks]
 ```
 
 ## Next

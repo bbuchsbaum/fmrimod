@@ -1,12 +1,16 @@
 ---
 title: "Plugin development"
-subtitle: "Register custom bases and extend GLM engines."
+subtitle: "Extend internals while preserving typed public modeling decisions."
 jupyter: python3
 execute:
   freeze: auto
 ---
 
 ## Extension Points
+
+The public modeling API should stay typed and composable. Registries are
+internal extension mechanisms for adding implementations behind that API, not
+the user-facing way to encode modeling decisions.
 
 The Python package exposes two practical extension surfaces:
 
@@ -15,8 +19,10 @@ The Python package exposes two practical extension surfaces:
 
 ## Register a Basis
 
-`register_basis()` stores a constructor under a string key. `resolve_basis()`
-retrieves it later.
+`register_basis()` stores an implementation constructor under a name.
+`resolve_basis()` retrieves it later. Keep these names at the extension
+boundary; analysis specifications should compile to typed design objects before
+they reach fitting code.
 
 ```{python}
 import numpy as np
@@ -76,6 +82,8 @@ list_engines()
 - Return coefficient matrices in `(parameters, voxels)` order.
 - Preserve the model column order used by contrasts.
 - Add a small oracle test against ordinary least squares before optimizing.
+- Keep aliases and user-facing option names in one normalizer or typed config,
+  not scattered through engine logic.
 
 ## Next
 

@@ -15,7 +15,7 @@ from typing import Optional
 import numpy as np
 from numpy.typing import NDArray
 
-from .._types import OasisConfig
+from .._types import AmplitudeMethod, OasisConfig, _AMPLITUDE_METHODS
 from ..oasis import oasis_single_trial
 
 
@@ -217,7 +217,7 @@ def sbhm_amplitude(
     X_trials: NDArray[np.float64],
     alpha_coords: NDArray[np.float64],
     confounds: Optional[NDArray[np.float64]] = None,
-    method: str = "oasis_voxel",
+    method: AmplitudeMethod = "oasis_voxel",
     ridge_x: float = 0.02,
     ridge_b: float = 0.02,
     K: Optional[int] = None,
@@ -301,7 +301,10 @@ def sbhm_amplitude(
             f"alpha_coords has {alpha_coords.shape[1]} columns, Y has {V} voxels"
         )
 
-    method = method.lower()
+    if method not in _AMPLITUDE_METHODS:
+        raise ValueError(
+            "method must be one of: global_ls, lss1, oasis_voxel"
+        )
 
     if method == "global_ls":
         # Reconstruct per-voxel regressors, then OLS per voxel
@@ -319,29 +322,22 @@ def sbhm_amplitude(
                 confounds=confounds,
             )
 
-    elif method == "oasis_voxel":
-        # Reconstruct per-voxel regressors, then OASIS K=1 per voxel
-        X_voxel = _reconstruct_voxel_regressors(X_trials, alpha_coords, K)
-        config = OasisConfig(
-            K=1,
-            ridge_mode="fractional",
-            ridge_x=ridge_x,
-            ridge_b=ridge_b,
-        )
-        betas = np.zeros((N, V), dtype=np.float64)
-        with _maybe_limit_blas_threads(1):
-            for v in range(V):
-                result = oasis_single_trial(
-                    Y[:, v:v+1],
-                    X_voxel[:, :, v],
-                    confounds=confounds,
-                    config=config,
-                )
-                betas[:, v] = result.betas[:, 0]
-        return betas
-
-    else:
-        raise ValueError(
-            f"Unknown method '{method}'. Choose from: "
-            "global_ls, lss1, oasis_voxel"
-        )
+    # method == "oasis_voxel"
+    X_voxel = _reconstruct_voxel_regressors(X_trials, alpha_coords, K)
+    config = OasisConfig(
+        K=1,
+        ridge_mode="fractional",
+        ridge_x=ridge_x,
+        ridge_b=ridge_b,
+    )
+    betas = np.zeros((N, V), dtype=np.float64)
+    with _maybe_limit_blas_threads(1):
+        for v in range(V):
+            result = oasis_single_trial(
+                Y[:, v:v+1],
+                X_voxel[:, :, v],
+                confounds=confounds,
+                config=config,
+            )
+            betas[:, v] = result.betas[:, 0]
+    return betas

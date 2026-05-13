@@ -1,18 +1,26 @@
 ---
 title: "Tutorials"
-subtitle: "Task-focused guides for fMRI modeling workflows."
+subtitle: "Task-focused guides for the typed fmrimod modeling workflow."
 ---
 
-These guides port the `fmrireg` vignette set into Python/Quarto with cleaner
-topic filenames and examples that run against `fmrimod`.
+These guides are organized around the public fmrimod seam, not around a
+function-by-function port of the R packages:
+
+```text
+fmri_dataset -> fmri_lm -> contrast -> group_fit
+```
+
+Some pages use compact matrix helpers because they are useful numerical
+canaries. Flagship workflow pages should prefer typed datasets, typed specs,
+first-level fits, contrast objects, and group-level results.
 
 ::: {.grid}
 
 ::: {.g-col-12 .g-col-md-6}
 ::: {.card .h-100 .p-3}
 ### [Overview and workflow](overview-workflow.qmd)
-Walk through the modeling stack: sampling frames, HRFs, event models, baseline
-terms, GLM fitting, acceleration, and group summaries.
+Walk through the modeling stack: sampling frames, datasets, typed specs,
+baseline terms, GLM fitting, contrasts, and group summaries.
 :::
 :::
 
@@ -43,30 +51,31 @@ method checks.
 ::: {.g-col-12 .g-col-md-6}
 ::: {.card .h-100 .p-3}
 ### [Linear model](linear-model.qmd)
-Fit a small GLM, inspect beta and t-statistic matrices, and compute a manual
-contrast.
+Fit a small first-level model through `fmri_lm()`, then inspect beta,
+t-statistic, and contrast outputs.
 :::
 :::
 
 ::: {.g-col-12 .g-col-md-6}
 ::: {.card .h-100 .p-3}
 ### [Datasets](datasets.qmd)
-Represent in-memory and latent data with sampling frames and event tables.
+Represent in-memory and latent data as canonical `fmrimod.dataset` objects with
+sampling frames and event tables.
 :::
 :::
 
 ::: {.g-col-12 .g-col-md-6}
 ::: {.card .h-100 .p-3}
 ### [Group analysis](group-analysis.qmd)
-Fit feature-wise fixed/random-effects meta-regression from beta and variance
-matrices.
+Summarize first-level estimates with native group-analysis and meta-regression
+helpers.
 :::
 :::
 
 ::: {.g-col-12 .g-col-md-6}
 ::: {.card .h-100 .p-3}
 ### [Functional connectivity](functional-connectivity.qmd)
-Estimate seed-to-target correlations and transform them with Fisher z helpers.
+Use residualization and Fisher z helpers for auxiliary effect-size summaries.
 :::
 :::
 
@@ -81,7 +90,7 @@ or temporally correlated data.
 ::: {.g-col-12 .g-col-md-6}
 ::: {.card .h-100 .p-3}
 ### [Plugin development](plugin-development.qmd)
-Register custom bases and sketch the engine extension contract.
+Extend internal registries while keeping user-facing modeling decisions typed.
 :::
 :::
 
@@ -89,7 +98,7 @@ Register custom bases and sketch the engine extension contract.
 ::: {.card .h-100 .p-3}
 ### [Benchmark datasets](benchmark-datasets.qmd)
 Load deterministic fixtures, build design matrices, and score estimated
-condition betas.
+condition betas against known truth.
 :::
 :::
 

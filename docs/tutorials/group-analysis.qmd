@@ -1,6 +1,6 @@
 ---
 title: "Group analysis"
-subtitle: "Fit feature-wise meta-regression from beta and variance matrices."
+subtitle: "Summarize first-level estimates with native group-analysis helpers."
 jupyter: python3
 execute:
   freeze: auto
@@ -8,7 +8,10 @@ execute:
 
 ## Inputs
 
-Group analysis works on first-level estimates and their sampling variances.
+The production seam ends with group-level inference over first-level estimates.
+This compact example starts from beta estimates and sampling variances directly;
+flagship workflows pass contrast outputs forward from `fmri_lm()`.
+
 Rows are subjects or studies; columns are voxels, parcels, or other features.
 
 ```{python}
@@ -32,8 +35,10 @@ Y.shape, V.shape, X.shape
 
 ## Fit Meta-Regression
 
-`fmri_meta_fit()` estimates one weighted model per feature. Use `"fe"` for a
-fixed-effect fit and `"pm"` or `"dl"` for random-effects tau-squared estimates.
+`fmri_meta_fit()` estimates one weighted model per feature. It is a
+matrix-level compatibility helper for the same native group-analysis layer that
+backs higher-level `group_fit` workflows. Use `"fe"` for a fixed-effect fit and
+`"pm"` or `"dl"` for random-effects tau-squared estimates.
 
 ```{python}
 fit = fm.fmri_meta_fit(Y, V, X, method="pm")

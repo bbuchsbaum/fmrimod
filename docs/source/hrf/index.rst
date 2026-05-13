@@ -5,14 +5,24 @@
 fmrimod
 =========
 
-**fMRI Hemodynamic Response Function and Regressor Tools for Python**
+**Legacy HRF Source Tree**
 
-fmrimod provides a complete toolkit for specifying, manipulating, and
-visualising hemodynamic response functions (HRFs) and building fMRI design
-regressors. It is a faithful Python port of the R
-`fmrihrf <https://github.com/bbuchsbaum/fmrihrf>`_ package, with Pythonic
-enhancements including trial-varying HRFs, a pluggable HRF registry, and
-NumPy-native array semantics throughout.
+This Sphinx source tree is retained for migration provenance from older HRF
+documentation. It is not the canonical rendered site. The current public docs
+are the Quarto files under ``docs/*.qmd`` and ``docs/tutorials/*.qmd``.
+
+In the current project, HRFs are one typed component in the broader fmrimod
+modeling stack. The R
+`fmrihrf <https://github.com/bbuchsbaum/fmrihrf>`_ behavior remains a parity
+reference, but fmrimod is not a standalone mechanical HRF port. HRF objects and
+regressors should compose with event models, baselines, first-level GLMs,
+contrasts, and group inference through:
+
+``fmri_dataset -> fmri_lm -> contrast -> group_fit``
+
+Older pages below may still be useful for migration details, but when they
+conflict with ``MISSION.md``, ``VISION.md``, or the Quarto site, the mission
+and current contracts control.
 
 .. code-block:: python
 

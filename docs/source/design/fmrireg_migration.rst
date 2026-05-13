@@ -335,5 +335,7 @@ Current Tracking
 ----------------
 
 The detailed export-by-export status lives in
-``docs/contracts/trio_api_inventory_v1.md``. Open fmrireg rows are grouped in
-``docs/contracts/trio_pending_api_workplan_v1.md``.
+``docs/contracts/trio_api_inventory_v1.md``. Historical work groupings
+are archived in ``docs/contracts/archive/trio_pending_api_workplan_v1.md``;
+the active picker is now flagship-workflow demand, tracked through the
+governance loop in ``GOVERNANCE.md`` rather than a pending-row queue.

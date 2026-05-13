@@ -1,12 +1,16 @@
 ---
 title: "Linear model"
-subtitle: "Fit voxel-wise GLMs from a design matrix."
+subtitle: "Fit voxel-wise first-level models through the public fmrimod seam."
 jupyter: python3
 execute:
   freeze: auto
 ---
 
 ## Build a Design
+
+The canonical first-level path starts with events plus data in an
+`fmri_dataset`, then calls `fmri_lm(spec, dataset)`. The design matrix is still
+available for inspection and for low-level numerical checks.
 
 ```{python}
 import numpy as np
@@ -43,49 +47,46 @@ Y = X @ true_beta + rng.normal(scale=0.08, size=(X.shape[0], n_voxels))
 Y.shape
 ```
 
-## Fit OLS
+## Fit the First-Level Model
 
-`fmri_ols_fit()` is a compact matrix-level helper. Rows are time points and
-columns are voxels.
+`fmri_lm()` compiles the spec, builds the full event-plus-baseline design, and
+returns an inspectable result object.
 
 ```{python}
-fit = fm.fmri_ols_fit(Y, X)
+dataset = fm.fmri_dataset(Y, tr=1.0, events=events)
+fit = fm.fmri_lm("hrf(condition)", dataset)
 
-fit["beta"].shape, fit["se"].shape, fit["t"].shape
+fit.betas.shape, fit.se().shape, fit.tstat().shape
 ```
 
 ```{python}
-beta = pd.DataFrame(fit["beta"], index=model.column_names)
+fit_columns = list(fit.model.design_matrix().columns)
+beta = pd.DataFrame(fit.betas, index=fit_columns)
 beta.round(3)
 ```
 
 ## Compute a Contrast
 
 ```{python}
-columns = model.column_names
+columns = fit_columns
 face_vs_scene = np.zeros(len(columns))
 face_vs_scene[columns.index("condition_condition.face")] = 1
 face_vs_scene[columns.index("condition_condition.scene")] = -1
 
-contrast_beta = face_vs_scene @ fit["beta"]
-contrast_beta.round(3)
+contrast = fit.contrast(face_vs_scene, name="face_vs_scene")
+contrast.estimate.round(3), contrast.stat.round(3)
 ```
 
-## Voxel-Wise Covariates
+## Matrix Helper for Numerical Canaries
 
-The compatibility helper can append one voxel-specific nuisance column per
-voxel.
+`fmri_ols_fit()` remains useful when a test or benchmark intentionally bypasses
+the public model seam. Treat that as a low-level canary, not as the preferred
+workflow for user-facing analyses.
 
 ```{python}
-voxelwise_motion = rng.normal(size=Y.shape)
-fit_with_voxel_cov = fm.fmri_ols_fit(
-    Y,
-    X,
-    voxelwise=voxelwise_motion,
-    voxel_name="motion_proxy",
-)
+matrix_fit = fm.fmri_ols_fit(Y, X)
 
-fit_with_voxel_cov["beta"].tail(1)
+matrix_fit["beta"].shape, matrix_fit["t"].shape
 ```
 
 ## Next

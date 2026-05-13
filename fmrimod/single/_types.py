@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -22,6 +22,16 @@ class SingleTrialMethod(str, Enum):
     OASIS = "oasis"
     SBHM = "sbhm"
     MIXED = "mixed"
+
+
+RidgeMode = Literal["none", "fractional", "absolute"]
+"""Ridge regularisation mode shared across OASIS and SBHM configs."""
+
+AmplitudeMethod = Literal["global_ls", "lss1", "oasis_voxel"]
+"""Amplitude estimator used by the SBHM amplitude stage."""
+
+_RIDGE_MODES: frozenset[str] = frozenset({"none", "fractional", "absolute"})
+_AMPLITUDE_METHODS: frozenset[str] = frozenset({"global_ls", "lss1", "oasis_voxel"})
 
 
 @dataclass
@@ -55,7 +65,7 @@ class SingleTrialResult:
     extra: dict = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(frozen=True)
 class OasisConfig:
     """Configuration for the OASIS closed-form solver.
 
@@ -63,8 +73,8 @@ class OasisConfig:
     ----------
     K : int
         Basis dimension (1 for single-HRF, >1 for multi-basis).
-    ridge_mode : str
-        ``"none"``, ``"fractional"``, or ``"absolute"``.
+    ridge_mode : RidgeMode
+        ``"none"``, ``"fractional"``, or ``"absolute"`` (case-sensitive).
     ridge_x : float
         Ridge parameter for trial-specific regressors.
     ridge_b : float
@@ -76,7 +86,7 @@ class OasisConfig:
     """
 
     K: int = 1
-    ridge_mode: str = "none"
+    ridge_mode: RidgeMode = "none"
     ridge_x: float = 0.0
     ridge_b: float = 0.0
     return_se: bool = False
@@ -85,8 +95,8 @@ class OasisConfig:
     def __post_init__(self) -> None:
         if int(self.K) != self.K or self.K < 1:
             raise ValueError("K must be a positive integer")
-        self.K = int(self.K)
-        if self.ridge_mode not in {"none", "fractional", "absolute"}:
+        object.__setattr__(self, "K", int(self.K))
+        if self.ridge_mode not in _RIDGE_MODES:
             raise ValueError("ridge_mode must be one of: none, fractional, absolute")
         if self.ridge_x < 0:
             raise ValueError("ridge_x must be non-negative")
@@ -94,10 +104,10 @@ class OasisConfig:
             raise ValueError("ridge_b must be non-negative")
         if int(self.block_cols) != self.block_cols or self.block_cols < 1:
             raise ValueError("block_cols must be a positive integer")
-        self.block_cols = int(self.block_cols)
+        object.__setattr__(self, "block_cols", int(self.block_cols))
 
 
-@dataclass
+@dataclass(frozen=True)
 class SbhmConfig:
     """Configuration for the SBHM pipeline.
 
@@ -109,10 +119,10 @@ class SbhmConfig:
         Apply Stein shrinkage in matching step.
     top_k : int
         Number of library members to blend per voxel.
-    amplitude_method : str
-        ``"oasis_voxel"``, ``"global_ls"``, or ``"lss1"``.
-    ridge_mode : str
-        Ridge mode for amplitude estimation.
+    amplitude_method : AmplitudeMethod
+        ``"global_ls"``, ``"lss1"``, or ``"oasis_voxel"`` (case-sensitive).
+    ridge_mode : RidgeMode
+        ``"none"``, ``"fractional"``, or ``"absolute"`` (case-sensitive).
     ridge_lambda : float
         Ridge regularisation strength.
     """
@@ -120,9 +130,25 @@ class SbhmConfig:
     r: int = 3
     shrink: bool = True
     top_k: int = 1
-    amplitude_method: str = "oasis_voxel"
-    ridge_mode: str = "fractional"
+    amplitude_method: AmplitudeMethod = "oasis_voxel"
+    ridge_mode: RidgeMode = "fractional"
     ridge_lambda: float = 0.02
+
+    def __post_init__(self) -> None:
+        if int(self.r) != self.r or self.r < 1:
+            raise ValueError("r must be a positive integer")
+        object.__setattr__(self, "r", int(self.r))
+        if int(self.top_k) != self.top_k or self.top_k < 1:
+            raise ValueError("top_k must be a positive integer")
+        object.__setattr__(self, "top_k", int(self.top_k))
+        if self.amplitude_method not in _AMPLITUDE_METHODS:
+            raise ValueError(
+                "amplitude_method must be one of: global_ls, lss1, oasis_voxel"
+            )
+        if self.ridge_mode not in _RIDGE_MODES:
+            raise ValueError("ridge_mode must be one of: none, fractional, absolute")
+        if self.ridge_lambda < 0:
+            raise ValueError("ridge_lambda must be non-negative")
 
 
 @dataclass

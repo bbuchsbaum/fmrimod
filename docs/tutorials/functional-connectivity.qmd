@@ -10,7 +10,9 @@ execute:
 
 Functional connectivity analyses often start from a seed time series and a
 matrix of target time series. This page keeps the calculation explicit and
-uses `fmrimod` for common effect-size transforms.
+uses `fmrimod` for common effect-size transforms. It is an auxiliary summary
+example, not a replacement for the first-level and group-modeling seam used by
+the flagship workflows.
 
 ```{python}
 import numpy as np
@@ -49,10 +51,11 @@ pooled_r = fm.z_to_r(pooled_z)
 round(float(pooled_z), 3), round(float(pooled_r), 3)
 ```
 
-## Remove a Nuisance Signal
+## Residualize an Analysis Signal
 
-A common preprocessing step is residualizing the seed and target signals with
-respect to nuisance columns before correlation.
+For already preprocessed time series, residualize the seed and target signals
+with respect to explicit nuisance columns before correlation. Motion
+correction, registration, and normalization remain outside fmrimod's scope.
 
 ```{python}
 nuisance = np.column_stack([np.ones(n_time), np.linspace(-1, 1, n_time)])
