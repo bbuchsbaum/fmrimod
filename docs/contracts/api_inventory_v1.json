@@ -1,7 +1,7 @@
 {
   "counts": {
     "all_names": 194,
-    "any_in_signature": 63,
+    "any_in_signature": 1,
     "callable": 192,
     "classes": 14,
     "opaque_forwarder": 57
@@ -40,7 +40,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -48,7 +48,7 @@
       "name": "Fcontrasts",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.contrast.fcontrast",
-      "runtime_signature": "(x, max_inter: int = 4, **kwargs) -> Dict[str, numpy.ndarray[tuple[Any, ...], numpy.dtype[numpy.float64]]]",
+      "runtime_signature": "(x, max_inter: 'int' = 4, **kwargs) -> 'Dict[str, Array]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -550,7 +550,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -558,7 +558,7 @@
       "name": "ar_parameters",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'Any', scope: 'str' = 'average', **kwargs) -> 'Optional[Any]'",
+      "runtime_signature": "(x: 'object', scope: 'str' = 'average', **kwargs) -> 'Optional[Union[NDArray[np.float64], List[NDArray[np.float64]]]]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -685,7 +685,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -693,14 +693,14 @@
       "name": "coef_image",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'Any', coef: 'Union[int, str]' = 0, statistic: 'str' = 'estimate', mask: 'Optional[NDArray[np.bool_]]' = None) -> 'NDArray[np.float64]'",
+      "runtime_signature": "(x: 'object', coef: 'Union[int, str]' = 0, statistic: 'str' = 'estimate', mask: 'Optional[NDArray[np.bool_]]' = None) -> 'NDArray[np.float64]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -708,7 +708,7 @@
       "name": "coef_names",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'Any', include_baseline: 'bool' = True, **kwargs) -> 'list[str]'",
+      "runtime_signature": "(x: 'object', include_baseline: 'bool' = True, **kwargs) -> 'list[str]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -790,7 +790,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -798,14 +798,14 @@
       "name": "compute_lm_contrasts",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.glm.compat",
-      "runtime_signature": "(B: 'ArrayLike', XtXinv: 'ArrayLike', df: 'float', sigma: 'Optional[ArrayLike]' = None, sigma2: 'Optional[ArrayLike]' = None, contrasts: 'Optional[Mapping[str, Any]]' = None, t_contrasts: 'Optional[Mapping[str, Any]]' = None, f_contrasts: 'Optional[Mapping[str, Any]]' = None, columns: 'Optional[Sequence[str]]' = None, output: 'str' = 'stacked', robust_weights: 'Optional[ArrayLike]' = None, ar_order: 'int' = 0, drop_failed: 'bool' = True) -> 'Union[pd.DataFrame, Dict[str, ContrastResult]]'",
+      "runtime_signature": "(B: 'ArrayLike', XtXinv: 'ArrayLike', df: 'float', sigma: 'Optional[ArrayLike]' = None, sigma2: 'Optional[ArrayLike]' = None, contrasts: 'Optional[Mapping[str, object]]' = None, t_contrasts: 'Optional[Mapping[str, object]]' = None, f_contrasts: 'Optional[Mapping[str, object]]' = None, columns: 'Optional[Sequence[str]]' = None, output: 'str' = 'stacked', robust_weights: 'Optional[ArrayLike]' = None, ar_order: 'int' = 0, drop_failed: 'bool' = True) -> 'Union[pd.DataFrame, Dict[str, ContrastResult]]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -813,7 +813,7 @@
       "name": "compute_lm_contrasts_from_suffstats",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.glm.compat",
-      "runtime_signature": "(XtX: 'ArrayLike', XtS: 'ArrayLike', StS: 'ArrayLike', df: 'float', sigma: 'Optional[ArrayLike]' = None, sigma2: 'Optional[ArrayLike]' = None, **kwargs: 'Any') -> 'Union[pd.DataFrame, Dict[str, ContrastResult]]'",
+      "runtime_signature": "(XtX: 'ArrayLike', XtS: 'ArrayLike', StS: 'ArrayLike', df: 'float', sigma: 'Optional[ArrayLike]' = None, sigma2: 'Optional[ArrayLike]' = None, **kwargs: 'object') -> 'Union[pd.DataFrame, Dict[str, ContrastResult]]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -910,7 +910,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -918,7 +918,7 @@
       "name": "create_design_matrix_from_benchmark",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.compat",
-      "runtime_signature": "(dataset_name: 'Any', hrf: 'Any' = 'spmg1', include_intercept: 'bool' = True) -> 'pd.DataFrame'",
+      "runtime_signature": "(dataset_name: 'Union[str, Mapping[str, object]]', hrf: 'HrfSpec' = 'spmg1', include_intercept: 'bool' = True) -> 'pd.DataFrame'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -955,7 +955,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -963,14 +963,14 @@
       "name": "design_plot",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.dataset.compat",
-      "runtime_signature": "(model: 'Any', term_name: 'Optional[str]' = None, longnames: 'bool' = False, **kwargs: 'Any') -> 'pd.DataFrame'",
+      "runtime_signature": "(model: 'object', term_name: 'Optional[str]' = None, longnames: 'bool' = False, **kwargs: 'object') -> 'pd.DataFrame'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -978,7 +978,7 @@
       "name": "detect_group_data_format",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.group_data",
-      "runtime_signature": "(data: 'Any') -> 'str'",
+      "runtime_signature": "(data: 'object') -> 'str'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -1015,7 +1015,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1023,7 +1023,7 @@
       "name": "estimate",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.glm.compat",
-      "runtime_signature": "(*args: 'Any', **kwargs: 'Any') -> 'None'",
+      "runtime_signature": "(*args: 'object', **kwargs: 'object') -> 'None'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -1045,7 +1045,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1053,7 +1053,7 @@
       "name": "estimate_hrf",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.single.voxel_hrf",
-      "runtime_signature": "(Y: 'NDArray[np.float64] | None' = None, X_trials: 'NDArray[np.float64] | None' = None, basis: 'Any | None' = None, *, confounds: 'Optional[NDArray[np.float64]]' = None, K: 'Optional[int]' = None, output: \"Literal['hrf', 'coefficients', 'result']\" = 'hrf', form: 'Any' = None, fixed: 'Any' = None, block: 'Any' = None, dataset: 'HrfEstimationDataset | None' = None) -> 'NDArray[np.float64] | VoxelHrfResult'",
+      "runtime_signature": "(Y: 'NDArray[np.float64] | None' = None, X_trials: 'NDArray[np.float64] | None' = None, basis: 'NDArray[np.float64] | object | None' = None, *, confounds: 'Optional[NDArray[np.float64]]' = None, K: 'Optional[int]' = None, output: \"Literal['hrf', 'coefficients', 'result']\" = 'hrf', form: 'Optional[str]' = None, fixed: 'Optional[NDArray[np.float64]]' = None, block: 'Optional[str]' = None, dataset: 'HrfEstimationDataset | None' = None) -> 'NDArray[np.float64] | VoxelHrfResult'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -1105,7 +1105,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1113,7 +1113,7 @@
       "name": "evaluate_method_performance",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.compat",
-      "runtime_signature": "(dataset_name: 'str', estimated_betas: 'Any', method_name: 'str' = 'Unknown') -> 'Dict[str, Any]'",
+      "runtime_signature": "(dataset_name: 'str', estimated_betas: 'ArrayLike', method_name: 'str' = 'Unknown') -> 'Dict[str, object]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -1195,7 +1195,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1203,14 +1203,14 @@
       "name": "extract_csv_data",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.compat",
-      "runtime_signature": "(gd: 'GroupData', roi: 'Optional[str]' = None, contrast: 'Optional[str]' = None) -> 'Dict[str, Any]'",
+      "runtime_signature": "(gd: 'GroupData', roi: 'Optional[str]' = None, contrast: 'Optional[str]' = None) -> 'Dict[str, Union[pd.DataFrame, NDArray[np.float64]]]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1218,14 +1218,14 @@
       "name": "fit_contrasts",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.glm.compat",
-      "runtime_signature": "(object: 'Any', contrasts: 'Mapping[str, Any]', output: 'str' = 'list', **kwargs: 'Any') -> 'Union[Dict[str, ContrastResult], pd.DataFrame]'",
+      "runtime_signature": "(fit: 'object', contrasts: 'Mapping[str, object]', output: 'str' = 'list', **kwargs: 'object') -> 'Union[Dict[str, ContrastResult], pd.DataFrame]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1233,14 +1233,14 @@
       "name": "fit_glm_from_matrix",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.glm.compat",
-      "runtime_signature": "(X: 'ArrayLike', Y: 'ArrayLike', model: 'Any' = None, cfg: 'Optional[FmriLmConfig]' = None, strategy: 'str' = 'external', engine: 'str' = 'runwise') -> 'FmriLm'",
+      "runtime_signature": "(X: 'ArrayLike', Y: 'ArrayLike', model: 'object' = None, cfg: 'Optional[FmriLmConfig]' = None, strategy: 'str' = 'external', engine: 'str' = 'runwise') -> 'FmriLm'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1248,14 +1248,14 @@
       "name": "fit_glm_from_suffstats",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.glm.compat",
-      "runtime_signature": "(model: 'Any', XtX: 'ArrayLike', XtS: 'ArrayLike', StS: 'ArrayLike', df: 'float', cfg: 'Optional[FmriLmConfig]' = None, dataset: 'Optional[Any]' = None, strategy: 'str' = 'external', engine: 'str' = 'suffstats') -> 'FmriLm'",
+      "runtime_signature": "(model: 'object', XtX: 'ArrayLike', XtS: 'ArrayLike', StS: 'ArrayLike', df: 'float', cfg: 'Optional[FmriLmConfig]' = None, dataset: 'Optional[object]' = None, strategy: 'str' = 'external', engine: 'str' = 'suffstats') -> 'FmriLm'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1263,14 +1263,14 @@
       "name": "fit_glm_on_transformed_series",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.glm.compat",
-      "runtime_signature": "(model: 'Any', Y: 'ArrayLike', cfg: 'Optional[FmriLmConfig]' = None, dataset: 'Optional[Any]' = None, strategy: 'str' = 'external', engine: 'str' = 'runwise') -> 'FmriLm'",
+      "runtime_signature": "(model: 'object', Y: 'ArrayLike', cfg: 'Optional[FmriLmConfig]' = None, dataset: 'Optional[object]' = None, strategy: 'str' = 'external', engine: 'str' = 'runwise') -> 'FmriLm'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1278,7 +1278,7 @@
       "name": "fit_glm_with_config",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.glm.compat",
-      "runtime_signature": "(model: 'Any', Y: 'ArrayLike', cfg: 'Optional[FmriLmConfig]' = None, dataset: 'Optional[Any]' = None, strategy: 'str' = 'external', engine: 'str' = 'runwise') -> 'FmriLm'",
+      "runtime_signature": "(model: 'object', Y: 'ArrayLike', cfg: 'Optional[FmriLmConfig]' = None, dataset: 'Optional[object]' = None, strategy: 'str' = 'external', engine: 'str' = 'runwise') -> 'FmriLm'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -1300,7 +1300,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1308,14 +1308,14 @@
       "name": "fitted_hrf",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'Any', sample_at: 'Sequence[float]', **kwargs) -> 'dict[str, Any]'",
+      "runtime_signature": "(x: 'object', sample_at: 'Sequence[float]', **kwargs) -> 'Dict[str, FittedHrfPayload]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1323,14 +1323,14 @@
       "name": "flip_sign",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.glm.compat",
-      "runtime_signature": "(fit: 'Any', coef: 'Optional[Sequence[str]]' = None) -> 'Any'",
+      "runtime_signature": "(fit: 'object', coef: 'Optional[Sequence[str]]' = None) -> 'object'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1338,14 +1338,14 @@
       "name": "fmri_dataset",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.constructors",
-      "runtime_signature": "(img: 'Any' = None, *, mask: 'Any' = None, tr: 'float | Sequence[float] | None' = None, events: 'pd.DataFrame | None' = None, censor: 'NDArray[np.bool_] | list[NDArray[np.bool_]] | None' = None, start_time: 'float' = 0.0, data_source: 'DatasetProtocol | None' = None, event_table: 'pd.DataFrame | None' = None) -> 'FmriDataset'",
+      "runtime_signature": "(img: 'object' = None, *, mask: 'object' = None, tr: 'float | Sequence[float] | None' = None, events: 'pd.DataFrame | None' = None, censor: 'NDArray[np.bool_] | list[NDArray[np.bool_]] | None' = None, start_time: 'float' = 0.0, data_source: 'DatasetProtocol | None' = None, event_table: 'pd.DataFrame | None' = None) -> 'FmriDataset'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1353,7 +1353,7 @@
       "name": "fmri_latent_lm",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.dataset.compat",
-      "runtime_signature": "(model: 'Any', dataset: 'LatentDataset', config: 'Optional[Any]' = None, **kwargs: 'Any') -> 'Any'",
+      "runtime_signature": "(model: 'object', dataset: 'LatentDataset', config: 'Optional[object]' = None, **kwargs: 'object') -> 'object'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -1375,7 +1375,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1383,7 +1383,7 @@
       "name": "fmri_mem_dataset",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.compat",
-      "runtime_signature": "(data: 'Any', tr: 'Any', run_length: 'Optional[Any]' = None, *, event_table: 'Optional[pd.DataFrame]' = None, mask: 'Optional[NDArray[np.bool_]]' = None) -> 'FmriDataset'",
+      "runtime_signature": "(data: 'Union[ArrayLike, Sequence[ArrayLike]]', tr: 'Union[float, Sequence[float]]', run_length: 'Optional[Union[int, Sequence[int]]]' = None, *, event_table: 'Optional[pd.DataFrame]' = None, mask: 'Optional[NDArray[np.bool_]]' = None) -> 'FmriDataset'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -1405,7 +1405,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1413,14 +1413,14 @@
       "name": "fmri_meta_fit",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.stats.meta_compat",
-      "runtime_signature": "(Y: 'Any', V: 'Any', X: 'Any', method: 'str' = 'pm', robust: 'str' = 'none', huber_c: 'float' = 1.345, robust_iter: 'int' = 2, n_threads: 'int' = 0) -> 'Dict[str, Any]'",
+      "runtime_signature": "(Y: 'ArrayLike', V: 'ArrayLike', X: 'ArrayLike', method: 'str' = 'pm', robust: 'str' = 'none', huber_c: 'float' = 1.345, robust_iter: 'int' = 2, n_threads: 'int' = 0) -> 'Dict[str, NDArray[np.float64]]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1428,14 +1428,14 @@
       "name": "fmri_meta_fit_contrasts",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.stats.meta_compat",
-      "runtime_signature": "(Y: 'Any', V: 'Any', X: 'Any', Cmat: 'Any', method: 'str' = 'pm', robust: 'str' = 'none', huber_c: 'float' = 1.345, robust_iter: 'int' = 2, n_threads: 'int' = 0) -> 'Dict[str, Any]'",
+      "runtime_signature": "(Y: 'ArrayLike', V: 'ArrayLike', X: 'ArrayLike', Cmat: 'ArrayLike', method: 'str' = 'pm', robust: 'str' = 'none', huber_c: 'float' = 1.345, robust_iter: 'int' = 2, n_threads: 'int' = 0) -> 'Dict[str, NDArray[np.float64]]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1443,14 +1443,14 @@
       "name": "fmri_meta_fit_cov",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.stats.meta_compat",
-      "runtime_signature": "(Y: 'Any', V: 'Any', X: 'Any', method: 'str' = 'pm', robust: 'str' = 'none', huber_c: 'float' = 1.345, robust_iter: 'int' = 2, n_threads: 'int' = 0) -> 'Dict[str, Any]'",
+      "runtime_signature": "(Y: 'ArrayLike', V: 'ArrayLike', X: 'ArrayLike', method: 'str' = 'pm', robust: 'str' = 'none', huber_c: 'float' = 1.345, robust_iter: 'int' = 2, n_threads: 'int' = 0) -> 'Dict[str, NDArray[np.float64]]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1458,14 +1458,14 @@
       "name": "fmri_meta_fit_extended",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.stats.meta_compat",
-      "runtime_signature": "(Y: 'Any', V: 'Any', X: 'Any', method: 'str' = 'pm', robust: 'str' = 'none', huber_c: 'float' = 1.345, robust_iter: 'int' = 2, voxelwise: 'Optional[Any]' = None, center_voxelwise: 'bool' = True, voxel_name: 'str' = 'voxel_cov', n_threads: 'int' = 0) -> 'Dict[str, Any]'",
+      "runtime_signature": "(Y: 'ArrayLike', V: 'ArrayLike', X: 'ArrayLike', method: 'str' = 'pm', robust: 'str' = 'none', huber_c: 'float' = 1.345, robust_iter: 'int' = 2, voxelwise: 'Optional[ArrayLike]' = None, center_voxelwise: 'bool' = True, voxel_name: 'str' = 'voxel_cov', n_threads: 'int' = 0) -> 'Dict[str, NDArray[np.float64]]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1473,14 +1473,14 @@
       "name": "fmri_ols_fit",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.glm.compat",
-      "runtime_signature": "(Y: 'ArrayLike', X: 'ArrayLike', voxelwise: 'Optional[ArrayLike]' = None, center_voxelwise: 'bool' = True, voxel_name: 'str' = 'voxel_cov') -> 'Dict[str, Any]'",
+      "runtime_signature": "(Y: 'ArrayLike', X: 'ArrayLike', voxelwise: 'Optional[ArrayLike]' = None, center_voxelwise: 'bool' = True, voxel_name: 'str' = 'voxel_cov') -> 'Dict[str, object]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1488,7 +1488,7 @@
       "name": "fmri_rlm",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.glm.compat",
-      "runtime_signature": "(model: 'Any', config: 'Optional[FmriLmConfig]' = None, **kwargs: 'Any') -> 'FmriLm'",
+      "runtime_signature": "(model: 'object', config: 'Optional[FmriLmConfig]' = None, **kwargs: 'object') -> 'FmriLm'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -1630,7 +1630,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1638,14 +1638,14 @@
       "name": "get_benchmark_summary",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.compat",
-      "runtime_signature": "(dataset_name: 'str') -> 'Dict[str, Any]'",
+      "runtime_signature": "(dataset_name: 'str') -> 'Dict[str, object]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1653,14 +1653,14 @@
       "name": "get_contrasts",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'Any', **kwargs) -> 'Any'",
+      "runtime_signature": "(x: 'object', **kwargs) -> 'list[str]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1668,14 +1668,14 @@
       "name": "get_covariates",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'Any', **kwargs) -> 'Optional[pd.DataFrame]'",
+      "runtime_signature": "(x: 'object', **kwargs) -> 'Optional[pd.DataFrame]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1683,14 +1683,14 @@
       "name": "get_data",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'Any', run: 'int' = 0, **kwargs) -> 'NDArray[np.float64]'",
+      "runtime_signature": "(x: 'object', run: 'int' = 0, **kwargs) -> 'NDArray[np.float64]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1698,14 +1698,14 @@
       "name": "get_data_matrix",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'Any', **kwargs) -> 'NDArray[np.float64]'",
+      "runtime_signature": "(x: 'object', **kwargs) -> 'NDArray[np.float64]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1713,7 +1713,7 @@
       "name": "get_formula",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'Any', **kwargs) -> 'Optional[str]'",
+      "runtime_signature": "(x: 'object', **kwargs) -> 'Optional[str]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -1735,7 +1735,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1743,14 +1743,14 @@
       "name": "get_mask",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'Any', **kwargs) -> 'NDArray[np.bool_]'",
+      "runtime_signature": "(x: 'object', **kwargs) -> 'NDArray[np.bool_]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1758,14 +1758,14 @@
       "name": "get_rois",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'Any', **kwargs) -> 'list[str]'",
+      "runtime_signature": "(x: 'object', **kwargs) -> 'list[str]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1773,7 +1773,7 @@
       "name": "get_subjects",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'Any', **kwargs) -> 'list[str]'",
+      "runtime_signature": "(x: 'object', **kwargs) -> 'list[str]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -1825,7 +1825,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1833,14 +1833,14 @@
       "name": "group_data",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.dataset.group_data",
-      "runtime_signature": "(data: 'Any', format: 'str' = 'auto', **kwargs: 'Any') -> 'GroupData'",
+      "runtime_signature": "(data: 'object', format: 'str' = 'auto', **kwargs: 'object') -> 'GroupData'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1848,14 +1848,14 @@
       "name": "group_data_from_csv",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.group_data",
-      "runtime_signature": "(data: 'Sequence[Any] | str | pd.DataFrame | os.PathLike', effect_cols: 'Mapping[str, str] | Sequence[str] | Sequence[str] | Mapping[Any, Any]', subject_col: 'str' = 'subject', roi_col: 'Optional[str]' = None, contrast_col: 'Optional[str]' = None, covariate_cols: 'Optional[Sequence[str]]' = None, wide_format: 'bool' = False, subjects: 'Optional[Sequence[str]]' = None, covariates: 'Optional[pd.DataFrame]' = None) -> 'GroupData'",
+      "runtime_signature": "(data: 'str | pd.DataFrame | os.PathLike', effect_cols: 'Mapping[str, str] | Sequence[str]', subject_col: 'str' = 'subject', roi_col: 'Optional[str]' = None, contrast_col: 'Optional[str]' = None, covariate_cols: 'Optional[Sequence[str]]' = None, wide_format: 'bool' = False, subjects: 'Optional[Sequence[str]]' = None, covariates: 'Optional[pd.DataFrame]' = None) -> 'GroupData'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1863,7 +1863,7 @@
       "name": "group_data_from_fmrilm",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.group_data",
-      "runtime_signature": "(lm_list: 'Sequence[Any]', contrast: 'Optional[str]' = None, stat: 'Sequence[str]' = ('beta', 'se'), subjects: 'Optional[Sequence[str]]' = None, covariates: 'Optional[pd.DataFrame]' = None) -> 'GroupData'",
+      "runtime_signature": "(lm_list: 'Sequence[object]', contrast: 'Optional[str]' = None, stat: 'Sequence[str]' = ('beta', 'se'), subjects: 'Optional[Sequence[str]]' = None, covariates: 'Optional[pd.DataFrame]' = None) -> 'GroupData'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2125,7 +2125,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2133,7 +2133,7 @@
       "name": "latent_dataset",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.compat",
-      "runtime_signature": "(scores: 'Any', loadings: 'Optional[Any]' = None, tr: 'float' = 1.0, run_length: 'Optional[Any]' = None, *, event_table: 'Optional[pd.DataFrame]' = None) -> 'LatentDataset'",
+      "runtime_signature": "(scores: 'ArrayLike', loadings: 'Optional[ArrayLike]' = None, tr: 'float' = 1.0, run_length: 'Optional[Union[int, Sequence[int]]]' = None, *, event_table: 'Optional[pd.DataFrame]' = None) -> 'LatentDataset'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2170,7 +2170,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2178,14 +2178,14 @@
       "name": "load_benchmark_dataset",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.compat",
-      "runtime_signature": "(dataset_name: 'str' = 'BM_Canonical_HighSNR') -> 'Any'",
+      "runtime_signature": "(dataset_name: 'str' = 'BM_Canonical_HighSNR') -> 'Dict[str, object]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2193,7 +2193,7 @@
       "name": "lowrank_control",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.glm.compat",
-      "runtime_signature": "(parcels: 'Optional[Any]' = None, landmarks: 'Optional[int]' = None, k_neighbors: 'int' = 16, time_sketch: 'Optional[Mapping[str, Any]]' = None, ncomp: 'Optional[int]' = None, noise_pcs: 'int' = 0) -> 'LowRankControl'",
+      "runtime_signature": "(parcels: 'Optional[object]' = None, landmarks: 'Optional[int]' = None, k_neighbors: 'int' = 16, time_sketch: 'Optional[Mapping[str, object]]' = None, ncomp: 'Optional[int]' = None, noise_pcs: 'int' = 0) -> 'LowRankControl'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2245,7 +2245,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2253,14 +2253,14 @@
       "name": "meta_effective_n",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.stats.meta_compat",
-      "runtime_signature": "(v: 'Any', tau2: 'Any') -> 'float'",
+      "runtime_signature": "(v: 'ArrayLike', tau2: 'ArrayLike') -> 'float'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2268,7 +2268,7 @@
       "name": "n_subjects",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'Any', **kwargs) -> 'int'",
+      "runtime_signature": "(x: 'object', **kwargs) -> 'int'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2320,7 +2320,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2328,7 +2328,7 @@
       "name": "p_values",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'Any', type: 'str' = 'estimates', **kwargs) -> 'Any'",
+      "runtime_signature": "(x: 'object', type: 'str' = 'estimates', **kwargs) -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2350,7 +2350,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2358,7 +2358,7 @@
       "name": "paired_diff_block",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.glm.compat",
-      "runtime_signature": "(blkA: 'Mapping[str, Any]', blkB: 'Mapping[str, Any]', rho: 'ArrayLike' = 0) -> 'Dict[str, Any]'",
+      "runtime_signature": "(blkA: 'Mapping[str, object]', blkB: 'Mapping[str, object]', rho: 'ArrayLike' = 0) -> 'Dict[str, object]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2395,7 +2395,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2403,7 +2403,7 @@
       "name": "pvalues",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'Any', *args, **kwargs) -> 'Any'",
+      "runtime_signature": "(x: 'object', type: 'str' = 'estimates', **kwargs) -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2425,7 +2425,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2433,7 +2433,7 @@
       "name": "read_fmri_config",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.compat",
-      "runtime_signature": "(path: 'Any') -> 'Dict[str, Any]'",
+      "runtime_signature": "(path: \"Union[str, 'os.PathLike[str]']\") -> 'Dict[str, object]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2470,7 +2470,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2478,7 +2478,7 @@
       "name": "register_basis",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.compat",
-      "runtime_signature": "(name: 'str', constructor: 'Callable[..., Any]') -> 'bool'",
+      "runtime_signature": "(name: 'str', constructor: 'Callable[..., object]') -> 'bool'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2515,7 +2515,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2523,7 +2523,7 @@
       "name": "resolve_basis",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.dataset.compat",
-      "runtime_signature": "(name: 'str', **kwargs: 'Any') -> 'Any'",
+      "runtime_signature": "(name: 'str', **kwargs: 'HrfParamValue') -> 'object'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2560,7 +2560,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2568,7 +2568,7 @@
       "name": "se",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'Any', *args, **kwargs) -> 'Any'",
+      "runtime_signature": "(x: 'object', type: 'str' = 'estimates', **kwargs) -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2590,7 +2590,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2598,14 +2598,14 @@
       "name": "simulate_bold_signal",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.simulate.compat",
-      "runtime_signature": "(ncond: 'int', hrf: 'Any' = 'spmg1', nreps: 'int' = 12, amps: 'Sequence[float] | None' = None, isi: 'Sequence[float]' = (3.0, 6.0), ampsd: 'float' = 0.0, tr: 'float' = 1.5, seed: 'int | None' = None) -> 'dict[str, NDArray[np.float64] | list[str]]'",
+      "runtime_signature": "(ncond: 'int', hrf: 'HrfSpec' = 'spmg1', nreps: 'int' = 12, amps: 'Sequence[float] | None' = None, isi: 'Sequence[float]' = (3.0, 6.0), ampsd: 'float' = 0.0, tr: 'float' = 1.5, seed: 'int | None' = None) -> 'dict[str, NDArray[np.float64] | list[str]]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2613,7 +2613,7 @@
       "name": "simulate_fmri_matrix",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.simulate.compat",
-      "runtime_signature": "(n: 'int' = 1, total_time: 'float' = 240.0, TR: 'float' = 2.0, hrf: 'Any' = 'spmg1', n_events: 'int' = 10, onsets: 'Sequence[float] | None' = None, isi_dist: 'str' = 'even', isi_min: 'float' = 2.0, isi_max: 'float' = 6.0, isi_rate: 'float' = 0.25, durations: 'float | Sequence[float]' = 0.0, duration_sd: 'float' = 0.0, duration_dist: 'str' = 'lognormal', amplitudes: 'float | Sequence[float]' = 1.0, amplitude_sd: 'float' = 0.0, amplitude_dist: 'str' = 'lognormal', single_trial: 'bool' = False, noise_type: 'str' = 'none', noise_ar: 'Sequence[float] | None' = None, noise_sd: 'float' = 1.0, random_seed: 'int | None' = None, verbose: 'bool' = False, buffer: 'float' = 16.0) -> 'dict[str, Any]'",
+      "runtime_signature": "(n: 'int' = 1, total_time: 'float' = 240.0, TR: 'float' = 2.0, hrf: 'HrfSpec' = 'spmg1', n_events: 'int' = 10, onsets: 'Sequence[float] | None' = None, isi_dist: 'str' = 'even', isi_min: 'float' = 2.0, isi_max: 'float' = 6.0, isi_rate: 'float' = 0.25, durations: 'float | Sequence[float]' = 0.0, duration_sd: 'float' = 0.0, duration_dist: 'str' = 'lognormal', amplitudes: 'float | Sequence[float]' = 1.0, amplitude_sd: 'float' = 0.0, amplitude_dist: 'str' = 'lognormal', single_trial: 'bool' = False, noise_type: 'str' = 'none', noise_ar: 'Sequence[float] | None' = None, noise_sd: 'float' = 1.0, random_seed: 'int | None' = None, verbose: 'bool' = False, buffer: 'float' = 16.0) -> 'dict[str, object]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2635,7 +2635,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2643,7 +2643,7 @@
       "name": "simulate_simple_dataset",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.simulate.dataset",
-      "runtime_signature": "(ncond: 'int', nreps: 'int' = 12, tr: 'float' = 1.5, snr: 'float' = 0.5, hrf: 'Any' = None, seed: 'int | None' = None) -> 'dict[str, NDArray[np.float64] | list[str]]'",
+      "runtime_signature": "(ncond: 'int', nreps: 'int' = 12, tr: 'float' = 1.5, snr: 'float' = 0.5, hrf: 'Optional[HrfSpec]' = None, seed: 'int | None' = None) -> 'dict[str, NDArray[np.float64] | list[str]]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2665,7 +2665,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2673,7 +2673,7 @@
       "name": "soft_projection",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.glm.compat",
-      "runtime_signature": "(N: 'ArrayLike', lam: 'Union[float, str]' = 'auto', Y: 'Optional[ArrayLike]' = None, **kwargs: 'Any') -> 'SoftProjection'",
+      "runtime_signature": "(N: 'ArrayLike', lam: 'Union[float, str]' = 'auto', Y: 'Optional[ArrayLike]' = None, **kwargs: 'object') -> 'SoftProjection'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2688,7 +2688,7 @@
       "name": "soft_subspace_options",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.model.config",
-      "runtime_signature": "(*, enabled: 'bool' = False, nuisance_matrix: 'Optional[NDArray]' = None, nuisance_mask: 'Optional[object]' = None, lam: \"Union[float, Literal['auto', 'gcv'], object]\" = <object object at 0x7fcc84659ed0>, warn_redundant: 'bool' = True, **kwargs) -> 'SoftSubspaceOptions'",
+      "runtime_signature": "(*, enabled: 'bool' = False, nuisance_matrix: 'Optional[NDArray]' = None, nuisance_mask: 'Optional[object]' = None, lam: \"Union[float, Literal['auto', 'gcv'], object]\" = <object object at 0x7f5cf0145ed0>, warn_redundant: 'bool' = True, **kwargs) -> 'SoftSubspaceOptions'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2710,7 +2710,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2718,7 +2718,7 @@
       "name": "standard_error",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'Any', type: 'str' = 'estimates', **kwargs) -> 'Any'",
+      "runtime_signature": "(x: 'object', type: 'str' = 'estimates', **kwargs) -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2733,7 +2733,7 @@
       "name": "stats",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.stats",
-      "runtime_signature": "(*args, **kwargs)",
+      "runtime_signature": "(x: 'object', type: 'str' = 'estimates', **kwargs: 'object') -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2770,7 +2770,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2778,14 +2778,14 @@
       "name": "tidy",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'Any', type: 'str' = 'estimates', **kwargs) -> 'pd.DataFrame'",
+      "runtime_signature": "(x: 'object', type: 'str' = 'estimates', **kwargs) -> 'pd.DataFrame'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2793,7 +2793,7 @@
       "name": "tidy_fitted_hrf",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'Any', sample_at: 'Sequence[float]', **kwargs) -> 'pd.DataFrame'",
+      "runtime_signature": "(x: 'object', sample_at: 'Sequence[float]', **kwargs) -> 'pd.DataFrame'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2830,7 +2830,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2838,7 +2838,7 @@
       "name": "voxel_index_chunks",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.data_chunks",
-      "runtime_signature": "(x: 'Any', nchunks: 'int | None' = None, chunk_size: 'int | None' = None) -> 'list[NDArray[np.intp]]'",
+      "runtime_signature": "(x: 'object', nchunks: 'int | None' = None, chunk_size: 'int | None' = None) -> 'list[NDArray[np.intp]]'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2905,7 +2905,7 @@
     },
     {
       "compatibility_status": "review_pending",
-      "has_any_in_signature": true,
+      "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -2913,7 +2913,7 @@
       "name": "zscores",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'Any', type: 'str' = 'estimates', **kwargs) -> 'Any'",
+      "runtime_signature": "(x: 'object', type: 'str' = 'estimates', **kwargs) -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
