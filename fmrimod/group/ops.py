@@ -18,6 +18,7 @@ from .errors import (
     UnsupportedGroupFeatureError,
 )
 from .io import write_hdf5
+from .progress import ProgressCallback, ProgressReporter, emit_progress
 from .registry import reducer_registry
 
 
@@ -186,15 +187,46 @@ def posthoc(
 def reduce(
     dataset: GroupDataset,
     method: str = "meta:fe",
+    *,
+    progress: ProgressCallback | ProgressReporter | None = None,
     **options: Any,
 ) -> GroupDataset:
     """Run a native reducer from the reducer registry."""
+    emit_progress(
+        progress,
+        "start",
+        method=method,
+        message=f"Starting group reducer {method}",
+        completed=0,
+        total=1,
+    )
     try:
-        reducer = reducer_registry.get(method)
-    except GroupRegistryError as exc:
-        raise UnsupportedGroupFeatureError(str(exc)) from exc
-    reducer_fn = cast(Callable[..., GroupDataset], reducer)
-    return reducer_fn(dataset, **options)
+        try:
+            reducer = reducer_registry.get(method)
+        except GroupRegistryError as exc:
+            raise UnsupportedGroupFeatureError(str(exc)) from exc
+        reducer_fn = cast(Callable[..., GroupDataset], reducer)
+        out = reducer_fn(dataset, **options)
+    except Exception as exc:
+        emit_progress(
+            progress,
+            "error",
+            method=method,
+            message=str(exc),
+            completed=0,
+            total=1,
+            error_type=type(exc).__name__,
+        )
+        raise
+    emit_progress(
+        progress,
+        "done",
+        method=method,
+        message=f"Finished group reducer {method}",
+        completed=1,
+        total=1,
+    )
+    return out
 
 
 def write_out(

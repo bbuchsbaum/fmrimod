@@ -7,6 +7,7 @@ import pytest
 
 from fmrimod.group import (
     AdapterContractError,
+    GroupProgressEvent,
     SampleLabelSpace,
     UnsupportedGroupFeatureError,
     derive,
@@ -113,3 +114,25 @@ def test_reduce_and_write_out_are_explicit_phase_gaps() -> None:
         reduce(ds, method="lmm:ri")
     with pytest.raises(UnsupportedGroupFeatureError, match="format='h5'"):
         write_out(ds, "out.csv", format="csv")
+
+
+def test_reduce_emits_progress_events() -> None:
+    events: list[GroupProgressEvent] = []
+    out = reduce(_dataset(), method="meta:fe", progress=events.append)
+
+    assert out.metadata["reduce_method"] == "meta:fe"
+    assert [event.stage for event in events] == ["start", "done"]
+    assert [event.method for event in events] == ["meta:fe", "meta:fe"]
+    assert events[0].completed == 0
+    assert events[1].completed == 1
+    assert events[1].total == 1
+
+
+def test_reduce_emits_progress_error_event() -> None:
+    events: list[GroupProgressEvent] = []
+    with pytest.raises(UnsupportedGroupFeatureError, match="R fmrigds oracle"):
+        reduce(_dataset(), method="lmm:ri", progress=events.append)
+
+    assert [event.stage for event in events] == ["start", "error"]
+    assert events[1].method == "lmm:ri"
+    assert events[1].metadata["error_type"] == "UnsupportedGroupFeatureError"

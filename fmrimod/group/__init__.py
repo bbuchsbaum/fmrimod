@@ -22,6 +22,12 @@ from .errors import (
 )
 from .io import GDS_H5_VERSION, read_hdf5, write_hdf5
 from .ops import derive, mask, posthoc, reduce, subset, write_out
+from .progress import (
+    GroupProgressEvent,
+    ProgressCallback,
+    ProgressReporter,
+    emit_progress,
+)
 from .reducers import (
     combine_fisher,
     combine_lancaster,
@@ -68,6 +74,7 @@ __all__ = [
     "GroupConfigError",
     "GroupDataset",
     "GroupProbe",
+    "GroupProgressEvent",
     "GroupReducerError",
     "GroupRegistry",
     "GroupRegistryError",
@@ -75,6 +82,8 @@ __all__ = [
     "GroupSpace",
     "GroupSpaceError",
     "ParcelSpace",
+    "ProgressCallback",
+    "ProgressReporter",
     "RegistryEntry",
     "SampleLabelSpace",
     "SurfaceSpace",
@@ -89,6 +98,7 @@ __all__ = [
     "combine_lancaster",
     "combine_stouffer",
     "derive",
+    "emit_progress",
     "group_dataset",
     "group_dataset_from_group_data",
     "lmm_ri",
