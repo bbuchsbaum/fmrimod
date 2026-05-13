@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import inspect
+
 from benchmarks.parity.tier_d_showcase import workflow
 
 
@@ -24,6 +26,13 @@ def test_tier_d_includes_public_seam_single_trial_row() -> None:
 def test_tier_d_includes_independent_generative_lss_row() -> None:
     rows = workflow.run_showcases()
     by_id = {row.case_id: row for row in rows}
+
+    source = inspect.getsource(workflow.run_lss_public_seam_independent_generative)
+    assert "fmrimod.design.event_model" not in source
+    assert "_build_event_model" not in source
+    assert "event_model(" not in source
+    assert "fmri_dataset" in source
+    assert "estimate_single_trial_from_dataset" in source
 
     row = by_id["tier_d_lss_public_seam_independent_generative"]
     assert row.status == "pass"
