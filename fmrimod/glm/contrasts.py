@@ -137,6 +137,34 @@ def _t_two_sided_pvalue(
     return 2.0 * sp_special.stdtr(dfres, -np.abs(tstat))
 
 
+def _t_statistic(
+    estimate: NDArray[np.float64],
+    se: NDArray[np.float64],
+    dfres: float,
+) -> NDArray[np.float64]:
+    """Compute t-statistics without hiding undefined zero-DoF cases."""
+    estimate_arr, se_arr = np.broadcast_arrays(
+        np.asarray(estimate, dtype=np.float64),
+        np.asarray(se, dtype=np.float64),
+    )
+    tstat = np.full(estimate_arr.shape, np.nan, dtype=np.float64)
+    if not np.isfinite(dfres) or dfres <= 0.0:
+        return tstat
+
+    valid = np.isfinite(estimate_arr) & np.isfinite(se_arr) & (se_arr > 0.0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        np.divide(estimate_arr, se_arr, out=tstat, where=valid)
+
+    zero_contrast = (
+        np.isfinite(estimate_arr)
+        & np.isfinite(se_arr)
+        & (se_arr == 0.0)
+        & (estimate_arr == 0.0)
+    )
+    tstat[zero_contrast] = 0.0
+    return tstat
+
+
 def _f_upper_tail_pvalue(
     fstat: NDArray[np.float64],
     df1: float,
@@ -402,8 +430,7 @@ def contrast_t(
     se = sigma * np.sqrt(np.maximum(var_factor, 0.0))
 
     # t-statistic
-    with np.errstate(divide="ignore", invalid="ignore"):
-        tstat = np.where(se > 0.0, estimate / se, 0.0)
+    tstat = _t_statistic(estimate, se, dfres)
 
     # Two-sided p-value
     p_value = _t_two_sided_pvalue(tstat, dfres)
@@ -472,8 +499,7 @@ def contrast_t_batch(
     var_factors = np.sum(c_xtx * con_mat, axis=1)
     se = np.sqrt(np.maximum(var_factors, 0.0))[:, np.newaxis] * sigma[np.newaxis, :]
 
-    with np.errstate(divide="ignore", invalid="ignore"):
-        tstat = np.where(se > 0.0, estimates / se, 0.0)
+    tstat = _t_statistic(estimates, se, dfres)
     p_value = _t_two_sided_pvalue(tstat, dfres)
 
     if names is None:
@@ -531,8 +557,7 @@ def contrast_f(
         estimate = con_vec @ betas  # (V,)
         var_factor = con_vec @ XtXinv @ con_vec
         se = sigma * np.sqrt(np.maximum(var_factor, 0.0))
-        with np.errstate(divide="ignore", invalid="ignore"):
-            tstat = np.where(se > 0.0, estimate / se, 0.0)
+        tstat = _t_statistic(estimate, se, dfres)
         fstat = np.maximum(tstat * tstat, 0.0)
         p_value = _t_two_sided_pvalue(tstat, dfres)
         return ContrastResult(

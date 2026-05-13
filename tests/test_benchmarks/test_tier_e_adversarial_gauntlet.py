@@ -30,17 +30,17 @@ def test_gauntlet_records_recovery_and_failure_boundaries() -> None:
     assert "diagnostics" in survivable["verdict"]
 
     wide = cases["zero_residual_dof_wide_design"]
-    assert wide["status"] == "boundary_observed"
+    assert wide["status"] == "pass"
     assert wide["design_rank"] == wide["design_shape"][0]
     assert wide["fmrimod"]["df_residual"] == 0.0
     assert wide["nilearn"]["df_residual"] == 0.0
-    assert wide["fmrimod"]["undefined_t_policy"] == "zero_filled_t_with_nan_se"
+    assert wide["fmrimod"]["undefined_t_policy"] == "nan_t"
     assert wide["nilearn"]["undefined_t_policy"] == "nan_t"
-    assert wide["fmrimod"]["finite_stat_fraction"] == 1.0
+    assert wide["fmrimod"]["finite_stat_fraction"] == 0.0
     assert wide["nilearn"]["finite_stat_fraction"] == 0.0
     assert wide["fmrimod"]["nan_se_fraction"] == 1.0
     assert wide["nilearn"]["warning_messages"]
-    assert "split boundary" in wide["verdict"]
+    assert "both engines expose undefined" in wide["verdict"]
 
 
 def test_gauntlet_main_writes_report(tmp_path) -> None:

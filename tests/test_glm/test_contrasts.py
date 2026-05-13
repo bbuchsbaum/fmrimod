@@ -145,6 +145,36 @@ class TestContrastT:
         assert single.stat[0] == 5.0
         assert batch.stat[0] == 5.0
 
+    def test_zero_residual_dof_t_statistics_are_nan(self):
+        """A zero residual-DoF contrast has no defined reference t statistic."""
+        con = np.array([1.0])
+        betas = np.array([[1.0, -2.0]])
+        xtxinv = np.array([[1.0]])
+        sigma = np.array([np.nan, 1.0])
+
+        single = contrast_t(con, betas, xtxinv, sigma, dfres=0.0)
+        batch = contrast_t_batch(np.atleast_2d(con), betas, xtxinv, sigma, 0.0)[0]
+
+        assert np.all(np.isnan(single.stat))
+        assert np.all(np.isnan(single.p_value))
+        assert np.all(np.isnan(batch.stat))
+        assert np.all(np.isnan(batch.p_value))
+
+    def test_zero_se_zero_contrast_remains_defined_when_df_positive(self):
+        """The explicit all-zero contrast remains a valid no-effect test."""
+        con = np.array([0.0])
+        betas = np.array([[5.0]])
+        xtxinv = np.array([[1.0]])
+        sigma = np.array([1.0])
+
+        single = contrast_t(con, betas, xtxinv, sigma, dfres=20.0)
+        batch = contrast_t_batch(np.atleast_2d(con), betas, xtxinv, sigma, 20.0)[0]
+
+        assert single.stat[0] == 0.0
+        assert single.p_value[0] == 1.0
+        assert batch.stat[0] == 0.0
+        assert batch.p_value[0] == 1.0
+
 
 class TestContrastF:
     def test_significant_f(self, fitted_model):
@@ -181,6 +211,19 @@ class TestContrastF:
         p_from_t = 2.0 * sp_stats.t.sf(np.abs(t_res.stat), fitted_model["dfres"])
         np.testing.assert_allclose(f_res.p_value, p_from_t, atol=1e-12, rtol=1e-12)
         np.testing.assert_allclose(f_res_vec.p_value, p_from_t, atol=1e-12, rtol=1e-12)
+
+    def test_single_row_f_preserves_undefined_zero_dof_policy(self):
+        """The one-row F fast path follows the t path for zero residual DoF."""
+        con = np.array([[1.0]])
+        betas = np.array([[1.0, -2.0]])
+        xtxinv = np.array([[1.0]])
+        sigma = np.array([np.nan, np.nan])
+
+        res = contrast_f(con, betas, xtxinv, sigma, dfres=0.0)
+
+        assert res.df == (1.0, 0.0)
+        assert np.all(np.isnan(res.stat))
+        assert np.all(np.isnan(res.p_value))
 
     def test_multi_row_f(self, fitted_model):
         """Joint test of regressors 1 and 2."""

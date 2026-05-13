@@ -7,10 +7,8 @@ contains two deterministic probes:
    agree on the identifiable t-contrast, while fmrimod exposes structured
    projection diagnostics.
 2. A wide design with zero residual degrees of freedom, where the t-statistic
-   is undefined. This records the current boundary instead of hiding it:
-   Nilearn returns NaN t-statistics with a runtime warning; fmrimod's low-level
-   contrast path currently zero-fills the undefined t-statistic while leaving
-   the standard error and p-value as NaN.
+   is undefined. This records whether both engines expose undefined
+   statistics as NaN instead of hiding them behind finite placeholders.
 
 The point is to make "who breaks first, and how neatly?" executable.
 """
@@ -373,13 +371,13 @@ def _case_status(
         )
         return status, verdict
 
-    fmrimod_zero_fill = fmrimod.undefined_t_policy == "zero_filled_t_with_nan_se"
+    fmrimod_nan = fmrimod.undefined_t_policy == "nan_t"
     nilearn_nan = nilearn.undefined_t_policy == "nan_t"
-    status = "boundary_observed" if fmrimod_zero_fill and nilearn_nan else "changed"
+    status = "pass" if fmrimod_nan and nilearn_nan else "changed"
     verdict = (
-        "split boundary: fmrimod exposes projection DoF/rank, Nilearn is more "
-        "honest on undefined t-statistics in this low-level path"
-        if status == "boundary_observed"
+        "both engines expose undefined t-statistics as NaN; fmrimod also "
+        "records projection DoF/rank diagnostics"
+        if status == "pass"
         else "zero-DoF behavior changed; review the recorded policies"
     )
     return status, verdict
