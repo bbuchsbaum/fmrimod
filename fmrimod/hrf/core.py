@@ -163,6 +163,60 @@ class HRF(ABC):
         from ..plotting import plot_hrf
         return plot_hrf(self, time=time, normalize=normalize, show_peak=show_peak, ax=ax, **kwargs)
 
+    # -- Fluent decorators (return new HRF, mirror fmrihrf's gen_hrf chain) --
+
+    def lag(self, dt: float) -> "HRF":
+        """Return a new HRF lagged by ``dt`` seconds.
+
+        Mirrors R's :func:`lag_hrf`.  Equivalent to
+        :func:`fmrimod.hrf.lag_hrf(self, dt) <fmrimod.hrf.lag_hrf>`.
+        """
+        from .decorators import lag_hrf
+
+        return lag_hrf(self, dt)
+
+    def block(
+        self,
+        width: float,
+        precision: float = 0.1,
+        half_life: float = float("inf"),
+        summate: bool = True,
+        normalize: bool = False,
+    ) -> "HRF":
+        """Return a new HRF convolved with a boxcar of duration ``width``.
+
+        Mirrors R's :func:`block_hrf`.
+        """
+        from .decorators import block_hrf
+
+        return block_hrf(
+            self,
+            width=width,
+            precision=precision,
+            half_life=half_life,
+            summate=summate,
+            normalize=normalize,
+        )
+
+    def normalize(self) -> "HRF":
+        """Return a new HRF normalized to unit peak."""
+        from .decorators import normalize_hrf
+
+        return normalize_hrf(self)
+
+    # -- Composition --
+
+    def __add__(self, other: "HRF") -> "HRF":
+        """Column-bind two HRFs into a multi-basis HRF.
+
+        Equivalent to :func:`fmrimod.hrf.bind_basis(self, other)
+        <fmrimod.hrf.bind_basis>`.  Lets users write
+        ``HRF_SPMG1 + HRF_GAMMA`` to assemble a 2-basis set.
+        """
+        if not isinstance(other, HRF):
+            return NotImplemented
+        return bind_basis(self, other)
+
     def __str__(self) -> str:
         """String representation of HRF."""
         params_str = ""

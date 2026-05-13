@@ -38,7 +38,14 @@ from .sampling import SamplingFrame
 from .regressor import regressor, regressor_set, null_regressor
 
 # ── Pre-defined HRFs (most commonly used) ────────────────────────────
-from .hrf.library import SPM_CANONICAL, SPM_WITH_DERIVATIVE, SPM_WITH_DISPERSION
+from .hrf.library import (
+    SPM_CANONICAL, SPM_WITH_DERIVATIVE, SPM_WITH_DISPERSION,
+    # R-parity aliases — match the fmrihrf constant names for ported code
+    HRF_SPMG1, HRF_SPMG2, HRF_SPMG3,
+    HRF_GAMMA, HRF_GAUSSIAN, HRF_BSPLINE, HRF_FIR, HRF_FOURIER,
+    HRF_TIME, HRF_MEXHAT, HRF_INV_LOGIT, HRF_HALF_COSINE, HRF_SINE,
+    HRF_LWU, HRF_LWU_BASIS,
+)
 from .hrf.functions import spm_canonical, gamma_hrf, gaussian_hrf
 from .hrf.registry import get_hrf, list_available_hrfs
 
@@ -868,6 +875,22 @@ __all__ = [
     "SPM_CANONICAL",
     "SPM_WITH_DERIVATIVE",
     "SPM_WITH_DISPERSION",
+    # R-parity aliases for fmrihrf constant names
+    "HRF_SPMG1",
+    "HRF_SPMG2",
+    "HRF_SPMG3",
+    "HRF_GAMMA",
+    "HRF_GAUSSIAN",
+    "HRF_BSPLINE",
+    "HRF_FIR",
+    "HRF_FOURIER",
+    "HRF_TIME",
+    "HRF_MEXHAT",
+    "HRF_INV_LOGIT",
+    "HRF_HALF_COSINE",
+    "HRF_SINE",
+    "HRF_LWU",
+    "HRF_LWU_BASIS",
     "spm_canonical",
     "gamma_hrf",
     "gaussian_hrf",

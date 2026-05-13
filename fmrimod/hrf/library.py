@@ -177,3 +177,23 @@ PREDEFINED_HRFS = {
     "lwu": LWU_HRF,
     "lwu_basis": LWU_BASIS_HRF,
 }
+
+
+# R-parity aliases: match the fmrihrf constant names exactly so code ported
+# from R reads identically. These are object aliases, not copies, so the same
+# HRF instance is used regardless of which name is referenced.
+HRF_SPMG1 = SPM_CANONICAL
+HRF_SPMG2 = SPM_WITH_DERIVATIVE
+HRF_SPMG3 = SPM_WITH_DISPERSION
+HRF_GAMMA = GAMMA_HRF
+HRF_GAUSSIAN = GAUSSIAN_HRF
+HRF_BSPLINE = BSPLINE_HRF
+HRF_FIR = FIR_HRF
+HRF_FOURIER = FOURIER_HRF
+HRF_TIME = TIME_HRF
+HRF_MEXHAT = MEXHAT_HRF
+HRF_INV_LOGIT = INV_LOGIT_HRF
+HRF_HALF_COSINE = HALF_COSINE_HRF
+HRF_SINE = SINE_HRF
+HRF_LWU = LWU_HRF
+HRF_LWU_BASIS = LWU_BASIS_HRF

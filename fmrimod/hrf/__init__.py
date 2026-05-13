@@ -14,6 +14,11 @@ from .library import (
     TIME_HRF, MEXHAT_HRF, INV_LOGIT_HRF, HALF_COSINE_HRF, SINE_HRF,
     LWU_HRF, LWU_BASIS_HRF,
     PREDEFINED_HRFS,
+    # R-parity aliases for fmrihrf constant names
+    HRF_SPMG1, HRF_SPMG2, HRF_SPMG3,
+    HRF_GAMMA, HRF_GAUSSIAN, HRF_BSPLINE, HRF_FIR, HRF_FOURIER,
+    HRF_TIME, HRF_MEXHAT, HRF_INV_LOGIT, HRF_HALF_COSINE, HRF_SINE,
+    HRF_LWU, HRF_LWU_BASIS,
 )
 from .decorators import (
     lag_hrf, block_hrf, normalize_hrf,
@@ -50,6 +55,11 @@ __all__ = [
     "GAMMA_HRF", "GAUSSIAN_HRF", "BSPLINE_HRF", "FIR_HRF", "FOURIER_HRF",
     "TIME_HRF", "MEXHAT_HRF", "INV_LOGIT_HRF", "HALF_COSINE_HRF", "SINE_HRF",
     "LWU_HRF", "LWU_BASIS_HRF",
+    # R-parity aliases
+    "HRF_SPMG1", "HRF_SPMG2", "HRF_SPMG3",
+    "HRF_GAMMA", "HRF_GAUSSIAN", "HRF_BSPLINE", "HRF_FIR", "HRF_FOURIER",
+    "HRF_TIME", "HRF_MEXHAT", "HRF_INV_LOGIT", "HRF_HALF_COSINE", "HRF_SINE",
+    "HRF_LWU", "HRF_LWU_BASIS",
     # Decorators
     "lag_hrf", "block_hrf", "normalize_hrf",
     "gen_hrf_lagged", "gen_hrf_blocked",
