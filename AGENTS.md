@@ -4,12 +4,38 @@ This file is the canonical agent-instructions document for this repo. `CLAUDE.md
 is a symlink to it so Claude Code, Codex, and other agents read the same content.
 Edit `AGENTS.md` — the symlink keeps `CLAUDE.md` in sync automatically.
 
+## Read First
+
+- [`VISION.md`](VISION.md) — the world-state argument for fmrimod and what
+  "done" looks like.
+- [`MISSION.md`](MISSION.md) — present-day scope, deliverables, and the
+  explicit out-of-scope list.
+- [`docs/contracts/CAVEATS.md`](docs/contracts/CAVEATS.md) — every active
+  parity caveat with owner and exit criterion.
+- [`./benchmarks/`](benchmarks/) — the use-case parity workflows that
+  validate the port against the R sources, Nilearn, and FitLins.
+
 ## Project Overview
 
-**fmrimod** is a Python port of three R packages (`fmrihrf` + `fmridesign` +
-`fmrireg`) for fMRI analysis. The native group-analysis layer lives under
-`fmrimod/group/`; the R `fmrigds` bridge is available only as the `fmrigds-r`
-oracle/fallback backend.
+**fmrimod** is the unified Python home of seven sibling R neuroimaging
+packages: [`fmrihrf`](https://github.com/bbuchsbaum/fmrihrf),
+[`fmridesign`](https://github.com/bbuchsbaum/fmridesign),
+[`fmrireg`](https://github.com/bbuchsbaum/fmrireg),
+[`fmrilss`](https://github.com/bbuchsbaum/fmrilss) (single-trial),
+[`fmriAR`](https://github.com/bbuchsbaum/fmriAR),
+[`fmrigds`](https://github.com/bbuchsbaum/fmrigds) (group stats), and
+[`fmridataset`](https://github.com/bbuchsbaum/fmridataset). It is not a
+mechanical port: the R behavior is the spec, but the Python types,
+composition, and ergonomics are redesigned for Python. Numerical and
+semantic parity is proven case-by-case in `./benchmarks/` and
+`cross_testing/`.
+
+The native group-analysis layer lives under `fmrimod/group/`; the R
+`fmrigds` bridge is available only as the `fmrigds-r` oracle/fallback
+backend. The data substrate is the dogfooded sibling Python port
+[`neuroim-python`](https://github.com/bbuchsbaum/neuroim-python) (port
+of `neuroim2`); friction with neuroim-python is fixed in
+neuroim-python, not routed around in fmrimod.
 
 ## Build & Test
 
