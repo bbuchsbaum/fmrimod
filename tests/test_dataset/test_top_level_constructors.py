@@ -5,6 +5,8 @@ import pandas as pd
 import pytest
 
 import fmrimod as fm
+import fmrimod.dataset as dataset
+from fmrimod.dataset import MatrixBackend
 from fmrimod.dataset.fmri_dataset import FmriDataset
 from fmrimod.events import EventFactor, EventMatrix, EventTerm, EventVariable
 
@@ -39,8 +41,11 @@ def test_matrix_dataset_single_run_construction():
     y = np.arange(60, dtype=float).reshape(20, 3)
     ds = fm.matrix_dataset(y, tr=2.0)
     assert isinstance(ds, FmriDataset)
+    assert isinstance(dataset.matrix_dataset(y, tr=2.0), FmriDataset)
+    assert isinstance(ds.storage_backend, MatrixBackend)
     assert ds.n_runs == 1
-    assert ds.n_timepoints == [20]
+    assert ds.n_timepoints == 20
+    assert ds.run_lengths == [20]
     assert ds.get_all_data().shape == (20, 3)
     assert np.isclose(ds.sampling_frame.TR, 2.0)
 
@@ -49,7 +54,8 @@ def test_matrix_dataset_split_by_run_length_int():
     y = np.arange(90, dtype=float).reshape(30, 3)
     ds = fm.matrix_dataset(y, tr=1.5, run_length=10)
     assert ds.n_runs == 3
-    assert ds.n_timepoints == [10, 10, 10]
+    assert ds.n_timepoints == 30
+    assert ds.run_lengths == [10, 10, 10]
     assert ds.get_data(0).shape == (10, 3)
     assert ds.get_data(2).shape == (10, 3)
 
@@ -59,8 +65,20 @@ def test_matrix_dataset_split_by_run_length_list_and_event_table():
     events = pd.DataFrame({"onset": [2.0, 8.0], "condition": ["A", "B"]})
     ds = fm.matrix_dataset(y, tr=[1.0, 2.0], run_length=[8, 16], event_table=events)
     assert ds.n_runs == 2
-    assert ds.n_timepoints == [8, 16]
+    assert ds.n_timepoints == 24
+    assert ds.run_lengths == [8, 16]
     assert ds.event_table is events
+
+
+def test_matrix_dataset_accepts_TR_compatibility_spelling():
+    y = np.arange(60, dtype=float).reshape(20, 3)
+    ds = dataset.matrix_dataset(y, TR=2.0)
+
+    assert ds.n_timepoints == 20
+    assert np.isclose(ds.sampling_frame.TR, 2.0)
+
+    with pytest.raises(ValueError, match="must agree"):
+        dataset.matrix_dataset(y, tr=1.0, TR=2.0)
 
 
 def test_matrix_dataset_validates_input_shape():

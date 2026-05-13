@@ -8,7 +8,11 @@ import numpy as np
 import pandas as pd
 
 import fmrimod
-from fmrimod.dataset import group_data_from_csv, group_data_from_h5, group_data_from_nifti
+from fmrimod.dataset import (
+    group_data_from_csv,
+    group_data_from_h5,
+    group_data_from_nifti,
+)
 
 
 class _RawModel:
@@ -30,7 +34,7 @@ def test_memory_latent_chunks_and_design_plot_helpers():
     ds = fmrimod.fmri_mem_dataset(data, tr=2.0)
     np.testing.assert_allclose(ds.get_data(0), data)
 
-    chunks = fmrimod.data_chunks(ds, nchunks=2)
+    chunks = fmrimod.voxel_index_chunks(ds, nchunks=2)
     assert [chunk.tolist() for chunk in chunks] == [[0], [1]]
 
     scores = np.column_stack([np.ones(10), np.linspace(-1, 1, 10)])

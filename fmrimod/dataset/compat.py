@@ -2,20 +2,18 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Sequence
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
 from ..sampling import SamplingFrame
-from .adapters import NumpyAdapter
 from .fmri_dataset import FmriDataset
 from .group_data import GroupData
-
 
 _BASIS_REGISTRY: Dict[str, Callable[..., Any]] = {}
 
@@ -29,9 +27,9 @@ def fmri_mem_dataset(
     mask: Optional[NDArray[np.bool_]] = None,
 ) -> FmriDataset:
     """Construct an in-memory fMRI dataset from matrix data."""
-    import fmrimod
+    from .constructors import matrix_dataset
 
-    return fmrimod.matrix_dataset(
+    return matrix_dataset(
         data,
         tr,
         run_length=run_length,
@@ -132,25 +130,15 @@ def fmri_latent_lm(model: Any, dataset: LatentDataset, config: Optional[Any] = N
     return fit
 
 
-def data_chunks(x: Any, nchunks: Optional[int] = None, chunk_size: Optional[int] = None) -> list[NDArray[np.intp]]:
-    """Return voxel-index chunks for an array or dataset-like object."""
-    if hasattr(x, "n_voxels"):
-        n_voxels = int(x.n_voxels)
-    else:
-        arr = np.asarray(x)
-        if arr.ndim < 1:
-            raise ValueError("x must be an array or dataset-like object")
-        n_voxels = int(arr.shape[-1])
-    if chunk_size is None:
-        if nchunks is None:
-            nchunks = 1
-        chunk_size = int(np.ceil(n_voxels / max(1, int(nchunks))))
-    if chunk_size <= 0:
-        raise ValueError("chunk_size must be positive")
-    return [
-        np.arange(start, min(start + chunk_size, n_voxels), dtype=np.intp)
-        for start in range(0, n_voxels, chunk_size)
-    ]
+def voxel_index_chunks(
+    x: Any,
+    nchunks: Optional[int] = None,
+    chunk_size: Optional[int] = None,
+) -> list[NDArray[np.intp]]:
+    """Return bare voxel-index chunks for legacy callers."""
+    from .data_chunks import voxel_index_chunks as _voxel_index_chunks
+
+    return _voxel_index_chunks(x, nchunks=nchunks, chunk_size=chunk_size)
 
 
 def extract_csv_data(gd: GroupData, roi: Optional[str] = None, contrast: Optional[str] = None) -> Dict[str, Any]:

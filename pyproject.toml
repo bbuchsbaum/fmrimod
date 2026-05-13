@@ -118,6 +118,7 @@ chunkwise = "fmrimod.glm.engines.chunkwise:ChunkwiseEngine"
 [tool.hatch.build.targets.sdist]
 include = [
     "/fmrimod",
+    "/fmridataset",
     "/tests",
     "/docs",
     "/examples",
@@ -125,7 +126,7 @@ include = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["fmrimod"]
+packages = ["fmrimod", "fmridataset"]
 artifacts = [
     "fmrimod/ar/_arma_filter*.so",
     "fmrimod/ar/_arma_filter*.pyd",

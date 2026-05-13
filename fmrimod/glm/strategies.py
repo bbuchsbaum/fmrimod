@@ -6,15 +6,15 @@ fMRI datasets.
 
 from __future__ import annotations
 
+import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-import hashlib
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
 
-from .solver import Projection, fast_preproject, fast_lm_matrix, LmResult
+from ..model.config import FmriLmConfig
 from .preprocess import (
     apply_censoring,
     apply_volume_weights,
@@ -23,7 +23,7 @@ from .preprocess import (
     extract_nuisance_timeseries,
     soft_subspace_projection,
 )
-from ..model.config import FmriLmConfig
+from .solver import LmResult, Projection, fast_lm_matrix, fast_preproject
 
 
 @contextmanager
@@ -50,6 +50,19 @@ def _projection_cache_key(
     h = hashlib.blake2b(digest_size=16)
     h.update(memoryview(Xc).cast("B"))
     return (Xc.shape, Xc.dtype.str, h.digest())
+
+
+def _dataset_run_lengths(dataset: object) -> list[int] | None:
+    """Return per-run lengths from dataset-like objects when available."""
+    if hasattr(dataset, "run_lengths"):
+        lengths = getattr(dataset, "run_lengths")
+    elif hasattr(dataset, "n_timepoints"):
+        lengths = getattr(dataset, "n_timepoints")
+    else:
+        return None
+    if isinstance(lengths, int):
+        return [int(lengths)]
+    return [int(v) for v in lengths]
 
 
 def _fit_one_run(
@@ -204,10 +217,11 @@ def _prepare_run_matrices(
             if (
                 dataset is not None
                 and run is not None
-                and hasattr(dataset, "n_timepoints")
+                and _dataset_run_lengths(dataset) is not None
                 and weights.shape[0] != X.shape[0]
             ):
-                run_lengths = [int(v) for v in getattr(dataset, "n_timepoints")]
+                run_lengths = _dataset_run_lengths(dataset)
+                assert run_lengths is not None
                 total_rows = int(sum(run_lengths))
                 if weights.shape[0] == total_rows:
                     start = int(sum(run_lengths[:run]))
@@ -248,10 +262,11 @@ def _prepare_run_matrices(
             if (
                 dataset is not None
                 and run is not None
-                and hasattr(dataset, "n_timepoints")
+                and _dataset_run_lengths(dataset) is not None
                 and nuisance.shape[0] != X.shape[0]
             ):
-                run_lengths = [int(v) for v in getattr(dataset, "n_timepoints")]
+                run_lengths = _dataset_run_lengths(dataset)
+                assert run_lengths is not None
                 total_rows = int(sum(run_lengths))
                 if nuisance.shape[0] == total_rows:
                     start = int(sum(run_lengths[:run]))

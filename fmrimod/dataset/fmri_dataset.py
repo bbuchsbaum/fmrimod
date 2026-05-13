@@ -13,6 +13,7 @@ import pandas as pd
 from numpy.typing import NDArray
 
 from ..sampling import SamplingFrame
+from .backend_protocol import BackendDims
 from .protocols import DatasetProtocol
 
 
@@ -31,7 +32,7 @@ class FmriDataset:
     event_table : pd.DataFrame, optional
         Table of experimental events with at least ``onset`` and ``block``
         (or ``run``) columns.  Additional columns are event variables.
-    censor : NDArray[np.bool\_] or list of NDArray, optional
+    censor : NDArray[np.bool_] or list of NDArray, optional
         Boolean censoring vector(s).  ``True`` marks volumes to exclude.
         Can be a single array covering all runs concatenated, or a list
         of per-run arrays.
@@ -49,13 +50,46 @@ class FmriDataset:
 
     # -- DatasetProtocol delegation --
 
-    def get_data(self, run: int) -> NDArray[np.float64]:
-        """Return ``(time, voxels)`` data matrix for *run*."""
+    def get_data(
+        self,
+        run: Optional[int] = None,
+        *,
+        rows: Optional[NDArray[np.intp]] = None,
+        cols: Optional[NDArray[np.intp]] = None,
+    ) -> NDArray[np.float64]:
+        """Return data by matrix slice or, temporarily, by run.
+
+        The canonical consolidation contract is matrix-oriented
+        ``rows``/``cols`` access. Positional run access is retained during the
+        migration for existing callers; new code should use
+        :meth:`get_run_data`.
+        """
+        if rows is not None or cols is not None:
+            mat = self.get_all_data()
+            if rows is not None:
+                mat = mat[np.asarray(rows, dtype=np.intp), :]
+            if cols is not None:
+                mat = mat[:, np.asarray(cols, dtype=np.intp)]
+            return mat
+        if run is None:
+            return self.get_all_data()
+        return self.get_run_data(run)
+
+    def get_run_data(self, run: int) -> NDArray[np.float64]:
+        """Return ``(time, voxels)`` data matrix for one run."""
         return self._source.get_data(run)
 
     def get_mask(self) -> NDArray[np.bool_]:
         """Return the spatial mask."""
         return self._source.get_mask()
+
+    def get_dims(self) -> BackendDims:
+        """Return backend dimensions when available."""
+        backend = self.storage_backend
+        if backend is not None and hasattr(backend, "get_dims"):
+            return backend.get_dims()
+        mask = self.get_mask().ravel()
+        return BackendDims(spatial=(int(mask.size), 1, 1), time=self.n_timepoints)
 
     def get_sampling_frame(self) -> SamplingFrame:
         """Return the :class:`SamplingFrame`."""
@@ -67,12 +101,28 @@ class FmriDataset:
         return self._source.get_sampling_frame()
 
     @property
+    def storage_backend(self) -> object | None:
+        """Underlying storage backend when the source is backend-backed."""
+        return getattr(self._source, "backend", None)
+
+    @property
     def n_runs(self) -> int:
         return self._source.n_runs
 
     @property
-    def n_timepoints(self) -> List[int]:
-        return self._source.n_timepoints
+    def n_timepoints(self) -> int:
+        """Total number of timepoints across all runs."""
+        return int(sum(self.run_lengths))
+
+    @property
+    def run_lengths(self) -> List[int]:
+        """Number of timepoints per run."""
+        return [int(v) for v in self._source.n_timepoints]
+
+    @property
+    def blocklens(self) -> List[int]:
+        """Alias for per-run lengths during the consolidation migration."""
+        return self.run_lengths
 
     @property
     def n_voxels(self) -> int:
@@ -102,7 +152,16 @@ class FmriDataset:
 
     def get_all_data(self) -> NDArray[np.float64]:
         """Return all runs vertically concatenated as ``(total_time, voxels)``."""
-        return np.vstack([self.get_data(r) for r in range(self.n_runs)])
+        return np.vstack([self.get_run_data(r) for r in range(self.n_runs)])
+
+    def get_data_matrix(
+        self,
+        *,
+        rows: Optional[NDArray[np.intp]] = None,
+        cols: Optional[NDArray[np.intp]] = None,
+    ) -> NDArray[np.float64]:
+        """Return all data as a ``timepoints x voxels`` matrix."""
+        return self.get_data(rows=rows, cols=cols)
 
     def __repr__(self) -> str:
         return (
@@ -119,14 +178,15 @@ class FmriDataset:
         if censor is None:
             return None
 
-        n_tp = self.n_timepoints
+        n_tp = self.run_lengths
 
         if isinstance(censor, np.ndarray) and censor.ndim == 1:
             # Split a single concatenated vector into per-run vectors
             total = sum(n_tp)
             if len(censor) != total:
                 raise ValueError(
-                    f"Censor vector length ({len(censor)}) != total timepoints ({total})"
+                    f"Censor vector length ({len(censor)}) "
+                    f"!= total timepoints ({total})"
                 )
             splits = np.cumsum(n_tp[:-1])
             return [c.astype(bool) for c in np.split(censor, splits)]
@@ -135,7 +195,8 @@ class FmriDataset:
         censor_list = list(censor)
         if len(censor_list) != self.n_runs:
             raise ValueError(
-                f"Number of censor arrays ({len(censor_list)}) != n_runs ({self.n_runs})"
+                f"Number of censor arrays ({len(censor_list)}) "
+                f"!= n_runs ({self.n_runs})"
             )
         for i, (c, nt) in enumerate(zip(censor_list, n_tp)):
             c = np.asarray(c, dtype=bool)

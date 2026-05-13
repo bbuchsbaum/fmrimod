@@ -7,14 +7,14 @@ Ports R's ``fmri_model()`` / ``create_fmri_model()``.
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Union
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from ..sampling import SamplingFrame
 from ..dataset.protocols import DatasetProtocol
+from ..sampling import SamplingFrame
 
 
 class FmriModel:
@@ -86,7 +86,12 @@ class FmriModel:
     @property
     def n_timepoints(self) -> List[int]:
         """Timepoints per run."""
-        return self._dataset.n_timepoints
+        if hasattr(self._dataset, "run_lengths"):
+            return [int(v) for v in self._dataset.run_lengths]
+        value = self._dataset.n_timepoints
+        if isinstance(value, int):
+            return [int(value)]
+        return [int(v) for v in value]
 
     # -- Design matrix construction --
 

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Union, Optional
+from dataclasses import dataclass
+from typing import Optional, Union
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -48,9 +48,13 @@ class SamplingFrame:
             same_shape = tr_cmp.shape == tr_alias_cmp.shape
             same_values = same_shape and np.allclose(tr_cmp, tr_alias_cmp)
             if not same_values:
-                raise TypeError("cannot provide both `tr` and `TR` with different values")
+                raise TypeError(
+                    "cannot provide both `tr` and `TR` with different values"
+                )
         if blocklens is None or tr is None:
-            raise TypeError("SamplingFrame requires blocklens (or n_scans) and tr (or TR)")
+            raise TypeError(
+                "SamplingFrame requires blocklens (or n_scans) and tr (or TR)"
+            )
         self.blocklens = blocklens
         self.tr = tr
         self.start_time = start_time
@@ -62,7 +66,7 @@ class SamplingFrame:
         # Convert to numpy arrays
         self.blocklens = np.atleast_1d(self.blocklens).astype(int)
         self.tr = np.atleast_1d(self.tr).astype(float)
-        
+
         # Validate inputs
         if np.any(self.blocklens <= 0):
             raise ValueError("blocklens must be positive")
@@ -70,10 +74,10 @@ class SamplingFrame:
             raise ValueError("tr must be positive")
         if self.precision <= 0:
             raise ValueError("precision must be positive")
-        
+
         # Expand scalars to match number of blocks
         n_blocks = len(self.blocklens)
-        
+
         if len(self.tr) == 1 and n_blocks > 1:
             self.tr = np.repeat(self.tr, n_blocks)
         elif len(self.tr) != n_blocks:
@@ -99,7 +103,7 @@ class SamplingFrame:
                     f"Length of start_time ({len(self.start_time)}) must be 1 or match "
                     f"number of blocks ({n_blocks})"
                 )
-    
+
     @property
     def TR(self) -> float:
         """Repetition time (scalar, for backward compatibility)."""
@@ -109,16 +113,16 @@ class SamplingFrame:
     def n_blocks(self) -> int:
         """Number of blocks."""
         return len(self.blocklens)
-    
+
     @property
     def n_scans(self) -> int:
         """Total number of scans across all blocks."""
         return int(np.sum(self.blocklens))
-    
+
     @property
     def blockids(self) -> NDArray[np.int32]:
         """Block ID for each scan.
-        
+
         Returns:
             Array of 0-based block IDs with length equal to total scans
         """
@@ -126,23 +130,41 @@ class SamplingFrame:
         for i, block_len in enumerate(self.blocklens):
             ids.extend([i] * block_len)
         return np.array(ids, dtype=np.int32)
-    
+
+    def run_ids(self, *, one_based: bool = False) -> NDArray[np.int32]:
+        """Return the run/block id for each scan.
+
+        Parameters
+        ----------
+        one_based : bool, default False
+            If ``True``, return R-compatible 1-based run ids. The canonical
+            internal representation remains 0-based.
+        """
+        ids = self.blockids.copy()
+        if one_based:
+            ids = ids + 1
+        return ids
+
     @property
     def samples(self) -> NDArray[np.float64]:
         """Time points for each scan.
-        
+
         Returns:
             Array of time points in seconds for each scan
         """
         return self.sample_times(global_time=True)
-    
-    def sample_times(self, global_time: bool = True, blockids: Optional[ArrayLike] = None) -> NDArray[np.float64]:
+
+    def sample_times(
+        self,
+        global_time: bool = True,
+        blockids: Optional[ArrayLike] = None,
+    ) -> NDArray[np.float64]:
         """Get time points for scans with optional filtering.
-        
+
         Args:
-            global_time: If True, return global times; if False, return block-relative times
+            global_time: If True, return global times; otherwise block-relative.
             blockids: Optional 0-based block IDs to filter.
-            
+
         Returns:
             Array of time points in seconds
         """
@@ -160,7 +182,7 @@ class SamplingFrame:
         times = []
         block_durations = self.blocklens * self.tr
         cumulative_time = np.concatenate([[0.0], np.cumsum(block_durations)])
-        
+
         for i in block_indices:
             block_len = int(self.blocklens[i])
             tr = float(self.tr[i])
@@ -171,30 +193,34 @@ class SamplingFrame:
                 block_times = cumulative_time[i] + block_times
 
             times.extend(block_times)
-        
+
         return np.array(times, dtype=np.float64)
-    
+
     @property
     def acquisition_onsets(self) -> NDArray[np.float64]:
         """Get fMRI acquisition onset times.
-        
+
         Calculate the onset time in seconds for each fMRI volume acquisition
         from the start of the experiment.
-        
+
         This returns the temporal onset of each brain volume acquisition, accounting
         for TR, start_time, and run structure. This is essentially a convenience
         wrapper around sample_times(global_time=True) that provides clearer
         semantic meaning for the common use case of getting acquisition times.
-        
+
         Note: The onset times include the start_time offset (default TR/2),
         so the first acquisition typically doesn't start at 0.
-        
+
         Returns:
             Array of acquisition onset times in seconds
         """
         return self.sample_times(global_time=True)
-    
-    def global_onsets(self, onsets: ArrayLike, blockids: ArrayLike) -> NDArray[np.float64]:
+
+    def global_onsets(
+        self,
+        onsets: ArrayLike,
+        blockids: ArrayLike,
+    ) -> NDArray[np.float64]:
         """Convert block-relative onset times to global (experiment-wide) onset times.
 
         Args:
@@ -206,7 +232,8 @@ class SamplingFrame:
             Array of global onset times.
 
         Raises:
-            ValueError: If onsets and blockids have different lengths or blockids are out of range.
+            ValueError: If onsets and blockids have different lengths or if
+                blockids are out of range.
         """
         onsets = np.asarray(onsets, dtype=np.float64)
         blockids = np.asarray(blockids, dtype=np.int64)
@@ -216,7 +243,9 @@ class SamplingFrame:
 
         if len(blockids) > 0:
             if np.any(blockids < 0) or np.any(blockids >= len(self.blocklens)):
-                raise ValueError(f"blockids must be in range [0, {len(self.blocklens) - 1}]")
+                raise ValueError(
+                    f"blockids must be in range [0, {len(self.blocklens) - 1}]"
+                )
 
         # Calculate cumulative time offsets for each block
         block_durations = self.blocklens * self.tr
@@ -232,41 +261,42 @@ class SamplingFrame:
             Array of absolute time points for each scan
         """
         return self.samples
-    
+
     def block_samples(self, block_idx: int) -> NDArray[np.float64]:
         """Get time points for a specific block.
-        
+
         Args:
             block_idx: Block index (0-based)
-            
+
         Returns:
             Array of time points for the specified block
         """
         if block_idx < 0 or block_idx >= self.n_blocks:
             raise ValueError(f"block_idx must be in range [0, {self.n_blocks-1}]")
-        
+
         block_len = self.blocklens[block_idx]
         tr = self.tr[block_idx]
         start = self.start_time[block_idx]
-        
+
         return start + np.arange(block_len) * tr
-    
+
     def __str__(self) -> str:
         """String representation of SamplingFrame."""
         lines = [
-            f"SamplingFrame with {self.n_blocks} block(s) and {self.n_scans} total scans:",
+            "SamplingFrame with "
+            f"{self.n_blocks} block(s) and {self.n_scans} total scans:",
         ]
-        
+
         for i in range(self.n_blocks):
             lines.append(
                 f"  Block {i}: {self.blocklens[i]} scans, "
                 f"tr={self.tr[i]}s, start={self.start_time[i]}s"
             )
-        
+
         lines.append(f"  Precision: {self.precision}s")
-        
+
         return "\n".join(lines)
-    
+
     def __repr__(self) -> str:
         """Detailed representation of SamplingFrame."""
         return (
@@ -274,10 +304,10 @@ class SamplingFrame:
             f"tr={self.tr.tolist()}, start_time={self.start_time.tolist()}, "
             f"precision={self.precision})"
         )
-    
+
     def to_dict(self) -> dict:
         """Convert to dictionary representation.
-        
+
         Returns:
             Dictionary with all sampling frame parameters
         """
@@ -289,14 +319,14 @@ class SamplingFrame:
             'n_blocks': self.n_blocks,
             'n_scans': self.n_scans,
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict) -> SamplingFrame:
         """Create SamplingFrame from dictionary.
-        
+
         Args:
             data: Dictionary with sampling frame parameters
-            
+
         Returns:
             New SamplingFrame instance
         """
@@ -306,13 +336,13 @@ class SamplingFrame:
             start_time=data.get('start_time', 0.0),
             precision=data.get('precision', 0.1),
         )
-    
+
     def concatenate(self, other: SamplingFrame) -> SamplingFrame:
         """Concatenate two sampling frames.
-        
+
         Args:
             other: Another SamplingFrame to concatenate
-            
+
         Returns:
             New SamplingFrame with combined blocks
         """
@@ -321,11 +351,11 @@ class SamplingFrame:
                 f"Cannot concatenate SamplingFrames with different precision "
                 f"({self.precision} vs {other.precision})"
             )
-        
+
         # Adjust start times for the second frame
         last_end_time = self.samples[-1] + self.tr[self.n_blocks - 1]
         adjusted_start_times = other.start_time + last_end_time
-        
+
         return SamplingFrame(
             blocklens=np.concatenate([self.blocklens, other.blocklens]),
             tr=np.concatenate([self.tr, other.tr]),

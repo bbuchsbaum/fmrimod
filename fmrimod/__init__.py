@@ -105,17 +105,19 @@ def event_term(*events, **kwargs):
 
 def fmri_dataset(*args, **kwargs):
     """Construct an FmriDataset from an adapter + optional event table."""
-    from .dataset import FmriDataset
-    return FmriDataset(*args, **kwargs)
+    from .dataset import fmri_dataset as _fmri_dataset
+
+    return _fmri_dataset(*args, **kwargs)
 
 
 def matrix_dataset(
     data,
-    tr,
+    tr=None,
     run_length=None,
     *,
     event_table=None,
     mask=None,
+    TR=None,
 ):
     """Construct an in-memory FmriDataset from numpy matrix data.
 
@@ -132,43 +134,16 @@ def matrix_dataset(
     mask : ndarray, optional
         Spatial mask passed to the numpy adapter.
     """
-    import numpy as np
+    from .dataset import matrix_dataset as _matrix_dataset
 
-    from .sampling import SamplingFrame
-    from .dataset.adapters import NumpyAdapter
-    from .dataset import FmriDataset
-
-    if isinstance(data, list):
-        runs = [np.asarray(x, dtype=np.float64) for x in data]
-    else:
-        arr = np.asarray(data, dtype=np.float64)
-        if arr.ndim != 2:
-            raise ValueError("matrix_dataset expects 2-D matrix data")
-        if run_length is None:
-            runs = [arr]
-        else:
-            if isinstance(run_length, int):
-                if run_length <= 0 or (arr.shape[0] % run_length) != 0:
-                    raise ValueError(
-                        "run_length must divide number of timepoints for matrix input"
-                    )
-                n_runs = arr.shape[0] // run_length
-                blocklens = [run_length] * n_runs
-            else:
-                blocklens = [int(x) for x in run_length]
-                if any(x <= 0 for x in blocklens):
-                    raise ValueError("run_length values must be positive")
-                if sum(blocklens) != arr.shape[0]:
-                    raise ValueError(
-                        "sum(run_length) must equal number of timepoints for matrix input"
-                    )
-            splits = np.cumsum(blocklens)[:-1]
-            runs = [np.asarray(x, dtype=np.float64) for x in np.split(arr, splits, axis=0)]
-
-    blocklens = [int(r.shape[0]) for r in runs]
-    sf = SamplingFrame(blocklens=blocklens, tr=tr)
-    adapter = NumpyAdapter(runs, sf, mask=mask)
-    return FmriDataset(adapter, event_table=event_table)
+    return _matrix_dataset(
+        data,
+        tr,
+        run_length=run_length,
+        event_table=event_table,
+        mask=mask,
+        TR=TR,
+    )
 
 
 def fmri_mem_dataset(*args, **kwargs):
@@ -190,9 +165,16 @@ def fmri_latent_lm(*args, **kwargs):
 
 
 def data_chunks(*args, **kwargs):
-    """Return voxel-index chunks for a dataset or array."""
+    """Return typed data chunks for a dataset."""
     from .dataset import data_chunks as _data_chunks
     return _data_chunks(*args, **kwargs)
+
+
+def voxel_index_chunks(*args, **kwargs):
+    """Return bare voxel-index chunks for legacy callers."""
+    from .dataset import voxel_index_chunks as _voxel_index_chunks
+
+    return _voxel_index_chunks(*args, **kwargs)
 
 
 def extract_csv_data(*args, **kwargs):
@@ -921,6 +903,7 @@ __all__ = [
     "latent_dataset",
     "fmri_latent_lm",
     "data_chunks",
+    "voxel_index_chunks",
     "extract_csv_data",
     "read_h5_full",
     "read_nifti_full",
