@@ -53,6 +53,23 @@ def _report_caveat_ids() -> set[str]:
     return caveat_ids
 
 
+def _declared_caveat_ids() -> set[str]:
+    """Caveats declared by any artifact in the manifest.
+
+    The manifest is the in-repo source of truth for which caveats an artifact
+    *commits to*; generated reports prove they still fire. The caveats index
+    must therefore agree with the union of declarations and realised reports
+    so that index drift is caught even when a workflow's report has not yet
+    been regenerated on this checkout.
+    """
+    caveat_ids: set[str] = set()
+    for item in _load_manifest()["artifacts"]:
+        for caveat in item.get("caveats", []):
+            if isinstance(caveat, str) and caveat:
+                caveat_ids.add(caveat)
+    return caveat_ids
+
+
 def _caveat_rows() -> dict[str, str]:
     rows: dict[str, str] = {}
     row_pattern = re.compile(
@@ -85,7 +102,20 @@ def test_proof_artifacts_have_required_paths_and_evidence_levels() -> None:
         assert item["evidence_level"] in EVIDENCE_LEVELS
         assert isinstance(item["public_seam"], bool)
         assert (ROOT / item["workflow_path"]).exists()
-        assert (ROOT / item["report_path"]).exists()
+        # Static-snapshot receipts commit to a checked-in report file as
+        # their proof of having been run. Regenerable receipts are verified
+        # by ``test_parity_receipts`` (which actually runs the receipt
+        # command); their report files may be absent on a fresh checkout
+        # before that test renders them. Canaries without a receipt only
+        # carry an aspirational ``report_path`` because their reports are
+        # gitignored under ``*/reports/`` and produced on-demand.
+        receipt = item.get("receipt")
+        assert isinstance(item["report_path"], str) and item["report_path"]
+        if isinstance(receipt, dict) and receipt.get("status") == "static_snapshot":
+            assert (ROOT / item["report_path"]).exists(), (
+                f"{item['benchmark_id']} declares a static_snapshot receipt "
+                f"but its report is missing"
+            )
         assert item["reference_path"]
         assert item["fmrimod_path"]
         assert isinstance(item["caveats"], list)
@@ -141,7 +171,12 @@ def test_canaries_name_the_public_workflow_that_should_replace_them() -> None:
 
 
 def test_caveats_index_matches_generated_report_caveat_ids() -> None:
-    assert set(_caveat_rows()) == _report_caveat_ids()
+    # A caveat is "live" if any artifact declares it in the manifest or any
+    # generated report still emits it. The index must match that union: an
+    # extra row signals stale documentation; a missing row signals that a
+    # workflow emits an undocumented caveat.
+    live_caveats = _declared_caveat_ids() | _report_caveat_ids()
+    assert set(_caveat_rows()) == live_caveats
 
 
 def test_caveats_index_owners_are_live_mote_items() -> None:

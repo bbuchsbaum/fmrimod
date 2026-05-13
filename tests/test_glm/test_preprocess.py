@@ -193,6 +193,7 @@ def test_package_volume_weights_matches_module_implementation():
 
 def test_extract_nuisance_timeseries_accepts_pathlike_mask_file(tmp_path):
     nib = pytest.importorskip("nibabel")
+    pytest.importorskip("neuroim")
 
     y = np.arange(20, dtype=np.float64).reshape(5, 4)
     mask = np.array([[[1]], [[0]], [[1]], [[0]]], dtype=np.uint8)
@@ -205,6 +206,7 @@ def test_extract_nuisance_timeseries_accepts_pathlike_mask_file(tmp_path):
 
 def test_extract_nuisance_timeseries_path_mask_maps_via_dataset_mask(tmp_path):
     nib = pytest.importorskip("nibabel")
+    pytest.importorskip("neuroim")
 
     y = np.arange(15, dtype=np.float64).reshape(5, 3)
     # Full-space nuisance mask (4 voxels), then mapped through dataset_mask.

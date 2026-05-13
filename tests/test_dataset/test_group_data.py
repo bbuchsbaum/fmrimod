@@ -111,6 +111,7 @@ def test_group_data_from_nifti_rejects_beta_and_t_inputs(tmp_path):
 
 def test_group_data_from_nifti_t_paths_validate_matching_shapes(tmp_path):
     nib = pytest.importorskip("nibabel")
+    pytest.importorskip("neuroim")
 
     t1 = np.zeros((3, 3, 3), dtype=np.float64)
     t2 = np.zeros((4, 3, 3), dtype=np.float64)
@@ -133,6 +134,7 @@ def test_group_data_from_nifti_t_paths_validate_matching_shapes(tmp_path):
 
 def test_group_data_from_nifti_validates_matching_nifti_shapes(tmp_path):
     nib = pytest.importorskip("nibabel")
+    pytest.importorskip("neuroim")
 
     beta1 = np.zeros((3, 3, 3), dtype=np.float64)
     beta2 = np.zeros((4, 3, 3), dtype=np.float64)
@@ -161,6 +163,7 @@ def test_group_data_from_nifti_validates_matching_nifti_shapes(tmp_path):
 
 def test_group_data_from_nifti_validates_mask_shape(tmp_path):
     nib = pytest.importorskip("nibabel")
+    pytest.importorskip("neuroim")
 
     beta = np.zeros((3, 3, 3), dtype=np.float64)
     se = np.ones((3, 3, 3), dtype=np.float64)
@@ -185,6 +188,7 @@ def test_group_data_from_nifti_validates_mask_shape(tmp_path):
 
 def test_group_data_from_nifti_t_mode_validates_mask_shape(tmp_path):
     nib = pytest.importorskip("nibabel")
+    pytest.importorskip("neuroim")
 
     t = np.zeros((3, 3, 3), dtype=np.float64)
     mask = np.zeros((4, 3, 3), dtype=np.uint8)

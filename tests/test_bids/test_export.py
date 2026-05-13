@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+import pytest
 from numpy.typing import NDArray
 
 from fmrimod.bids.export import BidsEntities, write_betas, write_contrasts
@@ -17,6 +18,7 @@ def _read_volume(path) -> NDArray[np.float64]:
 
 
 def test_write_betas_uses_neuroim_nifti_writer(tmp_path) -> None:
+    pytest.importorskip("neuroim")
     mask = np.array([[[True]], [[False]], [[True]]])
     betas = np.array([[1.5, -2.0]], dtype=np.float64)
     written = write_betas(
@@ -47,6 +49,7 @@ class _ContrastResult:
 
 
 def test_write_contrasts_uses_neuroim_nifti_writer(tmp_path) -> None:
+    pytest.importorskip("neuroim")
     mask = np.array([[[True]], [[True]]])
     contrast = _ContrastResult(
         estimate=np.array([0.5, 0.25]),

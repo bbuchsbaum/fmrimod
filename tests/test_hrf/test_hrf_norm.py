@@ -45,7 +45,8 @@ def test_unit_integral_norm_yields_continuous_integral_one():
     h = normalize(HRF_SPMG1, "unit_integral")
     t = np.linspace(0.0, 32.0, 1601)
     vals = h(t)
-    assert np.trapz(vals, t) == pytest.approx(1.0, rel=1e-3)
+    trapezoid = getattr(np, "trapezoid", None) or np.trapz
+    assert trapezoid(vals, t) == pytest.approx(1.0, rel=1e-3)
 
 
 def test_normalize_is_grid_independent_scale_factor():
@@ -91,7 +92,7 @@ def test_spec_compile_applies_norm_via_registry():
     """End-to-end: ``hrf("var", norm='spm')`` produces a design column at the
     Nilearn scale (sum ≈ 1 over the HRF support after convolution with a unit
     impulse)."""
-    import neuroim
+    neuroim = pytest.importorskip("neuroim")
     import pandas as pd
 
     import fmrimod as fm

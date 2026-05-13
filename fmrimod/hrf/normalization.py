@@ -109,7 +109,8 @@ def _normalization_factor(
     elif mode == "unit_peak":
         z = float(np.max(np.abs(values)))
     elif mode == "unit_integral":
-        z = float(np.trapz(values, t))
+        trapezoid = getattr(np, "trapezoid", None) or np.trapz
+        z = float(trapezoid(values, t))
     else:
         raise ValueError(
             f"Unknown HRF normalization mode {mode!r}. "
