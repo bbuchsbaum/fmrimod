@@ -2,13 +2,29 @@
 
 from __future__ import annotations
 
-from typing import Union, Optional
+from typing import Literal, cast
+
 import numpy as np
-from numpy.typing import NDArray
-import scipy.signal
 import scipy.fft
+import scipy.signal
+from numpy.typing import NDArray
+
 from ..hrf import HRF
 from ..utils.cache import cached_hrf_eval
+
+# Closed set of convolution backends. ``"conv"`` and ``"direct"`` both route
+# through scipy.signal.convolve; ``"fft"`` uses scipy.fft.
+ConvolutionMethod = Literal["conv", "fft", "direct"]
+CONVOLUTION_METHODS: tuple[ConvolutionMethod, ...] = ("conv", "fft", "direct")
+
+
+def validate_convolution_method(method: str) -> ConvolutionMethod:
+    """Return *method* as a closed convolution method or raise clearly."""
+    if method not in CONVOLUTION_METHODS:
+        raise ValueError(
+            f"method must be one of 'conv', 'fft', 'direct'; got {method!r}."
+        )
+    return cast(ConvolutionMethod, method)
 
 
 def convolve_hrf(
@@ -19,7 +35,7 @@ def convolve_hrf(
     hrf: HRF,
     span: float,
     precision: float = 0.33,
-    method: str = "conv",
+    method: ConvolutionMethod = "conv",
     summate: bool = True
 ) -> NDArray[np.float64]:
     """Convolve neural input with HRF to generate predicted response.
@@ -63,13 +79,13 @@ def convolve_hrf(
     n_basis = hrf_values.shape[1]
     result = np.zeros((len(grid), n_basis))
     
+    method = validate_convolution_method(method)
+
     for b in range(n_basis):
         # Convolve neural input with this basis function
         if method == "fft":
             convolved = _convolve_fft(neural, hrf_values[:, b])
-        elif method == "conv":
-            convolved = _convolve_direct(neural, hrf_values[:, b])
-        else:  # direct
+        else:  # "conv" and "direct" both use scipy.signal.convolve
             convolved = _convolve_direct(neural, hrf_values[:, b])
         
         # Trim convolution result to match fine grid length
@@ -128,7 +144,7 @@ def _build_neural_input(
     # Cumulative sum to get actual values (exclude guard slot)
     neural = np.cumsum(diff[:n_bins])
     
-    return neural
+    return np.asarray(neural, dtype=np.float64)
 
 
 def _convolve_direct(
@@ -136,7 +152,7 @@ def _convolve_direct(
     kernel: NDArray[np.float64]
 ) -> NDArray[np.float64]:
     """Direct convolution using scipy.signal.convolve."""
-    return scipy.signal.convolve(signal, kernel, mode='full')
+    return np.asarray(scipy.signal.convolve(signal, kernel, mode="full"), dtype=np.float64)
 
 
 def _convolve_fft(
@@ -155,7 +171,7 @@ def _convolve_fft(
     result = scipy.fft.ifft(signal_fft * kernel_fft)
     
     # Return real part (imaginary part should be negligible)
-    return np.real(result)
+    return np.asarray(np.real(result), dtype=np.float64)
 
 
 def _next_power_of_2(n: int) -> int:
@@ -180,7 +196,7 @@ def convolve_hrf_per_event(
     onsets: NDArray[np.float64],
     durations: NDArray[np.float64],
     amplitudes: NDArray[np.float64],
-    hrfs: list,
+    hrfs: list[HRF],
     span: float,
     precision: float = 0.33,
     summate: bool = True,

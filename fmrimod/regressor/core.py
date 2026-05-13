@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass, field
-from typing import Any, Callable, List, Literal, Optional, Tuple, Union, cast
+from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
 import numpy as np
 import scipy
@@ -13,7 +13,7 @@ from scipy.sparse import csr_matrix
 
 from ..hrf import HRF
 from ..hrf.generators import make_hrf
-from .convolution import convolve_hrf
+from .convolution import ConvolutionMethod, convolve_hrf, validate_convolution_method
 from .neural_input import neural_input_core
 
 # The factory input type. Strings and callables are coerced to HRF via
@@ -265,7 +265,7 @@ class Regressor:
         self,
         grid: ArrayLike,
         precision: float = 0.33,
-        method: Literal["conv", "fft", "direct"] = "conv",
+        method: ConvolutionMethod = "conv",
         sparse: bool = False,
         normalize: bool = False,
     ) -> Union[NDArray[np.float64], scipy.sparse.csr_matrix]:
@@ -294,6 +294,7 @@ class Regressor:
             warnings.warn("Input grid is unsorted. Sorting grid for evaluation.")
             grid = np.sort(grid)
 
+        method = validate_convolution_method(method)
         nb = self.nbasis
 
         # If no events, return zeros
@@ -483,7 +484,7 @@ class RegressorSet:
         self,
         grid: ArrayLike,
         precision: float = 0.33,
-        method: Literal["conv", "fft", "direct"] = "conv",
+        method: ConvolutionMethod = "conv",
         sparse: bool = False
     ) -> Union[NDArray[np.float64], scipy.sparse.csr_matrix]:
         """Evaluate all regressors to create design matrix.

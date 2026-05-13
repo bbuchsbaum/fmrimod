@@ -270,6 +270,17 @@ class TestRegressor:
         
         # Results should be very similar
         assert_array_almost_equal(result_conv, result_fft, decimal=5)
+
+    def test_unknown_evaluate_method_raises(self):
+        """Unknown convolution methods should fail instead of falling through."""
+        reg = regressor([10, 30, 50])
+        grid = np.arange(0, 80, 1.0)
+
+        with pytest.raises(ValueError, match="method must be one of"):
+            reg.evaluate(grid, method="bogus")
+
+        with pytest.raises(ValueError, match="method must be one of"):
+            regressor_design(reg, grid, method="bogus")
     
     def test_repr(self):
         """Test string representation."""

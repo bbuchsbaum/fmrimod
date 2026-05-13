@@ -2,21 +2,23 @@
 
 from __future__ import annotations
 
-from typing import Union, List, Optional, Dict, Any
+from typing import List, Optional, Union
+
 import numpy as np
-from numpy.typing import ArrayLike, NDArray
 import pandas as pd
 import scipy
+from numpy.typing import ArrayLike, NDArray
 from scipy.sparse import csr_matrix
 
-from .core import Regressor, RegressorSet, regressor, regressor_set
+from .convolution import ConvolutionMethod
+from .core import Regressor, RegressorSet
 
 
 def regressor_design(
     regressors: Union[Regressor, RegressorSet, List[Regressor]],
     grid: ArrayLike,
     precision: float = 0.33,
-    method: str = "conv",
+    method: ConvolutionMethod = "conv",
     sparse: bool = False,
     include_intercept: bool = False,
     column_names: Optional[List[str]] = None
