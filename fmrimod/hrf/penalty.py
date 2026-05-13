@@ -13,6 +13,7 @@ the wrapper subclasses so the penalty is the one that matches the
 from __future__ import annotations
 
 from functools import singledispatch
+from typing import cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -21,9 +22,9 @@ from scipy.linalg import block_diag
 from .core import HRF, BoundBasisHRF
 from .decorators import BlockedHRF, LaggedHRF, _PeakNormalizedHRF
 from .library import (
+    FIRHRF,
     BSplineHRF,
     DaguerreHRF,
-    FIRHRF,
     FourierHRF,
 )
 from .normalization import _NormalizedHRF
@@ -31,7 +32,9 @@ from .spm_hrf import SPMG2_HRF, SPMG3_HRF
 
 
 @singledispatch
-def penalty_matrix(hrf: HRF, order: int = 2, **kwargs) -> NDArray[np.float64]:
+def penalty_matrix(
+    hrf: HRF, order: int = 2, **kwargs: object
+) -> NDArray[np.float64]:
     """Generate penalty matrix for regularizing HRF basis coefficients.
 
     Default (no specialised handler registered): ridge / identity penalty.
@@ -56,7 +59,7 @@ def penalty_matrix(hrf: HRF, order: int = 2, **kwargs) -> NDArray[np.float64]:
 
 @penalty_matrix.register
 def _penalty_lagged(
-    hrf: LaggedHRF, order: int = 2, **kwargs
+    hrf: LaggedHRF, order: int = 2, **kwargs: object
 ) -> NDArray[np.float64]:
     assert hrf.base is not None
     return penalty_matrix(hrf.base, order, **kwargs)
@@ -64,7 +67,7 @@ def _penalty_lagged(
 
 @penalty_matrix.register
 def _penalty_blocked(
-    hrf: BlockedHRF, order: int = 2, **kwargs
+    hrf: BlockedHRF, order: int = 2, **kwargs: object
 ) -> NDArray[np.float64]:
     assert hrf.base is not None
     return penalty_matrix(hrf.base, order, **kwargs)
@@ -72,7 +75,7 @@ def _penalty_blocked(
 
 @penalty_matrix.register
 def _penalty_peak_normalized(
-    hrf: _PeakNormalizedHRF, order: int = 2, **kwargs
+    hrf: _PeakNormalizedHRF, order: int = 2, **kwargs: object
 ) -> NDArray[np.float64]:
     assert hrf.base is not None
     return penalty_matrix(hrf.base, order, **kwargs)
@@ -80,7 +83,7 @@ def _penalty_peak_normalized(
 
 @penalty_matrix.register
 def _penalty_normalized(
-    hrf: _NormalizedHRF, order: int = 2, **kwargs
+    hrf: _NormalizedHRF, order: int = 2, **kwargs: object
 ) -> NDArray[np.float64]:
     assert hrf.base is not None
     return penalty_matrix(hrf.base, order, **kwargs)
@@ -88,11 +91,11 @@ def _penalty_normalized(
 
 @penalty_matrix.register
 def _penalty_bound_basis(
-    hrf: BoundBasisHRF, order: int = 2, **kwargs
+    hrf: BoundBasisHRF, order: int = 2, **kwargs: object
 ) -> NDArray[np.float64]:
     """Block-diagonal composition: each component carries its own penalty."""
     blocks = [penalty_matrix(c, order, **kwargs) for c in hrf.components]
-    return block_diag(*blocks)
+    return cast(NDArray[np.float64], block_diag(*blocks))
 
 
 # --- Per-kind penalties ----------------------------------------------------
@@ -100,7 +103,11 @@ def _penalty_bound_basis(
 
 @penalty_matrix.register
 def _penalty_spmg2(
-    hrf: SPMG2_HRF, order: int = 2, *, shrink_deriv: float = 2.0, **kwargs
+    hrf: SPMG2_HRF,
+    order: int = 2,
+    *,
+    shrink_deriv: float = 2.0,
+    **kwargs: object,
 ) -> NDArray[np.float64]:
     """Canonical term unpenalized; temporal derivative shrunk."""
     nb = hrf.nbasis
@@ -114,7 +121,11 @@ def _penalty_spmg2(
 
 @penalty_matrix.register
 def _penalty_spmg3(
-    hrf: SPMG3_HRF, order: int = 2, *, shrink_deriv: float = 2.0, **kwargs
+    hrf: SPMG3_HRF,
+    order: int = 2,
+    *,
+    shrink_deriv: float = 2.0,
+    **kwargs: object,
 ) -> NDArray[np.float64]:
     """Canonical term unpenalized; temporal + dispersion derivatives shrunk."""
     nb = hrf.nbasis
@@ -130,7 +141,7 @@ def _penalty_spmg3(
 
 @penalty_matrix.register
 def _penalty_bspline(
-    hrf: BSplineHRF, order: int = 2, **kwargs
+    hrf: BSplineHRF, order: int = 2, **kwargs: object
 ) -> NDArray[np.float64]:
     """Roughness penalty via discrete derivatives."""
     return _roughness_penalty(hrf.nbasis, order)
@@ -138,7 +149,7 @@ def _penalty_bspline(
 
 @penalty_matrix.register
 def _penalty_fir(
-    hrf: FIRHRF, order: int = 2, **kwargs
+    hrf: FIRHRF, order: int = 2, **kwargs: object
 ) -> NDArray[np.float64]:
     """Roughness penalty via discrete derivatives."""
     return _roughness_penalty(hrf.nbasis, order)
@@ -146,7 +157,7 @@ def _penalty_fir(
 
 @penalty_matrix.register
 def _penalty_fourier(
-    hrf: FourierHRF, order: int = 2, **kwargs
+    hrf: FourierHRF, order: int = 2, **kwargs: object
 ) -> NDArray[np.float64]:
     """Higher frequencies are penalized more."""
     nb = hrf.nbasis
@@ -156,7 +167,7 @@ def _penalty_fourier(
 
 @penalty_matrix.register
 def _penalty_daguerre(
-    hrf: DaguerreHRF, order: int = 2, **kwargs
+    hrf: DaguerreHRF, order: int = 2, **kwargs: object
 ) -> NDArray[np.float64]:
     """Higher-order Daguerre terms are penalized more."""
     nb = hrf.nbasis
@@ -171,4 +182,4 @@ def _roughness_penalty(nbasis: int, order: int) -> NDArray[np.float64]:
     if nbasis <= 1 or nbasis <= order:
         return np.eye(nbasis)
     D = np.diff(np.eye(nbasis), n=order, axis=0)
-    return D.T @ D
+    return cast(NDArray[np.float64], D.T @ D)

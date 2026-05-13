@@ -3,10 +3,15 @@
 import numpy as np
 import pytest
 
-from fmrimod.hrf.core import HRF, FunctionHRF, as_hrf, bind_basis
+from fmrimod.hrf.core import HRF, as_hrf, bind_basis
 from fmrimod.hrf.library import (
-    SPM_CANONICAL, SPM_WITH_DERIVATIVE, SPM_WITH_DISPERSION,
-    GAMMA_HRF, GAUSSIAN_HRF, BSPLINE_HRF, FIR_HRF, FOURIER_HRF,
+    BSPLINE_HRF,
+    FOURIER_HRF,
+    GAMMA_HRF,
+    GAUSSIAN_HRF,
+    SPM_CANONICAL,
+    SPM_WITH_DERIVATIVE,
+    SPM_WITH_DISPERSION,
 )
 
 
@@ -129,6 +134,7 @@ class TestSPMGTypedFields:
 
     def test_spmg1_typed_fields(self):
         from dataclasses import fields
+
         from fmrimod.hrf.spm_hrf import SPMG1_HRF
 
         hrf = SPMG1_HRF()
