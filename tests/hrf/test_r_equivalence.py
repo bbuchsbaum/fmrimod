@@ -272,7 +272,7 @@ class TestUtils:
         assert reg.onsets[0] == 10.0
         assert reg.duration[0] == 2.0
         assert reg.amplitude[0] == 1.5
-        assert reg.span == 24.0  # SPMG1's default span overrides the passed value
+        assert reg.span == 30.0  # explicit span= is honored, not overridden
         
         # Should reject non-scalar inputs
         with pytest.raises(ValueError, match="onset must be a scalar"):
