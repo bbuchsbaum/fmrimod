@@ -62,6 +62,8 @@ class ArrayDelta:
 
     name: str
     shape: tuple[int, ...]
+    gate: str
+    failed_gates: tuple[str, ...]
     scale: float
     max_abs: float
     mae: float
@@ -134,6 +136,21 @@ def _rank(array: Array) -> int:
     return int(np.linalg.matrix_rank(arr))
 
 
+def _active_gate_names(tolerance: ParityTolerance) -> tuple[str, ...]:
+    gates = []
+    if tolerance.check_allclose:
+        gates.append("allclose")
+    if np.isfinite(tolerance.min_pearson):
+        gates.append("pearson")
+    if np.isfinite(tolerance.min_spearman):
+        gates.append("spearman")
+    if tolerance.max_mae is not None:
+        gates.append("mae")
+    if tolerance.max_abs is not None:
+        gates.append("max_abs")
+    return tuple(gates)
+
+
 def compare_array(
     name: str,
     candidate: Array,
@@ -148,6 +165,8 @@ def compare_array(
         return ArrayDelta(
             name=name,
             shape=tuple(cand.shape),
+            gate="shape",
+            failed_gates=("shape",),
             scale=1.0,
             max_abs=float("inf"),
             mae=float("inf"),
@@ -176,17 +195,23 @@ def compare_array(
     )
     mae = float(np.mean(diff)) if diff.size else 0.0
     max_abs = float(np.max(diff)) if diff.size else 0.0
-    passes = (
-        (allclose or not tolerance.check_allclose)
-        and pearson >= tolerance.min_pearson
-        and spearman >= tolerance.min_spearman
-        and (tolerance.max_mae is None or mae <= tolerance.max_mae)
-        and (tolerance.max_abs is None or max_abs <= tolerance.max_abs)
-    )
+    gate_results = {
+        "allclose": allclose,
+        "pearson": pearson >= tolerance.min_pearson,
+        "spearman": spearman >= tolerance.min_spearman,
+        "mae": tolerance.max_mae is None or mae <= tolerance.max_mae,
+        "max_abs": tolerance.max_abs is None or max_abs <= tolerance.max_abs,
+    }
+    active_gates = _active_gate_names(tolerance)
+    failed_gates = tuple(gate for gate in active_gates if not gate_results[gate])
+    passes = not failed_gates
+    gate = "+".join(active_gates) if active_gates else "none"
 
     return ArrayDelta(
         name=name,
         shape=tuple(cand.shape),
+        gate=gate,
+        failed_gates=failed_gates,
         scale=scale,
         max_abs=max_abs,
         mae=mae,
