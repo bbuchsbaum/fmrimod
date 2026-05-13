@@ -18,3 +18,4 @@ def test_tier_d_includes_public_seam_single_trial_row() -> None:
     assert row.details["wrapper_trial_labels_present"] is True
     assert row.details["wrapper_n_trial_labels"] == row.details["n_trials"]
     assert row.details["noise_scale"] == 0.03
+    assert row.details["beta_scale"] == 0.7
