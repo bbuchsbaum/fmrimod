@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+from io import StringIO
 from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
+import pandas as pd
 
 from .dataset import GroupDataset
 from .errors import GroupSchemaError, UnsupportedGroupFeatureError
@@ -20,6 +22,7 @@ from .space import (
 )
 
 GDS_H5_VERSION = "gds-h5/0.1"
+GDS_H5_SUPPORTED_PREFIX = "gds-h5/0."
 
 
 def _import_h5py() -> Any:
@@ -46,6 +49,71 @@ def _read_strings(group: Any, name: str) -> tuple[str, ...]:
         item.decode("utf-8") if isinstance(item, bytes) else str(item)
         for item in np.atleast_1d(raw)
     )
+
+
+def _read_text_dataset(group: Any, name: str) -> str:
+    raw = group[name][()]
+    return raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
+
+
+def _write_json_dataset(group: Any, name: str, value: Any) -> None:
+    group.create_dataset(
+        name,
+        data=json.dumps(value, sort_keys=True, default=str),
+        dtype=_string_dtype(),
+    )
+
+
+def _write_axis_frame(parent: Any, name: str, frame: pd.DataFrame | None) -> None:
+    if frame is None:
+        return
+    group = parent.create_group(name)
+    group.attrs["orient"] = "split"
+    if frame.index.name is not None:
+        group.attrs["index_name"] = str(frame.index.name)
+    group.create_dataset(
+        "json",
+        data=frame.to_json(orient="split", date_format="iso"),
+        dtype=_string_dtype(),
+    )
+
+
+def _read_axis_frame(parent: Any, name: str) -> pd.DataFrame | None:
+    if name not in parent:
+        return None
+    group = parent[name]
+    orient_raw = group.attrs.get("orient", "split")
+    orient = orient_raw.decode("utf-8") if isinstance(orient_raw, bytes) else str(orient_raw)
+    if orient != "split":
+        raise GroupSchemaError(f"Unsupported axis_data JSON orient: {orient}")
+    frame = pd.read_json(StringIO(_read_text_dataset(group, "json")), orient="split")
+    index_name = group.attrs.get("index_name")
+    if isinstance(index_name, bytes):
+        index_name = index_name.decode("utf-8")
+    if index_name is not None:
+        frame.index.name = str(index_name)
+    return frame
+
+
+def _provenance_payload(dataset: GroupDataset) -> dict[str, Any]:
+    return {
+        "writer": "fmrimod.group",
+        "schema_version": GDS_H5_VERSION,
+        "assays": sorted(dataset.assays),
+        "shape": list(dataset.shape),
+        "space_kind": dataset.space.kind,
+        "n_subjects": len(dataset.subjects),
+        "n_contrasts": len(dataset.contrasts),
+    }
+
+
+def _read_schema_version(gds: Any) -> str:
+    if "version" not in gds:
+        raise GroupSchemaError("HDF5 /gds is missing schema version")
+    version = _read_text_dataset(gds, "version")
+    if not version.startswith(GDS_H5_SUPPORTED_PREFIX):
+        raise GroupSchemaError(f"Unsupported GDS HDF5 schema version: {version}")
+    return version
 
 
 def _write_space(group: Any, space: GroupSpace) -> None:
@@ -126,6 +194,11 @@ def write_hdf5(dataset: GroupDataset, path: str | Path) -> Path:
         _write_strings(axes, "subjects", list(dataset.subjects))
         _write_strings(axes, "contrasts", list(dataset.contrasts))
 
+        axis_data = gds.create_group("axis_data")
+        _write_axis_frame(axis_data, "subjects", dataset.col_data)
+        _write_axis_frame(axis_data, "samples", dataset.row_data)
+        _write_axis_frame(axis_data, "contrasts", dataset.contrast_data)
+
         space = gds.create_group("space")
         _write_space(space, dataset.space)
 
@@ -134,11 +207,10 @@ def write_hdf5(dataset: GroupDataset, path: str | Path) -> Path:
             assays.create_dataset(name, data=np.asarray(arr, dtype=np.float64))
 
         metadata = gds.create_group("metadata")
-        metadata.create_dataset(
-            "json",
-            data=json.dumps(dict(dataset.metadata), sort_keys=True, default=str),
-            dtype=_string_dtype(),
-        )
+        _write_json_dataset(metadata, "json", dict(dataset.metadata))
+
+        provenance = gds.create_group("provenance")
+        _write_json_dataset(provenance, "json", _provenance_payload(dataset))
     return out
 
 
@@ -149,10 +221,7 @@ def read_hdf5(path: str | Path, *, allow_opaque_alignments: bool = False) -> Gro
         if "gds" not in h5:
             raise GroupSchemaError("HDF5 file does not contain /gds")
         gds = h5["gds"]
-        version_raw = gds["version"][()]
-        version = version_raw.decode("utf-8") if isinstance(version_raw, bytes) else str(version_raw)
-        if not version.startswith("gds-h5/0."):
-            raise GroupSchemaError(f"Unsupported GDS HDF5 schema version: {version}")
+        version = _read_schema_version(gds)
         if (
             "alignments" in gds
             and len(gds["alignments"]) > 0
@@ -164,6 +233,10 @@ def read_hdf5(path: str | Path, *, allow_opaque_alignments: bool = False) -> Gro
 
         subjects = _read_strings(gds["axes"], "subjects")
         contrasts = _read_strings(gds["axes"], "contrasts")
+        axis_data = gds["axis_data"] if "axis_data" in gds else None
+        col_data = None if axis_data is None else _read_axis_frame(axis_data, "subjects")
+        row_data = None if axis_data is None else _read_axis_frame(axis_data, "samples")
+        contrast_data = None if axis_data is None else _read_axis_frame(axis_data, "contrasts")
         space = _read_space(gds["space"])
         assays = {
             name: np.asarray(gds["assays"][name][()], dtype=np.float64)
@@ -171,15 +244,20 @@ def read_hdf5(path: str | Path, *, allow_opaque_alignments: bool = False) -> Gro
         }
         metadata: dict[str, Any] = {}
         if "metadata" in gds and "json" in gds["metadata"]:
-            raw = gds["metadata"]["json"][()]
-            text = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
-            metadata = json.loads(text)
+            metadata = json.loads(_read_text_dataset(gds["metadata"], "json"))
         metadata["schema_version"] = version
+        if "provenance" in gds and "json" in gds["provenance"]:
+            metadata["hdf5_provenance"] = json.loads(
+                _read_text_dataset(gds["provenance"], "json")
+            )
 
     return GroupDataset(
         assays=assays,
         space=space,
         subjects=subjects,
         contrasts=contrasts,
+        col_data=col_data,
+        row_data=row_data,
+        contrast_data=contrast_data,
         metadata=metadata,
     )
