@@ -299,4 +299,7 @@ def test_group_fit_rejects_legacy_fmrigds_backend_name_with_guidance():
 
 def test_available_backends_surface_contains_expected_names():
     backends = available_second_level_backends()
-    assert set(backends) == {"auto", "python", "fmrigds-r"}
+    assert set(backends) == {"auto", "python"}
+
+    with_oracles = available_second_level_backends(include_oracles=True)
+    assert set(with_oracles) == {"auto", "python", "fmrigds-r"}

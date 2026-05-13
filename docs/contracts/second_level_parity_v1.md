@@ -76,6 +76,9 @@ For v1 canonical outputs:
 - Spatial correction requires explicit grouping (`group_ids`) in v1.
 - `backend="fmrigds-r"` is available as an explicit R fmrigds oracle/fallback with capability checks.
 - `backend="fmrigds"` is retired from dispatch to avoid treating the R bridge as the native production path.
+- `available_second_level_backends()` lists only production-native names by
+  default: `"auto"` and `"python"`. Oracle/fallback names are opt-in via
+  `available_second_level_backends(include_oracles=True)`.
 
 ## Out of Scope (v1)
 
