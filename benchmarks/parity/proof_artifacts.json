@@ -1,0 +1,116 @@
+{
+  "schema_version": "parity-proof-artifacts/v1",
+  "artifacts": [
+    {
+      "benchmark_id": "tier_a_spm_auditory",
+      "evidence_level": "flagship_workflow",
+      "public_seam": true,
+      "workflow_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_spm_auditory/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> contrast",
+      "caveats": [],
+      "timings": {
+        "status": "not_recorded",
+        "next": "wire stage-level timers into the parity harness before treating the report as complete marketing evidence"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.spec.HrfTerm",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.glm.ContrastResult"
+      ],
+      "fmrimod_expresses_better": "The user-facing path keeps HRF normalization, dataset construction, fitting, and contrast evaluation as typed inspectable objects instead of a stateful FirstLevelModel call."
+    },
+    {
+      "benchmark_id": "tier_a_f_confound_drift",
+      "evidence_level": "workflow_parity",
+      "public_seam": true,
+      "workflow_path": "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py",
+      "report_path": "benchmarks/parity/tier_a_f_confound_drift/reports_public/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> contrast",
+      "caveats": [],
+      "timings": {
+        "status": "not_recorded",
+        "next": "capture stage-level timings in the public report"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.spec.Spec",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.glm.ContrastResult"
+      ],
+      "fmrimod_expresses_better": "The F contrast and drift/confound structure are represented in the fmrimod spec and fit result instead of living only as realized NumPy arrays."
+    },
+    {
+      "benchmark_id": "tier_a_fiac",
+      "evidence_level": "numerical_canary",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_a_fiac/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_fiac/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_fiac/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_fiac/workflow.py::fmrimod_pipeline: fit_glm_from_suffstats -> combine_runs -> contrast",
+      "caveats": [],
+      "replacement_target": "Replace externally realized Nilearn design matrices with fmri_dataset -> fmri_lm per-run fits, then keep combine_runs as the fixed-effects pooling seam."
+    },
+    {
+      "benchmark_id": "tier_a_localizer_fixed_effects",
+      "evidence_level": "numerical_canary",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_localizer_fixed_effects/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py::fmrimod_pipeline: fit_glm_from_suffstats -> contrast",
+      "caveats": [
+        "localizer-tstat-variance-outliers"
+      ],
+      "replacement_target": "Build a companion workflow through fmri_dataset -> fmri_lm -> contrast using fmrimod-owned event and design objects."
+    },
+    {
+      "benchmark_id": "tier_b_fitlins_bids",
+      "evidence_level": "workflow_parity",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_b_fitlins_bids/workflow.py",
+      "report_path": "benchmarks/parity/tier_b_fitlins_bids/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_b_fitlins_bids/workflow.py::manual_pipeline and FitLins CLI derivative fixture",
+      "fmrimod_path": "benchmarks/parity/tier_b_fitlins_bids/workflow.py::translated_pipeline plus ar1_nilearn derivative writer",
+      "caveats": [],
+      "replacement_target": "Route translated BIDS Stats Model nodes into fmri_dataset -> fmri_lm once the typed spec compiler covers the required transforms."
+    },
+    {
+      "benchmark_id": "tier_c_second_level",
+      "evidence_level": "workflow_parity",
+      "public_seam": true,
+      "workflow_path": "benchmarks/parity/tier_c_second_level/workflow.py",
+      "report_path": "benchmarks/parity/tier_c_second_level/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_c_second_level/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_c_second_level/workflow.py::fmrimod_pipeline: group_data_from_csv -> group_fit",
+      "caveats": [
+        "second-level-normal-vs-t-pvalues"
+      ],
+      "timings": {
+        "status": "not_recorded",
+        "next": "record native group reducer timings after the second-level caveat is retired"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.GroupData",
+        "fmrimod.stats.GroupFitRequest",
+        "fmrimod.stats.GroupFitResult"
+      ],
+      "fmrimod_expresses_better": "The group path carries effect-size standard errors and model intent as explicit request fields rather than hiding them inside a fitted second-level estimator.",
+      "replacement_target": "Retire the normal-vs-t caveat by comparing against a statistically matching native second-level reference, not Nilearn's OLS variance model."
+    },
+    {
+      "benchmark_id": "tier_d_showcase",
+      "evidence_level": "numerical_canary",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py",
+      "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json",
+      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::_lss_reference and exact GLM helpers",
+      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_showcases",
+      "caveats": [],
+      "replacement_target": "Split showcase rows into public-seam flagship workflows when each capability has a typed dataset/model/contrast entry point."
+    }
+  ]
+}
