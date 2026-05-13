@@ -14,11 +14,16 @@ import pandas as pd
 import pytest
 
 import fmrimod as fm
-from fmrimod.glm import SketchEngineOptions
-from fmrimod.glm.fmri_lm import FitProvenance, FmriLm
-from fmrimod.model.config import AROptions, FmriLmConfig
 from fmrimod.dataset import FmriDataset
 from fmrimod.dataset.adapters.numpy_adapter import NumpyAdapter
+from fmrimod.glm import SketchEngineOptions
+from fmrimod.glm.fmri_lm import (
+    CompleteFitProvenance,
+    FitProvenance,
+    FmriLm,
+    IncompleteFitProvenanceError,
+)
+from fmrimod.model.config import AROptions, FmriLmConfig
 from fmrimod.sampling import SamplingFrame
 from fmrimod.spec import hrf as hrf_term
 
@@ -86,6 +91,13 @@ def test_fit_provenance_public_glm_import_boundary() -> None:
     from fmrimod.glm import FitProvenance as PublicFitProvenance
 
     assert PublicFitProvenance is FitProvenance
+    from fmrimod.glm import CompleteFitProvenance as PublicCompleteFitProvenance
+    from fmrimod.glm import (
+        IncompleteFitProvenanceError as PublicIncompleteFitProvenanceError,
+    )
+
+    assert PublicCompleteFitProvenance is CompleteFitProvenance
+    assert PublicIncompleteFitProvenanceError is IncompleteFitProvenanceError
 
 
 def test_slice_a_populates_three_fields() -> None:
@@ -129,6 +141,55 @@ def test_slice_a_other_fields_carry_status() -> None:
     assert prov.ar_status == "carried"
     assert prov.mask_mode == "none"
     assert prov.mask_status == "carried"
+
+
+def test_complete_provenance_boundary_accepts_replay_ready_fit() -> None:
+    """Consumers can demand complete provenance before replay/receipt use."""
+    fit = _build_minimal_fit()
+
+    assert fit.provenance is not None
+    assert fit.provenance.is_complete is True
+    complete = fit.provenance.require_complete()
+
+    assert isinstance(complete, CompleteFitProvenance)
+    assert complete.provenance is fit.provenance
+    assert complete.to_dict() == fit.provenance.to_dict()
+
+
+def test_complete_provenance_boundary_refuses_status_unknown_seed() -> None:
+    """An unseeded randomized engine is explicit partial provenance."""
+    rng = np.random.default_rng(22)
+    ds = fm.fmri_dataset(
+        rng.standard_normal((60, 4)).astype(np.float64),
+        tr=2.0,
+        events=_events(),
+    )
+    fit = fm.fmri_lm(
+        hrf_term("trial_type"),
+        ds,
+        engine=SketchEngineOptions(sketch_ratio=1.0),
+    )
+
+    assert fit.provenance is not None
+    assert fit.provenance.seed_status == "unknown"
+    assert fit.provenance.is_complete is False
+    with pytest.raises(IncompleteFitProvenanceError, match="seed provenance"):
+        fit.provenance.require_complete()
+
+
+def test_complete_provenance_boundary_refuses_direct_partial_payload() -> None:
+    """Optional fields alone are not accepted as replay-ready provenance."""
+    prov = FitProvenance(
+        fmrimod_version="0.1.0",
+        solver_path="RunwiseEngine",
+        hrf_norm_modes=("spm",),
+    )
+
+    assert prov.is_complete is False
+    assert "ar_config provenance is not_yet_carried" in prov.completeness_errors
+    assert "mask provenance is not_yet_carried" in prov.completeness_errors
+    with pytest.raises(IncompleteFitProvenanceError, match="ar_config"):
+        CompleteFitProvenance.from_provenance(prov)
 
 
 def test_fit_provenance_records_explicit_flat_mask_mode() -> None:

@@ -163,6 +163,81 @@ class FitProvenance:
         """Reconstruct provenance from :meth:`to_json` output."""
         return cls.from_dict(json.loads(payload))
 
+    @property
+    def completeness_errors(self) -> tuple[str, ...]:
+        """Reasons this provenance is not sufficient for exact replay.
+
+        Status companions make partial provenance honest for ordinary fit
+        inspection. Reproduction and receipt consumers need a stricter call
+        site: if any status says "unknown" or "not_yet_carried", they must
+        refuse the payload instead of treating optional fields as complete.
+        """
+
+        errors: list[str] = []
+        if not self.fmrimod_version:
+            errors.append("fmrimod_version is empty")
+        if not self.solver_path:
+            errors.append("solver_path is empty")
+
+        if self.seed_status == "randomized" and self.seed is None:
+            errors.append("seed_status is randomized but seed is missing")
+        elif self.seed_status in {"unknown", "not_yet_carried"}:
+            errors.append(f"seed provenance is {self.seed_status}")
+
+        if self.ar_status != "carried":
+            errors.append(f"ar_config provenance is {self.ar_status}")
+        elif self.ar_config is None:
+            errors.append("ar_status is carried but ar_config is missing")
+
+        if self.mask_status != "carried":
+            errors.append(f"mask provenance is {self.mask_status}")
+        elif self.mask_mode is None:
+            errors.append("mask_status is carried but mask_mode is missing")
+
+        return tuple(errors)
+
+    @property
+    def is_complete(self) -> bool:
+        """Whether this payload is sufficient for exact replay consumers."""
+
+        return not self.completeness_errors
+
+    def require_complete(self) -> "CompleteFitProvenance":
+        """Return a complete-provenance wrapper or raise a typed error."""
+
+        return CompleteFitProvenance.from_provenance(self)
+
+
+class IncompleteFitProvenanceError(ValueError):
+    """Raised when a replay/receipt consumer requires complete provenance."""
+
+
+@dataclass(frozen=True)
+class CompleteFitProvenance:
+    """Typed boundary for consumers that require exact replay provenance."""
+
+    provenance: FitProvenance
+
+    @classmethod
+    def from_provenance(cls, provenance: FitProvenance) -> "CompleteFitProvenance":
+        errors = provenance.completeness_errors
+        if errors:
+            raise IncompleteFitProvenanceError(
+                "FitProvenance is incomplete for exact replay: "
+                + "; ".join(errors)
+            )
+        return cls(provenance=provenance)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Return the wrapped complete provenance as a JSON-ready payload."""
+
+        return self.provenance.to_dict()
+
+    def to_json(self) -> str:
+        """Serialize the wrapped complete provenance."""
+
+        return self.provenance.to_json()
+
 
 def _term_norm_mode(term: Any) -> Optional[NormMode]:
     """Recover the declared HRF normalization mode for a term, if any."""

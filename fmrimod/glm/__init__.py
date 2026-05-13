@@ -46,7 +46,14 @@ from .engine import (
     register_engine,
     resolve_engine,
 )
-from .fmri_lm import FitProvenance, FmriLm, FmriModelLike, fmri_lm
+from .fmri_lm import (
+    CompleteFitProvenance,
+    FitProvenance,
+    FmriLm,
+    FmriModelLike,
+    IncompleteFitProvenanceError,
+    fmri_lm,
+)
 from .solver import Projection, fast_lm_matrix, fast_preproject
 from .spatial import SpatialContext
 
@@ -54,6 +61,8 @@ __all__ = [
     "fmri_lm",
     "FmriLm",
     "FitProvenance",
+    "CompleteFitProvenance",
+    "IncompleteFitProvenanceError",
     "fast_preproject",
     "fast_lm_matrix",
     "Projection",
