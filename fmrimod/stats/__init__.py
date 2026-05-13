@@ -62,11 +62,10 @@ class _CallableStatsModule(types.ModuleType):
         self,
         x: object,
         type: str = "estimates",
-        **kwargs: object,
     ) -> EstimateOrContrastMap:
         from fmrimod.accessors import stats as _accessor_stats
 
-        return _accessor_stats(x, type=type, **kwargs)
+        return _accessor_stats(x, type=type)
 
 
 sys.modules[__name__].__class__ = _CallableStatsModule
