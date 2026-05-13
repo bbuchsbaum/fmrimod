@@ -12,7 +12,9 @@ def test_tier_d_includes_public_seam_single_trial_row() -> None:
     assert "tier_d_lss_public_seam" in by_id
     row = by_id["tier_d_lss_public_seam"]
     assert row.status == "pass"
-    assert row.metric == "max_abs_delta"
-    assert row.value < 1e-12
+    assert row.metric == "max_abs_recovery_error"
+    assert row.value < row.threshold
+    assert row.threshold == 0.5
     assert row.details["wrapper_trial_labels_present"] is True
     assert row.details["wrapper_n_trial_labels"] == row.details["n_trials"]
+    assert row.details["noise_scale"] == 0.03

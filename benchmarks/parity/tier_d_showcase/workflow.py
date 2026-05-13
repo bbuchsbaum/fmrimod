@@ -180,27 +180,34 @@ def run_lss_public_seam_showcase(seed: int = 2029) -> ShowcaseRow:
     Builds a synthetic ``FmriDataset`` plus events table, calls
     ``estimate_single_trial_from_dataset(ds, "trialwise()", method="lss",
     include_intercept=True)`` (the Slice 1 public-seam wrapper from
-    ``bd-01KRGQCT34QWSYKQ38BVFHD51E``), and verifies the result matches a
-    direct ``estimate_single_trial(Y, X, ...)`` call on the same realised
-    design. The claim is "the public-seam wrapper is numerically transparent
-    against the matrix-first dispatcher at benchmark scale," not "fmrimod
-    matches a third-party reference" (the matrix-first ``run_lss_showcase``
-    row already owns that canary).
+    ``bd-01KRGQCT34QWSYKQ38BVFHD51E``), and verifies the recovered betas
+    match the ground-truth ``true_betas`` used to synthesize ``Y``.
+
+    The claim is "the wrapper, called with only the dataset and a string
+    spec, recovers per-trial activation amplitudes to within noise
+    tolerance." The wrapper does the design build, the label extraction,
+    and the solver dispatch; the showcase row asserts the end-to-end
+    behavior, not internal numpy equivalence (a wrapper-vs-matrix-first
+    comparison on the same realized design would be tautological because
+    both paths reduce to identical numpy ops; see review feedback at
+    work-requests/post-01KRGZF070Q9Q7CSYA9X7ZEYJW).
+
+    The matrix-first ``run_lss_showcase`` row still owns the third-party
+    reference parity canary.
     """
     import pandas as pd
 
     from fmrimod import fmri_dataset
     from fmrimod.design.event_model import event_model as _build_event_model
-    from fmrimod.single import (
-        estimate_single_trial,
-        estimate_single_trial_from_dataset,
-    )
+    from fmrimod.single import estimate_single_trial_from_dataset
 
     rng = np.random.default_rng(seed)
     n_time = 90
     n_trials = 12
     n_voxels = 32
     tr = 2.0
+    noise_scale = 0.03
+    beta_scale = 0.7
 
     onsets = np.linspace(4.0, n_time * tr - 16.0, n_trials, dtype=np.float64)
     events = pd.DataFrame({
@@ -209,6 +216,9 @@ def run_lss_public_seam_showcase(seed: int = 2029) -> ShowcaseRow:
         "run": np.ones(n_trials, dtype=int),
     })
 
+    # Realize the design matrix once to synthesize Y from known true_betas.
+    # The wrapper rebuilds X internally from the spec; this branch only
+    # constructs ground truth.
     em = _build_event_model(
         formula="trialwise()",
         data=events,
@@ -216,10 +226,10 @@ def run_lss_public_seam_showcase(seed: int = 2029) -> ShowcaseRow:
         tr=tr,
         n_scans=n_time,
     )
-    X = np.ascontiguousarray(np.asarray(em.design_matrix, dtype=np.float64))
+    X = np.asarray(em.design_matrix, dtype=np.float64)
+    true_betas = rng.normal(scale=beta_scale, size=(n_trials, n_voxels))
+    bold = X @ true_betas + rng.normal(scale=noise_scale, size=(n_time, n_voxels))
 
-    true_betas = rng.normal(scale=0.7, size=(n_trials, n_voxels))
-    bold = X @ true_betas + rng.normal(scale=0.03, size=(n_time, n_voxels))
     ds = fmri_dataset(bold.astype(np.float64), tr=tr, events=events)
 
     wrapper_result, wrapper_seconds = _elapsed(
@@ -227,30 +237,36 @@ def run_lss_public_seam_showcase(seed: int = 2029) -> ShowcaseRow:
             ds, "trialwise()", method="lss", include_intercept=True,
         )
     )
-    matrix_result, matrix_seconds = _elapsed(
-        lambda: estimate_single_trial(
-            bold.astype(np.float64), X, method="lss", include_intercept=True,
-        )
-    )
 
-    max_abs = float(np.max(np.abs(wrapper_result.betas - matrix_result.betas)))
-    status = "pass" if max_abs < 1e-12 else "fail"
+    recovery_error = float(np.max(np.abs(wrapper_result.betas - true_betas)))
+    # Threshold is generous: with noise_scale=0.03 and ~5 effective HRF
+    # samples per trial, per-beta LSS error is bounded around 0.05 voxel-wise.
+    # 0.5 is the meaningful order-of-magnitude check (true betas live near
+    # ±beta_scale=0.7).
+    threshold = 0.5
+    n_recovered_labels = (
+        len(wrapper_result.trial_labels)
+        if wrapper_result.trial_labels is not None
+        else 0
+    )
+    label_check_ok = (
+        wrapper_result.trial_labels is not None
+        and n_recovered_labels == n_trials
+    )
+    status = "pass" if recovery_error < threshold and label_check_ok else "fail"
     return ShowcaseRow(
         case_id="tier_d_lss_public_seam",
         capability="public-seam single-trial wrapper (dataset + spec)",
         status=status,
-        metric="max_abs_delta",
-        value=max_abs,
-        threshold=1e-12,
+        metric="max_abs_recovery_error",
+        value=recovery_error,
+        threshold=threshold,
         details={
             "wrapper_seconds": wrapper_seconds,
-            "matrix_seconds": matrix_seconds,
             "wrapper_trial_labels_present": wrapper_result.trial_labels is not None,
-            "wrapper_n_trial_labels": (
-                len(wrapper_result.trial_labels)
-                if wrapper_result.trial_labels is not None
-                else 0
-            ),
+            "wrapper_n_trial_labels": n_recovered_labels,
+            "noise_scale": noise_scale,
+            "beta_scale": beta_scale,
             "n_time": n_time,
             "n_trials": n_trials,
             "n_voxels": n_voxels,
