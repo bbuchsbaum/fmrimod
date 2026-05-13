@@ -36,6 +36,9 @@ class _DummyModel:
     def contrast_weights(self):
         return {"slope": np.array([0.0, 1.0])}
 
+    def design_columns(self):
+        return ("intercept", "slope")
+
 
 @pytest.fixture
 def rng():
@@ -58,6 +61,10 @@ def test_fmri_lm_accessors_have_expected_shapes(fitted_result):
     assert fitted_result.tstat().shape == (2, 5)
     assert fitted_result.n_coefficients == 2
     assert fitted_result.n_voxels == 5
+
+
+def test_fmri_lm_delegates_design_columns(fitted_result):
+    assert fitted_result.design_columns() == ("intercept", "slope")
 
 
 def test_contrast_dispatch_string_and_dict_are_equivalent(fitted_result):

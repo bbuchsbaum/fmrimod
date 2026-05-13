@@ -161,6 +161,7 @@ class EventModel(ModelProtocol):
         self._column_names = None
         self._event_terms = None
         self._column_indices = None
+        self._column_facts = None
 
     @property
     def n_events(self) -> int:
@@ -506,6 +507,7 @@ class EventModel(ModelProtocol):
 
         columns = []
         column_names = []
+        column_facts = []
         existing_tags = []
         column_indices = {}
         current_col = 0
@@ -524,7 +526,11 @@ class EventModel(ModelProtocol):
                 X_term = X_term.reshape(-1, 1)
 
             # Handle trialwise add_sum
-            if hasattr(event_term, '_is_trialwise') and event_term._is_trialwise and event_term._add_sum:
+            if (
+                hasattr(event_term, '_is_trialwise')
+                and event_term._is_trialwise
+                and event_term._add_sum
+            ):
                 mean_col = X_term.mean(axis=1, keepdims=True)
                 X_term = np.hstack([X_term, mean_col])
 
@@ -541,7 +547,11 @@ class EventModel(ModelProtocol):
                 term_name=term.name,
                 event_names=term.events,
                 hrf_name=term.hrf if isinstance(term.hrf, str) else None,
-                basis_type=term.basis.name if hasattr(term, 'basis') and term.basis else None,
+                basis_type=(
+                    term.basis.name
+                    if hasattr(term, 'basis') and term.basis
+                    else None
+                ),
                 existing_tags=existing_tags
             )
             if term_tag:
@@ -551,6 +561,8 @@ class EventModel(ModelProtocol):
             cond_tags = self._get_condition_tags(event_term)
 
             # Handle trialwise column names
+            basis_name = None
+            basis_total = None
             if hasattr(event_term, '_is_trialwise') and event_term._is_trialwise:
                 n_trials = X_term.shape[1]
                 if event_term._add_sum:
@@ -569,6 +581,8 @@ class EventModel(ModelProtocol):
                     try:
                         hrf_obj = self._resolve_hrf(term.hrf)
                         nb = hrf_obj.nbasis
+                        basis_name = getattr(hrf_obj, "name", type(hrf_obj).__name__)
+                        basis_total = nb
                     except Exception:
                         pass
                 # Basis expansion is represented directly via condition tags for
@@ -577,12 +591,119 @@ class EventModel(ModelProtocol):
                 term_col_names = make_column_names(term_tag, cond_tags, nb)
 
             column_names.extend(term_col_names)
+            column_facts.extend(
+                self._make_column_facts(
+                    term=term,
+                    term_index=i + 1,
+                    term_tag=term_tag,
+                    start_index=term_indices[0],
+                    event_term=event_term,
+                    condition_tags=cond_tags,
+                    column_names=term_col_names,
+                    basis_name=basis_name,
+                    basis_total=basis_total,
+                )
+            )
 
         self._design_matrix = np.hstack(columns)
         self._column_names = make_unique_colnames(column_names)
         self._column_indices = column_indices
+        for idx, name in enumerate(self._column_names):
+            column_facts[idx]["name"] = name
+        self._column_facts = column_facts
 
         return self._design_matrix
+
+    def _make_column_facts(
+        self,
+        *,
+        term: Term,
+        term_index: int,
+        term_tag: str | None,
+        start_index: int,
+        event_term: EventTerm,
+        condition_tags: List[str],
+        column_names: List[str],
+        basis_name: str | None,
+        basis_total: int | None,
+    ) -> List[dict]:
+        """Create construction-time facts for realized event columns."""
+        levels = self._condition_levels(event_term, condition_tags)
+        nb = max(int(basis_total or 1), 1)
+        facts = []
+        if nb > 1 and len(column_names) == len(condition_tags) * nb:
+            expanded = [
+                (condition, level, basis_ix)
+                for basis_ix in range(1, nb + 1)
+                for condition, level in zip(condition_tags, levels)
+            ]
+        else:
+            expanded = [
+                (
+                    condition,
+                    level,
+                    1 if basis_total is not None else None,
+                )
+                for condition, level in zip(condition_tags, levels)
+            ]
+            if len(expanded) != len(column_names):
+                expanded = [
+                    (name, name, None)
+                    for name in column_names
+                ]
+
+        for local_index, (name, (condition, level, basis_ix)) in enumerate(
+            zip(column_names, expanded)
+        ):
+            facts.append(
+                {
+                    "name": name,
+                    "index": start_index + local_index,
+                    "term": term.name,
+                    "term_tag": term_tag,
+                    "term_index": term_index,
+                    "condition": condition,
+                    "level": level,
+                    "basis_ix": basis_ix,
+                    "basis_name": basis_name,
+                    "basis_total": basis_total,
+                    "role": "task",
+                    "model_source": "event",
+                    "provenance": {
+                        "term": "declared",
+                        "condition": "declared",
+                        "level": "declared",
+                        "basis_ix": (
+                            "declared" if basis_ix is not None else "missing"
+                        ),
+                        "basis_name": (
+                            "derived" if basis_name is not None else "missing"
+                        ),
+                        "basis_total": (
+                            "derived" if basis_total is not None else "missing"
+                        ),
+                        "role": "declared",
+                    },
+                }
+            )
+        return facts
+
+    def _condition_levels(
+        self,
+        event_term: EventTerm,
+        condition_tags: List[str],
+    ) -> List[str]:
+        """Return raw level labels when construction metadata has them."""
+        if event_term.interaction:
+            return condition_tags
+        event = event_term.events[0]
+        if event.event_type == "categorical":
+            return [str(level) for level in event.levels]
+        if event.event_type == "matrix":
+            return [str(name) for name in event.column_names]
+        if event.event_type == "basis":
+            return [str(name) for name in event.basis_names]
+        return [str(event.name)]
 
     def _convolve_term(self, event_term: EventTerm, term: Term) -> Array:
         """Convolve an event term with HRF using fmrimod.
@@ -1404,6 +1525,13 @@ class EventModel(ModelProtocol):
         if self._column_indices is None:
             _ = self.design_matrix
         return self._column_indices
+
+    @property
+    def column_facts(self) -> List[dict]:
+        """Construction-time facts for each realized design column."""
+        if self._column_facts is None:
+            _ = self.design_matrix
+        return self._column_facts
 
     # Keep backward compat alias
     def _convolve_hrf(self, X: Array, hrf) -> Array:

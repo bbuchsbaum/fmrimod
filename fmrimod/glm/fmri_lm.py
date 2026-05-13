@@ -148,6 +148,13 @@ class FmriLm:
         """Number of regression coefficients."""
         return self.betas.shape[0]
 
+    def design_columns(self):
+        """Return typed provenance for the fitted design columns."""
+        design_columns = getattr(self.model, "design_columns", None)
+        if not callable(design_columns):
+            raise TypeError("fitted model does not expose design_columns()")
+        return design_columns()
+
     # -- Contrast computation --
 
     def contrast(

@@ -150,6 +150,12 @@ class FmriModel:
         """Return only the baseline columns."""
         return self._get_baseline_dm(run)
 
+    def design_columns(self):
+        """Return typed provenance for realized design columns."""
+        from fmrimod.design import DesignColumns
+
+        return DesignColumns.from_model(self)
+
     @property
     def n_event_columns(self) -> int:
         """Number of event-related design columns."""
