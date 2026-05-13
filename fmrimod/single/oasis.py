@@ -17,7 +17,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy import linalg
 
-from ._types import OasisConfig, SingleTrialResult
+from ._types import OasisConfig, SingleTrialMethod, SingleTrialResult
 
 
 # =========================================================================
@@ -470,7 +470,7 @@ def oasis_single_trial(
 
     return SingleTrialResult(
         betas=betas,
-        method="oasis",
+        method=SingleTrialMethod.OASIS,
         trial_labels=list(trial_labels) if trial_labels is not None else None,
         residual_df=dof,
         se=se,

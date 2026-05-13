@@ -7,7 +7,7 @@ from typing import Optional
 import numpy as np
 from numpy.typing import NDArray
 
-from .._types import SbhmConfig, SingleTrialResult
+from .._types import SbhmConfig, SingleTrialMethod, SingleTrialResult
 from .library import SbhmLibrary, build_sbhm_library
 from .prepass import sbhm_prepass
 from .match import sbhm_match
@@ -131,7 +131,7 @@ def sbhm_single_trial(
     betas = sbhm_amplitude(
         Y=Y,
         X_trials=X,
-        alpha_coords=match_result["alpha_coords"],
+        alpha_coords=match_result.alpha_coords,
         confounds=confounds,
         method=config.amplitude_method,
         ridge_x=config.ridge_lambda,
@@ -145,19 +145,19 @@ def sbhm_single_trial(
 
     # Extra info
     extra = {
-        "matched_idx": match_result["matched_idx"],
-        "margin": match_result["margin"],
-        "alpha_coords": match_result["alpha_coords"],
-        "similarity": match_result["similarity"],
+        "matched_idx": match_result.matched_idx,
+        "margin": match_result.margin,
+        "alpha_coords": match_result.alpha_coords,
+        "similarity": match_result.similarity,
         "K": K,
         "library": library,
     }
-    if "weights" in match_result:
-        extra["weights"] = match_result["weights"]
+    if match_result.weights is not None:
+        extra["weights"] = match_result.weights
 
     return SingleTrialResult(
         betas=betas,
-        method="sbhm",
+        method=SingleTrialMethod.SBHM,
         trial_labels=list(trial_labels) if trial_labels is not None else None,
         residual_df=dof,
         se=None,

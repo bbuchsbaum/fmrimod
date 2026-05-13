@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import FrozenInstanceError, replace
 
 import numpy as np
 import pytest
@@ -11,6 +11,8 @@ from scipy import sparse
 
 from fmrimod.single.item import (
     ItemBundle,
+    ItemCovarianceBlockResult,
+    ItemCovarianceMatrixResult,
     ItemCvResult,
     _item_simple_hash,
     _score_fold,
@@ -35,7 +37,7 @@ def test_item_compute_u_dense_matches_closed_form(rng: np.random.Generator) -> N
     ridge = 1e-8
     u_res = item_compute_u(X_t, ridge=ridge)
 
-    assert u_res.U is not None
+    assert isinstance(u_res, ItemCovarianceMatrixResult)
     U = u_res.U
     assert U.shape == (6, 6)
     assert_allclose(U, U.T, atol=1e-8)
@@ -58,8 +60,8 @@ def test_item_compute_u_block_v_matches_dense(rng: np.random.Generator) -> None:
     u_block = item_compute_u(X_t, V=V_blocks, v_type="cov", ridge=1e-6)
     u_dense = item_compute_u(X_t, V=V_dense, v_type="cov", ridge=1e-6)
 
-    assert u_block.U is not None
-    assert u_dense.U is not None
+    assert isinstance(u_block, ItemCovarianceMatrixResult)
+    assert isinstance(u_dense, ItemCovarianceMatrixResult)
     assert_allclose(u_block.U, u_dense.U, atol=1e-6)
 
 
@@ -68,7 +70,7 @@ def test_item_compute_u_accepts_sparse_precision(rng: np.random.Generator) -> No
     V_prec = sparse.diags([2.0] * 30, format="csc")
 
     u_res = item_compute_u(X_t, V=V_prec, v_type="precision", ridge=1e-6)
-    assert u_res.U is not None
+    assert isinstance(u_res, ItemCovarianceMatrixResult)
     assert u_res.U.shape == (5, 5)
     assert_allclose(u_res.U, u_res.U.T, atol=1e-8)
     assert np.all(np.isfinite(u_res.U))
@@ -84,8 +86,13 @@ def test_item_slice_fold_matrix_and_by_run_paths(rng: np.random.Generator) -> No
     labels = np.array(["A", "B"] * 6)
 
     bundle = item_build_design(X_t=X_t, T_target=labels, run_id=run_id)
-    bundle.Gamma = rng.standard_normal((n_trials, n_vox))
-    bundle.U = item_compute_u(X_t, ridge=1e-6).U
+    u_matrix = item_compute_u(X_t, ridge=1e-6)
+    assert isinstance(u_matrix, ItemCovarianceMatrixResult)
+    bundle = replace(
+        bundle,
+        Gamma=rng.standard_normal((n_trials, n_vox)),
+        U=u_matrix.U,
+    )
 
     fold = item_slice_fold(bundle, test_run=2)
     train_idx = np.where(run_id != 2)[0]
@@ -100,12 +107,23 @@ def test_item_slice_fold_matrix_and_by_run_paths(rng: np.random.Generator) -> No
     assert_allclose(fold.U_test, bundle.U[np.ix_(test_idx, test_idx)])
 
     by_run = item_compute_u(X_t, ridge=1e-6, run_id=run_id, output="by_run")
+    assert isinstance(by_run, ItemCovarianceBlockResult)
     bundle_by_run = replace(bundle, U=None, U_by_run=by_run.U_by_run)
 
     fold_blocks = item_slice_fold(bundle_by_run, test_run=2)
     assert bundle_by_run.U_by_run is not None
     assert_allclose(fold_blocks.U_test, bundle_by_run.U_by_run["2"])
     assert fold_blocks.U_train.shape == (train_idx.size, train_idx.size)
+
+
+def test_item_bundle_is_frozen(rng: np.random.Generator) -> None:
+    bundle = item_build_design(
+        X_t=rng.standard_normal((20, 4)),
+        T_target=np.array(["A", "B", "A", "B"]),
+    )
+
+    with pytest.raises(FrozenInstanceError):
+        bundle.Gamma = rng.standard_normal((4, 2))  # type: ignore[misc]
 
 
 def test_item_fit_fallback_and_predict_shape(rng: np.random.Generator) -> None:
@@ -178,8 +196,11 @@ def test_item_cv_enforces_trial_hash(rng: np.random.Generator) -> None:
         trial_id=trial_id,
         trial_hash=trial_hash,
     )
-    bundle.Gamma = rng.standard_normal((n_trials, n_features))
-    bundle.U = np.eye(n_trials)
+    bundle = replace(
+        bundle,
+        Gamma=rng.standard_normal((n_trials, n_features)),
+        U=np.eye(n_trials),
+    )
 
     res = item_cv(bundle, mode="regression", metric="correlation", check_hash=True)
     assert isinstance(res, ItemCvResult)
@@ -351,12 +372,14 @@ def test_item_compute_u_trial_permutation_equivariance(
     """Metamorphic: column permutation should induce matching U permutation."""
     X_t = rng.standard_normal((70, 9))
     ridge = 1e-6
-    U = item_compute_u(X_t, ridge=ridge).U
-    assert U is not None
+    u_res = item_compute_u(X_t, ridge=ridge)
+    assert isinstance(u_res, ItemCovarianceMatrixResult)
+    U = u_res.U
 
     perm = rng.permutation(X_t.shape[1])
-    U_perm = item_compute_u(X_t[:, perm], ridge=ridge).U
-    assert U_perm is not None
+    u_perm = item_compute_u(X_t[:, perm], ridge=ridge)
+    assert isinstance(u_perm, ItemCovarianceMatrixResult)
+    U_perm = u_perm.U
 
     expected = U[np.ix_(perm, perm)]
     assert_allclose(U_perm, expected, atol=1e-8)
@@ -458,7 +481,7 @@ def test_item_compute_u_adversarial_collinearity_and_scale(
     V = np.diag(diag_vals)
     u_res = item_compute_u(X_t, V=V, v_type="cov", ridge=1e-8, method="chol")
 
-    assert u_res.U is not None
+    assert isinstance(u_res, ItemCovarianceMatrixResult)
     U = u_res.U
     assert_allclose(U, U.T, atol=1e-8)
     assert np.all(np.isfinite(U))

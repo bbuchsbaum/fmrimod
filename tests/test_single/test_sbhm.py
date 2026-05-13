@@ -8,7 +8,7 @@ import pytest
 from fmrimod.single._types import SbhmConfig, SingleTrialResult
 from fmrimod.single.sbhm.amplitude import sbhm_amplitude
 from fmrimod.single.sbhm.library import SbhmLibrary, build_sbhm_library
-from fmrimod.single.sbhm.match import sbhm_match
+from fmrimod.single.sbhm.match import SbhmMatchResult, sbhm_match
 from fmrimod.single.sbhm.pipeline import sbhm_single_trial
 from fmrimod.single.sbhm.prepass import sbhm_prepass
 
@@ -74,12 +74,11 @@ class TestSbhmMatch:
         S = np.array([10.0, 5.0, 1.0])
         A = rng.standard_normal((n_lib, K))
         result = sbhm_match(beta_bar, S, A)
-        assert "matched_idx" in result
-        assert "similarity" in result
-        assert "margin" in result
-        assert "alpha_coords" in result
-        assert result["matched_idx"].shape == (V,)
-        assert result["alpha_coords"].shape == (K, V)
+        assert isinstance(result, SbhmMatchResult)
+        assert result.matched_idx.shape == (V,)
+        assert result.similarity.shape == (n_lib, V)
+        assert result.margin.shape == (V,)
+        assert result.alpha_coords.shape == (K, V)
 
     def test_with_shrinkage(self, rng):
         K, V, n_lib = 3, 20, 50
@@ -87,7 +86,7 @@ class TestSbhmMatch:
         S = np.array([10.0, 5.0, 1.0])
         A = rng.standard_normal((n_lib, K))
         result = sbhm_match(beta_bar, S, A, shrink=True)
-        assert result["matched_idx"].shape == (V,)
+        assert result.matched_idx.shape == (V,)
 
     def test_top_k(self, rng):
         K, V, n_lib = 3, 20, 50
@@ -95,8 +94,9 @@ class TestSbhmMatch:
         S = np.array([10.0, 5.0, 1.0])
         A = rng.standard_normal((n_lib, K))
         result = sbhm_match(beta_bar, S, A, top_k=3)
-        assert result["alpha_coords"].shape == (K, V)
-        assert "weights" in result
+        assert result.alpha_coords.shape == (K, V)
+        assert result.weights is not None
+        assert result.weights.shape == (V, 3)
 
 
 class TestSbhmAmplitude:

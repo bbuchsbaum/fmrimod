@@ -6,10 +6,20 @@ with library coordinates to find the best-matching HRF shape per voxel.
 
 from __future__ import annotations
 
-from typing import Optional
-
+from dataclasses import dataclass
 import numpy as np
 from numpy.typing import NDArray
+
+
+@dataclass(frozen=True)
+class SbhmMatchResult:
+    """Typed SBHM library-match result."""
+
+    matched_idx: NDArray[np.int_]
+    margin: NDArray[np.float64]
+    alpha_coords: NDArray[np.float64]
+    similarity: NDArray[np.float64]
+    weights: NDArray[np.float64] | None = None
 
 
 def _stein_shrinkage(
@@ -45,7 +55,7 @@ def sbhm_match(
     A: NDArray[np.float64],
     shrink: bool = True,
     top_k: int = 1,
-) -> dict:
+) -> SbhmMatchResult:
     """Match per-voxel HRF shapes to library via cosine similarity.
 
     Parameters
@@ -64,13 +74,9 @@ def sbhm_match(
 
     Returns
     -------
-    dict
-        Dictionary with keys:
-        - ``"matched_idx"``: shape ``(V,)`` or ``(V, k)``, index of best match(es)
-        - ``"margin"``: shape ``(V,)``, similarity margin (top1 - top2)
-        - ``"alpha_coords"``: shape ``(r, V)``, final matched coordinates
-        - ``"similarity"``: shape ``(n_library, V)``, full similarity matrix
-        - ``"weights"``: shape ``(V, k)`` if ``top_k > 1``, softmax weights
+    SbhmMatchResult
+        Typed result with matched indices, margin, matched coordinates,
+        full similarity matrix, and optional top-k weights.
 
     Notes
     -----
@@ -91,9 +97,9 @@ def sbhm_match(
     >>> S = np.array([10.0, 5.0, 2.0])
     >>> A = np.random.randn(50, 3)
     >>> result = sbhm_match(beta_bar, S, A, top_k=1)
-    >>> result["matched_idx"].shape
+    >>> result.matched_idx.shape
     (500,)
-    >>> result["margin"].shape
+    >>> result.margin.shape
     (500,)
     """
     beta_bar = np.asarray(beta_bar, dtype=np.float64)
@@ -148,12 +154,12 @@ def sbhm_match(
         # Final coordinates: from the matched library member
         alpha_coords = A[matched_idx, :].T  # (r, V)
 
-        return {
-            "matched_idx": matched_idx,
-            "margin": margin,
-            "alpha_coords": alpha_coords,
-            "similarity": sim,
-        }
+        return SbhmMatchResult(
+            matched_idx=matched_idx,
+            margin=margin,
+            alpha_coords=alpha_coords,
+            similarity=sim,
+        )
     else:
         # Top-k: return indices and softmax weights
         top_k = min(top_k, n_library)
@@ -175,10 +181,10 @@ def sbhm_match(
         else:
             margin = np.ones(V, dtype=np.float64)
 
-        return {
-            "matched_idx": top_idx.T,  # (V, k)
-            "margin": margin,
-            "alpha_coords": alpha_coords,
-            "similarity": sim,
-            "weights": weights.T,  # (V, k)
-        }
+        return SbhmMatchResult(
+            matched_idx=top_idx.T,  # (V, k)
+            margin=margin,
+            alpha_coords=alpha_coords,
+            similarity=sim,
+            weights=weights.T,  # (V, k)
+        )

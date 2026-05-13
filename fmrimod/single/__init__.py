@@ -26,11 +26,14 @@ from ._types import (
     OasisConfig,
     SbhmConfig,
     SingleTrialMethod,
+    SingleTrialMethodLike,
     SingleTrialResult,
     VoxelHrfResult,
 )
 from .item import (
     ItemBundle,
+    ItemCovarianceBlockResult,
+    ItemCovarianceMatrixResult,
     ItemCovarianceResult,
     ItemCvAggregate,
     ItemCvResult,
@@ -59,7 +62,7 @@ if TYPE_CHECKING:
 def estimate_single_trial(
     Y: NDArray[np.float64],
     X: NDArray[np.float64],
-    method: str = "lss",
+    method: SingleTrialMethodLike = "lss",
     confounds: NDArray[np.float64] | None = None,
     trial_labels: list[str] | None = None,
     return_se: bool = False,
@@ -83,7 +86,7 @@ def estimate_single_trial(
         Data matrix (time x voxels).
     X : NDArray, shape ``(n, n_trials)`` or ``(n, n_trials * K)``
         Trial regressor matrix (already convolved with HRF).
-    method : str
+    method : SingleTrialMethod or literal string
         One of ``"lss"``, ``"lsa"``, ``"oasis"``, ``"sbhm"``,
         ``"mixed"``.
     confounds : NDArray, shape ``(n, q)``, optional
@@ -122,7 +125,15 @@ def estimate_single_trial(
         from ._prewhiten import prewhiten_matrices
         Y, X, confounds = prewhiten_matrices(Y, X, confounds, prewhiten)
 
-    method_enum = SingleTrialMethod(method)
+    try:
+        method_enum = (
+            method
+            if isinstance(method, SingleTrialMethod)
+            else SingleTrialMethod(method)
+        )
+    except ValueError as exc:
+        valid = ", ".join(member.value for member in SingleTrialMethod)
+        raise ValueError(f"method must be one of: {valid}") from exc
     if method_enum not in {SingleTrialMethod.LSS, SingleTrialMethod.LSA} and (
         baseline_regressors is not None or include_intercept
     ):
@@ -184,6 +195,12 @@ def estimate_single_trial(
             trial_labels=trial_labels,
         )
 
+    if method_enum is SingleTrialMethod.LSS_VOXEL_HRF:
+        raise ValueError(
+            "method='lss_voxel_hrf' requires an estimated VoxelHrfResult; "
+            "call lss_with_voxel_hrf(...) directly."
+        )
+
     raise ValueError(f"Unknown method: {method!r}")
 
 
@@ -205,6 +222,7 @@ __all__ = [
     "lss_with_voxel_hrf",
     "SingleTrialResult",
     "SingleTrialMethod",
+    "SingleTrialMethodLike",
     "OasisConfig",
     "SbhmConfig",
     "PrewhitenConfig",
@@ -213,6 +231,8 @@ __all__ = [
     "build_nuisance_projector",
     "ItemBundle",
     "ItemCovarianceResult",
+    "ItemCovarianceMatrixResult",
+    "ItemCovarianceBlockResult",
     "ItemWeightsResult",
     "ItemFoldSplit",
     "ItemFoldMetrics",

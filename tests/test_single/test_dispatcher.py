@@ -63,6 +63,12 @@ class TestDispatcher:
         with pytest.raises(ValueError):
             estimate_single_trial(Y, X, method="bogus")
 
+    def test_accepts_single_trial_method_enum(self, rng):
+        Y = rng.standard_normal((50, 10))
+        X = rng.standard_normal((50, 5))
+        result = estimate_single_trial(Y, X, method=SingleTrialMethod.LSS)
+        assert result.method is SingleTrialMethod.LSS
+
     def test_lss_baseline_regressors_are_dispatched(self, rng):
         n, T, V = 70, 4, 3
         Y = rng.standard_normal((n, V))
@@ -150,9 +156,19 @@ class TestPrewhitening:
         with pytest.raises(ValueError, match=message):
             PrewhitenConfig(**kwargs)
 
+    def test_prewhiten_config_is_frozen_and_normalizes_ar_order(self):
+        from dataclasses import FrozenInstanceError
+
+        from fmrimod.single._prewhiten import PrewhitenConfig
+
+        cfg = PrewhitenConfig(p=2.0)  # type: ignore[arg-type]
+        assert cfg.p == 2
+        with pytest.raises(FrozenInstanceError):
+            cfg.method = "none"  # type: ignore[misc]
+
 
 class TestSingleTrialMethod:
     def test_all_methods(self):
         assert set(m.value for m in SingleTrialMethod) == {
-            "lss", "lsa", "oasis", "sbhm", "mixed"
+            "lss", "lsa", "oasis", "sbhm", "mixed", "lss_voxel_hrf"
         }

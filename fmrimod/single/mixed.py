@@ -14,13 +14,12 @@ from numpy.typing import NDArray
 from scipy import linalg
 
 from ._project import project_nuisance
-from ._types import SingleTrialResult
+from ._types import SingleTrialMethod, SingleTrialResult
 
 
 def _estimate_variance_components_reml(
     Y_resid: NDArray[np.float64],
     X_resid: NDArray[np.float64],
-    method: str = "reml",
 ) -> tuple[float, float]:
     """Estimate variance components via simplified REML.
 
@@ -35,9 +34,6 @@ def _estimate_variance_components_reml(
         Residualised data (nuisance projected out).
     X_resid : (n, T)
         Residualised trial regressors.
-    method : str
-        "reml" or "ml" (currently both use moment-based estimation).
-
     Returns
     -------
     sigma2_u : float
@@ -133,7 +129,6 @@ def mixed_single_trial(
     X: NDArray[np.float64],
     confounds: Optional[NDArray[np.float64]] = None,
     trial_labels: Optional[list] = None,
-    method: str = "reml",
 ) -> SingleTrialResult:
     """Estimate trial-wise betas via linear mixed model.
 
@@ -150,9 +145,6 @@ def mixed_single_trial(
     confounds : NDArray, shape ``(n, q)``, optional
         Nuisance regressors (fixed effects).
     trial_labels : list of str, optional
-    method : str
-        ``"reml"`` (default) or ``"ml"``.
-
     Returns
     -------
     SingleTrialResult
@@ -192,9 +184,7 @@ def mixed_single_trial(
         nuis_rank = 0
 
     # Estimate variance components
-    sigma2_u, sigma2_e = _estimate_variance_components_reml(
-        Y_clean, X_clean, method=method
-    )
+    sigma2_u, sigma2_e = _estimate_variance_components_reml(Y_clean, X_clean)
 
     # Compute BLUP (shrinkage estimates)
     betas = _blup_betas(Y_clean, X_clean, sigma2_u, sigma2_e)
@@ -212,7 +202,7 @@ def mixed_single_trial(
 
     return SingleTrialResult(
         betas=betas,
-        method="mixed",
+        method=SingleTrialMethod.MIXED,
         trial_labels=list(trial_labels) if trial_labels is not None else None,
         residual_df=dof,
         se=None,  # SE computation requires full covariance matrix

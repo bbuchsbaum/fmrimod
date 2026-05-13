@@ -9,13 +9,19 @@ the original.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Literal, Optional, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
 
 
-@dataclass
+PrewhitenMethod = Literal["ar", "arma", "none"]
+PoolingMode = Literal["global", "voxel", "run", "parcel"]
+ExactFirstMode = Literal["ar1", "none"]
+ArOrder = Union[int, Literal["auto"]]
+
+
+@dataclass(frozen=True)
 class PrewhitenConfig:
     """Prewhitening configuration.
 
@@ -39,14 +45,14 @@ class PrewhitenConfig:
         ``"ar1"`` (default) or ``"none"``.
     """
 
-    method: str = "ar"
-    p: object = 1
+    method: PrewhitenMethod = "ar"
+    p: ArOrder = 1
     q: int = 0
     p_max: int = 6
-    pooling: str = "global"
+    pooling: PoolingMode = "global"
     runs: Optional[NDArray] = None
     parcels: Optional[NDArray] = None
-    exact_first: str = "ar1"
+    exact_first: ExactFirstMode = "ar1"
 
     def __post_init__(self) -> None:
         if self.method not in {"ar", "arma", "none"}:
@@ -58,13 +64,13 @@ class PrewhitenConfig:
         if self.p != "auto":
             if int(self.p) != self.p or int(self.p) < 0:
                 raise ValueError("p must be a non-negative integer or 'auto'")
-            self.p = int(self.p)
+            object.__setattr__(self, "p", int(self.p))
         if int(self.q) != self.q or self.q < 0:
             raise ValueError("q must be a non-negative integer")
         if int(self.p_max) != self.p_max or self.p_max < 1:
             raise ValueError("p_max must be a positive integer")
-        self.q = int(self.q)
-        self.p_max = int(self.p_max)
+        object.__setattr__(self, "q", int(self.q))
+        object.__setattr__(self, "p_max", int(self.p_max))
 
 
 def prewhiten_matrices(

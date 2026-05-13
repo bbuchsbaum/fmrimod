@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -22,6 +22,18 @@ class SingleTrialMethod(str, Enum):
     OASIS = "oasis"
     SBHM = "sbhm"
     MIXED = "mixed"
+    LSS_VOXEL_HRF = "lss_voxel_hrf"
+
+
+SingleTrialMethodLike = Union[SingleTrialMethod, Literal[
+    "lss",
+    "lsa",
+    "oasis",
+    "sbhm",
+    "mixed",
+    "lss_voxel_hrf",
+]]
+"""Public single-trial method selector accepted by the dispatcher."""
 
 
 RidgeMode = Literal["none", "fractional", "absolute"]
@@ -43,9 +55,9 @@ class SingleTrialResult:
     betas : NDArray, shape ``(n_trials, n_voxels)``
         Per-trial beta estimates.  For multi-basis methods (K > 1),
         shape is ``(n_trials * K, n_voxels)``.
-    method : str
+    method : SingleTrialMethod
         Estimation method used (``"lss"``, ``"lsa"``, ``"oasis"``,
-        ``"sbhm"``, ``"mixed"``).
+        ``"sbhm"``, ``"mixed"``, ``"lss_voxel_hrf"``).
     trial_labels : list of str or None
         Labels identifying each trial.
     residual_df : float
@@ -58,7 +70,7 @@ class SingleTrialResult:
     """
 
     betas: NDArray[np.float64]
-    method: str
+    method: SingleTrialMethod
     trial_labels: Optional[list[str]] = None
     residual_df: float = 0.0
     se: Optional[NDArray[np.float64]] = None

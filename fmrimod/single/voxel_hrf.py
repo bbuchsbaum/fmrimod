@@ -7,14 +7,25 @@ reconstructed from the estimated shapes.
 
 from __future__ import annotations
 
-from typing import Any, Optional, Literal
+from typing import Any, Literal, Optional, Protocol, runtime_checkable
 
 import numpy as np
 from numpy.typing import NDArray
 
 from ._project import project_nuisance
-from ._types import SingleTrialResult, VoxelHrfResult
+from ._types import SingleTrialMethod, SingleTrialResult, VoxelHrfResult
 from .lss import _lss_beta_vec
+
+
+@runtime_checkable
+class HrfEstimationDataset(Protocol):
+    """Dataset surface required by formula-based HRF estimation."""
+
+    n_runs: int
+    event_table: Any
+    sampling_frame: Any
+
+    def get_all_data(self) -> NDArray[np.float64]: ...
 
 
 def estimate_voxel_hrf(
@@ -152,7 +163,7 @@ def estimate_hrf(
     form: Any = None,
     fixed: Any = None,
     block: Any = None,
-    dataset: Any = None,
+    dataset: HrfEstimationDataset | None = None,
 ) -> NDArray[np.float64] | VoxelHrfResult:
     """Estimate HRF using matrix inputs or a limited formula+dataset path.
 
@@ -200,14 +211,11 @@ def estimate_hrf(
             raise ValueError("dataset mode requires both form and dataset")
         if basis is None:
             raise ValueError("dataset mode requires basis")
-        if not hasattr(dataset, "get_all_data") or not hasattr(dataset, "event_table"):
+        if not isinstance(dataset, HrfEstimationDataset):
             raise TypeError(
-                "dataset mode requires an object with get_all_data() and event_table"
+                "dataset mode requires an object with get_all_data(), "
+                "event_table, sampling_frame, and n_runs"
             )
-        if not hasattr(dataset, "sampling_frame"):
-            raise TypeError("dataset mode requires dataset.sampling_frame")
-        if not hasattr(dataset, "n_runs"):
-            raise TypeError("dataset mode requires dataset.n_runs")
         if int(dataset.n_runs) != 1:
             raise NotImplementedError("dataset mode currently supports single-run datasets only")
 
@@ -355,6 +363,6 @@ def lss_with_voxel_hrf(
 
     return SingleTrialResult(
         betas=betas,
-        method="lss_voxel_hrf",
+        method=SingleTrialMethod.LSS_VOXEL_HRF,
         residual_df=float(T - 2),
     )

@@ -21,7 +21,7 @@ Example
 
 from .library import SbhmLibrary, build_sbhm_library
 from .prepass import sbhm_prepass
-from .match import sbhm_match
+from .match import SbhmMatchResult, sbhm_match
 from .amplitude import sbhm_amplitude
 from .pipeline import sbhm_single_trial
 
@@ -29,6 +29,7 @@ __all__ = [
     "SbhmLibrary",
     "build_sbhm_library",
     "sbhm_prepass",
+    "SbhmMatchResult",
     "sbhm_match",
     "sbhm_amplitude",
     "sbhm_single_trial",

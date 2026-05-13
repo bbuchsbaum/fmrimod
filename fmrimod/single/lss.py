@@ -20,7 +20,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ._project import NuisanceProjector, build_nuisance_projector
-from ._types import SingleTrialResult
+from ._types import SingleTrialMethod, SingleTrialResult
 
 
 def _auto_chunk_size(
@@ -414,7 +414,7 @@ def lss_single_trial(
 
     return SingleTrialResult(
         betas=betas,
-        method="lss",
+        method=SingleTrialMethod.LSS,
         trial_labels=list(trial_labels) if trial_labels is not None else None,
         residual_df=dfres,
         se=se,

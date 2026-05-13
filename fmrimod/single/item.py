@@ -9,8 +9,8 @@ from __future__ import annotations
 import hashlib
 import warnings
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass, field, replace
+from typing import Any, Literal, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -18,22 +18,46 @@ from scipy import linalg, sparse
 
 from .lsa import lsa_single_trial
 
-SolverMethod = str
-VType = str
-CvMode = str
-MetricName = str
+SolverMethod = Literal["chol", "svd", "pinv"]
+VType = Literal["cov", "precision"]
+CvMode = Literal["classification", "regression"]
+ClassificationMetric = Literal["accuracy", "balanced_accuracy"]
+RegressionMetric = Literal["correlation", "rmse"]
+MetricName = Union[ClassificationMetric, RegressionMetric]
+UOutputMode = Literal["matrix", "by_run"]
+TargetLike = Union[NDArray[np.float64], Sequence[str], sparse.spmatrix]
+CovarianceLike = Union[
+    NDArray[np.float64],
+    Mapping[str, NDArray[np.float64]],
+    Sequence[NDArray[np.float64]],
+    sparse.spmatrix,
+]
 
 
-@dataclass
-class ItemCovarianceResult:
-    """Trial covariance output from :func:`item_compute_u`.
+@dataclass(frozen=True)
+class ItemCovarianceBaseResult:
+    """Base diagnostics for trial covariance output from :func:`item_compute_u`."""
 
-    Exactly one of ``U`` or ``U_by_run`` is expected to be populated.
-    """
-
-    U: NDArray[np.float64] | None = None
-    U_by_run: dict[str, NDArray[np.float64]] | None = None
     diagnostics: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ItemCovarianceMatrixResult(ItemCovarianceBaseResult):
+    """Full-matrix ITEM covariance output."""
+
+    U: NDArray[np.float64] = field(
+        default_factory=lambda: np.empty((0, 0), dtype=np.float64)
+    )
+
+
+@dataclass(frozen=True)
+class ItemCovarianceBlockResult(ItemCovarianceBaseResult):
+    """Run-block ITEM covariance output."""
+
+    U_by_run: dict[str, NDArray[np.float64]] = field(default_factory=dict)
+
+
+ItemCovarianceResult = Union[ItemCovarianceMatrixResult, ItemCovarianceBlockResult]
 
 
 @dataclass
@@ -44,7 +68,7 @@ class ItemWeightsResult:
     diagnostics: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(frozen=True)
 class ItemBundle:
     """Container for aligned ITEM inputs and metadata."""
 
@@ -116,8 +140,8 @@ class ItemCvAggregate:
 class ItemCvResult:
     """Cross-validated ITEM decoding result."""
 
-    mode: str
-    metric: str
+    mode: CvMode
+    metric: MetricName
     folds: list[ItemFoldMetrics]
     aggregate: ItemCvAggregate
     predictions: ItemPredictions
@@ -127,7 +151,7 @@ class ItemCvResult:
 @dataclass
 class _SolveResult:
     value: NDArray[np.float64]
-    method: str
+    method: SolverMethod
     warnings: list[str]
 
 
@@ -139,7 +163,7 @@ class _FoldScore:
 
 def item_build_design(
     X_t: NDArray[np.float64],
-    T_target: Any | None = None,
+    T_target: TargetLike | None = None,
     run_id: Sequence[Any] | None = None,
     C_transform: NDArray[np.float64] | None = None,
     trial_id: Sequence[Any] | None = None,
@@ -197,12 +221,12 @@ def item_build_design(
 
 def item_compute_u(
     X_t: NDArray[np.float64],
-    V: Any | None = None,
+    V: CovarianceLike | None = None,
     v_type: VType = "cov",
     ridge: float = 0.0,
     method: SolverMethod = "chol",
     run_id: Sequence[Any] | None = None,
-    output: str = "matrix",
+    output: UOutputMode = "matrix",
     tol: float = np.sqrt(np.finfo(np.float64).eps),
 ) -> ItemCovarianceResult:
     """Compute ITEM trial covariance ``U = (X' V^{-1} X + ridge I)^{-1}``."""
@@ -252,14 +276,14 @@ def item_compute_u(
     if output == "by_run":
         run_id_arr = _as_run_id(run_id, X_t_m.shape[1])
         blocks = _split_u_by_run(U, run_id_arr)
-        return ItemCovarianceResult(U=None, U_by_run=blocks, diagnostics=diagnostics)
-    return ItemCovarianceResult(U=U, U_by_run=None, diagnostics=diagnostics)
+        return ItemCovarianceBlockResult(U_by_run=blocks, diagnostics=diagnostics)
+    return ItemCovarianceMatrixResult(U=U, diagnostics=diagnostics)
 
 
 def item_fit(
     Gamma_train: NDArray[np.float64],
     T_train: NDArray[np.float64],
-    U_train: NDArray[np.float64] | Mapping[str, NDArray[np.float64]] | Sequence[NDArray[np.float64]] | ItemCovarianceResult,
+    U_train: CovarianceLike | ItemCovarianceResult,
     ridge: float = 0.0,
     method: SolverMethod = "chol",
     tol: float = np.sqrt(np.finfo(np.float64).eps),
@@ -358,7 +382,7 @@ def item_slice_fold(
     check_hash: bool = False,
 ) -> ItemFoldSplit:
     """Slice an ITEM bundle into deterministic LOSO train/test components."""
-    _validate_bundle(bundle, require_gamma=True, require_u=True, check_hash=check_hash)
+    bundle = _validate_bundle(bundle, require_gamma=True, require_u=True, check_hash=check_hash)
 
     run_values = _sorted_unique_runs(bundle.run_id)
     if not np.any(bundle.run_id == test_run):
@@ -407,8 +431,8 @@ def item_slice_fold(
 
 def item_cv(
     Gamma: ItemBundle | NDArray[np.float64],
-    T_target: Any | None = None,
-    U: NDArray[np.float64] | Mapping[str, NDArray[np.float64]] | Sequence[NDArray[np.float64]] | ItemCovarianceResult | None = None,
+    T_target: TargetLike | None = None,
+    U: CovarianceLike | ItemCovarianceResult | None = None,
     run_id: Sequence[Any] | None = None,
     mode: CvMode = "classification",
     metric: MetricName | None = None,
@@ -434,7 +458,7 @@ def item_cv(
         trial_hash=trial_hash,
     )
 
-    _validate_bundle(bundle, require_gamma=True, require_u=True, check_hash=check_hash)
+    bundle = _validate_bundle(bundle, require_gamma=True, require_u=True, check_hash=check_hash)
     folds = _sorted_unique_runs(bundle.run_id)
     if folds.size < 2:
         raise ValueError("item_cv requires at least 2 unique runs for LOSO CV.")
@@ -523,16 +547,16 @@ def item_cv(
 def item_from_lsa(
     Y: NDArray[np.float64],
     X_t: NDArray[np.float64],
-    T_target: Any,
+    T_target: TargetLike,
     run_id: Sequence[Any],
     confounds: NDArray[np.float64] | None = None,
     *,
     nuisance: NDArray[np.float64] | None = None,
-    V: Any | None = None,
+    V: CovarianceLike | None = None,
     v_type: VType = "cov",
     ridge: float = 0.0,
     solver: SolverMethod = "chol",
-    u_output: str = "matrix",
+    u_output: UOutputMode = "matrix",
     C_transform: NDArray[np.float64] | None = None,
     trial_id: Sequence[Any] | None = None,
     trial_hash: str | None = None,
@@ -582,30 +606,37 @@ def item_from_lsa(
         output=u_output,
     )
 
-    design_bundle.Gamma = Gamma
-    design_bundle.U = u_res.U
-    design_bundle.U_by_run = u_res.U_by_run
-    design_bundle.meta.update(
-        {"lsa_method": "python", "u_solver": solver, "v_type": v_type}
-    )
-    design_bundle.diagnostics.update(
-        {
-            "lsa": {"method": "python"},
-            "u": dict(u_res.diagnostics),
-        }
+    meta_out = {
+        **design_bundle.meta,
+        "lsa_method": "python",
+        "u_solver": solver,
+        "v_type": v_type,
+    }
+    diagnostics_out = {
+        **design_bundle.diagnostics,
+        "lsa": {"method": "python"},
+        "u": dict(u_res.diagnostics),
+    }
+    design_bundle = replace(
+        design_bundle,
+        Gamma=Gamma,
+        U=u_res.U if isinstance(u_res, ItemCovarianceMatrixResult) else None,
+        U_by_run=u_res.U_by_run if isinstance(u_res, ItemCovarianceBlockResult) else None,
+        meta=meta_out,
+        diagnostics=diagnostics_out,
     )
 
     if validate:
-        _validate_bundle(design_bundle, require_gamma=True, require_u=True, check_hash=False)
+        design_bundle = _validate_bundle(design_bundle, require_gamma=True, require_u=True, check_hash=False)
     return design_bundle
 
 
 def _prepare_cv_bundle(
     Gamma: ItemBundle | NDArray[np.float64],
-    T_target: Any | None,
-    U: NDArray[np.float64] | Mapping[str, NDArray[np.float64]] | Sequence[NDArray[np.float64]] | ItemCovarianceResult | None,
+    T_target: TargetLike | None,
+    U: CovarianceLike | ItemCovarianceResult | None,
     run_id: Sequence[Any] | None,
-    mode: str,
+    mode: CvMode,
     class_levels: list[str] | None,
     trial_id: Sequence[Any] | None,
     trial_hash: str | None,
@@ -619,7 +650,7 @@ def _prepare_cv_bundle(
         bundle = Gamma
         if mode == "classification" and bundle.T_target is not None:
             lvl = _class_levels(bundle.T_target, class_levels or bundle.meta.get("class_levels"))
-            bundle.meta["class_levels"] = lvl
+            bundle = replace(bundle, meta={**bundle.meta, "class_levels": lvl})
         return bundle
 
     Gamma_m = _as_numeric_matrix(Gamma, "Gamma")
@@ -652,8 +683,11 @@ def _prepare_cv_bundle(
 
     U_matrix: NDArray[np.float64] | None
     U_by_run: dict[str, NDArray[np.float64]] | None
-    if isinstance(U, ItemCovarianceResult):
+    if isinstance(U, ItemCovarianceMatrixResult):
         U_matrix = U.U
+        U_by_run = None
+    elif isinstance(U, ItemCovarianceBlockResult):
+        U_matrix = None
         U_by_run = U.U_by_run
     elif _is_u_blocks(U):
         U_matrix = None
@@ -689,7 +723,7 @@ def _validate_bundle(
     require_gamma: bool = True,
     require_u: bool = True,
     check_hash: bool = False,
-) -> None:
+) -> ItemBundle:
     run_id = bundle.run_id
     if run_id is None:
         raise ValueError("bundle.run_id is required.")
@@ -721,7 +755,7 @@ def _validate_bundle(
         )
 
     if bundle.U_by_run is not None:
-        bundle.U_by_run = _coerce_u_by_run(bundle.U_by_run, run_id)
+        bundle = replace(bundle, U_by_run=_coerce_u_by_run(bundle.U_by_run, run_id))
 
     if require_u and bundle.U is None and bundle.U_by_run is None:
         raise ValueError("bundle must include either U (full matrix) or U_by_run (run-block map).")
@@ -731,9 +765,10 @@ def _validate_bundle(
 
     if check_hash and bundle.trial_hash is not None:
         _check_trial_hash(bundle.trial_id, bundle.trial_hash)
+    return bundle
 
 
-def _prepare_targets(T_target: Any | None, n_trials: int) -> dict[str, Any]:
+def _prepare_targets(T_target: TargetLike | None, n_trials: int) -> dict[str, Any]:
     if T_target is None:
         return {
             "T_target": np.empty((n_trials, 0), dtype=np.float64),
@@ -886,10 +921,10 @@ def _coerce_u_by_run(
 
 
 def _apply_vinv(
-    V: Any | None,
+    V: CovarianceLike | None,
     X: NDArray[np.float64],
-    v_type: str,
-    method: str,
+    v_type: VType,
+    method: SolverMethod,
     tol: float,
 ) -> NDArray[np.float64]:
     if V is None:
@@ -922,8 +957,8 @@ def _apply_vinv(
 def _apply_vinv_blocks(
     V_blocks: Sequence[Any],
     X: NDArray[np.float64],
-    v_type: str,
-    method: str,
+    v_type: VType,
+    method: SolverMethod,
     tol: float,
 ) -> NDArray[np.float64]:
     if len(V_blocks) == 0:
@@ -969,7 +1004,7 @@ def _apply_vinv_blocks(
 def _safe_solve(
     A: NDArray[np.float64],
     B: NDArray[np.float64] | None,
-    method: str,
+    method: SolverMethod,
     tol: float,
     context: str,
 ) -> _SolveResult:
@@ -991,7 +1026,7 @@ def _safe_solve(
 def _solve_once(
     A: NDArray[np.float64],
     B: NDArray[np.float64] | None,
-    method: str,
+    method: SolverMethod,
     tol: float,
 ) -> NDArray[np.float64]:
     if method == "chol":
@@ -1042,8 +1077,8 @@ def _condition_number(A: NDArray[np.float64]) -> float:
 
 def _solver_warning(
     context: str,
-    requested: str,
-    used: str,
+    requested: SolverMethod,
+    used: SolverMethod,
     warnings_seen: Sequence[str],
 ) -> str | None:
     changed = requested != used
@@ -1075,13 +1110,11 @@ def _block_diag(blocks: Sequence[NDArray[np.float64]]) -> NDArray[np.float64]:
 
 
 def _coerce_u_matrix(
-    U: NDArray[np.float64] | Mapping[str, NDArray[np.float64]] | Sequence[NDArray[np.float64]] | ItemCovarianceResult
+    U: CovarianceLike | ItemCovarianceResult,
 ) -> NDArray[np.float64]:
-    if isinstance(U, ItemCovarianceResult):
-        if U.U is not None:
-            return _as_numeric_matrix(U.U, "U_train")
-        if U.U_by_run is None:
-            raise ValueError("ItemCovarianceResult must include U or U_by_run.")
+    if isinstance(U, ItemCovarianceMatrixResult):
+        return _as_numeric_matrix(U.U, "U_train")
+    if isinstance(U, ItemCovarianceBlockResult):
         return _block_diag(list(U.U_by_run.values()))
     if _is_u_blocks(U):
         if isinstance(U, Mapping):
@@ -1090,7 +1123,7 @@ def _coerce_u_matrix(
     return _as_numeric_matrix(U, "U_train")
 
 
-def _metric_name(mode: str, metric: str | None) -> str:
+def _metric_name(mode: CvMode, metric: MetricName | None) -> MetricName:
     if metric is None:
         return "accuracy" if mode == "classification" else "correlation"
     metric_norm = str(metric).lower()
@@ -1098,7 +1131,7 @@ def _metric_name(mode: str, metric: str | None) -> str:
         raise ValueError("Unsupported classification metric.")
     if mode == "regression" and metric_norm not in {"correlation", "rmse"}:
         raise ValueError("Unsupported regression metric.")
-    return metric_norm
+    return metric_norm  # type: ignore[return-value]
 
 
 def _class_levels(
@@ -1116,8 +1149,8 @@ def _class_levels(
 def _score_fold(
     T_true: NDArray[np.float64],
     T_hat: NDArray[np.float64],
-    mode: str,
-    metric: str,
+    mode: CvMode,
+    metric: MetricName,
     class_levels: list[str] | None,
 ) -> _FoldScore:
     if mode == "classification":
@@ -1197,7 +1230,7 @@ def _is_block_list(value: Any) -> bool:
 
 
 def _is_u_blocks(value: Any) -> bool:
-    if isinstance(value, ItemCovarianceResult):
+    if isinstance(value, (ItemCovarianceMatrixResult, ItemCovarianceBlockResult)):
         return False
     if isinstance(value, (str, bytes, np.ndarray)):
         return False
@@ -1207,6 +1240,8 @@ def _is_u_blocks(value: Any) -> bool:
 __all__ = [
     "ItemBundle",
     "ItemCovarianceResult",
+    "ItemCovarianceMatrixResult",
+    "ItemCovarianceBlockResult",
     "ItemCvAggregate",
     "ItemCvResult",
     "ItemFoldMetrics",

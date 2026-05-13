@@ -13,7 +13,7 @@ from numpy.typing import NDArray
 
 from ..glm.solver import fast_preproject, fast_lm_matrix
 from .lss import _build_adjustment_matrix
-from ._types import SingleTrialResult
+from ._types import SingleTrialMethod, SingleTrialResult
 
 
 def lsa_single_trial(
@@ -91,7 +91,7 @@ def lsa_single_trial(
 
     return SingleTrialResult(
         betas=betas,
-        method="lsa",
+        method=SingleTrialMethod.LSA,
         trial_labels=list(trial_labels) if trial_labels is not None else None,
         residual_df=result.dfres,
         se=se,
