@@ -36,7 +36,7 @@ class PythonParityBackend:
         if request.model == "meta":
             if request.combine is not None:
                 return self._fit_native_group_combine(request)
-            if getattr(request.data, "format", None) in ("h5", "nifti"):
+            if getattr(request.data, "format", None) in ("h5", "nifti", "fmrilm"):
                 return self._fit_native_group_meta(request)
             meta_out = fmri_meta(
                 data=request.data,
@@ -125,7 +125,7 @@ class PythonParityBackend:
             )
         if request.weights != "ivw":
             raise NotImplementedError(
-                "native group Python backend currently supports H5/NIfTI meta "
+                "native group Python backend currently supports native meta "
                 "requests only with inverse-variance weights"
             )
 
@@ -133,7 +133,7 @@ class PythonParityBackend:
         reducer_method = {"fe": "meta:fe", "dl": "meta:re"}.get(method)
         if reducer_method is None:
             raise NotImplementedError(
-                "native group Python backend currently supports H5/NIfTI meta "
+                "native group Python backend currently supports native meta "
                 "methods 'fe' and 'dl'"
             )
 

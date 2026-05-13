@@ -6,7 +6,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fmrimod.dataset import group_data_from_csv, group_data_from_h5
+from fmrimod.dataset import (
+    group_data_from_csv,
+    group_data_from_fmrilm,
+    group_data_from_h5,
+)
 from fmrimod.group import derive, group_dataset_from_group_data
 from fmrimod.group import reduce as group_reduce
 from fmrimod.stats import (
@@ -33,6 +37,14 @@ def _make_csv_group_data() -> object:
         subject_col="subject",
         roi_col="roi",
     )
+
+
+class _DummyFmriLm:
+    def __init__(self, beta: np.ndarray, se: np.ndarray) -> None:
+        self.betas = np.asarray(beta, dtype=np.float64)
+        self.se = np.asarray(se, dtype=np.float64)
+        self.tstat = self.betas / self.se
+        self.n_voxels = self.betas.shape[1]
 
 
 def test_group_fit_meta_matches_fmri_meta_for_fixed_effects():
@@ -88,6 +100,27 @@ def test_group_fit_meta_h5_uses_native_group_reducer(tmp_path):
     assert got.metadata["source"] == "fmrimod.group"
     assert got.metadata["source_format"] == "h5"
     assert got.metadata["reduce_method"] == "meta:fe"
+
+
+def test_group_fit_meta_fmrilm_uses_native_group_reducer():
+    gd = group_data_from_fmrilm(
+        [
+            _DummyFmriLm(np.array([[1.0, 2.0]]), np.array([[0.1, 0.2]])),
+            _DummyFmriLm(np.array([[3.0, 4.0]]), np.array([[0.1, 0.2]])),
+        ],
+        subjects=["s1", "s2"],
+        stat=("beta", "se"),
+    )
+
+    got = group_fit(GroupFitRequest(data=gd, model="meta", effects="fixed"))
+    native = group_reduce(group_dataset_from_group_data(gd), method="meta:fe")
+
+    assert got.metadata["source"] == "fmrimod.group"
+    assert got.metadata["source_format"] == "fmrilm"
+    assert got.metadata["reduce_method"] == "meta:fe"
+    assert got.feature_names == ["sample1", "sample2"]
+    np.testing.assert_allclose(got.estimate[:, 0], native.assay("beta_g")[:, 0, 0])
+    np.testing.assert_allclose(got.se[:, 0], native.assay("se_g")[:, 0, 0])
 
 
 def test_group_fit_meta_h5_formula_uses_native_group_regression(tmp_path):
