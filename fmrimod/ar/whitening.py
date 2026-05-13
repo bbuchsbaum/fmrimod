@@ -29,6 +29,8 @@ from .plan import WhiteningPlan, WhitenResult
 def ar_whiten(
     x: NDArray[np.float64],
     phi: NDArray[np.float64],
+    *,
+    exact_first_ar1: bool = False,
 ) -> NDArray[np.float64]:
     """Whiten a 1-D or 2-D array using AR coefficients.
 
@@ -41,6 +43,10 @@ def ar_whiten(
         Input array.  Shape ``(n,)`` or ``(n, V)``.
     phi : NDArray
         AR coefficients, shape ``(p,)``.
+    exact_first_ar1 : bool
+        If ``True`` and *phi* is AR(1), scale the first sample by
+        ``sqrt(1 - phi[0] ** 2)``. The default ``False`` matches the
+        low-level fmriAR conditional whitening convention.
 
     Returns
     -------
@@ -66,12 +72,9 @@ def ar_whiten(
         if n > k:
             result[k:, :] -= phi[k - 1] * x[:-k, :]
 
-    # For the first p rows, use a simple scaling approach
-    # (exact_first=False; exact approach is more complex)
-    for t in range(min(p, n)):
-        # Scale by sqrt(1 - sum(phi^2)) as approximate correction
-        scale = np.sqrt(max(1.0 - np.sum(phi[:t + 1] ** 2), 0.01))
-        result[t] = x[t] * scale
+    if exact_first_ar1 and p == 1 and n:
+        scale = np.sqrt(max(1.0 - phi[0] ** 2, 0.0))
+        result[0] = x[0] * scale
 
     if was_1d:
         return result.ravel()
@@ -82,6 +85,8 @@ def ar_whiten_matrix(
     X: NDArray[np.float64],
     Y: NDArray[np.float64],
     phi: NDArray[np.float64],
+    *,
+    exact_first_ar1: bool = False,
 ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Whiten both design and data matrices with AR coefficients.
 
@@ -94,6 +99,10 @@ def ar_whiten_matrix(
     phi : NDArray
         AR coefficients.  Shape ``(ar_order,)`` for global or
         ``(ar_order, V)`` for voxelwise.
+    exact_first_ar1 : bool
+        If ``True`` and AR order is 1, scale the first whitened sample by
+        ``sqrt(1 - phi[0] ** 2)``. Defaults to ``False`` to match fmriAR's
+        low-level whitening default.
 
     Returns
     -------
@@ -104,12 +113,15 @@ def ar_whiten_matrix(
 
     if phi.ndim == 1:
         # Global phi: apply same whitening to X and Y
-        return ar_whiten(X, phi), ar_whiten(Y, phi)
+        return (
+            ar_whiten(X, phi, exact_first_ar1=exact_first_ar1),
+            ar_whiten(Y, phi, exact_first_ar1=exact_first_ar1),
+        )
     else:
         # Voxelwise phi: X gets whitened with mean phi,
         # Y gets whitened voxel-by-voxel
         phi_mean = np.mean(phi, axis=1)
-        X_w = ar_whiten(X, phi_mean)
+        X_w = ar_whiten(X, phi_mean, exact_first_ar1=exact_first_ar1)
 
         Y_w = Y.copy()
         ar_order = phi.shape[0]
@@ -119,10 +131,9 @@ def ar_whiten_matrix(
             for k in range(1, ar_order + 1):
                 if n > k:
                     Y_w[k:, v] -= phi_v[k - 1] * Y[:-k, v]
-            # Approximate scaling for first ar_order rows
-            for t in range(min(ar_order, n)):
-                scale = np.sqrt(max(1.0 - np.sum(phi_v[:t + 1] ** 2), 0.01))
-                Y_w[t, v] = Y[t, v] * scale
+            if exact_first_ar1 and ar_order == 1 and n:
+                scale = np.sqrt(max(1.0 - phi_v[0] ** 2, 0.0))
+                Y_w[0, v] = Y[0, v] * scale
 
         return X_w, Y_w
 

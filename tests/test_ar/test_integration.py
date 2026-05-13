@@ -170,7 +170,7 @@ class TestIterativeGlsGlobalAr:
         monkeypatch.setattr("fmrimod.ar.integration.estimate_ar", fake_estimate_ar)
         monkeypatch.setattr(
             "fmrimod.ar.integration.ar_whiten_matrix",
-            lambda X, Y, phi: (X, Y),
+            lambda X, Y, phi, **kwargs: (X, Y),
         )
 
         config = FmriLmConfig(ar=AROptions(struct="ar1", iter_gls=1, global_ar=True))
@@ -196,7 +196,7 @@ class TestIterativeGlsGlobalAr:
         monkeypatch.setattr("fmrimod.ar.integration.estimate_ar", fake_estimate_ar)
         monkeypatch.setattr(
             "fmrimod.ar.integration.ar_whiten_matrix",
-            lambda X, Y, phi: (X, Y),
+            lambda X, Y, phi, **kwargs: (X, Y),
         )
 
         config = FmriLmConfig(ar=AROptions(struct="ar1", iter_gls=1, global_ar=False))
@@ -204,6 +204,39 @@ class TestIterativeGlsGlobalAr:
 
         assert ar_params.shape == (2, 1)
         np.testing.assert_allclose(ar_params[:, 0], np.array([0.2, 0.8]))
+
+    def test_exact_first_option_is_forwarded_to_simple_whitening(self, monkeypatch):
+        X_runs = [np.eye(4)]
+        Y_runs = [np.eye(4)]
+        model = _DummyModel(X_runs, Y_runs)
+        initial_fit = {
+            "residuals": [np.ones((4, 2))],
+            "run_X": X_runs,
+        }
+        seen = []
+
+        monkeypatch.setattr(
+            "fmrimod.ar.integration.estimate_ar",
+            lambda *args, **kwargs: np.array([0.4]),
+        )
+
+        def fake_whiten(X, Y, phi, **kwargs):
+            seen.append(kwargs["exact_first_ar1"])
+            return X, Y
+
+        monkeypatch.setattr("fmrimod.ar.integration.ar_whiten_matrix", fake_whiten)
+
+        config = FmriLmConfig(
+            ar=AROptions(
+                struct="ar1",
+                iter_gls=1,
+                global_ar=True,
+                exact_first=True,
+            )
+        )
+        iterative_gls(model, config, initial_fit)
+
+        assert seen == [True]
 
 
 class TestIterativeGlsRegression:

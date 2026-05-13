@@ -80,6 +80,42 @@ class TestArmaWhitenSegments:
         np.testing.assert_allclose(result, y)
 
 
+class TestSimpleArWhiten:
+    def test_ar_whiten_default_leaves_first_sample_unscaled(self):
+        y = np.arange(1.0, 6.0)[:, np.newaxis]
+        phi = np.array([0.6])
+
+        out = ar_whiten(y, phi)
+
+        np.testing.assert_allclose(out[0], y[0])
+        np.testing.assert_allclose(out[1:, 0], y[1:, 0] - 0.6 * y[:-1, 0])
+
+    def test_ar_whiten_exact_first_ar1_scales_first_sample_when_requested(self):
+        y = np.arange(1.0, 6.0)[:, np.newaxis]
+        phi = np.array([0.6])
+
+        out = ar_whiten(y, phi, exact_first_ar1=True)
+
+        np.testing.assert_allclose(out[0], y[0] * np.sqrt(1.0 - 0.6**2))
+        np.testing.assert_allclose(out[1:, 0], y[1:, 0] - 0.6 * y[:-1, 0])
+
+    def test_ar_whiten_matrix_voxelwise_exact_first_is_optional(self):
+        X = np.column_stack([np.ones(5), np.arange(5.0)])
+        Y = np.column_stack([np.arange(1.0, 6.0), np.arange(2.0, 7.0)])
+        phi = np.array([[0.3, 0.6]])
+
+        Xw_plain, Yw_plain = ar_whiten_matrix(X, Y, phi)
+        Xw_exact, Yw_exact = ar_whiten_matrix(X, Y, phi, exact_first_ar1=True)
+
+        np.testing.assert_allclose(Xw_plain[0], X[0])
+        np.testing.assert_allclose(Yw_plain[0], Y[0])
+        np.testing.assert_allclose(Xw_exact[0], X[0] * np.sqrt(1.0 - np.mean(phi) ** 2))
+        np.testing.assert_allclose(
+            Yw_exact[0],
+            Y[0] * np.sqrt(1.0 - phi.ravel() ** 2),
+        )
+
+
 class TestArmaBackendDispatch:
     def test_prefers_numba_backend_over_c_and_scipy(self, monkeypatch):
         y = np.random.RandomState(0).randn(40, 4)

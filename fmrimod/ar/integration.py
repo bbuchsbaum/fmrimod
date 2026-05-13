@@ -88,7 +88,12 @@ def iterative_gls(
             phi_r = run_ar_params[r]
 
             # Whiten
-            X_w, Y_w = ar_whiten_matrix(X_r, Y_r, phi_r)
+            X_w, Y_w = ar_whiten_matrix(
+                X_r,
+                Y_r,
+                phi_r,
+                exact_first_ar1=ar_opts.exact_first,
+            )
 
             # Re-fit
             proj = fast_preproject(X_w)
