@@ -6,16 +6,22 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import nibabel as nib
 import numpy as np
 import pandas as pd
-import nibabel as nib
 from nilearn.glm.second_level import SecondLevelModel
 from numpy.typing import NDArray
 
-from cross_testing.harness import Caveat, ParityCase, ParityTolerance, PipelineOutput, render, run
+from cross_testing.harness import (
+    ParityCase,
+    ParityTolerance,
+    PipelineOutput,
+    render,
+    run,
+)
 from fmrimod.dataset import group_data_from_csv
+from fmrimod.group import group_dataset_from_group_data, ols_voxelwise
 from fmrimod.stats import GroupFitRequest, group_fit
-
 
 Array = NDArray[np.float64]
 
@@ -116,54 +122,30 @@ def fmrimod_pipeline(inputs: SecondLevelInputs) -> PipelineOutput:
         roi_col="feature",
         covariates=inputs.covariates,
     )
-    reg = group_fit(
-        GroupFitRequest(
-            data=gd_reg,
-            model="meta",
-            formula="~ age",
-            method="fe",
-            weights="equal",
-        )
-    )
+    reg = ols_voxelwise(group_dataset_from_group_data(gd_reg), formula="~ 1 + age")
 
     return PipelineOutput(
         arrays={
             "one_sample_effect": one.estimate[:, 0],
             "one_sample_t": one.statistic[:, 0],
-            "age_effect": reg.estimate[:, 1],
-            "age_t": reg.statistic[:, 1],
+            "age_effect": reg.assay("coef:age")[:, 0, 0],
+            "age_t": reg.assay("t_coef:age")[:, 0, 0],
         }
     )
 
 
 def make_case() -> ParityCase:
-    caveat = Caveat(
-        caveat_id="second-level-normal-vs-t-pvalues",
-        quantity="age_t",
-        reason=(
-            "fmrimod fixed-effect meta regression uses supplied effect-size "
-            "standard errors, while Nilearn SecondLevelModel uses a second-level "
-            "OLS residual variance estimate. Coefficients are compared directly; "
-            "the statistic is rank/correlation checked as a documented API gap."
-        ),
-        expected="effect parity and statistic-rank agreement; no p-value assertion",
-        link="docs/contracts/second_level_parity_v1.md",
-    )
     return ParityCase(
         name="tier_c_second_level_synthetic",
         fmrimod_pipeline=fmrimod_pipeline,
         reference_pipeline=nilearn_pipeline,
         inputs=make_inputs(),
-        declared_caveats=(caveat,),
+        declared_caveats=(),
         tolerances={
             "one_sample_effect": ParityTolerance(rtol=1e-7, atol=1e-8),
             "one_sample_t": ParityTolerance(rtol=1e-6, atol=1e-6),
             "age_effect": ParityTolerance(rtol=1e-7, atol=1e-8),
-            "age_t": ParityTolerance(
-                check_allclose=False,
-                min_pearson=0.95,
-                min_spearman=0.95,
-            ),
+            "age_t": ParityTolerance(rtol=1e-6, atol=1e-6),
         },
     )
 
