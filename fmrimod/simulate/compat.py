@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any, Sequence
+from typing import Callable, Sequence, Union
 
 import numpy as np
 from numpy.typing import NDArray
 import pandas as pd
 
+from ..hrf.core import HRF
 from ..regressor import regressor
 from ..dataset.adapters import NumpyAdapter
 from ..dataset import FmriDataset
@@ -15,9 +16,15 @@ from ..sampling import SamplingFrame
 from .noise import ar_noise
 
 
+HrfSpec = Union[HRF, Callable[..., NDArray[np.float64]], str]
+"""Accepted HRF specifier for the simulate-compat constructors:
+a typed :class:`~fmrimod.hrf.HRF` instance, a registry key string,
+or a callable returning HRF samples."""
+
+
 def simulate_bold_signal(
     ncond: int,
-    hrf: Any = "spmg1",
+    hrf: HrfSpec = "spmg1",
     nreps: int = 12,
     amps: Sequence[float] | None = None,
     isi: Sequence[float] = (3.0, 6.0),
@@ -165,7 +172,7 @@ def simulate_fmri_matrix(
     n: int = 1,
     total_time: float = 240.0,
     TR: float = 2.0,
-    hrf: Any = "spmg1",
+    hrf: HrfSpec = "spmg1",
     n_events: int = 10,
     onsets: Sequence[float] | None = None,
     isi_dist: str = "even",
@@ -185,7 +192,7 @@ def simulate_fmri_matrix(
     random_seed: int | None = None,
     verbose: bool = False,
     buffer: float = 16.0,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Simulate an fMRI matrix dataset plus generation metadata.
 
     Returns keys mirroring fmrireg:
