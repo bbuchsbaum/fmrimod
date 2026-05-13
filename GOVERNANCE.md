@@ -505,6 +505,7 @@ governance is also governance.
 See also: [`MISSION.md`](MISSION.md) for the commitments this file
 operationalizes, [`VISION.md`](VISION.md) for the world-state argument,
 [`AGENTS.md`](AGENTS.md) for the day-to-day mote and commit workflow,
-[`docs/contracts/CAVEATS.md`](docs/contracts/CAVEATS.md) for the active
-parity divergences, and the `/types-end-to-end` skill for the canonical
-G1 refactor mechanics.
+[`message_board.md`](message_board.md) for board-to-bead conversion,
+[`docs/contracts/CAVEATS.md`](docs/contracts/CAVEATS.md) for the active parity
+divergences, and the `/types-end-to-end` skill for the canonical G1 refactor
+mechanics.
