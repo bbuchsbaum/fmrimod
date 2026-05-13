@@ -159,20 +159,22 @@ class FmriLm:
 
     def contrast(
         self,
-        spec: Union[NDArray[np.float64], str, dict[str, Any]],
+        spec: Union[NDArray[np.float64], str, dict[str, Any], "OmnibusContrast"],
         name: Optional[str] = None,
     ) -> ContrastResult:
         """Compute a contrast on the fitted model.
 
         Parameters
         ----------
-        spec : NDArray or str or dict
-            Contrast specification.  Can be:
+        spec : NDArray, str, dict, or OmnibusContrast
+            Contrast specification. Can be:
             - A 1-D vector for a t-contrast
             - A 2-D matrix for an F-contrast
             - A string name referring to a pre-defined contrast in
               the event model
             - A dict ``{"weights": array, "name": str}``
+            - An :class:`~fmrimod.contrast.OmnibusContrast` typed intent
+              value, resolved against the fit's :class:`DesignColumns`
         name : str, optional
             Override contrast name.
 
@@ -180,6 +182,14 @@ class FmriLm:
         -------
         ContrastResult
         """
+        from fmrimod.contrast.omnibus import OmnibusContrast
+
+        if isinstance(spec, OmnibusContrast):
+            weights = spec.resolve(self.design_columns())
+            return self._compute_contrast(
+                weights, name=name or spec.display_name
+            )
+
         if isinstance(spec, str):
             if name is None and spec in self.contrasts:
                 return self.contrasts[spec]

@@ -4,27 +4,29 @@ This module provides tools for defining and computing statistical contrasts
 for hypothesis testing in fMRI analyses.
 """
 
+from .basis_filter import apply_basis_filter, filter_basis
 from .contrast_spec import (
-    contrast,
-    unit_contrast,
-    pair_contrast,
     column_contrast,
-    poly_contrast,
-    oneway_contrast,
-    interaction_contrast,
+    contrast,
     contrast_set,
-    pairwise_contrasts,
+    interaction_contrast,
     one_against_all_contrast,
+    oneway_contrast,
+    pair_contrast,
+    pairwise_contrasts,
+    poly_contrast,
     sliding_window_contrasts,
+    unit_contrast,
 )
 from .contrast_weights import contrast_weights
-from .fcontrast import Fcontrasts, plot_Fcontrasts
-from .plot_contrasts import plot_contrasts
-from .basis_filter import filter_basis, apply_basis_filter
+from .errors import DesignProvenanceError
 from .factorial import (
-    generate_main_effect_contrast,
     generate_interaction_contrast,
+    generate_main_effect_contrast,
 )
+from .fcontrast import Fcontrasts, plot_Fcontrasts
+from .omnibus import OmnibusContrast
+from .plot_contrasts import plot_contrasts
 
 __all__ = [
     # Core contrast constructors
@@ -47,6 +49,9 @@ __all__ = [
     # F-contrasts
     'Fcontrasts',
     'plot_Fcontrasts',
+    # Typed contrast intent
+    'OmnibusContrast',
+    'DesignProvenanceError',
     # Visualization
     'plot_contrasts',
     # Basis filtering
