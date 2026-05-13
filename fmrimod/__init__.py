@@ -602,6 +602,9 @@ def combine_contrasts(*args, **kwargs):
     from .glm.combine import combine_contrasts as _combine_contrasts
     return _combine_contrasts(*args, **kwargs)
 
+
+from .glm.spatial import SpatialContext  # noqa: E402
+
 def soft_subspace_options(*args, **kwargs):
     """Create soft-subspace options for GLM fitting."""
     from .model import soft_subspace_options as _soft_subspace_options

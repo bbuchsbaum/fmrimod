@@ -206,7 +206,14 @@ class ContrastResult:
                 if self.stat_type == "t"
                 else ("stat", "p_value")
             )
-        vols = [ctx.reconstruct(self._vector_for(k), fill=fill) for k in kinds]
+        vols = []
+        for kind in kinds:
+            if kind in ("estimate", "effect", "effect_size", "beta"):
+                est = np.asarray(self.estimate, dtype=np.float64)
+                if est.ndim == 2 and est.shape[0] > 1:
+                    vols.extend(ctx.reconstruct(row, fill=fill) for row in est)
+                    continue
+            vols.append(ctx.reconstruct(self._vector_for(kind), fill=fill))
         stacked = np.stack(vols, axis=-1).astype(np.float64)
         space3d = ctx.to_neuro_space()
         space4d = neuroim.NeuroSpace(
