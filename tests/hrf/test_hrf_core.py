@@ -171,6 +171,85 @@ class TestSPMGTypedFields:
         assert hrf.nbasis == 3
 
 
+class TestBasisHRFTypedFields:
+    """Basis-set and parametric HRFs expose typed dataclass fields.
+
+    See bead ``bd-01KRGCYQAN2YGB2TE200JNYD0T``; locks the contract that
+    each kind has named fields rather than ``Dict[str, Any]`` keys.
+    """
+
+    def test_gamma_typed_fields(self):
+        from fmrimod.hrf.library import GammaHRF
+
+        hrf = GammaHRF(shape=8.0, rate=1.5)
+        assert hrf.shape == 8.0
+        assert hrf.rate == 1.5
+        assert hrf.params == {"shape": 8.0, "rate": 1.5}
+
+    def test_gaussian_typed_fields(self):
+        from fmrimod.hrf.library import GaussianHRF
+
+        hrf = GaussianHRF(mean=4.0, sd=1.5)
+        assert hrf.mean == 4.0
+        assert hrf.sd == 1.5
+
+    def test_bspline_typed_fields(self):
+        from fmrimod.hrf.library import BSplineHRF
+
+        hrf = BSplineHRF(nbasis=7, degree=3, span=30.0)
+        assert hrf.nbasis == 7
+        assert hrf.degree == 3
+        assert hrf.span == 30.0
+        result = hrf(np.linspace(0, 30, 50))
+        assert result.shape == (50, 7)
+
+    def test_fir_typed_fields(self):
+        from fmrimod.hrf.library import FIRHRF
+
+        hrf = FIRHRF(nbasis=8, span=20.0)
+        assert hrf.nbasis == 8
+        result = hrf(np.linspace(0, 20, 40))
+        assert result.shape == (40, 8)
+
+    def test_lwu_typed_fields_and_call_uses_them(self):
+        from fmrimod.hrf.library import LWUHRF
+
+        hrf = LWUHRF(tau=7.0, sigma=3.0, rho=0.4)
+        assert hrf.tau == 7.0
+        assert hrf.sigma == 3.0
+        assert hrf.rho == 0.4
+        # __call__ reads typed fields, not the back-compat params mirror.
+        hrf.params["tau"] = -999
+        ref = LWUHRF(tau=7.0, sigma=3.0, rho=0.4)(np.arange(0, 30, 1.0))
+        assert np.allclose(hrf(np.arange(0, 30, 1.0)), ref)
+
+    def test_lwu_validates_sigma_at_construction(self):
+        from fmrimod.hrf.library import LWUHRF
+
+        with pytest.raises(ValueError, match="sigma must be > 0.05"):
+            LWUHRF(sigma=0.01)
+
+    def test_lwu_validates_rho_at_construction(self):
+        from fmrimod.hrf.library import LWUHRF
+
+        with pytest.raises(ValueError, match="rho must be between 0 and 1.5"):
+            LWUHRF(rho=2.0)
+
+    def test_lwu_basis_typed_fields(self):
+        from fmrimod.hrf.library import LWUBasisHRF
+
+        hrf = LWUBasisHRF(theta0=(7.0, 3.0, 0.5))
+        assert hrf.theta0 == (7.0, 3.0, 0.5)
+        result = hrf(np.linspace(0, 30, 60))
+        assert result.shape == (60, 4)
+
+    def test_lwu_basis_rejects_wrong_theta0_length(self):
+        from fmrimod.hrf.library import LWUBasisHRF
+
+        with pytest.raises(ValueError, match="theta0 must have length 3"):
+            LWUBasisHRF(theta0=(1.0, 2.0))  # type: ignore[arg-type]
+
+
 class TestAsHRF:
     """Test as_hrf function."""
     

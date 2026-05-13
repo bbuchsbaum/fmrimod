@@ -1,157 +1,308 @@
-"""Pre-defined HRF objects."""
+"""Pre-defined HRF objects.
+
+Each predefined HRF kind is a typed ``@dataclass`` subclass of
+:class:`HRF` with named parameter fields, then the module-level
+constants (``GAMMA_HRF``, ``HRF_SPMG1``, ...) are default instances of
+those classes. The ``FunctionHRF`` indirection survives only as the
+adapter for raw callables (see ``empirical_hrf``, ``as_hrf``).
+
+During the transition window each class still mirrors its typed fields
+into the inherited ``params`` / ``param_names`` for cross-testing
+readers; bead ``bd-01KRGCZJ6JAA4BKRTNQ91P2PE5`` retires that mirror.
+"""
 
 from __future__ import annotations
 
-from .core import FunctionHRF
+from dataclasses import dataclass, field
+from typing import Literal
+
+import numpy as np
+from numpy.typing import ArrayLike, NDArray
+
+from .core import HRF
 from .functions import (
-    spm_canonical,
+    bspline_hrf,
+    fir_basis,
+    fourier_hrf,
     gamma_hrf,
     gaussian_hrf,
-    bspline_hrf,
-    fourier_hrf,
-    fir_basis,
-    hrf_time,
-    hrf_mexhat,
-    hrf_inv_logit,
-    hrf_half_cosine,
-    hrf_sine,
-    hrf_lwu,
     hrf_basis_lwu,
+    hrf_half_cosine,
+    hrf_inv_logit,
+    hrf_lwu,
+    hrf_mexhat,
+    hrf_sine,
+    hrf_time,
 )
 from .spm_hrf import SPMG1_HRF, SPMG2_HRF, SPMG3_HRF
 from ..hrf_dispatch import SimpleHRF
 
 
+# --- Single-basis kernels --------------------------------------------------
+
+
+@dataclass
+class GammaHRF(HRF):
+    name: str = "gamma"
+    nbasis: int = 1
+    span: float = 24.0
+    shape: float = 6.0
+    rate: float = 1.0
+
+    def __post_init__(self) -> None:
+        self.params = {"shape": self.shape, "rate": self.rate}
+        self.param_names = ["shape", "rate"]
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        return gamma_hrf(t, shape=self.shape, rate=self.rate)
+
+
+@dataclass
+class GaussianHRF(HRF):
+    name: str = "gaussian"
+    nbasis: int = 1
+    span: float = 24.0
+    mean: float = 6.0
+    sd: float = 2.0
+
+    def __post_init__(self) -> None:
+        self.params = {"mean": self.mean, "sd": self.sd}
+        self.param_names = ["mean", "sd"]
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        return gaussian_hrf(t, mean=self.mean, sd=self.sd)
+
+
+@dataclass
+class MexhatHRF(HRF):
+    name: str = "mexhat"
+    nbasis: int = 1
+    span: float = 24.0
+    mean: float = 6.0
+    sd: float = 2.0
+
+    def __post_init__(self) -> None:
+        self.params = {"mean": self.mean, "sd": self.sd}
+        self.param_names = ["mean", "sd"]
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        return hrf_mexhat(t, mean=self.mean, sd=self.sd)
+
+
+@dataclass
+class InvLogitHRF(HRF):
+    name: str = "inv_logit"
+    nbasis: int = 1
+    span: float = 30.0
+    mu1: float = 6.0
+    s1: float = 1.0
+    mu2: float = 16.0
+    s2: float = 1.0
+    lag: float = 0.0
+
+    def __post_init__(self) -> None:
+        self.params = {
+            "mu1": self.mu1,
+            "s1": self.s1,
+            "mu2": self.mu2,
+            "s2": self.s2,
+            "lag": self.lag,
+        }
+        self.param_names = ["mu1", "s1", "mu2", "s2", "lag"]
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        return hrf_inv_logit(
+            t, mu1=self.mu1, s1=self.s1, mu2=self.mu2, s2=self.s2, lag=self.lag,
+        )
+
+
+@dataclass
+class HalfCosineHRF(HRF):
+    name: str = "half_cosine"
+    nbasis: int = 1
+    span: float = 24.0
+    h1: float = 1.0
+    h2: float = 5.0
+    h3: float = 7.0
+    h4: float = 7.0
+    f1: float = 0.0
+    f2: float = 0.0
+
+    def __post_init__(self) -> None:
+        self.params = {
+            "h1": self.h1, "h2": self.h2, "h3": self.h3, "h4": self.h4,
+            "f1": self.f1, "f2": self.f2,
+        }
+        self.param_names = ["h1", "h2", "h3", "h4", "f1", "f2"]
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        return hrf_half_cosine(
+            t, h1=self.h1, h2=self.h2, h3=self.h3, h4=self.h4,
+            f1=self.f1, f2=self.f2,
+        )
+
+
+@dataclass
+class TimeHRF(HRF):
+    name: str = "time"
+    nbasis: int = 1
+    span: float = 22.0
+    max_time: float = 22.0
+
+    def __post_init__(self) -> None:
+        self.params = {"max_time": self.max_time}
+        self.param_names = ["max_time"]
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        return hrf_time(t, max_time=self.max_time)
+
+
+# --- Multi-basis kernels ---------------------------------------------------
+
+
+@dataclass
+class BSplineHRF(HRF):
+    name: str = "bspline"
+    nbasis: int = 5
+    span: float = 24.0
+    degree: int = 3
+
+    def __post_init__(self) -> None:
+        self.params = {"n_basis": self.nbasis, "degree": self.degree}
+        self.param_names = ["n_basis", "degree"]
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        return bspline_hrf(t, n_basis=self.nbasis, degree=self.degree, span=self.span)
+
+
+@dataclass
+class FIRHRF(HRF):
+    name: str = "fir"
+    nbasis: int = 12
+    span: float = 24.0
+
+    def __post_init__(self) -> None:
+        self.params = {"n_basis": self.nbasis}
+        self.param_names = ["n_basis"]
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        return fir_basis(t, n_basis=self.nbasis, span=self.span)
+
+
+@dataclass
+class FourierHRF(HRF):
+    name: str = "fourier"
+    nbasis: int = 5
+    span: float = 24.0
+
+    def __post_init__(self) -> None:
+        self.params = {"n_basis": self.nbasis}
+        self.param_names = ["n_basis"]
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        return fourier_hrf(t, n_basis=self.nbasis, span=self.span)
+
+
+@dataclass
+class SineHRF(HRF):
+    name: str = "sine"
+    nbasis: int = 5
+    span: float = 24.0
+
+    def __post_init__(self) -> None:
+        self.params = {"span": self.span, "n_basis": self.nbasis}
+        self.param_names = ["span", "n_basis"]
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        return hrf_sine(t, span=self.span, n_basis=self.nbasis)
+
+
+@dataclass
+class LWUHRF(HRF):
+    """Lag-Width-Undershoot HRF.
+
+    Validates ``sigma``, ``rho`` and ``normalize`` at construction so the
+    kernel doesn't need to re-check on every call.
+    """
+
+    name: str = "lwu"
+    nbasis: int = 1
+    span: float = 30.0
+    tau: float = 6.0
+    sigma: float = 2.5
+    rho: float = 0.35
+    normalize: Literal["none", "height", "area"] = "none"
+
+    def __post_init__(self) -> None:
+        if self.sigma <= 0.05:
+            raise ValueError("sigma must be > 0.05")
+        if not 0 <= self.rho <= 1.5:
+            raise ValueError("rho must be between 0 and 1.5")
+        if self.normalize not in ("none", "height", "area"):
+            raise ValueError("normalize must be 'none', 'height', or 'area'")
+        self.params = {
+            "tau": self.tau, "sigma": self.sigma, "rho": self.rho,
+            "normalize": self.normalize,
+        }
+        self.param_names = ["tau", "sigma", "rho", "normalize"]
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        return hrf_lwu(
+            t, tau=self.tau, sigma=self.sigma, rho=self.rho,
+            normalize=self.normalize,
+        )
+
+
+def _default_lwu_theta0() -> tuple[float, float, float]:
+    return (6.0, 2.5, 0.35)
+
+
+@dataclass
+class LWUBasisHRF(HRF):
+    name: str = "lwu_basis"
+    nbasis: int = 4
+    span: float = 30.0
+    theta0: tuple[float, float, float] = field(default_factory=_default_lwu_theta0)
+    normalize_primary: Literal["none", "height"] = "none"
+
+    def __post_init__(self) -> None:
+        if len(self.theta0) != 3:
+            raise ValueError("theta0 must have length 3 [tau, sigma, rho]")
+        if self.normalize_primary not in ("none", "height"):
+            raise ValueError("normalize_primary must be 'none' or 'height'")
+        # params back-compat keeps the list form ([..]) since cross_testing
+        # readers may rely on it; the typed field is a tuple.
+        self.params = {
+            "theta0": list(self.theta0),
+            "normalize_primary": self.normalize_primary,
+        }
+        self.param_names = ["theta0", "normalize_primary"]
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        return hrf_basis_lwu(
+            list(self.theta0), t, normalize_primary=self.normalize_primary,
+        )
+
+
+# --- Singleton instances ---------------------------------------------------
+
 # SPM Canonical HRF (now with analytic derivative support)
 SPM_CANONICAL = SPMG1_HRF(p1=5.0, p2=15.0, a1=0.0833)
-
-# SPM with temporal derivative (now with analytic derivative support)
 SPM_WITH_DERIVATIVE = SPMG2_HRF(p1=5.0, p2=15.0, a1=0.0833)
-
-
-# SPM with temporal and dispersion derivatives (now with analytic derivative support)
 SPM_WITH_DISPERSION = SPMG3_HRF(p1=5.0, p2=15.0, a1=0.0833)
 
-
-# Gamma HRF
-GAMMA_HRF = FunctionHRF(
-    func=lambda t: gamma_hrf(t, shape=6.0, rate=1.0),
-    name="gamma",
-    nbasis=1,
-    span=24.0,
-    params={"shape": 6.0, "rate": 1.0},
-    param_names=["shape", "rate"],
-)
-
-# Gaussian HRF
-GAUSSIAN_HRF = FunctionHRF(
-    func=lambda t: gaussian_hrf(t, mean=6.0, sd=2.0),
-    name="gaussian",
-    nbasis=1,
-    span=24.0,
-    params={"mean": 6.0, "sd": 2.0},
-    param_names=["mean", "sd"],
-)
-
-# B-spline basis HRF
-BSPLINE_HRF = FunctionHRF(
-    func=lambda t: bspline_hrf(t, n_basis=5, degree=3, span=24.0),
-    name="bspline",
-    nbasis=5,
-    span=24.0,
-    params={"n_basis": 5, "degree": 3},
-    param_names=["n_basis", "degree"],
-)
-
-# FIR basis HRF
-FIR_HRF = FunctionHRF(
-    func=lambda t: fir_basis(t, n_basis=12, span=24.0),
-    name="fir",
-    nbasis=12,
-    span=24.0,
-    params={"n_basis": 12},
-    param_names=["n_basis"],
-)
-
-# Fourier basis HRF
-FOURIER_HRF = FunctionHRF(
-    func=lambda t: fourier_hrf(t, n_basis=5, span=24.0),
-    name="fourier",
-    nbasis=5,
-    span=24.0,
-    params={"n_basis": 5},
-    param_names=["n_basis"],
-)
-
-# Time HRF
-TIME_HRF = FunctionHRF(
-    func=lambda t: hrf_time(t, max_time=22.0),
-    name="time",
-    nbasis=1,
-    span=22.0,
-    params={"max_time": 22.0},
-    param_names=["max_time"],
-)
-
-# Mexican Hat HRF
-MEXHAT_HRF = FunctionHRF(
-    func=lambda t: hrf_mexhat(t, mean=6.0, sd=2.0),
-    name="mexhat",
-    nbasis=1,
-    span=24.0,
-    params={"mean": 6.0, "sd": 2.0},
-    param_names=["mean", "sd"],
-)
-
-# Inverse Logit HRF
-INV_LOGIT_HRF = FunctionHRF(
-    func=lambda t: hrf_inv_logit(t, mu1=6.0, s1=1.0, mu2=16.0, s2=1.0, lag=0.0),
-    name="inv_logit",
-    nbasis=1,
-    span=30.0,
-    params={"mu1": 6.0, "s1": 1.0, "mu2": 16.0, "s2": 1.0, "lag": 0.0},
-    param_names=["mu1", "s1", "mu2", "s2", "lag"],
-)
-
-# Half Cosine HRF
-HALF_COSINE_HRF = FunctionHRF(
-    func=lambda t: hrf_half_cosine(t, h1=1.0, h2=5.0, h3=7.0, h4=7.0, f1=0.0, f2=0.0),
-    name="half_cosine",
-    nbasis=1,
-    span=24.0,
-    params={"h1": 1.0, "h2": 5.0, "h3": 7.0, "h4": 7.0, "f1": 0.0, "f2": 0.0},
-    param_names=["h1", "h2", "h3", "h4", "f1", "f2"],
-)
-
-# Sine basis HRF
-SINE_HRF = FunctionHRF(
-    func=lambda t: hrf_sine(t, span=24.0, n_basis=5),
-    name="sine",
-    nbasis=5,
-    span=24.0,
-    params={"span": 24.0, "n_basis": 5},
-    param_names=["span", "n_basis"],
-)
-
-# LWU HRF
-LWU_HRF = FunctionHRF(
-    func=lambda t: hrf_lwu(t, tau=6.0, sigma=2.5, rho=0.35, normalize="none"),
-    name="lwu",
-    nbasis=1,
-    span=30.0,
-    params={"tau": 6.0, "sigma": 2.5, "rho": 0.35, "normalize": "none"},
-    param_names=["tau", "sigma", "rho", "normalize"],
-)
-
-# LWU Basis HRF
-LWU_BASIS_HRF = FunctionHRF(
-    func=lambda t: hrf_basis_lwu([6.0, 2.5, 0.35], t, normalize_primary="none"),
-    name="lwu_basis",
-    nbasis=4,
-    span=30.0,
-    params={"theta0": [6.0, 2.5, 0.35], "normalize_primary": "none"},
-    param_names=["theta0", "normalize_primary"],
-)
+GAMMA_HRF = GammaHRF()
+GAUSSIAN_HRF = GaussianHRF()
+BSPLINE_HRF = BSplineHRF()
+FIR_HRF = FIRHRF()
+FOURIER_HRF = FourierHRF()
+TIME_HRF = TimeHRF()
+MEXHAT_HRF = MexhatHRF()
+INV_LOGIT_HRF = InvLogitHRF()
+HALF_COSINE_HRF = HalfCosineHRF()
+SINE_HRF = SineHRF()
+LWU_HRF = LWUHRF()
+LWU_BASIS_HRF = LWUBasisHRF()
 
 # Simple HRF for testing
 SIMPLE_HRF = SimpleHRF()
