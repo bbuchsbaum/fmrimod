@@ -255,7 +255,10 @@ def compile_baseline(
 
     nuisance_list = None
     if confounds:
-        # Pull confound matrices per run from each Confounds.source.
+        # Pull confound matrices per run from each Confounds.source. Keep the
+        # column names as a DataFrame so downstream rank/aliasing diagnostics
+        # surface the user-visible labels ("motion_x") instead of the
+        # auto-numbered "V1"/"V2"/"V3" placeholders.
         per_run = []
         for c in confounds:
             if c.source is None:
@@ -263,7 +266,9 @@ def compile_baseline(
                     "Confounds without an explicit `source` DataFrame are not yet "
                     "supported; supply source= or pre-join into the event table."
                 )
-            per_run.append(np.asarray(c.source[list(c.columns)].to_numpy(), dtype=np.float64))
+            per_run.append(
+                c.source[list(c.columns)].astype(np.float64).copy()
+            )
         nuisance_list = per_run
 
     return build_baseline(

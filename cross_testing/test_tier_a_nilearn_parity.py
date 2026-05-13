@@ -22,6 +22,7 @@ pytest.importorskip("nibabel")
         "benchmarks.parity.tier_a_parametric_modulation.workflow",
         "benchmarks.parity.tier_a_fir_unconstrained_hrf.workflow",
         "benchmarks.parity.tier_a_factorial_2x2.workflow",
+        "benchmarks.parity.tier_a_multicollinear_baseline.workflow",
     ],
 )
 def test_tier_a_nilearn_case_passes_and_renders(module_name, tmp_path):

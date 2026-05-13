@@ -69,6 +69,65 @@ class Projection:
     is_full_rank: bool
     ill_conditioned: bool
     XtX: Optional[NDArray[np.float64]] = None
+    aliased_indices: tuple[int, ...] = ()
+
+
+@dataclass(frozen=True)
+class RunConditionReport:
+    """Per-run rank/conditioning summary.
+
+    Attributes
+    ----------
+    run
+        Zero-based run index.
+    n_columns
+        Number of design-matrix columns (``p``) for this run.
+    rank
+        Numerical rank of the design matrix.
+    is_full_rank
+        Whether ``rank == n_columns``.
+    ill_conditioned
+        Whether the solver routed through the SVD pseudoinverse path
+        because of rank deficiency or poor conditioning.
+    dfres
+        Residual degrees of freedom (``n - rank``).
+    aliased_columns
+        Best-effort tuple of column names that are linearly dependent on
+        earlier columns and therefore not individually identifiable. Empty
+        for full-rank designs.
+    """
+
+    run: int
+    n_columns: int
+    rank: int
+    is_full_rank: bool
+    ill_conditioned: bool
+    dfres: float
+    aliased_columns: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ConditionReport:
+    """Rank/conditioning summary aggregated over all runs of a fit."""
+
+    runs: tuple[RunConditionReport, ...]
+
+    @property
+    def is_full_rank(self) -> bool:
+        return all(run.is_full_rank for run in self.runs)
+
+    @property
+    def ill_conditioned(self) -> bool:
+        return any(run.ill_conditioned for run in self.runs)
+
+    @property
+    def aliased_columns(self) -> tuple[str, ...]:
+        seen: list[str] = []
+        for run in self.runs:
+            for name in run.aliased_columns:
+                if name not in seen:
+                    seen.append(name)
+        return tuple(seen)
 
 
 def fast_preproject(
@@ -138,15 +197,20 @@ def fast_preproject(
     except np.linalg.LinAlgError:
         used_cholesky = False
 
+    aliased_indices: tuple[int, ...] = ()
     if not used_cholesky:
-        # Fallback: rank-revealing QR + SVD when needed.
-        _Q, R, _pivot = linalg.qr(X, pivoting=True, mode="economic", check_finite=False)
+        # Fallback: rank-revealing QR + SVD when needed. The QR pivot tells
+        # us which columns the decomposition treats as redundant — used
+        # below to surface aliased-column names in the rank diagnostic.
+        _Q, R, pivot = linalg.qr(X, pivoting=True, mode="economic", check_finite=False)
 
         diag_R = np.abs(np.diag(R))
         tol = max(n, p) * eps * (
             diag_R[0] if len(diag_R) > 0 else dtype.type(1.0)
         )
         rank = int(np.sum(diag_R > tol))
+        if rank < p:
+            aliased_indices = tuple(int(idx) for idx in pivot[rank:])
 
         use_svd = rank != p
         if rank == p:
@@ -190,6 +254,7 @@ def fast_preproject(
         is_full_rank=(rank == p),
         ill_conditioned=ill_conditioned,
         XtX=XtX_cached,
+        aliased_indices=aliased_indices,
     )
 
 
