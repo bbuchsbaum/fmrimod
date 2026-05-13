@@ -272,8 +272,20 @@ out_s <- reduce(
 jsonlite::write_json(
   list(
     ri_coef_condition = as.numeric(assay(out_ri, "coef:condition")[, 1, 1]),
+    ri_se_condition = as.numeric(assay(out_ri, "se_coef:condition")[, 1, 1]),
+    ri_t_condition = as.numeric(assay(out_ri, "t_coef:condition")[, 1, 1]),
+    ri_p_condition = as.numeric(assay(out_ri, "p_coef:condition")[, 1, 1]),
+    ri_df_res = as.numeric(assay(out_ri, "df_res")[, 1, 1]),
+    ri_sigma2 = as.numeric(assay(out_ri, "sigma2")[, 1, 1]),
+    ri_converged = as.numeric(assay(out_ri, "converged")[, 1, 1]),
     ri_lambda = as.numeric(assay(out_ri, "lambda")[, 1, 1]),
     slope_coef_time = as.numeric(assay(out_s, "coef:time")[, 1, 1]),
+    slope_se_time = as.numeric(assay(out_s, "se_coef:time")[, 1, 1]),
+    slope_t_time = as.numeric(assay(out_s, "t_coef:time")[, 1, 1]),
+    slope_p_time = as.numeric(assay(out_s, "p_coef:time")[, 1, 1]),
+    slope_df_res = as.numeric(assay(out_s, "df_res")[, 1, 1]),
+    slope_sigma2 = as.numeric(assay(out_s, "sigma2")[, 1, 1]),
+    slope_converged = as.numeric(assay(out_s, "converged")[, 1, 1]),
     slope_lambda = as.numeric(assay(out_s, "lambda_slope")[, 1, 1])
   ),
   result_path,
@@ -606,6 +618,38 @@ def test_native_lmm_voxelwise_reducers_match_fmrigds_oracle() -> None:
         atol=1e-6,
     )
     np.testing.assert_allclose(
+        ri.assay("se_coef:condition")[:, 0, 0],
+        np.asarray(oracle["ri_se_condition"], dtype=np.float64),
+        rtol=1e-4,
+        atol=1e-5,
+    )
+    np.testing.assert_allclose(
+        ri.assay("t_coef:condition")[:, 0, 0],
+        np.asarray(oracle["ri_t_condition"], dtype=np.float64),
+        rtol=1e-4,
+        atol=1e-4,
+    )
+    np.testing.assert_allclose(
+        ri.assay("p_coef:condition")[:, 0, 0],
+        np.asarray(oracle["ri_p_condition"], dtype=np.float64),
+        rtol=1e-4,
+        atol=1e-6,
+    )
+    np.testing.assert_allclose(
+        ri.assay("df_res")[:, 0, 0],
+        np.asarray(oracle["ri_df_res"], dtype=np.float64),
+    )
+    np.testing.assert_allclose(
+        ri.assay("sigma2")[:, 0, 0],
+        np.asarray(oracle["ri_sigma2"], dtype=np.float64),
+        rtol=1e-4,
+        atol=1e-5,
+    )
+    np.testing.assert_allclose(
+        ri.assay("converged")[:, 0, 0],
+        np.asarray(oracle["ri_converged"], dtype=np.float64),
+    )
+    np.testing.assert_allclose(
         ri.assay("lambda")[:, 0, 0],
         np.asarray(oracle["ri_lambda"], dtype=np.float64),
         rtol=1e-4,
@@ -623,6 +667,38 @@ def test_native_lmm_voxelwise_reducers_match_fmrigds_oracle() -> None:
         np.asarray(oracle["slope_coef_time"], dtype=np.float64),
         rtol=1e-5,
         atol=1e-6,
+    )
+    np.testing.assert_allclose(
+        slope.assay("se_coef:time")[:, 0, 0],
+        np.asarray(oracle["slope_se_time"], dtype=np.float64),
+        rtol=2e-4,
+        atol=1e-5,
+    )
+    np.testing.assert_allclose(
+        slope.assay("t_coef:time")[:, 0, 0],
+        np.asarray(oracle["slope_t_time"], dtype=np.float64),
+        rtol=2e-4,
+        atol=1e-4,
+    )
+    np.testing.assert_allclose(
+        slope.assay("p_coef:time")[:, 0, 0],
+        np.asarray(oracle["slope_p_time"], dtype=np.float64),
+        rtol=2e-4,
+        atol=1e-6,
+    )
+    np.testing.assert_allclose(
+        slope.assay("df_res")[:, 0, 0],
+        np.asarray(oracle["slope_df_res"], dtype=np.float64),
+    )
+    np.testing.assert_allclose(
+        slope.assay("sigma2")[:, 0, 0],
+        np.asarray(oracle["slope_sigma2"], dtype=np.float64),
+        rtol=2e-4,
+        atol=1e-5,
+    )
+    np.testing.assert_allclose(
+        slope.assay("converged")[:, 0, 0],
+        np.asarray(oracle["slope_converged"], dtype=np.float64),
     )
     np.testing.assert_allclose(
         slope.assay("lambda_slope")[:, 0, 0],
