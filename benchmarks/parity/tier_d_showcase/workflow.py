@@ -17,7 +17,6 @@ from fmrimod.lowrank import LowRankConfig, fit_sketched
 from fmrimod.robust import huber_weights, mad_scale
 from fmrimod.single import estimate_single_trial
 
-
 Array = NDArray[np.float64]
 
 
@@ -175,6 +174,90 @@ def run_lss_showcase(seed: int = 2028) -> ShowcaseRow:
     )
 
 
+def run_lss_public_seam_showcase(seed: int = 2029) -> ShowcaseRow:
+    """Exercise the public-seam single-trial path end-to-end.
+
+    Builds a synthetic ``FmriDataset`` plus events table, calls
+    ``estimate_single_trial_from_dataset(ds, "trialwise()", method="lss",
+    include_intercept=True)`` (the Slice 1 public-seam wrapper from
+    ``bd-01KRGQCT34QWSYKQ38BVFHD51E``), and verifies the result matches a
+    direct ``estimate_single_trial(Y, X, ...)`` call on the same realised
+    design. The claim is "the public-seam wrapper is numerically transparent
+    against the matrix-first dispatcher at benchmark scale," not "fmrimod
+    matches a third-party reference" (the matrix-first ``run_lss_showcase``
+    row already owns that canary).
+    """
+    import pandas as pd
+
+    from fmrimod import fmri_dataset
+    from fmrimod.design.event_model import event_model as _build_event_model
+    from fmrimod.single import (
+        estimate_single_trial,
+        estimate_single_trial_from_dataset,
+    )
+
+    rng = np.random.default_rng(seed)
+    n_time = 90
+    n_trials = 12
+    n_voxels = 32
+    tr = 2.0
+
+    onsets = np.linspace(4.0, n_time * tr - 16.0, n_trials, dtype=np.float64)
+    events = pd.DataFrame({
+        "onset": onsets,
+        "duration": np.zeros_like(onsets),
+        "run": np.ones(n_trials, dtype=int),
+    })
+
+    em = _build_event_model(
+        formula="trialwise()",
+        data=events,
+        block="run",
+        tr=tr,
+        n_scans=n_time,
+    )
+    X = np.ascontiguousarray(np.asarray(em.design_matrix, dtype=np.float64))
+
+    true_betas = rng.normal(scale=0.7, size=(n_trials, n_voxels))
+    bold = X @ true_betas + rng.normal(scale=0.03, size=(n_time, n_voxels))
+    ds = fmri_dataset(bold.astype(np.float64), tr=tr, events=events)
+
+    wrapper_result, wrapper_seconds = _elapsed(
+        lambda: estimate_single_trial_from_dataset(
+            ds, "trialwise()", method="lss", include_intercept=True,
+        )
+    )
+    matrix_result, matrix_seconds = _elapsed(
+        lambda: estimate_single_trial(
+            bold.astype(np.float64), X, method="lss", include_intercept=True,
+        )
+    )
+
+    max_abs = float(np.max(np.abs(wrapper_result.betas - matrix_result.betas)))
+    status = "pass" if max_abs < 1e-12 else "fail"
+    return ShowcaseRow(
+        case_id="tier_d_lss_public_seam",
+        capability="public-seam single-trial wrapper (dataset + spec)",
+        status=status,
+        metric="max_abs_delta",
+        value=max_abs,
+        threshold=1e-12,
+        details={
+            "wrapper_seconds": wrapper_seconds,
+            "matrix_seconds": matrix_seconds,
+            "wrapper_trial_labels_present": wrapper_result.trial_labels is not None,
+            "wrapper_n_trial_labels": (
+                len(wrapper_result.trial_labels)
+                if wrapper_result.trial_labels is not None
+                else 0
+            ),
+            "n_time": n_time,
+            "n_trials": n_trials,
+            "n_voxels": n_voxels,
+        },
+    )
+
+
 def run_showcases() -> list[ShowcaseRow]:
     """Run all Tier D showcase cases."""
 
@@ -182,6 +265,7 @@ def run_showcases() -> list[ShowcaseRow]:
         run_ar_robust_showcase(),
         run_sketched_glm_showcase(),
         run_lss_showcase(),
+        run_lss_public_seam_showcase(),
     ]
 
 
