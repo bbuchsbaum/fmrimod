@@ -405,6 +405,41 @@
       "replacement_target": "Promote surviving reparameterization-invariance probes into a public-seam fmri_dataset -> fmri_lm stress receipt once typed design transforms and contrast remapping are available."
     },
     {
+      "benchmark_id": "tier_e_parametric_centering",
+      "evidence_level": "workflow_parity",
+      "public_seam": true,
+      "workflow_path": "benchmarks/parity/tier_e_parametric_centering/workflow.py",
+      "report_path": "benchmarks/parity/tier_e_parametric_centering/reports/centering_stress_report.json",
+      "reference_path": "benchmarks/parity/tier_e_parametric_centering/workflow.py::nilearn_probe",
+      "fmrimod_path": "benchmarks/parity/tier_e_parametric_centering/workflow.py::fmrimod_probe: fmri_dataset -> fmri_lm -> contrast",
+      "caveats": [],
+      "timings": {
+        "status": "not_recorded",
+        "next": "record design-realization and fit timings after deciding whether this centering trap becomes a README-grade demo"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.spec.HrfTerm",
+        "fmrimod.design.DesignColumns",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.glm.ContrastResult"
+      ],
+      "fmrimod_expresses_better": "The RT modulator, centering column, task levels, and named main-effect/slope contrasts remain inspectable through typed fmrimod objects; the Nilearn reference sees the same GLM only after the design has already been realized as anonymous columns.",
+      "receipt": {
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_e_parametric_centering.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ]
+      }
+    },
+    {
       "benchmark_id": "tier_d_showcase",
       "evidence_level": "numerical_canary",
       "public_seam": false,
