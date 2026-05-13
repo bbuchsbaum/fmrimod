@@ -385,6 +385,17 @@
       }
     },
     {
+      "benchmark_id": "tier_e_adversarial_gauntlet",
+      "evidence_level": "numerical_canary",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_e_adversarial_gauntlet/workflow.py",
+      "report_path": "benchmarks/parity/tier_e_adversarial_gauntlet/reports/adversarial_gauntlet_report.json",
+      "reference_path": "benchmarks/parity/tier_e_adversarial_gauntlet/workflow.py::nilearn_probe",
+      "fmrimod_path": "benchmarks/parity/tier_e_adversarial_gauntlet/workflow.py::fmrimod_probe: fast_preproject -> fast_lm_matrix -> contrast_t",
+      "caveats": [],
+      "replacement_target": "Promote any observed fmrimod boundary that survives review into a public-seam caveat or solver fix, and convert the survivable case to fmri_dataset -> fmri_lm once typed stress-design construction exists."
+    },
+    {
       "benchmark_id": "tier_d_showcase",
       "evidence_level": "numerical_canary",
       "public_seam": false,
