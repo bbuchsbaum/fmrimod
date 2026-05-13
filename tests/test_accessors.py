@@ -1,9 +1,13 @@
 """Tests for fmrireg-style accessor compatibility helpers."""
 
+import warnings
+
 import numpy as np
 import pandas as pd
+import pytest
 
 import fmrimod
+from fmrimod import accessors
 from fmrimod.dataset import FmriDataset, group_data_from_csv
 from fmrimod.dataset.adapters import NumpyAdapter
 from fmrimod.glm.fmri_lm import fmri_lm
@@ -166,3 +170,111 @@ def test_fitted_hrf_and_tidy_fitted_hrf_smoke():
         "value",
     }
     np.testing.assert_allclose(tidy["estimate"], tidy["value"])
+
+
+def test_typed_literal_aliases_exposed():
+    """The Literal type aliases are part of the public accessors surface."""
+    assert hasattr(accessors, "AccessorScope")
+    assert hasattr(accessors, "AccessorTarget")
+    assert hasattr(accessors, "AccessorStatistic")
+
+
+def test_invalid_scope_raises_with_explicit_message():
+    fit = _fitted_result()
+    with pytest.raises(ValueError) as excinfo:
+        fmrimod.ar_parameters(fit, scope="bogus")
+    msg = str(excinfo.value)
+    assert "scope must be one of" in msg
+    assert "'raw'" in msg and "'per_run'" in msg and "'average'" in msg
+    assert "'bogus'" in msg
+
+
+def test_invalid_type_raises_with_explicit_message():
+    fit = _fitted_result()
+    for func in (
+        fmrimod.standard_error,
+        fmrimod.se,
+        fmrimod.stats,
+        fmrimod.p_values,
+        fmrimod.pvalues,
+        fmrimod.zscores,
+        fmrimod.tidy,
+    ):
+        with pytest.raises(ValueError) as excinfo:
+            func(fit, type="bogus")
+        msg = str(excinfo.value)
+        assert "type must be one of" in msg
+        assert "'bogus'" in msg
+
+
+def test_standard_error_rejects_F_target():
+    """`standard_error` does not produce F-contrast SEs."""
+    fit = _fitted_result()
+    with pytest.raises(ValueError) as excinfo:
+        fmrimod.standard_error(fit, type="F")
+    msg = str(excinfo.value)
+    valid_set, _, _ = msg.partition("; got ")
+    assert "'estimates'" in valid_set and "'contrasts'" in valid_set
+    assert "'F'" not in valid_set
+
+
+def test_invalid_statistic_raises_with_explicit_message():
+    fit = _fitted_result()
+    with pytest.raises(ValueError) as excinfo:
+        fmrimod.coef_image(fit, coef=0, statistic="bogus")
+    msg = str(excinfo.value)
+    assert "statistic must be one of" in msg
+    assert "'bogus'" in msg
+
+
+@pytest.mark.parametrize(
+    "alias, canonical",
+    [
+        ("beta", "estimate"),
+        ("t", "stat"),
+        ("tstat", "stat"),
+        ("p", "pvalue"),
+        ("pvalues", "pvalue"),
+        ("p_values", "pvalue"),
+        ("std_error", "se"),
+    ],
+)
+def test_deprecated_statistic_aliases_emit_warning_and_still_work(alias, canonical):
+    fit = _fitted_result()
+    canonical_vec = fmrimod.coef_image(fit, coef=0, statistic=canonical)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        alias_vec = fmrimod.coef_image(fit, coef=0, statistic=alias)
+    deprecation = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+    assert deprecation, f"alias {alias!r} should emit DeprecationWarning"
+    assert any(alias in str(w.message) for w in deprecation)
+    np.testing.assert_allclose(alias_vec, canonical_vec)
+
+
+def test_canonical_statistic_values_emit_no_warning():
+    fit = _fitted_result()
+    for canonical in ("estimate", "stat", "se", "pvalue"):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            fmrimod.coef_image(fit, coef=0, statistic=canonical)
+        deprecation = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+        assert not deprecation, (
+            f"canonical statistic {canonical!r} should not warn; got {deprecation!r}"
+        )
+
+
+def test_legacy_string_inputs_still_work_without_warning():
+    """Existing string call patterns produce results without deprecation noise."""
+    fit = _fitted_result()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        fmrimod.ar_parameters(fit, scope="average")
+        fmrimod.ar_parameters(fit, scope="per_run")
+        fmrimod.standard_error(fit, type="estimates")
+        fmrimod.stats(fit, type="contrasts")
+        fmrimod.stats(fit, type="F")
+        fmrimod.coef_image(fit, coef=0, statistic="estimate")
+    deprecation = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+    assert not deprecation, (
+        f"canonical strings should not trigger deprecation warnings; got {deprecation!r}"
+    )
