@@ -139,6 +139,27 @@ distinction. The names of statistical quantities are part of the API.
 - The same rule applies to any future port-stability contract added to
   `docs/contracts/`.
 
+### G8 — One canonical home per operational rule
+
+- Every cross-cutting operational rule (board-to-bead conversion, code
+  review routing, `.mote` tracking policy, public-API tier table, work
+  requests, …) lives in exactly one document. Other documents link *to*
+  that home; they do not restate the rule's body.
+- When two documents say things about the same value, exactly one is
+  canonical and the other is a one-line pointer. Examples of canonical
+  homes: [`message_board.md`](message_board.md) for board-to-bead and
+  code-review routing; [`AGENTS.md`](AGENTS.md) §"Work requests" for
+  vision-coupled prospective work; [`docs/contracts/CAVEATS.md`](docs/contracts/CAVEATS.md)
+  for parity divergences; this file (§ 2) for cross-module invariants.
+- Falsifier: `grep -rn '<rule-text-fragment>' *.md docs/contracts/` returns
+  exactly one substantive hit (the canonical home) plus any number of
+  pointers. Multiple substantive hits is a violation.
+- This invariant exists because the seam-coherence bugs the project keeps
+  paying for (the `Predicate` dual definition, the `ContrastResult`
+  soft-tagged-union, the `AGENTS.md`/`.gitignore` `.mote` contradiction)
+  are all the same shape: one value, two sources of truth, agents
+  silently pick one. See decision note 0001.
+
 ## 3. Module readiness tiers
 
 Every subpackage in [`fmrimod/`](fmrimod/) carries a readiness tier

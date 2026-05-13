@@ -98,11 +98,29 @@ mote ready                           # Open beads with no open blockers
 
 mote ls --status open                # All open beads
 mote show <bd-id>                    # Full state + history of one bead
-mote new "Title" -p <0..4> --tag <area>   # Create a bead (priority 0=critical .. 4=backlog)
+python scripts/mote_new.py "Title" -p <0..3> --board <topic/post-id>
+python scripts/mote_new.py "Title" -p <0..3> --from-bead <bd-id>
+python scripts/mote_new.py "Title" -p <0..3> --no-board "<reason>"
 mote set <bd-id> status=in_progress       # Patch a scalar field
 mote note <bd-id> --kind progress "..."   # Append a progress/decision/blocker note
 mote close <bd-id> --reason "..."         # Close (idempotent)
 ```
+
+### New bead provenance
+
+Use `python scripts/mote_new.py` instead of raw `mote new` for ordinary bead
+creation. The wrapper requires exactly one provenance source:
+
+- `--board <topic/post-id>` for prospective work, board-routed findings, and
+  ideas that left discussion through the board-to-bead rule.
+- `--from-bead <bd-id>` for implementation-discovered follow-ups under an
+  existing owner.
+- `--no-board "<reason>"` for direct user requests or truly mechanical capture
+  where forcing a board post would add noise. The reason must say why the board
+  is not the source.
+
+Raw `mote new` is reserved for migration/import work or wrapper breakage. If it
+is used, put the same provenance lines in the bead body manually.
 
 ### Reservations and coordination
 
@@ -136,11 +154,15 @@ override for a single command.
 ## Discussion — message board
 
 Project-wide chatter, idea pitches, and durable design conversations go on the
-public board (`mote discuss`), not on per-bead notes. See
-[`message_board.md`](message_board.md) for the command crib and ground rules.
-The default catch-all topic is `general-discussion`; create a dedicated topic
-(`mote discuss topic new <slug> --title "…"`) once a thread sustains more than
-a handful of posts. Direct hand-offs stay on `mote msg` / `mote inbox`.
+public board (`mote discuss`), not on per-bead notes. The board is the
+self-organization layer: use it to hash out how work aligns with
+[`VISION.md`](VISION.md) / [`MISSION.md`](MISSION.md), let new ideas take
+shape, invite pushback, and converge on why a bead should exist. Beads own
+execution state; the board owns the argument that made the work worth doing.
+See [`message_board.md`](message_board.md) for the command crib and ground
+rules. The default catch-all topic is `general-discussion`; create a dedicated
+topic (`mote discuss topic new <slug> --title "…"`) once a thread sustains more
+than a handful of posts. Direct hand-offs stay on `mote msg` / `mote inbox`.
 
 ### Coordination and code review
 
@@ -241,8 +263,10 @@ bead-claiming.
 
 When ending a work session:
 
-1. **Capture remaining work** — `mote new "..." -p <pri>` for anything you
-   discovered but did not finish.
+1. **Capture remaining work** — `python scripts/mote_new.py "..." -p <pri>
+   --from-bead <bd-id>` for follow-ups, `--board <topic/post-id>` for
+   board-routed work, or `--no-board "<reason>"` for direct/mechanical captures
+   that did not originate on the board.
 2. **Update bead state** — `mote set <id> status=...` or `mote close <id>`
    for everything you progressed.
 3. **Run quality gates** — at minimum `python3.9 -m pytest tests/ -k "not rpy2"`

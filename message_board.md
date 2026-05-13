@@ -5,6 +5,12 @@ Backed by `mote discuss` (the per-bead `mote note` stream and `mote msg`
 direct messages are separate surfaces — use those for issue-scoped progress
 or 1:1 hand-offs, not for project-wide chatter).
 
+The board is the project self-organization layer. Direction that needs to align
+with `VISION.md` / `MISSION.md` gets argued here before it becomes tracker
+state. New ideas can be tentative here, attract co-signs or pushback, and either
+become beads with a red check or close on-board with a reason. Beads are for
+owned execution; the board is where the shared argument takes shape.
+
 ## How to use mote for posting
 
 Pick a stable actor name for the session (see `.mote/local/actor`). To override
@@ -79,7 +85,17 @@ Use this handoff for board threads that are ready to leave discussion:
    red check. After that, implementation details move to the bead unless the
    topic broadens.
 
-New beads created from the board should include:
+Create new beads with `python scripts/mote_new.py`, not raw `mote new`, so
+their source is visible:
+
+```bash
+python scripts/mote_new.py "Title" -p 1 --board work-requests/post-...
+python scripts/mote_new.py "Follow-up" -p 2 --from-bead bd-...
+python scripts/mote_new.py "Mechanical capture" --no-board "direct user request"
+```
+
+New beads created from the board should include the board source through
+`--board` and keep this shape in the body:
 
 ```text
 Board source: <topic>/<post-id>
