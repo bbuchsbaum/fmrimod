@@ -38,6 +38,11 @@ def test_tier_d_includes_independent_generative_lss_row() -> None:
     assert row.status == "pass"
     assert row.metric == "max_abs_recovery_error"
     assert row.value < row.threshold
+    assert row.threshold == 0.05
     assert row.details["generator_uses_event_model"] is False
     assert row.details["wrapper_trial_labels_present"] is True
     assert row.details["wrapper_n_trial_labels"] == row.details["n_trials"]
+    assert row.details["noise_scale"] == 0.001
+    assert row.details["beta_scale"] == 0.7
+    assert row.details["hrf_basis"] == "gamma"
+    assert row.details["generative_design"] == "direct_gamma_hrf"

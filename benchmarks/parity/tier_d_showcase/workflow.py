@@ -279,7 +279,8 @@ def run_lss_public_seam_independent_generative(seed: int = 2030) -> ShowcaseRow:
     import pandas as pd
 
     from fmrimod import fmri_dataset
-    from fmrimod.hrf.functions import spm_canonical
+    from fmrimod.hrf.functions import gamma_hrf
+    from fmrimod.sampling import SamplingFrame
     from fmrimod.single import estimate_single_trial_from_dataset
 
     rng = np.random.default_rng(seed)
@@ -287,8 +288,8 @@ def run_lss_public_seam_independent_generative(seed: int = 2030) -> ShowcaseRow:
     n_trials = 10
     n_voxels = 24
     tr = 2.0
-    noise_scale = 0.01
-    beta_scale = 0.8
+    noise_scale = 0.001
+    beta_scale = 0.7
 
     onsets = np.linspace(8.0, n_time * tr - 32.0, n_trials, dtype=np.float64)
     events = pd.DataFrame({
@@ -296,21 +297,23 @@ def run_lss_public_seam_independent_generative(seed: int = 2030) -> ShowcaseRow:
         "duration": np.zeros_like(onsets),
         "run": np.ones(n_trials, dtype=int),
     })
-    scan_times = np.arange(n_time, dtype=np.float64) * tr
-    X = np.column_stack([
-        spm_canonical(scan_times - onset) for onset in onsets
-    ]).astype(np.float64)
+    scan_times = SamplingFrame(blocklens=(n_time,), tr=tr).samples
+    X = np.zeros((n_time, n_trials), dtype=np.float64)
+    for col, onset in enumerate(onsets):
+        delta = scan_times - float(onset)
+        X[:, col] = np.where(delta >= 0.0, gamma_hrf(delta), 0.0)
+
     true_betas = rng.normal(scale=beta_scale, size=(n_trials, n_voxels))
     bold = X @ true_betas + rng.normal(scale=noise_scale, size=(n_time, n_voxels))
     ds = fmri_dataset(bold.astype(np.float64), tr=tr, events=events)
 
     result, seconds = _elapsed(
         lambda: estimate_single_trial_from_dataset(
-            ds, "trialwise()", method="lss", include_intercept=True,
+            ds, "trialwise(basis='gamma')", method="lss", include_intercept=True,
         )
     )
     recovery_error = float(np.max(np.abs(result.betas - true_betas)))
-    threshold = 0.75
+    threshold = 0.05
     n_recovered_labels = len(result.trial_labels) if result.trial_labels else 0
     status = (
         "pass"
@@ -334,6 +337,8 @@ def run_lss_public_seam_independent_generative(seed: int = 2030) -> ShowcaseRow:
             "n_trials": n_trials,
             "n_voxels": n_voxels,
             "generator_uses_event_model": False,
+            "hrf_basis": "gamma",
+            "generative_design": "direct_gamma_hrf",
         },
     )
 
