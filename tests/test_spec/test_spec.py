@@ -8,7 +8,11 @@ import pytest
 
 import fmrimod as fm
 from fmrimod.glm.fmri_lm import FmriLm
-from fmrimod.spec import (
+
+# ``hrf`` and ``trialwise`` are intentionally NOT at top level because they
+# collide with the existing ``fmrimod.hrf`` and ``fmrimod.trialwise``
+# submodules.  Import from ``fmrimod.spec`` directly.
+from fmrimod.spec import (  # noqa: F401
     Confounds,
     Drift,
     HrfTerm,
@@ -16,14 +20,13 @@ from fmrimod.spec import (
     Spec,
     Term,
     as_spec,
-    compile as compile_spec,
+    hrf,
     is_spec,
+    trialwise,
 )
-# ``hrf`` and ``trialwise`` are intentionally NOT at top level because they
-# collide with the existing ``fmrimod.hrf`` and ``fmrimod.trialwise``
-# submodules.  Import from ``fmrimod.spec`` directly.
-from fmrimod.spec import hrf, trialwise  # noqa: F401
-
+from fmrimod.spec import (
+    compile as compile_spec,
+)
 
 # -- Term construction -----------------------------------------------------
 
@@ -160,6 +163,28 @@ def test_compile_returns_event_and_baseline_models(synthetic_run):
     assert bm is not None
 
 
+def test_compile_typed_spec_bypasses_string_formula_parser(synthetic_run, monkeypatch):
+    events, Y, tr = synthetic_run
+    ds = fm.fmri_dataset(Y, tr=tr, events=events)
+
+    def fail_parse(*_args, **_kwargs):
+        raise AssertionError("typed Spec lowering should not parse formula strings")
+
+    monkeypatch.setattr("fmrimod.formula.parser.parse_formula", fail_parse)
+
+    em, bm = compile_spec(
+        hrf("trial_type", norm="spm") + fm.intercept(per="run"),
+        data=events,
+        sampling_frame=ds.sampling_frame,
+        block="run",
+        durations="duration",
+    )
+
+    assert em is not None
+    assert bm is not None
+    assert em.design_matrix.shape[0] == Y.shape[0]
+
+
 def test_compile_baseline_only_spec_uses_default_constant_intercept(synthetic_run):
     events, Y, tr = synthetic_run
     ds = fm.fmri_dataset(Y, tr=tr, events=events)
@@ -236,7 +261,8 @@ def test_top_level_spec_builders_visible_via_fm():
     assert callable(fm.confounds)
     # The Spec ``hrf`` / ``trialwise`` builders are reachable via the
     # ``fmrimod.spec`` namespace.
-    from fmrimod.spec import hrf as spec_hrf, trialwise as spec_trialwise
+    from fmrimod.spec import hrf as spec_hrf
+    from fmrimod.spec import trialwise as spec_trialwise
     assert callable(spec_hrf)
     assert callable(spec_trialwise)
 
@@ -244,5 +270,5 @@ def test_top_level_spec_builders_visible_via_fm():
 def test_hrf_submodule_still_importable_despite_top_level_binding():
     """Critical: the spec ``hrf`` binding must not break access to
     ``fmrimod.hrf`` as a submodule for everyone else."""
-    from fmrimod.hrf import HRF_SPMG1, HRF, bind_basis  # noqa: F401
+    from fmrimod.hrf import HRF, HRF_SPMG1, bind_basis  # noqa: F401
     assert HRF_SPMG1 is not None

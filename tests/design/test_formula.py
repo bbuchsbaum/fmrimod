@@ -119,7 +119,7 @@ class TestDSL:
         term = condition @ dsl_hrf.spm_canonical
         
         assert isinstance(term, Term)
-        assert term.hrf == 'spm-canonical'  # Note: underscores converted
+        assert term.hrf == 'spm_canonical'
     
     def test_complex_dsl_expression(self):
         """Test complex DSL expression."""
@@ -136,7 +136,7 @@ class TestDSL:
         term2 = parametric @ dsl_basis.poly(3) @ dsl_hrf.spm_canonical
         assert term2.events == ['parametric']
         assert term2.basis is not None
-        assert term2.hrf == 'spm-canonical'
+        assert term2.hrf == 'spm_canonical'
 
 
 class TestFunctional:

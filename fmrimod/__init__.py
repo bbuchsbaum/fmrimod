@@ -123,6 +123,18 @@ def baseline_model(*args, **kwargs):
     return _baseline_model(*args, **kwargs)
 
 
+def check_nuisance(*args, **kwargs):
+    """Check nuisance regressors for rank and column problems."""
+    from .baseline import check_nuisance as _check_nuisance
+    return _check_nuisance(*args, **kwargs)
+
+
+def clean_nuisance(*args, **kwargs):
+    """Drop nuisance columns that do not increase rank."""
+    from .baseline import clean_nuisance as _clean_nuisance
+    return _clean_nuisance(*args, **kwargs)
+
+
 def event_factor(*args, **kwargs):
     """Construct a categorical event factor."""
     from .events import EventFactor
@@ -1002,6 +1014,8 @@ __all__ = [
     "event_model",
     "design_matrix",
     "baseline_model",
+    "check_nuisance",
+    "clean_nuisance",
     "event_factor",
     "event_variable",
     "event_matrix",

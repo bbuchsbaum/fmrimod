@@ -1,15 +1,14 @@
 """Lower a typed :class:`Spec` to ``(EventModel, BaselineModel)`` artefacts.
 
-The string formula path (``event_model("hrf(trial_type)")``) and the typed
-:class:`Spec` path converge here.  This module renders a Spec back into the
-string DSL the existing parser understands, which keeps a single source of
-truth for design-matrix construction while letting users write typed terms at
-the public API surface.
+The string formula path (``event_model("hrf(trial_type)")``) remains legacy
+syntax sugar. Typed :class:`Spec` terms lower directly into explicit
+``EventModel`` terms here so ``fmri_lm(spec, dataset)`` does not depend on the
+string formula parser.
 """
 
 from __future__ import annotations
 
-from typing import Any, Literal, Mapping, Tuple, cast
+from typing import Any, Literal, Tuple, cast
 
 import numpy as np
 import pandas as pd
@@ -22,80 +21,50 @@ BaselineBasis = Literal["constant", "poly", "bs", "ns"]
 BaselineIntercept = Literal["runwise", "global", "none"]
 
 
-def _hrf_label(hrf_obj: HRF | str) -> str:
-    """Return a string label suitable for the formula parser's ``hrf(..., basis=...)``."""
-    if isinstance(hrf_obj, str):
-        return hrf_obj
-    # Map known objects back to short registry labels.
-    name = getattr(hrf_obj, "name", "")
-    # Most pre-built objects retain their original names; the formula parser
-    # accepts short labels like "spm", "spmg1", "gamma", etc.
-    short = {
-        "SPMG1_HRF": "spmg1",
-        "SPMG2_HRF": "spmg2",
-        "SPMG3_HRF": "spmg3",
-        "GAMMA_HRF": "gamma",
-        "GAUSSIAN_HRF": "gaussian",
-        "BSPLINE_HRF": "bspline",
-        "FIR_HRF": "fir",
-    }
-    return short.get(name, name or "spm")
-
-
-def _resolve_normalized_hrf_label(term: HrfTerm) -> str:
-    """If ``term.norm`` is set, register a normalized HRF and return its label.
-
-    Otherwise return ``_hrf_label(term.hrf)``.
-    """
+def _resolve_hrf(term: HrfTerm) -> HRF | str:
+    """Resolve the HRF value carried by a typed :class:`HrfTerm`."""
     if term.norm is None:
-        return _hrf_label(term.hrf)
+        return term.hrf
 
     from ..hrf.normalization import normalize
-    from ..hrf.registry import _HRF_REGISTRY, register_hrf
 
     base = term.hrf
     if isinstance(base, str):
         base = get_hrf(base)
-    normalized = normalize(base, term.norm)
-    label = f"__norm_{term.norm}_{id(base)}__"
-    if label.lower() not in _HRF_REGISTRY:
-        register_hrf(label, normalized)
-    return label
+    return normalize(base, term.norm)
 
 
-def _format_subset(subset: Any) -> str | None:
-    """Render a subset predicate as a string the formula parser can carry."""
-    if subset is None:
-        return None
-    if isinstance(subset, str):
-        return subset
-    if isinstance(subset, Mapping):
-        parts = [f"{k} == {v!r}" if isinstance(v, str) else f"{k} == {v}"
-                 for k, v in subset.items()]
-        return " & ".join(parts)
-    if callable(subset):
-        # Callable predicates are not representable in the string DSL; flag for
-        # the compile pass so it can apply them after term realisation.
-        return None
-    raise TypeError(f"Unsupported subset predicate type: {type(subset).__name__}")
+def _hrf_term_to_event_model_term(term: HrfTerm) -> Any:
+    """Translate one typed HRF term to EventModel's explicit Term object."""
+    from ..formula.base import Term as EventModelTerm
 
-
-def _hrf_term_to_formula(term: HrfTerm) -> str:
-    """Render one :class:`HrfTerm` as an ``hrf(...)`` formula clause."""
     if not term.variables:
-        raise ValueError("HrfTerm has no variables to render")
-    var_part = ", ".join(term.variables)
-    extras = [f"basis={_resolve_normalized_hrf_label(term)!r}"]
-    subset_str = _format_subset(term.subset)
-    if subset_str is not None:
-        extras.append(f"subset={subset_str!r}")
-    if term.id is not None:
-        extras.append(f"id={term.id!r}")
+        raise ValueError("HrfTerm has no variables to lower")
+
+    events: str | list[str]
+    if len(term.variables) == 1:
+        events = term.variables[0]
+    else:
+        events = list(term.variables)
+
+    lowered = EventModelTerm(
+        events,
+        hrf=_resolve_hrf(term),
+        name=term.id,
+    )
+    if term.contrasts:
+        lowered._kwargs["contrasts"] = term.contrasts
+    if term.modulators:
+        lowered._kwargs["modulators"] = term.modulators
+    if term.durations is not None:
+        lowered._kwargs["durations"] = term.durations
+    if term.subset is not None:
+        lowered._kwargs["subset"] = term.subset
     if term.prefix is not None:
-        extras.append(f"prefix={term.prefix!r}")
+        lowered._kwargs["prefix"] = term.prefix
     if term.lag:
-        extras.append(f"lag={term.lag}")
-    return f"hrf({var_part}, {', '.join(extras)})"
+        lowered._kwargs["lag"] = term.lag
+    return lowered
 
 
 def compile_events(
@@ -117,16 +86,14 @@ def compile_events(
     if not event_terms:
         return None
 
-    formula_parts: list[str] = []
+    lowered_terms: list[Any] = []
     for term in event_terms:
         if not isinstance(term, HrfTerm):
             raise TypeError(
                 f"Spec.events may only contain HrfTerm objects; got "
                 f"{type(term).__name__}"
             )
-        formula_parts.append(_hrf_term_to_formula(term))
-
-    formula = " + ".join(formula_parts)
+        lowered_terms.append(_hrf_term_to_event_model_term(term))
 
     kwargs: dict[str, Any] = dict(
         data=data,
@@ -137,11 +104,7 @@ def compile_events(
     if precision is not None:
         kwargs["precision"] = precision
 
-    em = build_event_model(formula, **kwargs)
-
-    # Apply callable subset filters that couldn't be represented in the DSL.
-    # (No-op when none are callable; reserved for follow-up enhancement.)
-    return em
+    return build_event_model(lowered_terms, **kwargs)
 
 
 def compile_baseline(

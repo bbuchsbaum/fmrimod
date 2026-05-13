@@ -464,7 +464,19 @@ def parse_formula(
                     event_arg = event_name
                 # Accept both hrf=... and basis=... for compatibility.
                 hrf = ft.kwargs.get('hrf', ft.kwargs.get('basis', 'simple'))
-                term = Term(event_arg, hrf=hrf)
+                extra = {
+                    key: value
+                    for key, value in ft.kwargs.items()
+                    if key not in {'hrf', 'basis', 'normalize', 'summate', 'id'}
+                }
+                term = Term(
+                    event_arg,
+                    hrf=hrf,
+                    name=ft.kwargs.get('id'),
+                    normalize=bool(ft.kwargs.get('normalize', False)),
+                    summate=bool(ft.kwargs.get('summate', True)),
+                )
+                term._kwargs.update(extra)
             elif ft.function == 'trialwise':
                 # trialwise() function
                 term = trialwise(

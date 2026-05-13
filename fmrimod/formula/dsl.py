@@ -270,13 +270,13 @@ class HRFNamespace:
     """Namespace for HRF specifications accessed as attributes.
 
     Allows natural syntax like ``hrf.spm_canonical`` or explicit
-    ``hrf('spmg2')``. Attribute underscores are converted to dashes
-    when looking up HRF names.
+    ``hrf('spmg2')``. Attribute names are passed through using the
+    same underscore aliases accepted by the HRF registry.
 
     Examples
     --------
     >>> from fmrimod.formula.dsl import hrf
-    >>> transform = hrf.spm_canonical   # HRFTransform("spm-canonical")
+    >>> transform = hrf.spm_canonical   # HRFTransform("spm_canonical")
     >>> transform = hrf('spmg2')        # HRFTransform("spmg2")
     """
     
@@ -293,9 +293,7 @@ class HRFNamespace:
         HRFTransform
             HRF transformation
         """
-        # Convert underscore to dash for common HRF names
-        hrf_name = name.replace('_', '-')
-        return HRFTransform(hrf_name)
+        return HRFTransform(name)
     
     def __call__(self, hrf: Union[str, HRFProtocol]) -> HRFTransform:
         """Create HRF transform with explicit specification.

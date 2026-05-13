@@ -1,5 +1,7 @@
 """Tests for baseline model specification functions."""
 
+from dataclasses import FrozenInstanceError
+
 import pytest
 import numpy as np
 import pandas as pd
@@ -50,6 +52,14 @@ class TestNuisance:
         assert isinstance(spec, NuisanceSpec)
         assert spec.data is mat
 
+    def test_nuisance_spec_is_frozen_payload_reference(self):
+        """NuisanceSpec preserves the payload but freezes the wrapper."""
+        data = np.random.randn(10, 2)
+        spec = nuisance(data)
+
+        with pytest.raises(FrozenInstanceError):
+            spec.name = 'changed'
+
 
 class TestBlock:
     """Test block specification functionality."""
@@ -80,6 +90,13 @@ class TestBlock:
         spec = block('my_block_var')
         assert spec.name == 'my_block_var'
         assert spec.label == 'my_block_var'
+
+    def test_block_spec_is_frozen(self):
+        """BlockSpec is an immutable declarative wrapper."""
+        spec = block('run')
+
+        with pytest.raises(FrozenInstanceError):
+            spec.label = 'changed'
 
 
 class TestIntegration:

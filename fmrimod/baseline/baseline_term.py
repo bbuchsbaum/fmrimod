@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from typing import List, Optional, Union
-import numpy as np
+from collections.abc import Sequence
+from dataclasses import dataclass
+from typing import cast
+
 import pandas as pd
 
 from ..types import Array
 
 
+@dataclass(frozen=True)
 class BaselineTerm:
     """A baseline term in an fMRI model.
     
@@ -38,45 +41,34 @@ class BaselineTerm:
         Row indices per block
     """
     
-    def __init__(
-        self,
-        varname: str,
-        design_matrix: Union[pd.DataFrame, Array],
-        colind: List[List[int]],
-        rowind: List[List[int]]
-    ):
-        """Initialize baseline term.
+    varname: str
+    design_matrix: pd.DataFrame | Array
+    colind: Sequence[Sequence[int]]
+    rowind: Sequence[Sequence[int]]
 
-        Parameters
-        ----------
-        varname : str
-            Variable name identifying the term (e.g.,
-            ``'drift'``, ``'block'``, ``'nuisance'``).
-        design_matrix : pd.DataFrame or Array
-            The design matrix for this term. Converted to
-            a DataFrame internally if not already one.
-        colind : list of list of int
-            Column indices for each block. ``colind[i]`` lists
-            the column positions belonging to block ``i``.
-        rowind : list of list of int
-            Row indices for each block. ``rowind[i]`` lists
-            the row positions belonging to block ``i``.
-        """
-        self.varname = varname
-        
-        # Ensure design matrix is DataFrame
-        if isinstance(design_matrix, pd.DataFrame):
-            self.design_matrix = design_matrix
+    def __post_init__(self) -> None:
+        """Normalize array-like inputs to immutable term metadata."""
+        if isinstance(self.design_matrix, pd.DataFrame):
+            matrix = self.design_matrix.copy()
         else:
-            self.design_matrix = pd.DataFrame(design_matrix)
-        
-        self.colind = colind
-        self.rowind = rowind
+            matrix = pd.DataFrame(self.design_matrix)
+
+        object.__setattr__(self, 'design_matrix', matrix)
+        object.__setattr__(
+            self,
+            'colind',
+            tuple(tuple(int(idx) for idx in block) for block in self.colind),
+        )
+        object.__setattr__(
+            self,
+            'rowind',
+            tuple(tuple(int(idx) for idx in block) for block in self.rowind),
+        )
     
     def get_block_matrix(
         self,
-        blockid: Optional[Union[int, List[int]]] = None,
-        allrows: bool = False
+        blockid: int | Sequence[int] | None = None,
+        allrows: bool = False,
     ) -> pd.DataFrame:
         """Get design matrix for specific blocks.
         
@@ -93,19 +85,21 @@ class BaselineTerm:
         pd.DataFrame
             Subset of design matrix
         """
+        matrix = cast(pd.DataFrame, self.design_matrix)
         if blockid is None:
-            return self.design_matrix
+            return matrix
         
-        # Ensure blockid is a list
-        if not isinstance(blockid, (list, tuple)):
-            blockid = [blockid]
+        if isinstance(blockid, int):
+            block_ids = [int(blockid)]
+        else:
+            block_ids = [int(b) for b in blockid]
         
         # Convert to 0-based if needed (R uses 1-based)
-        blockid = [b - 1 if b > 0 else b for b in blockid]
+        block_ids = [b - 1 if b > 0 else b for b in block_ids]
         
         # Get column indices for requested blocks
-        col_idx = []
-        for bid in blockid:
+        col_idx: list[int] = []
+        for bid in block_ids:
             if 0 <= bid < len(self.colind):
                 col_idx.extend(self.colind[bid])
         
@@ -115,11 +109,11 @@ class BaselineTerm:
         
         if allrows:
             # Return all rows, selected columns
-            return self.design_matrix.iloc[:, col_idx]
+            return matrix.take(col_idx, axis=1)
         else:
             # Get row indices for requested blocks
-            row_idx = []
-            for bid in blockid:
+            row_idx: list[int] = []
+            for bid in block_ids:
                 if 0 <= bid < len(self.rowind):
                     row_idx.extend(self.rowind[bid])
             
@@ -127,7 +121,7 @@ class BaselineTerm:
                 return pd.DataFrame()
             
             # Return selected rows and columns
-            return self.design_matrix.iloc[row_idx, col_idx]
+            return matrix.take(row_idx, axis=0).take(col_idx, axis=1)
     
     @property
     def n_blocks(self) -> int:

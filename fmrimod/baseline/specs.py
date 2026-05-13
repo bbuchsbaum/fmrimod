@@ -1,11 +1,11 @@
 """Baseline model specification functions."""
 
-from typing import Any, Union, Optional
-import numpy as np
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 
-@dataclass
+@dataclass(frozen=True)
 class NuisanceSpec:
     """Specification for nuisance regressors.
     
@@ -16,17 +16,17 @@ class NuisanceSpec:
     ----------
     name : str
         Name of the nuisance variable
-    data : Any
-        The nuisance data (will be evaluated in model context)
+    data : object
+        The nuisance data, preserved for evaluation in model context.
     """
     name: str
-    data: Any
+    data: object
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"NuisanceSpec(name='{self.name}')"
 
 
-@dataclass  
+@dataclass(frozen=True)
 class BlockSpec:
     """Specification for block variables.
     
@@ -37,17 +37,17 @@ class BlockSpec:
     ----------
     name : str
         Name of the block variable
-    label : Optional[str]
+    label : str, optional
         Optional label for the block variable
     """
     name: str
-    label: Optional[str] = None
+    label: str | None = None
     
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"BlockSpec(name='{self.name}')"
 
 
-def nuisance(x: Any) -> NuisanceSpec:
+def nuisance(x: object) -> NuisanceSpec:
     """Create a nuisance variable specification.
     
     Nuisance variables are external regressors (like motion parameters,
@@ -56,13 +56,13 @@ def nuisance(x: Any) -> NuisanceSpec:
     
     Parameters
     ----------
-    x : Any
+    x : object
         A matrix, array, or reference to nuisance data.
         Can be:
         - A numpy array or matrix
         - A pandas DataFrame
         - A string reference to be evaluated later
-        - Any object that can be converted to a matrix
+        - Objects that can be converted to a matrix
     
     Returns
     -------
@@ -99,7 +99,7 @@ def nuisance(x: Any) -> NuisanceSpec:
     return NuisanceSpec(name=name, data=x)
 
 
-def block(x: Any) -> BlockSpec:
+def block(x: object) -> BlockSpec:
     """Create a block variable specification.
     
     Block variables represent factors that are constant within each
@@ -108,12 +108,12 @@ def block(x: Any) -> BlockSpec:
     
     Parameters
     ----------
-    x : Any
+    x : object
         A block variable or reference.
         Can be:
         - A string name of the block variable
         - An array of block indicators
-        - Any variable that identifies blocks
+        - Variables that identify blocks
     
     Returns
     -------

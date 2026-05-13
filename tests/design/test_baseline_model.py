@@ -1,11 +1,20 @@
 """Tests for baseline model functionality."""
 
+from dataclasses import FrozenInstanceError
+from typing import get_args
+
 import pytest
 import numpy as np
 import pandas as pd
 
 from fmrimod import baseline_model, design_matrix
-from fmrimod.baseline import BaselineModel, baseline
+from fmrimod.baseline import (
+    BaselineBasis,
+    BaselineIntercept,
+    BaselineModel,
+    NuisanceCheckMode,
+    baseline,
+)
 from fmrimod.baseline.baseline_model import BaselineSpec
 from fmrimod.sampling import SamplingFrame
 
@@ -198,6 +207,52 @@ class TestBaselineModel:
         assert spec.basis == 'poly'
         assert spec.name == 'my_drift'
         assert spec.intercept == 'runwise'
+
+    def test_public_option_sets_are_closed_literals(self):
+        """Baseline options expose the closed sets accepted at runtime."""
+        assert get_args(BaselineBasis) == ('constant', 'poly', 'bs', 'ns')
+        assert get_args(BaselineIntercept) == ('runwise', 'global', 'none')
+        assert get_args(NuisanceCheckMode) == ('warn', 'error', 'drop', 'none')
+
+    def test_baseline_spec_validates_and_freezes_contract(self):
+        """BaselineSpec is an immutable construction-time contract."""
+        spec = baseline(degree=3, basis='constant')
+
+        assert spec.degree == 1
+        assert spec.name == 'baseline_constant_3'
+
+        with pytest.raises(FrozenInstanceError):
+            spec.degree = 4
+
+        with pytest.raises(ValueError, match="Invalid basis"):
+            baseline(basis='invalid')
+
+        with pytest.raises(ValueError, match="Invalid intercept"):
+            baseline(intercept='by_block')
+
+        with pytest.raises(ValueError, match="degree >= 3"):
+            baseline(basis='ns', degree=2)
+
+    def test_baseline_model_terms_are_closed_and_immutable(self):
+        """Constructed models expose a stable typed role map."""
+        sframe = SamplingFrame(tr=2.0, n_scans=20)
+        bmodel = baseline_model(basis='poly', degree=2, sframe=sframe)
+
+        assert tuple(bmodel.terms) == ('drift', 'block', 'nuisance')
+
+        with pytest.raises(TypeError):
+            bmodel.terms['extra'] = None
+
+        with pytest.raises(FrozenInstanceError):
+            bmodel.drift_spec = baseline()
+
+        drift = bmodel.terms['drift']
+        assert drift is not None
+        assert isinstance(drift.colind, tuple)
+        assert isinstance(drift.rowind, tuple)
+
+        with pytest.raises(FrozenInstanceError):
+            drift.varname = 'changed'
     
     def test_invalid_inputs(self):
         """Test error handling for invalid inputs."""

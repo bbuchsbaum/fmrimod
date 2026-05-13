@@ -1759,7 +1759,7 @@ def event_model(
     EventModel : The class returned by this function.
     EventModelBuilder : Fluent builder alternative.
     """
-    terms = _parse_formula_to_terms(formula)
+    terms = _normalize_term_options(_parse_formula_to_terms(formula))
     sf = _resolve_sampling_frame(sampling_frame, sampling_info, tr, n_scans, sampling_rate)
     precision = precision if precision is not None else 0.3
     blockids = _parse_block_ids(block, data)
@@ -1805,6 +1805,19 @@ def _parse_formula_to_terms(formula):
             f"formula must be str, list of Terms, or builder, "
             f"got {type(formula)}"
         )
+
+
+def _normalize_term_options(terms):
+    """Hoist legacy private term kwargs onto the fields EventModel reads."""
+    for term in terms:
+        extra = getattr(term, '_kwargs', None)
+        if not extra:
+            continue
+        if 'normalize' in extra:
+            term.normalize = bool(extra['normalize'])
+        if 'summate' in extra:
+            term.summate = bool(extra['summate'])
+    return terms
 
 
 def _convert_formula_list_to_terms(formula_list):
