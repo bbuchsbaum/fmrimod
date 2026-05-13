@@ -8,7 +8,8 @@ placed into the design matrix.
 
 from __future__ import annotations
 
-from typing import List, Optional, Union
+import warnings
+from typing import List, Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -84,82 +85,128 @@ class EventVariable(BaseEvent):
         durations: DurationType = 0,
         center: bool = True,
         scale: bool = False,
+        nan_strategy: Literal["drop", "error"] = "drop",
     ):
-        """Initialize EventVariable."""
+        """Initialize EventVariable.
+
+        Parameters
+        ----------
+        nan_strategy : {"drop", "error"}, default="drop"
+            How to handle non-finite (NaN / inf) values. ``"drop"`` (the
+            default) substitutes zero for the convolution amplitude on
+            non-finite entries — those trials contribute nothing to any
+            convolved column that uses this variable as a parametric
+            modulator, while remaining in any categorical main-effect
+            column that does not. A single ``UserWarning`` names the
+            variable and the count. ``"error"`` raises a ``ValueError``.
+        """
         self.name = name
         self.center = center
         self.scale = scale
+        self.nan_strategy = nan_strategy
         self._onsets = onsets
         self._values = values
         self._durations = durations
-        
+
         # Initialize base attributes
         self.onsets = None
         self.durations = None
         self.values = None
         self.raw_values = None
-        
+        self.nan_mask = None
+
         # Trigger validation and setup
         self.__post_init__()
-    
+
     def _validate(self) -> None:
         """Validate and process event data."""
         # Validate onsets
         self.onsets = validate_onsets(self._onsets)
-        
+
         # Validate durations
         self.durations = validate_durations(self._durations, len(self.onsets))
-        
+
         # Process continuous values
         if isinstance(self._values, pd.Series):
             self.raw_values = self._values.values.astype(np.float64)
         else:
             self.raw_values = np.asarray(self._values, dtype=np.float64)
-        
+
         # Validate values
         if self.raw_values.ndim != 1:
             raise ValueError(
                 f"Values must be 1-dimensional, got {self.raw_values.ndim}D"
             )
-        
+
         if len(self.raw_values) != len(self.onsets):
             raise ValueError(
                 f"Length mismatch: {len(self.raw_values)} values "
                 f"but {len(self.onsets)} onsets"
             )
-        
-        if not np.all(np.isfinite(self.raw_values)):
-            raise ValueError("Values must be finite (no NaN or inf)")
-        
-        # Apply centering and scaling
+
+        nan_mask = ~np.isfinite(self.raw_values)
+        n_nan = int(np.sum(nan_mask))
+        if n_nan > 0:
+            if self.nan_strategy == "error":
+                raise ValueError(
+                    f"EventVariable {self.name!r}: {n_nan} non-finite "
+                    f"value(s); pass nan_strategy='drop' to zero them out "
+                    f"or remove the rows upstream."
+                )
+            warnings.warn(
+                f"EventVariable {self.name!r}: {n_nan}/{len(self.raw_values)} "
+                f"value(s) are non-finite (NaN / inf). Those trials "
+                f"contribute zero amplitude to any column that uses this "
+                f"variable as a parametric modulator; they remain in any "
+                f"categorical main-effect column that does not. Center/"
+                f"scale statistics are computed over the finite entries only.",
+                UserWarning,
+                stacklevel=3,
+            )
+        self.nan_mask = nan_mask
+
+        # Apply centering and scaling, then zero out non-finite entries
+        # so the convolution amplitude for those trials is exactly zero.
         self.values = self._transform_values(self.raw_values)
-    
+        if n_nan > 0:
+            self.values = self.values.copy()
+            self.values[nan_mask] = 0.0
+
     def _transform_values(self, values: Array) -> Array:
         """Apply centering and/or scaling to values.
-        
+
+        Center/scale statistics are computed over finite entries only so
+        a NaN amplitude does not poison the rescaled column.
+
         Parameters
         ----------
         values : Array
             Raw values to transform
-        
+
         Returns
         -------
         Array
-            Transformed values
+            Transformed values. Non-finite entries are preserved in their
+            non-finite state; the caller is responsible for zeroing them
+            if it wants a finite convolution amplitude.
         """
-        result = values.copy()
-        
+        result = values.copy().astype(np.float64)
+        finite = np.isfinite(result)
+
         if self.center:
-            result = result - np.mean(result)
-        
+            if np.any(finite):
+                result[finite] = result[finite] - float(np.mean(result[finite]))
+
         if self.scale:
-            std = np.std(result)
-            if std > 0:
-                result = result / std
-            else:
-                # All values are the same
-                result = np.zeros_like(result)
-        
+            if np.any(finite):
+                std = float(np.std(result[finite]))
+                if std > 0:
+                    result[finite] = result[finite] / std
+                else:
+                    # All finite values are identical: the rescaled
+                    # column is identically zero on those entries.
+                    result[finite] = 0.0
+
         return result
     
     @property
@@ -169,13 +216,13 @@ class EventVariable(BaseEvent):
     
     @property
     def mean(self) -> float:
-        """Mean of raw values."""
-        return float(np.mean(self.raw_values))
-    
+        """Mean of raw values, computed over finite entries only."""
+        return float(np.nanmean(self.raw_values))
+
     @property
     def std(self) -> float:
-        """Standard deviation of raw values."""
-        return float(np.std(self.raw_values))
+        """Standard deviation of raw values, computed over finite entries only."""
+        return float(np.nanstd(self.raw_values))
     
     @property
     def min(self) -> float:
