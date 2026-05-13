@@ -22,10 +22,17 @@
       ],
       "fmrimod_expresses_better": "The user-facing path keeps HRF normalization, dataset construction, fitting, and contrast evaluation as typed inspectable objects instead of a stateful FirstLevelModel call.",
       "receipt": {
-        "status": "static_snapshot",
-        "reason": "workflow is already public-seam evidence, but does not yet expose a receipt-safe --out-dir regeneration command",
-        "date": "2026-05-13",
-        "owner": "parity-maintainers"
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_a_spm_auditory.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ]
       }
     },
     {
@@ -135,7 +142,9 @@
       "report_path": "benchmarks/parity/tier_b_fitlins_bids/reports/parity_report.json",
       "reference_path": "benchmarks/parity/tier_b_fitlins_bids/workflow.py::manual_pipeline and FitLins CLI derivative fixture",
       "fmrimod_path": "benchmarks/parity/tier_b_fitlins_bids/workflow.py::translated_pipeline plus ar1_nilearn derivative writer",
-      "caveats": [],
+      "caveats": [
+        "fitlins-ar1-coefficient-binning"
+      ],
       "replacement_target": "Route translated BIDS Stats Model nodes into fmri_dataset -> fmri_lm once the typed spec compiler covers the required transforms."
     },
     {
@@ -146,12 +155,10 @@
       "report_path": "benchmarks/parity/tier_c_second_level/reports/parity_report.json",
       "reference_path": "benchmarks/parity/tier_c_second_level/workflow.py::nilearn_pipeline",
       "fmrimod_path": "benchmarks/parity/tier_c_second_level/workflow.py::fmrimod_pipeline: group_data_from_csv -> group_fit",
-      "caveats": [
-        "second-level-normal-vs-t-pvalues"
-      ],
+      "caveats": [],
       "timings": {
         "status": "not_recorded",
-        "next": "record native group reducer timings after the second-level caveat is retired"
+        "next": "record native group reducer timings now that the second-level caveat has been retired"
       },
       "typed_objects": [
         "fmrimod.dataset.GroupData",
@@ -161,11 +168,10 @@
       "fmrimod_expresses_better": "The group path carries effect-size standard errors and model intent as explicit request fields rather than hiding them inside a fitted second-level estimator.",
       "receipt": {
         "status": "static_snapshot",
-        "reason": "workflow still carries an active second-level p-value caveat and has not yet been wired to receipt-safe report regeneration",
+        "reason": "workflow does not yet expose a receipt-safe --out-dir regeneration command; snapshot is hand-rendered from workflow.py main()",
         "date": "2026-05-13",
         "owner": "parity-maintainers"
-      },
-      "replacement_target": "Retire the normal-vs-t caveat by comparing against a statistically matching native second-level reference, not Nilearn's OLS variance model."
+      }
     },
     {
       "benchmark_id": "tier_d_showcase",

@@ -6,6 +6,7 @@ import h5py
 import nibabel as nib
 import numpy as np
 import pandas as pd
+import pytest
 
 import fmrimod
 from fmrimod.dataset import (
@@ -50,6 +51,7 @@ def test_memory_latent_chunks_and_design_plot_helpers():
 
 
 def test_csv_h5_nifti_and_config_readers(tmp_path):
+    pytest.importorskip("neuroim")
     csv_df = pd.DataFrame(
         {
             "subject": ["s1", "s2", "s1", "s2"],

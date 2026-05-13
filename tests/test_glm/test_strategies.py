@@ -153,6 +153,7 @@ def test_fit_run_ols_nuisance_mask_3d_maps_via_dataset_mask():
 def test_fit_run_ols_nuisance_mask_pathlike_file_matches_manual_projection(tmp_path):
     """PathLike nuisance_mask files should flow through fit_run_ols soft-subspace path."""
     nib = pytest.importorskip("nibabel")
+    pytest.importorskip("neuroim")
     rng = np.random.default_rng(41)
     n, v = 18, 4
     X = np.column_stack([np.ones(n), rng.standard_normal((n, 1))]).astype(np.float64)

@@ -57,11 +57,18 @@ def test_chunked_fast_rss_recomputes_boundary_voxels_from_residuals() -> None:
     )
     reference = fast_lm_matrix(X, Y, proj, return_fitted=True)
 
-    np.testing.assert_allclose(result.betas, reference.betas, rtol=0, atol=0)
-    np.testing.assert_allclose(result.rss, reference.rss, rtol=1e-12, atol=1e-12)
+    # Chunked GEMM (Pinv @ Y[:, slice]) and single-shot GEMM (Pinv @ Y)
+    # disagree at BLAS round-off, so betas differ by ~1e-15 relative, and
+    # the cancellation-safe direct-residual recomputation propagates that
+    # to RSS at the ~|beta|^2 * eps level — far above 1e-12 with the
+    # 1e6-scale betas this fixture uses. The point of the regression is
+    # that the chunked path still routes boundary voxels through the
+    # residual recomputation; tolerances reflect realised float64 noise.
+    np.testing.assert_allclose(result.betas, reference.betas, rtol=1e-12, atol=0)
+    np.testing.assert_allclose(result.rss, reference.rss, rtol=1e-7, atol=1e-9)
     np.testing.assert_allclose(
         result.sigma2,
         reference.sigma2,
-        rtol=1e-12,
-        atol=1e-12,
+        rtol=1e-7,
+        atol=1e-9,
     )

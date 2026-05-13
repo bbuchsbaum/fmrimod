@@ -1,0 +1,112 @@
+{
+  "caveats": [],
+  "column_alignment": [],
+  "deltas": {
+    "age_effect": {
+      "failed_gates": [],
+      "gate": "allclose+pearson+spearman",
+      "mae": 2.369076558401216e-09,
+      "max_abs": 6.221501008818464e-09,
+      "name": "age_effect",
+      "passes": true,
+      "pearson_r": 0.9999999999999998,
+      "rank_candidate": 1,
+      "rank_reference": 1,
+      "scale": 1.0,
+      "shape": [
+        27
+      ],
+      "spearman_rho": 0.9999999999999999,
+      "tolerance": {
+        "allow_rescale": false,
+        "atol": 1e-08,
+        "check_allclose": true,
+        "max_abs": null,
+        "max_mae": null,
+        "min_pearson": 0.999,
+        "min_spearman": 0.999,
+        "rtol": 1e-07
+      }
+    },
+    "age_t": {
+      "failed_gates": [],
+      "gate": "allclose+pearson+spearman",
+      "mae": 4.56303374582673e-07,
+      "max_abs": 2.409137735526201e-06,
+      "name": "age_t",
+      "passes": true,
+      "pearson_r": 0.9999999999999974,
+      "rank_candidate": 1,
+      "rank_reference": 1,
+      "scale": 1.0,
+      "shape": [
+        27
+      ],
+      "spearman_rho": 0.9999999999999999,
+      "tolerance": {
+        "allow_rescale": false,
+        "atol": 1e-06,
+        "check_allclose": true,
+        "max_abs": null,
+        "max_mae": null,
+        "min_pearson": 0.999,
+        "min_spearman": 0.999,
+        "rtol": 1e-06
+      }
+    },
+    "one_sample_effect": {
+      "failed_gates": [],
+      "gate": "allclose+pearson+spearman",
+      "mae": 1.9251439783882115e-09,
+      "max_abs": 5.035095562710978e-09,
+      "name": "one_sample_effect",
+      "passes": true,
+      "pearson_r": 0.9999999999999999,
+      "rank_candidate": 1,
+      "rank_reference": 1,
+      "scale": 1.0,
+      "shape": [
+        27
+      ],
+      "spearman_rho": 0.9999999999999999,
+      "tolerance": {
+        "allow_rescale": false,
+        "atol": 1e-08,
+        "check_allclose": true,
+        "max_abs": null,
+        "max_mae": null,
+        "min_pearson": 0.999,
+        "min_spearman": 0.999,
+        "rtol": 1e-07
+      }
+    },
+    "one_sample_t": {
+      "failed_gates": [],
+      "gate": "allclose+pearson+spearman",
+      "mae": 3.505674660769992e-07,
+      "max_abs": 2.6292118278092858e-06,
+      "name": "one_sample_t",
+      "passes": true,
+      "pearson_r": 0.999999999999997,
+      "rank_candidate": 1,
+      "rank_reference": 1,
+      "scale": 1.0,
+      "shape": [
+        27
+      ],
+      "spearman_rho": 0.9999999999999999,
+      "tolerance": {
+        "allow_rescale": false,
+        "atol": 1e-06,
+        "check_allclose": true,
+        "max_abs": null,
+        "max_mae": null,
+        "min_pearson": 0.999,
+        "min_spearman": 0.999,
+        "rtol": 1e-06
+      }
+    }
+  },
+  "name": "tier_c_second_level_synthetic",
+  "status": "pass"
+}
