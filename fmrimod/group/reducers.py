@@ -19,7 +19,9 @@ from .registry import reducer_registry
 Tail = Literal["two.sided"]
 
 
-def _beta_and_var(dataset: GroupDataset) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+def _beta_and_var(
+    dataset: GroupDataset,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     beta = dataset.assay("beta")
     if "var" in dataset.assays:
         var = dataset.assay("var")
@@ -80,12 +82,16 @@ def _design_matrix(
         return np.ones((dataset.n_subjects, 1), dtype=np.float64), ["Intercept"]
     if dataset.col_data is None:
         raise AdapterContractError("formula with covariates requires dataset.col_data")
-    design = dmatrix(formula, dataset.col_data.reset_index(drop=True), return_type="dataframe")
+    design = dmatrix(
+        formula, dataset.col_data.reset_index(drop=True), return_type="dataframe"
+    )
     return np.asarray(design, dtype=np.float64), list(design.columns)
 
 
 def _flatten_feature_axis(arr: NDArray[np.float64]) -> NDArray[np.float64]:
-    return np.transpose(arr, (1, 0, 2)).reshape(arr.shape[1], arr.shape[0] * arr.shape[2])
+    return np.transpose(arr, (1, 0, 2)).reshape(
+        arr.shape[1], arr.shape[0] * arr.shape[2]
+    )
 
 
 def _unflatten_feature_axis(
@@ -104,17 +110,34 @@ def _safe_inverse(matrix: NDArray[np.float64]) -> NDArray[np.float64] | None:
         return None
 
 
-def _two_sided_perm_p(null_stats: NDArray[np.float64], observed: float) -> float:
-    finite = np.isfinite(null_stats)
-    if not np.any(finite) or not np.isfinite(observed):
+def _two_sided_perm_count(null_stats: NDArray[np.float64], observed: float) -> float:
+    if not np.isfinite(observed):
         return np.nan
-    return float(np.mean(np.abs(null_stats[finite]) >= abs(observed)))
+    return float(
+        np.sum(np.isfinite(null_stats) & (np.abs(null_stats) >= abs(observed)))
+    )
+
+
+def _max_abs_null(null_stats: NDArray[np.float64]) -> NDArray[np.float64]:
+    abs_null = np.abs(null_stats)
+    safe = np.where(np.isfinite(abs_null), abs_null, -np.inf)
+    max_abs = np.max(safe, axis=1)
+    max_abs[~np.isfinite(max_abs)] = 0.0
+    return max_abs
 
 
 def _t_p_two_sided(t_value: float, df: float) -> float:
     if not np.isfinite(t_value) or not np.isfinite(df) or df <= 0:
         return np.nan
     return float(2.0 * sp_stats.t.sf(abs(t_value), df))
+
+
+def _clamp_cpp_p_values(p: NDArray[np.float64]) -> NDArray[np.float64]:
+    return np.where(
+        np.isfinite(p),
+        np.clip(p, 1e-300, 1.0 - 1e-16),
+        np.nan,
+    )
 
 
 def _fe_weights_and_q(
@@ -305,9 +328,13 @@ def combine_fisher(
     if min_subjects < 1:
         raise AdapterContractError("min_subjects must be >= 1")
     finite = np.isfinite(p)
-    valid_for_log = finite & (p >= 0)
+    clamped = _clamp_cpp_p_values(p)
     with np.errstate(divide="ignore", invalid="ignore"):
-        chi2 = -2.0 * np.sum(np.where(valid_for_log, np.log(p), 0.0), axis=1, keepdims=True)
+        chi2 = -2.0 * np.sum(
+            np.where(finite, np.log(clamped), 0.0),
+            axis=1,
+            keepdims=True,
+        )
     k = np.sum(finite, axis=1, keepdims=True)
     df = 2.0 * k.astype(np.float64)
     p_g = sp_stats.chi2.sf(chi2, df)
@@ -332,18 +359,20 @@ def combine_lancaster(
 ) -> GroupDataset:
     """Combine subject-level p-values with Lancaster's weighted chi-square method."""
     p = dataset.assay("p")
-    weights = np.asarray(dfw, dtype=np.float64)
-    if weights.shape != (dataset.n_subjects,):
+    raw_weights = np.asarray(dfw, dtype=np.float64)
+    if raw_weights.shape != (dataset.n_subjects,):
         raise AdapterContractError("dfw length must equal number of subjects")
-    if not np.all(np.isfinite(weights)) or np.any(weights <= 0):
-        raise AdapterContractError("dfw must contain finite positive values")
+    if not np.all(np.isfinite(raw_weights)):
+        raise AdapterContractError("dfw must contain finite values")
+    weights = np.maximum(raw_weights.astype(np.int64), 1).astype(np.float64)
     if min_subjects < 1:
         raise AdapterContractError("min_subjects must be >= 1")
 
     finite = np.isfinite(p)
+    clamped = _clamp_cpp_p_values(p)
     w3 = weights.reshape(1, dataset.n_subjects, 1)
     with np.errstate(divide="ignore", invalid="ignore"):
-        chi_terms = sp_stats.chi2.ppf(1.0 - p, df=2.0 * w3)
+        chi_terms = sp_stats.chi2.ppf(1.0 - clamped, df=2.0 * w3)
     chi2 = np.sum(np.where(finite, chi_terms, 0.0), axis=1, keepdims=True)
     df = 2.0 * np.sum(np.where(finite, w3, 0.0), axis=1, keepdims=True)
     p_g = sp_stats.chi2.sf(chi2, df)
@@ -408,7 +437,9 @@ def meta_fe_reg(
         df_res[feature_idx] = np.sum(ok) - pcols
 
     assays: dict[str, NDArray[np.float64]] = {
-        "Q": _unflatten_feature_axis(q, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts),
+        "Q": _unflatten_feature_axis(
+            q, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts
+        ),
         "df_res": _unflatten_feature_axis(
             df_res,
             n_sample=dataset.n_samples,
@@ -503,8 +534,12 @@ def meta_re_reg(
         df_res[feature_idx] = df_val
 
     assays = {
-        "tau2": _unflatten_feature_axis(tau2, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts),
-        "Q": _unflatten_feature_axis(q, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts),
+        "tau2": _unflatten_feature_axis(
+            tau2, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts
+        ),
+        "Q": _unflatten_feature_axis(
+            q, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts
+        ),
         "df_res": _unflatten_feature_axis(
             df_res,
             n_sample=dataset.n_samples,
@@ -552,7 +587,9 @@ def perm_onesample(
 ) -> GroupDataset:
     """One-sample sign-flip permutation t reducer."""
     if alternative != "two.sided":
-        raise AdapterContractError("perm:onesample currently supports only two.sided tests")
+        raise AdapterContractError(
+            "perm:onesample currently supports only two.sided tests"
+        )
     beta = dataset.assay("beta")
     if min_subjects < 2:
         raise AdapterContractError("min_subjects must be >= 2")
@@ -610,20 +647,36 @@ def perm_onesample(
         perm_sd = np.std(perm_y, axis=1, ddof=1)
         with np.errstate(divide="ignore", invalid="ignore"):
             null_stats[:, feature_idx] = perm_mean / (perm_sd / np.sqrt(n_ok))
-        p_perm[feature_idx] = _two_sided_perm_p(null_stats[:, feature_idx], obs_t)
+        count = _two_sided_perm_count(null_stats[:, feature_idx], obs_t)
+        p_perm[feature_idx] = (count + 1.0) / (sign_mat.shape[0] + 1.0)
 
-    max_abs = np.nanmax(np.abs(null_stats), axis=1)
+    max_abs = _max_abs_null(null_stats)
     for feature_idx in range(n_features):
-        p_fwer[feature_idx] = _two_sided_perm_p(max_abs, t_g[feature_idx])
+        count = _two_sided_perm_count(max_abs, t_g[feature_idx])
+        p_fwer[feature_idx] = (count + 1.0) / (sign_mat.shape[0] + 1.0)
 
     assays = {
-        "beta_g": _unflatten_feature_axis(beta_g, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts),
-        "se_g": _unflatten_feature_axis(se_g, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts),
-        "t_g": _unflatten_feature_axis(t_g, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts),
-        "df": _unflatten_feature_axis(df, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts),
-        "p_g": _unflatten_feature_axis(p_g, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts),
-        "p_perm": _unflatten_feature_axis(p_perm, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts),
-        "p_fwer": _unflatten_feature_axis(p_fwer, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts),
+        "beta_g": _unflatten_feature_axis(
+            beta_g, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts
+        ),
+        "se_g": _unflatten_feature_axis(
+            se_g, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts
+        ),
+        "t_g": _unflatten_feature_axis(
+            t_g, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts
+        ),
+        "df": _unflatten_feature_axis(
+            df, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts
+        ),
+        "p_g": _unflatten_feature_axis(
+            p_g, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts
+        ),
+        "p_perm": _unflatten_feature_axis(
+            p_perm, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts
+        ),
+        "p_fwer": _unflatten_feature_axis(
+            p_fwer, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts
+        ),
     }
     return _reduced_dataset(
         dataset,
@@ -647,7 +700,9 @@ def perm_twosample(
 ) -> GroupDataset:
     """Two-sample label-permutation t reducer."""
     if alternative != "two.sided":
-        raise AdapterContractError("perm:twosample currently supports only two.sided tests")
+        raise AdapterContractError(
+            "perm:twosample currently supports only two.sided tests"
+        )
     if variance not in ("welch", "pooled"):
         raise AdapterContractError("variance must be 'welch' or 'pooled'")
     if min_group < 1:
@@ -687,7 +742,9 @@ def perm_twosample(
     p_fwer = np.full(n_features, np.nan, dtype=np.float64)
     null_stats = np.full((perm_mat.shape[0], n_features), np.nan, dtype=np.float64)
 
-    def two_sample_t(y: NDArray[np.float64], labels: NDArray[np.integer[Any]]) -> tuple[float, float, float, float]:
+    def two_sample_t(
+        y: NDArray[np.float64], labels: NDArray[np.integer[Any]]
+    ) -> tuple[float, float, float, float]:
         g0 = y[labels == 0]
         g1 = y[labels == 1]
         if len(g0) < min_group or len(g1) < min_group:
@@ -704,9 +761,7 @@ def perm_twosample(
             a = v0 / len(g0)
             b = v1 / len(g1)
             se_val = np.sqrt(a + b)
-            df_val = (a + b) ** 2 / (
-                (a * a) / (len(g0) - 1) + (b * b) / (len(g1) - 1)
-            )
+            df_val = (a + b) ** 2 / ((a * a) / (len(g0) - 1) + (b * b) / (len(g1) - 1))
         if se_val <= 0 or not np.isfinite(se_val):
             return np.nan, np.nan, np.nan, np.nan
         diff = m1 - m0
@@ -727,20 +782,36 @@ def perm_twosample(
         for perm_idx, labels in enumerate(perm_mat[:, ok]):
             _, _, perm_t, _ = two_sample_t(y_ok, labels)
             null_stats[perm_idx, feature_idx] = perm_t
-        p_perm[feature_idx] = _two_sided_perm_p(null_stats[:, feature_idx], obs_t)
+        count = _two_sided_perm_count(null_stats[1:, feature_idx], obs_t)
+        p_perm[feature_idx] = (count + 1.0) / float(perm_mat.shape[0])
 
-    max_abs = np.nanmax(np.abs(null_stats), axis=1)
+    max_abs = _max_abs_null(null_stats)
     for feature_idx in range(n_features):
-        p_fwer[feature_idx] = _two_sided_perm_p(max_abs, t_g[feature_idx])
+        count = _two_sided_perm_count(max_abs[1:], t_g[feature_idx])
+        p_fwer[feature_idx] = (count + 1.0) / float(perm_mat.shape[0])
 
     assays = {
-        "beta_g": _unflatten_feature_axis(beta_g, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts),
-        "se_g": _unflatten_feature_axis(se_g, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts),
-        "t_g": _unflatten_feature_axis(t_g, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts),
-        "df": _unflatten_feature_axis(df, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts),
-        "p_g": _unflatten_feature_axis(p_g, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts),
-        "p_perm": _unflatten_feature_axis(p_perm, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts),
-        "p_fwer": _unflatten_feature_axis(p_fwer, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts),
+        "beta_g": _unflatten_feature_axis(
+            beta_g, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts
+        ),
+        "se_g": _unflatten_feature_axis(
+            se_g, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts
+        ),
+        "t_g": _unflatten_feature_axis(
+            t_g, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts
+        ),
+        "df": _unflatten_feature_axis(
+            df, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts
+        ),
+        "p_g": _unflatten_feature_axis(
+            p_g, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts
+        ),
+        "p_perm": _unflatten_feature_axis(
+            p_perm, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts
+        ),
+        "p_fwer": _unflatten_feature_axis(
+            p_fwer, n_sample=dataset.n_samples, n_contrast=dataset.n_contrasts
+        ),
     }
     return _reduced_dataset(
         dataset,
