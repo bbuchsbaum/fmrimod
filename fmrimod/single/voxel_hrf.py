@@ -155,14 +155,14 @@ def _build_trial_basis_design(
 def estimate_hrf(
     Y: NDArray[np.float64] | None = None,
     X_trials: NDArray[np.float64] | None = None,
-    basis: Any | None = None,
+    basis: NDArray[np.float64] | object | None = None,
     *,
     confounds: Optional[NDArray[np.float64]] = None,
     K: Optional[int] = None,
     output: Literal["hrf", "coefficients", "result"] = "hrf",
-    form: Any = None,
-    fixed: Any = None,
-    block: Any = None,
+    form: Optional[str] = None,
+    fixed: Optional[NDArray[np.float64]] = None,
+    block: Optional[str] = None,
     dataset: HrfEstimationDataset | None = None,
 ) -> NDArray[np.float64] | VoxelHrfResult:
     """Estimate HRF using matrix inputs or a limited formula+dataset path.
