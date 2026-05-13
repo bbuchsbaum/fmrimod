@@ -15,6 +15,7 @@ import pytest
 
 import fmrimod as fm
 from fmrimod.glm.fmri_lm import FitProvenance, FmriLm
+from fmrimod.glm import SketchEngineOptions
 from fmrimod.spec import hrf as hrf_term
 
 
@@ -121,6 +122,64 @@ def test_slice_a_other_fields_carry_status() -> None:
     assert prov.ar_status == "not_yet_carried"
     assert prov.mask_mode is None
     assert prov.mask_status == "not_yet_carried"
+
+
+def test_fit_provenance_records_typed_sketch_seed() -> None:
+    """Randomized typed engine options carry their seed explicitly."""
+    rng = np.random.default_rng(1)
+    events = pd.DataFrame(
+        {
+            "onset": [10.0, 30.0],
+            "duration": [2.0, 2.0],
+            "trial_type": ["A", "B"],
+            "run": [1, 1],
+        }
+    )
+    ds = fm.fmri_dataset(
+        rng.standard_normal((60, 4)).astype(np.float64),
+        tr=2.0,
+        events=events,
+    )
+
+    fit = fm.fmri_lm(
+        hrf_term("trial_type"),
+        ds,
+        engine=SketchEngineOptions(sketch_ratio=1.0, seed=123),
+    )
+
+    assert fit.provenance is not None
+    assert fit.provenance.solver_path == "SketchEngine"
+    assert fit.provenance.seed == 123
+    assert fit.provenance.seed_status == "randomized"
+
+
+def test_fit_provenance_marks_unseeded_sketch_engine_unknown() -> None:
+    """Randomized engine without a seed is explicit, not mislabeled deterministic."""
+    rng = np.random.default_rng(2)
+    events = pd.DataFrame(
+        {
+            "onset": [10.0, 30.0],
+            "duration": [2.0, 2.0],
+            "trial_type": ["A", "B"],
+            "run": [1, 1],
+        }
+    )
+    ds = fm.fmri_dataset(
+        rng.standard_normal((60, 4)).astype(np.float64),
+        tr=2.0,
+        events=events,
+    )
+
+    fit = fm.fmri_lm(
+        hrf_term("trial_type"),
+        ds,
+        engine=SketchEngineOptions(sketch_ratio=1.0),
+    )
+
+    assert fit.provenance is not None
+    assert fit.provenance.solver_path == "SketchEngine"
+    assert fit.provenance.seed is None
+    assert fit.provenance.seed_status == "unknown"
 
 
 def test_provenance_constructor_defaults_match_slice_a() -> None:

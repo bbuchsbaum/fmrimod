@@ -141,20 +141,43 @@ def _term_norm_mode(term: Any) -> Optional[NormMode]:
     return cast(NormMode, mode)
 
 
-def _build_fit_provenance(model: Any, engine: Any) -> FitProvenance:
+def _seed_provenance(
+    engine: Any,
+    fit_kwargs: Mapping[str, object],
+) -> tuple[Optional[int], SeedStatus]:
+    """Recover seed provenance from the resolved engine invocation."""
+    seed = fit_kwargs.get("seed")
+    if seed is not None:
+        return int(seed), "randomized"
+
+    if getattr(engine, "name", None) == "sketch":
+        return None, "unknown"
+
+    return None, "not_randomized"
+
+
+def _build_fit_provenance(
+    model: Any,
+    engine: Any,
+    fit_kwargs: Mapping[str, object] | None = None,
+) -> FitProvenance:
     """Construct the Slice A provenance object from a fitted model."""
     from fmrimod import __version__ as _fmrimod_version
 
+    fit_kwargs = fit_kwargs or {}
     event_model = getattr(model, "event_model", model)
     terms = getattr(event_model, "terms", ())
     hrf_norm_modes: Tuple[Optional[NormMode], ...] = tuple(
         _term_norm_mode(t) for t in terms
     )
     solver_path = type(engine).__name__
+    seed, seed_status = _seed_provenance(engine, fit_kwargs)
     return FitProvenance(
         fmrimod_version=_fmrimod_version,
         solver_path=solver_path,
         hrf_norm_modes=hrf_norm_modes,
+        seed=seed,
+        seed_status=seed_status,
     )
 
 if TYPE_CHECKING:
@@ -740,7 +763,7 @@ def fmri_lm(
         robust_weights=robust_weights,
         run_results=fit_result.run_results,
         projections=fit_result.projections,
-        provenance=_build_fit_provenance(model, eng),
+        provenance=_build_fit_provenance(model, eng, fit_kwargs),
     )
 
 
