@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 
+from fmrimod.contrast import column_contrast, oneway_contrast, pair_contrast
 from fmrimod.glm.fmri_lm import fmri_lm
 from fmrimod.model.config import FmriLmConfig
 
@@ -23,10 +24,16 @@ class _DummyDataset:
 
 
 class _DummyModel:
-    def __init__(self, x: np.ndarray, y: np.ndarray):
+    def __init__(
+        self,
+        x: np.ndarray,
+        y: np.ndarray,
+        column_names: tuple[str, ...] = ("intercept", "slope"),
+    ):
         self._x = x
         self.dataset = _DummyDataset(y)
         self.n_runs = 1
+        self._column_names = column_names
 
     def design_matrix_array(self, run: int) -> np.ndarray:
         if run != 0:
@@ -37,7 +44,7 @@ class _DummyModel:
         return {"slope": np.array([0.0, 1.0])}
 
     def design_columns(self):
-        return ("intercept", "slope")
+        return self._column_names
 
 
 @pytest.fixture
@@ -77,6 +84,55 @@ def test_contrast_dispatch_string_and_dict_are_equivalent(fitted_result):
     np.testing.assert_allclose(named.p_value, by_dict.p_value, atol=1e-12)
     assert "slope" in fitted_result.contrasts
     assert "slope_dict" in fitted_result.contrasts
+
+
+def test_contrast_dispatch_accepts_typed_column_contrast_spec(fitted_result):
+    typed = fitted_result.contrast(
+        column_contrast(pattern_A="^slope$", pattern_B=None, name="typed_slope")
+    )
+    raw = fitted_result.contrast(np.array([0.0, 1.0]), name="raw_slope")
+
+    np.testing.assert_allclose(typed.stat, raw.stat, atol=1e-12)
+    np.testing.assert_allclose(typed.p_value, raw.p_value, atol=1e-12)
+    assert typed.intent is not None
+    assert typed.intent.kind == "contrast_spec"
+    assert typed.intent.name == "typed_slope"
+
+
+def test_contrast_dispatch_accepts_typed_pair_contrast_spec(fitted_result):
+    typed = fitted_result.contrast(
+        pair_contrast("slope", "intercept", name="typed_slope_minus_intercept")
+    )
+    raw = fitted_result.contrast(np.array([-1.0, 1.0]), name="raw_pair")
+
+    np.testing.assert_allclose(typed.stat, raw.stat, atol=1e-12)
+    np.testing.assert_allclose(typed.p_value, raw.p_value, atol=1e-12)
+    assert typed.touched_columns == ("intercept", "slope")
+
+
+def test_contrast_dispatch_accepts_typed_f_contrast_spec(rng):
+    n, v = 90, 4
+    x = np.column_stack([
+        np.ones(n),
+        rng.standard_normal(n),
+        rng.standard_normal(n),
+    ])
+    beta = np.array([[1.0], [0.5], [-0.5]])
+    y = x @ beta + rng.standard_normal((n, v)) * 0.5
+    fit = fmri_lm(
+        _DummyModel(x, y, column_names=("intercept", "x1", "x2")),
+        FmriLmConfig(),
+    )
+
+    typed = fit.contrast(oneway_contrast("all", name="typed_omnibus"))
+    raw_weights = np.array([[-1.0, 1.0, 0.0], [-0.5, -0.5, 1.0]])
+    raw = fit.contrast(raw_weights, name="raw_omnibus")
+
+    np.testing.assert_allclose(typed.stat, raw.stat, atol=1e-12)
+    np.testing.assert_allclose(typed.p_value, raw.p_value, atol=1e-12)
+    assert typed.stat_type == "F"
+    assert typed.intent is not None
+    assert typed.intent.rows == 2
 
 
 def test_unknown_named_contrast_raises_keyerror(fitted_result):

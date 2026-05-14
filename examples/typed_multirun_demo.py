@@ -17,11 +17,9 @@ Friction findings surfaced while writing this demo (see
    directly. The canonical typed seam entry point should accept
    multi-run raw matrices.
 
-2. ``fit.contrast()`` accepts ``OmnibusContrast`` but rejects the rest
-   of the typed ``*ContrastSpec`` hierarchy returned by
-   ``fm.pair_contrast`` / ``fm.unit_contrast`` / etc. — the typed-spec
-   classes are declarative but not wired into the fit surface. Demo
-   uses ``OmnibusContrast`` plus a raw-weights t-contrast as a result.
+2. The typed ``*ContrastSpec`` hierarchy now reaches the fit surface.
+   ``OmnibusContrast`` remains the strict provenance-preserving F route;
+   formula-backed specs resolve against realized design-column names.
 """
 
 from __future__ import annotations
@@ -30,7 +28,7 @@ import numpy as np
 import pandas as pd
 
 import fmrimod as fm
-from fmrimod.contrast import OmnibusContrast
+from fmrimod.contrast import OmnibusContrast, column_contrast
 from fmrimod.dataset import matrix_dataset
 from fmrimod.spec import hrf
 
@@ -54,11 +52,20 @@ fit = fm.fmri_lm(hrf("trial_type", norm="spm"), dataset)
 omnibus = OmnibusContrast(term="trial_type", levels=("face", "scene"))
 fit.contrast(omnibus)
 
+# Formula-backed typed t contrast over realized columns.
+face_vs_scene = column_contrast(
+    pattern_A="face",
+    pattern_B="scene",
+    name="face_vs_scene",
+)
+fit.contrast(face_vs_scene)
+
 # Typed accessor surface — every kwarg is a Literal, validated at the boundary.
 per_coef_t: np.ndarray = fm.stats(fit, type="estimates")
 per_coef_se: np.ndarray = fm.standard_error(fit, type="estimates")
 per_coef_p: np.ndarray = fm.p_values(fit, type="estimates")
 contrast_fs: dict = fm.stats(fit, type="F")
+contrast_ts: dict = fm.stats(fit, type="contrasts")
 tidy_estimates: pd.DataFrame = fm.tidy(fit, type="estimates")
 
 print(f"design: {len(fit.model.event_model.column_names)} columns over 2 runs")
@@ -66,6 +73,7 @@ print(f"per-coefficient t shape:  {per_coef_t.shape}  (coefficients × voxels)")
 print(f"per-coefficient se shape: {per_coef_se.shape}")
 print(f"per-coefficient p shape:  {per_coef_p.shape}")
 print(f"F-contrasts available:    {sorted(contrast_fs)}")
+print(f"t-contrasts available:    {sorted(contrast_ts)}")
 print(f"tidy rows: {len(tidy_estimates)}  columns: {list(tidy_estimates.columns)}")
 print(
     f"provenance: solver={fit.provenance.solver_path}  "

@@ -315,6 +315,7 @@ def _build_fit_provenance(
     )
 
 if TYPE_CHECKING:
+    from fmrimod.contrast.contrast_spec import ContrastSpec
     from fmrimod.contrast.omnibus import OmnibusContrast
     from fmrimod.dataset import FmriDataset
     from fmrimod.dataset.protocols import DatasetProtocol
@@ -340,6 +341,41 @@ class FmriModelLike(Protocol):
     def design_matrix_array(self, run: int = 0) -> NDArray[np.float64]:
         """Return the design matrix for a run."""
         ...
+
+
+@dataclass(frozen=True)
+class _FitColumnTerm:
+    """Minimal term adapter for formula-backed ContrastSpec resolution."""
+
+    columns: object
+
+    def conditions(
+        self,
+        drop_empty: bool = False,
+        expand_basis: bool = True,
+    ) -> list[str]:
+        """Return realized design-column names as ContrastSpec conditions."""
+        del drop_empty, expand_basis
+        names = getattr(self.columns, "names", None)
+        if names is not None:
+            return [str(name) for name in names]
+        return [str(name) for name in self.columns]  # type: ignore[union-attr]
+
+
+def _contrast_spec_weights_to_fit_weights(
+    weights: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """Convert ContrastSpec weights from condition-by-contrast to fit shape."""
+    arr = np.asarray(weights, dtype=np.float64)
+    if arr.ndim == 1:
+        return arr
+    if arr.ndim != 2:
+        raise ValueError(
+            f"ContrastSpec weights must be 1-D or 2-D; got {arr.ndim}-D"
+        )
+    if arr.shape[1] == 1:
+        return arr[:, 0]
+    return arr.T
 
 
 @dataclass
@@ -504,14 +540,20 @@ class FmriLm:
 
     def contrast(
         self,
-        spec: Union[NDArray[np.float64], str, dict[str, Any], "OmnibusContrast"],
+        spec: Union[
+            NDArray[np.float64],
+            str,
+            dict[str, Any],
+            "OmnibusContrast",
+            "ContrastSpec",
+        ],
         name: Optional[str] = None,
     ) -> ContrastResult:
         """Compute a contrast on the fitted model.
 
         Parameters
         ----------
-        spec : NDArray, str, dict, or OmnibusContrast
+        spec : NDArray, str, dict, OmnibusContrast, or ContrastSpec
             Contrast specification. Can be:
             - A 1-D vector for a t-contrast
             - A 2-D matrix for an F-contrast
@@ -520,6 +562,8 @@ class FmriLm:
             - A dict ``{"weights": array, "name": str}``
             - An :class:`~fmrimod.contrast.OmnibusContrast` typed intent
               value, resolved against the fit's :class:`DesignColumns`
+            - A formula-backed :class:`~fmrimod.contrast.ContrastSpec`
+              value, resolved against realized design-column names
         name : str, optional
             Override contrast name.
 
@@ -527,6 +571,8 @@ class FmriLm:
         -------
         ContrastResult
         """
+        from fmrimod.contrast.contrast_spec import ContrastSpec
+        from fmrimod.contrast.contrast_weights import contrast_weights
         from fmrimod.contrast.omnibus import OmnibusContrast
 
         if isinstance(spec, OmnibusContrast):
@@ -540,6 +586,21 @@ class FmriLm:
                     term=spec.term,
                     levels=spec.levels,
                     rows=int(weights.shape[0]),
+                ),
+            )
+
+        if isinstance(spec, ContrastSpec):
+            resolved = contrast_weights(spec, _FitColumnTerm(self.design_columns()))
+            weights = _contrast_spec_weights_to_fit_weights(resolved.weights)
+            cname = name or resolved.name
+            return self._compute_contrast(
+                weights,
+                name=cname,
+                intent=ContrastIntent(
+                    kind="contrast_spec",
+                    name=cname,
+                    term=type(spec).__name__,
+                    rows=int(np.atleast_2d(weights).shape[0]),
                 ),
             )
 
