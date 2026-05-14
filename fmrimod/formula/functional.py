@@ -16,7 +16,7 @@ Example::
 
 from __future__ import annotations
 
-from typing import Any, Callable, Optional, Union
+from typing import Callable, Optional, Union
 
 from ..types import BasisProtocol, HRFProtocol
 from .base import Term
@@ -112,8 +112,8 @@ def term(*events: str, **kwargs) -> PipeTerm:
 def hrf(
     spec: Union[str, 'HRFProtocol'] = "spmg1",
     *,
-    subset: Optional[Any] = None,
-    contrasts: Optional[Any] = None,
+    subset: Optional[object] = None,
+    contrasts: Optional[object] = None,
     normalize: bool = False,
     summate: bool = True,
     hrf_fun: Optional[Callable] = None,
@@ -121,8 +121,8 @@ def hrf(
     prefix: Optional[str] = None,
     lag: float = 0.0,
     nbasis: int = 1,
-    onsets: Optional[Any] = None,
-    durations: Optional[Any] = None,
+    onsets: Optional[object] = None,
+    durations: Optional[object] = None,
 ) -> Callable[['Term'], 'Term']:
     """Create HRF transformation function.
 
