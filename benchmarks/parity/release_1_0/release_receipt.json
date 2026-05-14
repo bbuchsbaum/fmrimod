@@ -98,11 +98,6 @@
     "tier_a_fiac: hardware_tag is missing",
     "tier_a_fiac: receipt metadata is missing",
     "tier_a_fiac: private kernel path cannot be flagship proof (fit_glm_from_suffstats)",
-    "tier_b_fitlins_bids: public_seam is not true",
-    "tier_b_fitlins_bids: required public path 'fmri_dataset -> fmri_lm -> typed BIDS contrasts' not in fmrimod_path",
-    "tier_b_fitlins_bids: timings are not recorded",
-    "tier_b_fitlins_bids: hardware_tag is missing",
-    "tier_b_fitlins_bids: receipt metadata is missing",
     "tier_group_semantic_survival: hardware_tag is missing",
     "tier_d_lss_trialwise: public_seam is not true",
     "tier_d_lss_trialwise: numerical_canary cannot be flagship proof",
@@ -232,19 +227,13 @@
     {
       "artifact_present": true,
       "benchmark_id": "tier_b_fitlins_bids",
-      "blockers": [
-        "tier_b_fitlins_bids: public_seam is not true",
-        "tier_b_fitlins_bids: required public path 'fmri_dataset -> fmri_lm -> typed BIDS contrasts' not in fmrimod_path",
-        "tier_b_fitlins_bids: timings are not recorded",
-        "tier_b_fitlins_bids: hardware_tag is missing",
-        "tier_b_fitlins_bids: receipt metadata is missing"
-      ],
+      "blockers": [],
       "caveats": [],
-      "current_status": "blocked_public_seam_false",
+      "current_status": "ready",
       "evidence_level": "workflow_parity",
       "family": "FitLins/BIDS Stats Model translation",
-      "fmrimod_path": "benchmarks/parity/tier_b_fitlins_bids/workflow.py::translated_pipeline plus ar1_nilearn derivative writer",
-      "hardware_tag": null,
+      "fmrimod_path": "benchmarks/parity/tier_b_fitlins_bids/workflow.py::translated_pipeline: BIDS JSON -> translate_run_node -> fmri_dataset -> fmri_lm -> typed BIDS contrasts via StatsModelTranslation.fit -> compute_contrasts",
+      "hardware_tag": "Darwin-arm64-arm",
       "owner_bead": "bd-01KRFKZ0J0Z0GJ9VK35ABCAGJW",
       "private_kernel_evidence": {
         "expected_private_kernel_rows": [],
@@ -253,13 +242,34 @@
         "row_private_kernels": [],
         "row_uses_private_kernel": false
       },
-      "public_seam": false,
-      "receipt": null,
-      "reference_path": "benchmarks/parity/tier_b_fitlins_bids/workflow.py::manual_pipeline and FitLins CLI derivative fixture",
+      "public_seam": true,
+      "receipt": {
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ],
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_b_fitlins_bids.workflow"
+        ],
+        "status": "regenerable"
+      },
+      "reference_path": "benchmarks/parity/tier_b_fitlins_bids/workflow.py::manual_pipeline: typed Spec -> fmri_lm",
       "report_path": "benchmarks/parity/tier_b_fitlins_bids/reports/parity_report.json",
       "required_public_path": "fmri_dataset -> fmri_lm -> typed BIDS contrasts",
-      "timings": null,
-      "typed_objects": [],
+      "timings": {
+        "seconds": 0.0993444160000001,
+        "source": "python3.9 -c run(make_case()) on 2026-05-14",
+        "status": "recorded"
+      },
+      "typed_objects": [
+        "fmrimod.bids.StatsModelTranslation",
+        "fmrimod.bids.StatsModelContrast",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.contrast.ContrastResult"
+      ],
       "workflow_path": "benchmarks/parity/tier_b_fitlins_bids/workflow.py"
     },
     {

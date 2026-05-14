@@ -50,9 +50,32 @@ def test_release_receipt_is_currently_blocked_by_named_red_checks() -> None:
         "tier_a_fiac: private kernel path cannot be flagship proof "
         "(fit_glm_from_suffstats)"
     ) in blockers
-    assert "tier_b_fitlins_bids: public_seam is not true" in blockers
+    tier_b_blockers = [
+        blocker
+        for blocker in receipt["blockers"]
+        if blocker.startswith("tier_b_fitlins_bids:")
+    ]
+    assert tier_b_blockers == []
     assert "tier_d_lss_trialwise: numerical_canary cannot be flagship proof" in blockers
     assert "api spine " not in blockers
+
+
+def test_release_receipt_tier_b_is_public_typed_bids_seam() -> None:
+    receipt = bundle.build_receipt()
+
+    rows = {row["benchmark_id"]: row for row in receipt["flagship_families"]}
+    tier_b = rows["tier_b_fitlins_bids"]
+    assert tier_b["current_status"] == "ready"
+    assert tier_b["public_seam"] is True
+    assert tier_b["receipt"]["status"] == "regenerable"
+    assert tier_b["timings"]["status"] == "recorded"
+    assert tier_b["hardware_tag"] == "Darwin-arm64-arm"
+    assert (
+        "fmri_dataset -> fmri_lm -> typed BIDS contrasts"
+        in tier_b["fmrimod_path"]
+    )
+    assert "fmrimod.bids.StatsModelTranslation" in tier_b["typed_objects"]
+    assert "fmrimod.bids.StatsModelContrast" in tier_b["typed_objects"]
 
 
 def test_release_receipt_reports_private_kernel_evidence_by_row() -> None:

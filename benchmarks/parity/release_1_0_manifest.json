@@ -26,7 +26,7 @@
       "family": "FitLins/BIDS Stats Model translation",
       "benchmark_id": "tier_b_fitlins_bids",
       "required_public_path": "fmri_dataset -> fmri_lm -> typed BIDS contrasts",
-      "current_status": "blocked_public_seam_false",
+      "current_status": "ready",
       "owner_bead": "bd-01KRFKZ0J0Z0GJ9VK35ABCAGJW"
     },
     {

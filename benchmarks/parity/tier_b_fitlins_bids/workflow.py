@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import shutil
 import subprocess
 import tempfile
 import time
+from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 import nibabel as nib
 import numpy as np
@@ -129,37 +132,98 @@ def _inputs() -> dict:
             "trans_x": rng.normal(0.0, 0.25, size=n_scans),
         }
     )
+    # Synthetic BOLD shared by both pipelines so the fitted-flagship gate
+    # is on identical Y. Plant a small per-voxel intercept + jitter; the
+    # parity assertion is that two identical designs hitting fmri_lm with
+    # the same Y produce identical contrast outputs.
+    n_voxels = 6
+    Y = rng.standard_normal((n_scans, n_voxels)) * 0.5
     return {
         "stats_model": _stats_model(),
         "events": events,
         "sampling_frame": sampling_frame,
         "confounds": confounds,
+        "Y": Y,
     }
 
 
-def translated_pipeline(inputs: dict) -> PipelineOutput:
-    translated = translate_run_node(
-        inputs["stats_model"],
-        events=inputs["events"],
-        sampling_frame=inputs["sampling_frame"],
-        confounds=inputs["confounds"],
+def _elapsed_seconds(fn: Callable[[], Any]) -> tuple[Any, float]:
+    start = time.perf_counter()
+    value = fn()
+    return value, float(time.perf_counter() - start)
+
+
+def translated_pipeline(
+    inputs: dict,
+    *,
+    timing_sink: dict[str, float] | None = None,
+) -> PipelineOutput:
+    """fmrimod flagship path: JSON node -> typed StatsModelTranslation -> fmri_lm.
+
+    Lands the BIDS proof through the public seam
+    (``fmri_dataset -> fmri_lm -> contrast``). The translated
+    ``model_spec`` and ``StatsModelContrast`` records are the JSON-derived
+    intent carriers; the fit and the contrast results are the public
+    receipt. Bead: ``bd-01KRKADRJ8T33HVXV6NXZYT5BH``.
+    """
+
+    translated, translate_seconds = _elapsed_seconds(
+        lambda: translate_run_node(
+            inputs["stats_model"],
+            events=inputs["events"],
+            sampling_frame=inputs["sampling_frame"],
+            confounds=inputs["confounds"],
+        )
     )
-    design = np.column_stack(
-        [translated.event_model.design_matrix, translated.baseline_model.design_matrix]
+    sf = inputs["sampling_frame"]
+    dataset, dataset_seconds = _elapsed_seconds(
+        lambda: fm.fmri_dataset(
+            inputs["Y"], tr=sf.TR, events=translated.event_table,
+        )
     )
+    fit, fit_seconds = _elapsed_seconds(lambda: translated.fit(dataset))
+    results, contrast_seconds = _elapsed_seconds(
+        lambda: translated.compute_contrasts(fit)
+    )
+
+    if timing_sink is not None:
+        timing_sink.update(
+            {
+                "translate_seconds": translate_seconds,
+                "dataset_seconds": dataset_seconds,
+                "fit_seconds": fit_seconds,
+                "contrast_seconds": contrast_seconds,
+            }
+        )
+
+    event_dm = fit.model.event_model.design_matrix
+    baseline_dm = fit.model.baseline_model.design_matrix
+    design = np.column_stack([event_dm, baseline_dm])
+
     return PipelineOutput(
         arrays={
             "design": design,
-            "word_gt_pseudoword": translated.contrast_vectors[
-                "word_gt_pseudoword"
-            ],
-            "task_vs_baseline": translated.contrast_vectors["task_vs_baseline"],
-            "task_omnibus": translated.contrast_matrices["task_omnibus"],
+            "word_gt_pseudoword_effect": results["word_gt_pseudoword"].estimate,
+            "word_gt_pseudoword_stat": results["word_gt_pseudoword"].stat,
+            "task_vs_baseline_effect": results["task_vs_baseline"].estimate,
+            "task_vs_baseline_stat": results["task_vs_baseline"].stat,
+            "task_omnibus_stat": results["task_omnibus"].stat,
         }
     )
 
 
 def manual_pipeline(inputs: dict) -> PipelineOutput:
+    """Reference path: hand-built typed Spec + FmriModel through fmri_lm.
+
+    Mirrors the BIDS translator's intended decomposition (Scale, Product,
+    Convolve) by reconstructing the model directly via
+    :mod:`fmrimod.spec`, then routes it through the same public
+    ``fmri_lm`` seam the translated path uses. The parity claim is then
+    "the JSON pipeline matches a hand-authored pipeline on identical
+    inputs", not "the JSON pipeline matches a hand-built matrix".
+    """
+
+    from fmrimod.model.fmri_model import FmriModel
     from fmrimod.spec import compile_events, hrf, intercept
 
     events = inputs["events"].copy()
@@ -187,8 +251,13 @@ def manual_pipeline(inputs: dict) -> PipelineOutput:
             ].to_numpy(dtype=np.float64)
         ],
     )
-    design = np.column_stack([event_model.design_matrix, baseline.design_matrix])
-    column_names = list(event_model.column_names) + list(baseline.column_names)
+
+    sf = inputs["sampling_frame"]
+    dataset = fm.fmri_dataset(inputs["Y"], tr=sf.TR, events=events)
+    model = FmriModel(event_model, baseline, dataset)
+    fit = fm.fmri_lm(model)
+
+    column_names = list(fit.design_columns().names)
     word = column_names.index("trial_type_trial_type.word")
     pseudo = column_names.index("trial_type_trial_type.pseudoword")
     word_gt_pseudo = np.zeros(len(column_names), dtype=np.float64)
@@ -200,27 +269,44 @@ def manual_pipeline(inputs: dict) -> PipelineOutput:
     task_omnibus = np.zeros((2, len(column_names)), dtype=np.float64)
     task_omnibus[0, word] = 1.0
     task_omnibus[1, pseudo] = 1.0
+
+    word_gt_pseudo_result = fit.contrast(word_gt_pseudo, name="word_gt_pseudoword")
+    task_vs_baseline_result = fit.contrast(task_vs_baseline, name="task_vs_baseline")
+    task_omnibus_result = fit.contrast(task_omnibus, name="task_omnibus")
+
+    design = np.column_stack([event_model.design_matrix, baseline.design_matrix])
     return PipelineOutput(
         arrays={
             "design": design,
-            "word_gt_pseudoword": word_gt_pseudo,
-            "task_vs_baseline": task_vs_baseline,
-            "task_omnibus": task_omnibus,
+            "word_gt_pseudoword_effect": word_gt_pseudo_result.estimate,
+            "word_gt_pseudoword_stat": word_gt_pseudo_result.stat,
+            "task_vs_baseline_effect": task_vs_baseline_result.estimate,
+            "task_vs_baseline_stat": task_vs_baseline_result.stat,
+            "task_omnibus_stat": task_omnibus_result.stat,
         }
     )
 
 
-def make_case() -> ParityCase:
+def make_case(*, timing_sink: dict[str, float] | None = None) -> ParityCase:
+    # Both pipelines now go through ``fm.fmri_lm`` on identical ``Y``;
+    # the contrast effect and stat arrays are the public-seam receipt.
+    # The design parity stays as a sanity gate on the realised matrices.
+    tight = ParityTolerance(rtol=1e-12, atol=1e-12)
     return ParityCase(
         name="tier_b_fitlins_stats_model_translation",
-        fmrimod_pipeline=translated_pipeline,
+        fmrimod_pipeline=lambda inputs: translated_pipeline(
+            inputs,
+            timing_sink=timing_sink,
+        ),
         reference_pipeline=manual_pipeline,
         inputs=_inputs(),
         tolerances={
-            "design": ParityTolerance(rtol=1e-12, atol=1e-12),
-            "word_gt_pseudoword": ParityTolerance(rtol=0.0, atol=0.0),
-            "task_vs_baseline": ParityTolerance(rtol=0.0, atol=0.0),
-            "task_omnibus": ParityTolerance(rtol=0.0, atol=0.0),
+            "design": tight,
+            "word_gt_pseudoword_effect": tight,
+            "word_gt_pseudoword_stat": tight,
+            "task_vs_baseline_effect": tight,
+            "task_vs_baseline_stat": tight,
+            "task_omnibus_stat": tight,
         },
     )
 
@@ -325,11 +411,19 @@ def _make_events(n_events: int = 4, iti: float = 20.0) -> pd.DataFrame:
 def _make_signal(events: pd.DataFrame, frame_times: np.ndarray) -> np.ndarray:
     signal = np.zeros(frame_times.shape, dtype=np.float64)
     for condition, weight in {"ice_cream": 1.0, "cake": 0.55}.items():
-        block = events.query("trial_type == @condition")[["onset", "duration"]].to_numpy().T
+        block = (
+            events.query("trial_type == @condition")[["onset", "duration"]]
+            .to_numpy()
+            .T
+        )
         exp_condition = np.vstack([block, np.repeat(weight, block.shape[1])])
-        signal += compute_regressor(exp_condition, "spm", frame_times, con_id=condition)[
-            0
-        ].squeeze()
+        regressor = compute_regressor(
+            exp_condition,
+            "spm",
+            frame_times,
+            con_id=condition,
+        )[0]
+        signal += regressor.squeeze()
     return signal
 
 
@@ -378,7 +472,9 @@ def _write_cli_fixture(base_dir: Path) -> dict[str, Path]:
     )
     img = nib.Nifti1Image(data.astype(np.float32), affine)
     raw_bold = raw_func / "sub-01_task-eating_run-01_bold.nii.gz"
-    preproc_bold = deriv_func / "sub-01_task-eating_run-01_space-T1w_desc-preproc_bold.nii.gz"
+    preproc_bold = (
+        deriv_func / "sub-01_task-eating_run-01_space-T1w_desc-preproc_bold.nii.gz"
+    )
     img.to_filename(raw_bold)
     img.to_filename(preproc_bold)
     metadata = {"RepetitionTime": tr, "TaskName": "eating", "SkullStripped": False}
@@ -387,7 +483,9 @@ def _write_cli_fixture(base_dir: Path) -> dict[str, Path]:
 
     mask = np.zeros(data.shape[:3], dtype=np.uint8)
     mask[2:5, 2:5, 2:5] = 1
-    mask_path = deriv_func / "sub-01_task-eating_run-01_space-T1w_desc-brain_mask.nii.gz"
+    mask_path = (
+        deriv_func / "sub-01_task-eating_run-01_space-T1w_desc-brain_mask.nii.gz"
+    )
     nib.Nifti1Image(mask, affine).to_filename(mask_path)
 
     confounds.to_csv(
@@ -408,10 +506,16 @@ def _write_cli_fixture(base_dir: Path) -> dict[str, Path]:
 
 def _camel_contrast(name: str) -> str:
     pieces = name.split("_")
-    return pieces[0] + "".join(piece[:1].upper() + piece[1:] for piece in pieces[1:])
+    return pieces[0] + "".join(
+        piece[:1].upper() + piece[1:] for piece in pieces[1:]
+    )
 
 
-def _fit_fmrimod_derivatives(paths: dict[str, Path], fitlins_out: Path, fmrimod_out: Path) -> list[str]:
+def _fit_fmrimod_derivatives(
+    paths: dict[str, Path],
+    fitlins_out: Path,
+    fmrimod_out: Path,
+) -> list[str]:
     design_path = next(fitlins_out.glob("node-run/sub-01/*_design.tsv"))
     design = pd.read_csv(design_path, sep="\t")
     X = design.to_numpy(dtype=np.float64)
@@ -444,7 +548,10 @@ def _fit_fmrimod_derivatives(paths: dict[str, Path], fitlins_out: Path, fmrimod_
             rel = (
                 Path("node-run")
                 / "sub-01"
-                / f"sub-01_run-01_contrast-{_camel_contrast(name)}_stat-{stat_name}_statmap.nii.gz"
+                / (
+                    f"sub-01_run-01_contrast-{_camel_contrast(name)}"
+                    f"_stat-{stat_name}_statmap.nii.gz"
+                )
             )
             out_path = fmrimod_out / rel
             out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -460,7 +567,9 @@ def _compare_derivatives(
     max_abs_tolerance: float = 5e-4,
 ) -> list[DerivativeDelta]:
     deltas: list[DerivativeDelta] = []
-    for fmrimod_file in sorted(fmrimod_out.glob("node-run/sub-01/*_statmap.nii.gz")):
+    for fmrimod_file in sorted(
+        fmrimod_out.glob("node-run/sub-01/*_statmap.nii.gz")
+    ):
         rel = fmrimod_file.relative_to(fmrimod_out)
         fitlins_file = fitlins_out / rel
         if not fitlins_file.exists():
@@ -476,8 +585,14 @@ def _compare_derivatives(
                 )
             )
             continue
-        candidate = np.asarray(nib.load(fmrimod_file).get_fdata(), dtype=np.float64).ravel()
-        reference = np.asarray(nib.load(fitlins_file).get_fdata(), dtype=np.float64).ravel()
+        candidate = np.asarray(
+            nib.load(fmrimod_file).get_fdata(),
+            dtype=np.float64,
+        ).ravel()
+        reference = np.asarray(
+            nib.load(fitlins_file).get_fdata(),
+            dtype=np.float64,
+        ).ravel()
         nonzero = np.logical_or(candidate != 0, reference != 0)
         candidate = candidate[nonzero]
         reference = reference[nonzero]
@@ -516,7 +631,9 @@ def _compare_derivatives(
     return deltas
 
 
-def run_fitlins_cli_derivative_parity(work_dir: Path | None = None) -> FitlinsCliDerivativeResult:
+def run_fitlins_cli_derivative_parity(
+    work_dir: Path | None = None,
+) -> FitlinsCliDerivativeResult:
     """Run the real FitLins CLI and compare selected derivative maps."""
 
     if shutil.which("uv") is None:
@@ -614,7 +731,10 @@ def run_fitlins_cli_derivative_parity(work_dir: Path | None = None) -> FitlinsCl
         if path.is_file()
     )
     deltas = _compare_derivatives(fitlins_out, fmrimod_out)
-    design = pd.read_csv(next(fitlins_out.glob("node-run/sub-01/*_design.tsv")), sep="\t")
+    design = pd.read_csv(
+        next(fitlins_out.glob("node-run/sub-01/*_design.tsv")),
+        sep="\t",
+    )
     result = FitlinsCliDerivativeResult(
         status=(
             "pass_with_caveats"
@@ -684,15 +804,45 @@ def render_fitlins_cli_derivative_report(
     return json_path, md_path
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--out-dir",
+        type=Path,
+        default=Path(__file__).resolve().parent / "reports",
+        help="Directory for parity reports.",
+    )
+    parser.add_argument(
+        "--skip-fitlins-cli",
+        action="store_true",
+        help="Regenerate only the public-seam typed StatsModel receipt.",
+    )
+    return parser.parse_args()
+
+
+def _add_timing_payload(json_path: Path, timings: dict[str, float]) -> None:
+    payload = json.loads(json_path.read_text())
+    payload["timings"] = {
+        "status": "recorded",
+        "seconds": float(sum(timings.values())),
+        "stages": timings,
+    }
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
 def main() -> None:
-    result = run(make_case())
-    out_dir = Path(__file__).resolve().parent / "reports"
-    render(result, out_dir)
-    cli_result = run_fitlins_cli_derivative_parity()
-    render_fitlins_cli_derivative_report(cli_result, out_dir)
+    args = _parse_args()
+    timings: dict[str, float] = {}
+    result = run(make_case(timing_sink=timings))
+    json_path, _ = render(result, args.out_dir)
+    _add_timing_payload(json_path, timings)
+    cli_result = None
+    if not args.skip_fitlins_cli:
+        cli_result = run_fitlins_cli_derivative_parity()
+        render_fitlins_cli_derivative_report(cli_result, args.out_dir)
     if result.status == "fail":
         raise SystemExit(1)
-    if cli_result.status == "fail":
+    if cli_result is not None and cli_result.status == "fail":
         raise SystemExit(1)
 
 
