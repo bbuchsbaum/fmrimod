@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -12,6 +15,8 @@ from fmrimod.events import EventFactor
 from fmrimod.formula.base import Term
 from fmrimod.model.fmri_model import FmriModel
 from fmrimod.sampling import SamplingFrame
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 class _Baseline:
@@ -63,18 +68,16 @@ def test_event_model_emits_declared_condition_and_basis_facts() -> None:
 def test_design_meta_matches_r_multibasis_factor_contract() -> None:
     model = _event_model_with_hrf()
     meta = design_meta(model)
+    expected = json.loads(
+        (FIXTURES / "fixture_design_metadata_spmg2.json").read_text()
+    )["rows"]
 
     assert meta.shape[0] == model.design_matrix.shape[1]
     assert meta["col"].tolist() == list(range(1, len(model.column_names) + 1))
     assert meta["name"].tolist() == model.column_names
-    assert meta["basis_ix"].tolist() == [1, 2, 1, 2]
-    assert meta["basis_total"].tolist() == [2, 2, 2, 2]
-    assert meta["basis_label"].tolist() == [
-        "canonical",
-        "derivative",
-        "canonical",
-        "derivative",
-    ]
+    assert meta[
+        ["condition", "basis_ix", "basis_total", "basis_label"]
+    ].to_dict("records") == expected
 
 
 def test_design_colmap_reads_declared_metadata_instead_of_reparsing_names() -> None:

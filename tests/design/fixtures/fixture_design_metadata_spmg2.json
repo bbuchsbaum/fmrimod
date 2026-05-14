@@ -1,0 +1,29 @@
+{
+  "source": "fmridesign tests/testthat/test-design_metadata.R multi-basis HRF contract",
+  "rows": [
+    {
+      "condition": "condition.face",
+      "basis_ix": 1,
+      "basis_total": 2,
+      "basis_label": "canonical"
+    },
+    {
+      "condition": "condition.face",
+      "basis_ix": 2,
+      "basis_total": 2,
+      "basis_label": "derivative"
+    },
+    {
+      "condition": "condition.scene",
+      "basis_ix": 1,
+      "basis_total": 2,
+      "basis_label": "canonical"
+    },
+    {
+      "condition": "condition.scene",
+      "basis_ix": 2,
+      "basis_total": 2,
+      "basis_label": "derivative"
+    }
+  ]
+}
