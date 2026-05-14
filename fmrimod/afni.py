@@ -8,13 +8,13 @@ from __future__ import annotations
 
 from functools import singledispatch
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Dict, Optional, Union
 
 import numpy as np
 
 
 @singledispatch
-def to_glt(x, **kwargs) -> Dict[str, Any]:
+def to_glt(x, **kwargs: object) -> Dict[str, object]:
     """Convert a contrast to AFNI GLT format.
     
     This is a generic function that converts various contrast objects
@@ -46,7 +46,7 @@ def to_glt(x, **kwargs) -> Dict[str, Any]:
     raise NotImplementedError(f"to_glt not implemented for {type(x)}")
 
 
-def write_glt(glt: Dict[str, Any], fname: Optional[Union[str, Path]] = None) -> None:
+def write_glt(glt: Dict[str, object], fname: Optional[Union[str, Path]] = None) -> None:
     """Write GLT contrast to file.
     
     Parameters
@@ -97,7 +97,7 @@ def write_glt(glt: Dict[str, Any], fname: Optional[Union[str, Path]] = None) -> 
 
 # Implementation for dict-based contrasts (from contrast_weights output)
 @to_glt.register(dict)
-def _to_glt_dict(x: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+def _to_glt_dict(x: Dict[str, object], **kwargs: object) -> Dict[str, object]:
     """Convert contrast dict to GLT format."""
     # Check if it's a contrast weights output
     if 'weights' in x and 'condnames' in x:
@@ -152,7 +152,7 @@ def _to_glt_dict(x: Dict[str, Any], **kwargs) -> Dict[str, Any]:
 
 
 # Helper to format AFNI commands
-def format_afni_gltsym(glt: Dict[str, Any], label: Optional[str] = None) -> str:
+def format_afni_gltsym(glt: Dict[str, object], label: Optional[str] = None) -> str:
     """Format GLT for AFNI -gltsym option.
     
     Parameters
