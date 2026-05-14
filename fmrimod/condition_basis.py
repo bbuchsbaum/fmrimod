@@ -1,5 +1,4 @@
 """Per-condition basis splitting for design matrices."""
-import numpy as np
 
 
 def condition_basis_list(event_term, hrf, sampling_frame, output="condition_list"):

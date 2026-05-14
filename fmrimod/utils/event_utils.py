@@ -1,9 +1,8 @@
 """Utility functions for working with events and onsets."""
 
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 
 import numpy as np
-import pandas as pd
 
 from ..types import Array, EventProtocol
 

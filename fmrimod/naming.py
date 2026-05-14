@@ -7,7 +7,7 @@ ensuring consistent and R-compatible column names.
 from __future__ import annotations
 
 import re
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 
 def zeropad(i: int, n_total: int) -> str:

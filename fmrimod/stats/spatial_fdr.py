@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
-from typing import Optional, Sequence
+from typing import Optional
 
 import numpy as np
 from numpy.typing import NDArray

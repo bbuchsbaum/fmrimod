@@ -1,5 +1,4 @@
 """Contrast validation and collinearity checking."""
-from functools import singledispatch
 
 import numpy as np
 import pandas as pd

@@ -7,13 +7,13 @@ design matrices from various objects in a consistent way.
 from __future__ import annotations
 
 from functools import singledispatch
-from typing import Optional, Union, overload
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
 
 from ..design.event_model import EventModel
-from ..types import Array, ModelProtocol
+from ..types import Array
 
 
 @singledispatch

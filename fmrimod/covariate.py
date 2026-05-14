@@ -12,7 +12,6 @@ values are wrapped in :class:`CovariateEvent` objects.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import numpy as np
@@ -23,7 +22,7 @@ from .formula.base import Term
 from .types import Array
 
 if TYPE_CHECKING:
-    from .design.event_model import EventModel
+    pass
 
 
 class CovariateTerm(Term):

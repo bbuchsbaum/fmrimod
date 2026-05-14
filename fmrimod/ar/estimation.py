@@ -336,7 +336,6 @@ def fit_noise(
         enforce_stationary_ar,
         levinson_durbin,
         run_avg_acvf,
-        segmented_acvf,
     )
 
     # Compute residuals if not supplied

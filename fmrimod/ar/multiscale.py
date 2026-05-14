@@ -5,7 +5,7 @@ Ports ``multiscale.R`` and ``multiscale_fast.R`` into pure NumPy.
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Optional, Tuple
+from typing import Callable, Dict, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -15,7 +15,6 @@ from .numhelpers import (
     enforce_stationary_ar,
     levinson_durbin,
     pacf_to_ar,
-    run_avg_acvf,
     segmented_acvf,
 )
 

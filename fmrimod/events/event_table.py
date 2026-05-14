@@ -9,7 +9,6 @@ combinations from ``EventTerm``, ``EventFactor``, ``EventVariable``,
 from __future__ import annotations
 
 from functools import singledispatch
-from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd

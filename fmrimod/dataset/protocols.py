@@ -6,7 +6,7 @@ enabling format-agnostic access to fMRI time-series data.
 
 from __future__ import annotations
 
-from typing import Iterator, List, Optional, Protocol, Tuple, runtime_checkable
+from typing import Iterator, List, Protocol, Tuple, runtime_checkable
 
 import numpy as np
 from numpy.typing import NDArray

@@ -5,7 +5,6 @@ This module provides functions for creating subsets of basis functions.
 
 from typing import List, Optional, Union
 
-import numpy as np
 from numpy.typing import ArrayLike
 
 from ..types import Array

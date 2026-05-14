@@ -7,13 +7,12 @@ condition names from an ``EventTerm``, as well as model-level wrappers
 """
 
 from itertools import product
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List
 
 import numpy as np
 import pandas as pd
 
 from ..naming import continuous_token, level_token, make_cond_tag
-from ..types import EventProtocol
 
 
 def cells_event_term(event_term, drop_empty: bool = True) -> pd.DataFrame:

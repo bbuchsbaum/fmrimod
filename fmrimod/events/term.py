@@ -10,17 +10,13 @@ product of continuous values).
 from __future__ import annotations
 
 from itertools import product
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
 from ..base import BaseEvent, CacheMixin
-from ..types import Array, EventType
-from .basis import EventBasis
-from .factor import EventFactor
-from .matrix import EventMatrix
-from .variable import EventVariable
+from ..types import Array
 
 
 class EventTerm(CacheMixin):

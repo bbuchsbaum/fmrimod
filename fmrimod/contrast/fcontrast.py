@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import itertools
 from functools import reduce, singledispatch
-from typing import TYPE_CHECKING, Dict, List, Optional, Union
+from typing import Dict, Optional
 
 import numpy as np
 
@@ -14,7 +14,7 @@ from ..design.event_model import EventModel
 from ..events.factor import EventFactor
 from ..events.term import EventTerm
 from ..events.variable import EventVariable
-from ..types import Array, EventProtocol, ModelProtocol
+from ..types import Array
 
 
 @singledispatch

@@ -9,7 +9,7 @@ from numpy.typing import NDArray
 
 from .._types import SbhmConfig, SingleTrialMethod, SingleTrialResult
 from .amplitude import sbhm_amplitude
-from .library import SbhmLibrary, build_sbhm_library
+from .library import SbhmLibrary
 from .match import sbhm_match
 from .prepass import sbhm_prepass
 

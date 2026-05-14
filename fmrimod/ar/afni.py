@@ -6,7 +6,7 @@ via a real damping factor and complex conjugate pole pairs.
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Optional
 
 import numpy as np
 from numpy.typing import NDArray

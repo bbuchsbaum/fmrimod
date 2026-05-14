@@ -1,6 +1,6 @@
 """Base event class and utilities."""
 
-from typing import Dict, List, Union
+from typing import Dict, Union
 
 from .basis import EventBasis
 from .factor import EventFactor

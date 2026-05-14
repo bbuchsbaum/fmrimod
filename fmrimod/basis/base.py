@@ -1,7 +1,7 @@
 """Base classes for basis functions."""
 
 from abc import ABC, abstractmethod
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import numpy as np
 from numpy.typing import ArrayLike

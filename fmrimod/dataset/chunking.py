@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Iterator, List, Tuple
+from typing import Iterator, Tuple
 
 import numpy as np
 from numpy.typing import NDArray

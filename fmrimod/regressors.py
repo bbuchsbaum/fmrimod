@@ -7,7 +7,7 @@ and design matrices.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional, Pattern, Union
+from typing import Dict, List, Optional, Pattern, Union
 
 import numpy as np
 import pandas as pd

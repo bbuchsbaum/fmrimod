@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import warnings
 from itertools import combinations
-from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Union
 
 
 # Simple placeholder for Formula type

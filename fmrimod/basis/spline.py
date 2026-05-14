@@ -1,6 +1,6 @@
 """Spline basis functions."""
 
-from typing import List, Optional, Union
+from typing import List, Optional
 
 import numpy as np
 from numpy.typing import ArrayLike

@@ -10,14 +10,13 @@ import numpy as np
 import pandas as pd
 
 from .._warnings import call_safely, suppress_fmrimod_warnings
-from ..covariate import CovariateEvent, CovariateTerm, create_covariate_events
+from ..covariate import CovariateTerm, create_covariate_events
 from ..dispatch import get_hrf
 from ..events import (
     EventBasis,
     EventFactor,
     EventMatrix,
     EventVariable,
-    create_event,
     events_from_dataframe,
 )
 from ..events.cells import (
@@ -38,7 +37,6 @@ from ..naming import (
 from ..types import (
     Array,
     EventProtocol,
-    HRFProtocol,
     ModelProtocol,
     SamplingInfo,
 )
@@ -52,7 +50,6 @@ def _import_fmrimod():
     """
 
     with suppress_fmrimod_warnings():
-        from .. import hrf as _hrf_pkg
         from ..hrf import library as _hrf_library
         from ..hrf import registry as _hrf_registry
         from ..regressor import regressor as _regressor_func

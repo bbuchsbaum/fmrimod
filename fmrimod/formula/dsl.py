@@ -18,10 +18,10 @@ Example::
 
 from __future__ import annotations
 
-from typing import Any, List, Union
+from typing import List, Union
 
 from ..types import BasisProtocol, HRFProtocol
-from .base import Term, term
+from .base import Term
 
 
 class EventVar:

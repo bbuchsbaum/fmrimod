@@ -3,23 +3,15 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
-import pandas as pd
 
 from .types import (
     Array,
-    BasisProtocol,
     ContrastProtocol,
-    EventProtocol,
     EventType,
-    HRFProtocol,
-    ModelProtocol,
-    SamplingInfo,
-    validate_durations,
-    validate_onsets,
 )
 
 

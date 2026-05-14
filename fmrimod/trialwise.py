@@ -7,7 +7,7 @@ single-trial estimation used in representational similarity analysis (RSA)
 and multi-voxel pattern analysis (MVPA).
 """
 
-from typing import Any, List, Optional, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 

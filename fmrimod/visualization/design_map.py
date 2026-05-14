@@ -6,7 +6,7 @@ correlation matrices, and time series plots.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -26,7 +26,6 @@ except ImportError:
     HAS_SEABORN = False
 
 from ..design.event_model import EventModel
-from ..types import Array
 
 
 def design_map(
@@ -584,7 +583,6 @@ def plot_baseline_model(
     if not HAS_MATPLOTLIB:
         raise ImportError("Matplotlib required for visualization")
 
-    from ..baseline.baseline_model import BaselineModel
 
     # Determine which terms to plot
     term_names = ['drift', 'block', 'nuisance'] if term_name is None else [term_name]
