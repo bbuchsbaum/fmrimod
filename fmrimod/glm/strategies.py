@@ -14,6 +14,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
+from ..dataset.data_access import get_run_data
 from ..model.config import FmriLmConfig
 from .errors import UnsupportedEngineConfiguration
 from .preprocess import (
@@ -81,7 +82,7 @@ def _fit_one_run(
     compute_dtype: object,
 ) -> tuple[int, LmResult, Projection, Optional[NDArray[np.float64]], Optional[NDArray[np.float64]]]:
     """Fit one run and return all run-local outputs."""
-    Y_r = model.dataset.get_data(run_idx)  # type: ignore[attr-defined]
+    Y_r = get_run_data(model.dataset, run_idx)  # type: ignore[attr-defined]
     X_r = model.design_matrix_array(run=run_idx)  # type: ignore[attr-defined]
 
     censor_r = None
@@ -363,7 +364,7 @@ def fit_runwise(
         and np.dtype(compute_dtype) == np.dtype(np.float64)
     ):
         dataset = model.dataset  # type: ignore[attr-defined]
-        Y_r = dataset.get_data(0)
+        Y_r = get_run_data(dataset, 0)
         X_r = model.design_matrix_array(run=0)  # type: ignore[attr-defined]
         censor_r = dataset.get_censor(0) if hasattr(dataset, "get_censor") else None
 
@@ -406,7 +407,7 @@ def fit_runwise(
         proj_cache: Optional[Dict[tuple, Projection]] = {} if cache_projections else None
         for r in range(n_runs):
             # Get per-run data and design
-            Y_r = model.dataset.get_data(r)  # type: ignore[attr-defined]
+            Y_r = get_run_data(model.dataset, r)  # type: ignore[attr-defined]
             X_r = model.design_matrix_array(run=r)  # type: ignore[attr-defined]
 
             # Get censor for this run
@@ -625,7 +626,7 @@ def fit_chunkwise(
     )
 
     def _fit_run(r: int) -> tuple[int, LmResult, Projection]:
-        Y_r = model.dataset.get_data(r)  # type: ignore[attr-defined]
+        Y_r = get_run_data(model.dataset, r)  # type: ignore[attr-defined]
         X_r = model.design_matrix_array(run=r)  # type: ignore[attr-defined]
 
         dataset = model.dataset  # type: ignore[attr-defined]

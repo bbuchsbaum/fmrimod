@@ -10,15 +10,16 @@ Implements the standard two-stage (or multi-stage) approach:
 
 from __future__ import annotations
 
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
 
+from ..dataset.data_access import get_run_data
+from ..glm.solver import fast_lm_matrix, fast_preproject
 from ..model.config import FmriLmConfig
 from .estimation import estimate_ar
 from .whitening import ar_whiten_matrix
-from ..glm.solver import fast_preproject, fast_lm_matrix
 
 
 def iterative_gls(
@@ -51,8 +52,6 @@ def iterative_gls(
 
     # Current residuals from initial fit
     residuals_list = initial_fit["residuals"]
-    run_X = initial_fit["run_X"]
-
     # Storage for per-run AR params
     ar_params_per_run = []
 
@@ -83,7 +82,7 @@ def iterative_gls(
         new_run_X = []
 
         for r in range(n_runs):
-            Y_r = model.dataset.get_data(r)  # type: ignore[attr-defined]
+            Y_r = get_run_data(model.dataset, r)  # type: ignore[attr-defined]
             X_r = model.design_matrix_array(run=r)  # type: ignore[attr-defined]
             phi_r = run_ar_params[r]
 
@@ -195,7 +194,7 @@ def iterative_ar_gls(
     run_labels = []
     offset = 0
     for r in range(n_runs):
-        Y_r = model.dataset.get_data(r)  # type: ignore[attr-defined]
+        Y_r = get_run_data(model.dataset, r)  # type: ignore[attr-defined]
         n_r = Y_r.shape[0]
         run_labels.extend([r] * n_r)
         offset += n_r
@@ -205,7 +204,7 @@ def iterative_ar_gls(
     censor_list = []
     offset = 0
     for r in range(n_runs):
-        Y_r = model.dataset.get_data(r)  # type: ignore[attr-defined]
+        Y_r = get_run_data(model.dataset, r)  # type: ignore[attr-defined]
         n_r = Y_r.shape[0]
         censor_r = None
         if hasattr(model, "dataset") and hasattr(model.dataset, "get_censor"):  # type: ignore[attr-defined]
@@ -256,7 +255,7 @@ def iterative_ar_gls(
         new_run_X = []
 
         for r in range(n_runs):
-            Y_r = model.dataset.get_data(r)  # type: ignore[attr-defined]
+            Y_r = get_run_data(model.dataset, r)  # type: ignore[attr-defined]
             X_r = model.design_matrix_array(run=r)  # type: ignore[attr-defined]
 
             # Create a sub-plan for this run

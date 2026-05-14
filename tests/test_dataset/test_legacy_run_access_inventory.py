@@ -85,122 +85,18 @@ CANONICAL_RUN_ACCESS_BRIDGE = Counter(
             qualname="FmriDataset.get_run_data",
             receiver="self._source",
         ): 1,
+        PositionalGetDataCall(
+            path="fmrimod/dataset/data_access.py",
+            qualname="get_run_data",
+            receiver="dataset",
+        ): 1,
     }
 )
 
 
 TOLERATED_LEGACY_MODEL_CALLERS: dict[
     PositionalGetDataCall, tuple[int, LegacyRunAccessOwner]
-] = {
-    PositionalGetDataCall(
-        path="fmrimod/ar/integration.py",
-        qualname="iterative_gls",
-        receiver="model.dataset",
-    ): (
-        1,
-        LegacyRunAccessOwner(
-            owner="bd-01KRFMW8P73FFC4A16M3N6NNQ9",
-            reason="AR integration still consumes model datasets through the"
-            " temporary run-positional protocol.",
-        ),
-    ),
-    PositionalGetDataCall(
-        path="fmrimod/ar/integration.py",
-        qualname="iterative_ar_gls",
-        receiver="model.dataset",
-    ): (
-        3,
-        LegacyRunAccessOwner(
-            owner="bd-01KRFMW8P73FFC4A16M3N6NNQ9",
-            reason="Iterative AR GLS has three run-level accesses to migrate"
-            " after canonical latent/study semantics settle.",
-        ),
-    ),
-    PositionalGetDataCall(
-        path="fmrimod/glm/engines/sketch.py",
-        qualname="SketchEngine._fit_single",
-        receiver="model.dataset",
-    ): (
-        1,
-        LegacyRunAccessOwner(
-            owner="bd-01KRFMW8P73FFC4A16M3N6NNQ9",
-            reason="Sketch engine single-run fit still uses the compatibility"
-            " protocol.",
-        ),
-    ),
-    PositionalGetDataCall(
-        path="fmrimod/glm/engines/sketch.py",
-        qualname="SketchEngine._fit_multirun",
-        receiver="model.dataset",
-    ): (
-        1,
-        LegacyRunAccessOwner(
-            owner="bd-01KRFMW8P73FFC4A16M3N6NNQ9",
-            reason="Sketch engine multi-run fit still uses the compatibility"
-            " protocol.",
-        ),
-    ),
-    PositionalGetDataCall(
-        path="fmrimod/glm/strategies.py",
-        qualname="_fit_one_run",
-        receiver="model.dataset",
-    ): (
-        1,
-        LegacyRunAccessOwner(
-            owner="bd-01KRFMW8P73FFC4A16M3N6NNQ9",
-            reason="Core GLM strategy run access is migration-owned by the"
-            " modeling integration bead.",
-        ),
-    ),
-    PositionalGetDataCall(
-        path="fmrimod/glm/strategies.py",
-        qualname="fit_runwise",
-        receiver="dataset",
-    ): (
-        1,
-        LegacyRunAccessOwner(
-            owner="bd-01KRFMW8P73FFC4A16M3N6NNQ9",
-            reason="Runwise matrix assembly still calls a dataset-like object"
-            " positionally for the one-run case.",
-        ),
-    ),
-    PositionalGetDataCall(
-        path="fmrimod/glm/strategies.py",
-        qualname="fit_runwise",
-        receiver="model.dataset",
-    ): (
-        1,
-        LegacyRunAccessOwner(
-            owner="bd-01KRFMW8P73FFC4A16M3N6NNQ9",
-            reason="Runwise multi-run fitting still uses the compatibility"
-            " protocol.",
-        ),
-    ),
-    PositionalGetDataCall(
-        path="fmrimod/glm/strategies.py",
-        qualname="fit_chunkwise._fit_run",
-        receiver="model.dataset",
-    ): (
-        1,
-        LegacyRunAccessOwner(
-            owner="bd-01KRFMW8P73FFC4A16M3N6NNQ9",
-            reason="Chunkwise fitting still fetches each run through the"
-            " temporary positional protocol.",
-        ),
-    ),
-    PositionalGetDataCall(
-        path="fmrimod/robust/irls.py",
-        qualname="robust_refit",
-        receiver="model.dataset",
-    ): (
-        1,
-        LegacyRunAccessOwner(
-            owner="bd-01KRFMW8P73FFC4A16M3N6NNQ9",
-            reason="Robust refit is model-facing migration debt, not a"
-            " dataset contract.",
-        ),
-    ),
-}
+] = {}
 
 
 def test_positional_get_data_run_inventory_is_explicit() -> None:
@@ -215,7 +111,7 @@ def test_positional_get_data_run_inventory_is_explicit() -> None:
 
 
 def test_tolerated_legacy_callers_name_owner_and_reason() -> None:
-    assert TOLERATED_LEGACY_MODEL_CALLERS
+    assert not TOLERATED_LEGACY_MODEL_CALLERS
     for _call, (_count, owner) in TOLERATED_LEGACY_MODEL_CALLERS.items():
         assert owner.owner == "bd-01KRFMW8P73FFC4A16M3N6NNQ9"
         assert owner.reason

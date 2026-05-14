@@ -12,10 +12,11 @@ from typing import Any, Optional
 import numpy as np
 from numpy.typing import NDArray
 
+from ...dataset.data_access import get_run_data
+from ...lowrank.engine import LowRankConfig, fit_sketched
+from ...model.config import FmriLmConfig
 from ..engine import EngineResult, register_engine
 from ..solver import fast_preproject
-from ...model.config import FmriLmConfig
-from ...lowrank.engine import LowRankConfig, fit_sketched
 
 
 @register_engine
@@ -73,7 +74,7 @@ class SketchEngine:
         coords: Optional[NDArray[np.float64]],
     ) -> EngineResult:
         X = model.design_matrix_array(run=0)
-        Y = model.dataset.get_data(0)
+        Y = get_run_data(model.dataset, 0)
         result = fit_sketched(X, Y, lr_config, coords=coords)
 
         proj = fast_preproject(X)
@@ -104,7 +105,7 @@ class SketchEngine:
 
         for r in range(n_runs):
             X_r = model.design_matrix_array(run=r)
-            Y_r = model.dataset.get_data(r)
+            Y_r = get_run_data(model.dataset, r)
             result_r = fit_sketched(X_r, Y_r, lr_config, coords=coords)
 
             if p is None:

@@ -46,7 +46,7 @@ from .compat import (
     resolve_basis,
 )
 from .constructors import fmri_dataset, matrix_dataset
-from .data_access import get_data, get_data_matrix, get_mask
+from .data_access import get_data, get_data_matrix, get_mask, get_run_data
 from .data_chunks import (
     ChunkIterator,
     DataChunk,
@@ -155,6 +155,7 @@ __all__ = [
     "fmri_dataset",
     "matrix_dataset",
     "get_data",
+    "get_run_data",
     "get_data_matrix",
     "get_mask",
     "get_TR",

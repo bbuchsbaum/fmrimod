@@ -7,15 +7,15 @@ problem.
 
 from __future__ import annotations
 
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
 
+from ..dataset.data_access import get_run_data
+from ..glm.solver import fast_lm_matrix, fast_preproject
 from ..model.config import FmriLmConfig
-from ..glm.solver import fast_preproject, fast_lm_matrix
-from ..glm.preprocess import apply_volume_weights
-from .estimators import mad_scale, huber_weights, bisquare_weights
+from .estimators import bisquare_weights, huber_weights, mad_scale
 
 
 def robust_refit(
@@ -70,7 +70,7 @@ def robust_refit(
         for r in range(n_runs):
             resid_r = residuals_list[r]
             X_r = run_X[r]
-            Y_r = model.dataset.get_data(r)  # type: ignore[attr-defined]
+            Y_r = get_run_data(model.dataset, r)  # type: ignore[attr-defined]
 
             # Compute scale
             if robust_opts.scale_scope == "run":

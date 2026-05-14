@@ -91,6 +91,7 @@ def test_run_access_uses_explicit_method() -> None:
     ds = fm.matrix_dataset(mat, tr=2.0, run_length=[8, 12])
     assert hasattr(ds, "get_run_data")
     np.testing.assert_array_equal(ds.get_run_data(1), mat[8:20])
+    np.testing.assert_array_equal(dataset.get_run_data(ds, 1), mat[8:20])
 
 
 def test_dataset_metadata_accessors_use_canonical_meanings() -> None:

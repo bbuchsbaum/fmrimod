@@ -19,6 +19,14 @@ def get_data(
     return dataset.get_data(rows=rows, cols=cols)
 
 
+def get_run_data(dataset: FmriDataset, run: int) -> NDArray[np.floating[Any]]:
+    """Extract one run from a dataset through the explicit run-access seam."""
+    run_method = getattr(dataset, "get_run_data", None)
+    if callable(run_method):
+        return run_method(int(run))
+    return dataset.get_data(int(run))
+
+
 def get_data_matrix(
     dataset: FmriDataset,
     rows: NDArray[np.intp] | None = None,
