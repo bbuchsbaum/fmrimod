@@ -1,5 +1,6 @@
 """Design matrix column metadata."""
 import re
+
 import numpy as np
 import pandas as pd
 
@@ -70,6 +71,30 @@ def design_colmap(x):
     raise TypeError(f"design_colmap not implemented for {type(x)}")
 
 
+def design_meta(x):
+    """Return first-class design column metadata.
+
+    For :class:`~fmrimod.design.event_model.EventModel`, metadata is read from
+    construction-time ``column_facts`` instead of reconstructing semantics from
+    rendered column names.
+    """
+    from .design.event_model import EventModel
+
+    if isinstance(x, EventModel):
+        return _meta_event_model(x)
+
+    try:
+        from .baseline.baseline_model import BaselineModel
+
+        if isinstance(x, BaselineModel):
+            meta = _colmap_baseline_model(x)
+            return meta.drop(columns=["pretty_name"])
+    except ImportError:
+        pass
+
+    raise TypeError(f"design_meta not implemented for {type(x)}")
+
+
 def _colmap_event_model(model):
     """Build column metadata DataFrame for an EventModel.
 
@@ -83,6 +108,16 @@ def _colmap_event_model(model):
     pandas.DataFrame
         Column metadata (see :func:`design_colmap`).
     """
+    meta = design_meta(model)
+    if not meta.empty:
+        colmap = meta.copy()
+        colmap.insert(
+            colmap.columns.get_loc("is_block_diagonal"),
+            "pretty_name",
+            colmap["name"],
+        )
+        return colmap
+
     dm = model.design_matrix
     n_cols = dm.shape[1]
 
@@ -195,6 +230,97 @@ def _colmap_event_model(model):
     })
 
 
+def _meta_event_model(model):
+    """Build first-class event-model column metadata from column facts."""
+    dm = model.design_matrix
+    n_cols = dm.shape[1]
+    if n_cols == 0:
+        return _empty_colmap().drop(columns=["pretty_name"])
+
+    facts = getattr(model, "column_facts", None)
+    if not facts:
+        return _empty_colmap().drop(columns=["pretty_name"])
+
+    rows = []
+    for fact in facts:
+        basis_total = _int_or_none(fact.get("basis_total"))
+        basis_ix = _int_or_none(fact.get("basis_ix"))
+        basis_name = _str_or_none(fact.get("basis_name"))
+        if basis_total is not None and basis_total <= 1:
+            basis_total = None
+            basis_ix = None
+        rows.append(
+            {
+                "col": int(fact["index"]) + 1,
+                "name": str(fact["name"]),
+                "term_tag": _str_or_none(fact.get("term_tag")),
+                "term_index": _int_or_none(fact.get("term_index")),
+                "condition": _str_or_none(fact.get("condition")),
+                "run": None,
+                "role": str(fact.get("role") or "task"),
+                "model_source": str(fact.get("model_source") or "event"),
+                "basis_name": basis_name,
+                "basis_ix": basis_ix,
+                "basis_total": basis_total,
+                "basis_label": _basis_label(basis_name, basis_ix),
+                "is_block_diagonal": False,
+                "modulation_type": "amplitude",
+                "modulation_id": None,
+            }
+        )
+    return pd.DataFrame(rows, columns=_META_COLUMNS)
+
+
+_META_COLUMNS = [
+    "col",
+    "name",
+    "term_tag",
+    "term_index",
+    "condition",
+    "run",
+    "role",
+    "model_source",
+    "basis_name",
+    "basis_ix",
+    "basis_total",
+    "basis_label",
+    "is_block_diagonal",
+    "modulation_type",
+    "modulation_id",
+]
+
+
+def _basis_label(basis_name, basis_ix):
+    if basis_name is None or basis_ix is None:
+        return None
+    label = str(basis_name)
+    if "SPMG3" in label:
+        labels = ["canonical", "derivative", "dispersion"]
+        return labels[min(max(int(basis_ix), 1), 3) - 1]
+    if "SPMG2" in label:
+        labels = ["canonical", "derivative"]
+        return labels[min(max(int(basis_ix), 1), 2) - 1]
+    if "FIR" in label:
+        return f"lag_{int(basis_ix) - 1:02d}"
+    return f"component_{int(basis_ix):02d}"
+
+
+def _str_or_none(value):
+    if value is None:
+        return None
+    if pd.isna(value):
+        return None
+    return str(value)
+
+
+def _int_or_none(value):
+    if value is None:
+        return None
+    if pd.isna(value):
+        return None
+    return int(value)
+
+
 def _colmap_baseline_model(model):
     """Build column metadata DataFrame for a BaselineModel.
 
@@ -224,7 +350,11 @@ def _colmap_baseline_model(model):
     roles = []
     for name in cn:
         name_lower = name.lower()
-        if 'intercept' in name_lower or 'const' in name_lower or name_lower.startswith('block'):
+        if (
+            "intercept" in name_lower
+            or "const" in name_lower
+            or name_lower.startswith("block")
+        ):
             roles.append('intercept')
         elif 'drift' in name_lower or 'base_' in name_lower:
             roles.append('drift')

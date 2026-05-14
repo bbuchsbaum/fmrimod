@@ -1,5 +1,6 @@
 """Design matrix functionality for fmrimod."""
 
+from ..design_colmap import design_colmap, design_meta
 from .columns import DesignColumn, DesignColumns
 from .design_matrix import design_matrix
 from .diff import (
@@ -44,5 +45,7 @@ __all__ = [
     "TermFieldChange",
     "TermRemoved",
     "design_diff",
+    "design_colmap",
+    "design_meta",
     "design_matrix",
 ]
