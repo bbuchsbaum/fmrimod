@@ -7,6 +7,7 @@ import logging
 import math
 from typing import Any, Callable, Dict, List, Optional, Union, cast
 
+from ..types import HRFProtocol
 from .aliases import HRFName, _normalize_hrf_name
 from .core import HRF
 
@@ -150,10 +151,14 @@ def get_hrf(
         if callable(maybe_generator) and not isinstance(maybe_generator, HRF):
             hrf_or_gen = maybe_generator
 
-    # If it's already an HRF-like object (HRF or duck-typed), return it
+    # If it's already an HRF-like object (HRF subclass or HRFProtocol-compatible),
+    # return it. The ``not inspect.isfunction`` guard rejects plain factory
+    # functions that happen to carry name/nbasis/evaluate attributes; only
+    # generator callables registered via the ``hrf_<name>`` slot should hit
+    # the generator branch below.
     _is_hrf_obj = isinstance(hrf_or_gen, HRF) or (
-        hasattr(hrf_or_gen, 'evaluate') and hasattr(hrf_or_gen, 'name')
-        and hasattr(hrf_or_gen, 'nbasis') and not inspect.isfunction(hrf_or_gen)
+        isinstance(hrf_or_gen, HRFProtocol)
+        and not inspect.isfunction(hrf_or_gen)
     )
     result: HRF
     if _is_hrf_obj:
