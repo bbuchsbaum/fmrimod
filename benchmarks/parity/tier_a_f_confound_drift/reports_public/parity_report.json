@@ -17,7 +17,7 @@
         120,
         7
       ],
-      "spearman_rho": 1.0,
+      "spearman_rho": 0.9999999999999999,
       "tolerance": {
         "allow_rescale": false,
         "atol": 0.0,
@@ -32,11 +32,11 @@
     "effect_condition_a_minus_b": {
       "failed_gates": [],
       "gate": "allclose+pearson+spearman",
-      "mae": 6.307888239520665e-16,
-      "max_abs": 2.220446049250313e-15,
+      "mae": 6.182662888598589e-16,
+      "max_abs": 2.6645352591003757e-15,
       "name": "effect_condition_a_minus_b",
       "passes": true,
-      "pearson_r": 1.0,
+      "pearson_r": 0.9999999999999996,
       "rank_candidate": 1,
       "rank_reference": 1,
       "scale": 1.0,
@@ -58,11 +58,11 @@
     "f_conditions_omnibus": {
       "failed_gates": [],
       "gate": "allclose+pearson+spearman",
-      "mae": 1.534470342789973e-06,
-      "max_abs": 2.274161670356989e-05,
+      "mae": 3.3675473041228088e-06,
+      "max_abs": 3.6775716580450535e-05,
       "name": "f_conditions_omnibus",
       "passes": true,
-      "pearson_r": 0.9999999999999998,
+      "pearson_r": 1.0,
       "rank_candidate": 1,
       "rank_reference": 1,
       "scale": 1.0,
@@ -84,11 +84,11 @@
     "t_condition_a_minus_b": {
       "failed_gates": [],
       "gate": "allclose+pearson+spearman",
-      "mae": 1.4399942049113748e-09,
-      "max_abs": 1.7217757886101026e-08,
+      "mae": 3.0153139432387125e-09,
+      "max_abs": 2.6939460440189578e-08,
       "name": "t_condition_a_minus_b",
       "passes": true,
-      "pearson_r": 0.9999999999999999,
+      "pearson_r": 1.0,
       "rank_candidate": 1,
       "rank_reference": 1,
       "scale": 1.0,
@@ -111,13 +111,13 @@
   "name": "tier_a_public_f_confound_drift",
   "status": "pass",
   "timings": {
-    "seconds": 0.022533333976753056,
+    "seconds": 0.092640791,
     "stages": {
-      "fmrimod_contrast_seconds": 0.004801500006578863,
-      "fmrimod_dataset_seconds": 0.0001526250271126628,
-      "fmrimod_fit_seconds": 0.003264040977228433,
-      "load_inputs_seconds": 0.013268209004309028,
-      "nilearn_pipeline_seconds": 0.0010469589615240693
+      "fmrimod_contrast_seconds": 0.011425499999999866,
+      "fmrimod_dataset_seconds": 7.816699999985133e-05,
+      "fmrimod_fit_seconds": 0.00520133300000003,
+      "load_inputs_seconds": 0.05066041600000015,
+      "nilearn_pipeline_seconds": 0.0252753750000001
     },
     "status": "recorded"
   }
