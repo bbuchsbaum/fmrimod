@@ -754,9 +754,18 @@
       "reference_path": "benchmarks/parity/tier_e_scrubbed_timebase_alignment/workflow.py::nilearn_aligned_probe",
       "fmrimod_path": "benchmarks/parity/tier_e_scrubbed_timebase_alignment/workflow.py::fmrimod_pipeline: fmri_dataset(censor=...) -> fmri_lm -> semantic condition contrast",
       "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
+      "performance_stage": "tier_e_scrubbed_timebase_alignment",
       "timings": {
-        "status": "not_recorded",
-        "next": "record design-realization, censored-fit, and Nilearn oracle timings if this stress case is promoted into a release benchmark suite"
+        "status": "recorded",
+        "seconds": 0.06712733199999943,
+        "stages": {
+          "fmrimod_pipeline_seconds": 0.004191207999999946,
+          "load_inputs_seconds": 0.0623447909999999,
+          "nilearn_aligned_probe_seconds": 0.00038945799999989816,
+          "nilearn_compressed_probe_seconds": 0.00020187499999968495
+        },
+        "source": "benchmarks/parity/tier_e_scrubbed_timebase_alignment/reports/scrubbed_timebase_alignment_report.json"
       },
       "typed_objects": [
         "fmrimod.dataset.FmriDataset",

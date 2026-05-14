@@ -37,7 +37,6 @@ MANIFEST = REPO_ROOT / "benchmarks" / "parity" / "proof_artifacts.json"
 # "not_recorded" to "recorded" without a payload still fails the test.
 _PENDING_TIMING_ROWS = frozenset(
     {
-        "tier_e_scrubbed_timebase_alignment",
     }
 )
 

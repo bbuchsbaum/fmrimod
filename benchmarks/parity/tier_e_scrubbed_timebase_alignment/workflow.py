@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 import warnings
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -452,10 +453,24 @@ def run_benchmark(
 ) -> dict[str, Any]:
     """Run the scrubbed-volume timebase alignment benchmark."""
 
+    timings: dict[str, float] = {}
+    load_start = time.perf_counter()
     inputs = load_inputs(max_voxels=max_voxels, seed=seed)
+    timings["load_inputs_seconds"] = time.perf_counter() - load_start
+
+    fmrimod_start = time.perf_counter()
     f_engine, f_effect, f_stat = fmrimod_pipeline(inputs)
+    timings["fmrimod_pipeline_seconds"] = time.perf_counter() - fmrimod_start
+
+    aligned_start = time.perf_counter()
     n_engine, n_effect, n_stat = nilearn_aligned_probe(inputs)
+    timings["nilearn_aligned_probe_seconds"] = time.perf_counter() - aligned_start
+
+    compressed_start = time.perf_counter()
     c_engine, c_effect, c_stat = nilearn_compressed_timebase_probe(inputs)
+    timings["nilearn_compressed_probe_seconds"] = (
+        time.perf_counter() - compressed_start
+    )
 
     aligned_effect_delta = _max_abs_delta(f_effect, n_effect)
     aligned_stat_delta = _max_abs_delta(f_stat, n_stat)
@@ -542,7 +557,15 @@ def run_benchmark(
             else "scrubbed timebase alignment benchmark failed"
         ),
     )
-    return _json_safe(report)
+    payload = _json_safe(report)
+    payload["timings"] = {
+        "status": "recorded",
+        "seconds": float(sum(timings.values())),
+        "stages": {
+            key: float(value) for key, value in sorted(timings.items())
+        },
+    }
+    return payload
 
 
 def _median_or_max(values: Array, *, kind: str) -> float | None:
