@@ -15,6 +15,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ..model.config import FmriLmConfig
+from .errors import UnsupportedEngineConfiguration
 from .preprocess import (
     apply_censoring,
     apply_volume_weights,
@@ -591,12 +592,25 @@ def fit_chunkwise(
     -----
     This strategy supports the same per-run OLS preprocessing as
     :func:`fit_run_ols` (censoring, volume weights, soft-subspace).
-    AR/robust post-processing remains runwise-only.
+    Chunkwise is intentionally OLS-only for post-fit composition:
+    AR/robust post-processing remains runwise-only and raises a typed
+    capability error with a repair path when requested here.
     """
+    current_capability = ("OLS", "censoring", "volume weights", "soft-subspace")
     if config.ar.enabled:
-        raise NotImplementedError("chunkwise engine does not yet support AR modeling")
+        raise UnsupportedEngineConfiguration(
+            engine="chunkwise",
+            feature="AR modeling",
+            repair='use engine="runwise" or set ar.struct="iid"',
+            current_capability=current_capability,
+        )
     if config.robust.enabled:
-        raise NotImplementedError("chunkwise engine does not yet support robust fitting")
+        raise UnsupportedEngineConfiguration(
+            engine="chunkwise",
+            feature="robust fitting",
+            repair='use engine="runwise" or set robust.type=False',
+            current_capability=current_capability,
+        )
     if chunk_size < 1:
         raise ValueError("chunk_size must be >= 1")
 

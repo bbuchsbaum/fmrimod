@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from fmrimod.glm.engine import ChunkwiseEngineOptions
+from fmrimod.glm.errors import FmriCapabilityError, UnsupportedEngineConfiguration
 from fmrimod.glm.fmri_lm import fmri_lm
-from fmrimod.model.config import FmriLmConfig, SoftSubspaceOptions, VolumeWeightOptions
+from fmrimod.model.config import (
+    AROptions,
+    FmriLmConfig,
+    RobustOptions,
+    SoftSubspaceOptions,
+    VolumeWeightOptions,
+)
 
 
 class _DummyDataset:
@@ -112,3 +120,46 @@ def test_chunkwise_matches_runwise_soft_subspace():
     np.testing.assert_allclose(chunked.sigma, runwise.sigma, atol=1e-10)
     np.testing.assert_allclose(chunked.XtXinv, runwise.XtXinv, atol=1e-10)
     assert chunked.residual_df == runwise.residual_df
+
+
+def test_chunkwise_ar_raises_typed_capability_error():
+    model = _build_model(seed=120, n_runs=1, n=50, p=3, v=8)
+    cfg = FmriLmConfig(ar=AROptions(struct="ar1"))
+
+    with pytest.raises(
+        UnsupportedEngineConfiguration,
+        match='chunkwise.*AR modeling.*use engine="runwise".*ar.struct="iid"',
+    ) as excinfo:
+        fmri_lm(model, cfg, engine="chunkwise", chunk_size=8)
+
+    err = excinfo.value
+    assert isinstance(err, FmriCapabilityError)
+    assert isinstance(err, NotImplementedError)
+    assert err.engine == "chunkwise"
+    assert err.feature == "chunkwise:AR modeling"
+    assert err.current_capability == (
+        "OLS",
+        "censoring",
+        "volume weights",
+        "soft-subspace",
+    )
+    assert err.repair == 'use engine="runwise" or set ar.struct="iid"'
+
+
+def test_chunkwise_robust_raises_typed_capability_error():
+    model = _build_model(seed=121, n_runs=1, n=50, p=3, v=8)
+    cfg = FmriLmConfig(robust=RobustOptions(type="huber"))
+
+    with pytest.raises(
+        UnsupportedEngineConfiguration,
+        match='chunkwise.*robust fitting.*use engine="runwise".*robust.type=False',
+    ) as excinfo:
+        fmri_lm(model, cfg, engine=ChunkwiseEngineOptions(chunk_size=8))
+
+    err = excinfo.value
+    assert isinstance(err, FmriCapabilityError)
+    assert isinstance(err, NotImplementedError)
+    assert err.engine == "chunkwise"
+    assert err.feature == "chunkwise:robust fitting"
+    assert "OLS" in err.current_capability
+    assert err.repair == 'use engine="runwise" or set robust.type=False'
