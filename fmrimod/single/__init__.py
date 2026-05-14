@@ -121,10 +121,19 @@ def estimate_single_trial(
     -------
     SingleTrialResult
     """
-    # Optional prewhitening
+    # Optional prewhitening. Routes through fmrimod.ar.fit_noise +
+    # whiten_apply (the same engine the GLM solver uses) so Y, X,
+    # baseline_regressors, and confounds share one plan.
+    whitening_plan = None
     if prewhiten is not None and prewhiten.method != "none":
         from ._prewhiten import prewhiten_matrices
-        Y, X, confounds = prewhiten_matrices(Y, X, confounds, prewhiten)
+        pw = prewhiten_matrices(
+            Y, X, confounds, prewhiten,
+            baseline_regressors=baseline_regressors,
+        )
+        Y, X, confounds = pw.Y, pw.X, pw.confounds
+        baseline_regressors = pw.baseline_regressors
+        whitening_plan = pw.plan
 
     try:
         method_enum = (
@@ -144,7 +153,7 @@ def estimate_single_trial(
         )
 
     if method_enum is SingleTrialMethod.LSS:
-        return lss_single_trial(
+        result = lss_single_trial(
             Y, X,
             confounds=confounds,
             nuisance_projector=nuisance_projector,
@@ -154,9 +163,8 @@ def estimate_single_trial(
             baseline_regressors=baseline_regressors,
             include_intercept=include_intercept,
         )
-
-    if method_enum is SingleTrialMethod.LSA:
-        return lsa_single_trial(
+    elif method_enum is SingleTrialMethod.LSA:
+        result = lsa_single_trial(
             Y, X,
             confounds=confounds,
             return_se=return_se,
@@ -164,45 +172,45 @@ def estimate_single_trial(
             baseline_regressors=baseline_regressors,
             include_intercept=include_intercept,
         )
-
-    if method_enum is SingleTrialMethod.OASIS:
+    elif method_enum is SingleTrialMethod.OASIS:
         oasis_cfg = oasis_config or OasisConfig(return_se=return_se)
         if return_se and not oasis_cfg.return_se:
             oasis_cfg = replace(oasis_cfg, return_se=True)
-        return oasis_single_trial(
+        result = oasis_single_trial(
             Y, X,
             confounds=confounds,
             config=oasis_cfg,
             trial_labels=trial_labels,
         )
-
-    if method_enum is SingleTrialMethod.SBHM:
+    elif method_enum is SingleTrialMethod.SBHM:
         # Lazy import to avoid circular dependencies
         from .sbhm.pipeline import sbhm_single_trial
         sbhm_cfg = sbhm_config or SbhmConfig()
-        return sbhm_single_trial(
+        result = sbhm_single_trial(
             Y, X,
             confounds=confounds,
             config=sbhm_cfg,
             trial_labels=trial_labels,
             library=sbhm_library,
         )
-
-    if method_enum is SingleTrialMethod.MIXED:
+    elif method_enum is SingleTrialMethod.MIXED:
         from .mixed import mixed_single_trial
-        return mixed_single_trial(
+        result = mixed_single_trial(
             Y, X,
             confounds=confounds,
             trial_labels=trial_labels,
         )
-
-    if method_enum is SingleTrialMethod.LSS_VOXEL_HRF:
+    elif method_enum is SingleTrialMethod.LSS_VOXEL_HRF:
         raise ValueError(
             "method='lss_voxel_hrf' requires an estimated VoxelHrfResult; "
             "call lss_with_voxel_hrf(...) directly."
         )
+    else:
+        raise ValueError(f"Unknown method: {method!r}")
 
-    raise ValueError(f"Unknown method: {method!r}")
+    if whitening_plan is not None:
+        result.extra["whitening_plan"] = whitening_plan
+    return result
 
 
 def estimate_single_trial_from_dataset(
