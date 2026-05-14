@@ -514,6 +514,26 @@
       }
     },
     {
+      "benchmark_id": "tier_e_scrubbed_timebase_alignment",
+      "evidence_level": "numerical_canary",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_e_scrubbed_timebase_alignment/workflow.py",
+      "report_path": "benchmarks/parity/tier_e_scrubbed_timebase_alignment/reports/scrubbed_timebase_alignment_report.json",
+      "reference_path": "benchmarks/parity/tier_e_scrubbed_timebase_alignment/workflow.py::nilearn_probe",
+      "fmrimod_path": "benchmarks/parity/tier_e_scrubbed_timebase_alignment/workflow.py::fmrimod_probe: fit_glm_from_matrix(row-filtered design/data) -> task contrast",
+      "caveats": [],
+      "typed_objects": [
+        "fmrimod.glm.FmriLm",
+        "fmrimod.glm.ContrastResult"
+      ],
+      "fmrimod_expresses_better": "The canary shows fmrimod matches Nilearn when scrubbed rows are removed from both the original-timebase design and the data, while a compacted post-scrub timeline silently targets the wrong task regressor.",
+      "replacement_target": {
+        "description": "Promote scrubbed timebase alignment into a public fmri_dataset/fmri_lm workflow once fmrimod has a first-class censor/scrub helper that row-filters data, design, and reports together.",
+        "owner_bead": "bd-01KRJ36AJD1XQEVM23356BSXV1",
+        "blocking_api_gap": "The current proof is a matrix canary; the public target is a typed scrubbed-volume path that keeps original acquisition timing explicit while removing censored rows."
+      }
+    },
+    {
       "benchmark_id": "tier_d_showcase",
       "evidence_level": "flagship_workflow",
       "public_seam": true,
