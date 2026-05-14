@@ -40,7 +40,7 @@ def design_map(
     fill_limits: Optional[Tuple[float, float]] = None,
     figsize: Optional[Tuple[float, float]] = None,
     cmap: Optional[str] = None,
-    **kwargs
+    **kwargs: object
 ) -> tuple[Figure, Axes]:
     """Visualize design matrix as a heatmap.
 
@@ -215,7 +215,7 @@ def correlation_map(
     cmap: Optional[str] = 'RdBu_r',
     annot: bool = False,
     fmt: str = '.2f',
-    **kwargs
+    **kwargs: object
 ) -> tuple[Figure, Axes]:
     """Visualize correlation matrix of design matrix regressors.
 
@@ -375,7 +375,7 @@ def plot_design_matrix(
     term_name: Optional[str] = None,
     figsize: Optional[Tuple[float, float]] = None,
     separate_regressors: bool = True,
-    **kwargs
+    **kwargs: object
 ) -> tuple[Figure, Axes]:
     """Plot time series of design matrix regressors.
     
@@ -549,7 +549,7 @@ def plot_baseline_model(
     term_name: Optional[str] = None,
     title: Optional[str] = None,
     figsize: Optional[Tuple[float, float]] = None,
-    **kwargs
+    **kwargs: object
 ) -> tuple[Figure, Axes]:
     """Plot baseline model terms over time.
 
@@ -634,7 +634,7 @@ def plot_sampling_frame(
     show_ticks: bool = True,
     tick_every: Optional[float] = None,
     figsize: Optional[Tuple[float, float]] = None,
-    **kwargs
+    **kwargs: object
 ) -> tuple[Figure, Axes]:
     """Plot sampling frame structure.
 
