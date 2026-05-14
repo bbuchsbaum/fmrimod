@@ -1,0 +1,1446 @@
+{
+  "counts": {
+    "by_classification": {
+      "baseline_default": 123,
+      "justified": 0,
+      "unclassified": 8,
+      "unjustified": 28
+    },
+    "files_scanned": 76,
+    "total_call_sites": 159
+  },
+  "rows": [
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py",
+      "kwarg": "atol",
+      "lineno": 250,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py",
+      "kwarg": "rtol",
+      "lineno": 250,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py",
+      "kwarg": "atol",
+      "lineno": 251,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py",
+      "kwarg": "rtol",
+      "lineno": 251,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py",
+      "kwarg": "atol",
+      "lineno": 252,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py",
+      "kwarg": "rtol",
+      "lineno": 252,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py",
+      "kwarg": "atol",
+      "lineno": 253,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py",
+      "kwarg": "rtol",
+      "lineno": 253,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_f_confound_drift/workflow.py",
+      "kwarg": "atol",
+      "lineno": 196,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_f_confound_drift/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 196,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_f_confound_drift/workflow.py",
+      "kwarg": "atol",
+      "lineno": 197,
+      "value": 1e-09,
+      "value_repr": "1e-09"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_f_confound_drift/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 197,
+      "value": 1e-09,
+      "value_repr": "1e-09"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_f_confound_drift/workflow.py",
+      "kwarg": "atol",
+      "lineno": 198,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_f_confound_drift/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 198,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_f_confound_drift/workflow.py",
+      "kwarg": "atol",
+      "lineno": 199,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_f_confound_drift/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 199,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_2x2/workflow.py",
+      "kwarg": "atol",
+      "lineno": 290,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_2x2/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 290,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_2x2/workflow.py",
+      "kwarg": "atol",
+      "lineno": 291,
+      "value": 1e-09,
+      "value_repr": "1e-09"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_2x2/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 291,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_2x2/workflow.py",
+      "kwarg": "atol",
+      "lineno": 292,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_2x2/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 292,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_2x2/workflow.py",
+      "kwarg": "atol",
+      "lineno": 293,
+      "value": 1e-09,
+      "value_repr": "1e-09"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_2x2/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 293,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_2x2/workflow.py",
+      "kwarg": "atol",
+      "lineno": 294,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_2x2/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 294,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_2x2/workflow.py",
+      "kwarg": "atol",
+      "lineno": 295,
+      "value": 1e-09,
+      "value_repr": "1e-09"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_2x2/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 295,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_2x2/workflow.py",
+      "kwarg": "atol",
+      "lineno": 296,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_2x2/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 296,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_2x2/workflow.py",
+      "kwarg": "atol",
+      "lineno": 297,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_2x2/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 297,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py",
+      "kwarg": "atol",
+      "lineno": 455,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 455,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py",
+      "kwarg": "atol",
+      "lineno": 457,
+      "value": 1e-09,
+      "value_repr": "1e-09"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 457,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py",
+      "kwarg": "atol",
+      "lineno": 459,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 459,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py",
+      "kwarg": "atol",
+      "lineno": 460,
+      "value": 1e-09,
+      "value_repr": "1e-09"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 460,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py",
+      "kwarg": "atol",
+      "lineno": 461,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 461,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py",
+      "kwarg": "atol",
+      "lineno": 463,
+      "value": 1e-09,
+      "value_repr": "1e-09"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 463,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py",
+      "kwarg": "atol",
+      "lineno": 466,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 466,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py",
+      "kwarg": "atol",
+      "lineno": 468,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 468,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py",
+      "kwarg": "atol",
+      "lineno": 469,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 469,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_fiac/workflow.py",
+      "kwarg": "atol",
+      "lineno": 162,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_fiac/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 162,
+      "value": 1e-05,
+      "value_repr": "1e-05"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_fiac/workflow.py",
+      "kwarg": "atol",
+      "lineno": 163,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_fiac/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 163,
+      "value": 1e-05,
+      "value_repr": "1e-05"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_fiac/workflow.py",
+      "kwarg": "atol",
+      "lineno": 164,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_fiac/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 164,
+      "value": 1e-05,
+      "value_repr": "1e-05"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_fiac/workflow.py",
+      "kwarg": "atol",
+      "lineno": 165,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_fiac/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 165,
+      "value": 1e-05,
+      "value_repr": "1e-05"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py",
+      "kwarg": "atol",
+      "lineno": 260,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 260,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py",
+      "kwarg": "atol",
+      "lineno": 261,
+      "value": 1e-09,
+      "value_repr": "1e-09"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 261,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py",
+      "kwarg": "atol",
+      "lineno": 262,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 262,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py",
+      "kwarg": "atol",
+      "lineno": 263,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 263,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py",
+      "kwarg": "atol",
+      "lineno": 145,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 145,
+      "value": 1e-06,
+      "value_repr": "1e-06"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py",
+      "kwarg": "atol",
+      "lineno": 146,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 146,
+      "value": 1e-06,
+      "value_repr": "1e-06"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py",
+      "kwarg": "atol",
+      "lineno": 364,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 364,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py",
+      "kwarg": "atol",
+      "lineno": 365,
+      "value": 1e-09,
+      "value_repr": "1e-09"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 365,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py",
+      "kwarg": "atol",
+      "lineno": 387,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 387,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
+      "kwarg": "atol",
+      "lineno": 372,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 372,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
+      "kwarg": "atol",
+      "lineno": 373,
+      "value": 1e-09,
+      "value_repr": "1e-09"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 373,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
+      "kwarg": "atol",
+      "lineno": 374,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 374,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
+      "kwarg": "atol",
+      "lineno": 375,
+      "value": 1e-09,
+      "value_repr": "1e-09"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 375,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
+      "kwarg": "atol",
+      "lineno": 376,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 376,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
+      "kwarg": "atol",
+      "lineno": 378,
+      "value": 1e-09,
+      "value_repr": "1e-09"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 378,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
+      "kwarg": "atol",
+      "lineno": 381,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 381,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
+      "kwarg": "atol",
+      "lineno": 383,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 383,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
+      "kwarg": "atol",
+      "lineno": 384,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 384,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_parametric_modulation/workflow.py",
+      "kwarg": "atol",
+      "lineno": 248,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_parametric_modulation/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 248,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_parametric_modulation/workflow.py",
+      "kwarg": "atol",
+      "lineno": 249,
+      "value": 1e-09,
+      "value_repr": "1e-09"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_parametric_modulation/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 249,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_parametric_modulation/workflow.py",
+      "kwarg": "atol",
+      "lineno": 250,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_parametric_modulation/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 250,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_parametric_modulation/workflow.py",
+      "kwarg": "atol",
+      "lineno": 251,
+      "value": 1e-09,
+      "value_repr": "1e-09"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_parametric_modulation/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 251,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_parametric_modulation/workflow.py",
+      "kwarg": "atol",
+      "lineno": 252,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_parametric_modulation/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 252,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_parametric_modulation/workflow.py",
+      "kwarg": "atol",
+      "lineno": 253,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_a_parametric_modulation/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 253,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_b_fitlins_bids/workflow.py",
+      "kwarg": "atol",
+      "lineno": 220,
+      "value": 1e-12,
+      "value_repr": "1e-12"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_b_fitlins_bids/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 220,
+      "value": 1e-12,
+      "value_repr": "1e-12"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_b_fitlins_bids/workflow.py",
+      "kwarg": "atol",
+      "lineno": 221,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_b_fitlins_bids/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 221,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_b_fitlins_bids/workflow.py",
+      "kwarg": "atol",
+      "lineno": 222,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_b_fitlins_bids/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 222,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_b_fitlins_bids/workflow.py",
+      "kwarg": "atol",
+      "lineno": 223,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_b_fitlins_bids/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 223,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_c_second_level/workflow.py",
+      "kwarg": "atol",
+      "lineno": 155,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_c_second_level/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 155,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_c_second_level/workflow.py",
+      "kwarg": "atol",
+      "lineno": 156,
+      "value": 1e-06,
+      "value_repr": "1e-06"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_c_second_level/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 156,
+      "value": 1e-06,
+      "value_repr": "1e-06"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_c_second_level/workflow.py",
+      "kwarg": "atol",
+      "lineno": 157,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_c_second_level/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 157,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_c_second_level/workflow.py",
+      "kwarg": "atol",
+      "lineno": 158,
+      "value": 1e-06,
+      "value_repr": "1e-06"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_c_second_level/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 158,
+      "value": 1e-06,
+      "value_repr": "1e-06"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_c_second_level/workflow.py",
+      "kwarg": "atol",
+      "lineno": 159,
+      "value": 2e-08,
+      "value_repr": "2e-08"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_c_second_level/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 159,
+      "value": 2e-05,
+      "value_repr": "2e-05"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_e_adversarial_gauntlet/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 430,
+      "value": 1e-10,
+      "value_repr": "1e-10"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "benchmarks/parity/tier_e_adversarial_gauntlet/workflow.py",
+      "kwarg": "atol",
+      "lineno": 431,
+      "value": 1e-12,
+      "value_repr": "1e-12"
+    },
+    {
+      "classification": "unclassified",
+      "context_marker_found": false,
+      "file": "cross_testing/harness/compare.py",
+      "kwarg": "atol",
+      "lineno": 194,
+      "value": null,
+      "value_repr": "tolerance.atol"
+    },
+    {
+      "classification": "unclassified",
+      "context_marker_found": false,
+      "file": "cross_testing/harness/compare.py",
+      "kwarg": "rtol",
+      "lineno": 194,
+      "value": null,
+      "value_repr": "tolerance.rtol"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "cross_testing/test_complex_scenarios.py",
+      "kwarg": "rtol",
+      "lineno": 52,
+      "value": 1e-10,
+      "value_repr": "1e-10"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "cross_testing/test_complex_scenarios.py",
+      "kwarg": "rtol",
+      "lineno": 95,
+      "value": 1e-10,
+      "value_repr": "1e-10"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "cross_testing/test_complex_scenarios.py",
+      "kwarg": "rtol",
+      "lineno": 130,
+      "value": 1e-10,
+      "value_repr": "1e-10"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "cross_testing/test_complex_scenarios.py",
+      "kwarg": "rtol",
+      "lineno": 191,
+      "value": 1e-10,
+      "value_repr": "1e-10"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "cross_testing/test_complex_scenarios.py",
+      "kwarg": "rtol",
+      "lineno": 218,
+      "value": 1e-10,
+      "value_repr": "1e-10"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "cross_testing/test_complex_scenarios.py",
+      "kwarg": "rtol",
+      "lineno": 219,
+      "value": 1e-10,
+      "value_repr": "1e-10"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "cross_testing/test_complex_scenarios.py",
+      "kwarg": "rtol",
+      "lineno": 247,
+      "value": 1e-10,
+      "value_repr": "1e-10"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "cross_testing/test_hrf_equivalence.py",
+      "kwarg": "rtol",
+      "lineno": 175,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "cross_testing/test_parity_harness_canary.py",
+      "kwarg": "atol",
+      "lineno": 38,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "cross_testing/test_parity_harness_canary.py",
+      "kwarg": "rtol",
+      "lineno": 38,
+      "value": 1e-06,
+      "value_repr": "1e-06"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "cross_testing/test_parity_harness_canary.py",
+      "kwarg": "atol",
+      "lineno": 39,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "cross_testing/test_parity_harness_canary.py",
+      "kwarg": "rtol",
+      "lineno": 39,
+      "value": 1e-06,
+      "value_repr": "1e-06"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "cross_testing/test_parity_harness_canary.py",
+      "kwarg": "atol",
+      "lineno": 40,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "cross_testing/test_parity_harness_canary.py",
+      "kwarg": "rtol",
+      "lineno": 40,
+      "value": 1e-06,
+      "value_repr": "1e-06"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "cross_testing/test_parity_harness_canary.py",
+      "kwarg": "atol",
+      "lineno": 41,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "cross_testing/test_parity_harness_canary.py",
+      "kwarg": "rtol",
+      "lineno": 41,
+      "value": 1e-06,
+      "value_repr": "1e-06"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "cross_testing/test_performance.py",
+      "kwarg": "rtol",
+      "lineno": 154,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "cross_testing/test_regressor_equivalence.py",
+      "kwarg": "rtol",
+      "lineno": 39,
+      "value": 1e-10,
+      "value_repr": "1e-10"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "cross_testing/test_regressor_equivalence.py",
+      "kwarg": "rtol",
+      "lineno": 69,
+      "value": 1e-10,
+      "value_repr": "1e-10"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "cross_testing/test_regressor_equivalence.py",
+      "kwarg": "rtol",
+      "lineno": 99,
+      "value": 1e-10,
+      "value_repr": "1e-10"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "cross_testing/test_regressor_equivalence.py",
+      "kwarg": "rtol",
+      "lineno": 125,
+      "value": 1e-10,
+      "value_repr": "1e-10"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "cross_testing/test_regressor_equivalence.py",
+      "kwarg": "rtol",
+      "lineno": 126,
+      "value": 1e-10,
+      "value_repr": "1e-10"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "cross_testing/test_regressor_equivalence.py",
+      "kwarg": "rtol",
+      "lineno": 157,
+      "value": 1e-10,
+      "value_repr": "1e-10"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "cross_testing/test_regressor_equivalence.py",
+      "kwarg": "rtol",
+      "lineno": 222,
+      "value": 1e-10,
+      "value_repr": "1e-10"
+    },
+    {
+      "classification": "unjustified",
+      "context_marker_found": false,
+      "file": "cross_testing/test_regressor_equivalence.py",
+      "kwarg": "rtol",
+      "lineno": 245,
+      "value": 1e-10,
+      "value_repr": "1e-10"
+    },
+    {
+      "classification": "unclassified",
+      "context_marker_found": false,
+      "file": "cross_testing/utils.py",
+      "kwarg": "atol",
+      "lineno": 129,
+      "value": null,
+      "value_repr": "atol"
+    },
+    {
+      "classification": "unclassified",
+      "context_marker_found": false,
+      "file": "cross_testing/utils.py",
+      "kwarg": "rtol",
+      "lineno": 129,
+      "value": null,
+      "value_repr": "rtol"
+    },
+    {
+      "classification": "unclassified",
+      "context_marker_found": false,
+      "file": "cross_testing/utils.py",
+      "kwarg": "atol",
+      "lineno": 154,
+      "value": null,
+      "value_repr": "atol"
+    },
+    {
+      "classification": "unclassified",
+      "context_marker_found": false,
+      "file": "cross_testing/utils.py",
+      "kwarg": "rtol",
+      "lineno": 154,
+      "value": null,
+      "value_repr": "rtol"
+    },
+    {
+      "classification": "unclassified",
+      "context_marker_found": false,
+      "file": "cross_testing/utils.py",
+      "kwarg": "rtol",
+      "lineno": 278,
+      "value": null,
+      "value_repr": "rtol"
+    },
+    {
+      "classification": "unclassified",
+      "context_marker_found": false,
+      "file": "cross_testing/utils.py",
+      "kwarg": "atol",
+      "lineno": 279,
+      "value": null,
+      "value_repr": "atol"
+    }
+  ],
+  "schema_version": "parity_tolerance_audit/v1"
+}
