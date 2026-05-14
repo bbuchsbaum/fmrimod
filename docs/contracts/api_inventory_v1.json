@@ -618,7 +618,7 @@
       "name": "acquisition_onsets",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.utils.generics",
-      "runtime_signature": "(x, **kwargs) -> numpy.ndarray",
+      "runtime_signature": "(x, **kwargs: object) -> numpy.ndarray",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -648,7 +648,7 @@
       "name": "amplitudes",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.utils.generics",
-      "runtime_signature": "(x, **kwargs) -> numpy.ndarray",
+      "runtime_signature": "(x, **kwargs: object) -> numpy.ndarray",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -1218,7 +1218,7 @@
       "name": "evaluate",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.utils.generics",
-      "runtime_signature": "(x, *args, **kwargs)",
+      "runtime_signature": "(x, *args: object, **kwargs: object)",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -1938,7 +1938,7 @@
       "name": "global_onsets",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.utils.generics",
-      "runtime_signature": "(x, onsets, blockids, **kwargs) -> numpy.ndarray",
+      "runtime_signature": "(x, onsets, blockids, **kwargs: object) -> numpy.ndarray",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -2688,7 +2688,7 @@
       "name": "samples",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.utils.generics",
-      "runtime_signature": "(x, global_time: bool = True, **kwargs) -> numpy.ndarray",
+      "runtime_signature": "(x, global_time: bool = True, **kwargs: object) -> numpy.ndarray",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -2733,7 +2733,7 @@
       "name": "shift",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.utils.generics",
-      "runtime_signature": "(x, shift_amount=None, **kwargs)",
+      "runtime_signature": "(x, shift_amount=None, **kwargs: object)",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"

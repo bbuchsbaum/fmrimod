@@ -669,7 +669,7 @@ def construct(x, *args, **kwargs) -> Any:
     raise NotImplementedError(f"construct not implemented for {type(x)}")
 
 
-def evaluate(x, *args, **kwargs):
+def evaluate(x, *args: object, **kwargs: object):
     """Evaluate an object with an ``evaluate`` method or callable interface.
 
     This is a lightweight compatibility helper for the R ``evaluate()`` generic.
@@ -684,7 +684,7 @@ def evaluate(x, *args, **kwargs):
     raise NotImplementedError(f"evaluate not implemented for {type(x)}")
 
 
-def acquisition_onsets(x, **kwargs) -> np.ndarray:
+def acquisition_onsets(x, **kwargs: object) -> np.ndarray:
     """Return global fMRI acquisition onset times from a sampling frame."""
     val = getattr(x, "acquisition_onsets", None)
     if callable(val):
@@ -697,7 +697,7 @@ def acquisition_onsets(x, **kwargs) -> np.ndarray:
     raise NotImplementedError(f"acquisition_onsets not implemented for {type(x)}")
 
 
-def amplitudes(x, **kwargs) -> np.ndarray:
+def amplitudes(x, **kwargs: object) -> np.ndarray:
     """Return event amplitudes from a regressor-like object."""
     method = getattr(x, "amplitudes", None)
     if callable(method):
@@ -711,7 +711,7 @@ def amplitudes(x, **kwargs) -> np.ndarray:
     raise NotImplementedError(f"amplitudes not implemented for {type(x)}")
 
 
-def samples(x, global_time: bool = True, **kwargs) -> np.ndarray:
+def samples(x, global_time: bool = True, **kwargs: object) -> np.ndarray:
     """Return sampling times from a sampling-frame-like object.
 
     Parameters
@@ -740,7 +740,7 @@ def samples(x, global_time: bool = True, **kwargs) -> np.ndarray:
     raise NotImplementedError(f"samples not implemented for {type(x)}")
 
 
-def global_onsets(x, onsets, blockids, **kwargs) -> np.ndarray:
+def global_onsets(x, onsets, blockids, **kwargs: object) -> np.ndarray:
     """Convert block-local onsets to global experiment onsets."""
     method = getattr(x, "global_onsets", None)
     if callable(method):
@@ -748,7 +748,7 @@ def global_onsets(x, onsets, blockids, **kwargs) -> np.ndarray:
     raise NotImplementedError(f"global_onsets not implemented for {type(x)}")
 
 
-def shift(x, shift_amount=None, **kwargs):
+def shift(x, shift_amount=None, **kwargs: object):
     """Shift a regressor-like object by a temporal offset."""
     if shift_amount is None and "offset" in kwargs:
         shift_amount = kwargs.pop("offset")
