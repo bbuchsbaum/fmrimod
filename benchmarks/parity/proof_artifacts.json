@@ -91,9 +91,7 @@
           "status",
           "caveats"
         ]
-      },
-      "hardware_tag": "Darwin-arm64-arm",
-      "performance_stage": "tier_a_f_confound_drift"
+      }
     },
     {
       "benchmark_id": "tier_group_semantic_survival",
@@ -583,8 +581,15 @@
       "fmrimod_path": "benchmarks/parity/tier_c_second_level/workflow.py::fmrimod_pipeline: group_data_from_csv -> group_fit",
       "caveats": [],
       "timings": {
-        "status": "not_recorded",
-        "next": "record native group reducer timings now that the second-level caveat has been retired"
+        "seconds": 1.533317459,
+        "stages": {
+          "fmrimod_age_regression_seconds": 0.011026042000000125,
+          "fmrimod_one_sample_seconds": 0.009660042000000146,
+          "make_inputs_seconds": 0.002118832999999931,
+          "nilearn_pipeline_seconds": 1.5105125419999998
+        },
+        "status": "recorded",
+        "source": "benchmarks/parity/tier_c_second_level/reports/parity_report.json"
       },
       "typed_objects": [
         "fmrimod.dataset.GroupData",
@@ -593,11 +598,20 @@
       ],
       "fmrimod_expresses_better": "The group path carries effect-size standard errors and model intent as explicit request fields rather than hiding them inside a fitted second-level estimator.",
       "receipt": {
-        "status": "static_snapshot",
-        "reason": "workflow does not yet expose a receipt-safe --out-dir regeneration command; snapshot is hand-rendered from workflow.py main()",
-        "date": "2026-05-13",
-        "owner": "parity-maintainers"
-      }
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_c_second_level.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ]
+      },
+      "hardware_tag": "Darwin-arm64-arm",
+      "performance_stage": "tier_c_second_level"
     },
     {
       "benchmark_id": "tier_e_adversarial_gauntlet",

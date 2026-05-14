@@ -38,7 +38,6 @@ MANIFEST = REPO_ROOT / "benchmarks" / "parity" / "proof_artifacts.json"
 _PENDING_TIMING_ROWS = frozenset(
     {
         "tier_a_multirun_concat_public_seam",
-        "tier_c_second_level",
         "tier_e_parametric_centering",
         "tier_e_scrubbed_timebase_alignment",
         "tier_e_semantic_contrast_alignment",
