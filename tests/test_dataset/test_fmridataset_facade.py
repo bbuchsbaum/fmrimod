@@ -15,6 +15,7 @@ import fmridataset.dataset as facade_dataset
 import fmridataset.dataset_constructors as facade_constructors
 import fmridataset.dataset_methods as facade_dataset_methods
 import fmridataset.errors as facade_errors
+import fmridataset.latent_dataset as facade_latent_dataset
 import fmridataset.mask_utils as facade_mask_utils
 import fmridataset.sampling_frame as facade_sampling
 import fmridataset.selectors as facade_selectors
@@ -30,10 +31,12 @@ def test_fmridataset_root_reexports_canonical_objects() -> None:
     assert facade.FmriDataset is dataset.FmriDataset
     assert facade.MatrixBackend is dataset.MatrixBackend
     assert facade.LatentBackend is dataset.LatentBackend
+    assert facade.LatentDataset is dataset.LatentDataset
     assert facade.matrix_dataset is dataset.matrix_dataset
     assert facade.fmri_dataset is dataset.fmri_dataset
     assert facade.matrix_backend is dataset.matrix_backend
     assert facade.latent_backend is dataset.latent_backend
+    assert facade.latent_dataset is dataset.latent_dataset
     assert facade.get_data is dataset.get_data
     assert facade.DataChunk is dataset.DataChunk
     assert facade.data_chunks is dataset.data_chunks
@@ -59,6 +62,10 @@ def test_fmridataset_submodules_are_reexport_facades() -> None:
     assert facade_backend_registry.create_backend is dataset.create_backend
     assert facade_matrix_backend.MatrixBackend is dataset.MatrixBackend
     assert facade_latent_backend.LatentBackend is dataset.LatentBackend
+    assert (
+        facade_latent_backend.InMemoryLatentBackend
+        is dataset.InMemoryLatentBackend
+    )
     assert facade_errors.FmriDatasetError is dataset.FmriDatasetError
     assert facade_errors.BackendIOError is dataset.BackendIOError
     assert facade_errors.ConfigError is dataset.ConfigError
@@ -78,3 +85,5 @@ def test_fmridataset_submodules_are_reexport_facades() -> None:
     assert facade_fmri_series.fmri_series is dataset.fmri_series
     assert facade_mask_utils.mask_to_logical is dataset.mask_to_logical
     assert facade_mask_utils.mask_to_volume is dataset.mask_to_volume
+    assert facade_latent_dataset.LatentDataset is dataset.LatentDataset
+    assert facade_latent_dataset.latent_dataset is dataset.latent_dataset
