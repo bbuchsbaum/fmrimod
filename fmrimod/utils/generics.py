@@ -8,7 +8,7 @@ import pandas as pd
 
 
 @singledispatch
-def blockids(x, **kwargs) -> Union[List[Any], np.ndarray]:
+def blockids(x, **kwargs: object) -> Union[List[Any], np.ndarray]:
     """Extract block IDs from an object.
     
     This is a generic function that extracts block/run identifiers from
@@ -37,7 +37,7 @@ def blockids(x, **kwargs) -> Union[List[Any], np.ndarray]:
 
 
 @singledispatch
-def blocklens(x, **kwargs) -> Union[List[int], np.ndarray]:
+def blocklens(x, **kwargs: object) -> Union[List[int], np.ndarray]:
     """Extract block lengths from an object.
     
     This is a generic function that extracts the lengths of blocks/runs
@@ -66,7 +66,7 @@ def blocklens(x, **kwargs) -> Union[List[int], np.ndarray]:
 
 
 @singledispatch
-def term_names(x, **kwargs) -> List[str]:
+def term_names(x, **kwargs: object) -> List[str]:
     """Extract term names from an object.
     
     This is a generic function that extracts the names of terms
@@ -95,7 +95,7 @@ def term_names(x, **kwargs) -> List[str]:
 
 
 @singledispatch
-def longnames(x, **kwargs) -> List[str]:
+def longnames(x, **kwargs: object) -> List[str]:
     """Extract long (descriptive) names from an object.
     
     This is a generic function that extracts verbose, human-readable names
@@ -126,7 +126,7 @@ def longnames(x, **kwargs) -> List[str]:
 
 
 @singledispatch 
-def shortnames(x, **kwargs) -> List[str]:
+def shortnames(x, **kwargs: object) -> List[str]:
     """Extract short (abbreviated) names from an object.
     
     This is a generic function that extracts concise names from various 
@@ -159,13 +159,13 @@ def shortnames(x, **kwargs) -> List[str]:
 # Register implementations for common types
 
 @blockids.register(list)
-def _blockids_list(x: list, **kwargs) -> list:
+def _blockids_list(x: list, **kwargs: object) -> list:
     """Extract block IDs from a list (assumes it's already block IDs)."""
     return x
 
 
 @blockids.register(np.ndarray)
-def _blockids_array(x: np.ndarray, **kwargs) -> np.ndarray:
+def _blockids_array(x: np.ndarray, **kwargs: object) -> np.ndarray:
     """Extract block IDs from an array (assumes it's already block IDs)."""
     return x
 
@@ -177,12 +177,12 @@ def _register_event_model():
         from ..design.event_model import EventModel
         
         @blockids.register(EventModel)
-        def _blockids_event_model(model: EventModel, **kwargs):
+        def _blockids_event_model(model: EventModel, **kwargs: object):
             """Extract block IDs from an EventModel."""
             return model.blockids
         
         @blocklens.register(EventModel)
-        def _blocklens_event_model(model: EventModel, **kwargs):
+        def _blocklens_event_model(model: EventModel, **kwargs: object):
             """Extract block lengths from an EventModel."""
             if hasattr(model, 'sampling_frame') and model.sampling_frame is not None:
                 # Get from sampling frame
@@ -198,7 +198,7 @@ def _register_event_model():
             raise ValueError("Cannot determine block lengths from EventModel")
         
         @term_names.register(EventModel)
-        def _term_names_event_model(model: EventModel, **kwargs):
+        def _term_names_event_model(model: EventModel, **kwargs: object):
             """Extract term names from an EventModel."""
             if hasattr(model, 'terms'):
                 return [term.name for term in model.terms if hasattr(term, 'name')]
@@ -215,7 +215,7 @@ def _register_baseline_model():
         from ..baseline.baseline_model import BaselineModel
         
         @term_names.register(BaselineModel)
-        def _term_names_baseline_model(model: BaselineModel, **kwargs):
+        def _term_names_baseline_model(model: BaselineModel, **kwargs: object):
             """Extract term names from a BaselineModel."""
             if hasattr(model, 'terms'):
                 names = []
@@ -242,7 +242,7 @@ def _register_sampling_frame():
             from ..sampling import SamplingFrame as _SamplingFrameClass
         
         @blocklens.register(_SamplingFrameClass)
-        def _blocklens_sampling_frame(sframe: _SamplingFrameClass, **kwargs):
+        def _blocklens_sampling_frame(sframe: _SamplingFrameClass, **kwargs: object):
             """Extract block lengths from a SamplingFrame."""
             if hasattr(sframe, 'blocklens'):
                 return sframe.blocklens
@@ -254,7 +254,7 @@ def _register_sampling_frame():
                 raise ValueError("SamplingFrame has no block length information")
         
         @blockids.register(_SamplingFrameClass)
-        def _blockids_sampling_frame(sframe: _SamplingFrameClass, **kwargs):
+        def _blockids_sampling_frame(sframe: _SamplingFrameClass, **kwargs: object):
             """Extract block IDs from a SamplingFrame."""
             # Generate block IDs from block lengths
             blocklens = _blocklens_sampling_frame(sframe)
@@ -276,7 +276,7 @@ _register_sampling_frame()
 # New generic functions for feature parity
 
 @singledispatch
-def cells(x, drop_empty: bool = True, **kwargs) -> pd.DataFrame:
+def cells(x, drop_empty: bool = True, **kwargs: object) -> pd.DataFrame:
     """Extract cells (factor-level combinations) from an object.
 
     For categorical events or terms, returns a DataFrame listing all
@@ -312,7 +312,7 @@ def cells(x, drop_empty: bool = True, **kwargs) -> pd.DataFrame:
 
 
 @singledispatch
-def conditions(x, drop_empty: bool = True, expand_basis: bool = False, **kwargs) -> List[str]:
+def conditions(x, drop_empty: bool = True, expand_basis: bool = False, **kwargs: object) -> List[str]:
     """Extract condition names from an object.
 
     Generates descriptive name strings for all conditions represented
@@ -372,7 +372,7 @@ def condition_map(
 
 
 @singledispatch
-def onsets(x, **kwargs) -> Union[np.ndarray, List[float]]:
+def onsets(x, **kwargs: object) -> Union[np.ndarray, List[float]]:
     """Extract event onset times from an object.
 
     Returns the onset time of each event in seconds relative to
@@ -399,7 +399,7 @@ def onsets(x, **kwargs) -> Union[np.ndarray, List[float]]:
 
 
 @singledispatch
-def durations(x, **kwargs) -> Union[np.ndarray, List[float]]:
+def durations(x, **kwargs: object) -> Union[np.ndarray, List[float]]:
     """Extract event durations from an object.
 
     Returns the duration of each event in seconds. A duration of 0
@@ -426,7 +426,7 @@ def durations(x, **kwargs) -> Union[np.ndarray, List[float]]:
 
 
 @singledispatch
-def elements(x, what: str = "values", transformed: bool = True, **kwargs) -> Any:
+def elements(x, what: str = "values", transformed: bool = True, **kwargs: object) -> Any:
     """Extract elements (values or labels) from an event object.
 
     Parameters
@@ -456,7 +456,7 @@ def elements(x, what: str = "values", transformed: bool = True, **kwargs) -> Any
 
 
 @singledispatch
-def labels(x, **kwargs) -> List[str]:
+def labels(x, **kwargs: object) -> List[str]:
     """Extract labels from an event object.
 
     For categorical events, returns the factor levels. For continuous
@@ -485,7 +485,7 @@ def labels(x, **kwargs) -> List[str]:
 
 
 @singledispatch
-def levels(x, **kwargs) -> Union[List[str], None]:
+def levels(x, **kwargs: object) -> Union[List[str], None]:
     """Extract factor levels from an object.
 
     Returns the ordered list of unique levels for categorical
@@ -513,7 +513,7 @@ def levels(x, **kwargs) -> Union[List[str], None]:
 
 
 @singledispatch
-def columns(x, **kwargs) -> List[str]:
+def columns(x, **kwargs: object) -> List[str]:
     """Extract design matrix column names from an object.
 
     Returns the names that would appear as column headers in the
@@ -543,7 +543,7 @@ def columns(x, **kwargs) -> List[str]:
 
 
 @singledispatch
-def nbasis(x, **kwargs) -> int:
+def nbasis(x, **kwargs: object) -> int:
     """Extract the number of basis functions from an object.
 
     For events with multi-basis HRFs (e.g., SPMG3), returns the
@@ -568,7 +568,7 @@ def nbasis(x, **kwargs) -> int:
 
 
 @singledispatch
-def is_categorical(x, **kwargs) -> bool:
+def is_categorical(x, **kwargs: object) -> bool:
     """Check if an object represents categorical (factor) data.
 
     Parameters
@@ -592,7 +592,7 @@ def is_categorical(x, **kwargs) -> bool:
 
 
 @singledispatch
-def is_continuous(x, **kwargs) -> bool:
+def is_continuous(x, **kwargs: object) -> bool:
     """Check if an object represents continuous (numeric) data.
 
     Parameters
@@ -615,7 +615,7 @@ def is_continuous(x, **kwargs) -> bool:
 
 
 @singledispatch
-def event_terms(x, **kwargs) -> List[Any]:
+def event_terms(x, **kwargs: object) -> List[Any]:
     """Extract event terms from a model.
 
     Returns the list of ``EventTerm`` objects that define the
@@ -642,7 +642,7 @@ def event_terms(x, **kwargs) -> List[Any]:
 
 
 @singledispatch
-def construct(x, *args, **kwargs) -> Any:
+def construct(x, *args, **kwargs: object) -> Any:
     """Construct a model component from a specification object.
 
     Materializes a specification (e.g., ``NuisanceSpec``,
@@ -768,19 +768,19 @@ def _register_event_term():
         from ..events.term import EventTerm
         
         @cells.register(EventTerm)
-        def _cells_event_term(term: EventTerm, drop_empty: bool = True, **kwargs):
+        def _cells_event_term(term: EventTerm, drop_empty: bool = True, **kwargs: object):
             """Extract cells from an EventTerm."""
             return cells_event_term(term, drop_empty)
         
         @conditions.register(EventTerm)
         def _conditions_event_term(term: EventTerm, drop_empty: bool = True, 
-                                   expand_basis: bool = False, **kwargs):
+                                   expand_basis: bool = False, **kwargs: object):
             """Extract conditions from an EventTerm."""
             return conditions_event_term(term, drop_empty, expand_basis)
 
         @condition_map.register(EventTerm)
         def _condition_map_event_term(term: EventTerm, drop_empty: bool = True,
-                                      expand_basis: bool = False, **kwargs):
+                                      expand_basis: bool = False, **kwargs: object):
             """Map EventTerm display labels to canonical condition names."""
             canonical = conditions_event_term(term, drop_empty, expand_basis)
             display = [_display_condition_name(cond) for cond in canonical]
@@ -807,27 +807,27 @@ def _register_event_extractors():
         
         # Onsets implementations
         @onsets.register(EventFactor)
-        def _onsets_event_factor(event: EventFactor, **kwargs):
+        def _onsets_event_factor(event: EventFactor, **kwargs: object):
             """Extract onsets from EventFactor."""
             return np.array(event.onsets)
         
         @onsets.register(EventVariable)
-        def _onsets_event_variable(event: EventVariable, **kwargs):
+        def _onsets_event_variable(event: EventVariable, **kwargs: object):
             """Extract onsets from EventVariable."""
             return np.array(event.onsets)
         
         @onsets.register(EventMatrix)
-        def _onsets_event_matrix(event: EventMatrix, **kwargs):
+        def _onsets_event_matrix(event: EventMatrix, **kwargs: object):
             """Extract onsets from EventMatrix."""
             return np.array(event.onsets)
         
         @onsets.register(EventBasis)
-        def _onsets_event_basis(event: EventBasis, **kwargs):
+        def _onsets_event_basis(event: EventBasis, **kwargs: object):
             """Extract onsets from EventBasis."""
             return np.array(event.onsets)
         
         @onsets.register(EventTerm)
-        def _onsets_event_term(term: EventTerm, **kwargs):
+        def _onsets_event_term(term: EventTerm, **kwargs: object):
             """Extract onsets from EventTerm."""
             # Get onsets from first event (all should have same onsets)
             if term.events:
@@ -836,27 +836,27 @@ def _register_event_extractors():
         
         # Durations implementations
         @durations.register(EventFactor)
-        def _durations_event_factor(event: EventFactor, **kwargs):
+        def _durations_event_factor(event: EventFactor, **kwargs: object):
             """Extract durations from EventFactor."""
             return np.array(event.durations)
         
         @durations.register(EventVariable)
-        def _durations_event_variable(event: EventVariable, **kwargs):
+        def _durations_event_variable(event: EventVariable, **kwargs: object):
             """Extract durations from EventVariable."""
             return np.array(event.durations)
         
         @durations.register(EventMatrix)
-        def _durations_event_matrix(event: EventMatrix, **kwargs):
+        def _durations_event_matrix(event: EventMatrix, **kwargs: object):
             """Extract durations from EventMatrix."""
             return np.array(event.durations)
         
         @durations.register(EventBasis)
-        def _durations_event_basis(event: EventBasis, **kwargs):
+        def _durations_event_basis(event: EventBasis, **kwargs: object):
             """Extract durations from EventBasis."""
             return np.array(event.durations)
         
         @durations.register(EventTerm)
-        def _durations_event_term(term: EventTerm, **kwargs):
+        def _durations_event_term(term: EventTerm, **kwargs: object):
             """Extract durations from EventTerm."""
             # Get durations from first event (all should have same durations)
             if term.events:
@@ -866,7 +866,7 @@ def _register_event_extractors():
         # Elements implementations
         @elements.register(EventFactor)
         def _elements_event_factor(event: EventFactor, what: str = "values", 
-                                  transformed: bool = True, **kwargs):
+                                  transformed: bool = True, **kwargs: object):
             """Extract elements from EventFactor."""
             if what == "labels":
                 return event.levels
@@ -875,7 +875,7 @@ def _register_event_extractors():
         
         @elements.register(EventVariable)
         def _elements_event_variable(event: EventVariable, what: str = "values", 
-                                    transformed: bool = True, **kwargs):
+                                    transformed: bool = True, **kwargs: object):
             """Extract elements from EventVariable."""
             if what == "labels":
                 return [event.name]
@@ -884,7 +884,7 @@ def _register_event_extractors():
         
         @elements.register(EventMatrix)
         def _elements_event_matrix(event: EventMatrix, what: str = "values", 
-                                  transformed: bool = True, **kwargs):
+                                  transformed: bool = True, **kwargs: object):
             """Extract elements from EventMatrix."""
             if what == "labels":
                 return event.column_names
@@ -893,7 +893,7 @@ def _register_event_extractors():
         
         @elements.register(EventBasis)
         def _elements_event_basis(event: EventBasis, what: str = "values", 
-                                 transformed: bool = True, **kwargs):
+                                 transformed: bool = True, **kwargs: object):
             """Extract elements from EventBasis."""
             if what == "labels":
                 return event.basis_names
@@ -918,53 +918,53 @@ def _register_type_checkers():
         
         # is_categorical implementations
         @is_categorical.register(EventFactor)
-        def _is_categorical_event_factor(event: EventFactor, **kwargs):
+        def _is_categorical_event_factor(event: EventFactor, **kwargs: object):
             """Check if EventFactor is categorical."""
             return True
         
         @is_categorical.register(EventVariable)
-        def _is_categorical_event_variable(event: EventVariable, **kwargs):
+        def _is_categorical_event_variable(event: EventVariable, **kwargs: object):
             """Check if EventVariable is categorical."""
             return False
         
         @is_categorical.register(EventMatrix)
-        def _is_categorical_event_matrix(event: EventMatrix, **kwargs):
+        def _is_categorical_event_matrix(event: EventMatrix, **kwargs: object):
             """Check if EventMatrix is categorical."""
             return False
         
         @is_categorical.register(EventBasis)
-        def _is_categorical_event_basis(event: EventBasis, **kwargs):
+        def _is_categorical_event_basis(event: EventBasis, **kwargs: object):
             """Check if EventBasis is categorical."""
             return False
         
         @is_categorical.register(EventTerm)
-        def _is_categorical_event_term(term: EventTerm, **kwargs):
+        def _is_categorical_event_term(term: EventTerm, **kwargs: object):
             """Check if EventTerm is categorical."""
             return term.is_categorical
         
         # is_continuous implementations
         @is_continuous.register(EventFactor)
-        def _is_continuous_event_factor(event: EventFactor, **kwargs):
+        def _is_continuous_event_factor(event: EventFactor, **kwargs: object):
             """Check if EventFactor is continuous."""
             return False
         
         @is_continuous.register(EventVariable)
-        def _is_continuous_event_variable(event: EventVariable, **kwargs):
+        def _is_continuous_event_variable(event: EventVariable, **kwargs: object):
             """Check if EventVariable is continuous."""
             return True
         
         @is_continuous.register(EventMatrix)
-        def _is_continuous_event_matrix(event: EventMatrix, **kwargs):
+        def _is_continuous_event_matrix(event: EventMatrix, **kwargs: object):
             """Check if EventMatrix is continuous."""
             return True
         
         @is_continuous.register(EventBasis)
-        def _is_continuous_event_basis(event: EventBasis, **kwargs):
+        def _is_continuous_event_basis(event: EventBasis, **kwargs: object):
             """Check if EventBasis is continuous."""
             return True
         
         @is_continuous.register(EventTerm)
-        def _is_continuous_event_term(term: EventTerm, **kwargs):
+        def _is_continuous_event_term(term: EventTerm, **kwargs: object):
             """Check if EventTerm is continuous."""
             return term.is_continuous
             
@@ -986,7 +986,7 @@ def _register_event_cells_conditions():
         
         # For EventFactor - wrap in EventTerm to use existing logic
         @cells.register(EventFactor)
-        def _cells_event_factor(event: EventFactor, drop_empty: bool = True, **kwargs):
+        def _cells_event_factor(event: EventFactor, drop_empty: bool = True, **kwargs: object):
             """Extract cells from EventFactor."""
             from ..events.term import EventTerm
             term = EventTerm([event])
@@ -994,7 +994,7 @@ def _register_event_cells_conditions():
         
         @conditions.register(EventFactor)
         def _conditions_event_factor(event: EventFactor, drop_empty: bool = True,
-                                    expand_basis: bool = False, **kwargs):
+                                    expand_basis: bool = False, **kwargs: object):
             """Extract conditions from EventFactor."""
             from ..events.term import EventTerm
             term = EventTerm([event])
@@ -1002,7 +1002,7 @@ def _register_event_cells_conditions():
 
         @condition_map.register(EventFactor)
         def _condition_map_event_factor(event: EventFactor, drop_empty: bool = True,
-                                        expand_basis: bool = False, **kwargs):
+                                        expand_basis: bool = False, **kwargs: object):
             """Map EventFactor display labels to canonical condition names."""
             from ..events.term import EventTerm
             term = EventTerm([event])
@@ -1010,7 +1010,7 @@ def _register_event_cells_conditions():
         
         # For EventVariable - wrap in EventTerm
         @cells.register(EventVariable)
-        def _cells_event_variable(event: EventVariable, drop_empty: bool = True, **kwargs):
+        def _cells_event_variable(event: EventVariable, drop_empty: bool = True, **kwargs: object):
             """Extract cells from EventVariable."""
             from ..events.term import EventTerm
             term = EventTerm([event])
@@ -1018,7 +1018,7 @@ def _register_event_cells_conditions():
         
         @conditions.register(EventVariable)
         def _conditions_event_variable(event: EventVariable, drop_empty: bool = True,
-                                      expand_basis: bool = False, **kwargs):
+                                      expand_basis: bool = False, **kwargs: object):
             """Extract conditions from EventVariable."""
             from ..events.term import EventTerm
             term = EventTerm([event])
@@ -1026,7 +1026,7 @@ def _register_event_cells_conditions():
 
         @condition_map.register(EventVariable)
         def _condition_map_event_variable(event: EventVariable, drop_empty: bool = True,
-                                          expand_basis: bool = False, **kwargs):
+                                          expand_basis: bool = False, **kwargs: object):
             """Map EventVariable display labels to canonical condition names."""
             from ..events.term import EventTerm
             term = EventTerm([event])
@@ -1034,7 +1034,7 @@ def _register_event_cells_conditions():
         
         # For EventMatrix - wrap in EventTerm
         @cells.register(EventMatrix)
-        def _cells_event_matrix(event: EventMatrix, drop_empty: bool = True, **kwargs):
+        def _cells_event_matrix(event: EventMatrix, drop_empty: bool = True, **kwargs: object):
             """Extract cells from EventMatrix."""
             from ..events.term import EventTerm
             term = EventTerm([event])
@@ -1042,7 +1042,7 @@ def _register_event_cells_conditions():
         
         @conditions.register(EventMatrix)
         def _conditions_event_matrix(event: EventMatrix, drop_empty: bool = True,
-                                    expand_basis: bool = False, **kwargs):
+                                    expand_basis: bool = False, **kwargs: object):
             """Extract conditions from EventMatrix."""
             from ..events.term import EventTerm
             term = EventTerm([event])
@@ -1050,7 +1050,7 @@ def _register_event_cells_conditions():
 
         @condition_map.register(EventMatrix)
         def _condition_map_event_matrix(event: EventMatrix, drop_empty: bool = True,
-                                        expand_basis: bool = False, **kwargs):
+                                        expand_basis: bool = False, **kwargs: object):
             """Map EventMatrix display labels to canonical condition names."""
             from ..events.term import EventTerm
             term = EventTerm([event])
@@ -1058,7 +1058,7 @@ def _register_event_cells_conditions():
         
         # For EventBasis - wrap in EventTerm
         @cells.register(EventBasis)
-        def _cells_event_basis(event: EventBasis, drop_empty: bool = True, **kwargs):
+        def _cells_event_basis(event: EventBasis, drop_empty: bool = True, **kwargs: object):
             """Extract cells from EventBasis."""
             from ..events.term import EventTerm
             term = EventTerm([event])
@@ -1066,7 +1066,7 @@ def _register_event_cells_conditions():
         
         @conditions.register(EventBasis)
         def _conditions_event_basis(event: EventBasis, drop_empty: bool = True,
-                                   expand_basis: bool = False, **kwargs):
+                                   expand_basis: bool = False, **kwargs: object):
             """Extract conditions from EventBasis."""
             from ..events.term import EventTerm
             term = EventTerm([event])
@@ -1074,7 +1074,7 @@ def _register_event_cells_conditions():
 
         @condition_map.register(EventBasis)
         def _condition_map_event_basis(event: EventBasis, drop_empty: bool = True,
-                                       expand_basis: bool = False, **kwargs):
+                                       expand_basis: bool = False, **kwargs: object):
             """Map EventBasis display labels to canonical condition names."""
             from ..events.term import EventTerm
             term = EventTerm([event])
@@ -1093,7 +1093,7 @@ def _register_event_terms():
         from ..design.event_model import EventModel
         
         @event_terms.register(EventModel)
-        def _event_terms_event_model(model: EventModel, **kwargs):
+        def _event_terms_event_model(model: EventModel, **kwargs: object):
             """Extract event terms from EventModel."""
             # EventModel stores terms internally (cached after design_matrix build)
             if model._event_terms is not None:
@@ -1122,27 +1122,27 @@ def _register_labels_levels():
         
         # labels implementations
         @labels.register(EventFactor)
-        def _labels_event_factor(event: EventFactor, **kwargs):
+        def _labels_event_factor(event: EventFactor, **kwargs: object):
             """Extract labels from EventFactor."""
             return list(event.levels)
         
         @labels.register(EventVariable)
-        def _labels_event_variable(event: EventVariable, **kwargs):
+        def _labels_event_variable(event: EventVariable, **kwargs: object):
             """Extract labels from EventVariable."""
             return [event.name]
         
         @labels.register(EventMatrix)
-        def _labels_event_matrix(event: EventMatrix, **kwargs):
+        def _labels_event_matrix(event: EventMatrix, **kwargs: object):
             """Extract labels from EventMatrix."""
             return list(event.column_names)
         
         @labels.register(EventBasis)
-        def _labels_event_basis(event: EventBasis, **kwargs):
+        def _labels_event_basis(event: EventBasis, **kwargs: object):
             """Extract labels from EventBasis."""
             return event.basis_names
         
         @labels.register(EventTerm)
-        def _labels_event_term(term: EventTerm, **kwargs):
+        def _labels_event_term(term: EventTerm, **kwargs: object):
             """Extract labels from EventTerm."""
             all_labels = []
             for event in term.events:
@@ -1152,27 +1152,27 @@ def _register_labels_levels():
         
         # levels implementations
         @levels.register(EventFactor)
-        def _levels_event_factor(event: EventFactor, **kwargs):
+        def _levels_event_factor(event: EventFactor, **kwargs: object):
             """Extract levels from EventFactor."""
             return list(event.levels)
         
         @levels.register(EventVariable)
-        def _levels_event_variable(event: EventVariable, **kwargs):
+        def _levels_event_variable(event: EventVariable, **kwargs: object):
             """Extract levels from EventVariable."""
             return None  # Continuous variables have no levels
         
         @levels.register(EventMatrix)
-        def _levels_event_matrix(event: EventMatrix, **kwargs):
+        def _levels_event_matrix(event: EventMatrix, **kwargs: object):
             """Extract levels from EventMatrix."""
             return None  # Matrix events have no levels
         
         @levels.register(EventBasis)
-        def _levels_event_basis(event: EventBasis, **kwargs):
+        def _levels_event_basis(event: EventBasis, **kwargs: object):
             """Extract levels from EventBasis."""
             return None  # Basis events have no levels
         
         @levels.register(EventTerm)
-        def _levels_event_term(term: EventTerm, **kwargs):
+        def _levels_event_term(term: EventTerm, **kwargs: object):
             """Extract levels from EventTerm."""
             if term.is_categorical:
                 # For purely categorical terms, return level combinations
@@ -1208,47 +1208,47 @@ def _register_columns():
         from ..events.variable import EventVariable
 
         @columns.register(EventFactor)
-        def _columns_event_factor(event: EventFactor, **kwargs):
+        def _columns_event_factor(event: EventFactor, **kwargs: object):
             """Extract columns from EventFactor."""
             return [f"{event.name}.{level}" for level in event.levels]
 
         @columns.register(EventVariable)
-        def _columns_event_variable(event: EventVariable, **kwargs):
+        def _columns_event_variable(event: EventVariable, **kwargs: object):
             """Extract columns from EventVariable."""
             return [event.name]
 
         @columns.register(EventMatrix)
-        def _columns_event_matrix(event: EventMatrix, **kwargs):
+        def _columns_event_matrix(event: EventMatrix, **kwargs: object):
             """Extract columns from EventMatrix."""
             if hasattr(event, 'column_names'):
                 return list(event.column_names)
             return [f"V{i+1}" for i in range(event.n_columns)]
 
         @columns.register(EventBasis)
-        def _columns_event_basis(event: EventBasis, **kwargs):
+        def _columns_event_basis(event: EventBasis, **kwargs: object):
             """Extract columns from EventBasis."""
             if hasattr(event, 'basis_names'):
                 return list(event.basis_names)
             return [event.name]
 
         @columns.register(EventTerm)
-        def _columns_event_term(term: EventTerm, **kwargs):
+        def _columns_event_term(term: EventTerm, **kwargs: object):
             """Extract columns from EventTerm."""
             return term.get_column_names()
 
         @columns.register(EventModel)
-        def _columns_event_model(model: EventModel, **kwargs):
+        def _columns_event_model(model: EventModel, **kwargs: object):
             """Extract columns from EventModel."""
             return model.column_names
 
         # Register longnames and shortnames for EventModel
         @longnames.register(EventModel)
-        def _longnames_event_model(model: EventModel, **kwargs):
+        def _longnames_event_model(model: EventModel, **kwargs: object):
             """Extract long names from EventModel."""
             return model.longnames()
 
         @shortnames.register(EventModel)
-        def _shortnames_event_model(model: EventModel, **kwargs):
+        def _shortnames_event_model(model: EventModel, **kwargs: object):
             """Extract short names from EventModel."""
             return model.shortnames()
 
@@ -1260,7 +1260,7 @@ def _register_columns():
         from ..baseline.baseline_model import BaselineModel
 
         @columns.register(BaselineModel)
-        def _columns_baseline_model(model: BaselineModel, **kwargs):
+        def _columns_baseline_model(model: BaselineModel, **kwargs: object):
             """Extract columns from BaselineModel."""
             if hasattr(model, "column_names"):
                 return list(model.column_names)
@@ -1272,7 +1272,7 @@ def _register_columns():
 
     # For numpy arrays
     @columns.register(np.ndarray)
-    def _columns_array(arr: np.ndarray, **kwargs):
+    def _columns_array(arr: np.ndarray, **kwargs: object):
         """Extract columns from numpy array."""
         if arr.ndim == 1:
             return ["V1"]
@@ -1283,7 +1283,7 @@ def _register_columns():
 
     # For pandas DataFrames
     @columns.register(pd.DataFrame)
-    def _columns_dataframe(df: pd.DataFrame, **kwargs):
+    def _columns_dataframe(df: pd.DataFrame, **kwargs: object):
         """Extract columns from DataFrame."""
         return list(df.columns)
 
@@ -1297,12 +1297,12 @@ def _register_construct():
         from ..baseline.specs import BlockSpec, NuisanceSpec
 
         @construct.register(NuisanceSpec)
-        def _construct_nuisance_spec(spec: NuisanceSpec, sampling_frame, **kwargs):
+        def _construct_nuisance_spec(spec: NuisanceSpec, sampling_frame, **kwargs: object):
             """Construct nuisance variable from spec."""
             return spec.data
 
         @construct.register(BlockSpec)
-        def _construct_block_spec(spec: BlockSpec, sampling_frame, **kwargs):
+        def _construct_block_spec(spec: BlockSpec, sampling_frame, **kwargs: object):
             """Construct block variable from spec."""
             return spec.label
     except ImportError:
@@ -1312,7 +1312,7 @@ def _register_construct():
         from ..baseline.baseline_model import BaselineSpec
 
         @construct.register(BaselineSpec)
-        def _construct_baseline_spec(spec: BaselineSpec, sampling_frame, **kwargs):
+        def _construct_baseline_spec(spec: BaselineSpec, sampling_frame, **kwargs: object):
             """Construct baseline model from spec."""
             from ..baseline import baseline_model
             return baseline_model(
@@ -1340,18 +1340,18 @@ def _register_nbasis():
         from ..events.variable import EventVariable
 
         @nbasis.register(EventFactor)
-        def _nbasis_event_factor(event: EventFactor, **kwargs):
+        def _nbasis_event_factor(event: EventFactor, **kwargs: object):
             """Extract nbasis from EventFactor."""
             # Factors have nlevels - 1 degrees of freedom (contrast coding)
             return max(0, len(event.levels) - 1)
 
         @nbasis.register(EventVariable)
-        def _nbasis_event_variable(event: EventVariable, **kwargs):
+        def _nbasis_event_variable(event: EventVariable, **kwargs: object):
             """Extract nbasis from EventVariable."""
             return 1  # Continuous variables have 1 basis function
 
         @nbasis.register(EventMatrix)
-        def _nbasis_event_matrix(event: EventMatrix, **kwargs):
+        def _nbasis_event_matrix(event: EventMatrix, **kwargs: object):
             """Extract nbasis from EventMatrix."""
             if hasattr(event, 'n_columns'):
                 return event.n_columns
@@ -1360,7 +1360,7 @@ def _register_nbasis():
             return 1
 
         @nbasis.register(EventBasis)
-        def _nbasis_event_basis(event: EventBasis, **kwargs):
+        def _nbasis_event_basis(event: EventBasis, **kwargs: object):
             """Extract nbasis from EventBasis."""
             if hasattr(event, 'n_basis'):
                 return event.n_basis
@@ -1369,7 +1369,7 @@ def _register_nbasis():
             return 1
 
         @nbasis.register(EventTerm)
-        def _nbasis_event_term(term: EventTerm, **kwargs):
+        def _nbasis_event_term(term: EventTerm, **kwargs: object):
             """Extract nbasis from EventTerm."""
             # Compute product of nbasis across events in the term
             result = 1
@@ -1378,7 +1378,7 @@ def _register_nbasis():
             return result
 
         @nbasis.register(ParametricBasis)
-        def _nbasis_parametric_basis(basis_obj: ParametricBasis, **kwargs):
+        def _nbasis_parametric_basis(basis_obj: ParametricBasis, **kwargs: object):
             """Extract nbasis from ParametricBasis object."""
             if hasattr(basis_obj, 'nbasis'):
                 return basis_obj.nbasis
@@ -1403,7 +1403,7 @@ _register_nbasis()
 # --- New generics: events, event_conditions, contrasts ---
 
 @singledispatch
-def events(x, drop_empty: bool = False, **kwargs) -> pd.DataFrame:
+def events(x, drop_empty: bool = False, **kwargs: object) -> pd.DataFrame:
     """Return canonical event table with onset, duration, condition columns.
 
     This generic extracts a tidy event table from model objects,
@@ -1439,7 +1439,7 @@ def events(x, drop_empty: bool = False, **kwargs) -> pd.DataFrame:
 
 
 @singledispatch
-def event_conditions(x, drop_empty: bool = False, **kwargs) -> np.ndarray:
+def event_conditions(x, drop_empty: bool = False, **kwargs: object) -> np.ndarray:
     """Return per-event condition assignments.
 
     Unlike :func:`conditions`, which returns the unique set of
@@ -1472,7 +1472,7 @@ def event_conditions(x, drop_empty: bool = False, **kwargs) -> np.ndarray:
 
 
 @singledispatch
-def contrasts(x, **kwargs):
+def contrasts(x, **kwargs: object):
     """Retrieve contrast specifications from an object.
 
     Unlike :func:`~fmrimod.contrast.contrast_weights.contrast_weights`,
@@ -1515,7 +1515,7 @@ def _register_events_event_conditions_contrasts():
         from ..naming import level_token, make_cond_tag
 
         @events.register(EventTerm)
-        def _events_event_term(x, drop_empty=False, **kwargs):
+        def _events_event_term(x, drop_empty=False, **kwargs: object):
             """Extract canonical event table from EventTerm."""
             ons = np.array(x.events[0].onsets) if x.events else np.array([])
 
@@ -1534,7 +1534,7 @@ def _register_events_event_conditions_contrasts():
             })
 
         @event_conditions.register(EventTerm)
-        def _event_conditions_event_term(x, drop_empty=False, **kwargs):
+        def _event_conditions_event_term(x, drop_empty=False, **kwargs: object):
             """Return condition labels for each event in the term."""
             n_events = len(x.events[0].onsets) if x.events else 0
 
@@ -1630,7 +1630,7 @@ def _register_events_event_conditions_contrasts():
         from ..design.event_model import EventModel
 
         @condition_map.register(EventModel)
-        def _condition_map_event_model(x, drop_empty=True, expand_basis=False, **kwargs):
+        def _condition_map_event_model(x, drop_empty=True, expand_basis=False, **kwargs: object):
             """Map EventModel display/canonical names to design column names."""
             rows = []
             event_term_list = x._create_event_terms()
@@ -1668,7 +1668,7 @@ def _register_events_event_conditions_contrasts():
             )
 
         @events.register(EventModel)
-        def _events_event_model(x, drop_empty=False, **kwargs):
+        def _events_event_model(x, drop_empty=False, **kwargs: object):
             """Extract events from all terms in model."""
             all_events = []
             event_term_list = x._create_event_terms()
@@ -1681,7 +1681,7 @@ def _register_events_event_conditions_contrasts():
             return pd.DataFrame(columns=['onset', 'duration', 'condition', 'term'])
 
         @contrasts.register(EventModel)
-        def _contrasts_event_model(x, **kwargs):
+        def _contrasts_event_model(x, **kwargs: object):
             """Collect contrast specifications from all terms."""
             all_contrasts = {}
             for term in x.terms:

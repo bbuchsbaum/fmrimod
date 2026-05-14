@@ -13,7 +13,7 @@
       },
       "internal": {
         "total": 2085,
-        "with_any_annotation": 360,
+        "with_any_annotation": 339,
         "with_var_kwargs": 129
       },
       "public": {
@@ -25,7 +25,7 @@
     "files_scanned": 230,
     "parse_failures": 0,
     "total_functions": 2325,
-    "with_any_annotation": 374,
+    "with_any_annotation": 353,
     "with_var_args_any": 1,
     "with_var_kwargs": 162
   },
@@ -29452,7 +29452,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 65,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -29465,7 +29465,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 94,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -29478,7 +29478,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 125,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -29491,7 +29491,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 156,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -29504,7 +29504,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 164,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -29517,7 +29517,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 170,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -29569,7 +29569,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 311,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -29582,7 +29582,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 346,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -29621,7 +29621,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 398,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -29634,7 +29634,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 425,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -29660,7 +29660,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 484,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -29673,7 +29673,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 512,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -29686,7 +29686,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 542,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -29699,7 +29699,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 567,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -29712,7 +29712,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 591,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -29725,7 +29725,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 614,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -29933,7 +29933,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 1282,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -29946,7 +29946,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 1288,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -29985,7 +29985,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 1438,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -29998,7 +29998,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 1471,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -30011,7 +30011,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 1508,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
