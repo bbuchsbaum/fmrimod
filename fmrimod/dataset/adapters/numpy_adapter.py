@@ -11,7 +11,7 @@ from ...sampling import SamplingFrame
 
 
 class NumpyAdapter:
-    r"""Adapt raw numpy arrays to the :class:`DatasetProtocol`.
+    """Adapt raw numpy arrays to the :class:`DatasetProtocol`.
 
     This is the simplest adapter — it takes a list of 2-D arrays
     (one per run) plus a :class:`SamplingFrame` and optional mask.

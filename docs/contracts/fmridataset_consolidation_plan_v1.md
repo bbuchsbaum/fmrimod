@@ -272,7 +272,7 @@ Required schema:
 | `study_dataset` | study dataset constructor | none | `adopt` | `fmrimod.dataset.study_dataset` | `tests/test_dataset/test_study_dataset.py` | Constructor for canonical StudyDataset. |
 | `zarr_dataset` | Zarr dataset constructor | none | `adopt` | `fmrimod.dataset.zarr_dataset` | `tests/test_dataset/test_zarr_backend.py` | Requires zarr extra. |
 | `bids_h5_dataset` | BIDS-HDF5 study helpers | none | `adopt` | `fmrimod.dataset.bids_h5` | `tests/test_dataset/test_bids_h5_dataset.py` | Requires hdf5 extra; BIDS directory ingestion may require bids extra. |
-| `compress_bids_study` | BIDS-HDF5 study helpers | none | `adopt` | `fmrimod.dataset.bids_h5_write` | `tests/test_dataset/test_bids_h5_dataset.py` | Requires hdf5 extra; BIDS directory ingestion may require bids extra. |
+| `compress_bids_study` | BIDS-HDF5 study helpers | none | `adopt` | `fmrimod.dataset.bids_h5` | `tests/test_dataset/test_bids_h5_dataset.py` | Requires hdf5 extra; BIDS directory ingestion may require bids extra. |
 | `bids_h5_scan_backend` | BIDS-HDF5 scan backend | none | `adopt` | `fmrimod.dataset.backends.bids_h5` | `tests/test_dataset/test_bids_h5_dataset.py` | Requires hdf5 extra; port after core registry. |
 | `h5_shared_connection` | BIDS-HDF5 scan backend | none | `adopt` | `fmrimod.dataset.backends.bids_h5` | `tests/test_dataset/test_bids_h5_dataset.py` | Requires hdf5 extra; port after core registry. |
 | `subset_bids_h5` | BIDS-HDF5 study helpers | none | `adopt` | `fmrimod.dataset.bids_h5` | `tests/test_dataset/test_bids_h5_dataset.py` | Requires hdf5 extra; BIDS directory ingestion may require bids extra. |

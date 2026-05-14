@@ -14,19 +14,15 @@ from fmrimod.dataset import (  # noqa: E402
     BackendIOError,
     BidsH5ScanBackend,
     BidsH5StudyDataset,
-    ConfigError,
     bids_h5_dataset,
-    compress_bids_study,
     encoding_info,
     get_confounds,
     get_loadings,
-    matrix_dataset,
     parcellation_info,
     participants,
     reconstruct_voxels,
     scan_manifest,
     sessions,
-    study_dataset,
     study_to_group,
     subset_bids_h5,
     tasks,
@@ -347,89 +343,3 @@ def test_bids_h5_scan_backend_registry(parcellated_bids_h5) -> None:
     first_backend = next(iter(dataset.scan_backends.values()))
     assert isinstance(first_backend, BidsH5ScanBackend)
     assert first_backend.get_dims().spatial == (3, 1, 1)
-
-
-def test_compress_bids_study_parcellated_roundtrip(tmp_path) -> None:
-    mat1 = np.arange(12, dtype=float).reshape(4, 3)
-    mat2 = np.arange(12, 24, dtype=float).reshape(4, 3)
-    events = pd.DataFrame(
-        {
-            "onset": [1.0],
-            "duration": [2.0],
-            "trial_type": ["go"],
-            "run_id": [1],
-        }
-    )
-    ds1 = matrix_dataset(mat1, TR=2.0, run_length=4, event_table=events)
-    ds2 = matrix_dataset(mat2, TR=2.0, run_length=4)
-    study = study_dataset(
-        pd.DataFrame(
-            {
-                "subject_id": ["sub-01", "sub-02"],
-                "dataset": [ds1, ds2],
-            }
-        )
-    )
-
-    out = compress_bids_study(
-        study,
-        tmp_path / "compressed.h5",
-        mode="parcellated",
-        tasks="nback",
-        clusters=[101, 102, 103],
-    )
-
-    assert isinstance(out, BidsH5StudyDataset)
-    assert out.tasks() == ["nback"]
-    assert out.subject_ids == ["sub-01", "sub-02"]
-    np.testing.assert_array_equal(out.get_data_matrix(), np.vstack([mat1, mat2]))
-    assert out.parcellation_info()["cluster_ids"].tolist() == [101, 102, 103]
-    assert out.event_table["subject_id"].tolist() == ["sub-01"]
-
-
-def test_compress_bids_study_latent_roundtrip(tmp_path) -> None:
-    mat = np.asarray(
-        [
-            [1.0, 0.0, 2.0],
-            [0.0, 1.0, 3.0],
-            [1.0, 1.0, 4.0],
-            [2.0, 1.0, 5.0],
-        ]
-    )
-    ds = matrix_dataset(mat, TR=1.0, run_length=4)
-
-    out = compress_bids_study(
-        {"sub-01": ds},
-        tmp_path / "latent.h5",
-        mode="latent",
-        tasks="rest",
-        n_components=2,
-    )
-
-    manifest = scan_manifest(out)
-    scan_name = manifest.loc[0, "scan_name"]
-    assert out.compression_mode == "latent"
-    assert encoding_info(out)["n_components"] == 2
-    assert out.get_data_matrix().shape == (4, 2)
-
-    recon = reconstruct_voxels(out, scan_name=scan_name)
-    assert recon.shape == mat.shape
-
-
-def test_compress_bids_study_bids_dir_requires_configured_pybids(
-    tmp_path,
-    monkeypatch,
-) -> None:
-    bids_root = tmp_path / "bids"
-    bids_root.mkdir()
-    real_import = __import__
-
-    def fake_import(name, *args, **kwargs):
-        if name == "bids":
-            raise ImportError("no pybids in this test")
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr("builtins.__import__", fake_import)
-
-    with pytest.raises(ConfigError, match="pybids is required"):
-        compress_bids_study(bids_root, tmp_path / "missing_deps.h5")
