@@ -26,6 +26,20 @@ def _single_condition_events() -> pd.DataFrame:
     )
 
 
+def _mixed_timing_events() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "onset": [40.0, 45.0, 50.0, 55.0],
+            "stim_onset": [2.0, 6.0, 10.0, 14.0],
+            "term_onset": [3.0, 7.0, 11.0, 15.0],
+            "condition": ["A", "B", "A", "B"],
+            "duration": [1.0, 1.0, 1.0, 1.0],
+            "stim_duration": [0.5, 1.5, 0.75, 2.0],
+            "run": ["run_b", "run_a", "run_b", "run_a"],
+        }
+    )
+
+
 def _bad_nuisance_block() -> pd.DataFrame:
     dvars = np.arange(1, 7, dtype=float)
     return pd.DataFrame(
@@ -54,7 +68,8 @@ def test_parse_formula_event_mode_preserves_hrf_options():
         (
             "onset ~ hrf(condition, basis='spmg1', normalize=True, "
             "summate=False, id='stim_term', prefix='stim', lag=1.5, "
-            "nbasis=3, durations='duration', subset='condition == \"A\"')"
+            "nbasis=3, onsets='stim_onset', durations='duration', "
+            "subset='condition == \"A\"')"
         ),
         for_event_model=True,
     )
@@ -69,6 +84,7 @@ def test_parse_formula_event_mode_preserves_hrf_options():
     assert parsed.kwargs["prefix"] == "stim"
     assert parsed.kwargs["lag"] == 1.5
     assert parsed.kwargs["nbasis"] == 3
+    assert parsed.kwargs["onsets"] == "stim_onset"
     assert parsed.kwargs["durations"] == "duration"
     assert parsed.kwargs["subset"] == 'condition == "A"'
 
@@ -86,6 +102,115 @@ def test_functional_hrf_options_are_hoisted_for_event_model():
     assert model.terms[0].normalize is True
     assert model.terms[0].summate is False
     assert np.max(np.abs(model.design_matrix)) == pytest.approx(1.0)
+
+
+def test_formula_lhs_sets_event_model_onset_column():
+    df = _mixed_timing_events()
+
+    model = event_model(
+        "stim_onset ~ hrf(condition, basis='spmg1')",
+        data=df,
+        tr=1.0,
+        n_scans=30,
+    )
+
+    np.testing.assert_allclose(model.events["condition"].onsets, df["stim_onset"])
+    assert not np.array_equal(model.events["condition"].onsets, df["onset"])
+    assert np.max(np.abs(model.design_matrix)) > 0
+
+
+def test_hrf_term_subset_and_timing_options_create_term_local_event():
+    df = _mixed_timing_events()
+
+    model = event_model(
+        (
+            "onset ~ hrf(condition, basis='spmg1', "
+            "subset='condition == \"A\"', onsets='term_onset', "
+            "durations='stim_duration')"
+        ),
+        data=df,
+        tr=1.0,
+        n_scans=30,
+    )
+
+    assert model.terms[0].events == ["condition"]
+    event_key = model.terms[0]._event_overrides[0]
+    timed_event = model.events[event_key]
+    assert event_key != "condition"
+    assert timed_event.name == "condition"
+    assert list(np.asarray(timed_event.values).astype(str)) == ["A", "A"]
+    np.testing.assert_allclose(timed_event.onsets, [3.0, 11.0])
+    np.testing.assert_allclose(timed_event.durations, [0.5, 0.75])
+    assert np.max(np.abs(model.design_matrix)) > 0
+
+
+def test_functional_hrf_timing_options_create_term_local_event():
+    df = _mixed_timing_events()
+
+    model = event_model(
+        [
+            term("condition")
+            | hrf(
+                "spmg1",
+                subset='condition == "A"',
+                onsets="term_onset",
+                durations="stim_duration",
+            )
+        ],
+        data=df,
+        tr=1.0,
+        n_scans=30,
+    )
+
+    assert model.terms[0].events == ["condition"]
+    event_key = model.terms[0]._event_overrides[0]
+    timed_event = model.events[event_key]
+    np.testing.assert_allclose(timed_event.onsets, [3.0, 11.0])
+    np.testing.assert_allclose(timed_event.durations, [0.5, 0.75])
+
+
+def test_term_subset_accepts_mapping_selectors_from_typed_spec_lowering():
+    df = _mixed_timing_events()
+
+    model = event_model(
+        [term("condition") | hrf("spmg1", subset={"condition": "A"})],
+        data=df,
+        tr=1.0,
+        n_scans=30,
+    )
+
+    assert model.terms[0].events == ["condition"]
+    event_key = model.terms[0]._event_overrides[0]
+    timed_event = model.events[event_key]
+    assert list(np.asarray(timed_event.values).astype(str)) == ["A", "A"]
+    np.testing.assert_allclose(timed_event.onsets, [40.0, 50.0])
+
+
+def test_block_ids_preserve_first_appearance_order():
+    df = _mixed_timing_events()
+
+    model = event_model(
+        "condition",
+        data=df,
+        block="run",
+        tr=1.0,
+        n_scans=30,
+    )
+
+    assert model.blockids.tolist() == [1, 2, 1, 2]
+
+
+def test_block_ids_validate_length_against_data_rows():
+    df = _mixed_timing_events()
+
+    with pytest.raises(ValueError, match="Block vector length"):
+        event_model(
+            "condition",
+            data=df,
+            block=["run_b", "run_a"],
+            tr=1.0,
+            n_scans=30,
+        )
 
 
 def test_dsl_spm_canonical_alias_is_resolvable_by_event_model():

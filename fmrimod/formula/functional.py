@@ -16,10 +16,10 @@ Example::
 
 from __future__ import annotations
 
-from typing import Any, Callable, List, Optional, Union
+from typing import Any, Callable, Optional, Union
 
-from .base import Term, term as create_term
 from ..types import BasisProtocol, HRFProtocol
+from .base import Term
 
 
 class PipeTerm(Term):
@@ -121,6 +121,7 @@ def hrf(
     prefix: Optional[str] = None,
     lag: float = 0.0,
     nbasis: int = 1,
+    onsets: Optional[Any] = None,
     durations: Optional[Any] = None,
 ) -> Callable[['Term'], 'Term']:
     """Create HRF transformation function.
@@ -147,6 +148,8 @@ def hrf(
         Temporal offset in seconds
     nbasis : int, default 1
         Number of basis functions (for multi-basis HRFs)
+    onsets : optional
+        Onset specification override
     durations : optional
         Duration specification override
 
@@ -186,6 +189,8 @@ def hrf(
             result._kwargs['lag'] = lag
         if nbasis != 1:
             result._kwargs['nbasis'] = nbasis
+        if onsets is not None:
+            result._kwargs['onsets'] = onsets
         if durations is not None:
             result._kwargs['durations'] = durations
 

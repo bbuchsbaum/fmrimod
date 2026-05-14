@@ -318,7 +318,8 @@ class EventModel(ModelProtocol):
             Regular event term
         """
         term_events = []
-        for event_name in term.events:
+        event_names = getattr(term, '_event_overrides', term.events)
+        for event_name in event_names:
             if event_name not in self.events:
                 raise ValueError(f"Event '{event_name}' not found in model")
             term_events.append(self.events[event_name])
@@ -1924,6 +1925,7 @@ def event_model(
     EventModel : The class returned by this function.
     EventModelBuilder : Fluent builder alternative.
     """
+    kwargs = _apply_formula_onset_default(formula, kwargs)
     terms = _normalize_term_options(_parse_formula_to_terms(formula))
     sf = _resolve_sampling_frame(sampling_frame, sampling_info, tr, n_scans, sampling_rate)
     precision = precision if precision is not None else 0.3
@@ -1970,6 +1972,21 @@ def _parse_formula_to_terms(formula):
             f"formula must be str, list of Terms, or builder, "
             f"got {type(formula)}"
         )
+
+
+def _apply_formula_onset_default(formula, kwargs):
+    """Use a formula LHS as the default onset column for string formulas."""
+    if not isinstance(formula, str):
+        return kwargs
+    if 'onset_column' in kwargs or 'onset_col' in kwargs:
+        return kwargs
+
+    from ..formula.parser import FormulaParser
+
+    parsed = FormulaParser().parse(formula)
+    if parsed.lhs:
+        kwargs['onset_column'] = parsed.lhs
+    return kwargs
 
 
 def _normalize_term_options(terms):
@@ -2069,10 +2086,187 @@ def _parse_block_ids(block, data):
     else:
         blockids_raw = np.asarray(block)
 
-    # Canonicalize to 1-indexed sequential integers
-    unique_blocks = np.unique(blockids_raw)
-    block_map = {v: i + 1 for i, v in enumerate(unique_blocks)}
-    return np.array([block_map[v] for v in blockids_raw])
+    blockids_raw = np.asarray(blockids_raw)
+    if blockids_raw.ndim != 1:
+        raise ValueError("Block vector must be one-dimensional")
+    if data is not None and len(blockids_raw) != len(data):
+        raise ValueError(
+            f"Block vector length ({len(blockids_raw)}) must match "
+            f"number of rows in data ({len(data)})"
+        )
+    if pd.isna(blockids_raw).any():
+        raise ValueError("Block vector cannot contain missing values")
+
+    # Canonicalize to 1-indexed sequential integers in first-appearance
+    # order, matching R factor construction rather than sorted np.unique().
+    block_map = {}
+    blockids = []
+    for value in blockids_raw:
+        if value not in block_map:
+            block_map[value] = len(block_map) + 1
+        blockids.append(block_map[value])
+    return np.asarray(blockids, dtype=int)
+
+
+def _term_specific_event_options(term):
+    """Return term-local subset/timing options carried by parser/DSL terms."""
+    extra = getattr(term, '_kwargs', None) or {}
+    options = {}
+    if 'subset' in extra:
+        options['subset'] = extra['subset']
+
+    if 'onsets' in extra:
+        options['onsets'] = extra['onsets']
+    elif 'onset' in extra:
+        options['onsets'] = extra['onset']
+
+    if 'durations' in extra:
+        options['durations'] = extra['durations']
+    elif 'duration' in extra:
+        options['durations'] = extra['duration']
+
+    return options
+
+
+def _resolve_subset_mask(data, subset):
+    """Resolve a term-local subset expression to a row mask."""
+    if subset is None:
+        return np.ones(len(data), dtype=bool)
+    if callable(subset):
+        mask = subset(data)
+    elif isinstance(subset, str):
+        try:
+            mask = data.eval(subset, engine='python')
+        except Exception as err:
+            raise ValueError(
+                f"Could not evaluate subset expression {subset!r}"
+            ) from err
+    elif isinstance(subset, dict):
+        mask = np.ones(len(data), dtype=bool)
+        for column, expected in subset.items():
+            if column not in data.columns:
+                raise ValueError(f"Subset column '{column}' not found in data")
+            values = data[column]
+            if (
+                not isinstance(expected, str)
+                and hasattr(expected, "__iter__")
+            ):
+                mask &= values.isin(list(expected)).to_numpy()
+            else:
+                mask &= (values == expected).to_numpy()
+    else:
+        mask = subset
+
+    mask = np.asarray(mask, dtype=bool)
+    if mask.ndim != 1 or len(mask) != len(data):
+        raise ValueError(
+            f"Subset mask length ({len(mask)}) must match "
+            f"number of rows in data ({len(data)})"
+        )
+    return mask
+
+
+def _resolve_term_vector(spec, data, mask, role, *, allow_scalar):
+    """Resolve a term-local onset/duration override after subsetting."""
+    if spec is None:
+        return None
+    if isinstance(spec, str):
+        if spec not in data.columns:
+            raise ValueError(f"{role.title()} column '{spec}' not found in data")
+        return data[spec].to_numpy()[mask]
+    if np.isscalar(spec):
+        if allow_scalar:
+            return float(spec)
+        raise ValueError(f"{role.title()} override must be a column or vector")
+
+    values = np.asarray(spec)
+    if values.ndim != 1:
+        raise ValueError(f"{role.title()} override must be one-dimensional")
+    if len(values) == len(data):
+        return values[mask]
+    if len(values) == int(np.count_nonzero(mask)):
+        return values
+    raise ValueError(
+        f"{role.title()} override length ({len(values)}) must match "
+        f"number of rows in data ({len(data)}) or selected rows "
+        f"({int(np.count_nonzero(mask))})"
+    )
+
+
+def _clone_event_with_timing(event, mask, onsets=None, durations=None):
+    """Clone an event with optional row subset and timing overrides."""
+    event_onsets = event.onsets[mask] if onsets is None else onsets
+    event_durations = event.durations[mask] if durations is None else durations
+
+    if isinstance(event, EventFactor):
+        return EventFactor(
+            name=event.name,
+            onsets=event_onsets,
+            values=np.asarray(event.values)[mask],
+            durations=event_durations,
+            levels=list(event.levels) if event.levels is not None else None,
+            contrasts=event.contrasts,
+        )
+    if isinstance(event, EventVariable):
+        return EventVariable(
+            name=event.name,
+            onsets=event_onsets,
+            values=np.asarray(event.raw_values)[mask],
+            durations=event_durations,
+            center=event.center,
+            scale=event.scale,
+            nan_strategy=event.nan_strategy,
+        )
+    if isinstance(event, EventMatrix):
+        return EventMatrix(
+            name=event.name,
+            onsets=event_onsets,
+            values=event.values[mask],
+            durations=event_durations,
+            column_names=list(event.column_names),
+        )
+    if isinstance(event, EventBasis):
+        return EventBasis(
+            name=event.name,
+            onsets=event_onsets,
+            values=event.values[mask],
+            basis=event.basis,
+            durations=event_durations,
+        )
+    return event
+
+
+def _apply_term_specific_event_options(events, terms, data):
+    """Create private event clones for terms with local subset/timing options."""
+    for term_index, term in enumerate(terms, start=1):
+        options = _term_specific_event_options(term)
+        if not options:
+            continue
+
+        mask = _resolve_subset_mask(data, options.get('subset'))
+        onsets = _resolve_term_vector(
+            options.get('onsets'), data, mask, 'onsets', allow_scalar=False
+        )
+        durations = _resolve_term_vector(
+            options.get('durations'), data, mask, 'durations', allow_scalar=True
+        )
+
+        overridden_events = []
+        for event_name in term.events:
+            if event_name not in events:
+                overridden_events.append(event_name)
+                continue
+            override_name = f"{event_name}__term{term_index}"
+            events[override_name] = _clone_event_with_timing(
+                events[event_name],
+                mask,
+                onsets=onsets,
+                durations=durations,
+            )
+            overridden_events.append(override_name)
+        term._event_overrides = overridden_events
+
+    return events
 
 
 def _parse_durations(durations, data, kwargs):
@@ -2164,6 +2358,11 @@ def _create_events_from_data(data, terms, sf, kwargs):
             onset_col=onset_col,
             duration_col=duration_col,
             **kwargs
+        )
+        events = _apply_term_specific_event_options(
+            events,
+            regular_terms,
+            data,
         )
     else:
         events = {}
