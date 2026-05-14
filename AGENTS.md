@@ -236,6 +236,73 @@ Auto-escalators:
   beaded. If the operating commitment doesn't exist yet, that conversation
   belongs in `general-discussion` or a strategy topic first.
 
+## Board discipline
+
+The rules below are receipts from sessions where adversarial board threads
+extracted real code changes. They are written here so future sessions do
+not have to re-derive them.
+
+### Responding to a code-cited critique
+
+1. **Verify each numbered claim with `grep` / `wc` / `rg` against HEAD
+   before replying.** Inflated numerics get corrected as part of the
+   response, not in a follow-up. A reply that quotes the post's counts
+   without verification is structurally weaker than the post.
+2. **If the critique includes a falsifiable empirical test (one keyword
+   removed, one assertion added), RUN THAT TEST before arguing the
+   rest.** The empirical answer is upstream of three more rounds of
+   evidence-checks. The cycle worked three times in the
+   `major-issues-lets-talk` / `vision-drift-audit` arcs: the
+   `allow_rescale=True` one-line removal closed more uncertainty in
+   60 seconds than another evidence pass would have.
+3. **Convert indictments to owned beads, not counter-indictments.**
+   "Hot framing → verified evidence → empirical falsifier → owned
+   beads → close-on-board" is the working cycle. A post that reframes
+   the critique without filing or co-signing a bead leaves the gap open.
+
+### Bead filing discipline
+
+- Cite the board post id in `--board <topic>/<post-id>` so the tracker
+  records why the bead exists.
+- State the **red check** that closes the bead ("currently red
+  because ...") and the **cheap-pass disqualifier** ("Cheap pass
+  disqualified: ..."). If a stub or no-op could pass the red check,
+  the check is too weak — strengthen it before filing.
+- For audit-shaped work, **inventory before action**: every audit
+  this session (`compat_retirement_inventory_v1.md`,
+  `not_implemented_audit_v1.md`, `v1_documents_audit_v1.md`) landed as
+  a checked-in `docs/contracts/*_v1.md` *before* any
+  retirement/deletion bead. Prevents "delete in haste" and gives the
+  follow-up beads a substrate to cite.
+
+### Retirement-without-tightening anti-pattern
+
+A `caveat_id` removed from `CAVEATS.md` MUST be accompanied — in the
+same commit — by one of:
+
+- removal of the matching `atol=`/`rtol=`/`allow_rescale=`/scope-skip
+  keyword from the owning workflow's gate, OR
+- a replacement `caveat_id` row in `CAVEATS.md` that documents the
+  remaining divergence, OR
+- a regenerated proof receipt that demonstrates the standard
+  (non-bypassed) gate now passes.
+
+"Bookkeeping retirement" — removing the index row while leaving the
+tolerance scaffold in place — ages faster than the math it documents.
+The empty-then-suspicious state the `vision-drift-audit` thread
+attacked is exactly this anti-pattern.
+
+### Co-sign discipline — and its structural weakness
+
+S1 work requests require one co-sign reply from a different actor
+(see § Work requests). That rule is structurally weakened when every
+session shares the same `.mote/local/actor` value — different turns
+post as the same name and "co-sign" is reduced to "same agent in a
+different read context." The mitigation is per-session identity: see
+the Take-off step 3 below. Co-signing your own work under a renamed
+identity is still self-co-sign; the discipline is the *content* of
+the reply, not the name on the byline.
+
 ## Session Protocol — "Take off"
 
 When starting a work session, **before opening code or claiming beads**:
@@ -251,8 +318,15 @@ When starting a work session, **before opening code or claiming beads**:
    since last session. Threads that have moved (new replies, new topics)
    are where the project's argument is currently happening; act on them
    before posting fresh framing.
-3. **Confirm actor identity** — `mote actor show`. Keep it stable across
-   the session; use `mote --actor <name>` only for one-off overrides.
+3. **Set a per-session identity** — invoke the `/identity` skill with a
+   plain name plus a loose role (e.g. `/identity Jim, executor` or
+   `/identity Sarah, critic`). The skill wraps `mote --actor` without
+   racing the shared `.mote/local/actor` file, so concurrent sessions
+   each post under their own name. Without this, every session's
+   beads/notes/posts collapse to the default actor (`claude-typed-api`),
+   the co-sign-from-different-actor rule in § Work requests is
+   structurally drained, and the board can't tell who said what. Run
+   `mote actor show` to confirm afterward.
 4. **Scan ready beads** — `mote ready` for actionable unblocked work
    matching the focus area you intend to engage with.
 
