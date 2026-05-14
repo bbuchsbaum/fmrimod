@@ -18,14 +18,14 @@
       },
       "public": {
         "total": 137,
-        "with_any_annotation": 23,
+        "with_any_annotation": 22,
         "with_var_kwargs": 25
       }
     },
     "files_scanned": 229,
     "parse_failures": 0,
     "total_functions": 2306,
-    "with_any_annotation": 392,
+    "with_any_annotation": 391,
     "with_var_args_any": 1,
     "with_var_kwargs": 162
   },
@@ -21366,7 +21366,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 325,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,

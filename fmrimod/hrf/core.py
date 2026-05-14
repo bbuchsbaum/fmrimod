@@ -298,7 +298,7 @@ def as_hrf(
     name: Optional[str] = None,
     nbasis: int = 1,
     span: float = 24.0,
-    params: Optional[Dict[str, Any]] = None,
+    params: Optional[Dict[str, HrfParamValue]] = None,
 ) -> HRF:
     """Convert a function to an HRF object.
     
