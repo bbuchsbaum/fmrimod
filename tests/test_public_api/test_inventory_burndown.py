@@ -48,30 +48,25 @@ INVENTORY_PATH = REPO_ROOT / "docs" / "contracts" / "api_inventory_v1.json"
 # entries leave the set when the corresponding inventory row is tiered
 # in the same commit.
 BASELINE_REVIEW_PENDING_NAMES = frozenset({
-    "Confounds", "Drift", "Fcontrasts", "FieldDiff",
-    "HRF", "HrfTerm", "Intercept", "Poly",
+    "Fcontrasts", "FieldDiff", "HRF", "Poly",
     "RobustScale", "SamplingFrame", "Scale", "SpecDiff",
     "SpecSerializationError", "TermDiff", "__version__", "acorr_diagnostics",
     "acquisition_onsets", "afni_restricted_plan", "amplitudes", "as_hrf",
-    "as_spec", "bootstrap_glm", "build_nuisance_projector", "check_nuisance",
-    "clean_nuisance", "column_contrast", "combine_contrasts", "combine_runs",
-    "compat", "compute_dvars", "condition_basis_list", "condition_map",
-    "confounds", "contrast", "contrast_set", "contrast_weights",
-    "data_chunks", "design_matrix", "detect_group_data_format", "drift",
-    "dvars_to_weights", "estimate_betas", "estimate_hrf", "evaluate",
-    "event_factor", "event_matrix", "event_term", "event_variable",
-    "fit_noise", "gen_empirical_hrf", "gen_hrf_library", "generate_interaction_contrast",
-    "generate_main_effect_contrast", "get_hrf", "glm_lss", "glm_ols",
-    "global_onsets", "group_data", "group_data_from_csv", "group_data_from_h5",
-    "group_data_from_nifti", "hrf_formula", "hrf_spmg1", "interaction_contrast",
-    "intercept", "is_spec", "latent_dataset", "list_available_hrfs",
-    "lsa_single_trial", "lss_single_trial", "matrix_dataset", "null_regressor",
-    "one_against_all_contrast", "oneway_contrast", "pair_contrast", "pairwise_contrasts",
-    "poly_contrast", "r_to_z", "regressor", "regressor_set",
+    "bootstrap_glm", "build_nuisance_projector", "check_nuisance", "clean_nuisance",
+    "combine_contrasts", "combine_runs", "compat", "compute_dvars",
+    "condition_basis_list", "condition_map", "confounds", "contrast_weights",
+    "data_chunks", "design_matrix", "drift", "dvars_to_weights",
+    "estimate_betas", "estimate_hrf", "evaluate", "event_factor",
+    "event_matrix", "event_term", "event_variable", "fit_noise",
+    "gen_empirical_hrf", "gen_hrf_library", "generate_interaction_contrast", "generate_main_effect_contrast",
+    "get_hrf", "glm_lss", "glm_ols", "global_onsets",
+    "hrf_formula", "hrf_spmg1", "intercept", "latent_dataset",
+    "list_available_hrfs", "lsa_single_trial", "lss_single_trial", "matrix_dataset",
+    "null_regressor", "r_to_z", "regressor", "regressor_set",
     "samples", "sandwich_from_whitened_resid", "shift", "simulate_simple_dataset",
-    "sliding_window_contrasts", "soft_subspace_options", "spec_diff", "stats",
-    "t_to_d", "unit_contrast", "volume_weights", "voxel_index_chunks",
-    "whiten", "whiten_apply", "write_results", "z_to_r",
+    "soft_subspace_options", "spec_diff", "stats", "t_to_d",
+    "volume_weights", "voxel_index_chunks", "whiten", "whiten_apply",
+    "write_results", "z_to_r",
 })
 
 
@@ -94,8 +89,8 @@ def _current_review_pending() -> set[str]:
 
 def test_baseline_size_is_known() -> None:
     """Sanity-check the pinned baseline size to catch silent drift."""
-    assert len(BASELINE_REVIEW_PENDING_NAMES) == 96, (
-        f"BASELINE_REVIEW_PENDING_NAMES size drifted from 96 to "
+    assert len(BASELINE_REVIEW_PENDING_NAMES) == 74, (
+        f"BASELINE_REVIEW_PENDING_NAMES size drifted from 74 to "
         f"{len(BASELINE_REVIEW_PENDING_NAMES)}. Update the assertion "
         f"in the same commit that intentionally changed the baseline."
     )
