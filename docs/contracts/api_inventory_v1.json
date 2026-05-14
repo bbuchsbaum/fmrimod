@@ -2237,7 +2237,7 @@
       "is_function": true,
       "name": "latent_dataset",
       "opaque_forwarder": false,
-      "owner_module": "fmrimod.dataset.compat",
+      "owner_module": "fmrimod.dataset.latent",
       "runtime_signature": "(scores: 'ArrayLike', loadings: 'Optional[ArrayLike]' = None, tr: 'float' = 1.0, run_length: 'Optional[Union[int, Sequence[int]]]' = None, *, event_table: 'Optional[pd.DataFrame]' = None) -> 'LatentDataset'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",

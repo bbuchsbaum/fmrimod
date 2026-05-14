@@ -29,7 +29,6 @@ from .backend_registry import (
 from .backends.matrix_backend import MatrixBackend
 from .chunking import BlockChunker, VoxelChunker
 from .compat import (
-    LatentDataset,
     create_design_matrix_from_benchmark,
     design_plot,
     evaluate_method_performance,
@@ -37,7 +36,6 @@ from .compat import (
     fmri_latent_lm,
     fmri_mem_dataset,
     get_benchmark_summary,
-    latent_dataset,
     list_benchmark_datasets,
     load_benchmark_dataset,
     read_fmri_config,
@@ -82,6 +80,7 @@ from .group_data import (
     group_data_from_h5,
     group_data_from_nifti,
 )
+from .latent import LatentDataset, latent_dataset
 from .mask_utils import mask_to_logical, mask_to_volume
 from .protocols import DatasetProtocol, MaskProtocol
 from .selectors import (

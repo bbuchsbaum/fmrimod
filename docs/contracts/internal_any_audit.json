@@ -1,8 +1,8 @@
 {
   "counts": {
-    "files_scanned": 216,
+    "files_scanned": 217,
     "parse_failures": 0,
-    "total_functions": 1963,
+    "total_functions": 1966,
     "with_any_annotation": 394,
     "with_var_args_any": 1,
     "with_var_kwargs": 165
@@ -549,22 +549,22 @@
       "qualname": "afni_restricted_plan._as_phi"
     },
     {
-      "endlineno": 117,
+      "endlineno": 44,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 18,
+      "lineno": 19,
       "module": "fmrimod.ar.compat",
       "qualname": "plan_from_phi"
     },
     {
-      "endlineno": 157,
+      "endlineno": 74,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 120,
+      "lineno": 47,
       "module": "fmrimod.ar.compat",
       "qualname": "whiten_with_phi"
     },
@@ -939,24 +939,44 @@
       "qualname": "run_avg_acvf"
     },
     {
-      "endlineno": 111,
+      "endlineno": 114,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 63,
+      "lineno": 66,
       "module": "fmrimod.ar.plan",
       "qualname": "WhiteningPlan.__repr__"
     },
     {
-      "endlineno": 82,
+      "endlineno": 85,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 79,
+      "lineno": 82,
       "module": "fmrimod.ar.plan",
       "qualname": "WhiteningPlan.__repr__._fmt"
+    },
+    {
+      "endlineno": 233,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 136,
+      "module": "fmrimod.ar.plan",
+      "qualname": "plan_from_phi"
+    },
+    {
+      "endlineno": 273,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 236,
+      "module": "fmrimod.ar.plan",
+      "qualname": "whiten_with_phi"
     },
     {
       "endlineno": 81,
@@ -4939,204 +4959,134 @@
       "qualname": "fmri_mem_dataset"
     },
     {
-      "endlineno": 69,
+      "endlineno": 75,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 58,
-      "module": "fmrimod.dataset.compat",
-      "qualname": "LatentDataset.__post_init__"
-    },
-    {
-      "endlineno": 73,
-      "has_any_annotation": false,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 72,
-      "module": "fmrimod.dataset.compat",
-      "qualname": "LatentDataset.n_runs"
-    },
-    {
-      "endlineno": 77,
-      "has_any_annotation": false,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 76,
-      "module": "fmrimod.dataset.compat",
-      "qualname": "LatentDataset.n_timepoints"
-    },
-    {
-      "endlineno": 83,
-      "has_any_annotation": false,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 80,
-      "module": "fmrimod.dataset.compat",
-      "qualname": "LatentDataset.n_voxels"
-    },
-    {
-      "endlineno": 88,
-      "has_any_annotation": false,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 85,
-      "module": "fmrimod.dataset.compat",
-      "qualname": "LatentDataset.get_scores"
-    },
-    {
-      "endlineno": 94,
-      "has_any_annotation": false,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 90,
-      "module": "fmrimod.dataset.compat",
-      "qualname": "LatentDataset.get_data"
-    },
-    {
-      "endlineno": 97,
-      "has_any_annotation": false,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 96,
-      "module": "fmrimod.dataset.compat",
-      "qualname": "LatentDataset.get_mask"
-    },
-    {
-      "endlineno": 100,
-      "has_any_annotation": false,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 99,
-      "module": "fmrimod.dataset.compat",
-      "qualname": "LatentDataset.get_sampling_frame"
-    },
-    {
-      "endlineno": 103,
-      "has_any_annotation": false,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 102,
-      "module": "fmrimod.dataset.compat",
-      "qualname": "LatentDataset.get_censor"
-    },
-    {
-      "endlineno": 129,
-      "has_any_annotation": false,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 106,
+      "lineno": 54,
       "module": "fmrimod.dataset.compat",
       "qualname": "latent_dataset"
     },
     {
-      "endlineno": 149,
+      "endlineno": 95,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
-      "lineno": 132,
+      "lineno": 78,
       "module": "fmrimod.dataset.compat",
       "qualname": "fmri_latent_lm"
     },
     {
-      "endlineno": 160,
+      "endlineno": 106,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 152,
+      "lineno": 98,
       "module": "fmrimod.dataset.compat",
       "qualname": "voxel_index_chunks"
     },
     {
-      "endlineno": 201,
+      "endlineno": 147,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 163,
+      "lineno": 109,
       "module": "fmrimod.dataset.compat",
       "qualname": "extract_csv_data"
     },
     {
-      "endlineno": 234,
+      "endlineno": 180,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 204,
+      "lineno": 150,
       "module": "fmrimod.dataset.compat",
       "qualname": "read_h5_full"
     },
     {
-      "endlineno": 263,
+      "endlineno": 209,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 237,
+      "lineno": 183,
       "module": "fmrimod.dataset.compat",
       "qualname": "read_nifti_full"
     },
     {
-      "endlineno": 281,
+      "endlineno": 227,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 266,
+      "lineno": 212,
       "module": "fmrimod.dataset.compat",
       "qualname": "read_fmri_config"
     },
     {
-      "endlineno": 291,
+      "endlineno": 237,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 284,
+      "lineno": 230,
       "module": "fmrimod.dataset.compat",
       "qualname": "register_basis"
     },
     {
-      "endlineno": 303,
+      "endlineno": 249,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
-      "lineno": 294,
+      "lineno": 240,
       "module": "fmrimod.dataset.compat",
       "qualname": "resolve_basis"
     },
     {
-      "endlineno": 331,
+      "endlineno": 277,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 306,
+      "lineno": 252,
       "module": "fmrimod.dataset.compat",
       "qualname": "_benchmark_data"
     },
     {
-      "endlineno": 342,
+      "endlineno": 288,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 334,
+      "lineno": 280,
       "module": "fmrimod.dataset.compat",
       "qualname": "load_benchmark_dataset"
+    },
+    {
+      "endlineno": 299,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 291,
+      "module": "fmrimod.dataset.compat",
+      "qualname": "list_benchmark_datasets"
+    },
+    {
+      "endlineno": 325,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 302,
+      "module": "fmrimod.dataset.compat",
+      "qualname": "get_benchmark_summary"
     },
     {
       "endlineno": 353,
@@ -5144,57 +5094,37 @@
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 345,
+      "lineno": 328,
       "module": "fmrimod.dataset.compat",
-      "qualname": "list_benchmark_datasets"
+      "qualname": "create_design_matrix_from_benchmark"
     },
     {
-      "endlineno": 379,
+      "endlineno": 359,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
       "lineno": 356,
       "module": "fmrimod.dataset.compat",
-      "qualname": "get_benchmark_summary"
-    },
-    {
-      "endlineno": 407,
-      "has_any_annotation": false,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 382,
-      "module": "fmrimod.dataset.compat",
-      "qualname": "create_design_matrix_from_benchmark"
-    },
-    {
-      "endlineno": 413,
-      "has_any_annotation": false,
-      "has_var_args_any": false,
-      "has_var_kwargs": false,
-      "is_async": false,
-      "lineno": 410,
-      "module": "fmrimod.dataset.compat",
       "qualname": "_safe_cor"
     },
     {
-      "endlineno": 450,
+      "endlineno": 396,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 416,
+      "lineno": 362,
       "module": "fmrimod.dataset.compat",
       "qualname": "evaluate_method_performance"
     },
     {
-      "endlineno": 464,
+      "endlineno": 410,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
-      "lineno": 453,
+      "lineno": 399,
       "module": "fmrimod.dataset.compat",
       "qualname": "design_plot"
     },
@@ -6097,6 +6027,106 @@
       "lineno": 440,
       "module": "fmrimod.dataset.group_data",
       "qualname": "group_data"
+    },
+    {
+      "endlineno": 41,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 30,
+      "module": "fmrimod.dataset.latent",
+      "qualname": "LatentDataset.__post_init__"
+    },
+    {
+      "endlineno": 45,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 44,
+      "module": "fmrimod.dataset.latent",
+      "qualname": "LatentDataset.n_runs"
+    },
+    {
+      "endlineno": 49,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 48,
+      "module": "fmrimod.dataset.latent",
+      "qualname": "LatentDataset.n_timepoints"
+    },
+    {
+      "endlineno": 55,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 52,
+      "module": "fmrimod.dataset.latent",
+      "qualname": "LatentDataset.n_voxels"
+    },
+    {
+      "endlineno": 60,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 57,
+      "module": "fmrimod.dataset.latent",
+      "qualname": "LatentDataset.get_scores"
+    },
+    {
+      "endlineno": 66,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 62,
+      "module": "fmrimod.dataset.latent",
+      "qualname": "LatentDataset.get_data"
+    },
+    {
+      "endlineno": 69,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 68,
+      "module": "fmrimod.dataset.latent",
+      "qualname": "LatentDataset.get_mask"
+    },
+    {
+      "endlineno": 72,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 71,
+      "module": "fmrimod.dataset.latent",
+      "qualname": "LatentDataset.get_sampling_frame"
+    },
+    {
+      "endlineno": 75,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 74,
+      "module": "fmrimod.dataset.latent",
+      "qualname": "LatentDataset.get_censor"
+    },
+    {
+      "endlineno": 106,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 78,
+      "module": "fmrimod.dataset.latent",
+      "qualname": "latent_dataset"
     },
     {
       "endlineno": 11,

@@ -22,20 +22,20 @@ fmrimod to translate between R-styled and Python-typed paths), or a
 unique typed value (the compat label is a misnomer; the export should
 be promoted into a typed module).
 
-No retirement, deletion, or deprecation lands in this bead. Each row
-ends with a typed replacement target plus a tier estimate; the
-follow-up beads execute the retirement per module.
+Rows name the typed replacement target plus a tier estimate. When a
+typed value has already been promoted, the row remains as a compat-shim
+receipt rather than pretending the old import path disappeared.
 
 ## Module summary
 
 | Module | LOC | Public exports | Top-level promoted | Direct external callers | Read |
 | --- | ---: | ---: | ---: | ---: | --- |
 | `fmrimod/glm/compat.py` | 642 | 17 | 15 | 0 (flows via subpackage) | Migration surface; matrix-fit helpers promoted in `536677e` |
-| `fmrimod/dataset/compat.py` | 464 | 16 | 13 | 3 | Migration surface; `LatentDataset` is unique |
+| `fmrimod/dataset/compat.py` | 464 | 16 | 13 | 3 | Migration surface; `LatentDataset` promoted to `dataset/latent.py` with compat shim |
 | `fmrimod/simulate/compat.py` | 338 | 3 | 3 | 1 | Migration surface |
 | `fmrimod/stats/meta_compat.py` | 296 | 5 | 5 | 0 (flows via subpackage) | Low-level R-name meta-analysis helpers |
-| `fmrimod/ar/compat.py` | 157 | 2 | 0 (ar-level only) | 1 | Typed convenience constructors |
-| **Total** | **1897** | **45** | **38** | **5** | |
+| `fmrimod/ar/compat.py` | 157 | 2 | 0 (ar-level only) | 1 | Deprecated shim over typed constructors in `ar/plan.py` |
+| **Total** | **1897** | **43** | **36** | **5** | |
 
 "Direct external callers" counts files outside the compat module itself
 and outside the subpackage's `__init__.py` re-export — i.e. real
@@ -93,8 +93,8 @@ compatibility helpers."
 | Export | Public-API impact | Class | Tier | Typed replacement target |
 | --- | --- | --- | --- | --- |
 | `fmri_mem_dataset` | top-level | Migration surface | S2 | `fmri_dataset(numpy_array, tr=..., events=...)` already does this |
-| `LatentDataset` (class) | not top-level | **Unique typed value** | S0 to promote | Move to `fmrimod/dataset/latent.py` |
-| `latent_dataset` | top-level | Migration surface (alias) | S1 | Constructor for `LatentDataset`; promote both together |
+| `LatentDataset` (class) | not top-level | Compat shim to typed value | S0 shipped | Canonical home is `fmrimod/dataset/latent.py` |
+| `latent_dataset` | top-level | Compat shim to typed constructor | S1 shipped | Canonical constructor is `fmrimod.dataset.latent_dataset` |
 | `fmri_latent_lm` | top-level | Migration surface | S2 | `fmri_lm` overloading on `LatentDataset` type |
 | `voxel_index_chunks` | not top-level | Internal bridge | S1 | Move to `fmrimod/utils/chunking.py` |
 | `extract_csv_data` | not top-level | Migration surface (IO) | S1 | Move to `fmrimod/io/csv.py` |
@@ -161,22 +161,17 @@ diagnostic." S2 only fires if `stats.meta` is determined to be spine
 
 ## fmrimod/ar/compat.py — 157 LOC, 2 public exports
 
-**Module docstring:** "Backward-compatibility helpers. Provides
-convenience functions for creating whitening plans from raw AR/MA
-coefficients without going through the full `fit_noise()` pipeline."
+**Module docstring after promotion:** "Deprecated location for
+`plan_from_phi` / `whiten_with_phi`."
 
 | Export | Public-API impact | Class | Tier | Typed replacement target |
 | --- | --- | --- | --- | --- |
-| `plan_from_phi` | not top-level (ar-only) | **Unique typed entry** | S1 to promote | Move to `fmrimod/ar/plan.py` next to `WhiteningPlan` |
-| `whiten_with_phi` | not top-level (ar-only) | **Unique typed entry** | S1 to promote | Same as above |
+| `plan_from_phi` | not top-level (ar-only) | Deprecated compat shim | S1 shipped | Canonical home is `fmrimod/ar/plan.py` next to `WhiteningPlan` |
+| `whiten_with_phi` | not top-level (ar-only) | Deprecated compat shim | S1 shipped | Canonical home is `fmrimod/ar/plan.py` next to `WhitenResult` |
 
-**ar/compat.py is mostly a misnamed module.** Despite the
-"backward-compatibility" docstring framing, the actual functions are
-typed convenience constructors that take typed `WhiteningPlan` /
-`WhitenResult` and return typed values. They serve the use case of
-"user has φ from an external tool" — exactly the workflow VISION's
-typed seam claims to support. Promotion is the right answer, not
-retirement.
+**ar/compat.py is now accurately named.** The typed constructors live
+beside the dataclasses in `fmrimod/ar/plan.py`; `ar/compat.py` only
+preserves old import paths and emits `DeprecationWarning`.
 
 ## Aggregate findings
 
@@ -184,11 +179,12 @@ retirement.
    unique typed value:** `fmri_mem_dataset`, `fmri_ols_fit`, `fmri_rlm`,
    `simulate_bold_signal`, `simulate_fmri_matrix`. Retiring these
    genuinely shrinks the public-API footprint.
-2. **At least 3 exports remain mis-housed typed constructors:**
-   `LatentDataset`, `plan_from_phi`/`whiten_with_phi`. They should be
-   **promoted out of compat**, not deleted. The matrix-fit helpers
-   were the fourth; they have already been promoted (`536677e`).
-3. **31 of 43 exports are top-level promoted into `fmrimod.__all__`.**
+2. **The originally mis-housed typed constructors have been promoted:**
+   the matrix-fit helpers in `536677e`, `LatentDataset` /
+   `latent_dataset` into `fmrimod.dataset.latent`, and
+   `plan_from_phi` / `whiten_with_phi` into `fmrimod.ar.plan`. The
+   remaining typed-utility promotion candidate is `meta_effective_n`.
+3. **36 of 43 exports are top-level promoted into `fmrimod.__all__`.**
    That means most retirement work is **S2** (auto-escalator fires on
    public-API change). Steward approval per AGENTS.md § Work requests.
 4. **The compat modules are not internal bridges.** Module docstrings
@@ -209,11 +205,12 @@ retirement.
 1. ~~**Promote `fit_glm_from_matrix` / `fit_glm_from_suffstats` out of
    `glm/compat.py`**~~ — **shipped in `536677e`** (typed `fmrimod/glm/matrix.py`
    module; top-level names preserved via re-export).
-2. **Promote `LatentDataset` out of `dataset/compat.py`** to
-   `fmrimod/dataset/latent.py`. **S0**.
-3. **Promote `plan_from_phi` / `whiten_with_phi` out of `ar/compat.py`**
-   to `fmrimod/ar/plan.py` and rename `ar/compat.py` to remove the
-   misnomer. **S1** (subpackage `__all__` unchanged).
+2. ~~**Promote `LatentDataset` out of `dataset/compat.py`**~~ —
+   canonical home is now `fmrimod/dataset/latent.py`; old imports
+   re-export the same objects.
+3. ~~**Promote `plan_from_phi` / `whiten_with_phi` out of
+   `ar/compat.py`**~~ — canonical home is now `fmrimod/ar/plan.py`;
+   old imports are deprecated shims.
 4. **Promote `meta_effective_n` out of `stats/meta_compat.py`** to
    `fmrimod/group/diagnostics.py`. **S0** (not top-level promoted; pure
    numeric utility).
@@ -225,14 +222,14 @@ retirement.
    deprecation cycle and a typed replacement constructor before
    removal. **S2 per epic.**
 
-The split makes the ~1897 LOC pile **tractable**: ~150 LOC of typed
-constructors remain to promote (rows 2-4 above); the rest are
-deliberate migration surfaces under steward gate.
+The split makes the ~1897 LOC pile **tractable**: the typed-constructor
+mis-housing is now mostly closed; the rest are deliberate migration
+surfaces under steward gate.
 
 ## What this inventory does NOT do
 
-- Does not delete or deprecate any export.
-- Does not change any public API.
+- Does not delete any export.
+- Does not break any public API; promoted constructors keep import shims.
 - Does not enumerate every internal usage; representative callers per
   module are sampled to verify the classification.
 - Does not propose timing; tier estimates are the only commitment.
