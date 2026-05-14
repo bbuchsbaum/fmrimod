@@ -4,7 +4,7 @@ Each predefined HRF kind is a typed ``@dataclass`` subclass of
 :class:`HRF` with named parameter fields, then the module-level
 constants (``GAMMA_HRF``, ``HRF_SPMG1``, ...) are default instances of
 those classes. The ``FunctionHRF`` indirection survives only as the
-adapter for raw callables (see ``empirical_hrf``, ``as_hrf``).
+adapter for raw callables (see ``as_hrf``).
 
 During the transition window each class still mirrors its typed fields
 into the inherited ``params`` / ``param_names`` for cross-testing
@@ -14,14 +14,16 @@ readers; bead ``bd-01KRGCZJ6JAA4BKRTNQ91P2PE5`` retires that mirror.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, Optional
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
+from scipy import interpolate
 
 from ..hrf_dispatch import SimpleHRF
 from .core import HRF, HrfParamValue
 from .functions import (
+    boxcar_hrf,
     bspline_hrf,
     fir_basis,
     fourier_hrf,
@@ -29,11 +31,13 @@ from .functions import (
     gaussian_hrf,
     hrf_basis_lwu,
     hrf_half_cosine,
+    hrf_ident,
     hrf_inv_logit,
     hrf_lwu,
     hrf_mexhat,
     hrf_sine,
     hrf_time,
+    weighted_hrf,
 )
 from .spm_hrf import SPMG1_HRF, SPMG2_HRF, SPMG3_HRF
 
@@ -341,6 +345,171 @@ class LWUBasisHRF(HRF):
         )
 
 
+# --- Adapter / data-driven kinds ------------------------------------------
+
+
+@dataclass
+class IdentityHRF(HRF):
+    """Identity (sampled Dirac) HRF: 1 at ``t == 0``, 0 elsewhere."""
+
+    name: str = "identity"
+    nbasis: int = 1
+    span: float = 1.0
+
+    def __post_init__(self) -> None:
+        self.params = {}
+        self.param_names = []
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        return hrf_ident(t)
+
+
+@dataclass
+class BoxcarHRF(HRF):
+    """Boxcar (step function) HRF parameterised by ``width`` and ``amplitude``.
+
+    The default ``name`` mirrors the legacy ``boxcar_generator`` format
+    (``"boxcar[<width>]"``) so callers that pin the name continue to work.
+    Set ``name`` explicitly to override.
+    """
+
+    name: str = ""
+    nbasis: int = 1
+    span: float = 1.0
+    width: float = 1.0
+    amplitude: float = 1.0
+
+    def __post_init__(self) -> None:
+        if self.width <= 0:
+            raise ValueError("BoxcarHRF.width must be positive")
+        # span tracks the boxcar duration unless the caller pinned it.
+        if self.span == 1.0:
+            self.span = float(self.width)
+        if not self.name:
+            self.name = f"boxcar[{self.width:.2g}]"
+        self.params = {"width": self.width, "amplitude": self.amplitude}
+        self.param_names = ["width", "amplitude"]
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        return boxcar_hrf(t, width=self.width, amplitude=self.amplitude)
+
+
+@dataclass
+class WeightedHRF(HRF):
+    """User-weighted HRF over an explicit time grid.
+
+    The typed shape carries ``weights``, ``times``, and ``method`` directly;
+    the ``weighted_generator`` adapter accepts the legacy
+    ``width``/``weights`` form and resolves it to ``times`` before
+    construction.
+    """
+
+    name: str = ""
+    nbasis: int = 1
+    span: float = 0.0
+    weights: tuple[float, ...] = (1.0, 1.0)
+    times: tuple[float, ...] = (0.0, 1.0)
+    method: Literal["constant", "linear"] = "constant"
+
+    def __post_init__(self) -> None:
+        weights = np.asarray(self.weights, dtype=np.float64)
+        times = np.asarray(self.times, dtype=np.float64)
+        if weights.ndim != 1:
+            raise ValueError("WeightedHRF weights must be 1-D")
+        if times.ndim != 1:
+            raise ValueError("WeightedHRF times must be 1-D")
+        if len(weights) < 2:
+            raise ValueError("WeightedHRF requires at least 2 weights")
+        if len(weights) != len(times):
+            raise ValueError("WeightedHRF weights and times must align")
+        if not np.all(np.diff(times) > 0):
+            raise ValueError("WeightedHRF times must be strictly increasing")
+        if times[0] < 0:
+            raise ValueError("WeightedHRF times must start at 0 or later")
+        if self.method not in ("constant", "linear"):
+            raise ValueError("WeightedHRF.method must be 'constant' or 'linear'")
+        self.weights = tuple(float(x) for x in weights)
+        self.times = tuple(float(x) for x in times)
+        if self.span == 0.0:
+            self.span = float(times[-1])
+        if not self.name:
+            self.name = f"weighted[w={self.span:.2g}, {len(self.weights)} wts]"
+        self.params = {
+            "times": list(self.times),
+            "weights": list(self.weights),
+            "method": self.method,
+        }
+        self.param_names = ["times", "weights", "method"]
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        return weighted_hrf(
+            t,
+            weights=self.weights,
+            times=self.times,
+            method=self.method,
+        )
+
+
+@dataclass(init=False)
+class EmpiricalHRF(HRF):
+    """HRF interpolated from observed (t, y) sample points.
+
+    The interpolator is built once at construction and reused on every
+    call. ``t_points`` and ``y_values`` are stored as tuples so the
+    instance is hashable-by-identity but inspectable by callers that need
+    to introspect the underlying sample.
+    """
+
+    name: str = "empirical_hrf"
+    nbasis: int = 1
+    span: float = 1.0
+    t_points: tuple[float, ...] = ()
+    y_values: tuple[float, ...] = ()
+
+    def __init__(
+        self,
+        t_points: ArrayLike,
+        y_values: ArrayLike,
+        name: str = "empirical_hrf",
+        nbasis: int = 1,
+        span: Optional[float] = None,
+        params: dict[str, HrfParamValue] | None = None,
+        param_names: list[str] | None = None,
+    ) -> None:
+        del params, param_names
+        t_arr = np.asarray(t_points, dtype=np.float64)
+        y_arr = np.asarray(y_values, dtype=np.float64)
+        if t_arr.shape != y_arr.shape:
+            raise ValueError("EmpiricalHRF t_points and y_values must share shape")
+        if t_arr.ndim != 1:
+            raise ValueError("EmpiricalHRF t_points must be 1-D")
+        if t_arr.size < 2:
+            raise ValueError("EmpiricalHRF requires at least 2 sample points")
+
+        order = np.argsort(t_arr)
+        t_sorted = t_arr[order]
+        y_sorted = y_arr[order]
+
+        self.name = name
+        self.nbasis = nbasis
+        self.span = float(t_sorted[-1]) if span is None else float(span)
+        self.t_points = tuple(t_sorted.tolist())
+        self.y_values = tuple(y_sorted.tolist())
+        self._interp = interpolate.interp1d(
+            t_sorted,
+            y_sorted,
+            kind="linear",
+            bounds_error=False,
+            fill_value=0.0,
+        )
+        self.params = {"t": list(self.t_points), "y": list(self.y_values)}
+        self.param_names = ["t", "y"]
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        t_arr = np.asarray(t, dtype=np.float64)
+        return np.asarray(self._interp(t_arr), dtype=np.float64)
+
+
 # --- Singleton instances ---------------------------------------------------
 
 # SPM Canonical HRF (now with analytic derivative support)
@@ -360,6 +529,9 @@ HALF_COSINE_HRF = HalfCosineHRF()
 SINE_HRF = SineHRF()
 LWU_HRF = LWUHRF()
 LWU_BASIS_HRF = LWUBasisHRF()
+IDENTITY_HRF = IdentityHRF()
+BOXCAR_HRF = BoxcarHRF()
+WEIGHTED_HRF = WeightedHRF()
 
 # Simple HRF for testing
 SIMPLE_HRF = SimpleHRF()
@@ -384,6 +556,10 @@ PREDEFINED_HRFS = {
     "sine": SINE_HRF,
     "lwu": LWU_HRF,
     "lwu_basis": LWU_BASIS_HRF,
+    "identity": IDENTITY_HRF,
+    "ident": IDENTITY_HRF,
+    "boxcar": BOXCAR_HRF,
+    "weighted": WEIGHTED_HRF,
 }
 
 
@@ -405,3 +581,7 @@ HRF_HALF_COSINE = HALF_COSINE_HRF
 HRF_SINE = SINE_HRF
 HRF_LWU = LWU_HRF
 HRF_LWU_BASIS = LWU_BASIS_HRF
+HRF_IDENTITY = IDENTITY_HRF
+HRF_IDENT = IDENTITY_HRF
+HRF_BOXCAR = BOXCAR_HRF
+HRF_WEIGHTED = WEIGHTED_HRF

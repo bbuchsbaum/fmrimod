@@ -3,12 +3,17 @@
 import numpy as np
 import pytest
 
+from fmrimod.hrf.core import FunctionHRF
+from fmrimod.hrf.empirical import empirical_hrf
 from fmrimod.hrf.functions import boxcar_hrf, weighted_hrf
 from fmrimod.hrf.generators import (
     boxcar_generator,
+    gen_hrf,
+    gen_hrf_set,
     tent_generator,
     weighted_generator,
 )
+from fmrimod.hrf.library import BoxcarHRF, EmpiricalHRF, IdentityHRF, WeightedHRF
 from fmrimod.hrf.registry import get_hrf
 
 # ── boxcar_hrf ──────────────────────────────────────────────────────
@@ -58,9 +63,13 @@ class TestBoxcarHRF:
             boxcar_generator(width=3.0, normalize=True)
 
         hrf = boxcar_generator(width=3.0, amplitude=1.0 / 3.0)
+        assert isinstance(hrf, BoxcarHRF)
+        assert not isinstance(hrf, FunctionHRF)
         assert hrf.name == "boxcar[3]"
         assert hrf.span == 3.0
         assert hrf.nbasis == 1
+        assert hrf.width == 3.0
+        assert hrf.amplitude == pytest.approx(1.0 / 3.0)
         t = np.array([0, 1, 2, 3])
         y = hrf(t)
         assert y[0] == pytest.approx(1.0 / 3.0)
@@ -153,12 +162,42 @@ class TestWeightedHRF:
 
     def test_generator(self):
         hrf = weighted_generator(weights=[1, 2, 1], width=4.0)
+        assert isinstance(hrf, WeightedHRF)
+        assert not isinstance(hrf, FunctionHRF)
         assert hrf.nbasis == 1
         assert hrf.span == 4.0
+        assert hrf.weights == (1.0, 2.0, 1.0)
+        assert hrf.times == (0.0, 2.0, 4.0)
 
     def test_registry(self):
         hrf = get_hrf("weighted", weights=[1, 2, 1], width=4.0)
+        assert isinstance(hrf, WeightedHRF)
         assert hrf.span == 4.0
+
+    def test_identity_registry_returns_typed_kind(self):
+        hrf = get_hrf("identity")
+        assert isinstance(hrf, IdentityHRF)
+        np.testing.assert_array_equal(hrf(np.array([-1.0, 0.0, 1.0])), [0.0, 1.0, 0.0])
+
+    def test_empirical_returns_typed_kind(self):
+        hrf = empirical_hrf([2.0, 0.0, 1.0], [0.0, 0.0, 1.0])
+
+        assert isinstance(hrf, EmpiricalHRF)
+        assert not isinstance(hrf, FunctionHRF)
+        assert hrf.t_points == (0.0, 1.0, 2.0)
+        np.testing.assert_allclose(hrf([0.5, 1.5]), [0.5, 0.5])
+
+    def test_metadata_rebind_preserves_typed_kind(self):
+        hrf = gen_hrf(boxcar_generator(width=3.0), name="renamed_box")
+
+        assert isinstance(hrf, BoxcarHRF)
+        assert not isinstance(hrf, FunctionHRF)
+        assert hrf.name == "renamed_box"
+        assert hrf.width == 3.0
+
+        combined = gen_hrf_set(boxcar_generator(width=2.0), name="combined_box")
+        assert isinstance(combined, BoxcarHRF)
+        assert combined.name == "combined_box"
 
 
 # ── tent_generator ──────────────────────────────────────────────────

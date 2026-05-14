@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from typing import Optional
-import numpy as np
-from numpy.typing import ArrayLike, NDArray
-from scipy import interpolate
 
-from .core import FunctionHRF, HRF
+import numpy as np
+from numpy.typing import ArrayLike
+
+from .core import HRF
+from .library import EmpiricalHRF
 
 
 def empirical_hrf(
@@ -56,28 +57,11 @@ def empirical_hrf(
     if span is None:
         span = float(t_sorted[-1])
     
-    # Create interpolation function
-    # Use linear interpolation (matching R's approx() default)
-    interp_func = interpolate.interp1d(
-        t_sorted, y_sorted,
-        kind='linear',
-        bounds_error=False,
-        fill_value=0.0
-    )
-    
-    # Create HRF function
-    def hrf_func(t_eval):
-        t_eval = np.asarray(t_eval, dtype=np.float64)
-        return interp_func(t_eval)
-    
-    # Return as FunctionHRF
-    return FunctionHRF(
-        func=hrf_func,
+    return EmpiricalHRF(
+        t_points=t_sorted,
+        y_values=y_sorted,
         name=name,
-        nbasis=1,
         span=span,
-        params={"t": t_sorted.tolist(), "y": y_sorted.tolist()},
-        param_names=["t", "y"]
     )
 
 

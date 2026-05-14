@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Callable, Dict, Optional, Sequence, Union
+from dataclasses import dataclass, field, is_dataclass, replace
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Sequence, Union, cast
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -260,6 +260,39 @@ class FunctionHRF(HRF):
         return self.func(t)
 
 
+def _with_metadata(
+    hrf: HRF,
+    *,
+    name: Optional[str] = None,
+    span: Optional[float] = None,
+) -> HRF:
+    """Return ``hrf`` with display metadata updated.
+
+    Typed HRF instances keep their concrete class via ``dataclasses.replace``.
+    ``FunctionHRF`` remains the fallback only for raw-callable adapters.
+    """
+    if name is None and span is None:
+        return hrf
+
+    next_name = hrf.name if name is None else name
+    next_span = hrf.span if span is None else span
+
+    if is_dataclass(hrf) and not isinstance(hrf, FunctionHRF):
+        updated = cast(HRF, replace(hrf))
+        updated.name = next_name
+        updated.span = next_span
+        return updated
+
+    return FunctionHRF(
+        func=hrf,
+        name=next_name,
+        nbasis=hrf.nbasis,
+        span=next_span,
+        params=hrf.params,
+        param_names=hrf.param_names,
+    )
+
+
 def as_hrf(
     func: Callable[[ArrayLike], NDArray[np.float64]],
     name: Optional[str] = None,
@@ -355,6 +388,43 @@ def bind_basis(*hrfs: HRF) -> HRF:
     return BoundBasisHRF(components=tuple(hrfs))
 
 
+@dataclass(init=False)
+class CoefficientHRF(HRF):
+    """Single-basis HRF formed from coefficients over another HRF basis."""
+
+    base: HRF
+    coefficients: tuple[float, ...]
+
+    def __init__(
+        self,
+        base: HRF,
+        coefficients: ArrayLike,
+        name: Optional[str] = None,
+    ) -> None:
+        coefs = tuple(float(x) for x in np.asarray(coefficients, dtype=np.float64))
+        if len(coefs) != base.nbasis:
+            raise ValueError(
+                f"Number of coefficients ({len(coefs)}) must match "
+                f"number of basis functions ({base.nbasis})"
+            )
+        self.base = base
+        self.coefficients = coefs
+        self.name = name or f"{base.name}_combined"
+        self.nbasis = 1
+        self.span = base.span
+        self.params = {"coefficients": list(coefs)}
+        self.param_names = ["coefficients"]
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        basis_values = self.base(t)
+        coefs = np.asarray(self.coefficients, dtype=np.float64)
+        if self.base.nbasis == 1:
+            return coefs[0] * basis_values
+        if basis_values.ndim == 1:
+            basis_values = basis_values.reshape(-1, 1)
+        return basis_values @ coefs
+
+
 def hrf_from_coefficients(hrf: HRF, coefficients: ArrayLike) -> HRF:
     """Create a new HRF by linearly combining basis functions.
     
@@ -376,38 +446,4 @@ def hrf_from_coefficients(hrf: HRF, coefficients: ArrayLike) -> HRF:
         >>> coefs = [1.0, 0.5, -0.2]  # Main + 0.5*deriv1 - 0.2*deriv2
         >>> custom_hrf = hrf_from_coefficients(hrf, coefs)
     """
-    coefficients = np.asarray(coefficients, dtype=np.float64)
-    
-    if len(coefficients) != hrf.nbasis:
-        raise ValueError(
-            f"Number of coefficients ({len(coefficients)}) must match "
-            f"number of basis functions ({hrf.nbasis})"
-        )
-    
-    # Create function that evaluates the linear combination
-    def combined_func(t: ArrayLike) -> NDArray[np.float64]:
-        # Evaluate base HRF
-        basis_values = hrf(t)
-        
-        # Handle single basis case
-        if hrf.nbasis == 1:
-            return coefficients[0] * basis_values
-        
-        # Multiple basis - ensure 2D
-        if basis_values.ndim == 1:
-            basis_values = basis_values.reshape(-1, 1)
-        
-        # Linear combination
-        result = basis_values @ coefficients
-        
-        return result
-    
-    # Create new HRF
-    return FunctionHRF(
-        func=combined_func,
-        name=f"{hrf.name}_combined",
-        nbasis=1,
-        span=hrf.span,
-        params={"coefficients": coefficients.tolist()},
-        param_names=["coefficients"]
-    )
+    return CoefficientHRF(hrf, coefficients)

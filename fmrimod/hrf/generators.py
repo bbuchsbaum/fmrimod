@@ -2,17 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Optional, Sequence, Union
+from typing import Callable, Dict, Literal, Optional, Sequence, Union, cast
 
 import numpy as np
-from numpy.typing import ArrayLike, NDArray
 
-from .core import HRF, FunctionHRF, HrfParamValue, as_hrf, bind_basis
+from .core import HRF, HrfParamValue, _with_metadata, as_hrf, bind_basis
 from .decorators import block_hrf, lag_hrf
-from .functions import (
-    boxcar_hrf,
-    weighted_hrf,
-)
 
 
 def gen_hrf(
@@ -96,21 +91,9 @@ def gen_hrf(
 
     # Apply name and/or span if specified
     if name is not None:
-        base_hrf = FunctionHRF(
-            func=base_hrf,
-            name=name,
-            nbasis=base_hrf.nbasis,
-            span=base_hrf.span if span is None else span,
-            params=base_hrf.params,
-        )
+        base_hrf = _with_metadata(base_hrf, name=name, span=span)
     elif span is not None:
-        base_hrf = FunctionHRF(
-            func=base_hrf,
-            name=base_hrf.name,
-            nbasis=base_hrf.nbasis,
-            span=span,
-            params=base_hrf.params,
-        )
+        base_hrf = _with_metadata(base_hrf, span=span)
 
     return base_hrf
 
@@ -138,13 +121,7 @@ def gen_hrf_set(*hrfs: Union[HRF, Callable], name: Optional[str] = None) -> HRF:
     
     # Set custom name if provided
     if name is not None:
-        combined = FunctionHRF(
-            func=combined,
-            name=name,
-            nbasis=combined.nbasis,
-            span=combined.span,
-            params=combined.params,
-        )
+        combined = _with_metadata(combined, name=name)
     
     return combined
 
@@ -412,15 +389,13 @@ def boxcar_generator(
         )
     eff_amp = amplitude
 
-    def boxcar_func(t: ArrayLike) -> NDArray[np.float64]:
-        return boxcar_hrf(t, width=width, amplitude=eff_amp)
+    from .library import BoxcarHRF
 
-    return FunctionHRF(
-        func=boxcar_func,
-        name=name or f"boxcar[{width:.2g}]",
-        nbasis=1,
+    return BoxcarHRF(
+        name=name or "",
         span=width,
-        params={"width": width, "amplitude": eff_amp, "normalize": normalize},
+        width=width,
+        amplitude=eff_amp,
     )
 
 
@@ -461,24 +436,15 @@ def weighted_generator(
     else:
         raise ValueError("Either `width` or `times` must be provided.")
 
-    def weighted_func(t: ArrayLike) -> NDArray[np.float64]:
-        return weighted_hrf(
-            t, weights=_weights, times=_times,
-            method=method, normalize=normalize,
-        )
-
     if name is None:
         name = f"weighted[w={_span:.2g}, {len(_weights)} wts]"
 
-    return FunctionHRF(
-        func=weighted_func,
+    from .library import WeightedHRF
+
+    return WeightedHRF(
         name=name,
-        nbasis=1,
         span=_span,
-        params={
-            "times": _times.tolist(),
-            "weights": _weights.tolist(),
-            "method": method,
-            "normalize": normalize,
-        },
+        weights=tuple(float(x) for x in _weights),
+        times=tuple(float(x) for x in _times),
+        method=cast(Literal["constant", "linear"], method),
     )

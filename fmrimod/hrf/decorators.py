@@ -15,7 +15,7 @@ from typing import Callable, Optional, Union
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from .core import HRF, FunctionHRF, as_hrf, bind_basis
+from .core import HRF, _with_metadata, as_hrf, bind_basis
 
 
 def _block_offsets_weights(width: float, precision: float):
@@ -243,13 +243,7 @@ def gen_hrf_lagged(
     if name is not None:
         # bind_basis returns the single HRF unchanged when len(lags) == 1, so
         # name overrides flow through unchanged regardless of count.
-        combined = FunctionHRF(
-            func=combined,
-            name=name,
-            nbasis=combined.nbasis,
-            span=combined.span,
-            params=combined.params,
-        )
+        combined = _with_metadata(combined, name=name)
 
     return combined
 
@@ -315,13 +309,7 @@ def gen_hrf_blocked(
     combined = bind_basis(*blocked_hrfs)
 
     if name is not None:
-        combined = FunctionHRF(
-            func=combined,
-            name=name,
-            nbasis=combined.nbasis,
-            span=combined.span,
-            params=combined.params,
-        )
+        combined = _with_metadata(combined, name=name)
 
     return combined
 

@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from fmrimod.hrf.core import HRF, as_hrf
+from fmrimod.hrf.core import HRF, BoundBasisHRF, FunctionHRF, as_hrf
 from fmrimod.hrf.decorators import (
     block_hrf,
     gen_hrf_blocked,
@@ -271,6 +271,8 @@ class TestGenHRFLagged:
         lagged_set = gen_hrf_lagged(SPM_CANONICAL, lags, name="my_lagged_set")
         
         assert lagged_set.name == "my_lagged_set"
+        assert isinstance(lagged_set, BoundBasisHRF)
+        assert not isinstance(lagged_set, FunctionHRF)
     
     def test_gen_hrf_lagged_from_function(self):
         """Test with function input."""
@@ -327,3 +329,5 @@ class TestGenHRFBlocked:
         
         assert blocked_set.name == "custom_blocked"
         assert blocked_set.nbasis == len(widths)
+        assert isinstance(blocked_set, BoundBasisHRF)
+        assert not isinstance(blocked_set, FunctionHRF)

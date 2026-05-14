@@ -49,18 +49,22 @@ from .generators import (
 )
 from .hrf_library import gen_hrf_library, hrf_library
 from .library import (
+    BOXCAR_HRF,
     BSPLINE_HRF,
     FIR_HRF,
     FOURIER_HRF,
     GAMMA_HRF,
     GAUSSIAN_HRF,
     HALF_COSINE_HRF,
+    HRF_BOXCAR,
     HRF_BSPLINE,
     HRF_FIR,
     HRF_FOURIER,
     HRF_GAMMA,
     HRF_GAUSSIAN,
     HRF_HALF_COSINE,
+    HRF_IDENT,
+    HRF_IDENTITY,
     HRF_INV_LOGIT,
     HRF_LWU,
     HRF_LWU_BASIS,
@@ -71,6 +75,8 @@ from .library import (
     HRF_SPMG2,
     HRF_SPMG3,
     HRF_TIME,
+    HRF_WEIGHTED,
+    IDENTITY_HRF,
     INV_LOGIT_HRF,
     LWU_BASIS_HRF,
     LWU_HRF,
@@ -81,6 +87,11 @@ from .library import (
     SPM_WITH_DERIVATIVE,
     SPM_WITH_DISPERSION,
     TIME_HRF,
+    WEIGHTED_HRF,
+    BoxcarHRF,
+    EmpiricalHRF,
+    IdentityHRF,
+    WeightedHRF,
 )
 from .normalization import NormMode, normalize
 from .penalty import penalty_matrix
@@ -107,12 +118,14 @@ __all__ = [
     "SPM_CANONICAL", "SPM_WITH_DERIVATIVE", "SPM_WITH_DISPERSION",
     "GAMMA_HRF", "GAUSSIAN_HRF", "BSPLINE_HRF", "FIR_HRF", "FOURIER_HRF",
     "TIME_HRF", "MEXHAT_HRF", "INV_LOGIT_HRF", "HALF_COSINE_HRF", "SINE_HRF",
-    "LWU_HRF", "LWU_BASIS_HRF",
+    "LWU_HRF", "LWU_BASIS_HRF", "IDENTITY_HRF", "BOXCAR_HRF", "WEIGHTED_HRF",
+    "IdentityHRF", "BoxcarHRF", "WeightedHRF", "EmpiricalHRF",
     # R-parity aliases
     "HRF_SPMG1", "HRF_SPMG2", "HRF_SPMG3",
     "HRF_GAMMA", "HRF_GAUSSIAN", "HRF_BSPLINE", "HRF_FIR", "HRF_FOURIER",
     "HRF_TIME", "HRF_MEXHAT", "HRF_INV_LOGIT", "HRF_HALF_COSINE", "HRF_SINE",
-    "HRF_LWU", "HRF_LWU_BASIS",
+    "HRF_LWU", "HRF_LWU_BASIS", "HRF_IDENTITY", "HRF_IDENT",
+    "HRF_BOXCAR", "HRF_WEIGHTED",
     # Decorators
     "lag_hrf", "block_hrf",
     "gen_hrf_lagged", "gen_hrf_blocked",

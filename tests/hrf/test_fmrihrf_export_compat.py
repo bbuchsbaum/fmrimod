@@ -4,6 +4,7 @@ import numpy as np
 
 import fmrimod
 from fmrimod.hrf.generators import gamma_generator
+from fmrimod.hrf.library import EmpiricalHRF
 
 
 def test_sampling_accessors_match_fmrihrf_exports():
@@ -68,6 +69,9 @@ def test_empirical_set_and_library_aliases():
     values = np.array([0.0, 1.0, 0.0])
     empirical = fmrimod.gen_empirical_hrf(times, values)
 
+    assert isinstance(empirical, EmpiricalHRF)
+    assert empirical.t_points == (0.0, 1.0, 2.0)
+    assert empirical.y_values == (0.0, 1.0, 0.0)
     np.testing.assert_allclose(fmrimod.evaluate(empirical, [0.5, 1.5]), [0.5, 0.5])
 
     hrf_set = fmrimod.hrf_set(fmrimod.SPM_CANONICAL, empirical)
