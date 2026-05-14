@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -235,7 +235,7 @@ class PythonParityBackend:
 
 
 def _flatten_group_assay(
-    dataset: Any,
+    dataset: object,
     assay: str,
 ) -> NDArray[np.float64]:
     values = np.asarray(dataset.assay(assay)[:, 0, :], dtype=np.float64)
@@ -243,7 +243,7 @@ def _flatten_group_assay(
 
 
 def _flatten_regression_assays(
-    dataset: Any,
+    dataset: object,
     predictor_names: list[str],
     prefix: str,
 ) -> NDArray[np.float64]:
@@ -292,8 +292,8 @@ def _combine_options(
     request: GroupFitRequest,
     n_subjects: int,
     combine_method: str,
-) -> dict[str, Any]:
-    options: dict[str, Any] = {}
+) -> dict[str, object]:
+    options: dict[str, object] = {}
     merged_options = {**dict(request.backend_options), **dict(request.extra_options)}
     if "min_subjects" in merged_options:
         options["min_subjects"] = int(merged_options["min_subjects"])
@@ -313,7 +313,7 @@ def _combine_options(
     return options
 
 
-def _group_sample_names(dataset: Any) -> list[str]:
+def _group_sample_names(dataset: object) -> list[str]:
     from fmrimod.group import SampleLabelSpace, VoxelSpace
 
     if isinstance(dataset.space, SampleLabelSpace):
@@ -325,7 +325,7 @@ def _group_sample_names(dataset: Any) -> list[str]:
     return [f"sample{i + 1}" for i in range(dataset.n_samples)]
 
 
-def _group_feature_names(dataset: Any) -> list[str]:
+def _group_feature_names(dataset: object) -> list[str]:
     samples = _group_sample_names(dataset)
     if dataset.n_contrasts == 1:
         return samples
