@@ -49,10 +49,7 @@ INVENTORY_PATH = REPO_ROOT / "docs" / "contracts" / "api_inventory_v1.json"
 # in the same commit.
 BASELINE_REVIEW_PENDING_NAMES = frozenset({
     "Confounds", "Drift", "Fcontrasts", "FieldDiff",
-    "HRF", "HRF_BSPLINE", "HRF_FIR", "HRF_FOURIER",
-    "HRF_GAMMA", "HRF_GAUSSIAN", "HRF_HALF_COSINE", "HRF_INV_LOGIT",
-    "HRF_LWU", "HRF_LWU_BASIS", "HRF_MEXHAT", "HRF_SINE",
-    "HRF_SPMG1", "HRF_SPMG2", "HRF_SPMG3", "HRF_TIME",
+    "HRF", "HRF_SPMG1", "HRF_SPMG2", "HRF_SPMG3",
     "HrfTerm", "Intercept", "Poly", "RobustScale",
     "SPM_CANONICAL", "SPM_WITH_DERIVATIVE", "SPM_WITH_DISPERSION", "SamplingFrame",
     "Scale", "SpecDiff", "SpecSerializationError", "TermDiff",
@@ -108,8 +105,8 @@ def _current_review_pending() -> set[str]:
 
 def test_baseline_size_is_known() -> None:
     """Sanity-check the pinned baseline size to catch silent drift."""
-    assert len(BASELINE_REVIEW_PENDING_NAMES) == 149, (
-        f"BASELINE_REVIEW_PENDING_NAMES size drifted from 149 to "
+    assert len(BASELINE_REVIEW_PENDING_NAMES) == 137, (
+        f"BASELINE_REVIEW_PENDING_NAMES size drifted from 137 to "
         f"{len(BASELINE_REVIEW_PENDING_NAMES)}. Update the assertion "
         f"in the same commit that intentionally changed the baseline."
     )
