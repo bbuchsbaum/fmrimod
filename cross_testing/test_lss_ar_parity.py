@@ -93,10 +93,11 @@ class TestRParity:
         betas_r = _r_lss_ar1(r_fmrilss, Y, X, p=1)
 
         assert py.betas.shape == betas_r.shape
-        # Empirical AR-LSS parity on planted AR(1): max abs ~3e-3, max
-        # rel ~5e-3. The residual gap is dominated by tiny phi-recovery
+        # Empirical AR-LSS parity on planted AR(1): max abs ~3e-3,
+        # max rel ~5e-3. The residual gap is dominated by tiny phi-recovery
         # differences (1e-3) between fit_noise and fmriAR::fit_noise;
         # tightening this is tracked under bd-01KRK97N4F0EZWSHTFG3GMCEJB.
+        # numerical_floor: see the empirical gap rationale above.
         np.testing.assert_allclose(py.betas, betas_r, atol=5e-3, rtol=5e-3)
 
     def test_moderate_snr_higher_ar(self, r_fmrilss) -> None:
@@ -118,6 +119,7 @@ class TestRParity:
         # ~2e-2 rel. The acceptance pins that the Python implementation
         # tracks the R reference shape; the size of the gap is a
         # follow-up under the same bead.
+        # numerical_floor: see the empirical gap rationale above.
         np.testing.assert_allclose(py.betas, betas_r, atol=5e-2, rtol=2e-2)
 
     def test_phi_recovery_matches_r_within_1e_3(self, r_fmrilss) -> None:
