@@ -44,6 +44,7 @@ from .engine import (
     register_engine,
     resolve_engine,
 )
+from .errors import UnsupportedEngineConfiguration
 from .fmri_lm import (
     CompleteFitProvenance,
     FitProvenance,
@@ -69,6 +70,7 @@ __all__ = [
     "FitProvenance",
     "CompleteFitProvenance",
     "IncompleteFitProvenanceError",
+    "UnsupportedEngineConfiguration",
     "replay",
     "replay_fits",
     "ReplayContractError",
