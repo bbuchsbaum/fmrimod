@@ -60,6 +60,8 @@ The compared quantities:
 
 from __future__ import annotations
 
+import json
+import time
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
@@ -280,13 +282,18 @@ def nilearn_pipeline(inputs: MulticollinearInputs) -> PipelineOutput:
     )
 
 
-def fmrimod_pipeline(inputs: MulticollinearInputs) -> PipelineOutput:
+def fmrimod_pipeline(
+    inputs: MulticollinearInputs,
+    *,
+    timing_sink: dict[str, float] | None = None,
+) -> PipelineOutput:
     """fmrimod's typed path with rank-deficient X.
 
     Captures the per-fit ``UserWarning`` so the diagnostic surface is
     exercised at parity time, asserts the aliased column was named, and
     runs the same OLS / contrast machinery as the Nilearn reference.
     """
+    dataset_start = time.perf_counter()
     spec = (
         hrf("trial_type", basis="spm", norm="spm")
         + confounds(
@@ -301,9 +308,15 @@ def fmrimod_pipeline(inputs: MulticollinearInputs) -> PipelineOutput:
         + intercept(per="run")
     )
     ds = fm.fmri_dataset(inputs.data, tr=TR, events=inputs.events)
+    if timing_sink is not None:
+        timing_sink["fmrimod_dataset_seconds"] = time.perf_counter() - dataset_start
+
+    fit_start = time.perf_counter()
     with warnings.catch_warnings(record=True) as captured:
         warnings.simplefilter("always")
         fit = fm.fmri_lm(spec, ds)
+    if timing_sink is not None:
+        timing_sink["fmrimod_fit_seconds"] = time.perf_counter() - fit_start
 
     # Diagnostic checks: the warning fired AND the typed report flags it.
     fit_warnings = [
@@ -329,8 +342,13 @@ def fmrimod_pipeline(inputs: MulticollinearInputs) -> PipelineOutput:
             f"{inputs.aliased_candidates!r}; got {report.aliased_columns!r}"
         )
 
+    contrast_start = time.perf_counter()
     t_task = fit.contrast(inputs.c_task_main, name="task_main")
     f_task = fit.contrast(inputs.c_task_F, name="task_omnibus")
+    if timing_sink is not None:
+        timing_sink["fmrimod_contrast_seconds"] = (
+            time.perf_counter() - contrast_start
+        )
     rank_observed = int(report.runs[0].rank)
     return PipelineOutput(
         arrays={
@@ -343,7 +361,11 @@ def fmrimod_pipeline(inputs: MulticollinearInputs) -> PipelineOutput:
     )
 
 
-def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
+def make_case(
+    max_voxels: int = MAX_VOXELS,
+    *,
+    timing_sink: dict[str, float] | None = None,
+) -> ParityCase:
     """Build the multicollinear-baseline parity case.
 
     Note on t/F tolerance. fmrimod uses ``dfres = n - rank`` for variance
@@ -357,11 +379,34 @@ def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
     The point estimate (effect) does not depend on the DoF choice and is
     matched at machine precision.
     """
+    if timing_sink is not None:
+        start = time.perf_counter()
+        inputs = load_inputs(max_voxels=max_voxels)
+        timing_sink["load_inputs_seconds"] = time.perf_counter() - start
+
+        def _timed_fmrimod(shared_inputs: MulticollinearInputs) -> PipelineOutput:
+            return fmrimod_pipeline(shared_inputs, timing_sink=timing_sink)
+
+        def _timed_nilearn(shared_inputs: MulticollinearInputs) -> PipelineOutput:
+            nilearn_start = time.perf_counter()
+            output = nilearn_pipeline(shared_inputs)
+            timing_sink["nilearn_pipeline_seconds"] = (
+                time.perf_counter() - nilearn_start
+            )
+            return output
+
+        fmrimod_fn = _timed_fmrimod
+        nilearn_fn = _timed_nilearn
+    else:
+        inputs = load_inputs(max_voxels=max_voxels)
+        fmrimod_fn = fmrimod_pipeline
+        nilearn_fn = nilearn_pipeline
+
     return ParityCase(
         name="tier_a_multicollinear_baseline",
-        fmrimod_pipeline=fmrimod_pipeline,
-        reference_pipeline=nilearn_pipeline,
-        inputs=load_inputs(max_voxels=max_voxels),
+        fmrimod_pipeline=fmrimod_fn,
+        reference_pipeline=nilearn_fn,
+        inputs=inputs,
         tolerances={
             "design": ParityTolerance(rtol=0.0, atol=0.0),
             "effect_task_main": ParityTolerance(rtol=1e-8, atol=1e-9),
@@ -407,10 +452,23 @@ def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
     )
 
 
+def _write_timing_payload(json_path: Path, timings: dict[str, float]) -> None:
+    payload = json.loads(json_path.read_text())
+    stages = {key: float(value) for key, value in sorted(timings.items())}
+    payload["timings"] = {
+        "status": "recorded",
+        "seconds": float(sum(stages.values())),
+        "stages": stages,
+    }
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
 def main() -> None:
-    result = run(make_case())
+    timings: dict[str, float] = {}
+    result = run(make_case(timing_sink=timings))
     out_dir = Path(__file__).resolve().parent / "reports"
-    render(result, out_dir)
+    json_path, _ = render(result, out_dir)
+    _write_timing_payload(json_path, timings)
     if result.status == "fail":
         raise SystemExit(1)
 

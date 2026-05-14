@@ -286,13 +286,13 @@
       "performance_stage": "tier_a_fir_unconstrained_hrf",
       "timings": {
         "status": "recorded",
-        "seconds": 0.07789733299999946,
+        "seconds": 0.09825008299999993,
         "stages": {
-          "fmrimod_contrast_seconds": 0.021879541999999974,
-          "fmrimod_dataset_seconds": 6.304199999984661e-05,
-          "fmrimod_fit_seconds": 0.008296499999999929,
-          "load_inputs_seconds": 0.045926790999999856,
-          "nilearn_pipeline_seconds": 0.0017314579999998525
+          "fmrimod_contrast_seconds": 0.006067541000000176,
+          "fmrimod_dataset_seconds": 7.937499999988162e-05,
+          "fmrimod_fit_seconds": 0.0033701250000000016,
+          "load_inputs_seconds": 0.08734479200000012,
+          "nilearn_pipeline_seconds": 0.0013882499999997577
         },
         "source": "benchmarks/parity/tier_a_fir_unconstrained_hrf/reports/parity_report.json"
       },
@@ -330,9 +330,19 @@
       "caveats": [
         "dfres-n-minus-rank"
       ],
+      "hardware_tag": "Darwin-arm64-arm",
+      "performance_stage": "tier_a_multicollinear_baseline",
       "timings": {
-        "status": "not_recorded",
-        "next": "record rank-diagnostic overhead separately from solver time"
+        "seconds": 0.02220404101535678,
+        "stages": {
+          "fmrimod_contrast_seconds": 0.0034682920086197555,
+          "fmrimod_dataset_seconds": 0.00012020801659673452,
+          "fmrimod_fit_seconds": 0.003923000011127442,
+          "load_inputs_seconds": 0.014197790995240211,
+          "nilearn_pipeline_seconds": 0.0004947499837726355
+        },
+        "status": "recorded",
+        "source": "benchmarks/parity/tier_a_multicollinear_baseline/reports/parity_report.json"
       },
       "typed_objects": [
         "fmrimod.dataset.FmriDataset",
