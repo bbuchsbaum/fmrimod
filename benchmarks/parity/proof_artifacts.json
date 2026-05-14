@@ -706,9 +706,18 @@
       "reference_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/workflow.py::nilearn_probe",
       "fmrimod_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/workflow.py::fmrimod_probe + fmrimod_authored_probe: fit_glm_from_matrix(named DataFrame / source DesignColumns) -> column_contrast and condition('gain') - condition('loss') -> ContrastResult",
       "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
+      "performance_stage": "tier_e_semantic_contrast_alignment",
       "timings": {
-        "status": "not_recorded",
-        "next": "record fit and contrast-resolution timings if this semantic-alignment trap becomes a README-grade demo"
+        "status": "recorded",
+        "seconds": 0.07358179200000059,
+        "stages": {
+          "canonical_order_case_seconds": 0.04628295900000001,
+          "load_inputs_seconds": 0.0003644580000004005,
+          "permuted_order_case_seconds": 0.001015084000000055,
+          "public_seam_probe_seconds": 0.025919291000000122
+        },
+        "source": "benchmarks/parity/tier_e_semantic_contrast_alignment/reports/semantic_contrast_alignment_report.json"
       },
       "typed_objects": [
         "fmrimod.glm.FmriLm",

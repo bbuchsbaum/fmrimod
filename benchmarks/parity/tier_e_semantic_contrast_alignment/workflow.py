@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 import warnings
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -635,14 +636,26 @@ def run_benchmark(
 ) -> dict[str, Any]:
     """Run the full semantic contrast-alignment stress benchmark."""
 
+    timings: dict[str, float] = {}
+    load_start = time.perf_counter()
     inputs = load_inputs(max_voxels=max_voxels, seed=seed)
+    timings["load_inputs_seconds"] = time.perf_counter() - load_start
+
+    base_start = time.perf_counter()
     base = run_case(inputs, case_id="canonical_order", column_order=inputs.base_order)
+    timings["canonical_order_case_seconds"] = time.perf_counter() - base_start
+
+    permuted_start = time.perf_counter()
     permuted = run_case(
         inputs,
         case_id="permuted_order",
         column_order=inputs.permuted_order,
     )
+    timings["permuted_order_case_seconds"] = time.perf_counter() - permuted_start
+
+    public_seam_start = time.perf_counter()
     public_seam = public_seam_probe(max_voxels=max_voxels, seed=seed + 1)
+    timings["public_seam_probe_seconds"] = time.perf_counter() - public_seam_start
     invariance = {
         "fmrimod_effect_delta": _max_abs_delta(
             base.fmrimod_effect,
@@ -708,6 +721,13 @@ def run_benchmark(
             "schema_version": SCHEMA_VERSION,
             "name": "tier_e_semantic_contrast_alignment",
             "status": status,
+            "timings": {
+                "status": "recorded",
+                "seconds": float(sum(timings.values())),
+                "stages": {
+                    key: float(value) for key, value in sorted(timings.items())
+                },
+            },
             "summary": (
                 "Stress test for semantic contrast alignment under design-column "
                 "permutation: fmrimod resolves gain-minus-loss by name, while a "

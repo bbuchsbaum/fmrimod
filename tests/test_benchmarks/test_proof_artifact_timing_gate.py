@@ -38,7 +38,6 @@ MANIFEST = REPO_ROOT / "benchmarks" / "parity" / "proof_artifacts.json"
 _PENDING_TIMING_ROWS = frozenset(
     {
         "tier_e_scrubbed_timebase_alignment",
-        "tier_e_semantic_contrast_alignment",
     }
 )
 
