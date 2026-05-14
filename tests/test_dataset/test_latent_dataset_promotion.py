@@ -8,12 +8,17 @@ re-exports so the move cannot regress silently.
 
 from __future__ import annotations
 
+import importlib
+
 import numpy as np
 
+import fmridataset
 import fmrimod
 from fmrimod import dataset as ds_pkg
 from fmrimod.dataset import compat as ds_compat
 from fmrimod.dataset import latent as ds_latent
+
+facade_latent = importlib.import_module("fmridataset.latent_dataset")
 
 
 def test_latent_dataset_canonical_module_is_dataset_latent():
@@ -31,6 +36,10 @@ def test_back_compat_reexports_resolve_to_canonical_class():
     assert ds_compat.LatentDataset is ds_latent.LatentDataset
     assert ds_pkg.LatentDataset is ds_latent.LatentDataset
     assert ds_pkg.latent_dataset is ds_latent.latent_dataset
+    assert fmridataset.LatentDataset is ds_latent.LatentDataset
+    assert fmridataset.latent_dataset is ds_latent.latent_dataset
+    assert facade_latent.LatentDataset is ds_latent.LatentDataset
+    assert facade_latent.latent_dataset is ds_latent.latent_dataset
     assert fmrimod.latent_dataset is ds_latent.latent_dataset
 
 
@@ -61,6 +70,9 @@ def test_latent_dataset_constructor_smoke():
     assert latent.n_runs == 1
     assert latent.n_voxels == 4
     np.testing.assert_allclose(latent.get_data(0), scores @ loadings)
+    np.testing.assert_allclose(latent.get_scores(0), scores)
+    np.testing.assert_allclose(latent.get_spatial_loadings(), loadings.T)
+    assert latent.get_component_info()["storage_format"] == "latent"
 
 
 def test_latent_dataset_validation_messages():

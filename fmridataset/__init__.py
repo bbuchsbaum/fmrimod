@@ -14,6 +14,7 @@ from fmrimod.dataset import *  # noqa: F403
 from fmrimod.dataset import __all__ as _dataset_all
 from fmrimod.dataset import data_chunks as _canonical_data_chunks
 from fmrimod.dataset import fmri_series as _canonical_fmri_series
+from fmrimod.dataset import latent_dataset as _canonical_latent_dataset
 from fmrimod.sampling import SamplingFrame
 
 __all__ = ["__version__", "SamplingFrame", *_dataset_all]
@@ -27,6 +28,8 @@ class _FacadeModule(ModuleType):
             return _canonical_data_chunks
         if name == "fmri_series":
             return _canonical_fmri_series
+        if name == "latent_dataset":
+            return _canonical_latent_dataset
         return super().__getattribute__(name)
 
 

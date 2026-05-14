@@ -129,9 +129,16 @@ class BackendRegistry:
 
 def _register_builtins() -> None:
     """Register built-in backends that are implemented in this package."""
+    from .backends.latent_backend import LatentBackend
     from .backends.matrix_backend import MatrixBackend
 
     registry = BackendRegistry.instance()
+    registry.register(
+        "latent",
+        lambda **kwargs: LatentBackend(**kwargs),
+        description="HDF5 latent decomposition backend",
+        overwrite=True,
+    )
     registry.register(
         "matrix",
         lambda **kwargs: MatrixBackend(**kwargs),

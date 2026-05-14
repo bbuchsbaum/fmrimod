@@ -4,7 +4,7 @@ Provides protocol definitions and concrete implementations for accessing
 fMRI time-series data in a format-agnostic way.
 """
 
-from .backend_constructors import matrix_backend
+from .backend_constructors import latent_backend, matrix_backend
 from .backend_methods import (
     backend_close,
     backend_get_data,
@@ -26,6 +26,7 @@ from .backend_registry import (
     register_backend,
     unregister_backend,
 )
+from .backends.latent_backend import InMemoryLatentBackend, LatentBackend
 from .backends.matrix_backend import MatrixBackend
 from .chunking import BlockChunker, VoxelChunker
 from .compat import (
@@ -80,7 +81,13 @@ from .group_data import (
     group_data_from_h5,
     group_data_from_nifti,
 )
-from .latent import LatentDataset, latent_dataset
+from .latent import (
+    LatentDataset,
+    get_component_info,
+    get_latent_scores,
+    get_spatial_loadings,
+    latent_dataset,
+)
 from .mask_utils import mask_to_logical, mask_to_volume
 from .protocols import DatasetProtocol, MaskProtocol
 from .selectors import (
@@ -130,7 +137,10 @@ __all__ = [
     "list_backend_names",
     "unregister_backend",
     "MatrixBackend",
+    "LatentBackend",
+    "InMemoryLatentBackend",
     "matrix_backend",
+    "latent_backend",
     "backend_open",
     "backend_close",
     "backend_get_dims",
@@ -201,6 +211,9 @@ __all__ = [
     "group_data_from_nifti",
     "detect_group_data_format",
     "LatentDataset",
+    "get_latent_scores",
+    "get_spatial_loadings",
+    "get_component_info",
     "fmri_mem_dataset",
     "latent_dataset",
     "fmri_latent_lm",

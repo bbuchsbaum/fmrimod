@@ -8,6 +8,7 @@ import fmridataset
 import fmridataset.backend_constructors as facade_backend_constructors
 import fmridataset.backend_protocol as facade_backend_protocol
 import fmridataset.backend_registry as facade_backend_registry
+import fmridataset.backends.latent_backend as facade_latent_backend
 import fmridataset.backends.matrix_backend as facade_matrix_backend
 import fmridataset.data_access as facade_data_access
 import fmridataset.dataset as facade_dataset
@@ -28,9 +29,11 @@ def test_fmridataset_root_reexports_canonical_objects() -> None:
     assert facade.__version__ == fmrimod.__version__
     assert facade.FmriDataset is dataset.FmriDataset
     assert facade.MatrixBackend is dataset.MatrixBackend
+    assert facade.LatentBackend is dataset.LatentBackend
     assert facade.matrix_dataset is dataset.matrix_dataset
     assert facade.fmri_dataset is dataset.fmri_dataset
     assert facade.matrix_backend is dataset.matrix_backend
+    assert facade.latent_backend is dataset.latent_backend
     assert facade.get_data is dataset.get_data
     assert facade.DataChunk is dataset.DataChunk
     assert facade.data_chunks is dataset.data_chunks
@@ -55,6 +58,7 @@ def test_fmridataset_submodules_are_reexport_facades() -> None:
     assert facade_backend_registry.BackendRegistry is dataset.BackendRegistry
     assert facade_backend_registry.create_backend is dataset.create_backend
     assert facade_matrix_backend.MatrixBackend is dataset.MatrixBackend
+    assert facade_latent_backend.LatentBackend is dataset.LatentBackend
     assert facade_errors.FmriDatasetError is dataset.FmriDatasetError
     assert facade_errors.BackendIOError is dataset.BackendIOError
     assert facade_errors.ConfigError is dataset.ConfigError

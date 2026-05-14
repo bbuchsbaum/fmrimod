@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from .backends.latent_backend import LatentBackend
 from .backends.matrix_backend import MatrixBackend
 
 
@@ -24,3 +25,12 @@ def matrix_backend(
         spatial_dims=spatial_dims,
         metadata=metadata,
     )
+
+
+def latent_backend(
+    source: Any,
+    *,
+    preload: bool = False,
+) -> LatentBackend:
+    """Construct a storage-backed latent decomposition backend."""
+    return LatentBackend(source=source, preload=preload)
