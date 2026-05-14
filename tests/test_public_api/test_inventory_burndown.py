@@ -1,35 +1,34 @@
-"""Burn-down ratchet for the public-API inventory.
+"""Absolute ratchet for the public-API inventory's review fields.
 
 Pairs with ``docs/contracts/api_inventory_v1.json`` and the freshness
 gate in ``test_api_inventory.py``. The freshness gate catches *new*
-public names entering with ``tier=review_pending``; this file pins the
-*existing* review_pending set as a baseline and forces it to shrink
-monotonically.
+public names entering with ``tier=review_pending``; this file enforces
+that *no* inventory row carries ``tier=review_pending`` or
+``compatibility_status=review_pending`` after the burn-down landed in
+bd-01KRHY6EQW0K06KESGF6MGVZT3 (closed 2026-05-14).
 
-Two assertions, both catch real failure modes:
+Two ratchets, one per review field:
 
-1. **No new review_pending rows.** Tiering a name to spine /
-   spine_review / compat / compat_pending_fix / runtime_check is the
-   only way ``tier=review_pending`` can change. Adding a new public
-   name with ``review_pending`` (rather than tiering it on entry) or
-   reverting an already-tiered name back to ``review_pending`` both
-   fail the subset assertion below.
+1. **No ``tier=review_pending`` rows** (``test_review_pending_set_does_not_grow_beyond_baseline``).
+   Every public name must enter the inventory with one of the ratified
+   tier values: ``spine``, ``spine_review``, ``compat``,
+   ``compat_pending_fix``, ``runtime_check``. The default
+   ``review_pending`` is no longer a valid landing state. The
+   ``BASELINE_REVIEW_PENDING_NAMES`` frozenset is intentionally empty;
+   the structure is preserved so a future controlled re-baseline (e.g.,
+   a documented API expansion that needs review_pending rows to land
+   before classification) can add entries with a board-linked rationale
+   without rewriting the tests.
 
-2. **Baseline doesn't decay silently.** When a name is tiered or
-   removed from ``__all__``, the baseline ``BASELINE_REVIEW_PENDING_NAMES``
-   set must be updated in the same commit. Otherwise the burn-down
-   ratchet silently widens over time and a re-tiering becomes invisible.
+2. **No ``compatibility_status=review_pending`` rows**
+   (``test_no_review_pending_compatibility_status``). Parallel ratchet
+   on the second review field — every row must carry a ratified
+   ``compatibility_status``: ``spine``, ``compat``, ``deprecated``,
+   ``hidden``, or ``internal_forwarder``.
 
-To take a name off the baseline:
-- Tier it in ``docs/contracts/api_inventory_v1.json`` (any value other
-  than ``"review_pending"``).
-- Remove it from ``BASELINE_REVIEW_PENDING_NAMES`` below.
-- Both edits land in the same commit, with a board-linked rationale
-  for the chosen tier.
-
-Refs: bd-01KRHVVKM80SYC37BQ5HQKRMN1
-(Board source: major-issues-lets-talk/post-01KRHVA1NC98BP4KQ1Z29WYXWG,
-bullet 4 burn-down framing).
+Refs: bd-01KRHVVKM80SYC37BQ5HQKRMN1 (original tier-only baseline
+ratchet), bd-01KRHY6EQW0K06KESGF6MGVZT3 (burn-down + parallel
+compat_status ratchet).
 """
 
 from __future__ import annotations
