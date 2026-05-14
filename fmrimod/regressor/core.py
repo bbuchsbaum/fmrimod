@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass, field
-from typing import Any, Callable, List, Literal, Optional, Tuple, Union, cast, overload
+from typing import TYPE_CHECKING, Any, Callable, List, Literal, Optional, Tuple, Union, cast, overload
 
 import numpy as np
 import scipy
@@ -15,6 +15,9 @@ from ..hrf import HRF
 from ..hrf.generators import make_hrf
 from .convolution import ConvolutionMethod, convolve_hrf, validate_convolution_method
 from .neural_input import neural_input_core
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
 
 # The factory input type. Strings and callables are coerced to HRF via
 # make_hrf() in _coerce_hrf(); the stored Regressor.hrf field is strictly
@@ -403,9 +406,9 @@ class Regressor:
         grid: ArrayLike | None = None,
         precision: float = 0.33,
         show_onsets: bool = True,
-        ax: Any = None,
-        **kwargs: Any,
-    ) -> object:
+        ax: Optional["Axes"] = None,
+        **kwargs: object,
+    ) -> "Axes":
         """Plot this regressor.  See :func:`fmrimod.plotting.plot_regressor`."""
         from ..plotting import plot_regressor
         return plot_regressor(self, grid=grid, precision=precision, show_onsets=show_onsets, ax=ax, **kwargs)
