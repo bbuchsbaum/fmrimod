@@ -153,9 +153,16 @@ def make_case() -> ParityCase:
         declared_caveats=(),
         tolerances={
             "one_sample_effect": ParityTolerance(rtol=1e-7, atol=1e-8),
+            # numerical_floor: Nilearn's second-level path rounds the derived
+            # t statistic differently from the native grouped reducer.
             "one_sample_t": ParityTolerance(rtol=1e-6, atol=1e-6),
             "age_effect": ParityTolerance(rtol=1e-7, atol=1e-8),
+            # numerical_floor: same second-level t-statistic rounding floor as
+            # the intercept test above.
             "age_t": ParityTolerance(rtol=1e-6, atol=1e-6),
+            # numerical_floor: signed one-sided p is reconstructed from t/df
+            # to mirror Nilearn's exposed quantity, so tiny tail-probability
+            # differences are expected near scipy/Nilearn rounding boundaries.
             "age_p_signed_one_sided": ParityTolerance(rtol=2e-5, atol=2e-8),
         },
     )

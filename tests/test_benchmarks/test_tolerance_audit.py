@@ -108,7 +108,7 @@ def test_audit_counts_track_live_probe() -> None:
 
 
 def test_audit_unjustified_count_does_not_silently_grow() -> None:
-    """Pin the unjustified-tolerance baseline at the moment of audit landing.
+    """Pin the current unjustified-tolerance burn-down baseline.
 
     Adding a new ``rtol=`` / ``atol=`` keyword with an elevated value
     and no nearby rationale comment will raise this count and trip
@@ -127,7 +127,7 @@ def test_audit_unjustified_count_does_not_silently_grow() -> None:
        commit.
     """
     counts = _load_audit()["counts"]["by_classification"]
-    BASELINE_UNJUSTIFIED = 28
+    BASELINE_UNJUSTIFIED = 15
     assert counts["unjustified"] <= BASELINE_UNJUSTIFIED, (
         f"unjustified-tolerance count grew from {BASELINE_UNJUSTIFIED} "
         f"to {counts['unjustified']}; either justify the new call-site "

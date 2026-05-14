@@ -7,9 +7,14 @@ import json
 import pytest
 
 from cross_testing.fitlins_parity import fit_fitlins_reference_ols, fit_fmrimod_ols
-from cross_testing.harness import ParityCase, ParityTolerance, PipelineOutput, render, run
+from cross_testing.harness import (
+    ParityCase,
+    ParityTolerance,
+    PipelineOutput,
+    render,
+    run,
+)
 from cross_testing.harness.fixtures import SyntheticGlmInputs, synthetic_ols_inputs
-
 
 pytestmark = pytest.mark.parity
 
@@ -35,8 +40,11 @@ def test_synthetic_ols_canary_passes_and_renders(tmp_path):
         reference_pipeline=_nilearn_pipeline,
         inputs=synthetic_ols_inputs(),
         tolerances={
+            # numerical_floor: FitLins and fmrimod share the same OLS fixture,
+            # but contrast post-processing crosses separate numpy/scipy paths.
             "betas": ParityTolerance(rtol=1e-6, atol=1e-8),
             "sigma2": ParityTolerance(rtol=1e-6, atol=1e-8),
+            # numerical_floor: same cross-stack OLS post-processing floor.
             "t": ParityTolerance(rtol=1e-6, atol=1e-8),
             "p": ParityTolerance(rtol=1e-6, atol=1e-8),
         },

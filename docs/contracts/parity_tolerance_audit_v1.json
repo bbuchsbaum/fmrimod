@@ -1,12 +1,12 @@
 {
   "counts": {
     "by_classification": {
-      "baseline_default": 113,
-      "justified": 0,
+      "baseline_default": 106,
+      "justified": 18,
       "unclassified": 8,
-      "unjustified": 26
+      "unjustified": 15
     },
-    "files_scanned": 76,
+    "files_scanned": 78,
     "total_call_sites": 147
   },
   "rows": [
@@ -537,7 +537,7 @@
       "context_marker_found": false,
       "file": "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py",
       "kwarg": "atol",
-      "lineno": 364,
+      "lineno": 366,
       "value": 0.0,
       "value_repr": "0.0"
     },
@@ -546,7 +546,7 @@
       "context_marker_found": false,
       "file": "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py",
       "kwarg": "rtol",
-      "lineno": 364,
+      "lineno": 366,
       "value": 0.0,
       "value_repr": "0.0"
     },
@@ -555,7 +555,7 @@
       "context_marker_found": false,
       "file": "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py",
       "kwarg": "atol",
-      "lineno": 365,
+      "lineno": 367,
       "value": 1e-09,
       "value_repr": "1e-09"
     },
@@ -564,7 +564,7 @@
       "context_marker_found": false,
       "file": "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py",
       "kwarg": "rtol",
-      "lineno": 365,
+      "lineno": 367,
       "value": 1e-08,
       "value_repr": "1e-08"
     },
@@ -573,7 +573,7 @@
       "context_marker_found": false,
       "file": "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py",
       "kwarg": "atol",
-      "lineno": 387,
+      "lineno": 389,
       "value": 0.0,
       "value_repr": "0.0"
     },
@@ -582,7 +582,7 @@
       "context_marker_found": false,
       "file": "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py",
       "kwarg": "rtol",
-      "lineno": 387,
+      "lineno": 389,
       "value": 0.0,
       "value_repr": "0.0"
     },
@@ -947,44 +947,8 @@
       "value_repr": "1e-07"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
-      "file": "benchmarks/parity/tier_c_second_level/workflow.py",
-      "kwarg": "atol",
-      "lineno": 156,
-      "value": 1e-06,
-      "value_repr": "1e-06"
-    },
-    {
-      "classification": "unjustified",
-      "context_marker_found": false,
-      "file": "benchmarks/parity/tier_c_second_level/workflow.py",
-      "kwarg": "rtol",
-      "lineno": 156,
-      "value": 1e-06,
-      "value_repr": "1e-06"
-    },
-    {
-      "classification": "baseline_default",
-      "context_marker_found": false,
-      "file": "benchmarks/parity/tier_c_second_level/workflow.py",
-      "kwarg": "atol",
-      "lineno": 157,
-      "value": 1e-08,
-      "value_repr": "1e-08"
-    },
-    {
-      "classification": "baseline_default",
-      "context_marker_found": false,
-      "file": "benchmarks/parity/tier_c_second_level/workflow.py",
-      "kwarg": "rtol",
-      "lineno": 157,
-      "value": 1e-07,
-      "value_repr": "1e-07"
-    },
-    {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "benchmarks/parity/tier_c_second_level/workflow.py",
       "kwarg": "atol",
       "lineno": 158,
@@ -992,8 +956,8 @@
       "value_repr": "1e-06"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "benchmarks/parity/tier_c_second_level/workflow.py",
       "kwarg": "rtol",
       "lineno": 158,
@@ -1001,38 +965,74 @@
       "value_repr": "1e-06"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "benchmarks/parity/tier_c_second_level/workflow.py",
       "kwarg": "atol",
       "lineno": 159,
+      "value": 1e-08,
+      "value_repr": "1e-08"
+    },
+    {
+      "classification": "justified",
+      "context_marker_found": true,
+      "file": "benchmarks/parity/tier_c_second_level/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 159,
+      "value": 1e-07,
+      "value_repr": "1e-07"
+    },
+    {
+      "classification": "justified",
+      "context_marker_found": true,
+      "file": "benchmarks/parity/tier_c_second_level/workflow.py",
+      "kwarg": "atol",
+      "lineno": 162,
+      "value": 1e-06,
+      "value_repr": "1e-06"
+    },
+    {
+      "classification": "justified",
+      "context_marker_found": true,
+      "file": "benchmarks/parity/tier_c_second_level/workflow.py",
+      "kwarg": "rtol",
+      "lineno": 162,
+      "value": 1e-06,
+      "value_repr": "1e-06"
+    },
+    {
+      "classification": "justified",
+      "context_marker_found": true,
+      "file": "benchmarks/parity/tier_c_second_level/workflow.py",
+      "kwarg": "atol",
+      "lineno": 166,
       "value": 2e-08,
       "value_repr": "2e-08"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "benchmarks/parity/tier_c_second_level/workflow.py",
       "kwarg": "rtol",
-      "lineno": 159,
+      "lineno": 166,
       "value": 2e-05,
       "value_repr": "2e-05"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "benchmarks/parity/tier_e_adversarial_gauntlet/workflow.py",
       "kwarg": "rtol",
-      "lineno": 430,
+      "lineno": 432,
       "value": 1e-10,
       "value_repr": "1e-10"
     },
     {
-      "classification": "baseline_default",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "benchmarks/parity/tier_e_adversarial_gauntlet/workflow.py",
       "kwarg": "atol",
-      "lineno": 431,
+      "lineno": 433,
       "value": 1e-12,
       "value_repr": "1e-12"
     },
@@ -1127,74 +1127,74 @@
       "value_repr": "1e-08"
     },
     {
-      "classification": "baseline_default",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_parity_harness_canary.py",
       "kwarg": "atol",
-      "lineno": 38,
+      "lineno": 45,
       "value": 1e-08,
       "value_repr": "1e-08"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_parity_harness_canary.py",
       "kwarg": "rtol",
-      "lineno": 38,
+      "lineno": 45,
       "value": 1e-06,
       "value_repr": "1e-06"
     },
     {
-      "classification": "baseline_default",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_parity_harness_canary.py",
       "kwarg": "atol",
-      "lineno": 39,
+      "lineno": 46,
       "value": 1e-08,
       "value_repr": "1e-08"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_parity_harness_canary.py",
       "kwarg": "rtol",
-      "lineno": 39,
+      "lineno": 46,
       "value": 1e-06,
       "value_repr": "1e-06"
     },
     {
-      "classification": "baseline_default",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_parity_harness_canary.py",
       "kwarg": "atol",
-      "lineno": 40,
+      "lineno": 48,
       "value": 1e-08,
       "value_repr": "1e-08"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_parity_harness_canary.py",
       "kwarg": "rtol",
-      "lineno": 40,
+      "lineno": 48,
       "value": 1e-06,
       "value_repr": "1e-06"
     },
     {
-      "classification": "baseline_default",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_parity_harness_canary.py",
       "kwarg": "atol",
-      "lineno": 41,
+      "lineno": 49,
       "value": 1e-08,
       "value_repr": "1e-08"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_parity_harness_canary.py",
       "kwarg": "rtol",
-      "lineno": 41,
+      "lineno": 49,
       "value": 1e-06,
       "value_repr": "1e-06"
     },

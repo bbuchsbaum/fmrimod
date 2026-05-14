@@ -427,6 +427,8 @@ def _case_status(
             and np.isclose(
                 comparisons["stat_scale_ratio_median"],
                 comparisons["expected_stat_scale_ratio_from_dof"],
+                # numerical_floor: this compares two derived scale ratios in a
+                # deliberately ill-conditioned rank-deficient fixture.
                 rtol=1e-10,
                 atol=1e-12,
             )
