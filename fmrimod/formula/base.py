@@ -15,16 +15,16 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 import pandas as pd
 
+from ..base import BaseEvent, CacheMixin
 from ..types import (
     Array,
     BasisProtocol,
     EventProtocol,
     HRFProtocol,
     ModelProtocol,
-    validate_onsets,
     validate_durations,
+    validate_onsets,
 )
-from ..base import BaseEvent, CacheMixin
 
 
 @dataclass

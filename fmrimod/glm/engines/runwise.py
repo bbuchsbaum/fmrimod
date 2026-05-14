@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from ...model.config import FmriLmConfig
 from ..engine import EngineResult, register_engine
 from ..strategies import fit_runwise
-from ...model.config import FmriLmConfig
 
 
 @register_engine

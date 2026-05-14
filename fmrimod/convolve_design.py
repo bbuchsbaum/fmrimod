@@ -9,13 +9,14 @@ to apply (or re-apply) HRF convolution as a post-processing step.
 
 from __future__ import annotations
 
-from typing import Optional, Union, List, Dict, Any
+from typing import Any, Dict, List, Optional, Union
+
 import numpy as np
 import pandas as pd
 
-from .types import Array
-from .dispatch import get_hrf
 from .design.event_model import EventModel
+from .dispatch import get_hrf
+from .types import Array
 
 
 def convolve_design(

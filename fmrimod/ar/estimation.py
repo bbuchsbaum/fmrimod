@@ -218,7 +218,7 @@ def estimate_ar_bic(
     dict
         ``{"phi": NDArray, "order": (p, 0)}``
     """
-    from .numhelpers import levinson_durbin, enforce_stationary_ar
+    from .numhelpers import enforce_stationary_ar, levinson_durbin
 
     y = np.asarray(y, dtype=np.float64).ravel()
     y = y - y.mean()
@@ -433,11 +433,11 @@ def fit_noise(
         parcels = np.asarray(parcels, dtype=np.intp)
 
         from .multiscale import (
-            parcel_means,
-            ms_estimate_scale,
             ms_combine_to_fine,
             ms_dispersion,
+            ms_estimate_scale,
             ms_parent_maps,
+            parcel_means,
         )
 
         target = p_max if p_target is None else min(int(p_target), p_max)

@@ -5,16 +5,15 @@ from __future__ import annotations
 from typing import Callable, Sequence, Union
 
 import numpy as np
-from numpy.typing import NDArray
 import pandas as pd
+from numpy.typing import NDArray
 
+from ..dataset import FmriDataset
+from ..dataset.adapters import NumpyAdapter
 from ..hrf.core import HRF
 from ..regressor import regressor
-from ..dataset.adapters import NumpyAdapter
-from ..dataset import FmriDataset
 from ..sampling import SamplingFrame
 from .noise import ar_noise
-
 
 HrfSpec = Union[HRF, Callable[..., NDArray[np.float64]], str]
 """Accepted HRF specifier for the simulate-compat constructors:

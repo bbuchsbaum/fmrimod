@@ -12,7 +12,6 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.linalg import solve_toeplitz
 
-
 # ---------------------------------------------------------------------------
 # PACF <-> AR conversion (Durbin-Levinson recursion)
 # ---------------------------------------------------------------------------

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional, Sequence, Union
 
 import numpy as np
 from numpy.typing import ArrayLike

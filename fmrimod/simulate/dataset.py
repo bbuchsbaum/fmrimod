@@ -8,9 +8,8 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ..hrf.core import HRF
-from ..sampling import SamplingFrame
 from ..regressor import regressor
-
+from ..sampling import SamplingFrame
 
 HrfSpec = Union[HRF, Callable[..., NDArray[np.float64]], str]
 """Accepted HRF specifier: typed HRF, registry key, or callable."""

@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from functools import singledispatch
 from pathlib import Path
-from typing import Dict, List, Optional, Union, Any
+from typing import Any, Dict, List, Optional, Union
+
 import numpy as np
 
 

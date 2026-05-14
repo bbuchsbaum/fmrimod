@@ -5,12 +5,12 @@ from __future__ import annotations
 import ctypes
 import hashlib
 import os
-from pathlib import Path
 import shlex
 import subprocess
 import sys
 import sysconfig
 import tempfile
+from pathlib import Path
 from typing import Optional
 
 import numpy as np

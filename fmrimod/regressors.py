@@ -6,14 +6,15 @@ and design matrices.
 
 from __future__ import annotations
 
-from typing import Optional, Union, List, Dict, Any, Pattern
 import re
+from typing import Any, Dict, List, Optional, Pattern, Union
+
 import numpy as np
 import pandas as pd
 
-from .types import Array
-from .design.event_model import EventModel
 from ._warnings import suppress_fmrimod_warnings
+from .design.event_model import EventModel
+from .types import Array
 
 
 def regressors(
@@ -317,8 +318,8 @@ def _regressors_event_term(event_term, hrf=None, sampling_frame=None, precision=
 
     try:
         with suppress_fmrimod_warnings():
-            from .hrf import library as _hrf_library
             from . import regressor as _regressor_module
+            from .hrf import library as _hrf_library
     except ImportError as err:
         raise ImportError(
             "fmrimod HRF library is required for EventTerm regressor convolution"

@@ -14,7 +14,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy import stats as sp_stats
 
-from .solver import fast_preproject, fast_lm_matrix
+from .solver import fast_lm_matrix, fast_preproject
 
 
 class BootstrapMethod(str, Enum):

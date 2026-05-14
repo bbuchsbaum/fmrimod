@@ -7,9 +7,10 @@ or directly on design matrix columns.
 
 from __future__ import annotations
 
-from typing import Callable, Mapping, Optional, Union, List, Dict, Any, Literal
-from itertools import combinations
 import warnings
+from itertools import combinations
+from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Union
+
 
 # Simple placeholder for Formula type
 class Formula:

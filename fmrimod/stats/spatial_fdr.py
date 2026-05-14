@@ -16,9 +16,9 @@ Storey, J. D. (2002). A direct approach to false discovery rates.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from typing import Optional, Sequence
-import warnings
 
 import numpy as np
 from numpy.typing import NDArray

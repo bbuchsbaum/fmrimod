@@ -8,18 +8,17 @@ Initial parity slice for ``fmrireg::fmri_meta``:
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from typing import Literal, Optional
-import warnings
 
 import numpy as np
 from numpy.typing import NDArray
 from patsy import dmatrix
-from scipy import stats as sp_stats
 from scipy import optimize as sp_opt
+from scipy import stats as sp_stats
 
 from ..dataset.group_data import GroupData
-
 
 MetaMethod = Literal["fe", "pm", "dl", "reml"]
 MetaRobust = Literal["none", "huber", "t"]

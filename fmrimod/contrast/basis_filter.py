@@ -4,10 +4,11 @@ Allows contrasts to target specific basis functions when using multi-basis
 HRFs (e.g., select only the canonical HRF, not temporal/dispersion derivatives).
 """
 
-from typing import List, Optional, Union, Dict, Any
 import re
-import numpy as np
 import warnings
+from typing import Any, Dict, List, Optional, Union
+
+import numpy as np
 
 
 def filter_basis(

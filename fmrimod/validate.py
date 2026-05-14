@@ -1,7 +1,8 @@
 """Contrast validation and collinearity checking."""
+from functools import singledispatch
+
 import numpy as np
 import pandas as pd
-from functools import singledispatch
 
 
 def validate_contrasts(x, weights=None, tol=1e-8):

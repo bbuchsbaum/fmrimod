@@ -21,8 +21,8 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
-from ..types import FormulaContext
 from ..formula.base import Term
+from ..types import FormulaContext
 
 
 @dataclass

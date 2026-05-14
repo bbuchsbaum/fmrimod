@@ -1,7 +1,7 @@
 """Robust regression for fMRI data via IRLS."""
 
+from .estimators import bisquare_weights, huber_weights, mad_scale
 from .irls import robust_refit
-from .estimators import huber_weights, bisquare_weights, mad_scale
 
 __all__ = [
     "robust_refit",

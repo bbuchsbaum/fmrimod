@@ -1,14 +1,14 @@
 """Model specification for fMRI GLM analysis."""
 
-from .fmri_model import FmriModel, create_fmri_model
 from .config import (
+    AROptions,
     FmriLmConfig,
     RobustOptions,
-    AROptions,
-    VolumeWeightOptions,
     SoftSubspaceOptions,
+    VolumeWeightOptions,
     soft_subspace_options,
 )
+from .fmri_model import FmriModel, create_fmri_model
 
 __all__ = [
     "FmriModel",

@@ -20,8 +20,8 @@ from __future__ import annotations
 
 from typing import Any, List, Union
 
-from .base import Term, term
 from ..types import BasisProtocol, HRFProtocol
+from .base import Term, term
 
 
 class EventVar:

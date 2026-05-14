@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Union, TYPE_CHECKING
-import numpy as np
-from functools import reduce, singledispatch
 import itertools
+from functools import reduce, singledispatch
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
-from ..types import Array, ModelProtocol, EventProtocol
+import numpy as np
+
+from ..design.event_model import EventModel
 
 # Need actual imports for singledispatch registration
 from ..events.factor import EventFactor
+from ..events.term import EventTerm
 from ..events.variable import EventVariable
-from ..events.term import EventTerm  
-from ..design.event_model import EventModel
+from ..types import Array, EventProtocol, ModelProtocol
 
 
 @singledispatch

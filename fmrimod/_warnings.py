@@ -5,7 +5,6 @@ from __future__ import annotations
 import warnings
 from contextlib import contextmanager
 
-
 SCIPY_MISC_DEPRECATION = "scipy.misc is deprecated and will be removed in 2.0.0"
 PYFMRIHRF_PARAM_WARNING = "Parameters .* ignored for pre-defined HRF .*"
 PYARROW_DEPRECATION = "Pyarrow will become a required dependency of pandas"

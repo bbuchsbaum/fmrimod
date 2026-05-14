@@ -24,49 +24,54 @@ This module provides multiple interfaces for specifying event models:
 """
 
 # Core classes
-from .base import (
-    Term,
-    EventModelBuilder,
-    term as base_term,
-    interaction,
-)
-
-# String formula parsing
-from .parser import (
-    Formula,
-    FormulaTerm,
-    FormulaParser,
-    FormulaEvaluator,
-    parse_formula,
-)
-
 # Re-export FormulaContext from types
 from ..types import FormulaContext
+from .base import (
+    EventModelBuilder,
+    Term,
+    interaction,
+)
+from .base import (
+    term as base_term,
+)
 
 # DSL with operators
 from .dsl import (
-    EventVar,
-    EventExpr,
-    Transform,
-    HRFTransform,
     BasisTransform,
     ChainedTransform,
+    EventExpr,
+    EventVar,
+    HRFTransform,
+    Transform,
     event,
-    hrf as dsl_hrf,
+)
+from .dsl import (
     basis as dsl_basis,
+)
+from .dsl import (
+    hrf as dsl_hrf,
 )
 
 # Functional interface
 from .functional import (
     PipeTerm,
-    term,
-    hrf,
     basis,
-    poly,
-    spline,
-    scale,
-    name,
     compose,
+    hrf,
+    name,
+    poly,
+    scale,
+    spline,
+    term,
+)
+
+# String formula parsing
+from .parser import (
+    Formula,
+    FormulaEvaluator,
+    FormulaParser,
+    FormulaTerm,
+    parse_formula,
 )
 
 __all__ = [

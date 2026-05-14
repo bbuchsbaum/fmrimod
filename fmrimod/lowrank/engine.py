@@ -13,14 +13,14 @@ from typing import Optional
 import numpy as np
 from numpy.typing import NDArray
 
-from ..glm.solver import Projection, fast_preproject, fast_lm_matrix, LmResult
-from .sketch import SketchKind, make_sketch, sketch_data
+from ..glm.solver import LmResult, Projection, fast_lm_matrix, fast_preproject
 from .nystrom import (
     LandmarkWeights,
     build_landmark_weights,
     extend_betas,
     select_landmarks,
 )
+from .sketch import SketchKind, make_sketch, sketch_data
 
 
 @dataclass

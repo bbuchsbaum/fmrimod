@@ -1,10 +1,11 @@
 """Visualization functions for contrasts."""
 
-from typing import Dict, Optional, List, Tuple, Union
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
 from functools import singledispatch
+from typing import Dict, List, Optional, Tuple, Union
+
+import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
+import numpy as np
 
 from ..types import Array, ModelProtocol
 

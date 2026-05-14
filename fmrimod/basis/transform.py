@@ -3,8 +3,8 @@
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
-from numpy.typing import ArrayLike
 import pandas as pd
+from numpy.typing import ArrayLike
 
 from ..types import Array
 from .base import ParametricBasis

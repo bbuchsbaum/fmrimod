@@ -1,7 +1,8 @@
 """Residualization methods using QR decomposition."""
+from functools import singledispatch
+
 import numpy as np
 import pandas as pd
-from functools import singledispatch
 
 
 @singledispatch

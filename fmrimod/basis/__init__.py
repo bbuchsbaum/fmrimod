@@ -9,10 +9,10 @@ continuous variables in fMRI design matrices:
 """
 
 from .base import ParametricBasis
-from .polynomial import Poly, NaturalPoly
+from .polynomial import NaturalPoly, Poly
 from .spline import BSpline, NaturalSpline
-from .transform import Scale, ScaleWithin, RobustScale, Ident, Standardized
 from .sub_basis import SubBasis, sub_basis
+from .transform import Ident, RobustScale, Scale, ScaleWithin, Standardized
 
 __all__ = [
     "ParametricBasis",

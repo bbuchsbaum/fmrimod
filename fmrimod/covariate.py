@@ -13,14 +13,14 @@ values are wrapped in :class:`CovariateEvent` objects.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 
-from .types import Array
-from .formula.base import Term
 from .base import BaseEvent
+from .formula.base import Term
+from .types import Array
 
 if TYPE_CHECKING:
     from .design.event_model import EventModel

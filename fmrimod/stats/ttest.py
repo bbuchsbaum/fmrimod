@@ -12,7 +12,6 @@ from scipy import stats as sp_stats
 from ..dataset.group_data import GroupData
 from .meta import fmri_meta
 
-
 TTestEngine = Literal["auto", "meta", "classic", "welch"]
 
 

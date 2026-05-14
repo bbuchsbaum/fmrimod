@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import shutil
 import tempfile
+from pathlib import Path
 from typing import Optional, Sequence
 
 import numpy as np

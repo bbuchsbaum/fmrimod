@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from typing import Union
+
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from .core import HRF
 from ..sampling import SamplingFrame
+from .core import HRF
 
 
 def reconstruction_matrix(

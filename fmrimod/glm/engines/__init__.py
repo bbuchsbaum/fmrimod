@@ -4,8 +4,8 @@ Engines are auto-registered when this subpackage is imported. The import
 is triggered lazily from ``fmrimod.glm.engine`` on first engine lookup.
 """
 
+from .chunkwise import ChunkwiseEngine
 from .runwise import RunwiseEngine
 from .sketch import SketchEngine
-from .chunkwise import ChunkwiseEngine
 
 __all__ = ["RunwiseEngine", "SketchEngine", "ChunkwiseEngine"]

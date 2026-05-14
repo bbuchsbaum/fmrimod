@@ -32,41 +32,33 @@ bids : BIDS-Stats-Model export
 __version__ = "0.1.0"
 
 # ── Core classes ──────────────────────────────────────────────────────
-from .hrf.core import HRF
-from .hrf_dispatch import as_hrf
-from .sampling import SamplingFrame
-from .regressor import regressor, regressor_set, null_regressor
+# Force-load the callable stats subpackage so `fmrimod.stats` is bound to
+# the `_CallableStatsModule` instance regardless of test/import order. The
+# subpackage's __init__ installs the callable protocol on itself; without
+# this eager import, `fmrimod.stats` would briefly resolve to the accessor
+# function (via __getattr__) and then be silently overwritten the first
+# time anything does `from fmrimod.stats import ...`.
+from . import stats as stats  # noqa: F401  (eager binding, used via attribute)
+from .contrast import (
+    column_contrast as column_contrast,
+)
+from .contrast import (
+    contrast_set as contrast_set,
+)
+from .contrast import (
+    interaction_contrast as interaction_contrast,
+)
+from .contrast import (
+    one_against_all_contrast as one_against_all_contrast,
+)
+from .contrast import (
+    oneway_contrast as oneway_contrast,
+)
 
-# ── Typed Spec / Term tree (bd-01KRFMD3CXMEMHZXBKP9T0EAK6) ─────────────
-# Bind the spec builders at the top level. The submodule ``fmrimod.hrf``
-# remains importable via the Python import system (``from fmrimod.hrf import
-# HRF_SPMG1``); only attribute access on the top-level ``fmrimod`` package
-# resolves to the spec builder.
-from .spec import (
-    Spec,
-    Term,
-    HrfTerm,
-    Drift,
-    Intercept,
-    Confounds,
-    FieldDiff,
-    SpecDiff,
-    SpecSerializationError,
-    TermDiff,
-    as_spec,
-    is_spec,
-    spec_diff,
-)
-from .spec.builders import (
-    drift as drift,
-    intercept as intercept,
-    confounds as confounds,
-)
 # Note: ``hrf`` and ``trialwise`` are intentionally NOT bound at top level —
 # the existing ``fmrimod/hrf/`` and ``fmrimod/trialwise.py`` submodules own
 # those attribute slots. Use ``from fmrimod.spec import hrf, trialwise`` to
 # get the Spec-tree builders.
-
 # ── Contrast taxonomy (bd-01KRFMD3F66TENJMP6BQYE32HC) ──────────────────
 # Re-export the existing constructors so users don't have to dig under
 # ``fmrimod.contrast``. The ``contrast`` *function* shadows the
@@ -76,52 +68,94 @@ from .spec.builders import (
 # tests/test_contrast/test_polymorphic_predicates.py.
 from .contrast import (
     pair_contrast as pair_contrast,
-    unit_contrast as unit_contrast,
-    oneway_contrast as oneway_contrast,
-    interaction_contrast as interaction_contrast,
-    poly_contrast as poly_contrast,
-    column_contrast as column_contrast,
-    contrast_set as contrast_set,
+)
+from .contrast import (
     pairwise_contrasts as pairwise_contrasts,
-    one_against_all_contrast as one_against_all_contrast,
+)
+from .contrast import (
+    poly_contrast as poly_contrast,
+)
+from .contrast import (
     sliding_window_contrasts as sliding_window_contrasts,
 )
-from .contrast.contrast_spec import contrast as contrast
-
-# ── Pre-defined HRFs (most commonly used) ────────────────────────────
-from .hrf.library import (
-    SPM_CANONICAL, SPM_WITH_DERIVATIVE, SPM_WITH_DISPERSION,
-    # R-parity aliases — match the fmrihrf constant names for ported code
-    HRF_SPMG1, HRF_SPMG2, HRF_SPMG3,
-    HRF_GAMMA, HRF_GAUSSIAN, HRF_BSPLINE, HRF_FIR, HRF_FOURIER,
-    HRF_TIME, HRF_MEXHAT, HRF_INV_LOGIT, HRF_HALF_COSINE, HRF_SINE,
-    HRF_LWU, HRF_LWU_BASIS,
+from .contrast import (
+    unit_contrast as unit_contrast,
 )
-from .hrf.functions import spm_canonical, gamma_hrf, gaussian_hrf
-from .hrf.registry import get_hrf, list_available_hrfs
-
-# Force-load the callable stats subpackage so `fmrimod.stats` is bound to
-# the `_CallableStatsModule` instance regardless of test/import order. The
-# subpackage's __init__ installs the callable protocol on itself; without
-# this eager import, `fmrimod.stats` would briefly resolve to the accessor
-# function (via __getattr__) and then be silently overwritten the first
-# time anything does `from fmrimod.stats import ...`.
-from . import stats as stats  # noqa: F401  (eager binding, used via attribute)
+from .contrast.contrast_spec import contrast as contrast
+from .hrf.core import HRF
+from .hrf.decorators import block_hrf, hrf_blocked, hrf_lagged, lag_hrf
+from .hrf.empirical import gen_empirical_hrf
+from .hrf.functions import gamma_hrf, gaussian_hrf, spm_canonical
 
 # ── HRF generators ───────────────────────────────────────────────────
 from .hrf.generators import (
     gen_hrf,
     gen_hrf_set,
-    hrf_set,
     hrf_bspline_generator,
+    hrf_daguerre_generator,
     hrf_fir_generator,
     hrf_fourier_generator,
-    hrf_daguerre_generator,
+    hrf_set,
     hrf_tent_generator,
 )
-from .hrf.decorators import lag_hrf, block_hrf, hrf_lagged, hrf_blocked
-from .hrf.empirical import gen_empirical_hrf
 from .hrf.hrf_library import gen_hrf_library
+
+# ── Pre-defined HRFs (most commonly used) ────────────────────────────
+from .hrf.library import (
+    HRF_BSPLINE,
+    HRF_FIR,
+    HRF_FOURIER,
+    HRF_GAMMA,
+    HRF_GAUSSIAN,
+    HRF_HALF_COSINE,
+    HRF_INV_LOGIT,
+    HRF_LWU,
+    HRF_LWU_BASIS,
+    HRF_MEXHAT,
+    HRF_SINE,
+    # R-parity aliases — match the fmrihrf constant names for ported code
+    HRF_SPMG1,
+    HRF_SPMG2,
+    HRF_SPMG3,
+    HRF_TIME,
+    SPM_CANONICAL,
+    SPM_WITH_DERIVATIVE,
+    SPM_WITH_DISPERSION,
+)
+from .hrf.registry import get_hrf, list_available_hrfs
+from .hrf_dispatch import as_hrf
+from .regressor import null_regressor, regressor, regressor_set
+from .sampling import SamplingFrame
+
+# ── Typed Spec / Term tree (bd-01KRFMD3CXMEMHZXBKP9T0EAK6) ─────────────
+# Bind the spec builders at the top level. The submodule ``fmrimod.hrf``
+# remains importable via the Python import system (``from fmrimod.hrf import
+# HRF_SPMG1``); only attribute access on the top-level ``fmrimod`` package
+# resolves to the spec builder.
+from .spec import (
+    Confounds,
+    Drift,
+    FieldDiff,
+    HrfTerm,
+    Intercept,
+    Spec,
+    SpecDiff,
+    SpecSerializationError,
+    Term,
+    TermDiff,
+    as_spec,
+    is_spec,
+    spec_diff,
+)
+from .spec.builders import (
+    confounds as confounds,
+)
+from .spec.builders import (
+    drift as drift,
+)
+from .spec.builders import (
+    intercept as intercept,
+)
 
 # ── Design (lazy imports to avoid circular dependencies) ─────────────
 # ── Baseline ─────────────────────────────────────────────────────────
@@ -180,18 +214,14 @@ def matrix_dataset(
 
 
 # ── Basis functions ──────────────────────────────────────────────────
-from .basis.polynomial import Poly
-from .basis.transform import Scale, RobustScale
-from .condition_basis import condition_basis_list
-
-
-# ── AR/ARMA noise whitening (fmriAR parity API) ────────────────────
-
-
-from .ar import compat
-
 # ── Formula functions (lazy to avoid shadowing hrf subpackage) ───────
 from functools import partial as _partial
+
+# ── AR/ARMA noise whitening (fmriAR parity API) ────────────────────
+from .ar import compat
+from .basis.polynomial import Poly
+from .basis.transform import RobustScale, Scale
+from .condition_basis import condition_basis_list
 
 
 def hrf_formula(*args, **kwargs):

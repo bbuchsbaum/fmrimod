@@ -4,9 +4,9 @@ Allows external packages to register custom HRF spec types that integrate
 with the fmrimod formula and convolution pipeline.
 """
 
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-from dataclasses import dataclass, field
 
 
 @dataclass
