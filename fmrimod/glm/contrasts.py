@@ -11,13 +11,16 @@ import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy import special as sp_special
 
 from fmrimod.glm.spatial import SpatialContext
+
+if TYPE_CHECKING:
+    import neuroim
 
 
 def weights_payload(
@@ -123,7 +126,7 @@ class ContrastIntent:
     design_id: str | None = None
     provenance_id: str | None = None
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, object]:
         """Return a JSON-ready representation of the contrast intent."""
         return {
             "kind": self.kind,
@@ -193,13 +196,13 @@ class ContrastExplanation:
     """Structured explanation for a fitted contrast result."""
 
     name: str
-    intent: dict[str, Any]
+    intent: dict[str, object]
     touched_columns: tuple[str, ...]
-    statistic: dict[str, Any]
-    design_columns: tuple[dict[str, Any], ...] = ()
+    statistic: dict[str, object]
+    design_columns: tuple[dict[str, object], ...] = ()
     caveats: tuple[str, ...] = ()
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, object]:
         """Return a JSON-ready explanation dictionary."""
         return {
             "name": self.name,
@@ -350,12 +353,12 @@ class ContrastResult:
     stat: NDArray[np.float64]
     se: NDArray[np.float64] | None
     p_value: NDArray[np.float64]
-    df: float | tuple[Any, ...]
+    df: float | tuple[object, ...]
     stat_type: str
     spatial: SpatialContext | None = None
-    intent: ContrastIntent | dict[str, Any] | None = None
+    intent: ContrastIntent | dict[str, object] | None = None
     touched_columns: tuple[str, ...] = ()
-    touched_column_details: tuple[dict[str, Any], ...] = ()
+    touched_column_details: tuple[dict[str, object], ...] = ()
     caveats: tuple[str, ...] = ()
 
     # -- Explanation --
@@ -363,7 +366,7 @@ class ContrastResult:
     def explain(self) -> ContrastExplanation:
         """Return structured explanation data for this contrast result."""
         intent = self._intent_dict()
-        statistic: dict[str, Any] = {
+        statistic: dict[str, object] = {
             "family": self.stat_type,
             "n_voxels": int(np.asarray(self.stat).size),
         }
@@ -392,11 +395,11 @@ class ContrastResult:
             caveats=tuple(self.caveats),
         )
 
-    def summary(self) -> dict[str, Any]:
+    def summary(self) -> dict[str, object]:
         """Return a JSON-ready structured summary of this contrast."""
         return self.explain().to_dict()
 
-    def _intent_dict(self) -> dict[str, Any]:
+    def _intent_dict(self) -> dict[str, object]:
         """Normalize stored intent metadata for public explanation output."""
         if isinstance(self.intent, ContrastIntent):
             return self.intent.to_dict()
@@ -455,7 +458,7 @@ class ContrastResult:
         *,
         fill: float = 0.0,
         label: str | None = None,
-    ) -> Any:
+    ) -> neuroim.DenseNeuroVol:
         """Return a ``neuroim.DenseNeuroVol`` for one statistic.
 
         Parameters
@@ -478,7 +481,7 @@ class ContrastResult:
         kinds: Sequence[str] | None = None,
         *,
         fill: float = 0.0,
-    ) -> Any:
+    ) -> neuroim.DenseNeuroVec:
         """Return a ``neuroim.DenseNeuroVec`` stacking multiple statistics.
 
         Parameters
