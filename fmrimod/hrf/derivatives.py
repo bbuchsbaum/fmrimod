@@ -2,12 +2,41 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Protocol, runtime_checkable
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from .core import HRF
+
+
+@runtime_checkable
+class HasAnalyticDerivative(Protocol):
+    """HRFs that provide a closed-form first derivative.
+
+    Concrete HRF kinds implement ``_derivative(t)`` when an analytic
+    form exists (e.g., the SPM canonical family). The ``deriv``
+    function checks for this protocol via ``isinstance`` rather than
+    ``hasattr`` so static type-checkers see the contract and accidental
+    attribute collisions on unrelated objects cannot route to the
+    analytic branch.
+    """
+
+    def _derivative(self, t: ArrayLike) -> NDArray[np.float64]:
+        ...
+
+
+@runtime_checkable
+class HasAnalyticSecondDerivative(Protocol):
+    """HRFs that provide a closed-form second derivative.
+
+    Parallel to :class:`HasAnalyticDerivative`. No fmrimod-shipped HRF
+    currently implements this; the protocol is the extension seam for
+    custom HRFs.
+    """
+
+    def _second_derivative(self, t: ArrayLike) -> NDArray[np.float64]:
+        ...
 
 
 def _finite_difference_derivative(func, x0, dx=1e-4, n=1):
@@ -63,7 +92,7 @@ def deriv(hrf: HRF, t: ArrayLike, method: Literal["auto", "numeric", "analytic"]
     """
     t = np.asarray(t, dtype=np.float64)
 
-    has_analytic = hasattr(hrf, '_derivative')
+    has_analytic = isinstance(hrf, HasAnalyticDerivative)
 
     if method == "analytic" and not has_analytic:
         raise ValueError(f"HRF '{hrf.name}' does not have an analytic derivative")
@@ -72,15 +101,14 @@ def deriv(hrf: HRF, t: ArrayLike, method: Literal["auto", "numeric", "analytic"]
         method = "analytic" if has_analytic else "numeric"
 
     if method == "analytic":
+        assert isinstance(hrf, HasAnalyticDerivative)
         if order == 1:
             return hrf._derivative(t)
-        elif order == 2 and hasattr(hrf, '_second_derivative'):
+        if order == 2 and isinstance(hrf, HasAnalyticSecondDerivative):
             return hrf._second_derivative(t)
-        else:
-            # Fall back to numeric for higher orders
-            return _numeric_derivative(hrf, t, order=order)
-    else:
+        # Fall back to numeric for higher orders
         return _numeric_derivative(hrf, t, order=order)
+    return _numeric_derivative(hrf, t, order=order)
 
 
 def _numeric_derivative(hrf: HRF, t: ArrayLike, order: int = 1) -> NDArray[np.float64]:
