@@ -21,8 +21,8 @@ class FmriSeries:
         data: NDArray[np.floating[Any]],
         voxel_info: pd.DataFrame,
         temporal_info: pd.DataFrame,
-        selection_info: dict[str, Any] | None = None,
-        dataset_info: dict[str, Any] | None = None,
+        selection_info: dict[str, object] | None = None,
+        dataset_info: dict[str, object] | None = None,
     ) -> None:
         self._data = np.asarray(data)
         self._voxel_info = voxel_info
@@ -56,11 +56,11 @@ class FmriSeries:
         return self._temporal_info
 
     @property
-    def selection_info(self) -> dict[str, Any]:
+    def selection_info(self) -> dict[str, object]:
         return self._selection_info
 
     @property
-    def dataset_info(self) -> dict[str, Any]:
+    def dataset_info(self) -> dict[str, object]:
         return self._dataset_info
 
     @property
@@ -101,8 +101,8 @@ def new_fmri_series(
     data: NDArray[np.floating[Any]],
     voxel_info: pd.DataFrame,
     temporal_info: pd.DataFrame,
-    selection_info: dict[str, Any] | None = None,
-    dataset_info: dict[str, Any] | None = None,
+    selection_info: dict[str, object] | None = None,
+    dataset_info: dict[str, object] | None = None,
 ) -> FmriSeries:
     """Construct an :class:`FmriSeries` from explicit components."""
     return FmriSeries(data, voxel_info, temporal_info, selection_info, dataset_info)
@@ -170,7 +170,7 @@ def fmri_series(
     selector: SeriesSelector | NDArray[np.intp] | NDArray[np.bool_] | None = None,
     timepoints: NDArray[np.intp] | NDArray[np.bool_] | None = None,
     output: str = "fmri_series",
-    event_window: Any | None = None,
+    event_window: object | None = None,
 ) -> FmriSeries | NDArray[np.floating[Any]]:
     """Query fMRI time-series from a canonical dataset."""
     del event_window
@@ -200,7 +200,7 @@ def series(
     selector: SeriesSelector | NDArray[np.intp] | NDArray[np.bool_] | None = None,
     timepoints: NDArray[np.intp] | NDArray[np.bool_] | None = None,
     output: str = "fmri_series",
-    event_window: Any | None = None,
+    event_window: object | None = None,
 ) -> FmriSeries | NDArray[np.floating[Any]]:
     """Compatibility alias for :func:`fmri_series`."""
     warnings.warn(
