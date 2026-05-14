@@ -70,7 +70,14 @@ def test_release_receipt_is_currently_blocked_by_named_red_checks() -> None:
         if blocker.startswith("tier_b_fitlins_bids:")
     ]
     assert tier_b_blockers == []
-    assert "tier_d_lss_trialwise: numerical_canary cannot be flagship proof" in blockers
+    # Tier D LSS trialwise retired its numerical_canary blocker in
+    # bd-01KRKAEDBE9BV5HZ5SY0A3ZAA5: the release row now points at the
+    # public-seam ``estimate_single_trial_from_dataset`` showcase row;
+    # the matrix oracle survives under id ``tier_d_lss_trialwise_oracle``.
+    assert (
+        "tier_d_lss_trialwise: numerical_canary cannot be flagship proof"
+        not in blockers
+    )
     assert "api spine " not in blockers
 
 

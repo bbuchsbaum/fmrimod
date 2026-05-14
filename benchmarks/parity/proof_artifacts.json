@@ -703,7 +703,7 @@
       }
     },
     {
-      "benchmark_id": "tier_d_lss_trialwise",
+      "benchmark_id": "tier_d_lss_trialwise_oracle",
       "evidence_level": "numerical_canary",
       "public_seam": false,
       "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py",
@@ -712,9 +712,42 @@
       "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_lss_showcase: estimate_single_trial",
       "caveats": [],
       "replacement_target": {
-        "description": "Keep the matrix LSS exactness check as the oracle beneath the public-seam LSS rows, not as flagship evidence.",
-        "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
-        "blocking_api_gap": "The exact matrix oracle is retained for algebraic drift detection while the flagship proof uses estimate_single_trial_from_dataset."
+        "description": "Matrix LSS exactness check stays as the oracle beneath the public-seam tier_d_lss_trialwise row; promoting this canary itself is not in scope.",
+        "owner_bead": "bd-01KRKAEDBE9BV5HZ5SY0A3ZAA5",
+        "blocking_api_gap": "The matrix-first call site exists for algebraic drift detection; the public-seam flagship is the sibling tier_d_lss_trialwise row pointing at run_lss_public_seam_showcase."
+      }
+    },
+    {
+      "benchmark_id": "tier_d_lss_trialwise",
+      "evidence_level": "workflow_parity",
+      "public_seam": true,
+      "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py",
+      "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json",
+      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_lss_public_seam_showcase ground-truth recovery oracle and tier_d_lss_trialwise_oracle matrix exactness canary",
+      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_lss_public_seam_showcase + run_lss_public_seam_independent_generative: fmri_dataset -> estimate_single_trial_from_dataset -> typed SingleTrialResult",
+      "caveats": [],
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.single.SingleTrialResult",
+        "fmrimod.single.estimate_single_trial_from_dataset"
+      ],
+      "fmrimod_expresses_better": "The public-seam wrapper takes only the dataset and a string spec ('trialwise()' or 'trialwise(basis=...)' ) and returns a typed SingleTrialResult carrying per-trial betas plus recovered trial_labels; the call site never reaches into the realised design matrix and never builds a per-trial weight vector by hand. The matrix oracle (tier_d_lss_trialwise_oracle) survives as a numerical canary beneath this public-seam row.",
+      "timings": {
+        "status": "not_recorded",
+        "next": "promote run_lss_public_seam_showcase wrapper_seconds (already recorded per-row in showcase_report.json) into the proof_artifact timings block"
+      },
+      "receipt": {
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_d_showcase.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ]
       }
     }
   ]

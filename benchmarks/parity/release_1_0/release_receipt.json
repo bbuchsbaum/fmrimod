@@ -92,15 +92,15 @@
   "blockers": [
     "tier_a_fiac: timings are not recorded",
     "tier_a_fiac: hardware_tag is missing",
-    "tier_d_lss_trialwise: public_seam is not true",
-    "tier_d_lss_trialwise: numerical_canary cannot be flagship proof",
-    "tier_d_lss_trialwise: required public path 'fmri_dataset -> estimate_single_trial -> typed trialwise result' not in fmrimod_path",
     "tier_d_lss_trialwise: timings are not recorded",
-    "tier_d_lss_trialwise: hardware_tag is missing",
-    "tier_d_lss_trialwise: receipt metadata is missing"
+    "tier_d_lss_trialwise: hardware_tag is missing"
   ],
   "board_source": "roadmap-to-1-0/post-01KRK7E46JRRD6BKQTAP9GMC03",
   "evidence_gates": [
+    {
+      "exists": true,
+      "path": "tests/test_flagship_seam_smoke.py"
+    },
     {
       "exists": true,
       "path": "tests/test_public_api/test_api_inventory.py"
@@ -349,20 +349,16 @@
       "artifact_present": true,
       "benchmark_id": "tier_d_lss_trialwise",
       "blockers": [
-        "tier_d_lss_trialwise: public_seam is not true",
-        "tier_d_lss_trialwise: numerical_canary cannot be flagship proof",
-        "tier_d_lss_trialwise: required public path 'fmri_dataset -> estimate_single_trial -> typed trialwise result' not in fmrimod_path",
         "tier_d_lss_trialwise: timings are not recorded",
-        "tier_d_lss_trialwise: hardware_tag is missing",
-        "tier_d_lss_trialwise: receipt metadata is missing"
+        "tier_d_lss_trialwise: hardware_tag is missing"
       ],
       "caveats": [],
-      "current_status": "blocked_numerical_canary",
-      "evidence_level": "numerical_canary",
+      "current_status": "ready",
+      "evidence_level": "workflow_parity",
       "family": "single-trial/LSS or trialwise estimation",
-      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_lss_showcase: estimate_single_trial",
+      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_lss_public_seam_showcase + run_lss_public_seam_independent_generative: fmri_dataset -> estimate_single_trial_from_dataset -> typed SingleTrialResult",
       "hardware_tag": null,
-      "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
+      "owner_bead": "bd-01KRKAEDBE9BV5HZ5SY0A3ZAA5",
       "private_kernel_evidence": {
         "expected_private_kernel_rows": [
           "tier_d_sketched_glm"
@@ -375,13 +371,32 @@
         "row_private_kernels": [],
         "row_uses_private_kernel": false
       },
-      "public_seam": false,
-      "receipt": null,
-      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::_lss_reference",
-      "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_canaries.json",
-      "required_public_path": "fmri_dataset -> estimate_single_trial -> typed trialwise result",
-      "timings": null,
-      "typed_objects": [],
+      "public_seam": true,
+      "receipt": {
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ],
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_d_showcase.workflow"
+        ],
+        "status": "regenerable"
+      },
+      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_lss_public_seam_showcase ground-truth recovery oracle and tier_d_lss_trialwise_oracle matrix exactness canary",
+      "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json",
+      "required_public_path": "fmri_dataset -> estimate_single_trial_from_dataset -> typed SingleTrialResult",
+      "timings": {
+        "next": "promote run_lss_public_seam_showcase wrapper_seconds (already recorded per-row in showcase_report.json) into the proof_artifact timings block",
+        "status": "not_recorded"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.single.SingleTrialResult",
+        "fmrimod.single.estimate_single_trial_from_dataset"
+      ],
       "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py"
     },
     {

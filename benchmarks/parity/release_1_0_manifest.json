@@ -39,9 +39,9 @@
     {
       "family": "single-trial/LSS or trialwise estimation",
       "benchmark_id": "tier_d_lss_trialwise",
-      "required_public_path": "fmri_dataset -> estimate_single_trial -> typed trialwise result",
-      "current_status": "blocked_numerical_canary",
-      "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9"
+      "required_public_path": "fmri_dataset -> estimate_single_trial_from_dataset -> typed SingleTrialResult",
+      "current_status": "ready",
+      "owner_bead": "bd-01KRKAEDBE9BV5HZ5SY0A3ZAA5"
     },
     {
       "family": "typed proof scorecard / underdog showcase",
