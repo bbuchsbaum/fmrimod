@@ -663,9 +663,17 @@
       "reference_path": "benchmarks/parity/tier_e_parametric_centering/workflow.py::nilearn_probe",
       "fmrimod_path": "benchmarks/parity/tier_e_parametric_centering/workflow.py::fmrimod_probe: fmri_dataset -> fmri_lm -> contrast",
       "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
+      "performance_stage": "tier_e_parametric_centering",
       "timings": {
-        "status": "not_recorded",
-        "next": "record design-realization and fit timings after deciding whether this centering trap becomes a README-grade demo"
+        "status": "recorded",
+        "seconds": 0.056587248000000034,
+        "stages": {
+          "global_centering_case_seconds": 0.011120165999999987,
+          "load_inputs_seconds": 0.03475179100000014,
+          "within_condition_case_seconds": 0.010715290999999905
+        },
+        "source": "benchmarks/parity/tier_e_parametric_centering/reports/centering_stress_report.json"
       },
       "typed_objects": [
         "fmrimod.dataset.FmriDataset",

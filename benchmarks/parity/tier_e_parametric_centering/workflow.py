@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 import warnings
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -445,19 +446,28 @@ def run_benchmark(
 ) -> dict[str, Any]:
     """Run the full centering-scope stress benchmark."""
 
+    timings: dict[str, float] = {}
+    load_start = time.perf_counter()
     inputs = load_inputs(max_voxels=max_voxels, seed=seed)
+    timings["load_inputs_seconds"] = time.perf_counter() - load_start
+
+    within_start = time.perf_counter()
     within = run_case(
         inputs,
         case_id="within_condition_centering",
         centering_scope="within_condition",
         modulator_column="rt_within_c",
     )
+    timings["within_condition_case_seconds"] = time.perf_counter() - within_start
+
+    global_start = time.perf_counter()
     global_case = run_case(
         inputs,
         case_id="global_centering_with_imbalanced_rt",
         centering_scope="global",
         modulator_column="rt_global_c",
     )
+    timings["global_centering_case_seconds"] = time.perf_counter() - global_start
     main_shift = _median_abs_delta(
         global_case.fmrimod_main_effect,
         within.fmrimod_main_effect,
@@ -478,6 +488,11 @@ def run_benchmark(
             "schema_version": SCHEMA_VERSION,
             "name": "tier_e_parametric_centering",
             "status": status,
+            "timings": {
+                "status": "recorded",
+                "seconds": float(sum(timings.values())),
+                "stages": {key: float(value) for key, value in sorted(timings.items())},
+            },
             "summary": (
                 "Stress test for RT-modulator centering scope: fmrimod and "
                 "Nilearn agree on each design, while the main-effect "
