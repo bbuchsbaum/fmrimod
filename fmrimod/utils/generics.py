@@ -1,7 +1,7 @@
 """Generic utility functions for extracting information from model objects."""
 
 from functools import singledispatch
-from typing import Any, List, Union
+from typing import Any, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -346,7 +346,7 @@ def conditions(x, drop_empty: bool = True, expand_basis: bool = False, **kwargs:
     raise NotImplementedError(f"conditions not implemented for {type(x)}")
 
 
-def _display_condition_name(canonical: Any) -> Any:
+def _display_condition_name(canonical: object) -> Optional[str]:
     """Convert canonical condition tags to compact display names."""
     if canonical is None:
         return None
