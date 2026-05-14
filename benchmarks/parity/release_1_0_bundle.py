@@ -20,6 +20,7 @@ API_INVENTORY = ROOT / "docs" / "contracts" / "api_inventory_v1.json"
 SCHEMA_VERSION = "release_1_0_receipt/v1"
 
 GATE_FILES = (
+    "tests/test_flagship_seam_smoke.py",
     "tests/test_public_api/test_api_inventory.py",
     "tests/test_benchmarks/test_proof_artifact_timing_gate.py",
     "tests/test_benchmarks/test_proof_artifact_hardware_tag_gate.py",
