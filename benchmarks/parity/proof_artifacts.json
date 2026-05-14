@@ -132,7 +132,11 @@
       "reference_path": "benchmarks/parity/tier_a_fiac/workflow.py::nilearn_pipeline",
       "fmrimod_path": "benchmarks/parity/tier_a_fiac/workflow.py::fmrimod_pipeline: fit_glm_from_suffstats -> combine_runs -> contrast",
       "caveats": [],
-      "replacement_target": "Replace externally realized Nilearn design matrices with fmri_dataset -> fmri_lm per-run fits, then keep combine_runs as the fixed-effects pooling seam."
+      "replacement_target": {
+        "description": "Replace externally realized Nilearn design matrices with fmri_dataset -> fmri_lm per-run fits, then keep combine_runs as the fixed-effects pooling seam.",
+        "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
+        "blocking_api_gap": "fmri_lm has no typed entry for a pre-built design matrix; the current path goes through fit_glm_from_suffstats with model=None."
+      }
     },
     {
       "benchmark_id": "tier_a_factorial_2x2",
@@ -358,7 +362,11 @@
       "reference_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py::nilearn_pipeline",
       "fmrimod_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py::fmrimod_pipeline: fit_glm_from_matrix(solver='pinv') -> contrast",
       "caveats": [],
-      "replacement_target": "Build a companion workflow through fmri_dataset -> fmri_lm -> contrast using fmrimod-owned event and design objects."
+      "replacement_target": {
+        "description": "Build a companion workflow through fmri_dataset -> fmri_lm -> contrast using fmrimod-owned event and design objects.",
+        "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
+        "blocking_api_gap": "fmri_lm has no typed entry for a pre-built design matrix; the current path uses fit_glm_from_matrix with solver='pinv'."
+      }
     },
     {
       "benchmark_id": "tier_b_fitlins_bids",
@@ -369,7 +377,11 @@
       "reference_path": "benchmarks/parity/tier_b_fitlins_bids/workflow.py::manual_pipeline and FitLins CLI derivative fixture",
       "fmrimod_path": "benchmarks/parity/tier_b_fitlins_bids/workflow.py::translated_pipeline plus ar1_nilearn derivative writer",
       "caveats": [],
-      "replacement_target": "Route translated BIDS Stats Model nodes into fmri_dataset -> fmri_lm once the typed spec compiler covers the required transforms."
+      "replacement_target": {
+        "description": "Route translated BIDS Stats Model nodes into fmri_dataset -> fmri_lm once the typed spec compiler covers the required transforms.",
+        "owner_bead": "bd-01KRFKZ0J0Z0GJ9VK35ABCAGJW",
+        "blocking_api_gap": "BIDS Stats Model translator does not yet emit typed model_spec / contrasts that fmri_lm consumes; ongoing under bd-01KRFKZ0J0Z0GJ9VK35ABCAGJW."
+      }
     },
     {
       "benchmark_id": "tier_c_second_level",
@@ -406,7 +418,11 @@
       "reference_path": "benchmarks/parity/tier_e_adversarial_gauntlet/workflow.py::nilearn_probe",
       "fmrimod_path": "benchmarks/parity/tier_e_adversarial_gauntlet/workflow.py::fmrimod_probe: fast_preproject -> fast_lm_matrix -> contrast_t",
       "caveats": [],
-      "replacement_target": "Promote any observed fmrimod boundary that survives review into a public-seam caveat or solver fix, and convert the survivable case to fmri_dataset -> fmri_lm once typed stress-design construction exists."
+      "replacement_target": {
+        "description": "Promote any observed fmrimod boundary that survives review into a public-seam caveat or solver fix, and convert the survivable case to fmri_dataset -> fmri_lm once typed stress-design construction exists.",
+        "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
+        "blocking_api_gap": "no typed stress-design constructor; fast_preproject + fast_lm_matrix bypass fmri_lm."
+      }
     },
     {
       "benchmark_id": "tier_e_reparameterization_invariance",
@@ -417,7 +433,11 @@
       "reference_path": "benchmarks/parity/tier_e_reparameterization_invariance/workflow.py::_nilearn_once",
       "fmrimod_path": "benchmarks/parity/tier_e_reparameterization_invariance/workflow.py::_fmrimod_once: fast_preproject -> fast_lm_matrix -> contrast_t",
       "caveats": [],
-      "replacement_target": "Promote surviving reparameterization-invariance probes into a public-seam fmri_dataset -> fmri_lm stress receipt once typed design transforms and contrast remapping are available."
+      "replacement_target": {
+        "description": "Promote surviving reparameterization-invariance probes into a public-seam fmri_dataset -> fmri_lm stress receipt once typed design transforms and contrast remapping are available.",
+        "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
+        "blocking_api_gap": "no typed design transforms / contrast remapping for stress probes; fast_preproject + fast_lm_matrix bypass fmri_lm."
+      }
     },
     {
       "benchmark_id": "tier_e_parametric_centering",
@@ -463,7 +483,11 @@
       "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::_lss_reference and exact GLM helpers",
       "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_showcases",
       "caveats": [],
-      "replacement_target": "Split showcase rows into public-seam flagship workflows when each capability has a typed dataset/model/contrast entry point."
+      "replacement_target": {
+        "description": "Split showcase rows into public-seam flagship workflows when each capability has a typed dataset/model/contrast entry point.",
+        "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
+        "blocking_api_gap": "showcase capabilities (LSS, exact GLM helpers) lack typed dataset / model / contrast entry points; each capability needs its own typed seam before the row splits."
+      }
     }
   ]
 }

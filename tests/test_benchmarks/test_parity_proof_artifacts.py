@@ -213,7 +213,11 @@ def test_canaries_name_the_public_workflow_that_should_replace_them() -> None:
     for item in _load_manifest()["artifacts"]:
         if item["evidence_level"] == "numerical_canary":
             assert not item["public_seam"]
-            assert item["replacement_target"]
+            target = item["replacement_target"]
+            assert isinstance(target, dict)
+            assert target["description"]
+            assert target["owner_bead"].startswith("bd-")
+            assert target["blocking_api_gap"]
 
 
 def test_caveats_index_matches_generated_report_caveat_ids() -> None:
