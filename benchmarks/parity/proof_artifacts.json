@@ -933,6 +933,70 @@
       }
     },
     {
+      "benchmark_id": "tier_e_bids_parametric_group_followthrough",
+      "evidence_level": "workflow_parity",
+      "public_seam": true,
+      "workflow_path": "benchmarks/parity/tier_e_bids_parametric_group_followthrough/workflow.py",
+      "report_path": "benchmarks/parity/tier_e_bids_parametric_group_followthrough/reports/followthrough_report.json",
+      "reference_path": "synthetic truth: BIDS-authored task effects with behavior-moderated parametric slope differences",
+      "fmrimod_path": "benchmarks/parity/tier_e_bids_parametric_group_followthrough/workflow.py::run_benchmark: BIDS JSON -> translate_run_node -> fmri_dataset -> StatsModelContrast.apply -> condition(term='trial_type:rt_z') -> group_model('behavior') -> ols_voxelwise",
+      "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
+      "performance_stage": "tier_e_bids_parametric_group_followthrough",
+      "timings": {
+        "status": "recorded",
+        "seconds": 0.28252641700000014,
+        "stages": {
+          "first_level_subjects_seconds": 0.275171084,
+          "native_group_model_seconds": 0.004422208000000081,
+          "translate_bids_model_seconds": 0.0029331250000000364
+        },
+        "source": "benchmarks/parity/tier_e_bids_parametric_group_followthrough/reports/followthrough_report.json"
+      },
+      "typed_objects": [
+        "fmrimod.bids.StatsModelTranslation",
+        "fmrimod.bids.StatsModelContrast",
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.contrast.SemanticContrast",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.glm.ContrastResult",
+        "GroupLinearModel",
+        "fmrimod.group.GroupDataset"
+      ],
+      "fmrimod_expresses_better": "A compact BIDS Stats Model JSON lowers to typed first-level fitting, BIDS task contrasts lower to semantic contrast objects, the parametric RT slope is authored as condition('word', term='trial_type:rt_z') - condition('pseudoword', term='trial_type:rt_z'), and subject-level estimates flow into the native typed group_model('behavior') API. The workflow contains no user-authored raw contrast vector.",
+      "claim_axes": {
+        "typed_design_authoring": "full",
+        "typed_contrast_authoring": "full",
+        "native_public_seam": "full",
+        "interop_bridge": true,
+        "diagnostics": "bids_parametric_group_followthrough",
+        "performance": "recorded",
+        "group_model_authoring": "typed_group_model"
+      },
+      "ux_status": "full",
+      "ux_blockers": [],
+      "callsite_receipts": [
+        "benchmarks/parity/tier_e_bids_parametric_group_followthrough/workflow.py:192",
+        "benchmarks/parity/tier_e_bids_parametric_group_followthrough/workflow.py:194",
+        "benchmarks/parity/tier_e_bids_parametric_group_followthrough/workflow.py:220",
+        "benchmarks/parity/tier_e_bids_parametric_group_followthrough/workflow.py:328"
+      ],
+      "receipt": {
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_e_bids_parametric_group_followthrough.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats",
+          "timings"
+        ]
+      }
+    },
+    {
       "benchmark_id": "tier_e_semantic_contrast_alignment",
       "evidence_level": "workflow_parity",
       "public_seam": false,

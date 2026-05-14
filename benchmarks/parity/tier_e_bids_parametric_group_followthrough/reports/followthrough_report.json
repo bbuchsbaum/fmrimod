@@ -1,0 +1,167 @@
+{
+  "bids": {
+    "caveats": [
+      "stats-model-v1 supports a constrained run-level Factor+Convolve subset"
+    ],
+    "model_name": "bids_parametric_group_followthrough",
+    "translated_columns": [
+      "trial_type_trial_type.pseudoword",
+      "trial_type_trial_type.word",
+      "trial_type_rt_z_trial_type:rt_z_1",
+      "trial_type_rt_z_trial_type:rt_z_2",
+      "base_constant"
+    ]
+  },
+  "caveats": [],
+  "checks": {
+    "bids_main_semantic": true,
+    "group_behavior_detected": true,
+    "group_behavior_positive": true,
+    "parametric_slope_semantic": true
+  },
+  "ergonomics": {
+    "fmrimod_path": "BIDS JSON -> translate_run_node -> fmri_dataset -> StatsModelContrast.apply -> condition(term='trial_type:rt_z') -> group_model('behavior') -> ols_voxelwise",
+    "parametric_contrast_callsite": "condition('word', term='trial_type:rt_z') - condition('pseudoword', term='trial_type:rt_z')",
+    "raw_vector_user_code": false,
+    "ux_status": "full"
+  },
+  "group": {
+    "assays": [
+      "coef:Intercept",
+      "coef:behavior",
+      "df_res",
+      "p_coef:Intercept",
+      "p_coef:behavior",
+      "se_coef:Intercept",
+      "se_coef:behavior",
+      "sigma2",
+      "t_coef:Intercept",
+      "t_coef:behavior"
+    ],
+    "behavior_coef_median": 0.40000045603327805,
+    "behavior_coef_min": 0.3400002658174041,
+    "behavior_t_median": 18724.377404792445,
+    "model": "GroupLinearModel"
+  },
+  "schema_version": "bids-parametric-group-followthrough/v1",
+  "status": "pass",
+  "subject_summary": [
+    {
+      "behavior": -1.0,
+      "main_kind": "semantic_linear_contrast",
+      "omnibus_kind": "omnibus",
+      "slope_estimate_median": 0.19999542571484727,
+      "slope_kind": "semantic_contrast",
+      "slope_touched_columns": [
+        "trial_type_rt_z_trial_type:rt_z_1",
+        "trial_type_rt_z_trial_type:rt_z_2"
+      ],
+      "subject": "sub-01"
+    },
+    {
+      "behavior": -0.75,
+      "main_kind": "semantic_linear_contrast",
+      "omnibus_kind": "omnibus",
+      "slope_estimate_median": 0.3000114398875954,
+      "slope_kind": "semantic_contrast",
+      "slope_touched_columns": [
+        "trial_type_rt_z_trial_type:rt_z_1",
+        "trial_type_rt_z_trial_type:rt_z_2"
+      ],
+      "subject": "sub-02"
+    },
+    {
+      "behavior": -0.5,
+      "main_kind": "semantic_linear_contrast",
+      "omnibus_kind": "omnibus",
+      "slope_estimate_median": 0.3999738965042574,
+      "slope_kind": "semantic_contrast",
+      "slope_touched_columns": [
+        "trial_type_rt_z_trial_type:rt_z_1",
+        "trial_type_rt_z_trial_type:rt_z_2"
+      ],
+      "subject": "sub-03"
+    },
+    {
+      "behavior": -0.25,
+      "main_kind": "semantic_linear_contrast",
+      "omnibus_kind": "omnibus",
+      "slope_estimate_median": 0.5000409335400302,
+      "slope_kind": "semantic_contrast",
+      "slope_touched_columns": [
+        "trial_type_rt_z_trial_type:rt_z_1",
+        "trial_type_rt_z_trial_type:rt_z_2"
+      ],
+      "subject": "sub-04"
+    },
+    {
+      "behavior": 0.0,
+      "main_kind": "semantic_linear_contrast",
+      "omnibus_kind": "omnibus",
+      "slope_estimate_median": 0.6000288445450443,
+      "slope_kind": "semantic_contrast",
+      "slope_touched_columns": [
+        "trial_type_rt_z_trial_type:rt_z_1",
+        "trial_type_rt_z_trial_type:rt_z_2"
+      ],
+      "subject": "sub-05"
+    },
+    {
+      "behavior": 0.25,
+      "main_kind": "semantic_linear_contrast",
+      "omnibus_kind": "omnibus",
+      "slope_estimate_median": 0.7000357676685688,
+      "slope_kind": "semantic_contrast",
+      "slope_touched_columns": [
+        "trial_type_rt_z_trial_type:rt_z_1",
+        "trial_type_rt_z_trial_type:rt_z_2"
+      ],
+      "subject": "sub-06"
+    },
+    {
+      "behavior": 0.5,
+      "main_kind": "semantic_linear_contrast",
+      "omnibus_kind": "omnibus",
+      "slope_estimate_median": 0.7999598780328113,
+      "slope_kind": "semantic_contrast",
+      "slope_touched_columns": [
+        "trial_type_rt_z_trial_type:rt_z_1",
+        "trial_type_rt_z_trial_type:rt_z_2"
+      ],
+      "subject": "sub-07"
+    },
+    {
+      "behavior": 0.75,
+      "main_kind": "semantic_linear_contrast",
+      "omnibus_kind": "omnibus",
+      "slope_estimate_median": 0.8999972512203556,
+      "slope_kind": "semantic_contrast",
+      "slope_touched_columns": [
+        "trial_type_rt_z_trial_type:rt_z_1",
+        "trial_type_rt_z_trial_type:rt_z_2"
+      ],
+      "subject": "sub-08"
+    },
+    {
+      "behavior": 1.0,
+      "main_kind": "semantic_linear_contrast",
+      "omnibus_kind": "omnibus",
+      "slope_estimate_median": 1.0000160780436582,
+      "slope_kind": "semantic_contrast",
+      "slope_touched_columns": [
+        "trial_type_rt_z_trial_type:rt_z_1",
+        "trial_type_rt_z_trial_type:rt_z_2"
+      ],
+      "subject": "sub-09"
+    }
+  ],
+  "timings": {
+    "seconds": 0.28252641700000014,
+    "stages": {
+      "first_level_subjects_seconds": 0.2721894170000001,
+      "native_group_model_seconds": 0.007762542000000039,
+      "translate_bids_model_seconds": 0.0025744580000000017
+    },
+    "status": "recorded"
+  }
+}
