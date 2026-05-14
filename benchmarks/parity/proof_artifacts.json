@@ -91,23 +91,22 @@
         "fmrimod.glm.FmriLm",
         "fmrimod.glm.ContrastResult"
       ],
-      "fmrimod_expresses_better": "The F contrast intent, drift terms, confounds, and design-column provenance are represented as typed fmrimod objects; the realised F matrix is only the Nilearn reference adapter. The companion t contrast still uses a precomputed vector, so this is a partial contrast-authoring UX receipt.",
+      "fmrimod_expresses_better": "The F contrast intent, condition-minus-condition t hypothesis, drift terms, confounds, and design-column provenance are represented as typed fmrimod objects; the realised t/F matrices are only the Nilearn reference adapter.",
       "claim_axes": {
         "typed_design_authoring": "full",
-        "typed_contrast_authoring": "partial",
+        "typed_contrast_authoring": "full",
         "native_public_seam": "full",
         "interop_bridge": false,
         "diagnostics": "none",
         "performance": "recorded"
       },
-      "ux_status": "partial",
-      "ux_blockers": [
-        "condition_a_minus_b is still passed as inputs.t_contrast instead of an authored semantic contrast"
-      ],
+      "ux_status": "full",
+      "ux_blockers": [],
       "callsite_receipts": [
         "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py:155",
         "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py:158",
-        "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py:243"
+        "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py:243",
+        "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py:247"
       ],
       "receipt": {
         "status": "regenerable",
@@ -372,7 +371,7 @@
       "workflow_path": "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py",
       "report_path": "benchmarks/parity/tier_a_fir_unconstrained_hrf/reports/parity_report.json",
       "reference_path": "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py::nilearn_pipeline",
-      "fmrimod_path": "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> OmnibusContrast",
+      "fmrimod_path": "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> typed FIR semantic contrast + OmnibusContrast",
       "caveats": [],
       "hardware_tag": "Darwin-arm64-arm",
       "performance_stage": "tier_a_fir_unconstrained_hrf",
@@ -396,19 +395,17 @@
         "fmrimod.glm.FmriLm",
         "fmrimod.glm.ContrastResult"
       ],
-      "fmrimod_expresses_better": "The FIR lag expansion and omnibus hypothesis are carried as typed basis and contrast intent rather than hand-enumerated lag column indices. The per-lag t contrast still uses a precomputed vector, so the contrast-authoring UX claim is partial.",
+      "fmrimod_expresses_better": "The FIR lag expansion, per-lag t hypothesis, and omnibus hypothesis are carried as typed basis and contrast intent rather than hand-enumerated lag column indices.",
       "claim_axes": {
         "typed_design_authoring": "full",
-        "typed_contrast_authoring": "partial",
+        "typed_contrast_authoring": "full",
         "native_public_seam": "full",
         "interop_bridge": false,
         "diagnostics": "none",
         "performance": "recorded"
       },
-      "ux_status": "partial",
-      "ux_blockers": [
-        "lag_a is still passed as inputs.t_lag_a_weights instead of an authored condition/basis contrast"
-      ],
+      "ux_status": "full",
+      "ux_blockers": [],
       "callsite_receipts": [
         "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py:241",
         "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py:252",
@@ -460,23 +457,22 @@
         "fmrimod.glm.ConditionReport",
         "fmrimod.glm.ContrastResult"
       ],
-      "fmrimod_expresses_better": "The rank-deficient nuisance design produces explicit aliased-column diagnostics and condition reports while preserving identifiable contrast parity. The diagnostic UX claim is full; the contrast-authoring UX claim is still partial because task contrasts use precomputed vectors.",
+      "fmrimod_expresses_better": "The rank-deficient nuisance design produces explicit aliased-column diagnostics and condition reports while preserving identifiable contrast parity through authored task t/F contrasts.",
       "claim_axes": {
         "typed_design_authoring": "full",
-        "typed_contrast_authoring": "none",
+        "typed_contrast_authoring": "full",
         "native_public_seam": "full",
         "interop_bridge": false,
         "diagnostics": "full",
         "performance": "recorded"
       },
-      "ux_status": "diagnostic_full_contrast_partial",
-      "ux_blockers": [
-        "task_main and task_omnibus still pass inputs.c_task_* arrays to fit.contrast"
-      ],
+      "ux_status": "full",
+      "ux_blockers": [],
       "callsite_receipts": [
         "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py:315",
         "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py:330",
-        "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py:346"
+        "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py:347",
+        "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py:352"
       ],
       "receipt": {
         "status": "regenerable",

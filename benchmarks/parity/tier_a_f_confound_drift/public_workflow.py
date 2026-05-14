@@ -28,7 +28,7 @@ from cross_testing.harness import (
     render,
     run,
 )
-from fmrimod.contrast import OmnibusContrast
+from fmrimod.contrast import OmnibusContrast, condition
 from fmrimod.design import DesignColumns
 from fmrimod.spec import confounds, drift, hrf, intercept
 
@@ -240,10 +240,11 @@ def fmrimod_pipeline(
         timing_sink["fmrimod_fit_seconds"] = time.perf_counter() - fit_start
 
     contrast_start = time.perf_counter()
-    t_result = fit.contrast(
-        inputs.t_contrast,
-        name="condition_a_minus_b",
+    authored_t = condition("condition_a", term="trial_type") - condition(
+        "condition_b",
+        term="trial_type",
     )
+    t_result = fit.contrast(authored_t, name="condition_a_minus_b")
     f_result = fit.contrast(inputs.omnibus)
     if timing_sink is not None:
         timing_sink["fmrimod_contrast_seconds"] = time.perf_counter() - contrast_start
