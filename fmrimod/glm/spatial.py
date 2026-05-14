@@ -9,10 +9,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import DTypeLike, NDArray
+
+if TYPE_CHECKING:
+    import neuroim
 
 
 def _spacing_from_affine(
@@ -73,7 +76,7 @@ class SpatialContext:
         vec: NDArray,
         *,
         fill: float = np.nan,
-        dtype: Any = np.float64,
+        dtype: DTypeLike = np.float64,
     ) -> NDArray:
         """Inverse-mask a flat ``(n_voxels,)`` vector into a 3-D volume.
 
@@ -90,7 +93,7 @@ class SpatialContext:
         out[self.mask] = vec
         return out
 
-    def to_neuro_space(self) -> Any:
+    def to_neuro_space(self) -> neuroim.NeuroSpace:
         """Build a 3-D ``neuroim.NeuroSpace`` for this context."""
         import neuroim  # type: ignore[import-untyped]
 
@@ -118,7 +121,7 @@ class SpatialContext:
         *,
         label: str = "",
         fill: float = 0.0,
-    ) -> Any:
+    ) -> neuroim.DenseNeuroVol:
         """Build a :class:`neuroim.DenseNeuroVol` from a flat voxel vector.
 
         Non-mask voxels are filled with ``fill`` (defaults to 0.0 for clean
@@ -148,7 +151,7 @@ class SpatialContext:
     # -- Construction --
 
     @classmethod
-    def from_dataset(cls, dataset: Any) -> SpatialContext | None:
+    def from_dataset(cls, dataset: object) -> SpatialContext | None:
         """Pull a :class:`SpatialContext` off a dataset / adapter, if possible.
 
         Returns ``None`` for non-spatial datasets (e.g. a bare matrix adapter
@@ -218,7 +221,7 @@ class SpatialContext:
         )
 
     @classmethod
-    def from_model(cls, model: Any) -> SpatialContext | None:
+    def from_model(cls, model: object) -> SpatialContext | None:
         """Pull a context off ``model.dataset`` if accessible."""
         if model is None:
             return None
