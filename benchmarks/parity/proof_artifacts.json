@@ -355,17 +355,38 @@
     },
     {
       "benchmark_id": "tier_a_localizer_fixed_effects",
-      "evidence_level": "numerical_canary",
-      "public_seam": false,
+      "evidence_level": "workflow_parity",
+      "public_seam": true,
       "workflow_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py",
       "report_path": "benchmarks/parity/tier_a_localizer_fixed_effects/reports/parity_report.json",
       "reference_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py::nilearn_pipeline",
-      "fmrimod_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py::fmrimod_pipeline: fit_glm_from_matrix(solver='pinv') -> contrast",
+      "fmrimod_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> contrast via RealizedDesign(source='nilearn')",
       "caveats": [],
-      "replacement_target": {
-        "description": "Build a companion workflow through fmri_dataset -> fmri_lm -> contrast using fmrimod-owned event and design objects.",
-        "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
-        "blocking_api_gap": "fmri_lm has no typed entry for a pre-built design matrix; the current path uses fit_glm_from_matrix with solver='pinv'."
+      "timings": {
+        "status": "not_recorded",
+        "next": "capture stage-level timings after localizer RealizedDesign path is promoted into the release manifest"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.design.RealizedDesign",
+        "fmrimod.design.DesignColumns",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.glm.FitProvenance",
+        "fmrimod.glm.ContrastResult"
+      ],
+      "fmrimod_expresses_better": "The externally realized Nilearn design enters as a typed RealizedDesign with DesignColumns and source provenance, so the public fmri_dataset -> fmri_lm seam can fit and contrast it without raw matrix helpers.",
+      "receipt": {
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_a_localizer_fixed_effects.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ]
       }
     },
     {

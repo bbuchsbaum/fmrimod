@@ -13,6 +13,7 @@ from nilearn.glm.first_level import FirstLevelModel
 from nilearn.image import load_img, new_img_like
 from numpy.typing import NDArray
 
+import fmrimod as fm
 from cross_testing.fitlins_parity import fit_fitlins_reference_ols
 from cross_testing.harness import (
     ParityCase,
@@ -21,7 +22,7 @@ from cross_testing.harness import (
     render,
     run,
 )
-from fmrimod.glm import fit_glm_from_matrix
+from fmrimod.design import RealizedDesign
 from fmrimod.model.config import FmriLmConfig
 
 Array = NDArray[np.float64]
@@ -113,7 +114,7 @@ def nilearn_pipeline(inputs: LocalizerInputs) -> PipelineOutput:
 
 
 def fmrimod_pipeline(inputs: LocalizerInputs) -> PipelineOutput:
-    """Fit Nilearn's localizer design with fmrimod's public OLS path.
+    """Fit Nilearn's realized localizer design through fmrimod's public seam.
 
     Strict reference parity uses the explicit Moore-Penrose solver backend.
     The default fast path is numerically stable, but it can produce slightly
@@ -121,11 +122,31 @@ def fmrimod_pipeline(inputs: LocalizerInputs) -> PipelineOutput:
     different algebraic route through the same least-squares problem.
     """
     model = _fit_reference(inputs.img, inputs.events, inputs.mask_img)
-    X = model.design_matrices_[0].to_numpy(dtype=np.float64)
+    design_frame = model.design_matrices_[0]
+    X = design_frame.to_numpy(dtype=np.float64)
     Y = model.masker_.transform(inputs.img)
+    dataset = fm.fmri_dataset(
+        Y,
+        tr=TR,
+        mask=np.ones(Y.shape[1], dtype=bool),
+        events=inputs.events,
+    )
+    design = RealizedDesign.from_array(
+        X,
+        columns=tuple(str(column) for column in design_frame.columns),
+        source="nilearn",
+    )
 
-    fit = fit_glm_from_matrix(X, Y, cfg=FmriLmConfig(solver="pinv"))
-    cres = fit.contrast(inputs.contrast)
+    fit = fm.fmri_lm(design, dataset, config=FmriLmConfig(solver="pinv"))
+    cres = fit.contrast(
+        fm.column_contrast(
+            "^audio_computation$",
+            pattern_B="^visual_computation$",
+            name="tier_a_localizer_audio_gt_visual",
+        )
+    )
+    if fit.provenance is None or fit.provenance.design_source != "nilearn":
+        raise AssertionError("fmrimod localizer path did not carry design source")
     return PipelineOutput(
         arrays={
             "effect_audio_gt_visual": cres.estimate,
