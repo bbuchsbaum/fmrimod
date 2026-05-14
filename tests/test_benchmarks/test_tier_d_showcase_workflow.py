@@ -62,7 +62,7 @@ def test_tier_d_proof_scorecard_names_public_typed_seam() -> None:
     assert "fmrimod.group.GroupDataset" in scorecard.typed_objects
     assert "tier_d_lss_public_seam" in scorecard.public_rows
     assert "tier_d_lss_public_seam_independent_generative" in scorecard.public_rows
-    assert "tier_d_sketched_glm" in scorecard.low_level_canaries
+    assert not hasattr(scorecard, "low_level_canaries")
     assert scorecard.semantic_survival["source"] == "tier_group_semantic_survival"
     assert scorecard.semantic_survival["status"] == "pass"
     assert scorecard.semantic_survival["typed_intent_kind"] == "omnibus"
@@ -83,5 +83,17 @@ def test_tier_d_render_writes_json_ready_proof_scorecard(tmp_path) -> None:
     assert payload["proof_scorecard"]["semantic_survival"]["typed_intent_term"] == (
         "trial_type"
     )
-    assert payload["proof_scorecard"]["low_level_canaries"]
+    assert "low_level_canaries" not in payload["proof_scorecard"]
+    assert {row["case_id"] for row in payload["rows"]} == set(
+        payload["proof_scorecard"]["public_rows"]
+    )
+    assert all("public-seam" in row["capability"] for row in payload["rows"])
     assert "Proof Scorecard" in md_path.read_text()
+
+    canary_payload = json.loads((tmp_path / "showcase_canaries.json").read_text())
+    assert canary_payload["status"] == "pass"
+    assert {row["case_id"] for row in canary_payload["rows"]} == {
+        "tier_d_ar2_robust",
+        "tier_d_sketched_glm",
+        "tier_d_lss_trialwise",
+    }

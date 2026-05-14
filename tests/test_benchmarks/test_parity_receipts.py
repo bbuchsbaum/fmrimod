@@ -41,9 +41,12 @@ def test_tier_d_showcase_receipt_renders_proof_scorecard() -> None:
     report = json.loads(Path(report_path).read_text())
     scorecard = report["proof_scorecard"]
     assert scorecard["public_seam"] is True
+    assert "low_level_canaries" not in scorecard
     assert scorecard["semantic_survival"]["typed_intent_term"] == "trial_type"
     assert scorecard["semantic_survival"]["statistic_family"] == "F"
     assert "fmrimod.group.GroupDataset" in scorecard["typed_objects"]
+    assert {row["case_id"] for row in report["rows"]} == set(scorecard["public_rows"])
+    assert all("public-seam" in row["capability"] for row in report["rows"])
 
 
 def test_tier_a_f_confound_drift_uses_typed_omnibus_intent() -> None:

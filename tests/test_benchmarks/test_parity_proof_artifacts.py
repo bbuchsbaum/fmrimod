@@ -208,6 +208,32 @@ def test_flagship_workflows_are_complete_public_proof_receipts() -> None:
             f"{bid} timings must include numeric seconds or numeric stages"
         )
 
+        report_path = ROOT / item["report_path"]
+        if report_path.exists():
+            report = json.loads(report_path.read_text())
+            scorecard = report.get("proof_scorecard")
+            if scorecard is None:
+                continue
+            assert isinstance(scorecard, dict), f"{bid} must render a scorecard"
+            assert "low_level_canaries" not in scorecard, (
+                f"{bid} is a flagship receipt and must not carry "
+                "low_level_canaries in proof_scorecard"
+            )
+            public_rows = set(scorecard.get("public_rows") or ())
+            if public_rows:
+                report_rows = report.get("rows")
+                assert isinstance(report_rows, list), f"{bid} must render rows"
+                assert {row["case_id"] for row in report_rows} <= public_rows
+                non_public = [
+                    row["case_id"]
+                    for row in report_rows
+                    if "public-seam" not in row.get("capability", "")
+                ]
+                assert not non_public, (
+                    f"{bid} flagship report includes non-public rows: "
+                    f"{non_public}"
+                )
+
 
 def test_canaries_name_the_public_workflow_that_should_replace_them() -> None:
     for item in _load_manifest()["artifacts"]:

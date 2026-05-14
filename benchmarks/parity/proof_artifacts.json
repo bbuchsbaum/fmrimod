@@ -579,7 +579,7 @@
         "fmrimod.glm.ContrastResult",
         "fmrimod.group.GroupDataset"
       ],
-      "fmrimod_expresses_better": "The showcase report now carries a proof scorecard: public-seam LSS rows, low-level canaries, semantic survival of typed contrast intent into a GroupDataset, recorded timing, caveats, and win-axis fields instead of a loose numeric demo table.",
+      "fmrimod_expresses_better": "The showcase report carries only public-seam evidence: LSS rows through dataset/spec wrappers, semantic survival of typed contrast intent into a GroupDataset, recorded timing, caveats, and win-axis fields instead of a loose numeric demo table. Low-level Tier D canaries are classified as separate numerical-canary artifacts.",
       "receipt": {
         "status": "regenerable",
         "command": [
@@ -592,6 +592,51 @@
           "status",
           "caveats"
         ]
+      }
+    },
+    {
+      "benchmark_id": "tier_d_ar2_robust",
+      "evidence_level": "numerical_canary",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py",
+      "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_canaries.json",
+      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_ar_robust_showcase",
+      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_ar_robust_showcase: estimate_ar + huber_weights",
+      "caveats": [],
+      "replacement_target": {
+        "description": "Promote AR(p) and robust refit into a public dataset/model workflow receipt instead of a low-level residual canary.",
+        "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
+        "blocking_api_gap": "Public typed AR/robust model configuration and reportable contrast output are not yet wired through fmri_dataset -> fmri_lm."
+      }
+    },
+    {
+      "benchmark_id": "tier_d_sketched_glm",
+      "evidence_level": "numerical_canary",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py",
+      "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_canaries.json",
+      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_sketched_glm_showcase exact fast_lm_matrix comparison",
+      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_sketched_glm_showcase: fit_sketched",
+      "caveats": [],
+      "replacement_target": {
+        "description": "Promote sketched GLM into a public typed engine option with an end-to-end dataset/spec/contrast receipt.",
+        "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
+        "blocking_api_gap": "Low-rank engine selection is still demonstrated as a matrix-level capability rather than a typed fmri_lm engine option."
+      }
+    },
+    {
+      "benchmark_id": "tier_d_lss_trialwise",
+      "evidence_level": "numerical_canary",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py",
+      "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_canaries.json",
+      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::_lss_reference",
+      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_lss_showcase: estimate_single_trial",
+      "caveats": [],
+      "replacement_target": {
+        "description": "Keep the matrix LSS exactness check as the oracle beneath the public-seam LSS rows, not as flagship evidence.",
+        "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
+        "blocking_api_gap": "The exact matrix oracle is retained for algebraic drift detection while the flagship proof uses estimate_single_trial_from_dataset."
       }
     }
   ]

@@ -43,7 +43,6 @@ class ShowcaseProofScorecard:
     reference_path: str
     typed_objects: tuple[str, ...]
     public_rows: tuple[str, ...]
-    low_level_canaries: tuple[str, ...]
     semantic_survival: dict[str, Any]
     win_axes: dict[str, str]
 
@@ -117,7 +116,9 @@ def run_sketched_glm_showcase(seed: int = 2027) -> ShowcaseRow:
     sketched, sketch_seconds = _elapsed(lambda: fit_sketched(X, Y, sketch_config))
 
     beta_corr = float(np.corrcoef(exact.betas.ravel(), sketched.betas.ravel())[0, 1])
-    rel_error = float(np.linalg.norm(exact.betas - sketched.betas) / np.linalg.norm(exact.betas))
+    rel_error = float(
+        np.linalg.norm(exact.betas - sketched.betas) / np.linalg.norm(exact.betas)
+    )
     status = "pass" if beta_corr > 0.98 and rel_error < 0.15 else "fail"
     return ShowcaseRow(
         case_id="tier_d_sketched_glm",
@@ -370,24 +371,27 @@ def run_showcases() -> list[ShowcaseRow]:
     ]
 
 
+def _public_seam_rows(rows: list[ShowcaseRow]) -> list[ShowcaseRow]:
+    return [row for row in rows if "public-seam" in row.capability]
+
+
+def _low_level_canary_rows(rows: list[ShowcaseRow]) -> list[ShowcaseRow]:
+    public_ids = {row.case_id for row in _public_seam_rows(rows)}
+    return [row for row in rows if row.case_id not in public_ids]
+
+
 def build_proof_scorecard(rows: list[ShowcaseRow]) -> ShowcaseProofScorecard:
     """Build the Tier D public-seam proof scorecard.
 
-    The row table still includes low-level canaries for capabilities whose
-    public seam is not complete. The scorecard is the tighter artifact: it
-    names the public path, typed objects, and semantic-survival receipt that
-    make fmrimod visibly different from a Nilearn matrix pipeline.
+    The flagship receipt must not mix low-level canaries into the public proof.
+    Low-level Tier D capabilities are rendered to a separate canary report and
+    classified as numerical canaries in ``proof_artifacts.json``.
     """
     from benchmarks.parity.tier_group_semantic_survival.workflow import run_demo
 
     semantic = run_demo(n_subjects=3, max_voxels=12).report
     checks = semantic["checks"]
-    public_rows = tuple(
-        row.case_id for row in rows if "public-seam" in row.capability
-    )
-    low_level_canaries = tuple(
-        row.case_id for row in rows if row.case_id not in public_rows
-    )
+    public_rows = tuple(row.case_id for row in _public_seam_rows(rows))
     semantic_survival = {
         "source": "tier_group_semantic_survival",
         "status": semantic["status"],
@@ -419,7 +423,6 @@ def build_proof_scorecard(rows: list[ShowcaseRow]) -> ShowcaseProofScorecard:
             "fmrimod.group.GroupDataset",
         ),
         public_rows=public_rows,
-        low_level_canaries=low_level_canaries,
         semantic_survival=semantic_survival,
         win_axes={
             "design": "statistical intent is represented as typed objects",
@@ -434,15 +437,33 @@ def render(rows: list[ShowcaseRow], out_dir: Path) -> tuple[Path, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     json_path = out_dir / "showcase_report.json"
     md_path = out_dir / "SHOWCASE.md"
+    canary_json_path = out_dir / "showcase_canaries.json"
+    canary_md_path = out_dir / "SHOWCASE_CANARIES.md"
     scorecard = build_proof_scorecard(rows)
+    public_rows = _public_seam_rows(rows)
+    low_level_canaries = _low_level_canary_rows(rows)
     payload = {
         "name": "tier_d_showcase",
-        "status": "pass" if all(row.status == "pass" for row in rows) else "fail",
+        "status": "pass"
+        if all(row.status == "pass" for row in public_rows)
+        else "fail",
         "caveats": [],
         "proof_scorecard": asdict(scorecard),
-        "rows": [asdict(row) for row in rows],
+        "rows": [asdict(row) for row in public_rows],
     }
     json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+    canary_payload = {
+        "name": "tier_d_showcase_canaries",
+        "status": "pass"
+        if all(row.status == "pass" for row in low_level_canaries)
+        else "fail",
+        "caveats": [],
+        "rows": [asdict(row) for row in low_level_canaries],
+    }
+    canary_json_path.write_text(
+        json.dumps(canary_payload, indent=2, sort_keys=True) + "\n"
+    )
 
     lines = [
         "# Tier D fmrimod Showcase",
@@ -456,12 +477,11 @@ def render(rows: list[ShowcaseRow], out_dir: Path) -> tuple[Path, Path]:
         f"- semantic source: `{scorecard.semantic_survival['source']}`",
         f"- typed intent: `{scorecard.semantic_survival['typed_intent_term']}`",
         f"- public rows: `{', '.join(scorecard.public_rows)}`",
-        f"- low-level canaries: `{', '.join(scorecard.low_level_canaries)}`",
         "",
         "| Case | Capability | Metric | Value | Threshold | Status |",
         "| --- | --- | --- | ---: | ---: | --- |",
     ]
-    for row in rows:
+    for row in public_rows:
         threshold = "" if row.threshold is None else f"{row.threshold:.6g}"
         lines.append(
             "| "
@@ -478,6 +498,32 @@ def render(rows: list[ShowcaseRow], out_dir: Path) -> tuple[Path, Path]:
             + " |"
         )
     md_path.write_text("\n".join(lines) + "\n")
+
+    canary_lines = [
+        "# Tier D Numerical Canaries",
+        "",
+        f"Status: `{canary_payload['status']}`",
+        "",
+        "| Case | Capability | Metric | Value | Threshold | Status |",
+        "| --- | --- | --- | ---: | ---: | --- |",
+    ]
+    for row in low_level_canaries:
+        threshold = "" if row.threshold is None else f"{row.threshold:.6g}"
+        canary_lines.append(
+            "| "
+            + " | ".join(
+                [
+                    row.case_id,
+                    row.capability,
+                    row.metric,
+                    f"{row.value:.6g}",
+                    threshold,
+                    row.status,
+                ]
+            )
+            + " |"
+        )
+    canary_md_path.write_text("\n".join(canary_lines) + "\n")
     return json_path, md_path
 
 
