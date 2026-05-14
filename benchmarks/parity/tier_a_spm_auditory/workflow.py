@@ -192,7 +192,6 @@ def make_case(
         tolerances={
             "design_listening": ParityTolerance(
                 check_allclose=False,
-                allow_rescale=True,
                 min_pearson=0.98,
                 min_spearman=0.93,
                 max_abs=0.20,
