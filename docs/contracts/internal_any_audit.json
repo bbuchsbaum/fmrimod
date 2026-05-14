@@ -13,7 +13,7 @@
       },
       "internal": {
         "total": 2085,
-        "with_any_annotation": 331,
+        "with_any_annotation": 321,
         "with_var_kwargs": 129
       },
       "public": {
@@ -25,7 +25,7 @@
     "files_scanned": 230,
     "parse_failures": 0,
     "total_functions": 2325,
-    "with_any_annotation": 345,
+    "with_any_annotation": 335,
     "with_var_args_any": 1,
     "with_var_kwargs": 162
   },
@@ -4518,7 +4518,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 109,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
@@ -4713,7 +4713,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 541,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -4726,7 +4726,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 597,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -4739,7 +4739,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 667,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -4752,7 +4752,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 723,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -4765,7 +4765,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 764,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -4778,7 +4778,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 841,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -4791,7 +4791,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 894,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -4843,7 +4843,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 1085,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -4856,7 +4856,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 1188,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,

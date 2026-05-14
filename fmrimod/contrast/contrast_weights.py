@@ -81,7 +81,7 @@ class Contrast:
 
     def __init__(
         self,
-        term: Any,
+        term: object,
         name: str,
         weights: Array,
         condnames: List[str],
@@ -497,7 +497,7 @@ def _match_conditions_to_formula(condnames: List[str], formula_expr: str) -> np.
 
 
 @contrast_weights.register(UnitContrastSpec)
-def _(x: UnitContrastSpec, term, **kwargs) -> Contrast:
+def _(x: UnitContrastSpec, term, **kwargs: object) -> Contrast:
     """Compute weights for unit contrast."""
     # Get all condition names
     all_condnames = _get_conditions(term, expand_basis=False)
@@ -542,7 +542,7 @@ def _(x: UnitContrastSpec, term, **kwargs) -> Contrast:
 
 
 @contrast_weights.register(PairContrastSpec)
-def _(x: PairContrastSpec, term, **kwargs) -> Contrast:
+def _(x: PairContrastSpec, term, **kwargs: object) -> Contrast:
     """Compute weights for pairwise contrast."""
     # Get condition names
     base_condnames = _get_conditions(term, expand_basis=False)
@@ -598,7 +598,7 @@ def _(x: PairContrastSpec, term, **kwargs) -> Contrast:
 
 
 @contrast_weights.register(ColumnContrastSpec)
-def _(x: ColumnContrastSpec, term, **kwargs) -> Contrast:
+def _(x: ColumnContrastSpec, term, **kwargs: object) -> Contrast:
     """Compute weights for column contrast using regex patterns."""
     # Get expanded column names
     all_colnames = _get_conditions(term, expand_basis=True)
@@ -668,7 +668,7 @@ def _(x: ColumnContrastSpec, term, **kwargs) -> Contrast:
 
 
 @contrast_weights.register(PolyContrastSpec)
-def _(x: PolyContrastSpec, term, **kwargs) -> Contrast:
+def _(x: PolyContrastSpec, term, **kwargs: object) -> Contrast:
     """Compute polynomial contrast weights."""
     # Get condition names
     all_condnames = _get_conditions(term, expand_basis=False)
@@ -724,7 +724,7 @@ def _(x: PolyContrastSpec, term, **kwargs) -> Contrast:
 
 
 @contrast_weights.register(OnewayContrastSpec)
-def _(x: OnewayContrastSpec, term, **kwargs) -> Contrast:
+def _(x: OnewayContrastSpec, term, **kwargs: object) -> Contrast:
     """Compute one-way contrast weights (main effect).
 
     Generates k-1 Helmert contrasts for k conditions.
@@ -765,7 +765,7 @@ def _(x: OnewayContrastSpec, term, **kwargs) -> Contrast:
 
 
 @contrast_weights.register(InteractionContrastSpec)
-def _(x: InteractionContrastSpec, term, **kwargs) -> Contrast:
+def _(x: InteractionContrastSpec, term, **kwargs: object) -> Contrast:
     """Compute interaction contrast weights.
 
     For a term with n conditions representing a factorial design,
@@ -842,7 +842,7 @@ def _(x: InteractionContrastSpec, term, **kwargs) -> Contrast:
 
 
 @contrast_weights.register(ContrastFormulaSpec)
-def _(x: ContrastFormulaSpec, term, **kwargs) -> Contrast:
+def _(x: ContrastFormulaSpec, term, **kwargs: object) -> Contrast:
     """Compute weights for formula-based contrast.
 
     Parses formula expressions and computes proper weights. Supports:
@@ -1063,7 +1063,7 @@ def _reconstruct_compare(node: ast.Compare) -> str:
 
 
 @contrast_weights.register(ContrastSet)
-def _(x: ContrastSet, term, **kwargs) -> Dict[str, Contrast]:
+def _(x: ContrastSet, term, **kwargs: object) -> Dict[str, Contrast]:
     """Compute weights for a set of contrasts.
 
     Returns
@@ -1085,7 +1085,7 @@ def _(x: ContrastSet, term, **kwargs) -> Dict[str, Contrast]:
     return results
 
 
-def _contrast_weights_event_model(model, **kwargs):
+def _contrast_weights_event_model(model, **kwargs: object):
     """Compute contrast weights for an EventModel.
 
     Extracts contrasts from each term's contrast_specs attribute and maps
