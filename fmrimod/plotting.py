@@ -21,7 +21,7 @@ def plot_hrf(
     normalize: bool = False,
     show_peak: bool = True,
     ax: Optional[Axes] = None,
-    **kwargs,
+    **kwargs: object,
 ) -> Axes:
     """Plot a single HRF.
 
@@ -90,7 +90,7 @@ def plot_hrfs(
     labels: Optional[Sequence[str]] = None,
     title: Optional[str] = None,
     ax: Optional[Axes] = None,
-    **kwargs,
+    **kwargs: object,
 ) -> Axes:
     """Overlay multiple HRFs on the same axes for comparison.
 
@@ -149,7 +149,7 @@ def plot_regressor(
     precision: float = 0.33,
     show_onsets: bool = True,
     ax: Optional[Axes] = None,
-    **kwargs,
+    **kwargs: object,
 ) -> Axes:
     """Plot an evaluated regressor time course.
 
@@ -206,7 +206,7 @@ def plot_regressors(
     labels: Optional[Sequence[str]] = None,
     title: Optional[str] = None,
     ax: Optional[Axes] = None,
-    **kwargs,
+    **kwargs: object,
 ) -> Axes:
     """Overlay multiple regressors on the same axes.
 

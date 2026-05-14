@@ -13,7 +13,7 @@
       },
       "internal": {
         "total": 2085,
-        "with_any_annotation": 211,
+        "with_any_annotation": 207,
         "with_var_kwargs": 129
       },
       "public": {
@@ -25,7 +25,7 @@
     "files_scanned": 230,
     "parse_failures": 0,
     "total_functions": 2325,
-    "with_any_annotation": 218,
+    "with_any_annotation": 214,
     "with_var_args_any": 1,
     "with_var_kwargs": 162
   },
@@ -25188,7 +25188,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 83,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -25201,7 +25201,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 143,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -25214,7 +25214,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 199,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
@@ -25227,7 +25227,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 259,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
