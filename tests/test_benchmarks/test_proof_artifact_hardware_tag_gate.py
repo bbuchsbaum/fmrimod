@@ -45,7 +45,6 @@ PERFORMANCE_HISTORY = (
 _PENDING_HARDWARE_TAG_ROWS = frozenset(
     {
         "tier_a_f_confound_drift",
-        "tier_a_factorial_2x2",
         "tier_a_factorial_3x3_parametric",
         "tier_a_fir_unconstrained_hrf",
         "tier_a_multicollinear_baseline",

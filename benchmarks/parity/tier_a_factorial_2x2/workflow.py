@@ -38,6 +38,8 @@ inputs.
 
 from __future__ import annotations
 
+import json
+import time
 from dataclasses import dataclass
 from itertools import product as iter_product
 from pathlib import Path
@@ -254,16 +256,30 @@ def nilearn_pipeline(inputs: FactorialInputs) -> PipelineOutput:
     )
 
 
-def fmrimod_pipeline(inputs: FactorialInputs) -> PipelineOutput:
+def fmrimod_pipeline(
+    inputs: FactorialInputs,
+    *,
+    timing_sink: dict[str, float] | None = None,
+) -> PipelineOutput:
     """Three-line fmrimod path: dataset → fit → typed factorial contrasts."""
+    dataset_start = time.perf_counter()
     spec = hrf("task", "valence", basis="spm", norm="spm")
     ds = fm.fmri_dataset(inputs.data, tr=TR, events=inputs.events)
-    fit = fm.fmri_lm(spec, ds)
+    if timing_sink is not None:
+        timing_sink["fmrimod_dataset_seconds"] = time.perf_counter() - dataset_start
 
+    fit_start = time.perf_counter()
+    fit = fm.fmri_lm(spec, ds)
+    if timing_sink is not None:
+        timing_sink["fmrimod_fit_seconds"] = time.perf_counter() - fit_start
+
+    contrast_start = time.perf_counter()
     t_task = fit.contrast(inputs.c_task_main, name="task_main")
     t_valence = fit.contrast(inputs.c_valence_main, name="valence_main")
     t_inter = fit.contrast(inputs.c_interaction, name="interaction")
     f_cells = fit.contrast(inputs.c_cells_F, name="cells_omnibus")
+    if timing_sink is not None:
+        timing_sink["fmrimod_contrast_seconds"] = time.perf_counter() - contrast_start
 
     return PipelineOutput(
         arrays={
@@ -299,10 +315,57 @@ def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
     )
 
 
+def _make_timed_case(
+    timings: dict[str, float], max_voxels: int = MAX_VOXELS,
+) -> ParityCase:
+    start = time.perf_counter()
+    inputs = load_inputs(max_voxels=max_voxels)
+    timings["load_inputs_seconds"] = time.perf_counter() - start
+
+    def _timed_fmrimod(shared_inputs: FactorialInputs) -> PipelineOutput:
+        return fmrimod_pipeline(shared_inputs, timing_sink=timings)
+
+    def _timed_nilearn(shared_inputs: FactorialInputs) -> PipelineOutput:
+        nilearn_start = time.perf_counter()
+        output = nilearn_pipeline(shared_inputs)
+        timings["nilearn_pipeline_seconds"] = time.perf_counter() - nilearn_start
+        return output
+
+    return ParityCase(
+        name="tier_a_factorial_2x2",
+        fmrimod_pipeline=_timed_fmrimod,
+        reference_pipeline=_timed_nilearn,
+        inputs=inputs,
+        tolerances={
+            "design": ParityTolerance(rtol=0.0, atol=0.0),
+            "effect_task_main": ParityTolerance(rtol=1e-8, atol=1e-9),
+            "t_task_main": ParityTolerance(rtol=1e-7, atol=1e-8),
+            "effect_valence_main": ParityTolerance(rtol=1e-8, atol=1e-9),
+            "t_valence_main": ParityTolerance(rtol=1e-7, atol=1e-8),
+            "effect_interaction": ParityTolerance(rtol=1e-8, atol=1e-9),
+            "t_interaction": ParityTolerance(rtol=1e-7, atol=1e-8),
+            "f_cells_omnibus": ParityTolerance(rtol=1e-7, atol=1e-8),
+        },
+    )
+
+
+def _write_timing_payload(json_path: Path, timings: dict[str, float]) -> None:
+    payload = json.loads(json_path.read_text())
+    stages = {key: float(value) for key, value in sorted(timings.items())}
+    payload["timings"] = {
+        "status": "recorded",
+        "seconds": float(sum(stages.values())),
+        "stages": stages,
+    }
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
 def main() -> None:
-    result = run(make_case())
+    timings: dict[str, float] = {}
+    result = run(_make_timed_case(timings))
     out_dir = Path(__file__).resolve().parent / "reports"
-    render(result, out_dir)
+    json_path, _ = render(result, out_dir)
+    _write_timing_payload(json_path, timings)
     if result.status == "fail":
         raise SystemExit(1)
 
