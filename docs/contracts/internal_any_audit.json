@@ -12,7 +12,7 @@
         "with_var_kwargs": 8
       },
       "internal": {
-        "total": 1976,
+        "total": 1989,
         "with_any_annotation": 355,
         "with_var_kwargs": 128
       },
@@ -22,9 +22,9 @@
         "with_var_kwargs": 29
       }
     },
-    "files_scanned": 227,
+    "files_scanned": 228,
     "parse_failures": 0,
-    "total_functions": 2216,
+    "total_functions": 2229,
     "with_any_annotation": 392,
     "with_var_args_any": 1,
     "with_var_kwargs": 165

@@ -11,6 +11,7 @@ from numpy.typing import NDArray
 
 from .backends.latent_backend import LatentBackend
 from .backends.matrix_backend import MatrixBackend
+from .backends.nifti_backend import NiftiBackend
 
 
 def matrix_backend(
@@ -36,3 +37,13 @@ def latent_backend(
 ) -> LatentBackend:
     """Construct a storage-backed latent decomposition backend."""
     return LatentBackend(source=source, preload=preload)
+
+
+def nifti_backend(
+    source: str | Path | Sequence[str | Path],
+    mask_source: str | Path,
+    *,
+    preload: bool = False,
+) -> NiftiBackend:
+    """Construct a NIfTI storage backend."""
+    return NiftiBackend(source=source, mask_source=mask_source, preload=preload)

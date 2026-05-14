@@ -132,6 +132,7 @@ def _register_builtins() -> None:
     from .backends.bids_h5_backend import BidsH5ScanBackend, SharedH5Connection
     from .backends.latent_backend import LatentBackend
     from .backends.matrix_backend import MatrixBackend
+    from .backends.nifti_backend import NiftiBackend
 
     def _bids_h5_factory(
         h5_connection: SharedH5Connection,
@@ -156,6 +157,17 @@ def _register_builtins() -> None:
     ) -> LatentBackend:
         return LatentBackend(source=source, preload=preload)
 
+    def _nifti_factory(
+        source: str,
+        mask_source: str,
+        preload: bool = False,
+    ) -> NiftiBackend:
+        return NiftiBackend(
+            source=source,
+            mask_source=mask_source,
+            preload=preload,
+        )
+
     registry = BackendRegistry.instance()
     registry.register(
         "bids_h5_scan",
@@ -173,6 +185,12 @@ def _register_builtins() -> None:
         "matrix",
         lambda **kwargs: MatrixBackend(**kwargs),
         description="In-memory matrix backend",
+        overwrite=True,
+    )
+    registry.register(
+        "nifti",
+        _nifti_factory,
+        description="NIfTI image storage backend",
         overwrite=True,
     )
 

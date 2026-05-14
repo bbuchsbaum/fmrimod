@@ -5,8 +5,10 @@ from fmrimod.dataset.backends import (
     InMemoryLatentBackend,
     LatentBackend,
     MatrixBackend,
+    NiftiBackend,
     SharedH5Connection,
     bids_h5_scan_backend,
+    nifti_backend,
 )
 
 __all__ = [
@@ -14,6 +16,8 @@ __all__ = [
     "InMemoryLatentBackend",
     "LatentBackend",
     "MatrixBackend",
+    "NiftiBackend",
     "SharedH5Connection",
     "bids_h5_scan_backend",
+    "nifti_backend",
 ]

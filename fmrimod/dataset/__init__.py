@@ -4,7 +4,7 @@ Provides protocol definitions and concrete implementations for accessing
 fMRI time-series data in a format-agnostic way.
 """
 
-from .backend_constructors import latent_backend, matrix_backend
+from .backend_constructors import latent_backend, matrix_backend, nifti_backend
 from .backend_methods import (
     backend_close,
     backend_get_data,
@@ -29,6 +29,7 @@ from .backend_registry import (
 from .backends.bids_h5_backend import BidsH5ScanBackend, SharedH5Connection
 from .backends.latent_backend import InMemoryLatentBackend, LatentBackend
 from .backends.matrix_backend import MatrixBackend
+from .backends.nifti_backend import NiftiBackend
 from .bids_h5 import (
     BidsH5StudyDataset,
     bids_h5_dataset,
@@ -156,10 +157,12 @@ __all__ = [
     "list_backend_names",
     "unregister_backend",
     "MatrixBackend",
+    "NiftiBackend",
     "LatentBackend",
     "InMemoryLatentBackend",
     "matrix_backend",
     "latent_backend",
+    "nifti_backend",
     "backend_open",
     "backend_close",
     "backend_get_dims",
