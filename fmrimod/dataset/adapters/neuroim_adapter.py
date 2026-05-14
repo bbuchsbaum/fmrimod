@@ -12,7 +12,7 @@ objects.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, List, Optional, Sequence, Union
+from typing import TYPE_CHECKING, List, Optional, Sequence, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -20,8 +20,11 @@ from numpy.typing import NDArray
 from ...sampling import SamplingFrame
 from ..errors import ConfigError
 
+if TYPE_CHECKING:
+    import neuroim
 
-def _is_neurovec(obj: Any) -> bool:
+
+def _is_neurovec(obj: object) -> bool:
     """Return True iff ``obj`` is a ``neuroim.NeuroVec`` instance."""
     try:
         import neuroim  # type: ignore[import-not-found]
@@ -30,7 +33,7 @@ def _is_neurovec(obj: Any) -> bool:
     return isinstance(obj, neuroim.NeuroVec)
 
 
-def _is_neurovol(obj: Any) -> bool:
+def _is_neurovol(obj: object) -> bool:
     """Return True iff ``obj`` is a ``neuroim.NeuroVol`` (or subclass)."""
     try:
         import neuroim  # type: ignore[import-not-found]
@@ -39,7 +42,7 @@ def _is_neurovol(obj: Any) -> bool:
     return isinstance(obj, neuroim.NeuroVol)
 
 
-def _extract_4d(vec: Any) -> NDArray:
+def _extract_4d(vec: object) -> NDArray:
     """Best-effort extraction of an ``(x, y, z, t)`` ndarray from a NeuroVec."""
     if hasattr(vec, "data"):
         return np.asarray(vec.data)
@@ -77,9 +80,9 @@ class NeuroVecAdapter:
 
     def __init__(
         self,
-        vecs: Union[Any, Sequence[Any]],
+        vecs: Union["neuroim.NeuroVec", Sequence["neuroim.NeuroVec"]],
         *,
-        mask: Optional[Any] = None,
+        mask: object = None,
         tr: float,
         start_time: float = 0.0,
     ) -> None:
@@ -93,7 +96,7 @@ class NeuroVecAdapter:
             ) from exc
 
         if _is_neurovec(vecs):
-            self._vecs: List[Any] = [vecs]
+            self._vecs: List["neuroim.NeuroVec"] = [vecs]
         elif isinstance(vecs, (list, tuple)) and all(_is_neurovec(v) for v in vecs):
             if not vecs:
                 raise ValueError("NeuroVecAdapter requires at least one NeuroVec")
@@ -180,7 +183,7 @@ class NeuroVecAdapter:
         cls,
         paths: Union[str, Path, Sequence[Union[str, Path]]],
         *,
-        mask: Optional[Any] = None,
+        mask: object = None,
         tr: float,
         start_time: float = 0.0,
     ) -> "NeuroVecAdapter":
@@ -208,7 +211,7 @@ class NeuroVecAdapter:
         *,
         spacing: Optional[Sequence[float]] = None,
         origin: Optional[Sequence[float]] = None,
-        mask: Optional[Any] = None,
+        mask: object = None,
         tr: float,
         start_time: float = 0.0,
     ) -> "NeuroVecAdapter":
@@ -243,7 +246,7 @@ class NeuroVecAdapter:
 
     # -- Internal --
 
-    def _resolve_mask(self, mask: Optional[Any]) -> NDArray[np.bool_]:
+    def _resolve_mask(self, mask: object) -> NDArray[np.bool_]:
         if mask is None:
             data4d = _extract_4d(self._vecs[0])
             return np.asarray(data4d[..., 0] != 0, dtype=bool)
