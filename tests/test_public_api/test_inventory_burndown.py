@@ -49,17 +49,12 @@ INVENTORY_PATH = REPO_ROOT / "docs" / "contracts" / "api_inventory_v1.json"
 # in the same commit.
 BASELINE_REVIEW_PENDING_NAMES = frozenset({
     "Fcontrasts", "HRF", "Poly", "SamplingFrame",
-    "SpecSerializationError", "acorr_diagnostics", "afni_restricted_plan", "as_hrf",
-    "bootstrap_glm", "build_nuisance_projector", "check_nuisance", "clean_nuisance",
-    "combine_contrasts", "combine_runs", "compute_dvars", "condition_basis_list",
-    "contrast_weights", "data_chunks", "design_matrix", "dvars_to_weights",
+    "SpecSerializationError", "afni_restricted_plan", "as_hrf", "bootstrap_glm",
+    "build_nuisance_projector", "condition_basis_list", "contrast_weights", "design_matrix",
     "estimate_betas", "estimate_hrf", "event_factor", "event_matrix",
     "event_variable", "fit_noise", "gen_empirical_hrf", "gen_hrf_library",
-    "generate_interaction_contrast", "generate_main_effect_contrast", "get_hrf", "latent_dataset",
-    "list_available_hrfs", "lsa_single_trial", "lss_single_trial", "r_to_z",
-    "sandwich_from_whitened_resid", "simulate_simple_dataset", "soft_subspace_options", "stats",
-    "t_to_d", "volume_weights", "voxel_index_chunks", "whiten",
-    "whiten_apply", "write_results", "z_to_r",
+    "latent_dataset", "lsa_single_trial", "lss_single_trial", "simulate_simple_dataset",
+    "soft_subspace_options", "stats", "write_results",
 })
 
 
@@ -82,8 +77,8 @@ def _current_review_pending() -> set[str]:
 
 def test_baseline_size_is_known() -> None:
     """Sanity-check the pinned baseline size to catch silent drift."""
-    assert len(BASELINE_REVIEW_PENDING_NAMES) == 47, (
-        f"BASELINE_REVIEW_PENDING_NAMES size drifted from 47 to "
+    assert len(BASELINE_REVIEW_PENDING_NAMES) == 27, (
+        f"BASELINE_REVIEW_PENDING_NAMES size drifted from 27 to "
         f"{len(BASELINE_REVIEW_PENDING_NAMES)}. Update the assertion "
         f"in the same commit that intentionally changed the baseline."
     )
