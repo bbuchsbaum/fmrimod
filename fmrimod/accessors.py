@@ -304,7 +304,7 @@ def coef_image(
     return out
 
 
-def get_data(x: object, run: int = 0, **kwargs) -> NDArray[np.float64]:
+def get_data(x: object, run: int = 0, **kwargs: object) -> NDArray[np.float64]:
     """Return run data from a dataset-like object."""
     method = getattr(x, "get_data", None)
     if callable(method):
@@ -312,14 +312,14 @@ def get_data(x: object, run: int = 0, **kwargs) -> NDArray[np.float64]:
     raise NotImplementedError(f"get_data not implemented for {type(x)}")
 
 
-def get_data_matrix(x: object, **kwargs) -> NDArray[np.float64]:
+def get_data_matrix(x: object, **kwargs: object) -> NDArray[np.float64]:
     """Return all run data concatenated along time."""
     if hasattr(x, "n_runs") and hasattr(x, "get_data"):
         return np.vstack([get_data(x, run=i, **kwargs) for i in range(int(x.n_runs))])
     return get_data(x, **kwargs)
 
 
-def get_mask(x: object, **kwargs) -> NDArray[np.bool_]:
+def get_mask(x: object, **kwargs: object) -> NDArray[np.bool_]:
     """Return a boolean mask from a dataset-like object."""
     method = getattr(x, "get_mask", None)
     if callable(method):

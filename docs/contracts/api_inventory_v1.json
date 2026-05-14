@@ -1803,7 +1803,7 @@
       "name": "get_data",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', run: 'int' = 0, **kwargs) -> 'NDArray[np.float64]'",
+      "runtime_signature": "(x: 'object', run: 'int' = 0, **kwargs: 'object') -> 'NDArray[np.float64]'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -1818,7 +1818,7 @@
       "name": "get_data_matrix",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', **kwargs) -> 'NDArray[np.float64]'",
+      "runtime_signature": "(x: 'object', **kwargs: 'object') -> 'NDArray[np.float64]'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -1863,7 +1863,7 @@
       "name": "get_mask",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', **kwargs) -> 'NDArray[np.bool_]'",
+      "runtime_signature": "(x: 'object', **kwargs: 'object') -> 'NDArray[np.bool_]'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
