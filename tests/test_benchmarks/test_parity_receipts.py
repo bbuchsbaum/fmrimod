@@ -14,6 +14,15 @@ from benchmarks.parity.verify_receipt import ROOT, verify_receipt
 pytest.importorskip("nilearn")
 
 
+def _assert_complete_fit_provenance(provenance: dict) -> None:
+    assert provenance["schema_version"] == "FitProvenance/v1"
+    assert provenance["seed_status"] in {"randomized", "not_randomized"}
+    assert provenance["ar_status"] == "carried"
+    assert provenance["mask_status"] == "carried"
+    assert provenance["design_source_status"] == "carried"
+    assert provenance["completeness_errors"] == []
+
+
 def test_tier_a_f_confound_drift_receipt_renders_to_manifest_path() -> None:
     result = verify_receipt("tier_a_f_confound_drift")
 
@@ -47,6 +56,8 @@ def test_tier_d_showcase_receipt_renders_proof_scorecard() -> None:
     assert "fmrimod.group.GroupDataset" in scorecard["typed_objects"]
     assert {row["case_id"] for row in report["rows"]} == set(scorecard["public_rows"])
     assert all("public-seam" in row["capability"] for row in report["rows"])
+    _assert_complete_fit_provenance(report["fit_provenance"])
+    _assert_complete_fit_provenance(scorecard["semantic_survival"]["fit_provenance"])
 
 
 def test_tier_a_f_confound_drift_uses_typed_omnibus_intent() -> None:

@@ -11,6 +11,15 @@ from benchmarks.parity.tier_group_semantic_survival import workflow
 pytest.importorskip("nilearn")
 
 
+def _assert_complete_fit_provenance(provenance: dict) -> None:
+    assert provenance["schema_version"] == "FitProvenance/v1"
+    assert provenance["seed_status"] in {"randomized", "not_randomized"}
+    assert provenance["ar_status"] == "carried"
+    assert provenance["mask_status"] == "carried"
+    assert provenance["design_source_status"] == "carried"
+    assert provenance["completeness_errors"] == []
+
+
 def test_group_semantic_survival_carries_typed_intent_to_group() -> None:
     result = workflow.run_demo(n_subjects=4, max_voxels=8)
 
@@ -31,6 +40,7 @@ def test_group_semantic_survival_carries_typed_intent_to_group() -> None:
         explanation["intent"]["term"] == "trial_type"
         for explanation in result.explanations
     )
+    _assert_complete_fit_provenance(result.report["fit_provenance"])
 
 
 def test_group_semantic_survival_report_is_regenerable(tmp_path) -> None:
@@ -43,3 +53,4 @@ def test_group_semantic_survival_report_is_regenerable(tmp_path) -> None:
     assert report["checks"]["typed_intent_term"] == "trial_type"
     assert report["checks"]["contrast_name_survives"] == ["conditions_omnibus"]
     assert "t_coef:Intercept" in report["checks"]["group_result_assays"]
+    _assert_complete_fit_provenance(report["fit_provenance"])
