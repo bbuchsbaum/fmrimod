@@ -11,7 +11,6 @@ going through the full ``fit_noise()`` pipeline.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -50,18 +49,18 @@ class WhiteningPlan:
         0-based indices of censored timepoints.
     """
 
-    phi: Optional[list[NDArray]] = None
-    theta: Optional[list[NDArray]] = None
+    phi: list[NDArray] | None = None
+    theta: list[NDArray] | None = None
     order: tuple[int, int] = (0, 0)
-    runs: Optional[NDArray] = None
+    runs: NDArray | None = None
     exact_first: bool = False
     method: str = "ar"
     pooling: str = "global"
-    parcels: Optional[NDArray] = None
-    parcel_ids: Optional[list[str]] = None
-    phi_by_parcel: Optional[dict[str, NDArray]] = None
-    theta_by_parcel: Optional[dict[str, NDArray]] = None
-    censor: Optional[NDArray] = None
+    parcels: NDArray | None = None
+    parcel_ids: list[str] | None = None
+    phi_by_parcel: dict[str, NDArray] | None = None
+    theta_by_parcel: dict[str, NDArray] | None = None
+    censor: NDArray | None = None
 
     def __repr__(self) -> str:
         p, q = self.order
@@ -79,7 +78,7 @@ class WhiteningPlan:
             f"{'AR(1)' if self.exact_first else 'none'}"
         )
 
-        def _fmt(v: Optional[NDArray]) -> str:
+        def _fmt(v: NDArray | None) -> str:
             if v is None or len(v) == 0:
                 return "(none)"
             return ", ".join(f"{x:.3g}" for x in v)
@@ -128,20 +127,20 @@ class WhitenResult:
         Per-parcel whitened design matrices (parcel plans only).
     """
 
-    X: Optional[NDArray] = None
-    Y: Optional[NDArray] = None
-    X_by: Optional[dict[str, NDArray]] = None
+    X: NDArray | None = None
+    Y: NDArray | None = None
+    X_by: dict[str, NDArray] | None = None
 
 
 def plan_from_phi(
-    phi: Union[NDArray, list[NDArray]],
-    theta: Union[NDArray, list[NDArray], None] = None,
+    phi: NDArray | list[NDArray],
+    theta: NDArray | list[NDArray] | None = None,
     *,
-    runs: Optional[NDArray] = None,
-    parcels: Optional[NDArray] = None,
+    runs: NDArray | None = None,
+    parcels: NDArray | None = None,
     pooling: str = "global",
     exact_first: bool = True,
-    method: Optional[str] = None,
+    method: str | None = None,
 ) -> WhiteningPlan:
     """Create a WhiteningPlan from raw AR/MA coefficients.
 
@@ -236,11 +235,11 @@ def plan_from_phi(
 def whiten_with_phi(
     X: NDArray,
     Y: NDArray,
-    phi: Union[NDArray, list[NDArray]],
-    theta: Union[NDArray, list[NDArray], None] = None,
+    phi: NDArray | list[NDArray],
+    theta: NDArray | list[NDArray] | None = None,
     *,
-    runs: Optional[NDArray] = None,
-    parcels: Optional[NDArray] = None,
+    runs: NDArray | None = None,
+    parcels: NDArray | None = None,
     pooling: str = "global",
     exact_first: bool = False,
 ) -> WhitenResult:
