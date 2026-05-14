@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Mapping, Sequence
+from typing import Literal, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -128,7 +128,7 @@ class StatsModelTranslation:
     event_table: pd.DataFrame
     column_names: list[str]
     contrast_vectors: dict[str, NDArray[np.float64]]
-    node: Mapping[str, Any]
+    node: Mapping[str, object]
     caveats: tuple[str, ...] = ()
     model_spec: Spec | None = None
     contrast_specs: dict[str, StatsModelContrast] = field(default_factory=dict)
@@ -171,14 +171,14 @@ class _ConvolvedModel:
     modulators: tuple[str, ...] = ()
 
 
-def load_stats_model(path: str | Path) -> dict[str, Any]:
+def load_stats_model(path: str | Path) -> dict[str, object]:
     """Load a BIDS Stats Model JSON document."""
 
     with open(path) as f:
         return json.load(f)
 
 
-def _run_node(model: Mapping[str, Any], level: str = "run") -> Mapping[str, Any]:
+def _run_node(model: Mapping[str, object], level: str = "run") -> Mapping[str, object]:
     for node in model.get("Nodes", []):
         if str(node.get("Level", "")).lower() == level.lower():
             return node
@@ -407,7 +407,7 @@ def _apply_event_table_transforms(
     return out
 
 
-def _baseline_terms(node: Mapping[str, Any]) -> tuple[bool, list[str]]:
+def _baseline_terms(node: Mapping[str, object]) -> tuple[bool, list[str]]:
     model = node.get("Model", {})
     x_terms = model.get("X", [])
     intercept = any(item == 1 or str(item).lower() == "intercept" for item in x_terms)
@@ -555,7 +555,7 @@ def _model_spec(
 
 
 def translate_run_node(
-    stats_model: Mapping[str, Any],
+    stats_model: Mapping[str, object],
     *,
     events: pd.DataFrame,
     sampling_frame: object,
