@@ -15,6 +15,7 @@ NIBABEL_BOUNDARY_ALLOWLIST = {
 }
 NIBABEL_BOUNDARY_PREFIXES = (
     Path("fmrimod/dataset/adapters"),
+    Path("fmrimod/dataset/backends"),
     Path("fmrimod/bids"),
     Path("fmrimod/io"),
 )
