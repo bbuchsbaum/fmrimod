@@ -1,0 +1,243 @@
+{
+  "caveats": [],
+  "column_alignment": [],
+  "deltas": {
+    "design": {
+      "failed_gates": [],
+      "gate": "allclose+pearson+spearman",
+      "mae": 0.0,
+      "max_abs": 0.0,
+      "name": "design",
+      "passes": true,
+      "pearson_r": 1.0,
+      "rank_candidate": 10,
+      "rank_reference": 10,
+      "scale": 1.0,
+      "shape": [
+        200,
+        10
+      ],
+      "spearman_rho": 1.0,
+      "tolerance": {
+        "allow_rescale": false,
+        "atol": 0.0,
+        "check_allclose": true,
+        "max_abs": null,
+        "max_mae": null,
+        "min_pearson": 0.999,
+        "min_spearman": 0.999,
+        "rtol": 0.0
+      }
+    },
+    "effect_main_A_minus_B": {
+      "failed_gates": [],
+      "gate": "allclose+pearson+spearman",
+      "mae": 6.748339430664996e-11,
+      "max_abs": 7.44719841350161e-11,
+      "name": "effect_main_A_minus_B",
+      "passes": true,
+      "pearson_r": 1.0,
+      "rank_candidate": 1,
+      "rank_reference": 1,
+      "scale": 1.0,
+      "shape": [
+        1024
+      ],
+      "spearman_rho": 1.0,
+      "tolerance": {
+        "allow_rescale": false,
+        "atol": 1e-09,
+        "check_allclose": true,
+        "max_abs": null,
+        "max_mae": null,
+        "min_pearson": 0.999,
+        "min_spearman": 0.999,
+        "rtol": 1e-08
+      }
+    },
+    "effect_run_diff_A": {
+      "failed_gates": [],
+      "gate": "allclose+pearson+spearman",
+      "mae": 2.466072051426904e-12,
+      "max_abs": 9.023892744153272e-12,
+      "name": "effect_run_diff_A",
+      "passes": true,
+      "pearson_r": 0.9999999999999998,
+      "rank_candidate": 1,
+      "rank_reference": 1,
+      "scale": 1.0,
+      "shape": [
+        1024
+      ],
+      "spearman_rho": 1.0,
+      "tolerance": {
+        "allow_rescale": false,
+        "atol": 1e-09,
+        "check_allclose": true,
+        "max_abs": null,
+        "max_mae": null,
+        "min_pearson": 0.999,
+        "min_spearman": 0.999,
+        "rtol": 1e-08
+      }
+    },
+    "effect_trial_x_run_interaction": {
+      "failed_gates": [],
+      "gate": "allclose+pearson+spearman",
+      "mae": 4.191209445475463e-12,
+      "max_abs": 1.6399326341343112e-11,
+      "name": "effect_trial_x_run_interaction",
+      "passes": true,
+      "pearson_r": 1.0,
+      "rank_candidate": 1,
+      "rank_reference": 1,
+      "scale": 1.0,
+      "shape": [
+        1024
+      ],
+      "spearman_rho": 1.0,
+      "tolerance": {
+        "allow_rescale": false,
+        "atol": 1e-09,
+        "check_allclose": true,
+        "max_abs": null,
+        "max_mae": null,
+        "min_pearson": 0.999,
+        "min_spearman": 0.999,
+        "rtol": 1e-08
+      }
+    },
+    "f_task_omnibus": {
+      "failed_gates": [],
+      "gate": "allclose+pearson+spearman",
+      "mae": 5.177000009440997e-11,
+      "max_abs": 7.006764057848613e-10,
+      "name": "f_task_omnibus",
+      "passes": true,
+      "pearson_r": 1.0,
+      "rank_candidate": 1,
+      "rank_reference": 1,
+      "scale": 1.0,
+      "shape": [
+        1024
+      ],
+      "spearman_rho": 1.0,
+      "tolerance": {
+        "allow_rescale": false,
+        "atol": 1e-08,
+        "check_allclose": true,
+        "max_abs": null,
+        "max_mae": null,
+        "min_pearson": 0.999,
+        "min_spearman": 0.999,
+        "rtol": 1e-07
+      }
+    },
+    "rank": {
+      "failed_gates": [],
+      "gate": "allclose+pearson+spearman",
+      "mae": 0.0,
+      "max_abs": 0.0,
+      "name": "rank",
+      "passes": true,
+      "pearson_r": 1.0,
+      "rank_candidate": 1,
+      "rank_reference": 1,
+      "scale": 1.0,
+      "shape": [
+        1
+      ],
+      "spearman_rho": 1.0,
+      "tolerance": {
+        "allow_rescale": false,
+        "atol": 0.0,
+        "check_allclose": true,
+        "max_abs": null,
+        "max_mae": null,
+        "min_pearson": 0.999,
+        "min_spearman": 0.999,
+        "rtol": 0.0
+      }
+    },
+    "t_main_A_minus_B": {
+      "failed_gates": [],
+      "gate": "allclose+pearson+spearman",
+      "mae": 2.0214169077257322e-11,
+      "max_abs": 2.1969404073729493e-10,
+      "name": "t_main_A_minus_B",
+      "passes": true,
+      "pearson_r": 1.0,
+      "rank_candidate": 1,
+      "rank_reference": 1,
+      "scale": 1.0,
+      "shape": [
+        1024
+      ],
+      "spearman_rho": 1.0,
+      "tolerance": {
+        "allow_rescale": false,
+        "atol": 1e-08,
+        "check_allclose": true,
+        "max_abs": null,
+        "max_mae": null,
+        "min_pearson": 0.999,
+        "min_spearman": 0.999,
+        "rtol": 1e-07
+      }
+    },
+    "t_run_diff_A": {
+      "failed_gates": [],
+      "gate": "allclose+pearson+spearman",
+      "mae": 1.9104177676835617e-11,
+      "max_abs": 2.043316627009517e-10,
+      "name": "t_run_diff_A",
+      "passes": true,
+      "pearson_r": 1.0,
+      "rank_candidate": 1,
+      "rank_reference": 1,
+      "scale": 1.0,
+      "shape": [
+        1024
+      ],
+      "spearman_rho": 1.0,
+      "tolerance": {
+        "allow_rescale": false,
+        "atol": 1e-08,
+        "check_allclose": true,
+        "max_abs": null,
+        "max_mae": null,
+        "min_pearson": 0.999,
+        "min_spearman": 0.999,
+        "rtol": 1e-07
+      }
+    },
+    "t_trial_x_run_interaction": {
+      "failed_gates": [],
+      "gate": "allclose+pearson+spearman",
+      "mae": 1.9374174594218065e-11,
+      "max_abs": 1.8413803815064966e-10,
+      "name": "t_trial_x_run_interaction",
+      "passes": true,
+      "pearson_r": 1.0,
+      "rank_candidate": 1,
+      "rank_reference": 1,
+      "scale": 1.0,
+      "shape": [
+        1024
+      ],
+      "spearman_rho": 1.0,
+      "tolerance": {
+        "allow_rescale": false,
+        "atol": 1e-08,
+        "check_allclose": true,
+        "max_abs": null,
+        "max_mae": null,
+        "min_pearson": 0.999,
+        "min_spearman": 0.999,
+        "rtol": 1e-07
+      }
+    }
+  },
+  "name": "tier_a_multirun_concat",
+  "status": "pass"
+}

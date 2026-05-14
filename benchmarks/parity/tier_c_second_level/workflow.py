@@ -58,7 +58,10 @@ def make_inputs(seed: int = 2026) -> SecondLevelInputs:
             for subj_age in age
         ]
     )
-    images = [nib.Nifti1Image(row.reshape(shape).astype(np.float32), affine) for row in values]
+    images = [
+        nib.Nifti1Image(row.reshape(shape).astype(np.float32), affine)
+        for row in values
+    ]
     subjects = [f"s{i + 1:02d}" for i in range(n_subjects)]
     rows = []
     for i, subject in enumerate(subjects):
@@ -87,7 +90,9 @@ def nilearn_pipeline(inputs: SecondLevelInputs) -> PipelineOutput:
     one.fit(inputs.images, design_matrix=design_one)
     one_maps = one.compute_contrast("intercept", output_type="all")
 
-    design_reg = pd.DataFrame({"intercept": np.ones(len(inputs.images)), "age": inputs.age})
+    design_reg = pd.DataFrame(
+        {"intercept": np.ones(len(inputs.images)), "age": inputs.age}
+    )
     reg = SecondLevelModel(mask_img=inputs.mask_img, smoothing_fwhm=None)
     reg.fit(inputs.images, design_matrix=design_reg)
     age_maps = reg.compute_contrast("age", output_type="all")
