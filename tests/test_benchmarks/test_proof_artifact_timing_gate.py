@@ -35,18 +35,21 @@ MANIFEST = REPO_ROOT / "benchmarks" / "parity" / "proof_artifacts.json"
 # this set requires the row to actually carry recorded numeric timings —
 # the assertions below verify that, so a no-op flip of `status` from
 # "not_recorded" to "recorded" without a payload still fails the test.
-_PENDING_TIMING_ROWS = frozenset({
-    "tier_a_f_confound_drift",
-    "tier_a_factorial_2x2",
-    "tier_a_factorial_3x3_parametric",
-    "tier_a_fir_unconstrained_hrf",
-    "tier_a_multicollinear_baseline",
-    "tier_a_multirun_concat",
-    "tier_a_parametric_modulation",
-    "tier_b_fitlins_bids",
-    "tier_c_second_level",
-    "tier_e_parametric_centering",
-})
+_PENDING_TIMING_ROWS = frozenset(
+    {
+        "tier_a_f_confound_drift",
+        "tier_a_factorial_2x2",
+        "tier_a_factorial_3x3_parametric",
+        "tier_a_fir_unconstrained_hrf",
+        "tier_a_multicollinear_baseline",
+        "tier_a_multirun_concat",
+        "tier_a_parametric_modulation",
+        "tier_b_fitlins_bids",
+        "tier_c_second_level",
+        "tier_e_parametric_centering",
+        "tier_e_semantic_contrast_alignment",
+    }
+)
 
 _GATED_LEVELS = frozenset({"flagship_workflow", "workflow_parity"})
 
@@ -87,7 +90,8 @@ def test_pending_allowlist_only_names_gated_levels() -> None:
     """
     by_id = {a["benchmark_id"]: a for a in _load_manifest()["artifacts"]}
     miscategorized = sorted(
-        bid for bid in _PENDING_TIMING_ROWS
+        bid
+        for bid in _PENDING_TIMING_ROWS
         if by_id.get(bid, {}).get("evidence_level") not in _GATED_LEVELS
     )
     assert not miscategorized, (

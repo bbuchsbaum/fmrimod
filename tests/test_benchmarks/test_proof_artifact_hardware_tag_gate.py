@@ -23,27 +23,42 @@ import json
 from pathlib import Path
 from typing import Any, Dict
 
+from benchmarks.performance.check_regression import (
+    find_artifact_history_gaps,
+    load_records,
+)
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = REPO_ROOT / "benchmarks" / "parity" / "proof_artifacts.json"
+PERFORMANCE_HISTORY = (
+    REPO_ROOT
+    / "benchmarks"
+    / "performance"
+    / "fixtures"
+    / "parity_performance_history.jsonl"
+)
 
 # Rows that need a hardware_tag but don't yet have one. Removing a row
 # from this set requires actually adding a non-empty `hardware_tag`
 # string to the manifest in the same commit — the assertions below
 # verify that.
-_PENDING_HARDWARE_TAG_ROWS = frozenset({
-    "tier_a_f_confound_drift",
-    "tier_a_factorial_2x2",
-    "tier_a_factorial_3x3_parametric",
-    "tier_a_fir_unconstrained_hrf",
-    "tier_a_multicollinear_baseline",
-    "tier_a_multirun_concat",
-    "tier_a_parametric_modulation",
-    "tier_a_spm_auditory",
-    "tier_b_fitlins_bids",
-    "tier_c_second_level",
-    "tier_e_parametric_centering",
-    "tier_group_semantic_survival",
-})
+_PENDING_HARDWARE_TAG_ROWS = frozenset(
+    {
+        "tier_a_f_confound_drift",
+        "tier_a_factorial_2x2",
+        "tier_a_factorial_3x3_parametric",
+        "tier_a_fir_unconstrained_hrf",
+        "tier_a_multicollinear_baseline",
+        "tier_a_multirun_concat",
+        "tier_a_parametric_modulation",
+        "tier_a_spm_auditory",
+        "tier_b_fitlins_bids",
+        "tier_c_second_level",
+        "tier_e_parametric_centering",
+        "tier_e_semantic_contrast_alignment",
+        "tier_group_semantic_survival",
+    }
+)
 
 _GATED_LEVELS = frozenset({"flagship_workflow", "workflow_parity"})
 
@@ -75,7 +90,8 @@ def test_pending_allowlist_only_names_gated_levels() -> None:
     """
     by_id = {a["benchmark_id"]: a for a in _load_manifest()["artifacts"]}
     miscategorized = sorted(
-        bid for bid in _PENDING_HARDWARE_TAG_ROWS
+        bid
+        for bid in _PENDING_HARDWARE_TAG_ROWS
         if by_id.get(bid, {}).get("evidence_level") not in _GATED_LEVELS
     )
     assert not miscategorized, (
@@ -139,4 +155,18 @@ def test_no_new_flagship_or_workflow_row_skips_hardware_tag_silently() -> None:
         f"the _PENDING_HARDWARE_TAG_ROWS allowlist: {silent_skips}. "
         f"Either add the hardware_tag string or register the id in "
         f"the allowlist with a board-linked rationale in the same commit."
+    )
+
+
+def test_recorded_hardware_tag_rows_join_comparable_performance_history() -> None:
+    """A hardware tag is useful only when it joins at least two history rows."""
+
+    artifacts = _load_manifest()["artifacts"]
+    gaps = find_artifact_history_gaps(
+        artifacts,
+        load_records(PERFORMANCE_HISTORY),
+    )
+    assert not gaps, (
+        "Recorded proof-artifact timings must join a comparable "
+        f"hardware_tag+stage history: {gaps}"
     )

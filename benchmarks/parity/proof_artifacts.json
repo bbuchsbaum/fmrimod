@@ -516,6 +516,8 @@
       "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::_lss_reference and exact GLM helpers plus tier_group_semantic_survival oracle",
       "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::render: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
       "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
+      "performance_stage": "tier_d_showcase",
       "timings": {
         "status": "recorded",
         "seconds": 0.04528841700000008,
