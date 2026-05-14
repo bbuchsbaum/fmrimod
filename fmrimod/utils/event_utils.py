@@ -1,6 +1,7 @@
 """Utility functions for working with events and onsets."""
 
-from typing import Dict, List, Optional, Union, Callable, Any
+from typing import Any, Callable, Dict, List, Optional, Union
+
 import numpy as np
 import pandas as pd
 
@@ -139,7 +140,7 @@ def split_by_block(event: EventProtocol,
     ...                        block_onsets=block_starts,
     ...                        block_durations=block_lengths)
     """
-    from ..events import EventFactor, EventVariable, EventMatrix, EventBasis
+    from ..events import EventBasis, EventFactor, EventMatrix, EventVariable
     
     # Get event attributes
     onsets = np.asarray(event.onsets)

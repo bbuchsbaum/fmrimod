@@ -1,7 +1,8 @@
 """Generic utility functions for extracting information from model objects."""
 
-from typing import List, Optional, Union, Any, Dict
 from functools import singledispatch
+from typing import Any, Dict, List, Optional, Union
+
 import numpy as np
 import pandas as pd
 
@@ -763,8 +764,8 @@ def shift(x, shift_amount=None, **kwargs):
 def _register_event_term():
     """Register EventTerm implementations after imports are resolved."""
     try:
-        from ..events.term import EventTerm
         from ..events.cells import cells_event_term, conditions_event_term
+        from ..events.term import EventTerm
         
         @cells.register(EventTerm)
         def _cells_event_term(term: EventTerm, drop_empty: bool = True, **kwargs):
@@ -798,11 +799,11 @@ _register_event_term()
 def _register_event_extractors():
     """Register implementations for event extraction functions."""
     try:
-        from ..events.factor import EventFactor
-        from ..events.variable import EventVariable
-        from ..events.matrix import EventMatrix
         from ..events.basis import EventBasis
+        from ..events.factor import EventFactor
+        from ..events.matrix import EventMatrix
         from ..events.term import EventTerm
+        from ..events.variable import EventVariable
         
         # Onsets implementations
         @onsets.register(EventFactor)
@@ -909,11 +910,11 @@ _register_event_extractors()
 def _register_type_checkers():
     """Register implementations for type checking functions."""
     try:
-        from ..events.factor import EventFactor
-        from ..events.variable import EventVariable
-        from ..events.matrix import EventMatrix
         from ..events.basis import EventBasis
+        from ..events.factor import EventFactor
+        from ..events.matrix import EventMatrix
         from ..events.term import EventTerm
+        from ..events.variable import EventVariable
         
         # is_categorical implementations
         @is_categorical.register(EventFactor)
@@ -977,11 +978,11 @@ _register_type_checkers()
 def _register_event_cells_conditions():
     """Register cells and conditions implementations for event classes."""
     try:
-        from ..events.factor import EventFactor
-        from ..events.variable import EventVariable
-        from ..events.matrix import EventMatrix
         from ..events.basis import EventBasis
         from ..events.cells import cells_event_term, conditions_event_term
+        from ..events.factor import EventFactor
+        from ..events.matrix import EventMatrix
+        from ..events.variable import EventVariable
         
         # For EventFactor - wrap in EventTerm to use existing logic
         @cells.register(EventFactor)
@@ -1113,11 +1114,11 @@ _register_event_terms()
 def _register_labels_levels():
     """Register labels and levels implementations for events."""
     try:
-        from ..events.factor import EventFactor
-        from ..events.variable import EventVariable
-        from ..events.matrix import EventMatrix
         from ..events.basis import EventBasis
+        from ..events.factor import EventFactor
+        from ..events.matrix import EventMatrix
         from ..events.term import EventTerm
+        from ..events.variable import EventVariable
         
         # labels implementations
         @labels.register(EventFactor)
@@ -1199,12 +1200,12 @@ _register_labels_levels()
 def _register_columns():
     """Register columns implementations for various objects."""
     try:
-        from ..events.factor import EventFactor
-        from ..events.variable import EventVariable
-        from ..events.matrix import EventMatrix
-        from ..events.basis import EventBasis
-        from ..events.term import EventTerm
         from ..design.event_model import EventModel
+        from ..events.basis import EventBasis
+        from ..events.factor import EventFactor
+        from ..events.matrix import EventMatrix
+        from ..events.term import EventTerm
+        from ..events.variable import EventVariable
 
         @columns.register(EventFactor)
         def _columns_event_factor(event: EventFactor, **kwargs):
@@ -1293,7 +1294,7 @@ _register_columns()
 def _register_construct():
     """Register construct implementations for spec objects."""
     try:
-        from ..baseline.specs import NuisanceSpec, BlockSpec
+        from ..baseline.specs import BlockSpec, NuisanceSpec
 
         @construct.register(NuisanceSpec)
         def _construct_nuisance_spec(spec: NuisanceSpec, sampling_frame, **kwargs):
@@ -1331,12 +1332,12 @@ _register_construct()
 def _register_nbasis():
     """Register nbasis implementations for various objects."""
     try:
-        from ..events.factor import EventFactor
-        from ..events.variable import EventVariable
-        from ..events.matrix import EventMatrix
-        from ..events.basis import EventBasis
-        from ..events.term import EventTerm
         from ..basis.base import ParametricBasis
+        from ..events.basis import EventBasis
+        from ..events.factor import EventFactor
+        from ..events.matrix import EventMatrix
+        from ..events.term import EventTerm
+        from ..events.variable import EventVariable
 
         @nbasis.register(EventFactor)
         def _nbasis_event_factor(event: EventFactor, **kwargs):

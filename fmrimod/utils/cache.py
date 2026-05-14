@@ -5,9 +5,9 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Mapping
 from typing import Tuple
+
 import numpy as np
 from numpy.typing import NDArray
-
 
 # Simple LRU cache for HRF evaluations
 # TODO: Consider implementing bounded cache using cachetools or custom LRU cache

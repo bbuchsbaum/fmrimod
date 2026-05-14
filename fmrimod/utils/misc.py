@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Optional, List, Union, Callable, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable, List, Optional, Union
+
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from ..hrf.core import HRF
+
 if TYPE_CHECKING:
     from ..regressor import Regressor
 else:

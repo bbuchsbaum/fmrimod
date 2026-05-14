@@ -1,6 +1,7 @@
 """Utility functions for working with model terms and design matrices."""
 
-from typing import Dict, List, Tuple, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
+
 import numpy as np
 import pandas as pd
 
