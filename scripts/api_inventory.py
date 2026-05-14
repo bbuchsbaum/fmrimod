@@ -211,6 +211,57 @@ def _annotation_has_any(annotation: Any) -> bool:
     return False
 
 
+_VALID_SEAM_CLASSES = frozenset({"public", "compat", "adapter", "internal"})
+
+
+def _load_public_names_from_inventory(inventory_path: Path) -> set[str]:
+    """Return the set of names in the public-API inventory.
+
+    Reads :data:`INVENTORY_PATH` directly so the internal audit can
+    classify rows as ``"public"`` without importing ``fmrimod``. The
+    inventory is the source-of-truth for ``fmrimod.__all__`` membership.
+    """
+    if not inventory_path.exists():
+        return set()
+    try:
+        payload = json.loads(inventory_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return set()
+    return {row["name"] for row in payload.get("rows", []) if row.get("name")}
+
+
+def _classify_seam(module: str, qualname: str, public_names: set[str]) -> str:
+    """Classify a function definition by its seam tier.
+
+    The four buckets are:
+
+    - ``"adapter"`` — anything under ``fmrimod.dataset.adapters`` (the
+      one named boundary path between fmrimod and external image
+      libraries; see MISSION.md:205-207 and the substrate import lint).
+    - ``"compat"`` — modules ending in ``.compat`` or ``.meta_compat``.
+      These are the R-port shim surfaces called out by
+      ``compat_retirement_inventory_v1.md``.
+    - ``"public"`` — top-level functions whose simple ``qualname``
+      matches an entry in ``fmrimod.__all__`` (per the inventory).
+    - ``"internal"`` — everything else; the implementation interior
+      that should not be a freshness-gate target on its own but does
+      count toward burn-down.
+
+    Method definitions inside classes get ``qualname`` like
+    ``ClassName.method`` and are routed to ``internal`` regardless of
+    whether ``ClassName`` is public.
+    """
+    if module.startswith("fmrimod.dataset.adapters"):
+        return "adapter"
+    # Match ``.compat`` and ``.meta_compat`` exactly at module suffix.
+    last_segment = module.rsplit(".", 1)[-1]
+    if last_segment == "compat" or last_segment.endswith("_compat"):
+        return "compat"
+    if "." not in qualname and qualname in public_names:
+        return "public"
+    return "internal"
+
+
 def _classify_function_node(
     node: Any,  # ast.FunctionDef | ast.AsyncFunctionDef
     module: str,
@@ -256,7 +307,16 @@ def build_internal_audit() -> Dict[str, Any]:
     by surfacing soundness debt in private/internal modules. The audit is
     AST-based so it doesn't trigger import-time side effects or depend on
     optional runtime dependencies.
+
+    Each row carries a ``seam_class`` value
+    (``"public"`` / ``"compat"`` / ``"adapter"`` / ``"internal"``) so
+    follow-up burn-down work can prioritize by tier — see
+    :func:`_classify_seam` for the rules. ``coercion_exemption`` and
+    ``owner_bead`` are placeholders (``null``) for follow-up classification
+    of legitimate boundary-coercion functions and per-row remediation
+    ownership.
     """
+    public_names = _load_public_names_from_inventory(INVENTORY_PATH)
     rows: List[Dict[str, Any]] = []
     files_scanned = 0
     parse_failures = 0
@@ -279,7 +339,11 @@ def build_internal_audit() -> Dict[str, Any]:
                     _walk(new_scope, child)
                 elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     row = _classify_function_node(child, module)
-                    row["qualname"] = f"{scope_qual}{child.name}"
+                    qualname = f"{scope_qual}{child.name}"
+                    row["qualname"] = qualname
+                    row["seam_class"] = _classify_seam(module, qualname, public_names)
+                    row["coercion_exemption"] = None
+                    row["owner_bead"] = None
                     rows.append(row)
                     # Functions can contain nested functions; recurse for completeness.
                     _walk(f"{scope_qual}{child.name}.", child)
@@ -294,6 +358,16 @@ def build_internal_audit() -> Dict[str, Any]:
         "with_var_kwargs": sum(1 for r in rows if r["has_var_kwargs"]),
         "with_var_args_any": sum(1 for r in rows if r["has_var_args_any"]),
     }
+    # Per-seam soundness counts so burn-down can be prioritized by tier.
+    by_seam: Dict[str, Dict[str, int]] = {}
+    for seam in _VALID_SEAM_CLASSES:
+        seam_rows = [r for r in rows if r["seam_class"] == seam]
+        by_seam[seam] = {
+            "total": len(seam_rows),
+            "with_any_annotation": sum(1 for r in seam_rows if r["has_any_annotation"]),
+            "with_var_kwargs": sum(1 for r in seam_rows if r["has_var_kwargs"]),
+        }
+    counts["by_seam_class"] = by_seam
     return {
         "schema_version": INTERNAL_SCHEMA_VERSION,
         "counts": counts,

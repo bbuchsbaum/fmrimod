@@ -171,7 +171,11 @@ _INTERNAL_REQUIRED_ROW_KEYS = frozenset({
     "has_any_annotation",
     "has_var_kwargs",
     "has_var_args_any",
+    "seam_class",
+    "coercion_exemption",
+    "owner_bead",
 })
+_VALID_SEAM_CLASSES = frozenset({"public", "compat", "adapter", "internal"})
 
 
 def _load_internal_audit() -> dict:
@@ -195,6 +199,76 @@ def test_internal_audit_rows_carry_all_required_columns() -> None:
             f"internal audit row {row.get('module')}::{row.get('qualname')} "
             f"missing columns: {sorted(missing)}"
         )
+
+
+def test_internal_audit_rows_have_valid_seam_class() -> None:
+    """Every row's ``seam_class`` is one of the four documented values.
+
+    Catches drift in the seam-classification logic — e.g., a new
+    ``"compat"``-style suffix that the classifier doesn't recognize, or
+    a manual JSON edit that put a free-text label in the column.
+    """
+    invalid = []
+    for row in _load_internal_audit()["rows"]:
+        seam = row.get("seam_class")
+        if seam not in _VALID_SEAM_CLASSES:
+            invalid.append(f"{row['module']}::{row['qualname']}: seam_class={seam!r}")
+    assert not invalid, (
+        f"rows with invalid seam_class (must be one of {sorted(_VALID_SEAM_CLASSES)}):\n  - "
+        + "\n  - ".join(invalid)
+    )
+
+
+def test_internal_audit_counts_carry_per_seam_breakdown() -> None:
+    """Counts include a per-seam breakdown so burn-down can be prioritized.
+
+    The aggregate count of 394 ``with_any_annotation`` is unsortable
+    without knowing which rows are public-facing vs internal vs
+    legitimate boundary coercion. This test asserts the
+    ``by_seam_class`` breakdown exists and the per-seam totals sum to
+    the aggregate.
+    """
+    counts = _load_internal_audit()["counts"]
+    by_seam = counts.get("by_seam_class")
+    assert isinstance(by_seam, dict), (
+        f"counts must include by_seam_class breakdown; got {by_seam!r}"
+    )
+    for seam in _VALID_SEAM_CLASSES:
+        assert seam in by_seam, f"by_seam_class missing entry for {seam!r}"
+        for key in ("total", "with_any_annotation", "with_var_kwargs"):
+            assert key in by_seam[seam], (
+                f"by_seam_class[{seam!r}] missing {key!r}: {by_seam[seam]}"
+            )
+    # Sums match the aggregates — no rows go uncounted.
+    seam_total = sum(by_seam[s]["total"] for s in _VALID_SEAM_CLASSES)
+    assert seam_total == counts["total_functions"], (
+        f"per-seam totals sum to {seam_total} but aggregate is "
+        f"{counts['total_functions']}"
+    )
+    seam_any = sum(by_seam[s]["with_any_annotation"] for s in _VALID_SEAM_CLASSES)
+    assert seam_any == counts["with_any_annotation"], (
+        f"per-seam Any sum to {seam_any} but aggregate is "
+        f"{counts['with_any_annotation']}"
+    )
+
+
+def test_internal_audit_public_seam_any_count_does_not_silently_grow() -> None:
+    """Pin the ``seam_class=='public'`` Any baseline at the moment of landing.
+
+    The aggregate baseline (394) is broad — it lets internal Any-leaks
+    swap with public Any-leaks 1:1. The public-seam-specific baseline
+    is the priority gauge: a new ``Any`` in a public-facing function
+    is more user-visible than a new ``Any`` in a deep internal helper.
+    """
+    by_seam = _load_internal_audit()["counts"].get("by_seam_class", {})
+    public_any = by_seam.get("public", {}).get("with_any_annotation", 0)
+    BASELINE_PUBLIC_WITH_ANY = 30
+    assert public_any <= BASELINE_PUBLIC_WITH_ANY, (
+        f"public-seam Any-annotation count grew from "
+        f"{BASELINE_PUBLIC_WITH_ANY} to {public_any}; this is a higher-"
+        f"priority regression than internal-seam growth. Either narrow "
+        f"the offending Any or raise the baseline with rationale."
+    )
 
 
 def test_internal_audit_counts_track_live_probe() -> None:
