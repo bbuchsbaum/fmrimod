@@ -138,6 +138,7 @@ or the root `fmrimod` namespace. During consolidation, `fmridataset` re-exports
 only implemented canonical objects identity-equivalently:
 
 ```{python}
+#| eval: false
 import fmridataset
 import fmrimod.dataset as ds
 
