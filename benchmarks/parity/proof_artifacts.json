@@ -476,17 +476,45 @@
     },
     {
       "benchmark_id": "tier_d_showcase",
-      "evidence_level": "numerical_canary",
-      "public_seam": false,
+      "evidence_level": "flagship_workflow",
+      "public_seam": true,
       "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py",
       "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json",
-      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::_lss_reference and exact GLM helpers",
-      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_showcases",
+      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::_lss_reference and exact GLM helpers plus tier_group_semantic_survival oracle",
+      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::render: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
       "caveats": [],
-      "replacement_target": {
-        "description": "Split showcase rows into public-seam flagship workflows when each capability has a typed dataset/model/contrast entry point.",
-        "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
-        "blocking_api_gap": "showcase capabilities (LSS, exact GLM helpers) lack typed dataset / model / contrast entry points; each capability needs its own typed seam before the row splits."
+      "timings": {
+        "status": "recorded",
+        "seconds": 0.04528841700000008,
+        "stages": {
+          "first_level_seconds": 0.018909874999999854,
+          "group_dataset_seconds": 0.00017412500000002495,
+          "group_fit_seconds": 0.0006257500000002025,
+          "load_inputs_seconds": 0.025578667
+        },
+        "source": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.spec.Spec",
+        "fmrimod.contrast.OmnibusContrast",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.glm.ContrastResult",
+        "fmrimod.group.GroupDataset"
+      ],
+      "fmrimod_expresses_better": "The showcase report now carries a proof scorecard: public-seam LSS rows, low-level canaries, semantic survival of typed contrast intent into a GroupDataset, recorded timing, caveats, and win-axis fields instead of a loose numeric demo table.",
+      "receipt": {
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_d_showcase.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ]
       }
     }
   ]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 
 from benchmarks.parity.tier_d_showcase import workflow
 
@@ -46,3 +47,41 @@ def test_tier_d_includes_independent_generative_lss_row() -> None:
     assert row.details["beta_scale"] == 0.7
     assert row.details["hrf_basis"] == "gamma"
     assert row.details["generative_design"] == "direct_gamma_hrf"
+
+
+def test_tier_d_proof_scorecard_names_public_typed_seam() -> None:
+    rows = workflow.run_showcases()
+    scorecard = workflow.build_proof_scorecard(rows)
+
+    assert scorecard.public_seam is True
+    assert scorecard.fmrimod_path == (
+        "fmri_dataset -> fmri_lm -> OmnibusContrast -> "
+        "ContrastResult.explain -> GroupDataset -> ols_voxelwise"
+    )
+    assert "fmrimod.glm.ContrastResult" in scorecard.typed_objects
+    assert "fmrimod.group.GroupDataset" in scorecard.typed_objects
+    assert "tier_d_lss_public_seam" in scorecard.public_rows
+    assert "tier_d_lss_public_seam_independent_generative" in scorecard.public_rows
+    assert "tier_d_sketched_glm" in scorecard.low_level_canaries
+    assert scorecard.semantic_survival["source"] == "tier_group_semantic_survival"
+    assert scorecard.semantic_survival["status"] == "pass"
+    assert scorecard.semantic_survival["typed_intent_kind"] == "omnibus"
+    assert scorecard.semantic_survival["typed_intent_term"] == "trial_type"
+    assert scorecard.semantic_survival["statistic_family"] == "F"
+    assert scorecard.semantic_survival["timings"]["status"] == "recorded"
+    assert set(scorecard.win_axes) == {"design", "elegance", "power", "trust"}
+
+
+def test_tier_d_render_writes_json_ready_proof_scorecard(tmp_path) -> None:
+    rows = workflow.run_showcases()
+    json_path, md_path = workflow.render(rows, tmp_path)
+
+    payload = json.loads(json_path.read_text())
+    assert payload["status"] == "pass"
+    assert payload["caveats"] == []
+    assert payload["proof_scorecard"]["public_seam"] is True
+    assert payload["proof_scorecard"]["semantic_survival"]["typed_intent_term"] == (
+        "trial_type"
+    )
+    assert payload["proof_scorecard"]["low_level_canaries"]
+    assert "Proof Scorecard" in md_path.read_text()

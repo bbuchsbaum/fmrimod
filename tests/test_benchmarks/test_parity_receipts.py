@@ -28,6 +28,24 @@ def test_tier_a_f_confound_drift_receipt_renders_to_manifest_path() -> None:
     assert report["name"] == "tier_a_public_f_confound_drift"
 
 
+def test_tier_d_showcase_receipt_renders_proof_scorecard() -> None:
+    result = verify_receipt("tier_d_showcase")
+
+    assert result["report_path"] == (
+        "benchmarks/parity/tier_d_showcase/reports/showcase_report.json"
+    )
+    assert result["status"] == "pass"
+    assert result["caveats"] == []
+
+    report_path = ROOT / result["report_path"]
+    report = json.loads(Path(report_path).read_text())
+    scorecard = report["proof_scorecard"]
+    assert scorecard["public_seam"] is True
+    assert scorecard["semantic_survival"]["typed_intent_term"] == "trial_type"
+    assert scorecard["semantic_survival"]["statistic_family"] == "F"
+    assert "fmrimod.group.GroupDataset" in scorecard["typed_objects"]
+
+
 def test_tier_a_f_confound_drift_uses_typed_omnibus_intent() -> None:
     manifest = json.loads((ROOT / "benchmarks/parity/proof_artifacts.json").read_text())
     artifact = next(
