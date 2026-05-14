@@ -3018,7 +3018,7 @@
       "name": "whiten",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.ar.whitening",
-      "runtime_signature": "(X: 'NDArray', Y: 'NDArray', *, runs: 'Optional[NDArray]' = None, censor: 'Optional[NDArray]' = None, **fit_kwargs) -> \"'WhitenResult'\"",
+      "runtime_signature": "(X: 'NDArray', Y: 'NDArray', *, runs: 'Optional[NDArray]' = None, censor: 'Optional[NDArray]' = None, **fit_kwargs: 'object') -> \"'WhitenResult'\"",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"

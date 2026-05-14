@@ -544,7 +544,7 @@ def whiten(
     *,
     runs: Optional[NDArray] = None,
     censor: Optional[NDArray] = None,
-    **fit_kwargs,
+    **fit_kwargs: object,
 ) -> "WhitenResult":
     """Fit noise model and apply whitening in one call.
 

@@ -46,7 +46,7 @@ def recycle_or_error(
         )
 
 
-def list_available_hrfs(details: bool = False) -> Union[List[str], List[dict[str, Any]]]:
+def list_available_hrfs(details: bool = False) -> Union[List[str], List[dict[str, object]]]:
     """List all available HRF types.
 
     Args:

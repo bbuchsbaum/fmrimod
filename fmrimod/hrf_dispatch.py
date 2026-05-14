@@ -131,7 +131,7 @@ class SPMCanonicalHRF(HRFProtocol):
         return hrf
 
 
-def get_hrf(name: str, **kwargs) -> HRFProtocol:
+def get_hrf(name: str, **kwargs: object) -> HRFProtocol:
     """Get an HRF by name through the canonical registry.
 
     Parameters

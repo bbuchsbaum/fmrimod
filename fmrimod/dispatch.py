@@ -15,6 +15,7 @@ from .types import (
     ContrastProtocol,
     DesignMatrixProtocol,
     EventProtocol,
+    HRFProtocol,
     ModelProtocol,
 )
 
@@ -455,22 +456,22 @@ def list_methods(generic: GenericFunction) -> None:
 
 
 # HRF dispatch
-def get_hrf(hrf: Union[str, Dict[str, Any], Any], **kwargs) -> Any:
+def get_hrf(hrf: Union[str, Dict[str, object], "HRFProtocol"], **kwargs: object) -> "HRFProtocol":
     """Get HRF function by name or return as-is if already an HRF.
-    
+
     Parameters
     ----------
-    hrf : str, dict, or HRF
+    hrf : str, dict, or HRFProtocol
         HRF specification. Can be:
         - String name (e.g., 'spm', 'gamma')
         - Dictionary with 'name' and parameters
-        - HRF object (returned as-is)
+        - HRFProtocol object (returned as-is)
     **kwargs
         Additional parameters for HRF
-    
+
     Returns
     -------
-    HRF
+    HRFProtocol
         HRF function object
     """
     if isinstance(hrf, str):
