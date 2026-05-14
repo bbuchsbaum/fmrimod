@@ -44,6 +44,7 @@ from .bids_h5 import (
     subset_bids_h5,
     tasks,
 )
+from .bids_h5_write import compress_bids_study
 from .chunking import BlockChunker, VoxelChunker
 from .compat import (
     create_design_matrix_from_benchmark,
@@ -257,6 +258,7 @@ __all__ = [
     "fmri_group",
     "study_to_group",
     "bids_h5_dataset",
+    "compress_bids_study",
     "subset_bids_h5",
     "participants",
     "tasks",
