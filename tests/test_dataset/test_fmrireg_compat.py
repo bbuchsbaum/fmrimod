@@ -1,9 +1,8 @@
 """Compatibility tests for fmrireg dataset, IO, and benchmark helpers."""
 
 import json
+from pathlib import Path
 
-import h5py
-import nibabel as nib
 import numpy as np
 import pandas as pd
 import pytest
@@ -52,6 +51,8 @@ def test_memory_latent_chunks_and_design_plot_helpers():
 
 def test_csv_h5_nifti_and_config_readers(tmp_path):
     pytest.importorskip("neuroim")
+    h5py = pytest.importorskip("h5py")
+    nib = pytest.importorskip("nibabel")
     csv_df = pd.DataFrame(
         {
             "subject": ["s1", "s2", "s1", "s2"],
@@ -110,6 +111,27 @@ def test_csv_h5_nifti_and_config_readers(tmp_path):
     config_path = tmp_path / "config.json"
     config_path.write_text(json.dumps({"tr": 2.0, "task": "demo"}))
     assert fmrimod.read_fmri_config(config_path)["tr"] == 2.0
+
+
+def test_pyproject_declares_dataset_io_extras():
+    try:
+        import tomllib
+    except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
+        import tomli as tomllib
+
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text())
+    extras = pyproject["project"]["optional-dependencies"]
+
+    assert "h5py>=3.8.0" in extras["hdf5"]
+    assert "h5py>=3.8.0" in extras["full"]
+    assert "nibabel>=4.0.0" in extras["nibabel"]
+    assert "nibabel>=4.0.0" in extras["nifti"]
+    assert "neuroim>=0.1.0" in extras["nifti"]
+    assert "neuroim>=0.1.0" in extras["full"]
+    assert "zarr>=2.16.0" in extras["zarr"]
+    assert "dask[array]>=2023.1.0" in extras["dask"]
+    assert "cachetools>=5.0.0" in extras["cache"]
+    assert {"pybids>=0.16.0", "nibabel>=4.0.0"}.issubset(extras["bids"])
 
 
 def test_basis_registry_and_benchmark_helpers():
