@@ -66,7 +66,6 @@ BASELINE_REVIEW_PENDING_NAMES = frozenset({
     "detect_group_data_format", "drift", "dvars_to_weights", "estimate_betas",
     "estimate_hrf", "evaluate", "event_factor", "event_matrix",
     "event_term", "event_variable", "fit_noise", "fitted_hrf",
-    "fmri_meta_fit", "fmri_meta_fit_contrasts", "fmri_meta_fit_cov", "fmri_meta_fit_extended",
     "gamma_hrf", "gaussian_hrf", "gen_empirical_hrf", "gen_hrf",
     "gen_hrf_library", "gen_hrf_set", "generate_interaction_contrast", "generate_main_effect_contrast",
     "get_contrasts", "get_covariates", "get_data", "get_data_matrix",
@@ -77,12 +76,11 @@ BASELINE_REVIEW_PENDING_NAMES = frozenset({
     "hrf_formula", "hrf_fourier_generator", "hrf_lagged", "hrf_set",
     "hrf_spmg1", "hrf_tent_generator", "interaction_contrast", "intercept",
     "is_spec", "lag_hrf", "latent_dataset", "list_available_hrfs",
-    "lsa_single_trial", "lss_single_trial", "matrix_dataset", "meta_effective_n",
-    "n_subjects", "null_regressor", "one_against_all_contrast", "oneway_contrast",
-    "p_values", "pair_contrast", "pairwise_contrasts", "poly_contrast",
-    "pvalues", "r_to_z", "regressor", "regressor_set",
-    "samples", "sandwich_from_whitened_resid", "se", "shift",
-    "simulate_bold_signal", "simulate_fmri_matrix", "simulate_noise_vector", "simulate_simple_dataset",
+    "lsa_single_trial", "lss_single_trial", "matrix_dataset", "n_subjects",
+    "null_regressor", "one_against_all_contrast", "oneway_contrast", "p_values",
+    "pair_contrast", "pairwise_contrasts", "poly_contrast", "pvalues",
+    "r_to_z", "regressor", "regressor_set", "samples",
+    "sandwich_from_whitened_resid", "se", "shift", "simulate_simple_dataset",
     "sliding_window_contrasts", "soft_subspace_options", "spec_diff", "spm_canonical",
     "standard_error", "stats", "t_to_d", "tidy",
     "tidy_fitted_hrf", "unit_contrast", "volume_weights", "voxel_index_chunks",
@@ -110,8 +108,8 @@ def _current_review_pending() -> set[str]:
 
 def test_baseline_size_is_known() -> None:
     """Sanity-check the pinned baseline size to catch silent drift."""
-    assert len(BASELINE_REVIEW_PENDING_NAMES) == 157, (
-        f"BASELINE_REVIEW_PENDING_NAMES size drifted from 157 to "
+    assert len(BASELINE_REVIEW_PENDING_NAMES) == 149, (
+        f"BASELINE_REVIEW_PENDING_NAMES size drifted from 149 to "
         f"{len(BASELINE_REVIEW_PENDING_NAMES)}. Update the assertion "
         f"in the same commit that intentionally changed the baseline."
     )
