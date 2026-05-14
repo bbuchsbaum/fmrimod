@@ -42,7 +42,13 @@ class StatsModelContrast:
 
     def apply(self, fit: object) -> object:
         """Compute this contrast on an ``fmri_lm`` result."""
-        from fmrimod.glm.contrasts import ContrastIntent, provenance_id, weights_payload
+        from fmrimod.glm.contrasts import (
+            ContrastIntent,
+            basis_label,
+            design_id,
+            provenance_id,
+            weights_payload,
+        )
 
         columns = fit.design_columns()  # type: ignore[attr-defined]
         weights = self.resolve(columns.names)
@@ -54,7 +60,9 @@ class StatsModelContrast:
             term=term,
             levels=levels,
             rows=int(np.atleast_2d(weights).shape[0]),
+            basis_label=basis_label(fit),
             weights=weights_payload(weights),
+            design_id=design_id(fit),
             provenance_id=provenance_id(fit),
         )
         return result
@@ -443,7 +451,9 @@ def translate_run_node(
             f"Stats model requested missing modulator columns: {missing_modulators}"
         )
 
-    missing = [col for col in nuisance_cols if confounds is None or col not in confounds]
+    missing = [
+        col for col in nuisance_cols if confounds is None or col not in confounds
+    ]
     if missing:
         raise KeyError(f"Stats model requested missing confound columns: {missing}")
 

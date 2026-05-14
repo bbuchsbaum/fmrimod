@@ -191,6 +191,10 @@ class StudyDataset:
         objects.
         """
         from fmrimod.group import GroupDataset, SampleLabelSpace
+        from fmrimod.group.dataset import (
+            CONTRAST_INTENT_COLUMN,
+            contrast_intent_payload_json,
+        )
 
         subjects = self.subject_ids
         contrasts, lookup = _normalise_contrast_results(
@@ -257,13 +261,35 @@ class StudyDataset:
             )
 
         contrast_data = pd.DataFrame(index=pd.Index(contrasts, name="contrast"))
+        intent_payloads: list[str | None] = []
+        for contrast in contrasts:
+            payloads = [
+                contrast_intent_payload_json(lookup[(subject, contrast)])
+                for subject in subjects
+            ]
+            present = [payload for payload in payloads if payload is not None]
+            if not present:
+                intent_payloads.append(None)
+                continue
+            if len(present) != len(payloads):
+                raise FmriDatasetError(
+                    "contrast_intent payload is missing for some subjects in "
+                    f"contrast '{contrast}'"
+                )
+            first = present[0]
+            if any(payload != first for payload in present[1:]):
+                raise FmriDatasetError(
+                    f"contrast_intent payloads differ for contrast '{contrast}'"
+                )
+            intent_payloads.append(first)
+        if any(payload is not None for payload in intent_payloads):
+            contrast_data[CONTRAST_INTENT_COLUMN] = intent_payloads
         if all(
             hasattr(lookup[(subjects[0], contrast)], "stat_type")
             for contrast in contrasts
         ):
             contrast_data["stat_type"] = [
-                str(lookup[(subjects[0], contrast)].stat_type)
-                for contrast in contrasts
+                str(lookup[(subjects[0], contrast)].stat_type) for contrast in contrasts
             ]
 
         group_metadata = {

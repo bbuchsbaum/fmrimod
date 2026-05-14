@@ -49,6 +49,48 @@ def provenance_id(fit: object) -> str | None:
     return f"fitprov:sha256:{hashlib.sha256(blob).hexdigest()[:16]}"
 
 
+def basis_label(fit: object) -> str | None:
+    """Return the HRF normalization basis label for a fitted model.
+
+    The payload is intentionally derived from :class:`FitProvenance` so it
+    survives serialization and remains independent of Python object identity.
+    """
+    provenance = getattr(fit, "provenance", None)
+    modes = getattr(provenance, "hrf_norm_modes", None)
+    if modes is None:
+        return None
+    labels = tuple("none" if mode is None else str(mode) for mode in modes)
+    if not labels:
+        return "hrf_norm:none"
+    return "hrf_norm:" + ",".join(labels)
+
+
+def design_id(fit: object) -> str | None:
+    """Return a content-addressed identifier for the fitted design matrix."""
+    model = getattr(fit, "model", None)
+    design_matrix_array = getattr(model, "design_matrix_array", None)
+    if not callable(design_matrix_array):
+        return None
+    try:
+        n_runs = int(getattr(model, "n_runs", 1))
+        hasher = hashlib.sha256()
+        for run in range(n_runs):
+            arr = np.asarray(design_matrix_array(run=run), dtype=np.float64)
+            hasher.update(str(tuple(arr.shape)).encode("utf-8"))
+            hasher.update(np.ascontiguousarray(arr).tobytes())
+        design_columns = getattr(fit, "design_columns", None)
+        if callable(design_columns):
+            columns = design_columns()
+            names = getattr(columns, "names", None)
+            if names is not None:
+                for name in names:
+                    hasher.update(str(name).encode("utf-8"))
+                    hasher.update(b"\x00")
+        return f"design:sha256:{hasher.hexdigest()[:16]}"
+    except Exception:
+        return None
+
+
 @dataclass(frozen=True)
 class ContrastIntent:
     """Structured record of how a contrast was requested.

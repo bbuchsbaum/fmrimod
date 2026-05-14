@@ -101,18 +101,15 @@ def test_contrast_intent_weights_accept_one_dimensional_t_contrast() -> None:
     assert rehydrated.weights == ((1.0, 0.0, -1.0),)
 
 
-# -- Phase 2a: production-site population ------------------------------------
+# -- Phase 2a/2b: production-site population ---------------------------------
 #
-# bd-01KRK7YGR5Y7E2CPV9T9R316T7 Phase 2a populates `weights` and
-# `provenance_id` at every ``ContrastIntent`` construction site reachable from
+# bd-01KRK7YGR5Y7E2CPV9T9R316T7 Phase 2a/2b populates all production-derived
+# payload fields at every ``ContrastIntent`` construction site reachable from
 # the public seam, including the explicit ``fit.contrast(spec)`` dispatch in
 # :mod:`fmrimod.glm.fmri_lm` and the BIDS Stats Model contrast translator. The
 # tests below assert the population is non-null and survives the to_dict()
-# round-trip, plus that two fits with the same provenance produce the same
-# ``provenance_id`` (the load-bearing equality invariant). ``basis_label`` and
-# ``design_id`` remain deferred to a follow-up Phase 2b slice because their
-# derivation requires reach-in to the fit's event-model basis state and the
-# realized design matrix accessor respectively.
+# round-trip, plus that two equivalent fits produce the same content-addressed
+# identifiers (the load-bearing equality invariant).
 
 
 def _seam_fit():
@@ -143,10 +140,19 @@ def _seam_fit():
     return fit
 
 
-def test_array_contrast_carries_weights_and_provenance_id_payload() -> None:
+def _assert_complete_production_payload(intent: ContrastIntent) -> None:
+    assert intent.basis_label == "hrf_norm:spm"
+    assert intent.weights is not None, "weights payload must be non-null"
+    assert intent.design_id is not None, "design_id must be non-null"
+    assert intent.design_id.startswith("design:sha256:")
+    assert intent.provenance_id is not None, "provenance_id must be non-null"
+    assert intent.provenance_id.startswith("fitprov:sha256:")
+
+
+def test_array_contrast_carries_complete_payload() -> None:
     """A raw-array contrast through ``fit.contrast(np.array(...))`` must
     populate the two production-derivable payload fields. This is the bottom
-    of the dispatch table — every other contrast kind funnels through
+    of the dispatch table - every other contrast kind funnels through
     ``_compute_contrast`` and inherits the same invariant.
     """
     import numpy as np
@@ -159,13 +165,11 @@ def test_array_contrast_carries_weights_and_provenance_id_payload() -> None:
     result = fit.contrast(weights, name="first_column")
 
     intent = result.intent
-    assert intent.weights is not None, "weights payload must be non-null"
+    _assert_complete_production_payload(intent)
     assert intent.weights == ((1.0,) + (0.0,) * (n_cols - 1),)
-    assert intent.provenance_id is not None, "provenance_id must be non-null"
-    assert intent.provenance_id.startswith("fitprov:sha256:")
 
 
-def test_omnibus_contrast_carries_weights_and_provenance_id_payload() -> None:
+def test_omnibus_contrast_carries_complete_payload() -> None:
     """OmnibusContrast goes through the typed branch of ``fit.contrast``;
     payload-equality fields must be populated there too.
     """
@@ -177,17 +181,17 @@ def test_omnibus_contrast_carries_weights_and_provenance_id_payload() -> None:
 
     intent = result.intent
     assert intent.kind == "omnibus"
-    assert intent.weights is not None
+    _assert_complete_production_payload(intent)
     # OmnibusContrast for a two-level factor resolves to a 1-row F-matrix.
+    assert intent.weights is not None
     assert len(intent.weights) >= 1
     assert all(isinstance(row, tuple) for row in intent.weights)
-    assert intent.provenance_id is not None
-    assert intent.provenance_id.startswith("fitprov:sha256:")
 
 
-def test_provenance_id_is_stable_for_equivalent_fits() -> None:
-    """The same fit configuration must produce the same ``provenance_id``;
-    that's the load-bearing payload-equality property the bead's red check
+def test_payload_identifiers_are_stable_for_equivalent_fits() -> None:
+    """The same fit configuration must produce the same payload identifiers.
+
+    That's the load-bearing payload-equality property the bead's red check
     relies on for first-level -> group transit.
     """
     fit_a = _seam_fit()
@@ -195,8 +199,11 @@ def test_provenance_id_is_stable_for_equivalent_fits() -> None:
     # Hash the same provenance content, even though the Python objects differ.
     assert fit_a.provenance == fit_b.provenance
 
-    from fmrimod.glm.contrasts import provenance_id
+    from fmrimod.glm.contrasts import basis_label, design_id, provenance_id
 
+    assert basis_label(fit_a) == basis_label(fit_b) == "hrf_norm:spm"
+    assert design_id(fit_a) == design_id(fit_b)
+    assert design_id(fit_a) is not None
     assert provenance_id(fit_a) == provenance_id(fit_b)
     assert provenance_id(fit_a) is not None
 
@@ -215,15 +222,17 @@ def test_contrast_intent_payload_round_trips_after_seam_fit() -> None:
     assert rehydrated == intent
 
 
-def test_provenance_id_returns_none_when_provenance_absent() -> None:
-    """Defensive: the helper must tolerate fits without provenance (legacy
+def test_payload_helpers_return_none_when_sources_absent() -> None:
+    """Defensive: helpers must tolerate fits without provenance/design (legacy
     test paths or partially-constructed objects) by returning ``None`` rather
-    than raising — release-time gates can then refuse ``None`` for flagship
+    than raising - release-time gates can then refuse ``None`` for flagship
     rows while debug paths keep working.
     """
-    from fmrimod.glm.contrasts import provenance_id
+    from fmrimod.glm.contrasts import basis_label, design_id, provenance_id
 
     class _Stub:
         pass
 
+    assert basis_label(_Stub()) is None
+    assert design_id(_Stub()) is None
     assert provenance_id(_Stub()) is None

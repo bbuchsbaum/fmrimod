@@ -17,7 +17,7 @@ rather than ornamental decoration.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 import numpy as np
 
@@ -144,13 +144,18 @@ class SamplingDiff:
 class Composite:
     """Multiple disjoint diffs collapsed into a single value."""
 
-    parts: tuple[DesignDiffPart, ...]
+    parts: tuple["DesignDiffPart", ...]
 
 
-DesignDiffPart = EventDiff | HRFDiff | BaselineDiff | ColumnsDiff | SamplingDiff
-"""Non-empty diff variants - anything except ``NoDiff`` and ``Composite``."""
+DesignDiffPart = Union[EventDiff, HRFDiff, BaselineDiff, ColumnsDiff, SamplingDiff]
+"""Non-empty diff variants - anything except ``NoDiff`` and ``Composite``.
 
-DesignDiff = NoDiff | DesignDiffPart | Composite
+Kept as :class:`typing.Union` rather than PEP 604 ``X | Y`` because the
+module is evaluated at runtime (not just in annotations) and the
+project supports Python 3.9.
+"""
+
+DesignDiff = Union[NoDiff, DesignDiffPart, Composite]
 """The closed sum type returned by :func:`design_diff`."""
 
 
@@ -227,11 +232,13 @@ def _diff_hrfs(
         hb = getattr(tb, "hrf", None)
         ka, kb = _hrf_kind(ha), _hrf_kind(hb)
         if ka != kb:
-            kind_changes.append(HRFKindChange(
-                term_name=tname,
-                a_kind=ka or "None",
-                b_kind=kb or "None",
-            ))
+            kind_changes.append(
+                HRFKindChange(
+                    term_name=tname,
+                    a_kind=ka or "None",
+                    b_kind=kb or "None",
+                )
+            )
             continue
         pa = _hrf_parameters(ha)
         pb = _hrf_parameters(hb)
@@ -239,12 +246,14 @@ def _diff_hrfs(
             va = pa.get(key)
             vb = pb.get(key)
             if va != vb:
-                parameter_changes.append(HRFParameterChange(
-                    term_name=tname,
-                    parameter=key,
-                    a_value=va,
-                    b_value=vb,
-                ))
+                parameter_changes.append(
+                    HRFParameterChange(
+                        term_name=tname,
+                        parameter=key,
+                        a_value=va,
+                        b_value=vb,
+                    )
+                )
     return HRFDiff(
         kind_changes=tuple(kind_changes),
         parameter_changes=tuple(parameter_changes),

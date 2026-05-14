@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import warnings
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -34,9 +34,11 @@ from ..model.config import AROptions, FmriLmConfig
 from .contrasts import (
     ContrastIntent,
     ContrastResult,
+    basis_label,
     contrast_f_vectorized,
     contrast_t,
     contrast_t_batch,
+    design_id,
     provenance_id,
     weights_payload,
 )
@@ -581,6 +583,18 @@ class FmriLm:
             raise TypeError("fitted model does not expose design_columns()")
         return design_columns()
 
+    def _contrast_intent_payload_fields(
+        self,
+        weights: NDArray[np.float64],
+    ) -> dict[str, object]:
+        """Return production-derived payload fields for seam equality."""
+        return {
+            "basis_label": basis_label(self),
+            "weights": weights_payload(weights),
+            "design_id": design_id(self),
+            "provenance_id": provenance_id(self),
+        }
+
     # -- Rank diagnostics --
 
     def condition_report(self) -> ConditionReport:
@@ -695,8 +709,7 @@ class FmriLm:
                     term=spec.term,
                     levels=spec.levels,
                     rows=int(weights.shape[0]),
-                    weights=weights_payload(weights),
-                    provenance_id=provenance_id(self),
+                    **self._contrast_intent_payload_fields(weights),
                 ),
             )
 
@@ -705,7 +718,10 @@ class FmriLm:
             return self._compute_contrast(
                 weights,
                 name=name or spec.display_name,
-                intent=spec.intent(rows=1),
+                intent=replace(
+                    spec.intent(rows=1),
+                    **self._contrast_intent_payload_fields(weights),
+                ),
             )
 
         if isinstance(spec, ContrastSpec):
@@ -720,8 +736,7 @@ class FmriLm:
                     name=cname,
                     term=type(spec).__name__,
                     rows=int(np.atleast_2d(weights).shape[0]),
-                    weights=weights_payload(weights),
-                    provenance_id=provenance_id(self),
+                    **self._contrast_intent_payload_fields(weights),
                 ),
             )
 
@@ -747,8 +762,7 @@ class FmriLm:
                     kind="named",
                     name=spec,
                     rows=int(np.atleast_2d(weights).shape[0]),
-                    weights=weights_payload(weights),
-                    provenance_id=provenance_id(self),
+                    **self._contrast_intent_payload_fields(weights),
                 ),
             )
 
@@ -764,8 +778,7 @@ class FmriLm:
                     kind="dict",
                     name=cname,
                     rows=int(np.atleast_2d(weights).shape[0]),
-                    weights=weights_payload(weights),
-                    provenance_id=provenance_id(self),
+                    **self._contrast_intent_payload_fields(weights),
                 ),
             )
 
@@ -778,8 +791,7 @@ class FmriLm:
                 kind="array",
                 name=cname,
                 rows=int(np.atleast_2d(weights).shape[0]),
-                weights=weights_payload(weights),
-                provenance_id=provenance_id(self),
+                **self._contrast_intent_payload_fields(weights),
             ),
         )
 
@@ -806,8 +818,7 @@ class FmriLm:
                 kind="array",
                 name=name,
                 rows=int(np.atleast_2d(weights).shape[0]),
-                weights=weights_payload(weights),
-                provenance_id=provenance_id(self),
+                **self._contrast_intent_payload_fields(weights),
             )
         column_details = self._touched_column_details(weights)
         result.intent = intent
@@ -911,8 +922,7 @@ class FmriLm:
                     kind="named",
                     name=res.name,
                     rows=1,
-                    weights=weights_payload(weights),
-                    provenance_id=provenance_id(self),
+                    **self._contrast_intent_payload_fields(weights),
                 )
                 res.touched_columns = tuple(
                     str(column["name"]) for column in column_details
@@ -936,8 +946,7 @@ class FmriLm:
                 kind="named",
                 name=cname,
                 rows=int(np.atleast_2d(w_arr).shape[0]),
-                weights=weights_payload(w_arr),
-                provenance_id=provenance_id(self),
+                **self._contrast_intent_payload_fields(w_arr),
             )
             res.touched_columns = tuple(
                 str(column["name"]) for column in column_details

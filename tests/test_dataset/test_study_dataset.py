@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -14,7 +16,7 @@ from fmrimod.dataset import (
     study_dataset,
     study_to_group,
 )
-from fmrimod.glm.contrasts import ContrastResult
+from fmrimod.glm.contrasts import ContrastIntent, ContrastResult
 from fmrimod.group import GroupDataset, reduce
 
 
@@ -23,7 +25,13 @@ def _dataset(offset: float = 0.0):
     return matrix_dataset(data, tr=2.0)
 
 
-def _contrast(name: str, beta: list[float], se: list[float]) -> ContrastResult:
+def _contrast(
+    name: str,
+    beta: list[float],
+    se: list[float],
+    *,
+    intent: ContrastIntent | None = None,
+) -> ContrastResult:
     beta_arr = np.asarray(beta, dtype=np.float64)
     se_arr = np.asarray(se, dtype=np.float64)
     return ContrastResult(
@@ -34,6 +42,21 @@ def _contrast(name: str, beta: list[float], se: list[float]) -> ContrastResult:
         p_value=np.full(beta_arr.shape, 0.5, dtype=np.float64),
         df=20.0,
         stat_type="t",
+        intent=intent,
+    )
+
+
+def _intent() -> ContrastIntent:
+    return ContrastIntent(
+        kind="contrast_spec",
+        name="faces",
+        term="trial_type",
+        levels=("face", "object"),
+        rows=1,
+        basis_label="hrf:canonical",
+        weights=((1.0, -1.0, 0.0),),
+        design_id="design:sha256:abc123",
+        provenance_id="fitprov:sha256:def456",
     )
 
 
@@ -115,6 +138,43 @@ def test_study_dataset_materializes_native_group_dataset() -> None:
     assert group.col_data["age"].tolist() == [20, 30]
     np.testing.assert_allclose(group.assay("beta")[:, :, 0], [[1.0, 3.0], [2.0, 4.0]])
     np.testing.assert_allclose(group.assay("se")[:, :, 0], [[0.1, 0.1], [0.2, 0.2]])
+
+
+def test_study_dataset_carries_contrast_intent_payload() -> None:
+    study = study_dataset(
+        pd.DataFrame(
+            {
+                "subject_id": ["s1", "s2"],
+                "dataset": [_dataset(), _dataset(10)],
+            }
+        )
+    )
+    intent = _intent()
+    contrasts = {
+        "s1": {"faces": _contrast("faces", [1.0, 2.0], [0.1, 0.2], intent=intent)},
+        "s2": {
+            "faces": _contrast(
+                "faces",
+                [3.0, 4.0],
+                [0.1, 0.2],
+                intent=ContrastIntent.from_dict(intent.to_dict()),
+            )
+        },
+    }
+
+    group = study.to_group_dataset(contrasts, sample_labels=["r1", "r2"])
+    reduced = reduce(group, method="meta:fe")
+
+    assert group.contrast_data is not None
+    assert reduced.contrast_data is not None
+    assert "contrast_intent" in group.contrast_data
+    assert "contrast_intent" in reduced.contrast_data
+    assert json.loads(group.contrast_data.loc["faces", "contrast_intent"]) == (
+        intent.to_dict()
+    )
+    assert group.contrast_data.loc["faces", "contrast_intent"] == (
+        reduced.contrast_data.loc["faces", "contrast_intent"]
+    )
 
 
 def test_study_to_group_feeds_native_fixed_effects_reducer() -> None:

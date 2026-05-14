@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
@@ -12,6 +13,8 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
+from fmrimod.glm.contrasts import ContrastIntent
+
 from .dtypes import as_group_float_array
 from .errors import (
     AdapterContractError,
@@ -20,6 +23,8 @@ from .errors import (
 )
 from .registry import adapter_registry
 from .space import GroupSpace, SampleLabelSpace, VoxelSpace
+
+CONTRAST_INTENT_COLUMN = "contrast_intent"
 
 
 def _coerce_axis(values: Sequence[Any], *, name: str) -> tuple[str, ...]:
@@ -48,6 +53,51 @@ def _validate_axis_frame(
             f"{name} rows ({len(frame)}) must match expected axis length ({expected_rows})"
         )
     return frame.copy()
+
+
+def _json_ready(value: object) -> object:
+    if isinstance(value, np.ndarray):
+        return [_json_ready(item) for item in value.tolist()]
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, Mapping):
+        return {str(key): _json_ready(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_ready(item) for item in value]
+    return value
+
+
+def _json_ready_mapping(payload: Mapping[object, object]) -> dict[str, object]:
+    return {str(key): _json_ready(value) for key, value in payload.items()}
+
+
+def contrast_intent_payload(result: object) -> dict[str, object] | None:
+    """Return a JSON-ready typed intent payload from a contrast-like result."""
+    intent = getattr(result, "intent", None)
+    if intent is None:
+        return None
+    if isinstance(intent, ContrastIntent):
+        return cast(dict[str, object], intent.to_dict())
+    if isinstance(intent, Mapping):
+        payload = _json_ready_mapping(intent)
+        if "kind" in payload:
+            try:
+                return cast(
+                    dict[str, object],
+                    ContrastIntent.from_dict(payload).to_dict(),
+                )
+            except (KeyError, TypeError, ValueError):
+                return payload
+        return payload
+    return None
+
+
+def contrast_intent_payload_json(result: object) -> str | None:
+    """Serialize a contrast intent payload for value equality across seams."""
+    payload = contrast_intent_payload(result)
+    if payload is None:
+        return None
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"))
 
 
 @dataclass(frozen=True)
@@ -111,12 +161,16 @@ class GroupDataset:
         object.__setattr__(
             self,
             "col_data",
-            _validate_axis_frame(self.col_data, expected_rows=shape[1], name="col_data"),
+            _validate_axis_frame(
+                self.col_data, expected_rows=shape[1], name="col_data"
+            ),
         )
         object.__setattr__(
             self,
             "row_data",
-            _validate_axis_frame(self.row_data, expected_rows=shape[0], name="row_data"),
+            _validate_axis_frame(
+                self.row_data, expected_rows=shape[0], name="row_data"
+            ),
         )
         object.__setattr__(
             self,
@@ -298,7 +352,9 @@ def _group_dataset_from_h5_group_data(data: Any) -> GroupDataset:
     stats = tuple(str(stat) for stat in data.data.get("stat", ("beta", "se")))
     raw = read_h5_full(data, stat=stats)
     if raw.ndim != 3:
-        raise AdapterContractError("H5 GroupData reader must return voxels x subjects x stats")
+        raise AdapterContractError(
+            "H5 GroupData reader must return voxels x subjects x stats"
+        )
     samples = _sample_labels(int(raw.shape[0]))
     assays = {
         stat: np.asarray(raw[:, :, stat_idx], dtype=np.float64)[:, :, np.newaxis]
@@ -312,7 +368,9 @@ def _group_dataset_from_h5_group_data(data: Any) -> GroupDataset:
         contrasts=_single_contrast(data),
         col_data=data.covariates,
         row_data=pd.DataFrame(index=pd.Index(samples, name="sample")),
-        contrast_data=pd.DataFrame(index=pd.Index(_single_contrast(data), name="contrast")),
+        contrast_data=pd.DataFrame(
+            index=pd.Index(_single_contrast(data), name="contrast")
+        ),
         metadata={
             "source_format": "h5",
             "paths": tuple(str(path) for path in data.data.get("paths", ())),
@@ -336,7 +394,11 @@ def _nifti_space(data: Any, *, n_samples: int) -> GroupSpace:
             "NIfTI GroupData materialization requires optional dependency 'nibabel'"
         ) from exc
 
-    path = str(data.data["mask"]) if data.data.get("mask") is not None else _first_nifti_path(data)
+    path = (
+        str(data.data["mask"])
+        if data.data.get("mask") is not None
+        else _first_nifti_path(data)
+    )
     if path is None:
         return SampleLabelSpace(_sample_labels(n_samples))
 
@@ -467,6 +529,56 @@ def _lm_contrast_stat_matrix(
     raise AdapterContractError(f"fmrilm contrast statistic '{stat}' is not supported")
 
 
+def _lm_contrast_result(lm: object, contrast_name: str) -> object:
+    contrasts = getattr(lm, "contrasts", None)
+    if not isinstance(contrasts, Mapping) or contrast_name not in contrasts:
+        raise AdapterContractError(
+            f"fmrilm object does not contain stored contrast '{contrast_name}'"
+        )
+    return cast(object, contrasts[contrast_name])
+
+
+def _matching_intent_payload_jsons(
+    results: Sequence[object],
+    *,
+    contrast_name: str,
+) -> str | None:
+    payload_jsons = [contrast_intent_payload_json(result) for result in results]
+    present = [payload for payload in payload_jsons if payload is not None]
+    if not present:
+        return None
+    if len(present) != len(payload_jsons):
+        raise AdapterContractError(
+            "stored fmrilm contrast_intent payload is missing for some "
+            f"models in contrast '{contrast_name}'"
+        )
+    first = present[0]
+    if any(payload != first for payload in present[1:]):
+        raise AdapterContractError(
+            "stored fmrilm contrast_intent payloads differ for contrast "
+            f"'{contrast_name}'"
+        )
+    return first
+
+
+def _fmrilm_contrast_data(
+    lm_list: Sequence[object],
+    *,
+    contrasts: tuple[str, ...],
+    contrast_name: str | None,
+) -> pd.DataFrame:
+    contrast_data = pd.DataFrame(index=pd.Index(contrasts, name="contrast"))
+    if contrast_name is None:
+        return contrast_data
+    payload = _matching_intent_payload_jsons(
+        [_lm_contrast_result(lm, contrast_name) for lm in lm_list],
+        contrast_name=contrast_name,
+    )
+    if payload is not None:
+        contrast_data[CONTRAST_INTENT_COLUMN] = [payload]
+    return contrast_data
+
+
 def _lm_stat_matrix(
     lm: Any,
     stat: str,
@@ -503,8 +615,7 @@ def _group_dataset_from_fmrilm_group_data(data: Any) -> GroupDataset:
     if not lm_list:
         raise AdapterContractError("fmrilm GroupData requires at least one model")
     requested_stats = tuple(
-        _canonical_lm_stat(str(stat))
-        for stat in data.data.get("stat", ("beta", "se"))
+        _canonical_lm_stat(str(stat)) for stat in data.data.get("stat", ("beta", "se"))
     )
     contrast_name = data.data.get("contrast")
     if contrast_name is not None:
@@ -527,7 +638,9 @@ def _group_dataset_from_fmrilm_group_data(data: Any) -> GroupDataset:
         for stat in requested_stats:
             matrix = _lm_stat_matrix(lm, stat, contrast_name)
             if contrast_name is not None and matrix.shape[0] != 1:
-                raise AdapterContractError("stored fmrilm contrast statistic must be 1-D")
+                raise AdapterContractError(
+                    "stored fmrilm contrast statistic must be 1-D"
+                )
             if matrix.shape != (n_contrasts, n_samples):
                 raise AdapterContractError(
                     "all fmrilm statistics must have matching coefficient x sample shape"
@@ -542,7 +655,11 @@ def _group_dataset_from_fmrilm_group_data(data: Any) -> GroupDataset:
         contrasts=contrasts,
         col_data=data.covariates,
         row_data=pd.DataFrame(index=pd.Index(samples, name="sample")),
-        contrast_data=pd.DataFrame(index=pd.Index(contrasts, name="contrast")),
+        contrast_data=_fmrilm_contrast_data(
+            lm_list,
+            contrasts=contrasts,
+            contrast_name=contrast_name,
+        ),
         metadata={"source_format": "fmrilm"},
     )
 
