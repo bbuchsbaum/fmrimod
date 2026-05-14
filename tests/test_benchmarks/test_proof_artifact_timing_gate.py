@@ -41,7 +41,6 @@ _PENDING_TIMING_ROWS = frozenset(
         "tier_a_fir_unconstrained_hrf",
         "tier_a_multicollinear_baseline",
         "tier_a_multirun_concat_public_seam",
-        "tier_a_parametric_modulation",
         "tier_c_second_level",
         "tier_e_parametric_centering",
         "tier_e_scrubbed_timebase_alignment",

@@ -408,9 +408,19 @@
       "reference_path": "benchmarks/parity/tier_a_parametric_modulation/workflow.py::nilearn_pipeline",
       "fmrimod_path": "benchmarks/parity/tier_a_parametric_modulation/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> typed parametric contrasts",
       "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
+      "performance_stage": "tier_a_parametric_modulation",
       "timings": {
-        "status": "not_recorded",
-        "next": "record parametric-design realization and fit timings once the case is promoted to docs"
+        "status": "recorded",
+        "seconds": 0.08798183400000026,
+        "stages": {
+          "fmrimod_contrast_seconds": 0.005996542000000105,
+          "fmrimod_dataset_seconds": 9.179200000009047e-05,
+          "fmrimod_fit_seconds": 0.0048461250000002565,
+          "load_inputs_seconds": 0.07415862499999992,
+          "nilearn_pipeline_seconds": 0.0028887499999998845
+        },
+        "source": "benchmarks/parity/tier_a_parametric_modulation/reports/parity_report.json"
       },
       "typed_objects": [
         "fmrimod.dataset.FmriDataset",
