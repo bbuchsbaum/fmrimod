@@ -250,7 +250,60 @@ class FitlinsCliDerivativeResult:
     fmrimod_output_files: list[str]
     deltas: list[DerivativeDelta]
     design_columns: list[str]
-    caveats: list[str]
+    caveats: list[dict[str, str]]
+    scope_limitations: list[dict[str, str]]
+
+
+def _fitlins_scope_limitations() -> list[dict[str, str]]:
+    return [
+        {
+            "quantity": "p_value_map",
+            "omitted_measure": "stat-p contrast statmap",
+            "reason": (
+                "FitLins computes inferential p-value maps as a separate output; "
+                "fmrimod's run-level path produces effect/variance/t and leaves "
+                "inferential p to higher-level analysis."
+            ),
+            "owner_or_followup": "tier_b_fitlins_bids#scope-extension-p-z",
+        },
+        {
+            "quantity": "z_value_map",
+            "omitted_measure": "stat-z contrast statmap",
+            "reason": (
+                "FitLins emits z-stat maps derived from t and df; fmrimod exposes "
+                "t and df separately rather than a precomputed z map."
+            ),
+            "owner_or_followup": "tier_b_fitlins_bids#scope-extension-p-z",
+        },
+        {
+            "quantity": "fitlins_html_report",
+            "omitted_measure": "FitLins HTML/JSON narrative report",
+            "reason": (
+                "FitLins ships a per-run human-readable narrative report; "
+                "fmrimod's parity surface is the typed result objects, not a "
+                "narrative document."
+            ),
+            "owner_or_followup": "tier_b_fitlins_bids#scope-out-narrative-report",
+        },
+        {
+            "quantity": "r_squared_map",
+            "omitted_measure": "stat-rSquare model-fit map",
+            "reason": (
+                "FitLins emits an rSquare model-fit map; fmrimod does not expose "
+                "run-level R^2 in the GLM result object yet."
+            ),
+            "owner_or_followup": "tier_b_fitlins_bids#scope-extension-rsquared",
+        },
+        {
+            "quantity": "log_likelihood_map",
+            "omitted_measure": "stat-loglikelihood map",
+            "reason": (
+                "FitLins emits a per-voxel log-likelihood map; fmrimod's GLM "
+                "result does not currently carry log-likelihood."
+            ),
+            "owner_or_followup": "tier_b_fitlins_bids#scope-extension-loglikelihood",
+        },
+    ]
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -578,10 +631,8 @@ def run_fitlins_cli_derivative_parity(work_dir: Path | None = None) -> FitlinsCl
         fmrimod_output_files=fmrimod_files,
         deltas=deltas,
         design_columns=list(design.columns),
-        caveats=[
-            "Comparison is scoped to run-level design, effect, variance, and t maps; "
-            "FitLins-only p/z/report/rSquare/log-likelihood outputs are inventoried but not recomputed.",
-        ],
+        caveats=[],
+        scope_limitations=_fitlins_scope_limitations(),
     )
     if owns_tmp:
         # Keep the temporary tree during debugging by passing an explicit work_dir.
@@ -618,8 +669,17 @@ def render_fitlins_cli_derivative_report(
             f"{'yes' if delta.passes else 'no'} |"
         )
     lines.extend(["", "## Caveats", ""])
-    for caveat in result.caveats:
-        lines.append(f"- {caveat}")
+    if result.caveats:
+        for caveat in result.caveats:
+            lines.append(f"- `{caveat['caveat_id']}`")
+    else:
+        lines.append("- None")
+    lines.extend(["", "## Scope Limitations", ""])
+    for item in result.scope_limitations:
+        lines.append(
+            f"- `{item['quantity']}` omits {item['omitted_measure']}: "
+            f"{item['reason']} Owner/follow-up: `{item['owner_or_followup']}`."
+        )
     md_path.write_text("\n".join(lines) + "\n")
     return json_path, md_path
 
