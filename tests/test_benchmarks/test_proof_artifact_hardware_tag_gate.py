@@ -48,6 +48,7 @@ _PENDING_HARDWARE_TAG_ROWS = frozenset(
         "tier_a_factorial_2x2",
         "tier_a_factorial_3x3_parametric",
         "tier_a_fir_unconstrained_hrf",
+        "tier_a_localizer_fixed_effects",
         "tier_a_multicollinear_baseline",
         "tier_a_multirun_concat",
         "tier_a_parametric_modulation",
