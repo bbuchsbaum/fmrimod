@@ -39,6 +39,15 @@ backend. The data substrate is the dogfooded sibling Python port
 of `neuroim2`); friction with neuroim-python is fixed in
 neuroim-python, not routed around in fmrimod.
 
+## Library Design Posture
+
+Keep the core small, typed, and composable. The user-visible spine is
+`dataset -> spec/design -> fit -> contrast -> group/report`; new work should
+strengthen that spine or be clearly peripheral. Types should carry statistical
+meaning without ceremony, lowering from authored intent to matrices/results
+must be explicit and inspectable, and compatibility layers must stay thin
+facades over one canonical implementation.
+
 ## Module Map
 
 Subpackages and modules, grouped by their R-source lineage. The
