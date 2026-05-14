@@ -8,15 +8,15 @@
       "workflow_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py",
       "report_path": "benchmarks/parity/tier_a_spm_auditory/reports/parity_report.json",
       "reference_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::nilearn_pipeline",
-      "fmrimod_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> contrast",
+      "fmrimod_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> contrast via SemanticContrast -> contrast_receipt",
       "caveats": [],
       "timings": {
         "status": "recorded",
-        "seconds": 0.0935906670000004,
+        "seconds": 0.09398716600000023,
         "stages": {
-          "contrast_seconds": 0.0030698749999999997,
-          "dataset_seconds": 0.01582687500000013,
-          "fit_seconds": 0.07469391700000028
+          "contrast_seconds": 0.005215375000000133,
+          "dataset_seconds": 0.017075041000000013,
+          "fit_seconds": 0.07169675000000009
         },
         "source": "benchmarks/parity/tier_a_spm_auditory/reports/parity_report.json"
       },
@@ -24,6 +24,7 @@
         "fmrimod.dataset.FmriDataset",
         "fmrimod.spec.HrfTerm",
         "fmrimod.glm.FmriLm",
+        "fmrimod.contrast.SemanticContrast",
         "fmrimod.glm.ContrastResult"
       ],
       "fmrimod_expresses_better": "The user-facing path keeps HRF normalization, dataset construction, fitting, and contrast evaluation as typed inspectable objects instead of a stateful FirstLevelModel call.",
@@ -37,7 +38,8 @@
         "checks": [
           "report_path",
           "status",
-          "caveats"
+          "caveats",
+          "contrast_receipt"
         ]
       }
     },
@@ -125,17 +127,38 @@
     },
     {
       "benchmark_id": "tier_a_fiac",
-      "evidence_level": "numerical_canary",
-      "public_seam": false,
+      "evidence_level": "workflow_parity",
+      "public_seam": true,
       "workflow_path": "benchmarks/parity/tier_a_fiac/workflow.py",
       "report_path": "benchmarks/parity/tier_a_fiac/reports/parity_report.json",
       "reference_path": "benchmarks/parity/tier_a_fiac/workflow.py::nilearn_pipeline",
-      "fmrimod_path": "benchmarks/parity/tier_a_fiac/workflow.py::fmrimod_pipeline: fit_glm_from_suffstats -> combine_runs -> contrast",
+      "fmrimod_path": "benchmarks/parity/tier_a_fiac/workflow.py::fmrimod_pipeline: fmri_dataset -> RealizedDesign(source='nilearn') -> fmri_lm -> combine_runs -> column_contrast",
       "caveats": [],
-      "replacement_target": {
-        "description": "Replace externally realized Nilearn design matrices with fmri_dataset -> fmri_lm per-run fits, then keep combine_runs as the fixed-effects pooling seam.",
-        "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
-        "blocking_api_gap": "fmri_lm has no typed entry for a pre-built design matrix; the current path goes through fit_glm_from_suffstats with model=None."
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.design.RealizedDesign",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.glm.CombinedFmriLm",
+        "fmrimod.contrast.ColumnContrastSpec",
+        "fmrimod.contrast.ContrastResult"
+      ],
+      "fmrimod_expresses_better": "The 2x2 factorial main effects (sentence_effect, speaker_effect) resolve as typed column_contrast patterns against the realised design rather than hand-built weight vectors, and the per-run designs flow through RealizedDesign(source='nilearn') so the Nilearn provenance survives the fmri_dataset -> fmri_lm -> combine_runs seam.",
+      "timings": {
+        "status": "not_recorded",
+        "next": "record per-run dataset/fit + combined contrast timings now that the path is public-seam"
+      },
+      "receipt": {
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_a_fiac.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ]
       }
     },
     {

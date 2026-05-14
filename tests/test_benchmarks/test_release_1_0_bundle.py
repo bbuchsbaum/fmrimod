@@ -44,12 +44,26 @@ def test_release_receipt_is_currently_blocked_by_named_red_checks() -> None:
     assert receipt["schema_version"] == "release_1_0_receipt/v1"
     assert receipt["release_status"] == "blocked"
     blockers = "\n".join(receipt["blockers"])
-    assert "tier_a_fiac: public_seam is not true" in blockers
-    assert "tier_a_fiac: numerical_canary cannot be flagship proof" in blockers
-    assert (
-        "tier_a_fiac: private kernel path cannot be flagship proof "
-        "(fit_glm_from_suffstats)"
-    ) in blockers
+    # Tier A FIAC retired its public_seam, numerical_canary, and
+    # private-kernel blockers in bd-01KRKACNDMRB6WYYQGE050SJB3: the
+    # flagship now fits per-run through
+    # ``fmri_dataset -> RealizedDesign(source='nilearn') -> fmri_lm``,
+    # pools via ``combine_runs``, and resolves both 2x2 main effects via
+    # typed ``column_contrast`` patterns. None of those three Tier A
+    # FIAC strings should appear in the blocker list any more.
+    fiac_blockers = [
+        blocker
+        for blocker in receipt["blockers"]
+        if blocker.startswith("tier_a_fiac:")
+        and (
+            "public_seam is not true" in blocker
+            or "numerical_canary cannot be flagship proof" in blocker
+            or "private kernel path" in blocker
+        )
+    ]
+    assert fiac_blockers == [], (
+        "FIAC public-seam blockers must be retired; got " + repr(fiac_blockers)
+    )
     tier_b_blockers = [
         blocker
         for blocker in receipt["blockers"]
@@ -83,9 +97,25 @@ def test_release_receipt_reports_private_kernel_evidence_by_row() -> None:
 
     rows = {row["benchmark_id"]: row for row in receipt["flagship_families"]}
     fiac = rows["tier_a_fiac"]["private_kernel_evidence"]
-    assert fiac["row_uses_private_kernel"] is True
-    assert fiac["row_private_kernels"] == ["fit_glm_from_suffstats"]
-    assert "fit_glm_from_suffstats" in fiac["imported_private_kernels"]
+    # FIAC retired the suffstats kernel path in
+    # bd-01KRKACNDMRB6WYYQGE050SJB3 — the flagship now fits through
+    # ``fmri_dataset -> RealizedDesign -> fmri_lm`` and combines runs
+    # via ``combine_runs``. ``row_uses_private_kernel`` must therefore
+    # be False; the only remaining ``fit_glm_from_suffstats`` mention
+    # in the file would be a regression we want this test to catch.
+    assert fiac["row_uses_private_kernel"] is False, (
+        "tier_a_fiac unexpectedly re-introduced a private kernel: "
+        f"{fiac['row_private_kernels']}"
+    )
+    assert fiac["row_private_kernels"] == []
+    assert "fit_glm_from_suffstats" not in fiac["imported_private_kernels"], (
+        "tier_a_fiac re-imported fit_glm_from_suffstats; the public-seam "
+        "port should not depend on that private kernel."
+    )
+    assert not any(
+        blocker.startswith("tier_a_fiac: private kernel path")
+        for blocker in rows["tier_a_fiac"]["blockers"]
+    )
 
     showcase = rows["tier_d_showcase"]["private_kernel_evidence"]
     assert "fast_lm_matrix" in showcase["imported_private_kernels"]

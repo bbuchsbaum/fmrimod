@@ -91,13 +91,9 @@
   ],
   "blockers": [
     "tier_a_spm_auditory: hardware_tag is missing",
-    "tier_a_fiac: public_seam is not true",
-    "tier_a_fiac: numerical_canary cannot be flagship proof",
     "tier_a_fiac: required public path 'fmri_dataset -> fmri_lm -> contrast' not in fmrimod_path",
     "tier_a_fiac: timings are not recorded",
     "tier_a_fiac: hardware_tag is missing",
-    "tier_a_fiac: receipt metadata is missing",
-    "tier_a_fiac: private kernel path cannot be flagship proof (fit_glm_from_suffstats)",
     "tier_group_semantic_survival: hardware_tag is missing",
     "tier_d_lss_trialwise: public_seam is not true",
     "tier_d_lss_trialwise: numerical_canary cannot be flagship proof",
@@ -140,9 +136,68 @@
       "current_status": "ready_missing_hardware_tag",
       "evidence_level": "flagship_workflow",
       "family": "SPM auditory / first-level modeling",
-      "fmrimod_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> contrast",
+      "fmrimod_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> contrast via SemanticContrast -> contrast_receipt",
       "hardware_tag": null,
       "owner_bead": "bd-01KRFDHPVSJGCVZ967Y8TVCKJA",
+      "private_kernel_evidence": {
+        "expected_private_kernel_rows": [],
+        "imported_private_kernels": [],
+        "row_expected_private_kernel": false,
+        "row_private_kernels": [],
+        "row_uses_private_kernel": false
+      },
+      "public_seam": true,
+      "receipt": {
+        "checks": [
+          "report_path",
+          "status",
+          "caveats",
+          "contrast_receipt"
+        ],
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_a_spm_auditory.workflow"
+        ],
+        "status": "regenerable"
+      },
+      "reference_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::nilearn_pipeline",
+      "report_path": "benchmarks/parity/tier_a_spm_auditory/reports/parity_report.json",
+      "required_public_path": "fmri_dataset -> fmri_lm -> contrast",
+      "timings": {
+        "seconds": 0.09398716600000023,
+        "source": "benchmarks/parity/tier_a_spm_auditory/reports/parity_report.json",
+        "stages": {
+          "contrast_seconds": 0.005215375000000133,
+          "dataset_seconds": 0.017075041000000013,
+          "fit_seconds": 0.07169675000000009
+        },
+        "status": "recorded"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.spec.HrfTerm",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.contrast.SemanticContrast",
+        "fmrimod.glm.ContrastResult"
+      ],
+      "workflow_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py"
+    },
+    {
+      "artifact_present": true,
+      "benchmark_id": "tier_a_fiac",
+      "blockers": [
+        "tier_a_fiac: required public path 'fmri_dataset -> fmri_lm -> contrast' not in fmrimod_path",
+        "tier_a_fiac: timings are not recorded",
+        "tier_a_fiac: hardware_tag is missing"
+      ],
+      "caveats": [],
+      "current_status": "blocked_public_seam_false",
+      "evidence_level": "workflow_parity",
+      "family": "FIAC/localizer fixed effects",
+      "fmrimod_path": "benchmarks/parity/tier_a_fiac/workflow.py::fmrimod_pipeline: fmri_dataset -> RealizedDesign(source='nilearn') -> fmri_lm -> combine_runs -> column_contrast",
+      "hardware_tag": null,
+      "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
       "private_kernel_evidence": {
         "expected_private_kernel_rows": [],
         "imported_private_kernels": [],
@@ -160,68 +215,25 @@
         "command": [
           "python",
           "-m",
-          "benchmarks.parity.tier_a_spm_auditory.workflow"
+          "benchmarks.parity.tier_a_fiac.workflow"
         ],
         "status": "regenerable"
       },
-      "reference_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::nilearn_pipeline",
-      "report_path": "benchmarks/parity/tier_a_spm_auditory/reports/parity_report.json",
-      "required_public_path": "fmri_dataset -> fmri_lm -> contrast",
-      "timings": {
-        "seconds": 0.0935906670000004,
-        "source": "benchmarks/parity/tier_a_spm_auditory/reports/parity_report.json",
-        "stages": {
-          "contrast_seconds": 0.0030698749999999997,
-          "dataset_seconds": 0.01582687500000013,
-          "fit_seconds": 0.07469391700000028
-        },
-        "status": "recorded"
-      },
-      "typed_objects": [
-        "fmrimod.dataset.FmriDataset",
-        "fmrimod.spec.HrfTerm",
-        "fmrimod.glm.FmriLm",
-        "fmrimod.glm.ContrastResult"
-      ],
-      "workflow_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py"
-    },
-    {
-      "artifact_present": true,
-      "benchmark_id": "tier_a_fiac",
-      "blockers": [
-        "tier_a_fiac: public_seam is not true",
-        "tier_a_fiac: numerical_canary cannot be flagship proof",
-        "tier_a_fiac: required public path 'fmri_dataset -> fmri_lm -> contrast' not in fmrimod_path",
-        "tier_a_fiac: timings are not recorded",
-        "tier_a_fiac: hardware_tag is missing",
-        "tier_a_fiac: receipt metadata is missing",
-        "tier_a_fiac: private kernel path cannot be flagship proof (fit_glm_from_suffstats)"
-      ],
-      "caveats": [],
-      "current_status": "blocked_public_seam_false",
-      "evidence_level": "numerical_canary",
-      "family": "FIAC/localizer fixed effects",
-      "fmrimod_path": "benchmarks/parity/tier_a_fiac/workflow.py::fmrimod_pipeline: fit_glm_from_suffstats -> combine_runs -> contrast",
-      "hardware_tag": null,
-      "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
-      "private_kernel_evidence": {
-        "expected_private_kernel_rows": [],
-        "imported_private_kernels": [
-          "fit_glm_from_suffstats"
-        ],
-        "row_expected_private_kernel": false,
-        "row_private_kernels": [
-          "fit_glm_from_suffstats"
-        ],
-        "row_uses_private_kernel": true
-      },
-      "public_seam": false,
-      "receipt": null,
       "reference_path": "benchmarks/parity/tier_a_fiac/workflow.py::nilearn_pipeline",
       "report_path": "benchmarks/parity/tier_a_fiac/reports/parity_report.json",
       "required_public_path": "fmri_dataset -> fmri_lm -> contrast",
-      "timings": null,
-      "typed_objects": [],
+      "timings": {
+        "next": "record per-run dataset/fit + combined contrast timings now that the path is public-seam",
+        "status": "not_recorded"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.design.RealizedDesign",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.glm.CombinedFmriLm",
+        "fmrimod.contrast.ColumnContrastSpec",
+        "fmrimod.contrast.ContrastResult"
+      ],
       "workflow_path": "benchmarks/parity/tier_a_fiac/workflow.py"
     },
     {
