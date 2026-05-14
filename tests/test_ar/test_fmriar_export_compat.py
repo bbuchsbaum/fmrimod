@@ -1,10 +1,10 @@
 """Top-level fmriAR export compatibility checks."""
 
 import numpy as np
+import pytest
 
 import fmrimod
 import fmrimod.ar as ar
-
 
 FMRIAR_EXPORTS = [
     "fit_noise",
@@ -57,5 +57,15 @@ def test_top_level_fmriar_compat_module_exposes_expected_helpers():
     assert fmrimod.compat.whiten_with_phi is ar.compat.whiten_with_phi
 
     phi = np.array([0.2])
-    plan = fmrimod.compat.plan_from_phi(phi)
+    with pytest.warns(DeprecationWarning, match="fmrimod.ar.compat.plan_from_phi"):
+        plan = fmrimod.compat.plan_from_phi(phi)
     assert plan.order == (1, 0)
+
+
+def test_plan_from_phi_canonical_home_is_ar_plan():
+    from fmrimod.ar import plan as ar_plan
+
+    assert ar.plan_from_phi is ar_plan.plan_from_phi
+    assert ar.whiten_with_phi is ar_plan.whiten_with_phi
+    assert ar.compat.plan_from_phi.__wrapped__ is ar_plan.plan_from_phi
+    assert ar.compat.whiten_with_phi.__wrapped__ is ar_plan.whiten_with_phi

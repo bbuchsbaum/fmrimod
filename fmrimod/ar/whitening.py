@@ -13,7 +13,9 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy import linalg
 from scipy.signal import lfilter
+
 from ._arma_c_backend import arma_whiten_segments_c
+
 try:
     from numba import njit
     _HAS_NUMBA = True

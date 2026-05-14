@@ -5,12 +5,12 @@
 **Amended:** 2026-05-13 from
 `major-issues-lets-talk/post-01KRHVA1NC98BP4KQ1Z29WYXWG` — reflects
 `536677e glm: promote matrix fit helpers` and adds the missing fifth
-compat surface (`fmrimod/stats/meta_compat.py`). Live LOC at HEAD: 1897
+compat surface (`fmrimod/stats/meta_compat.py`). Live LOC at HEAD: 1769
 across five modules.
 
 ## Purpose
 
-The five `compat`-named modules in `fmrimod/` total **1897 LOC** of code
+The five `compat`-named modules in `fmrimod/` total **1769 LOC** of code
 whose shared header is some variant of "fmrireg-style compatibility
 helpers." The scathing-read post asked an honest question: if
 MISSION.md commits to a redesign, what are we backward-compatible with?
@@ -31,11 +31,11 @@ receipt rather than pretending the old import path disappeared.
 | Module | LOC | Public exports | Top-level promoted | Direct external callers | Read |
 | --- | ---: | ---: | ---: | ---: | --- |
 | `fmrimod/glm/compat.py` | 642 | 17 | 15 | 0 (flows via subpackage) | Migration surface; matrix-fit helpers promoted in `536677e` |
-| `fmrimod/dataset/compat.py` | 464 | 16 | 13 | 3 | Migration surface; `LatentDataset` promoted to `dataset/latent.py` with compat shim |
+| `fmrimod/dataset/compat.py` | 410 | 17 | 16 | 3 | Migration surface; `LatentDataset` promoted to `dataset/latent.py` with compat shim |
 | `fmrimod/simulate/compat.py` | 338 | 3 | 3 | 1 | Migration surface |
 | `fmrimod/stats/meta_compat.py` | 296 | 5 | 5 | 0 (flows via subpackage) | Low-level R-name meta-analysis helpers |
-| `fmrimod/ar/compat.py` | 157 | 2 | 0 (ar-level only) | 1 | Deprecated shim over typed constructors in `ar/plan.py` |
-| **Total** | **1897** | **43** | **36** | **5** | |
+| `fmrimod/ar/compat.py` | 83 | 2 | 0 (ar-level only) | 1 | Deprecated shim over typed constructors in `ar/plan.py` |
+| **Total** | **1769** | **44** | **39** | **5** | |
 
 "Direct external callers" counts files outside the compat module itself
 and outside the subpackage's `__init__.py` re-export — i.e. real
@@ -85,7 +85,7 @@ above are the live retirement surface.
 - `benchmarks/parity/tier_a_fiac/workflow.py`
 - `benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py`
 
-## fmrimod/dataset/compat.py — 464 LOC, 16 public exports
+## fmrimod/dataset/compat.py — 410 LOC, 17 public exports
 
 **Module docstring:** "fmrireg-style dataset, IO, and benchmark
 compatibility helpers."
@@ -159,7 +159,7 @@ is "delete the R-shaped detour, keep `meta_effective_n` as a typed
 diagnostic." S2 only fires if `stats.meta` is determined to be spine
 (see bullet 7 in `major-issues-lets-talk/post-01KRHVA1NC98BP4KQ1Z29WYXWG`).
 
-## fmrimod/ar/compat.py — 157 LOC, 2 public exports
+## fmrimod/ar/compat.py — 83 LOC, 2 public exports
 
 **Module docstring after promotion:** "Deprecated location for
 `plan_from_phi` / `whiten_with_phi`."
@@ -175,7 +175,7 @@ preserves old import paths and emits `DeprecationWarning`.
 
 ## Aggregate findings
 
-1. **Of 43 public compat exports, ~5 are pure R-name shims with no
+1. **Of 44 public compat exports, ~5 are pure R-name shims with no
    unique typed value:** `fmri_mem_dataset`, `fmri_ols_fit`, `fmri_rlm`,
    `simulate_bold_signal`, `simulate_fmri_matrix`. Retiring these
    genuinely shrinks the public-API footprint.
@@ -184,7 +184,7 @@ preserves old import paths and emits `DeprecationWarning`.
    `latent_dataset` into `fmrimod.dataset.latent`, and
    `plan_from_phi` / `whiten_with_phi` into `fmrimod.ar.plan`. The
    remaining typed-utility promotion candidate is `meta_effective_n`.
-3. **36 of 43 exports are top-level promoted into `fmrimod.__all__`.**
+3. **39 of 44 exports are top-level promoted into `fmrimod.__all__`.**
    That means most retirement work is **S2** (auto-escalator fires on
    public-API change). Steward approval per AGENTS.md § Work requests.
 4. **The compat modules are not internal bridges.** Module docstrings
@@ -212,7 +212,7 @@ preserves old import paths and emits `DeprecationWarning`.
    `ar/compat.py`**~~ — canonical home is now `fmrimod/ar/plan.py`;
    old imports are deprecated shims.
 4. **Promote `meta_effective_n` out of `stats/meta_compat.py`** to
-   `fmrimod/group/diagnostics.py`. **S0** (not top-level promoted; pure
+   `fmrimod/group/diagnostics.py`. **S2** (top-level promoted; pure
    numeric utility).
 5. **Delete `glm.compat.estimate`** — it is a no-op stub that raises.
    **S0** (no real callers verified).
@@ -222,7 +222,7 @@ preserves old import paths and emits `DeprecationWarning`.
    deprecation cycle and a typed replacement constructor before
    removal. **S2 per epic.**
 
-The split makes the ~1897 LOC pile **tractable**: the typed-constructor
+The split makes the ~1769 LOC pile **tractable**: the typed-constructor
 mis-housing is now mostly closed; the rest are deliberate migration
 surfaces under steward gate.
 

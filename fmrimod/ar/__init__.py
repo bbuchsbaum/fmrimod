@@ -1,48 +1,47 @@
 """Autoregressive noise modelling for fMRI time series."""
 
-from .plan import WhiteningPlan, WhitenResult
-from .numhelpers import (
-    pacf_to_ar,
-    ar_to_pacf,
-    enforce_stationary_ar,
-    enforce_invertible_ma,
-    levinson_durbin,
-    segmented_acvf,
-    run_avg_acvf,
-)
+from .afni import afni_phi_ar3, afni_phi_ar5, afni_restricted_plan
+from .diagnostics import acorr_diagnostics, sandwich_from_whitened_resid
 from .estimation import (
     estimate_ar,
-    estimate_ar_yule_walker,
-    estimate_ar_voxelwise,
     estimate_ar_bic,
+    estimate_ar_voxelwise,
+    estimate_ar_yule_walker,
     fit_noise,
 )
 from .hr_arma import hr_arma
-from .whitening import (
-    ar_whiten,
-    ar_whiten_matrix,
-    ar_covariance_matrix,
-    arma_whiten_segments,
-    whiten_apply,
-    whiten,
-)
+from .integration import iterative_ar_gls, iterative_gls
 from .multiscale import (
-    parcel_means,
-    ms_dispersion,
-    ms_weights,
     ms_combine_to_fine,
-    ms_parent_maps,
+    ms_dispersion,
     ms_estimate_scale,
+    ms_parent_maps,
+    ms_weights,
+    parcel_means,
 )
-from .afni import afni_phi_ar3, afni_phi_ar5, afni_restricted_plan
-from .diagnostics import acorr_diagnostics, sandwich_from_whitened_resid
-from .compat import plan_from_phi, whiten_with_phi
-from .integration import iterative_gls, iterative_ar_gls
 from .nilearn_ar1 import (
-    Ar1NilearnConfig,
     DEFAULT_BIN_WIDTH,
+    Ar1NilearnConfig,
     ar1_nilearn,
     bin_ar1_coefficients,
+)
+from .numhelpers import (
+    ar_to_pacf,
+    enforce_invertible_ma,
+    enforce_stationary_ar,
+    levinson_durbin,
+    pacf_to_ar,
+    run_avg_acvf,
+    segmented_acvf,
+)
+from .plan import WhiteningPlan, WhitenResult, plan_from_phi, whiten_with_phi
+from .whitening import (
+    ar_covariance_matrix,
+    ar_whiten,
+    ar_whiten_matrix,
+    arma_whiten_segments,
+    whiten,
+    whiten_apply,
 )
 
 __all__ = [
