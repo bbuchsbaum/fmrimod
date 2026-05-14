@@ -114,7 +114,7 @@ def _get_fallback_timing(
 
 @singledispatch
 def convolve(x, hrf=None, sampling_rate: float = 1.0,
-             sampling_frame: Optional[Array] = None, **kwargs) -> Array:
+             sampling_frame: Optional[Array] = None, **kwargs: object) -> Array:
     """Convolve event(s) with hemodynamic response function.
 
     This is a generic function that convolves various event types with an HRF.
@@ -398,7 +398,7 @@ def _convolve_event_factor(event: EventFactor, hrf=None,
                           precision: float = 0.1,
                           normalize: bool = False,
                           summate: bool = True,
-                          **kwargs) -> Array:
+                          **kwargs: object) -> Array:
     """Convolve a categorical EventFactor with an HRF.
 
     Each factor level produces one column in the output. Events matching
@@ -506,7 +506,7 @@ def _convolve_event_variable(event: EventVariable, hrf=None,
                             precision: float = 0.1,
                             normalize: bool = False,
                             summate: bool = True,
-                            **kwargs) -> Array:
+                            **kwargs: object) -> Array:
     """Convolve a continuous EventVariable with an HRF.
 
     The event's (possibly centered/scaled) ``values`` are used as
@@ -596,7 +596,7 @@ def _convolve_event_matrix(event: EventMatrix, hrf=None,
                           precision: float = 0.1,
                           normalize: bool = False,
                           summate: bool = True,
-                          **kwargs) -> Array:
+                          **kwargs: object) -> Array:
     """Convolve a multi-column EventMatrix with an HRF.
 
     Each column of the matrix is convolved independently, preserving
@@ -693,7 +693,7 @@ def _convolve_event_basis(event: EventBasis, hrf=None,
                          precision: float = 0.1,
                          normalize: bool = False,
                          summate: bool = True,
-                         **kwargs) -> Array:
+                         **kwargs: object) -> Array:
     """Convolve EventBasis with HRF.
 
     For EventBasis, the HRF parameter is typically None since the basis
@@ -785,7 +785,7 @@ def _convolve_list(events: List[EventProtocol], hrf=None,
                    total_duration: Optional[float] = None,
                    normalize: bool = False,
                    summate: bool = True,
-                   **kwargs) -> List[Array]:
+                   **kwargs: object) -> List[Array]:
     """Convolve a list of event objects with an HRF.
 
     Each element is convolved independently via :func:`convolve`.
@@ -826,7 +826,7 @@ def _convolve_array(arr: np.ndarray, hrf=None,
                    precision: float = 0.1,
                    normalize: bool = False,
                    summate: bool = True,
-                   **kwargs) -> Array:
+                   **kwargs: object) -> Array:
     """Convolve array with HRF.
 
     Assumes array has shape (n_events, 3) with columns:
