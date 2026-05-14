@@ -963,7 +963,7 @@
       "name": "condition_map",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.utils.generics",
-      "runtime_signature": "(x, drop_empty: bool = True, expand_basis: bool = False, **kwargs) -> pandas.DataFrame",
+      "runtime_signature": "(x, drop_empty: bool = True, expand_basis: bool = False, **kwargs: object) -> pandas.DataFrame",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -1278,7 +1278,7 @@
       "name": "event_model",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.design.event_model",
-      "runtime_signature": "(formula: 'Union[str, List[Term], EventModelBuilder]', data: 'Optional[pd.DataFrame]' = None, block: 'Optional[Union[str, Array]]' = None, sampling_frame=None, durations: 'Optional[Union[str, float, Array]]' = None, drop_empty: 'bool' = True, precision: 'Optional[float]' = None, events: 'Optional[Dict[str, EventProtocol]]' = None, sampling_info=None, tr: 'Optional[float]' = None, n_scans: 'Optional[int]' = None, sampling_rate: 'Optional[float]' = None, **kwargs) -> 'EventModel'",
+      "runtime_signature": "(formula: 'Union[str, List[Term], EventModelBuilder]', data: 'Optional[pd.DataFrame]' = None, block: 'Optional[Union[str, Array]]' = None, sampling_frame=None, durations: 'Optional[Union[str, float, Array]]' = None, drop_empty: 'bool' = True, precision: 'Optional[float]' = None, events: 'Optional[Dict[str, EventProtocol]]' = None, sampling_info=None, tr: 'Optional[float]' = None, n_scans: 'Optional[int]' = None, sampling_rate: 'Optional[float]' = None, **kwargs: 'object') -> 'EventModel'",
       "signature_source": "inspect.signature",
       "tier": "spine_review",
       "used_by_public_seam_artifact": "release_1_0_api_spine"
@@ -2838,7 +2838,7 @@
       "name": "soft_subspace_options",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.model.config",
-      "runtime_signature": "(*, enabled: 'bool' = False, nuisance_matrix: 'Optional[NDArray]' = None, nuisance_mask: 'Optional[object]' = None, lam: \"Union[float, Literal['auto', 'gcv'], object]\" = <object object at 0x_SANITIZED_>, warn_redundant: 'bool' = True, **kwargs) -> 'SoftSubspaceOptions'",
+      "runtime_signature": "(*, enabled: 'bool' = False, nuisance_matrix: 'Optional[NDArray]' = None, nuisance_mask: 'Optional[object]' = None, lam: \"Union[float, Literal['auto', 'gcv'], object]\" = <object object at 0x_SANITIZED_>, warn_redundant: 'bool' = True, **kwargs: 'object') -> 'SoftSubspaceOptions'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
