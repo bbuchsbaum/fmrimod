@@ -17,6 +17,7 @@ import fmrimod
 from fmrimod import dataset as ds_pkg
 from fmrimod.dataset import compat as ds_compat
 from fmrimod.dataset import latent as ds_latent
+from fmrimod.dataset.fmri_dataset import FmriDataset
 
 facade_latent = importlib.import_module("fmridataset.latent_dataset")
 
@@ -67,8 +68,12 @@ def test_latent_dataset_constructor_smoke():
     scores = rng.standard_normal((20, 3))
     loadings = rng.standard_normal((3, 4))
     latent = fmrimod.latent_dataset(scores, loadings=loadings, tr=2.0)
+    assert isinstance(latent, FmriDataset)
     assert latent.n_runs == 1
+    assert latent.n_timepoints == 20
     assert latent.n_voxels == 4
+    np.testing.assert_allclose(latent.get_latent_scores(), scores)
+    np.testing.assert_allclose(latent.get_spatial_loadings(), loadings.T)
     np.testing.assert_allclose(latent.get_data(0), scores @ loadings)
     np.testing.assert_allclose(latent.get_scores(0), scores)
     np.testing.assert_allclose(latent.get_spatial_loadings(), loadings.T)

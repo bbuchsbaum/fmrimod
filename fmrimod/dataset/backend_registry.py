@@ -132,10 +132,16 @@ def _register_builtins() -> None:
     from .backends.latent_backend import LatentBackend
     from .backends.matrix_backend import MatrixBackend
 
+    def _latent_factory(
+        source: str,
+        preload: bool = False,
+    ) -> LatentBackend:
+        return LatentBackend(source=source, preload=preload)
+
     registry = BackendRegistry.instance()
     registry.register(
         "latent",
-        lambda **kwargs: LatentBackend(**kwargs),
+        _latent_factory,
         description="HDF5 latent decomposition backend",
         overwrite=True,
     )

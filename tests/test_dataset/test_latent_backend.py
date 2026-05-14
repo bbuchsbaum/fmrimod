@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from fmrimod.dataset import latent_dataset
+from fmrimod.dataset import backend_get_loadings, latent_dataset
 from fmrimod.dataset.backends.latent_backend import (
     InMemoryLatentBackend,
     LatentBackend,
@@ -46,6 +46,7 @@ def test_in_memory_latent_backend_reconstructs_voxels_and_metadata() -> None:
         scores[[1, 3]][:, [0]],
     )
     np.testing.assert_allclose(backend.get_loadings(1), loadings[:, [1]])
+    np.testing.assert_allclose(backend_get_loadings(backend, 1), loadings[:, [1]])
 
     rows = np.array([0, 2])
     voxels = np.array([1, 2])

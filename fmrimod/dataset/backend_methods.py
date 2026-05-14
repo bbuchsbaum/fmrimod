@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
@@ -44,12 +45,15 @@ def backend_get_metadata(backend: StorageBackend) -> dict[str, Any]:
     return backend.get_metadata()
 
 
-def backend_get_loadings(backend: StorageBackend) -> Any:
+def backend_get_loadings(
+    backend: StorageBackend,
+    components: NDArray[np.intp] | Sequence[int] | int | None = None,
+) -> Any:
     """Return backend loadings when implemented."""
     method = getattr(backend, "get_loadings", None)
     if method is None:
         raise NotImplementedError("backend does not expose get_loadings()")
-    return method()
+    return method(components=components)
 
 
 def backend_reconstruct_voxels(
