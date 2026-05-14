@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable
+from typing import Callable
 
 from .backend_protocol import StorageBackend
 from .errors import ConfigError
@@ -72,7 +72,7 @@ class BackendRegistry:
         name: str,
         *,
         validate: bool = True,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> StorageBackend:
         """Create a backend instance by registered name."""
         if not isinstance(name, str) or not name:
@@ -112,7 +112,7 @@ class BackendRegistry:
             raise ConfigError("name must be a string", parameter="name")
         return self._entries.pop(name, None) is not None
 
-    def get_info(self, name: str) -> dict[str, Any]:
+    def get_info(self, name: str) -> dict[str, object]:
         """Return registration metadata for a backend."""
         if not isinstance(name, str) or not name:
             raise ConfigError("name must be a non-empty string", parameter="name")
@@ -195,7 +195,7 @@ def _register_builtins() -> None:
     )
 
 
-def get_backend_registry(name: str | None = None) -> BackendRegistry | dict[str, Any]:
+def get_backend_registry(name: str | None = None) -> BackendRegistry | dict[str, object]:
     """Return the global registry or metadata for one backend."""
     registry = BackendRegistry.instance()
     if name is None:
@@ -225,7 +225,7 @@ def create_backend(
     name: str,
     *,
     validate: bool = True,
-    **kwargs: Any,
+    **kwargs: object,
 ) -> StorageBackend:
     """Create a backend from the global registry."""
     return BackendRegistry.instance().create(name, validate=validate, **kwargs)
