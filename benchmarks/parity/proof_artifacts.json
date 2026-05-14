@@ -409,20 +409,29 @@
       "fmrimod_expresses_better": "BIDS Stats Model JSON flows into the public fmri_dataset -> fmri_lm -> contrast seam as typed Spec + StatsModelContrast records; the contrast intent survives to the fit and the JSON node is the single source of truth, instead of FitLins's TSV-vector + statmap-file hand-off.",
       "timings": {
         "status": "recorded",
-        "seconds": 0.0993444160000001,
-        "source": "python3.9 -c run(make_case()) on 2026-05-14"
+        "seconds": 0.0543945400000001,
+        "stages": {
+          "contrast_seconds": 0.02011104100000005,
+          "dataset_seconds": 0.007114375000000006,
+          "fit_seconds": 0.022919541000000043,
+          "translate_seconds": 0.004249583000000001
+        },
+        "source": "benchmarks/parity/tier_b_fitlins_bids/reports/parity_report.json"
       },
       "receipt": {
         "status": "regenerable",
         "command": [
           "python",
           "-m",
-          "benchmarks.parity.tier_b_fitlins_bids.workflow"
+          "benchmarks.parity.tier_b_fitlins_bids.workflow",
+          "--skip-fitlins-cli",
+          "--out-dir",
+          "benchmarks/parity/tier_b_fitlins_bids/reports"
         ],
         "checks": [
           "report_path",
           "status",
-          "caveats"
+          "timings"
         ]
       }
     },

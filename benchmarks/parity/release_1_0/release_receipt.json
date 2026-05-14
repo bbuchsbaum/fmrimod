@@ -247,12 +247,15 @@
         "checks": [
           "report_path",
           "status",
-          "caveats"
+          "timings"
         ],
         "command": [
           "python",
           "-m",
-          "benchmarks.parity.tier_b_fitlins_bids.workflow"
+          "benchmarks.parity.tier_b_fitlins_bids.workflow",
+          "--skip-fitlins-cli",
+          "--out-dir",
+          "benchmarks/parity/tier_b_fitlins_bids/reports"
         ],
         "status": "regenerable"
       },
@@ -260,8 +263,14 @@
       "report_path": "benchmarks/parity/tier_b_fitlins_bids/reports/parity_report.json",
       "required_public_path": "fmri_dataset -> fmri_lm -> typed BIDS contrasts",
       "timings": {
-        "seconds": 0.0993444160000001,
-        "source": "python3.9 -c run(make_case()) on 2026-05-14",
+        "seconds": 0.0543945400000001,
+        "source": "benchmarks/parity/tier_b_fitlins_bids/reports/parity_report.json",
+        "stages": {
+          "contrast_seconds": 0.02011104100000005,
+          "dataset_seconds": 0.007114375000000006,
+          "fit_seconds": 0.022919541000000043,
+          "translate_seconds": 0.004249583000000001
+        },
         "status": "recorded"
       },
       "typed_objects": [
