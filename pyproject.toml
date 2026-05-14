@@ -58,6 +58,7 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.5.0",
     "pandas-stubs>=2.0.0",
+    "tomli>=2.0.0; python_version<'3.11'",
     "types-setuptools",
     "pre-commit>=3.4.0",
 ]
@@ -67,6 +68,7 @@ test = [
     "pytest-xdist>=3.3.0",
     "hypothesis>=6.82.0",
     "pytest-benchmark>=4.0.0",
+    "tomli>=2.0.0; python_version<'3.11'",
 ]
 cross-test = [
     "rpy2>=3.5.0",
@@ -75,12 +77,39 @@ cross-test = [
     "pytest-json-report>=1.5.0",
     "pytest-benchmark>=4.0.0",
 ]
+hdf5 = [
+    "h5py>=3.8.0",
+]
 jax = [
     "jax>=0.4.0",
     "jaxlib>=0.4.0",
 ]
 nibabel = [
     "nibabel>=4.0.0",
+]
+nifti = [
+    "nibabel>=4.0.0",
+]
+zarr = [
+    "zarr>=2.16.0",
+]
+dask = [
+    "dask[array]>=2023.1.0",
+]
+cache = [
+    "cachetools>=5.0.0",
+]
+bids = [
+    "pybids>=0.16.0",
+    "nibabel>=4.0.0",
+]
+full = [
+    "h5py>=3.8.0",
+    "nibabel>=4.0.0",
+    "zarr>=2.16.0",
+    "dask[array]>=2023.1.0",
+    "cachetools>=5.0.0",
+    "pybids>=0.16.0",
 ]
 docs = [
     "quartodoc>=0.7",

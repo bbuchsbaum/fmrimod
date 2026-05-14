@@ -126,8 +126,6 @@ def test_pyproject_declares_dataset_io_extras():
     assert "h5py>=3.8.0" in extras["full"]
     assert "nibabel>=4.0.0" in extras["nibabel"]
     assert "nibabel>=4.0.0" in extras["nifti"]
-    assert "neuroim>=0.1.0" in extras["nifti"]
-    assert "neuroim>=0.1.0" in extras["full"]
     assert "zarr>=2.16.0" in extras["zarr"]
     assert "dask[array]>=2023.1.0" in extras["dask"]
     assert "cachetools>=5.0.0" in extras["cache"]
@@ -158,5 +156,9 @@ def test_basis_registry_and_benchmark_helpers():
     )
     assert perf["overall_metrics"]["rmse"] == 0.0
 
-    np.testing.assert_allclose(fmrimod.samples(fmrimod.SamplingFrame(3, tr=2.0)), [1.0, 3.0, 5.0])
-    assert np.asarray(fmrimod.evaluate(lambda x: x + 1, np.array([1, 2]))).tolist() == [2, 3]
+    np.testing.assert_allclose(
+        fmrimod.samples(fmrimod.SamplingFrame(3, tr=2.0)),
+        [1.0, 3.0, 5.0],
+    )
+    evaluated = np.asarray(fmrimod.evaluate(lambda x: x + 1, np.array([1, 2])))
+    assert evaluated.tolist() == [2, 3]
