@@ -322,17 +322,42 @@ def run_benchmark(
                 "caveats": list(translated.caveats),
             },
             "ergonomics": {
-                "ux_status": "full",
+                "ux_status": "typed_contrast_full_group_manual",
                 "fmrimod_path": (
                     "BIDS JSON -> translate_run_node -> fmri_dataset -> "
                     "StatsModelContrast.apply -> condition(term='trial_type:rt_z') "
                     "-> group_model('behavior') -> ols_voxelwise"
                 ),
                 "raw_vector_user_code": False,
+                "typed_contrast_authoring_status": "full",
+                "e2e_ux_status": "partial",
                 "parametric_contrast_callsite": (
                     "condition('word', term='trial_type:rt_z') - "
                     "condition('pseudoword', term='trial_type:rt_z')"
                 ),
+                "ux_blockers": [
+                    {
+                        "owner_bead": "bd-01KRM9PVWWKTH7A0TJDYTZ9XB7",
+                        "gap": (
+                            "Parametric authoring still requires the generated "
+                            "term spelling trial_type:rt_z."
+                        ),
+                    },
+                    {
+                        "owner_bead": "bd-01KRM9PVWWKTH7A0TJDYTZ9XB7",
+                        "gap": (
+                            "Group handoff manually packs ContrastResult "
+                            "estimates into subject/feature/beta/se rows."
+                        ),
+                    },
+                    {
+                        "owner_bead": "bd-01KRM9PVWWKTH7A0TJDYTZ9XB7",
+                        "gap": (
+                            "Diagnostics expose generated implementation "
+                            "column names for parametric terms."
+                        ),
+                    },
+                ],
             },
             "subject_summary": subject_summaries,
             "group": {
@@ -368,6 +393,13 @@ def write_report(report: dict[str, Any], out_dir: Path) -> tuple[Path, Path]:
                 "",
                 str(report["ergonomics"]["fmrimod_path"]),
                 "",
+                (
+                    "UX status: "
+                    f"`{report['ergonomics']['ux_status']}`; "
+                    "E2E UX status: "
+                    f"`{report['ergonomics']['e2e_ux_status']}`."
+                ),
+                "",
                 "## Group Check",
                 "",
                 (
@@ -376,7 +408,6 @@ def write_report(report: dict[str, Any], out_dir: Path) -> tuple[Path, Path]:
                     "median t: "
                     f"`{report['group']['behavior_t_median']:.6g}`."
                 ),
-                "",
             ]
         )
         + "\n"

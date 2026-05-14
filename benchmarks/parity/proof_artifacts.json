@@ -945,11 +945,11 @@
       "performance_stage": "tier_e_bids_parametric_group_followthrough",
       "timings": {
         "status": "recorded",
-        "seconds": 0.28252641700000014,
+        "seconds": 0.32157520799999995,
         "stages": {
-          "first_level_subjects_seconds": 0.275171084,
-          "native_group_model_seconds": 0.004422208000000081,
-          "translate_bids_model_seconds": 0.0029331250000000364
+          "first_level_subjects_seconds": 0.29826237499999997,
+          "native_group_model_seconds": 0.02038179200000001,
+          "translate_bids_model_seconds": 0.0029310409999999676
         },
         "source": "benchmarks/parity/tier_e_bids_parametric_group_followthrough/reports/followthrough_report.json"
       },
@@ -963,7 +963,7 @@
         "GroupLinearModel",
         "fmrimod.group.GroupDataset"
       ],
-      "fmrimod_expresses_better": "A compact BIDS Stats Model JSON lowers to typed first-level fitting, BIDS task contrasts lower to semantic contrast objects, the parametric RT slope is authored as condition('word', term='trial_type:rt_z') - condition('pseudoword', term='trial_type:rt_z'), and subject-level estimates flow into the native typed group_model('behavior') API. The workflow contains no user-authored raw contrast vector.",
+      "fmrimod_expresses_better": "A compact BIDS Stats Model JSON lowers to typed first-level fitting, BIDS task contrasts lower to semantic contrast objects, and the parametric RT slope is authored as condition('word', term='trial_type:rt_z') - condition('pseudoword', term='trial_type:rt_z') with no user-authored raw contrast vector. The receipt is full for typed contrast authoring but deliberately not full E2E UX: parametric term spelling, group collection, and diagnostic naming remain follow-up work under bd-01KRM9PVWWKTH7A0TJDYTZ9XB7.",
       "claim_axes": {
         "typed_design_authoring": "full",
         "typed_contrast_authoring": "full",
@@ -971,10 +971,16 @@
         "interop_bridge": true,
         "diagnostics": "bids_parametric_group_followthrough",
         "performance": "recorded",
-        "group_model_authoring": "typed_group_model"
+        "group_model_authoring": "typed_group_model",
+        "group_collection": "manual_subject_feature_beta_se_rows"
       },
-      "ux_status": "full",
-      "ux_blockers": [],
+      "ux_status": "typed_contrast_full_group_manual",
+      "e2e_ux_status": "partial",
+      "ux_blockers": [
+        "bd-01KRM9PVWWKTH7A0TJDYTZ9XB7: first-class parametric sugar should hide generated term spellings like trial_type:rt_z.",
+        "bd-01KRM9PVWWKTH7A0TJDYTZ9XB7: ContrastResult-to-GroupDataset collection should replace manual subject/feature/beta/se packing.",
+        "bd-01KRM9PVWWKTH7A0TJDYTZ9XB7: diagnostics should translate generated parametric column names back to authored semantic terms."
+      ],
       "callsite_receipts": [
         "benchmarks/parity/tier_e_bids_parametric_group_followthrough/workflow.py:192",
         "benchmarks/parity/tier_e_bids_parametric_group_followthrough/workflow.py:194",

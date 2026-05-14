@@ -17,8 +17,11 @@ def test_bids_parametric_group_followthrough_is_full_ux_path() -> None:
     assert report["schema_version"] == "bids-parametric-group-followthrough/v1"
     assert report["status"] == "pass"
     assert report["caveats"] == []
-    assert report["ergonomics"]["ux_status"] == "full"
+    assert report["ergonomics"]["ux_status"] == "typed_contrast_full_group_manual"
+    assert report["ergonomics"]["typed_contrast_authoring_status"] == "full"
+    assert report["ergonomics"]["e2e_ux_status"] == "partial"
     assert report["ergonomics"]["raw_vector_user_code"] is False
+    assert len(report["ergonomics"]["ux_blockers"]) == 3
     assert report["checks"] == {
         "bids_main_semantic": True,
         "parametric_slope_semantic": True,
@@ -60,9 +63,11 @@ def test_bids_parametric_group_followthrough_manifest_row() -> None:
 
     assert row["evidence_level"] == "workflow_parity"
     assert row["public_seam"] is True
-    assert row["ux_status"] == "full"
-    assert row["ux_blockers"] == []
+    assert row["ux_status"] == "typed_contrast_full_group_manual"
+    assert row["e2e_ux_status"] == "partial"
+    assert len(row["ux_blockers"]) == 3
     assert row["claim_axes"]["typed_contrast_authoring"] == "full"
+    assert row["claim_axes"]["group_collection"] == "manual_subject_feature_beta_se_rows"
     assert "condition(term='trial_type:rt_z')" in row["fmrimod_path"]
     assert "GroupLinearModel" in row["typed_objects"]
 
@@ -74,5 +79,6 @@ def test_bids_parametric_group_followthrough_main_writes_report(tmp_path) -> Non
     markdown_path = tmp_path / "REPORT.md"
     report = json.loads(report_path.read_text())
     assert report["status"] == "pass"
-    assert report["ergonomics"]["ux_status"] == "full"
+    assert report["ergonomics"]["ux_status"] == "typed_contrast_full_group_manual"
+    assert report["ergonomics"]["e2e_ux_status"] == "partial"
     assert "BIDS Parametric Group Follow-through" in markdown_path.read_text()

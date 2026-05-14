@@ -20,10 +20,26 @@
     "parametric_slope_semantic": true
   },
   "ergonomics": {
+    "e2e_ux_status": "partial",
     "fmrimod_path": "BIDS JSON -> translate_run_node -> fmri_dataset -> StatsModelContrast.apply -> condition(term='trial_type:rt_z') -> group_model('behavior') -> ols_voxelwise",
     "parametric_contrast_callsite": "condition('word', term='trial_type:rt_z') - condition('pseudoword', term='trial_type:rt_z')",
     "raw_vector_user_code": false,
-    "ux_status": "full"
+    "typed_contrast_authoring_status": "full",
+    "ux_blockers": [
+      {
+        "gap": "Parametric authoring still requires the generated term spelling trial_type:rt_z.",
+        "owner_bead": "bd-01KRM9PVWWKTH7A0TJDYTZ9XB7"
+      },
+      {
+        "gap": "Group handoff manually packs ContrastResult estimates into subject/feature/beta/se rows.",
+        "owner_bead": "bd-01KRM9PVWWKTH7A0TJDYTZ9XB7"
+      },
+      {
+        "gap": "Diagnostics expose generated implementation column names for parametric terms.",
+        "owner_bead": "bd-01KRM9PVWWKTH7A0TJDYTZ9XB7"
+      }
+    ],
+    "ux_status": "typed_contrast_full_group_manual"
   },
   "group": {
     "assays": [
@@ -156,11 +172,11 @@
     }
   ],
   "timings": {
-    "seconds": 0.28252641700000014,
+    "seconds": 0.32157520799999995,
     "stages": {
-      "first_level_subjects_seconds": 0.2721894170000001,
-      "native_group_model_seconds": 0.007762542000000039,
-      "translate_bids_model_seconds": 0.0025744580000000017
+      "first_level_subjects_seconds": 0.29826237499999997,
+      "native_group_model_seconds": 0.02038179200000001,
+      "translate_bids_model_seconds": 0.0029310409999999676
     },
     "status": "recorded"
   }
