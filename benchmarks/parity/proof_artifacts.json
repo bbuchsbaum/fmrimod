@@ -328,12 +328,28 @@
     },
     {
       "benchmark_id": "tier_a_multirun_concat",
+      "evidence_level": "numerical_canary",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_multirun_concat/reports_canary/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_multirun_concat/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_multirun_concat/workflow.py::fmrimod_pipeline: fast_preproject -> fast_lm_matrix -> contrast_t/contrast_f",
+      "caveats": [],
+      "replacement_target": {
+        "description": "The exact concatenated-denominator oracle remains as a numerical canary beneath the public-seam multirun row.",
+        "owner_bead": "bd-01KRKADEYCQCHY1PAW9MQC85KT",
+        "blocking_api_gap": "The canary intentionally uses private matrix kernels to match Nilearn's single concatenated-design denominator exactly."
+      }
+    },
+    {
+      "benchmark_id": "tier_a_multirun_concat_public_seam",
       "evidence_level": "workflow_parity",
       "public_seam": true,
       "workflow_path": "benchmarks/parity/tier_a_multirun_concat/workflow.py",
       "report_path": "benchmarks/parity/tier_a_multirun_concat/reports/parity_report.json",
       "reference_path": "benchmarks/parity/tier_a_multirun_concat/workflow.py::nilearn_pipeline",
-      "fmrimod_path": "benchmarks/parity/tier_a_multirun_concat/workflow.py::fmrimod_pipeline: matrix_dataset -> fmri_lm -> cross-run contrasts",
+      "fmrimod_path": "benchmarks/parity/tier_a_multirun_concat/workflow.py::public_seam_pipeline: matrix_dataset -> RealizedDesign(source='fmrimod') -> fmri_lm -> public vector contrasts",
+      "realized_design_source": "fmrimod",
       "caveats": [],
       "timings": {
         "status": "not_recorded",
@@ -343,6 +359,7 @@
         "fmrimod.dataset.FmriDataset",
         "fmrimod.spec.HrfTerm",
         "fmrimod.spec.DriftTerm",
+        "fmrimod.design.RealizedDesign",
         "fmrimod.design.DesignColumns",
         "fmrimod.glm.FmriLm",
         "fmrimod.glm.ContrastResult"

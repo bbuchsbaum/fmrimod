@@ -88,6 +88,7 @@ from cross_testing.harness import (
     run,
 )
 from fmrimod.dataset.constructors import matrix_dataset
+from fmrimod.design import RealizedDesign
 from fmrimod.design.columns import DesignColumns
 from fmrimod.glm.contrasts import contrast_f, contrast_t
 from fmrimod.glm.solver import fast_lm_matrix, fast_preproject
@@ -361,36 +362,103 @@ def fmrimod_pipeline(inputs: MultirunInputs) -> PipelineOutput:
     )
 
 
-def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
-    """Build the concatenated multi-run parity case."""
+def public_seam_pipeline(inputs: MultirunInputs) -> PipelineOutput:
+    """Public fmrimod seam for the same concatenated-design policy.
+
+    The exact matrix oracle remains in :func:`fmrimod_pipeline`. This
+    path proves the user-facing objects can carry the realised fmrimod
+    design through ``fmri_lm`` without reaching into private solver
+    kernels.
+    """
+
+    dataset = matrix_dataset(
+        inputs.data,
+        tr=TR,
+        event_table=inputs.events,
+        mask=np.ones(inputs.data.shape[1], dtype=bool),
+    )
+    realised = RealizedDesign.from_array(
+        inputs.design,
+        columns=inputs.design_columns.names,
+        source="fmrimod",
+    )
+    fit = fm.fmri_lm(realised, dataset)
+    contrasts = {
+        "main_A_minus_B": inputs.c_main_A_minus_B,
+        "run_diff_A": inputs.c_run_diff_A,
+        "trial_x_run": inputs.c_trial_x_run,
+        "task_omnibus": inputs.c_task_F,
+    }
+    outputs = {
+        name: fit.contrast(weights, name=name)
+        for name, weights in contrasts.items()
+    }
+    return PipelineOutput(
+        arrays={
+            "design": inputs.design,
+            "effect_main_A_minus_B": outputs["main_A_minus_B"].estimate,
+            "t_main_A_minus_B": outputs["main_A_minus_B"].stat,
+            "effect_run_diff_A": outputs["run_diff_A"].estimate,
+            "t_run_diff_A": outputs["run_diff_A"].stat,
+            "effect_trial_x_run_interaction": outputs["trial_x_run"].estimate,
+            "t_trial_x_run_interaction": outputs["trial_x_run"].stat,
+            "f_task_omnibus": outputs["task_omnibus"].stat,
+            "rank": np.array(
+                [int(np.linalg.matrix_rank(inputs.design))],
+                dtype=np.float64,
+            ),
+        }
+    )
+
+
+def _tolerances() -> dict[str, ParityTolerance]:
+    return {
+        "design": ParityTolerance(rtol=0.0, atol=0.0),
+        "effect_main_A_minus_B": ParityTolerance(rtol=1e-8, atol=1e-9),
+        "t_main_A_minus_B": ParityTolerance(rtol=1e-7, atol=1e-8),
+        "effect_run_diff_A": ParityTolerance(rtol=1e-8, atol=1e-9),
+        "t_run_diff_A": ParityTolerance(rtol=1e-7, atol=1e-8),
+        "effect_trial_x_run_interaction": ParityTolerance(
+            rtol=1e-8, atol=1e-9
+        ),
+        "t_trial_x_run_interaction": ParityTolerance(
+            rtol=1e-7, atol=1e-8
+        ),
+        "f_task_omnibus": ParityTolerance(rtol=1e-7, atol=1e-8),
+        "rank": ParityTolerance(rtol=0.0, atol=0.0),
+    }
+
+
+def make_canary_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
+    """Build the private-kernel concatenated-denominator canary."""
     return ParityCase(
         name="tier_a_multirun_concat",
         fmrimod_pipeline=fmrimod_pipeline,
         reference_pipeline=nilearn_pipeline,
         inputs=load_inputs(max_voxels=max_voxels),
-        tolerances={
-            "design": ParityTolerance(rtol=0.0, atol=0.0),
-            "effect_main_A_minus_B": ParityTolerance(rtol=1e-8, atol=1e-9),
-            "t_main_A_minus_B": ParityTolerance(rtol=1e-7, atol=1e-8),
-            "effect_run_diff_A": ParityTolerance(rtol=1e-8, atol=1e-9),
-            "t_run_diff_A": ParityTolerance(rtol=1e-7, atol=1e-8),
-            "effect_trial_x_run_interaction": ParityTolerance(
-                rtol=1e-8, atol=1e-9
-            ),
-            "t_trial_x_run_interaction": ParityTolerance(
-                rtol=1e-7, atol=1e-8
-            ),
-            "f_task_omnibus": ParityTolerance(rtol=1e-7, atol=1e-8),
-            "rank": ParityTolerance(rtol=0.0, atol=0.0),
-        },
+        tolerances=_tolerances(),
+    )
+
+
+def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
+    """Build the public-seam concatenated multi-run parity case."""
+    return ParityCase(
+        name="tier_a_multirun_concat_public_seam",
+        fmrimod_pipeline=public_seam_pipeline,
+        reference_pipeline=nilearn_pipeline,
+        inputs=load_inputs(max_voxels=max_voxels),
+        tolerances=_tolerances(),
     )
 
 
 def main() -> None:
+    canary_result = run(make_canary_case())
+    canary_dir = Path(__file__).resolve().parent / "reports_canary"
+    render(canary_result, canary_dir)
     result = run(make_case())
     out_dir = Path(__file__).resolve().parent / "reports"
     render(result, out_dir)
-    if result.status == "fail":
+    if canary_result.status == "fail" or result.status == "fail":
         raise SystemExit(1)
 
 

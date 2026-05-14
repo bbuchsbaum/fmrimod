@@ -12,11 +12,11 @@ from numpy.typing import ArrayLike, NDArray
 from .columns import DesignColumn, DesignColumns, ProvenanceGrade
 
 ColumnKind = Literal["condition", "baseline", "confound"]
-DesignSource = Literal["nilearn", "bids", "fitlins", "user"]
+DesignSource = Literal["fmrimod", "nilearn", "bids", "fitlins", "user"]
 
 _VALID_COLUMN_KINDS: frozenset[str] = frozenset(("condition", "baseline", "confound"))
 _VALID_DESIGN_SOURCES: frozenset[str] = frozenset(
-    ("nilearn", "bids", "fitlins", "user")
+    ("fmrimod", "nilearn", "bids", "fitlins", "user")
 )
 
 

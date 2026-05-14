@@ -25,6 +25,14 @@ PUBLIC_SEAM_FIELDS = {
     "fmrimod_expresses_better",
 }
 NUMERIC_TIMING_FIELDS = ("seconds", "seconds_total", "wall_seconds")
+PRIVATE_KERNEL_NAMES = (
+    "fit_glm_from_suffstats",
+    "fit_glm_from_matrix",
+    "contrast_t",
+    "contrast_f",
+    "fast_lm_matrix",
+    "fast_preproject",
+)
 
 
 def _load_manifest() -> dict:
@@ -187,6 +195,24 @@ def test_public_or_flagship_artifacts_declare_receipt_status() -> None:
                 f"{item['benchmark_id']} has unknown receipt status "
                 f"{receipt['status']!r}"
             )
+
+
+def test_multirun_concat_public_row_does_not_claim_private_kernel_path() -> None:
+    rows = {
+        item["benchmark_id"]: item
+        for item in _load_manifest()["artifacts"]
+        if item["benchmark_id"].startswith("tier_a_multirun_concat")
+    }
+
+    canary = rows["tier_a_multirun_concat"]
+    assert canary["evidence_level"] == "numerical_canary"
+    assert canary["public_seam"] is False
+    assert "fast_lm_matrix" in canary["fmrimod_path"]
+
+    public = rows["tier_a_multirun_concat_public_seam"]
+    assert public["public_seam"] is True
+    assert public["realized_design_source"] == "fmrimod"
+    assert not any(name in public["fmrimod_path"] for name in PRIVATE_KERNEL_NAMES)
 
 
 def test_flagship_workflows_are_complete_public_proof_receipts() -> None:

@@ -47,6 +47,18 @@ def test_fmri_lm_accepts_realized_design_and_records_source() -> None:
     np.testing.assert_allclose(fit.coef()[1], beta[1], atol=0.01)
 
 
+def test_realized_design_accepts_fmrimod_authored_source() -> None:
+    matrix = np.column_stack([np.ones(6), np.linspace(-1.0, 1.0, 6)])
+    design = RealizedDesign.from_array(
+        matrix,
+        columns=("intercept", "task"),
+        source="fmrimod",
+    )
+
+    assert design.source == "fmrimod"
+    assert design.columns[0].model_source == "fmrimod"
+
+
 def test_realized_design_splits_rows_by_dataset_runs() -> None:
     rng = np.random.default_rng(42)
     run_lengths = [8, 7]
