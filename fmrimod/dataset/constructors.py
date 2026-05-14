@@ -22,7 +22,7 @@ work for callers that already hold an adapter.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Sequence
 
 import numpy as np
 import pandas as pd
@@ -169,7 +169,7 @@ def _resolve_events(
     return events if events is not None else event_table
 
 
-def _is_dataset_protocol(obj: Any) -> bool:
+def _is_dataset_protocol(obj: object) -> bool:
     """Duck-type check; avoid runtime_checkable Protocol cost for hot path."""
     return (
         hasattr(obj, "get_data")
@@ -179,7 +179,7 @@ def _is_dataset_protocol(obj: Any) -> bool:
     )
 
 
-def _is_nifti1image(obj: Any) -> bool:
+def _is_nifti1image(obj: object) -> bool:
     try:
         import nibabel  # type: ignore[import-not-found]
     except ImportError:
@@ -188,13 +188,13 @@ def _is_nifti1image(obj: Any) -> bool:
 
 
 def _build_adapter(
-    img: Any,
+    img: object,
     *,
-    mask: Any,
+    mask: object,
     tr: float | Sequence[float] | None,
     start_time: float,
     run_length: int | Sequence[int] | None = None,
-) -> Any:
+) -> DatasetProtocol:
     # `run_length` only has a meaning for a single 2-D matrix input.
     # Sequences (NeuroVec/Nifti/path lists) already encode runs explicitly,
     # and 4-D ndarrays carry their own time dimension semantics.
@@ -255,8 +255,8 @@ def _require_tr(tr: float | Sequence[float] | None, *, what: str) -> float:
 
 
 def _make_neurovec_adapter(
-    img: Any, *, mask: Any, tr: Any, start_time: float
-) -> Any:
+    img: object, *, mask: object, tr: float | Sequence[float] | None, start_time: float
+) -> DatasetProtocol:
     from .adapters.neuroim_adapter import NeuroVecAdapter
 
     return NeuroVecAdapter(
@@ -265,8 +265,8 @@ def _make_neurovec_adapter(
 
 
 def _make_nibabel_adapter(
-    img: Any, *, mask: Any, tr: Any, start_time: float
-) -> Any:
+    img: object, *, mask: object, tr: float | Sequence[float] | None, start_time: float
+) -> DatasetProtocol:
     from .adapters.nibabel_adapter import NibabelAdapter
 
     images = img if isinstance(img, (list, tuple)) else [img]
@@ -279,8 +279,8 @@ def _make_nibabel_adapter(
 
 
 def _make_paths_adapter(
-    paths: Any, *, mask: Any, tr: Any, start_time: float
-) -> Any:
+    paths: object, *, mask: object, tr: float | Sequence[float] | None, start_time: float
+) -> DatasetProtocol:
     from .adapters.neuroim_adapter import NeuroVecAdapter
 
     return NeuroVecAdapter.from_paths(
@@ -292,8 +292,8 @@ def _make_paths_adapter(
 
 
 def _make_array4d_adapter(
-    arr: NDArray, *, mask: Any, tr: Any, start_time: float
-) -> Any:
+    arr: NDArray, *, mask: object, tr: float | Sequence[float] | None, start_time: float
+) -> DatasetProtocol:
     from .adapters.neuroim_adapter import NeuroVecAdapter
 
     return NeuroVecAdapter.from_array(
@@ -307,10 +307,10 @@ def _make_array4d_adapter(
 def _make_matrix_adapter(
     arr: NDArray,
     *,
-    mask: Any,
-    tr: Any,
+    mask: object,
+    tr: float | Sequence[float] | None,
     run_length: int | Sequence[int] | None = None,
-) -> Any:
+) -> DatasetProtocol:
     resolved_tr = _require_tr(tr, what="2-D matrix")
     n_rows = int(arr.shape[0])
     if run_length is None:

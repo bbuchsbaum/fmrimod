@@ -13,7 +13,7 @@
       },
       "internal": {
         "total": 2085,
-        "with_any_annotation": 339,
+        "with_any_annotation": 331,
         "with_var_kwargs": 129
       },
       "public": {
@@ -25,7 +25,7 @@
     "files_scanned": 230,
     "parse_failures": 0,
     "total_functions": 2325,
-    "with_any_annotation": 353,
+    "with_any_annotation": 345,
     "with_var_args_any": 1,
     "with_var_kwargs": 162
   },
@@ -9471,7 +9471,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 179,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
@@ -9484,7 +9484,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 187,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
@@ -9497,7 +9497,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 246,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
@@ -9523,7 +9523,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 264,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
@@ -9536,7 +9536,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 278,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
@@ -9549,7 +9549,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 291,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
@@ -9562,7 +9562,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 304,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
@@ -9575,7 +9575,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 323,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
