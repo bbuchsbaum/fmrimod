@@ -56,6 +56,7 @@ _PENDING_HARDWARE_TAG_ROWS = frozenset(
         "tier_c_second_level",
         "tier_e_parametric_centering",
         "tier_e_semantic_contrast_alignment",
+        "tier_e_scrubbed_timebase_alignment",
         "tier_group_semantic_survival",
     }
 )
