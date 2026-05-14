@@ -47,15 +47,15 @@ INVENTORY_PATH = REPO_ROOT / "docs" / "contracts" / "api_inventory_v1.json"
 # the burn-down ratchet landed. New entries to this set are forbidden;
 # entries leave the set when the corresponding inventory row is tiered
 # in the same commit.
-BASELINE_REVIEW_PENDING_NAMES = frozenset({
-    "Fcontrasts", "HRF", "Poly", "SamplingFrame",
-    "SpecSerializationError", "afni_restricted_plan", "as_hrf", "bootstrap_glm",
-    "build_nuisance_projector", "condition_basis_list", "contrast_weights", "design_matrix",
-    "estimate_betas", "estimate_hrf", "event_factor", "event_matrix",
-    "event_variable", "fit_noise", "gen_empirical_hrf", "gen_hrf_library",
-    "latent_dataset", "lsa_single_trial", "lss_single_trial", "simulate_simple_dataset",
-    "soft_subspace_options", "stats", "write_results",
-})
+BASELINE_REVIEW_PENDING_NAMES: frozenset[str] = frozenset()
+"""Burn-down complete — every public name now carries an assigned tier.
+
+Reaching the empty baseline tightens the ratchet: the
+``test_review_pending_set_does_not_grow_beyond_baseline`` check now
+fails for *any* ``tier=review_pending`` row, not just for new ones
+beyond a pinned set. New public names must be tiered on entry; the
+default ``review_pending`` is no longer a valid landing state.
+"""
 
 
 def _load_inventory() -> dict:
@@ -75,10 +75,18 @@ def _current_review_pending() -> set[str]:
     }
 
 
+def _current_review_pending_compatibility_status() -> set[str]:
+    return {
+        row["name"]
+        for row in _load_inventory()["rows"]
+        if row["compatibility_status"] == "review_pending"
+    }
+
+
 def test_baseline_size_is_known() -> None:
     """Sanity-check the pinned baseline size to catch silent drift."""
-    assert len(BASELINE_REVIEW_PENDING_NAMES) == 27, (
-        f"BASELINE_REVIEW_PENDING_NAMES size drifted from 27 to "
+    assert len(BASELINE_REVIEW_PENDING_NAMES) == 0, (
+        f"BASELINE_REVIEW_PENDING_NAMES size drifted from 0 to "
         f"{len(BASELINE_REVIEW_PENDING_NAMES)}. Update the assertion "
         f"in the same commit that intentionally changed the baseline."
     )
@@ -144,4 +152,30 @@ def test_baseline_does_not_decay_silently() -> None:
         "BASELINE_REVIEW_PENDING_NAMES has stale entries — pair the "
         "tier or removal with a baseline cleanup in the same commit:\n  "
         + "\n  ".join(stale)
+    )
+
+
+def test_no_review_pending_compatibility_status() -> None:
+    """Parallel ratchet on ``compatibility_status`` (bd-01KRHY6EQW0K06KESGF6MGVZT3).
+
+    The ``tier`` ratchet above pins typing-soundness classification;
+    this ratchet pins the public-compatibility classification
+    (spine / compat / compat with debt / deprecated / hidden /
+    internal_forwarder). Both must be assigned at the moment a name
+    enters ``fmrimod.__all__`` — neither field may default to
+    ``review_pending`` and stay there.
+
+    Failure means a new public name was added without classifying
+    its compatibility posture, or an already-classified row was
+    reverted to ``review_pending``. Fix by setting
+    ``compatibility_status`` to a ratified value
+    (``spine``/``compat``/``deprecated``/``hidden``/``internal_forwarder``)
+    in the same commit that introduces the row.
+    """
+    intruders = sorted(_current_review_pending_compatibility_status())
+    assert not intruders, (
+        "compatibility_status=review_pending rows in inventory: "
+        f"{intruders}. Classify each as one of "
+        "spine/compat/deprecated/hidden/internal_forwarder in the "
+        "same commit (per public_api_policy_v1.md)."
     )
