@@ -31,6 +31,13 @@ bids : BIDS-Stats-Model export
 
 __version__ = "0.1.0"
 
+import inspect as _inspect
+from typing import Callable, Optional, Sequence, Union
+
+import numpy as np
+import pandas as pd
+from numpy.typing import NDArray
+
 # ── Core classes ──────────────────────────────────────────────────────
 # Force-load the callable stats subpackage so `fmrimod.stats` is bound to
 # the `_CallableStatsModule` instance regardless of test/import order. The
@@ -39,6 +46,8 @@ __version__ = "0.1.0"
 # function (via __getattr__) and then be silently overwritten the first
 # time anything does `from fmrimod.stats import ...`.
 from . import stats as stats  # noqa: F401  (eager binding, used via attribute)
+from .base import BaseEvent
+from .betas.extraction import BetaResult
 from .contrast import (
     column_contrast as column_contrast,
 )
@@ -82,6 +91,9 @@ from .contrast import (
     unit_contrast as unit_contrast,
 )
 from .contrast.contrast_spec import contrast as contrast
+from .dataset.fmri_dataset import FmriDataset
+from .events.term import EventTerm
+from .formula.base import Term as FormulaTerm
 from .hrf.core import HRF
 from .hrf.decorators import block_hrf, hrf_blocked, hrf_lagged, lag_hrf
 from .hrf.empirical import gen_empirical_hrf
@@ -156,30 +168,41 @@ from .spec.builders import (
 from .spec.builders import (
     intercept as intercept,
 )
+from .types import HRFProtocol
 
 # ── Design (lazy imports to avoid circular dependencies) ─────────────
 # ── Baseline ─────────────────────────────────────────────────────────
 
 
-def event_term(*events, **kwargs):
+def event_term(
+    event: "Union[BaseEvent, Sequence[BaseEvent]]",
+    event2: "Optional[BaseEvent]" = None,
+    event3: "Optional[BaseEvent]" = None,
+    event4: "Optional[BaseEvent]" = None,
+    *,
+    name: Optional[str] = None,
+    interaction: bool = False,
+) -> "EventTerm":
     """Construct an event term from one or more events."""
     from .events import EventTerm
-    if len(events) == 1 and isinstance(events[0], (list, tuple)):
-        event_list = list(events[0])
+
+    additional = [item for item in (event2, event3, event4) if item is not None]
+    if not additional and isinstance(event, (list, tuple)):
+        event_list = list(event)
     else:
-        event_list = list(events)
-    return EventTerm(event_list, **kwargs)
+        event_list = [event, *additional]
+    return EventTerm(event_list, name=name, interaction=interaction)
 
 
 def matrix_dataset(
-    data,
-    tr=None,
-    run_length=None,
+    data: "Union[NDArray[np.float64], Sequence[NDArray[np.float64]]]",
+    tr: "Union[float, list[float], None]" = None,
+    run_length: "Union[int, list[int], None]" = None,
     *,
-    event_table=None,
-    mask=None,
-    TR=None,
-):
+    event_table: "Optional[pd.DataFrame]" = None,
+    mask: "Optional[NDArray[np.bool_]]" = None,
+    TR: "Union[float, list[float], None]" = None,
+) -> "FmriDataset":
     """Construct an in-memory FmriDataset from numpy matrix data.
 
     Parameters
@@ -224,12 +247,48 @@ from .basis.transform import RobustScale, Scale
 from .condition_basis import condition_basis_list
 
 
-def hrf_formula(*args, **kwargs):
+def hrf_formula(
+    spec: "Union[str, HRFProtocol]" = "spmg1",
+    *,
+    subset: object = None,
+    contrasts: object = None,
+    normalize: bool = False,
+    summate: bool = True,
+    hrf_fun: Optional[Callable[..., object]] = None,
+    id: Optional[str] = None,
+    prefix: Optional[str] = None,
+    lag: float = 0.0,
+    nbasis: int = 1,
+    onsets: object = None,
+    durations: object = None,
+) -> "Callable[[FormulaTerm], FormulaTerm]":
     """HRF formula function. See :func:`fmrimod.formula.functional.hrf`."""
     from .formula.functional import hrf as _hrf_func
-    return _hrf_func(*args, **kwargs)
 
-hrf_spmg1 = _partial(hrf_formula, spec='spmg1')
+    return _hrf_func(
+        spec,
+        subset=subset,
+        contrasts=contrasts,
+        normalize=normalize,
+        summate=summate,
+        hrf_fun=hrf_fun,
+        id=id,
+        prefix=prefix,
+        lag=lag,
+        nbasis=nbasis,
+        onsets=onsets,
+        durations=durations,
+    )
+
+
+hrf_spmg1 = _partial(hrf_formula, spec="spmg1")
+hrf_spmg1.__signature__ = _inspect.signature(hrf_formula).replace(
+    parameters=[
+        param
+        for param in _inspect.signature(hrf_formula).parameters.values()
+        if param.name != "spec"
+    ]
+)
 
 # ── GLM fitting (lazy imports) ──────────────────────────────────────
 
@@ -238,9 +297,17 @@ from .glm.spatial import SpatialContext  # noqa: E402
 
 
 # ── Beta extraction (lazy) ────────────────────────────────────────
-def glm_ols(*args, **kwargs):
-    """Estimate trial-wise OLS betas. See :func:`fmrimod.betas.extraction.estimate_betas_ols`."""
-    if "progress" in kwargs:
+def glm_ols(
+    trial_regressors: "NDArray[np.float64]",
+    Y: "NDArray[np.float64]",
+    confounds: "Optional[NDArray[np.float64]]" = None,
+    baseline_regressors: "Optional[NDArray[np.float64]]" = None,
+    include_intercept: bool = False,
+    *,
+    progress: Optional[bool] = None,
+) -> "BetaResult":
+    """Estimate trial-wise OLS betas."""
+    if progress is not None:
         import warnings
 
         warnings.warn(
@@ -248,13 +315,31 @@ def glm_ols(*args, **kwargs):
             DeprecationWarning,
             stacklevel=2,
         )
-        kwargs.pop("progress", None)
     from .betas.extraction import estimate_betas_ols as _glm_ols
-    return _glm_ols(*args, **kwargs)
 
-def glm_lss(*args, **kwargs):
-    """Estimate trial-wise LSS betas. See :func:`fmrimod.betas.extraction.estimate_betas_lss`."""
-    if "progress" in kwargs:
+    return _glm_ols(
+        trial_regressors,
+        Y,
+        confounds=confounds,
+        baseline_regressors=baseline_regressors,
+        include_intercept=include_intercept,
+    )
+
+
+def glm_lss(
+    trial_regressors: "NDArray[np.float64]",
+    Y: "NDArray[np.float64]",
+    confounds: "Optional[NDArray[np.float64]]" = None,
+    nuisance_projector: object = None,
+    chunk_size: Optional[int] = None,
+    baseline_regressors: "Optional[NDArray[np.float64]]" = None,
+    include_intercept: bool = False,
+    *,
+    progress: Optional[bool] = None,
+    use_cpp: Optional[bool] = None,
+) -> "BetaResult":
+    """Estimate trial-wise LSS betas."""
+    if progress is not None:
         import warnings
 
         warnings.warn(
@@ -262,8 +347,7 @@ def glm_lss(*args, **kwargs):
             DeprecationWarning,
             stacklevel=2,
         )
-        kwargs.pop("progress", None)
-    if "use_cpp" in kwargs:
+    if use_cpp is not None:
         import warnings
 
         warnings.warn(
@@ -271,9 +355,17 @@ def glm_lss(*args, **kwargs):
             DeprecationWarning,
             stacklevel=2,
         )
-        kwargs.pop("use_cpp", None)
     from .betas.extraction import estimate_betas_lss as _glm_lss
-    return _glm_lss(*args, **kwargs)
+
+    return _glm_lss(
+        trial_regressors,
+        Y,
+        confounds=confounds,
+        nuisance_projector=nuisance_projector,
+        chunk_size=chunk_size,
+        baseline_regressors=baseline_regressors,
+        include_intercept=include_intercept,
+    )
 
 # ── Bootstrap (lazy) ──────────────────────────────────────────────
 
@@ -313,11 +405,17 @@ _LAZY_ATTRS: dict[str, tuple[str, str]] = {
     "combine_runs": ("fmrimod.glm.combine", "combine_runs"),
     "compute_dvars": ("fmrimod.glm.preprocess", "compute_dvars"),
     "compute_lm_contrasts": ("fmrimod.glm", "compute_lm_contrasts"),
-    "compute_lm_contrasts_from_suffstats": ("fmrimod.glm", "compute_lm_contrasts_from_suffstats"),
+    "compute_lm_contrasts_from_suffstats": (
+        "fmrimod.glm",
+        "compute_lm_contrasts_from_suffstats",
+    ),
     "condition_map": ("fmrimod.utils", "condition_map"),
     "ContrastDelta": ("fmrimod.glm", "ContrastDelta"),
     "contrast_weights": ("fmrimod.contrast", "contrast_weights"),
-    "create_design_matrix_from_benchmark": ("fmrimod.dataset", "create_design_matrix_from_benchmark"),
+    "create_design_matrix_from_benchmark": (
+        "fmrimod.dataset",
+        "create_design_matrix_from_benchmark",
+    ),
     "data_chunks": ("fmrimod.dataset", "data_chunks"),
     "design_matrix": ("fmrimod.design.design_matrix", "design_matrix"),
     "design_plot": ("fmrimod.dataset", "design_plot"),
@@ -327,7 +425,10 @@ _LAZY_ATTRS: dict[str, tuple[str, str]] = {
     "estimate_betas": ("fmrimod.betas.extraction", "estimate_betas"),
     "estimate_hrf": ("fmrimod.single", "estimate_hrf"),
     "estimate_single_trial": ("fmrimod.single", "estimate_single_trial"),
-    "estimate_single_trial_from_dataset": ("fmrimod.single", "estimate_single_trial_from_dataset"),
+    "estimate_single_trial_from_dataset": (
+        "fmrimod.single",
+        "estimate_single_trial_from_dataset",
+    ),
     "evaluate": ("fmrimod.utils", "evaluate"),
     "evaluate_method_performance": ("fmrimod.dataset", "evaluate_method_performance"),
     "event_factor": ("fmrimod.events", "EventFactor"),
@@ -356,8 +457,14 @@ _LAZY_ATTRS: dict[str, tuple[str, str]] = {
     "fmri_rlm": ("fmrimod.glm", "fmri_rlm"),
     "fmri_ttest": ("fmrimod.stats", "fmri_ttest"),
     "fmrihrf_cli": ("fmrimod.cli", "fmrihrf_cli"),
-    "generate_interaction_contrast": ("fmrimod.contrast", "generate_interaction_contrast"),
-    "generate_main_effect_contrast": ("fmrimod.contrast", "generate_main_effect_contrast"),
+    "generate_interaction_contrast": (
+        "fmrimod.contrast",
+        "generate_interaction_contrast",
+    ),
+    "generate_main_effect_contrast": (
+        "fmrimod.contrast",
+        "generate_main_effect_contrast",
+    ),
     "get_benchmark_summary": ("fmrimod.dataset", "get_benchmark_summary"),
     "get_contrasts": ("fmrimod.accessors", "get_contrasts"),
     "get_covariates": ("fmrimod.accessors", "get_covariates"),

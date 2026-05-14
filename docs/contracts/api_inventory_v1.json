@@ -4,7 +4,7 @@
     "any_in_signature": 5,
     "callable": 202,
     "classes": 21,
-    "opaque_forwarder": 40
+    "opaque_forwarder": 32
   },
   "fmrimod_version": "0.1.0",
   "rows": [
@@ -961,7 +961,7 @@
       "is_class": false,
       "is_function": true,
       "name": "confounds",
-      "opaque_forwarder": true,
+      "opaque_forwarder": false,
       "owner_module": "fmrimod.spec.builders",
       "runtime_signature": "(*columns: 'str', source: 'Optional[pd.DataFrame]' = None) -> 'Confounds'",
       "signature_source": "inspect.signature",
@@ -1276,11 +1276,11 @@
       "is_class": false,
       "is_function": true,
       "name": "event_term",
-      "opaque_forwarder": true,
+      "opaque_forwarder": false,
       "owner_module": "fmrimod",
-      "runtime_signature": "(*events, **kwargs)",
+      "runtime_signature": "(event: 'Union[BaseEvent, Sequence[BaseEvent]]', event2: 'Optional[BaseEvent]' = None, event3: 'Optional[BaseEvent]' = None, event4: 'Optional[BaseEvent]' = None, *, name: Optional[str] = None, interaction: bool = False) -> 'EventTerm'",
       "signature_source": "inspect.signature",
-      "tier": "compat_pending_fix",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -1696,7 +1696,7 @@
       "is_class": false,
       "is_function": true,
       "name": "gen_hrf_set",
-      "opaque_forwarder": true,
+      "opaque_forwarder": false,
       "owner_module": "fmrimod.hrf.generators",
       "runtime_signature": "(*hrfs: 'Union[HRF, Callable]', name: 'Optional[str]' = None) -> 'HRF'",
       "signature_source": "inspect.signature",
@@ -1891,11 +1891,11 @@
       "is_class": false,
       "is_function": true,
       "name": "glm_lss",
-      "opaque_forwarder": true,
+      "opaque_forwarder": false,
       "owner_module": "fmrimod",
-      "runtime_signature": "(*args, **kwargs)",
+      "runtime_signature": "(trial_regressors: 'NDArray[np.float64]', Y: 'NDArray[np.float64]', confounds: 'Optional[NDArray[np.float64]]' = None, nuisance_projector: object = None, chunk_size: Optional[int] = None, baseline_regressors: 'Optional[NDArray[np.float64]]' = None, include_intercept: bool = False, *, progress: Optional[bool] = None, use_cpp: Optional[bool] = None) -> 'BetaResult'",
       "signature_source": "inspect.signature",
-      "tier": "compat_pending_fix",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -1906,11 +1906,11 @@
       "is_class": false,
       "is_function": true,
       "name": "glm_ols",
-      "opaque_forwarder": true,
+      "opaque_forwarder": false,
       "owner_module": "fmrimod",
-      "runtime_signature": "(*args, **kwargs)",
+      "runtime_signature": "(trial_regressors: 'NDArray[np.float64]', Y: 'NDArray[np.float64]', confounds: 'Optional[NDArray[np.float64]]' = None, baseline_regressors: 'Optional[NDArray[np.float64]]' = None, include_intercept: bool = False, *, progress: Optional[bool] = None) -> 'BetaResult'",
       "signature_source": "inspect.signature",
-      "tier": "compat_pending_fix",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -2071,11 +2071,11 @@
       "is_class": false,
       "is_function": true,
       "name": "hrf_formula",
-      "opaque_forwarder": true,
+      "opaque_forwarder": false,
       "owner_module": "fmrimod",
-      "runtime_signature": "(*args, **kwargs)",
+      "runtime_signature": "(spec: 'Union[str, HRFProtocol]' = 'spmg1', *, subset: object = None, contrasts: object = None, normalize: bool = False, summate: bool = True, hrf_fun: Optional[Callable[..., object]] = None, id: Optional[str] = None, prefix: Optional[str] = None, lag: float = 0.0, nbasis: int = 1, onsets: object = None, durations: object = None) -> 'Callable[[FormulaTerm], FormulaTerm]'",
       "signature_source": "inspect.signature",
-      "tier": "compat_pending_fix",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -2116,7 +2116,7 @@
       "is_class": false,
       "is_function": true,
       "name": "hrf_set",
-      "opaque_forwarder": true,
+      "opaque_forwarder": false,
       "owner_module": "fmrimod.hrf.generators",
       "runtime_signature": "(*hrfs: 'Union[HRF, Callable]', name: 'str' = 'hrf_set') -> 'HRF'",
       "signature_source": "inspect.signature",
@@ -2146,11 +2146,11 @@
       "is_class": false,
       "is_function": false,
       "name": "hrf_spmg1",
-      "opaque_forwarder": true,
+      "opaque_forwarder": false,
       "owner_module": null,
-      "runtime_signature": "(*args, **kwargs)",
+      "runtime_signature": "(*, subset: object = None, contrasts: object = None, normalize: bool = False, summate: bool = True, hrf_fun: Optional[Callable[..., object]] = None, id: Optional[str] = None, prefix: Optional[str] = None, lag: float = 0.0, nbasis: int = 1, onsets: object = None, durations: object = None) -> 'Callable[[FormulaTerm], FormulaTerm]'",
       "signature_source": "inspect.signature",
-      "tier": "compat_pending_fix",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -2343,9 +2343,9 @@
       "name": "matrix_dataset",
       "opaque_forwarder": false,
       "owner_module": "fmrimod",
-      "runtime_signature": "(data, tr=None, run_length=None, *, event_table=None, mask=None, TR=None)",
+      "runtime_signature": "(data: 'Union[NDArray[np.float64], Sequence[NDArray[np.float64]]]', tr: 'Union[float, list[float], None]' = None, run_length: 'Union[int, list[int], None]' = None, *, event_table: 'Optional[pd.DataFrame]' = None, mask: 'Optional[NDArray[np.bool_]]' = None, TR: 'Union[float, list[float], None]' = None) -> 'FmriDataset'",
       "signature_source": "inspect.signature",
-      "tier": "compat_pending_fix",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {

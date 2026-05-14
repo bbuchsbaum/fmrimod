@@ -85,9 +85,12 @@ def _classify(obj: Any) -> Dict[str, Any]:
     record["has_any_in_signature"] = "Any" in sig_str
 
     for param in sig.parameters.values():
-        if param.kind in (
-            inspect.Parameter.VAR_POSITIONAL,
-            inspect.Parameter.VAR_KEYWORD,
+        if param.kind is inspect.Parameter.VAR_KEYWORD:
+            record["opaque_forwarder"] = True
+            break
+        if (
+            param.kind is inspect.Parameter.VAR_POSITIONAL
+            and param.annotation is inspect.Parameter.empty
         ):
             record["opaque_forwarder"] = True
             break
@@ -283,7 +286,11 @@ def _classify_function_node(
         # **kwargs is the opaque-forwarder shape regardless of annotation.
         has_var_kwargs = True
         if _annotation_has_any(args.kwarg.annotation) or args.kwarg.annotation is None:
-            has_any = has_any or args.kwarg.annotation is None or _annotation_has_any(args.kwarg.annotation)
+            has_any = (
+                has_any
+                or args.kwarg.annotation is None
+                or _annotation_has_any(args.kwarg.annotation)
+            )
 
     if _annotation_has_any(node.returns):
         has_any = True
@@ -335,7 +342,11 @@ def build_internal_audit() -> Dict[str, Any]:
         def _walk(scope_qual: str, parent: Any) -> None:
             for child in ast.iter_child_nodes(parent):
                 if isinstance(child, ast.ClassDef):
-                    new_scope = f"{scope_qual}{child.name}." if scope_qual else f"{child.name}."
+                    new_scope = (
+                        f"{scope_qual}{child.name}."
+                        if scope_qual
+                        else f"{child.name}."
+                    )
                     _walk(new_scope, child)
                 elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     row = _classify_function_node(child, module)
