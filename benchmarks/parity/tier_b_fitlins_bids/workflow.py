@@ -136,6 +136,7 @@ def translated_pipeline(inputs: dict) -> PipelineOutput:
                 "word_gt_pseudoword"
             ],
             "task_vs_baseline": translated.contrast_vectors["task_vs_baseline"],
+            "task_omnibus": translated.contrast_matrices["task_omnibus"],
         }
     )
 
@@ -168,11 +169,15 @@ def manual_pipeline(inputs: dict) -> PipelineOutput:
     task_vs_baseline = np.zeros(len(column_names), dtype=np.float64)
     task_vs_baseline[word] = 0.5
     task_vs_baseline[pseudo] = 0.5
+    task_omnibus = np.zeros((2, len(column_names)), dtype=np.float64)
+    task_omnibus[0, word] = 1.0
+    task_omnibus[1, pseudo] = 1.0
     return PipelineOutput(
         arrays={
             "design": design,
             "word_gt_pseudoword": word_gt_pseudo,
             "task_vs_baseline": task_vs_baseline,
+            "task_omnibus": task_omnibus,
         }
     )
 
@@ -187,6 +192,7 @@ def make_case() -> ParityCase:
             "design": ParityTolerance(rtol=1e-12, atol=1e-12),
             "word_gt_pseudoword": ParityTolerance(rtol=0.0, atol=0.0),
             "task_vs_baseline": ParityTolerance(rtol=0.0, atol=0.0),
+            "task_omnibus": ParityTolerance(rtol=0.0, atol=0.0),
         },
     )
 

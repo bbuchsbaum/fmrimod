@@ -9,6 +9,7 @@ from .export import (
     write_contrasts,
 )
 from .stats_model import (
+    StatsModelContrast,
     StatsModelTranslation,
     load_stats_model,
     translate_run_node,
@@ -16,6 +17,7 @@ from .stats_model import (
 
 __all__ = [
     "BidsEntities",
+    "StatsModelContrast",
     "StatsModelTranslation",
     "load_stats_model",
     "translate_run_node",

@@ -2,14 +2,26 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Literal, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
+
+from fmrimod.spec import Spec
+
+
+@dataclass(frozen=True)
+class StatsModelContrast:
+    """Typed BIDS contrast request plus its realised weight array."""
+
+    name: str
+    test: Literal["t", "F"]
+    conditions: tuple[str, ...]
+    weights: NDArray[np.float64]
 
 
 @dataclass(frozen=True)
@@ -22,6 +34,9 @@ class StatsModelTranslation:
     contrast_vectors: dict[str, NDArray[np.float64]]
     node: Mapping[str, Any]
     caveats: tuple[str, ...] = ()
+    model_spec: Spec | None = None
+    contrast_specs: dict[str, StatsModelContrast] = field(default_factory=dict)
+    contrast_matrices: dict[str, NDArray[np.float64]] = field(default_factory=dict)
 
 
 def load_stats_model(path: str | Path) -> dict[str, Any]:
@@ -38,7 +53,7 @@ def _run_node(model: Mapping[str, Any], level: str = "run") -> Mapping[str, Any]
     raise ValueError(f"No BIDS Stats Model node with Level={level!r}")
 
 
-def _convolved_factor(node: Mapping[str, Any]) -> str:
+def _convolved_factor(node: Mapping[str, Any]) -> tuple[str, str]:
     """Return the factor column used by a supported Convolve transformation."""
 
     transforms = node.get("Transformations", [])
@@ -55,7 +70,7 @@ def _convolved_factor(node: Mapping[str, Any]) -> str:
             raise NotImplementedError(
                 "Only single-factor Convolve transformations are supported"
             )
-        return bases.pop()
+        return bases.pop(), str(transform.get("Model", "spm")).lower()
     raise NotImplementedError("Stats model node does not contain Convolve")
 
 
@@ -84,24 +99,101 @@ def _event_column_for_condition(column_names: Sequence[str], condition: str) -> 
     raise KeyError(f"Could not align BIDS condition {condition!r} to fmrimod columns")
 
 
-def _contrast_vectors(
-    node: Mapping[str, Any],
+def _realised_contrast(
     column_names: Sequence[str],
-) -> dict[str, NDArray[np.float64]]:
-    vectors: dict[str, NDArray[np.float64]] = {}
-    for contrast in node.get("Contrasts", []):
-        if str(contrast.get("Test", "t")).lower() != "t":
-            raise NotImplementedError("Only t contrasts are supported in v1")
-        names = list(contrast.get("ConditionList", []))
-        weights = list(contrast.get("Weights", []))
-        if len(names) != len(weights):
-            raise ValueError("Contrast ConditionList and Weights lengths differ")
+    names: Sequence[str],
+    weights: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    if weights.ndim == 1:
         vector = np.zeros(len(column_names), dtype=np.float64)
         for condition, weight in zip(names, weights):
             col = _event_column_for_condition(column_names, str(condition))
             vector[column_names.index(col)] = float(weight)
-        vectors[str(contrast.get("Name", "contrast"))] = vector
-    return vectors
+        return vector
+    matrix = np.zeros((weights.shape[0], len(column_names)), dtype=np.float64)
+    for row_ix, row in enumerate(weights):
+        for condition, weight in zip(names, row):
+            col = _event_column_for_condition(column_names, str(condition))
+            matrix[row_ix, column_names.index(col)] = float(weight)
+    return matrix
+
+
+def _contrast_weight_array(
+    contrast: Mapping[str, object],
+    *,
+    test: Literal["t", "F"],
+    n_conditions: int,
+) -> NDArray[np.float64]:
+    raw = contrast.get("Weights", None)
+    if raw is None:
+        if test == "F":
+            return np.eye(n_conditions, dtype=np.float64)
+        raise ValueError("t contrasts must declare Weights")
+    weights = np.asarray(raw, dtype=np.float64)
+    if test == "t":
+        if weights.ndim != 1 or weights.shape[0] != n_conditions:
+            raise ValueError(
+                "t contrast Weights must be a 1-D array matching ConditionList"
+            )
+        return weights
+    if weights.ndim == 2 and weights.shape[1] == n_conditions:
+        return weights
+    raise ValueError(
+        "F contrast Weights must be a 2-D matrix with one column per condition"
+    )
+
+
+def _contrast_specs(
+    node: Mapping[str, object],
+    column_names: Sequence[str],
+) -> dict[str, StatsModelContrast]:
+    specs: dict[str, StatsModelContrast] = {}
+    for contrast in node.get("Contrasts", []):
+        raw_test = str(contrast.get("Test", "t")).lower()
+        if raw_test == "t":
+            test: Literal["t", "F"] = "t"
+        elif raw_test == "f":
+            test = "F"
+        else:
+            raise NotImplementedError(f"Unsupported contrast test: {raw_test!r}")
+        names = list(contrast.get("ConditionList", []))
+        weights = _contrast_weight_array(
+            contrast,
+            test=test,
+            n_conditions=len(names),
+        )
+        realised = _realised_contrast(column_names, names, weights)
+        name = str(contrast.get("Name", "contrast"))
+        specs[name] = StatsModelContrast(
+            name=name,
+            test=test,
+            conditions=tuple(str(item) for item in names),
+            weights=realised,
+        )
+    return specs
+
+
+def _model_spec(
+    *,
+    factor: str,
+    hrf_model: str,
+    duration_col: str,
+    nuisance_cols: Sequence[str],
+    intercept: bool,
+    confounds: pd.DataFrame | None,
+) -> Spec:
+    from fmrimod.spec import confounds as confounds_term
+    from fmrimod.spec import hrf
+    from fmrimod.spec import intercept as intercept_term
+
+    spec = hrf(
+        factor,
+        basis=hrf_model,
+        durations=duration_col,
+    ) + intercept_term(per="global" if intercept else "none")
+    if nuisance_cols:
+        spec = spec + confounds_term(*nuisance_cols, source=confounds)
+    return spec
 
 
 def translate_run_node(
@@ -121,13 +213,17 @@ def translate_run_node(
     - Factor + Convolve over one categorical event column;
     - Model.X strings that are either event terms or confound columns;
     - integer ``1`` for a global intercept;
-    - t contrasts over event conditions.
+    - t and F contrasts over event conditions.
+
+    The returned object keeps the legacy ``event_model``/``baseline_model`` and
+    ``contrast_vectors`` fields for existing parity workflows, while also
+    exposing ``model_spec`` and ``contrast_specs`` as typed public artifacts.
     """
 
     import fmrimod as fm
 
     node = _run_node(stats_model, level=level)
-    factor = _convolved_factor(node)
+    factor, hrf_model = _convolved_factor(node)
     intercept, model_terms = _baseline_terms(node)
     event_levels = set(events[factor].astype(str))
     nuisance_cols = [
@@ -156,13 +252,32 @@ def translate_run_node(
         nuisance_list=nuisance_list,
     )
     column_names = list(event_model.column_names) + list(baseline_model.column_names)
+    contrast_specs = _contrast_specs(node, column_names)
     return StatsModelTranslation(
         event_model=event_model,
         baseline_model=baseline_model,
         column_names=column_names,
-        contrast_vectors=_contrast_vectors(node, column_names),
+        contrast_vectors={
+            name: spec.weights
+            for name, spec in contrast_specs.items()
+            if spec.test == "t"
+        },
         node=node,
         caveats=(
             "stats-model-v1 supports a constrained run-level Factor+Convolve subset",
         ),
+        model_spec=_model_spec(
+            factor=factor,
+            hrf_model=hrf_model,
+            duration_col=duration_col,
+            nuisance_cols=nuisance_cols,
+            intercept=intercept,
+            confounds=confounds,
+        ),
+        contrast_specs=contrast_specs,
+        contrast_matrices={
+            name: spec.weights
+            for name, spec in contrast_specs.items()
+            if spec.test == "F"
+        },
     )

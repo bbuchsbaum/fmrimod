@@ -5,8 +5,8 @@ FitLins-Style First-Level Model in fmrimod
 This example mirrors the small first-level model at the center of the
 FitLins ds000003 notebook, but keeps the workflow in ordinary Python:
 events become an HRF-convolved design, fMRIPrep-style confounds become a
-baseline/nuisance model, the GLM is fitted directly, and contrasts are
-plain vectors over explicit design columns.
+baseline/nuisance model, the GLM is fitted directly, and t/F contrasts are
+explicit weights over named design columns.
 """
 
 from __future__ import annotations
@@ -21,7 +21,6 @@ import fmrimod as fm
 from fmrimod.dataset import FmriDataset
 from fmrimod.dataset.adapters import NumpyAdapter
 from fmrimod.model import FmriModel
-
 
 FITLINS_STYLE_MODEL = {
     "Name": "synthetic_ds003_first_level",
@@ -64,6 +63,15 @@ FITLINS_STYLE_MODEL = {
                     ],
                     "Weights": [0.5, 0.5],
                     "Test": "t",
+                },
+                {
+                    "Name": "task_omnibus",
+                    "ConditionList": [
+                        "trial_type.word",
+                        "trial_type.pseudoword",
+                    ],
+                    "Weights": [[1, 0], [0, 1]],
+                    "Test": "F",
                 },
             ],
         }
