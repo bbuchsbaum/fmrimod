@@ -23,6 +23,47 @@ Each accepted parity example must produce:
 2. a parity report in JSON plus Markdown;
 3. a benchmark row or explicit note that the case is correctness-only.
 
+## UX Claim Gate
+
+Parity and ergonomics are separate claims. A benchmark may claim ergonomic
+superiority only for the dimensions exercised by the executable fmrimod
+call site. The benchmark prose, report, and `proof_artifacts.json` row must
+not infer a full UX win from typed metadata that exists only upstream of a
+pre-realised matrix or precomputed contrast vector.
+
+The proof artifact should classify each public-seam row along explicit axes:
+
+- `typed_design_authoring` — whether the user-facing fmrimod path authors the
+  design as typed terms, lifts an external realised design, or only carries a
+  matrix.
+- `typed_contrast_authoring` — whether the fmrimod call site authors
+  hypotheses as semantic/typed contrast objects, uses column-provenance
+  patterns, or still passes raw vectors/matrices.
+- `native_public_seam` — whether the case follows the intended
+  `fmri_dataset -> fmri_lm -> contrast -> group_fit` seam without private
+  kernels or benchmark-local substitutes.
+- `interop_bridge` — whether the case primarily proves that fmrimod can
+  consume an externally realised design or result.
+- `diagnostics` and `performance` — whether the case proves additional
+  user-facing diagnostics or recorded timing, independent of the authoring UX.
+
+Operational disqualifiers:
+
+- `fit.contrast(<ndarray/list/precomputed weights>)` disqualifies a full
+  typed-contrast UX claim, even if the vector was constructed from typed
+  metadata earlier in the benchmark.
+- `RealizedDesign.from_array(source="nilearn")` makes the row an interop
+  bridge unless a native authored-design path is also executed and cited.
+- `column_contrast(...)` is column-provenance UX. It may be a real improvement
+  over anonymous vectors, but it is not the same claim as semantic hypothesis
+  authoring over experiment terms.
+- Private solvers, preprojected matrices, and matrix-first helpers are
+  numerical canaries unless paired with a public typed workflow that exercises
+  the same user-visible analysis.
+
+Rows with partial ergonomics should say so directly with `ux_status`,
+`ux_blockers`, and `callsite_receipts` fields in `proof_artifacts.json`.
+
 ## Scope
 
 The overlap surface is intentionally limited.

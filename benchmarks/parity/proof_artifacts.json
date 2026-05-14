@@ -30,6 +30,21 @@
         "fmrimod.glm.ContrastResult"
       ],
       "fmrimod_expresses_better": "The user-facing path keeps HRF normalization, dataset construction, fitting, and contrast evaluation as typed inspectable objects instead of a stateful FirstLevelModel call.",
+      "claim_axes": {
+        "typed_design_authoring": "full",
+        "typed_contrast_authoring": "full",
+        "native_public_seam": "full",
+        "interop_bridge": false,
+        "diagnostics": "fit_and_contrast_receipts",
+        "performance": "recorded"
+      },
+      "ux_status": "full",
+      "ux_blockers": [],
+      "callsite_receipts": [
+        "benchmarks/parity/tier_a_spm_auditory/workflow.py:166",
+        "benchmarks/parity/tier_a_spm_auditory/workflow.py:174",
+        "benchmarks/parity/tier_a_spm_auditory/workflow.py:177"
+      ],
       "receipt": {
         "status": "regenerable",
         "command": [
@@ -76,7 +91,24 @@
         "fmrimod.glm.FmriLm",
         "fmrimod.glm.ContrastResult"
       ],
-      "fmrimod_expresses_better": "The F contrast intent, drift terms, confounds, and design-column provenance are represented as typed fmrimod objects; the realised F matrix is only the Nilearn reference adapter.",
+      "fmrimod_expresses_better": "The F contrast intent, drift terms, confounds, and design-column provenance are represented as typed fmrimod objects; the realised F matrix is only the Nilearn reference adapter. The companion t contrast still uses a precomputed vector, so this is a partial contrast-authoring UX receipt.",
+      "claim_axes": {
+        "typed_design_authoring": "full",
+        "typed_contrast_authoring": "partial",
+        "native_public_seam": "full",
+        "interop_bridge": false,
+        "diagnostics": "none",
+        "performance": "recorded"
+      },
+      "ux_status": "partial",
+      "ux_blockers": [
+        "condition_a_minus_b is still passed as inputs.t_contrast instead of an authored semantic contrast"
+      ],
+      "callsite_receipts": [
+        "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py:155",
+        "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py:158",
+        "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py:243"
+      ],
       "receipt": {
         "status": "regenerable",
         "command": [
@@ -159,7 +191,24 @@
         "fmrimod.contrast.ColumnContrastSpec",
         "fmrimod.contrast.ContrastResult"
       ],
-      "fmrimod_expresses_better": "The 2x2 factorial main effects (sentence_effect, speaker_effect) resolve as typed column_contrast patterns against the realised design rather than hand-built weight vectors, and the per-run designs flow through RealizedDesign(source='nilearn') so the Nilearn provenance survives the fmri_dataset -> fmri_lm -> combine_runs seam.",
+      "fmrimod_expresses_better": "The 2x2 factorial main effects (sentence_effect, speaker_effect) resolve as typed column_contrast patterns against the realised design rather than hand-built weight vectors, and the per-run designs flow through RealizedDesign(source='nilearn') so the Nilearn provenance survives the fmri_dataset -> fmri_lm -> combine_runs seam. This is an interop/provenance receipt, not native design-authoring UX.",
+      "claim_axes": {
+        "typed_design_authoring": "interop",
+        "typed_contrast_authoring": "column_provenance",
+        "native_public_seam": "bridge",
+        "interop_bridge": true,
+        "diagnostics": "provenance",
+        "performance": "recorded"
+      },
+      "ux_status": "interop_bridge",
+      "ux_blockers": [
+        "FIAC still consumes Nilearn-realized design matrices instead of authoring the event model natively in fmrimod"
+      ],
+      "callsite_receipts": [
+        "benchmarks/parity/tier_a_fiac/workflow.py:177",
+        "benchmarks/parity/tier_a_fiac/workflow.py:187",
+        "benchmarks/parity/tier_a_fiac/workflow.py:207"
+      ],
       "timings": {
         "seconds": 2.1142703760000003,
         "stages": {
@@ -223,6 +272,21 @@
         "fmrimod.glm.ContrastResult"
       ],
       "fmrimod_expresses_better": "The crossed task-by-valence design is authored as typed factors and resolved through design-column metadata instead of manual pseudo-trial-type and contrast-index bookkeeping.",
+      "claim_axes": {
+        "typed_design_authoring": "full",
+        "typed_contrast_authoring": "full",
+        "native_public_seam": "full",
+        "interop_bridge": false,
+        "diagnostics": "none",
+        "performance": "recorded"
+      },
+      "ux_status": "full",
+      "ux_blockers": [],
+      "callsite_receipts": [
+        "benchmarks/parity/tier_a_factorial_2x2/workflow.py:303",
+        "benchmarks/parity/tier_a_factorial_2x2/workflow.py:315",
+        "benchmarks/parity/tier_a_factorial_2x2/workflow.py:318"
+      ],
       "receipt": {
         "status": "regenerable",
         "command": [
@@ -244,7 +308,7 @@
       "workflow_path": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py",
       "report_path": "benchmarks/parity/tier_a_factorial_3x3_parametric/reports/parity_report.json",
       "reference_path": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py::nilearn_pipeline",
-      "fmrimod_path": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> typed factorial and parametric contrasts",
+      "fmrimod_path": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> precomputed factorial and parametric contrast vectors",
       "caveats": [],
       "hardware_tag": "Darwin-arm64-arm",
       "performance_stage": "tier_a_factorial_3x3_parametric",
@@ -268,7 +332,25 @@
         "fmrimod.glm.ConditionReport",
         "fmrimod.glm.ContrastResult"
       ],
-      "fmrimod_expresses_better": "The nine-cell factorial and per-cell parametric modulator remain inspectable typed terms, including NaN-modulator recovery and rank diagnostics, instead of becoming duplicated event labels.",
+      "fmrimod_expresses_better": "The nine-cell factorial and per-cell parametric modulator remain inspectable typed design terms, including NaN-modulator recovery and rank diagnostics, instead of becoming duplicated event labels. The executable fmrimod contrast calls still consume precomputed vectors/matrices, so this is not yet a typed contrast-authoring UX receipt.",
+      "claim_axes": {
+        "typed_design_authoring": "full",
+        "typed_contrast_authoring": "none",
+        "native_public_seam": "full",
+        "interop_bridge": false,
+        "diagnostics": "nan_recovery_and_rank",
+        "performance": "recorded"
+      },
+      "ux_status": "partial",
+      "ux_blockers": [
+        "difficulty, emotion, interaction, and parametric omnibus hypotheses still pass inputs.c_* arrays to fit.contrast",
+        "needs authored semantic contrast sugar for factorial trends and parametric terms"
+      ],
+      "callsite_receipts": [
+        "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py:420",
+        "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py:423",
+        "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py:427"
+      ],
       "receipt": {
         "status": "regenerable",
         "command": [
@@ -314,7 +396,24 @@
         "fmrimod.glm.FmriLm",
         "fmrimod.glm.ContrastResult"
       ],
-      "fmrimod_expresses_better": "The FIR lag expansion and omnibus hypothesis are carried as typed basis and contrast intent rather than hand-enumerated lag column indices.",
+      "fmrimod_expresses_better": "The FIR lag expansion and omnibus hypothesis are carried as typed basis and contrast intent rather than hand-enumerated lag column indices. The per-lag t contrast still uses a precomputed vector, so the contrast-authoring UX claim is partial.",
+      "claim_axes": {
+        "typed_design_authoring": "full",
+        "typed_contrast_authoring": "partial",
+        "native_public_seam": "full",
+        "interop_bridge": false,
+        "diagnostics": "none",
+        "performance": "recorded"
+      },
+      "ux_status": "partial",
+      "ux_blockers": [
+        "lag_a is still passed as inputs.t_lag_a_weights instead of an authored condition/basis contrast"
+      ],
+      "callsite_receipts": [
+        "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py:241",
+        "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py:252",
+        "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py:253"
+      ],
       "receipt": {
         "status": "regenerable",
         "command": [
@@ -361,7 +460,24 @@
         "fmrimod.glm.ConditionReport",
         "fmrimod.glm.ContrastResult"
       ],
-      "fmrimod_expresses_better": "The rank-deficient nuisance design produces explicit aliased-column diagnostics and condition reports while preserving identifiable contrast parity.",
+      "fmrimod_expresses_better": "The rank-deficient nuisance design produces explicit aliased-column diagnostics and condition reports while preserving identifiable contrast parity. The diagnostic UX claim is full; the contrast-authoring UX claim is still partial because task contrasts use precomputed vectors.",
+      "claim_axes": {
+        "typed_design_authoring": "full",
+        "typed_contrast_authoring": "none",
+        "native_public_seam": "full",
+        "interop_bridge": false,
+        "diagnostics": "full",
+        "performance": "recorded"
+      },
+      "ux_status": "diagnostic_full_contrast_partial",
+      "ux_blockers": [
+        "task_main and task_omnibus still pass inputs.c_task_* arrays to fit.contrast"
+      ],
+      "callsite_receipts": [
+        "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py:315",
+        "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py:330",
+        "benchmarks/parity/tier_a_multicollinear_baseline/workflow.py:346"
+      ],
       "receipt": {
         "status": "regenerable",
         "command": [
@@ -425,7 +541,25 @@
         "fmrimod.glm.FmriLm",
         "fmrimod.glm.ContrastResult"
       ],
-      "fmrimod_expresses_better": "Run-specific task, drift, and intercept columns remain addressable by typed run and condition metadata, making cross-run contrasts explicit rather than hand-built.",
+      "fmrimod_expresses_better": "The public seam carries a fmrimod-realised concatenated design through RealizedDesign(source='fmrimod') and proves the matrix/result path can fit cross-run contrasts without private kernels. The executable public-seam contrast calls still use precomputed vectors, so this is a matrix-seam/provenance receipt rather than a full native authoring UX receipt.",
+      "claim_axes": {
+        "typed_design_authoring": "matrix_seam",
+        "typed_contrast_authoring": "none",
+        "native_public_seam": "partial",
+        "interop_bridge": false,
+        "diagnostics": "none",
+        "performance": "recorded"
+      },
+      "ux_status": "matrix_seam",
+      "ux_blockers": [
+        "public_seam_pipeline lifts inputs.design through RealizedDesign instead of authoring the concatenated multi-run spec at the call site",
+        "cross-run hypotheses still pass inputs.c_* arrays to fit.contrast"
+      ],
+      "callsite_receipts": [
+        "benchmarks/parity/tier_a_multirun_concat/workflow.py:391",
+        "benchmarks/parity/tier_a_multirun_concat/workflow.py:400",
+        "benchmarks/parity/tier_a_multirun_concat/workflow.py:405"
+      ],
       "receipt": {
         "status": "regenerable",
         "command": [
@@ -447,7 +581,7 @@
       "workflow_path": "benchmarks/parity/tier_a_parametric_modulation/workflow.py",
       "report_path": "benchmarks/parity/tier_a_parametric_modulation/reports/parity_report.json",
       "reference_path": "benchmarks/parity/tier_a_parametric_modulation/workflow.py::nilearn_pipeline",
-      "fmrimod_path": "benchmarks/parity/tier_a_parametric_modulation/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> typed parametric contrasts",
+      "fmrimod_path": "benchmarks/parity/tier_a_parametric_modulation/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> typed parametric design -> precomputed contrast vectors",
       "caveats": [],
       "hardware_tag": "Darwin-arm64-arm",
       "performance_stage": "tier_a_parametric_modulation",
@@ -470,7 +604,25 @@
         "fmrimod.glm.FmriLm",
         "fmrimod.glm.ContrastResult"
       ],
-      "fmrimod_expresses_better": "Main effects and continuous modulators are authored in one typed HRF term and resolved by design metadata instead of duplicated event rows or convolver-order guesses.",
+      "fmrimod_expresses_better": "Main effects and continuous modulators are authored in one typed HRF term and resolved by design metadata instead of duplicated event rows or convolver-order guesses. The executable fmrimod contrast calls still consume precomputed vectors/matrices, so the typed contrast UX claim remains open.",
+      "claim_axes": {
+        "typed_design_authoring": "full",
+        "typed_contrast_authoring": "none",
+        "native_public_seam": "full",
+        "interop_bridge": false,
+        "diagnostics": "none",
+        "performance": "recorded"
+      },
+      "ux_status": "partial",
+      "ux_blockers": [
+        "main, parametric-difference, and parametric-omnibus hypotheses still pass inputs.c_* arrays to fit.contrast",
+        "needs authored semantic contrast sugar for parametric modulator terms"
+      ],
+      "callsite_receipts": [
+        "benchmarks/parity/tier_a_parametric_modulation/workflow.py:225",
+        "benchmarks/parity/tier_a_parametric_modulation/workflow.py:236",
+        "benchmarks/parity/tier_a_parametric_modulation/workflow.py:238"
+      ],
       "receipt": {
         "status": "regenerable",
         "command": [
@@ -519,7 +671,24 @@
         "fmrimod.glm.FitProvenance",
         "fmrimod.glm.ContrastResult"
       ],
-      "fmrimod_expresses_better": "The externally realized Nilearn design enters as a typed RealizedDesign with DesignColumns and source provenance, so the public fmri_dataset -> fmri_lm seam can fit and contrast it without raw matrix helpers.",
+      "fmrimod_expresses_better": "The externally realized Nilearn design enters as a typed RealizedDesign with DesignColumns and source provenance, so the public fmri_dataset -> fmri_lm seam can fit and contrast it without raw matrix helpers. This is an interop/provenance receipt, not native localizer design-authoring UX.",
+      "claim_axes": {
+        "typed_design_authoring": "interop",
+        "typed_contrast_authoring": "column_provenance",
+        "native_public_seam": "bridge",
+        "interop_bridge": true,
+        "diagnostics": "provenance",
+        "performance": "recorded"
+      },
+      "ux_status": "interop_bridge",
+      "ux_blockers": [
+        "localizer still fits Nilearn's realized design instead of authoring the first-level design natively in fmrimod"
+      ],
+      "callsite_receipts": [
+        "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py:151",
+        "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py:160",
+        "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py:165"
+      ],
       "receipt": {
         "status": "regenerable",
         "command": [

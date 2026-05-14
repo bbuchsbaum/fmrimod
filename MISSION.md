@@ -174,6 +174,18 @@ user-facing workflow is finished. Every benchmark that bypasses the
 public typed API must say so in its report and name the public workflow
 that should eventually replace or wrap it.
 
+The ergonomic claim is narrower than the parity claim. A benchmark may
+claim that fmrimod is clearer, more elegant, or less painful than
+Nilearn/FitLins only for the part of the analysis that the executable
+fmrimod call site actually authors with public typed objects. Typed
+design construction does not automatically prove typed contrast
+authoring; provenance over an externally realised matrix proves an
+interop bridge, not native design ergonomics; and a workflow that still
+passes raw contrast vectors through `fit.contrast(...)` has not yet
+earned a full typed-hypothesis UX receipt. Those cases are still useful
+parity evidence, but their proof artifacts must classify the remaining
+UX gap instead of folding it into a broad "public seam" label.
+
 This strategy explicitly **deprioritizes function-by-function coverage**
 of the R surface. Niche functions in `fmrireg`, `fmrigds`, or
 `fmridataset` that no flagship workflow exercises may never appear in
