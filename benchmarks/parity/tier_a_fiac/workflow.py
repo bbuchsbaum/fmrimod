@@ -159,10 +159,10 @@ def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
         reference_pipeline=nilearn_pipeline,
         inputs=load_inputs(max_voxels=max_voxels),
         tolerances={
-            "effect_sentence_effect": ParityTolerance(rtol=1e-5, atol=1e-7),
-            "t_sentence_effect": ParityTolerance(rtol=1e-5, atol=1e-7),
-            "effect_speaker_effect": ParityTolerance(rtol=1e-5, atol=1e-7),
-            "t_speaker_effect": ParityTolerance(rtol=1e-5, atol=1e-7),
+            "effect_sentence_effect": ParityTolerance(),
+            "t_sentence_effect": ParityTolerance(),
+            "effect_speaker_effect": ParityTolerance(),
+            "t_speaker_effect": ParityTolerance(),
         },
     )
 

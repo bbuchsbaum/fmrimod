@@ -142,8 +142,8 @@ def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
         inputs=load_inputs(max_voxels=max_voxels),
         declared_caveats=(),
         tolerances={
-            "effect_audio_gt_visual": ParityTolerance(rtol=1e-6, atol=1e-7),
-            "t_audio_gt_visual": ParityTolerance(rtol=1e-6, atol=1e-7),
+            "effect_audio_gt_visual": ParityTolerance(),
+            "t_audio_gt_visual": ParityTolerance(),
         },
     )
 
