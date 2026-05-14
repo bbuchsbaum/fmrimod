@@ -19,7 +19,7 @@ from __future__ import annotations
 import ast
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 from ..formula.base import Term
 from ..types import FormulaContext
@@ -41,7 +41,7 @@ class FormulaTerm:
 
     function: str  # e.g., "hrf"
     arguments: List[Union[str, "FormulaTerm"]]
-    kwargs: Dict[str, Any]
+    kwargs: Dict[str, object]
     
     def __repr__(self) -> str:
         args_str = ", ".join(str(arg) for arg in self.arguments)
@@ -235,7 +235,7 @@ class FormulaParser:
         except (SyntaxError, ValueError) as err:
             raise ValueError(f"Invalid term syntax '{term_str}': {err}") from err
     
-    def _ast_to_value(self, node: ast.AST) -> Any:
+    def _ast_to_value(self, node: ast.AST) -> object:
         """Convert AST node to value.
         
         Parameters
@@ -287,7 +287,7 @@ class FormulaEvaluator:
         """
         self.context = context or FormulaContext()
     
-    def evaluate(self, formula: Formula) -> Dict[str, Any]:
+    def evaluate(self, formula: Formula) -> Dict[str, object]:
         """Evaluate a parsed formula.
         
         Parameters
@@ -315,7 +315,7 @@ class FormulaEvaluator:
             'events': events
         }
     
-    def _evaluate_term(self, term: FormulaTerm) -> Dict[str, Any]:
+    def _evaluate_term(self, term: FormulaTerm) -> Dict[str, object]:
         """Evaluate a single term.
         
         Parameters
@@ -341,7 +341,7 @@ class FormulaEvaluator:
         else:
             raise ValueError(f"Unknown function: {term.function}")
     
-    def _evaluate_hrf_term(self, term: FormulaTerm) -> Dict[str, Any]:
+    def _evaluate_hrf_term(self, term: FormulaTerm) -> Dict[str, object]:
         """Evaluate an hrf() term.
         
         Parameters
@@ -385,7 +385,7 @@ class FormulaEvaluator:
         
         return hrf_spec
     
-    def _resolve_variable(self, name: str) -> Any:
+    def _resolve_variable(self, name: str) -> object:
         """Resolve a variable name in the context.
         
         Parameters
@@ -405,7 +405,7 @@ def parse_formula(
     formula_str: str,
     context: Optional[FormulaContext] = None,
     for_event_model: bool = False,
-) -> Union[Dict[str, Any], List["Term"]]:
+) -> Union[Dict[str, object], List["Term"]]:
     """Parse and evaluate a formula string.
     
     This is the main entry point for formula parsing.
