@@ -8,8 +8,8 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 
-from ..backend_protocol import BackendDims, StorageBackend
-from ..errors import BackendIOError, ConfigError
+from fmrimod.dataset.backend_protocol import BackendDims, StorageBackend
+from fmrimod.dataset.errors import BackendIOError, ConfigError
 
 
 def _validate_indices(
@@ -77,7 +77,7 @@ class LatentBackend(StorageBackend):
         self._run_lengths: list[int] = []
         self._is_open = False
 
-    def open(self) -> None:
+    def open(self) -> None:  # noqa: A003
         try:
             import h5py
         except ImportError as exc:  # pragma: no cover - environment dependent
@@ -307,7 +307,7 @@ class InMemoryLatentBackend(StorageBackend):
                 parameter="run_lengths",
             )
 
-    def open(self) -> None:
+    def open(self) -> None:  # noqa: A003
         """No-op for in-memory latent data."""
 
     def close(self) -> None:

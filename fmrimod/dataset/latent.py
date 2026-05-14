@@ -149,7 +149,7 @@ class LatentDataset(FmriDataset):
         """Return latent component metadata."""
         return self.backend.get_metadata()
 
-    def with_event_table(self, event_table: pd.DataFrame) -> "LatentDataset":
+    def with_event_table(self, event_table: pd.DataFrame) -> LatentDataset:
         """Return this latent dataset with a replacement event table."""
         return LatentDataset(
             self.backend,
