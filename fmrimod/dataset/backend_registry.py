@@ -129,8 +129,26 @@ class BackendRegistry:
 
 def _register_builtins() -> None:
     """Register built-in backends that are implemented in this package."""
+    from .backends.bids_h5_backend import BidsH5ScanBackend, SharedH5Connection
     from .backends.latent_backend import LatentBackend
     from .backends.matrix_backend import MatrixBackend
+
+    def _bids_h5_factory(
+        h5_connection: SharedH5Connection,
+        scan_group_path: str,
+        n_features: int,
+        n_time: int,
+        metadata: dict[str, object] | None = None,
+        compression_mode: str = "parcellated",
+    ) -> BidsH5ScanBackend:
+        return BidsH5ScanBackend(
+            h5_connection=h5_connection,
+            scan_group_path=scan_group_path,
+            n_features=n_features,
+            n_time=n_time,
+            metadata=metadata,
+            compression_mode=compression_mode,  # type: ignore[arg-type]
+        )
 
     def _latent_factory(
         source: str,
@@ -139,6 +157,12 @@ def _register_builtins() -> None:
         return LatentBackend(source=source, preload=preload)
 
     registry = BackendRegistry.instance()
+    registry.register(
+        "bids_h5_scan",
+        _bids_h5_factory,
+        description="BIDS-HDF5 scan backend",
+        overwrite=True,
+    )
     registry.register(
         "latent",
         _latent_factory,

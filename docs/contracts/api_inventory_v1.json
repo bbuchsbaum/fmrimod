@@ -333,7 +333,7 @@
       "name": "HrfTerm",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.spec.terms",
-      "runtime_signature": "(variables: 'Tuple[str, ...]', hrf: 'Union[HRF, str]' = 'spm', contrasts: 'Tuple[ContrastSpec, ...]' = (), modulators: 'Tuple[str, ...]' = (), durations: 'Union[str, float, None]' = None, lag: 'float' = 0.0, subset: 'Optional[Predicate]' = None, prefix: 'Optional[str]' = None, id: 'Optional[str]' = None, norm: 'Optional[NormMode]' = None, normalize: 'bool' = False, summate: 'bool' = True) -> None",
+      "runtime_signature": "(variables: 'Tuple[str, ...]', hrf: 'Union[HRF, str]' = 'spm', hrf_fun: 'Optional[Callable[..., object]]' = None, nbasis: 'Optional[int]' = None, contrasts: 'Tuple[ContrastSpec, ...]' = (), modulators: 'Tuple[str, ...]' = (), durations: 'Union[str, float, None]' = None, lag: 'float' = 0.0, subset: 'Optional[Predicate]' = None, prefix: 'Optional[str]' = None, id: 'Optional[str]' = None, norm: 'Optional[NormMode]' = None, normalize: 'bool' = False, summate: 'bool' = True) -> None",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"

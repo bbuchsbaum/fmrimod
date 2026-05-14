@@ -356,12 +356,17 @@ def fmri_group(
 
 def study_to_group(
     study: StudyDataset,
-    contrast_results: Mapping[str, object],
+    contrast_results: Mapping[str, object] | None = None,
     *,
     sample_labels: Sequence[object] | None = None,
     metadata: Mapping[str, object] | None = None,
 ) -> GroupDataset:
     """Convert a :class:`StudyDataset` plus contrast results to ``GroupDataset``."""
+    if contrast_results is None:
+        method = getattr(study, "to_group", None)
+        if callable(method):
+            return method()
+        raise TypeError("contrast_results is required for StudyDataset conversion")
     return study.to_group_dataset(
         contrast_results, sample_labels=sample_labels, metadata=metadata
     )

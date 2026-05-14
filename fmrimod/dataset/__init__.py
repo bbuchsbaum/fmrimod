@@ -26,8 +26,23 @@ from .backend_registry import (
     register_backend,
     unregister_backend,
 )
+from .backends.bids_h5_backend import BidsH5ScanBackend, SharedH5Connection
 from .backends.latent_backend import InMemoryLatentBackend, LatentBackend
 from .backends.matrix_backend import MatrixBackend
+from .bids_h5 import (
+    BidsH5StudyDataset,
+    bids_h5_dataset,
+    encoding_info,
+    get_confounds,
+    get_loadings,
+    parcellation_info,
+    participants,
+    reconstruct_voxels,
+    scan_manifest,
+    sessions,
+    subset_bids_h5,
+    tasks,
+)
 from .chunking import BlockChunker, VoxelChunker
 from .compat import (
     create_design_matrix_from_benchmark,
@@ -131,6 +146,9 @@ __all__ = [
     "StorageBackend",
     "BackendDims",
     "BackendRegistry",
+    "BidsH5ScanBackend",
+    "BidsH5StudyDataset",
+    "SharedH5Connection",
     "get_backend_registry",
     "register_backend",
     "create_backend",
@@ -235,4 +253,15 @@ __all__ = [
     "study_dataset",
     "fmri_group",
     "study_to_group",
+    "bids_h5_dataset",
+    "subset_bids_h5",
+    "participants",
+    "tasks",
+    "sessions",
+    "scan_manifest",
+    "parcellation_info",
+    "get_confounds",
+    "get_loadings",
+    "reconstruct_voxels",
+    "encoding_info",
 ]

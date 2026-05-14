@@ -12,8 +12,8 @@
         "with_var_kwargs": 8
       },
       "internal": {
-        "total": 1900,
-        "with_any_annotation": 355,
+        "total": 1966,
+        "with_any_annotation": 352,
         "with_var_kwargs": 128
       },
       "public": {
@@ -22,10 +22,10 @@
         "with_var_kwargs": 29
       }
     },
-    "files_scanned": 224,
+    "files_scanned": 226,
     "parse_failures": 0,
-    "total_functions": 2140,
-    "with_any_annotation": 392,
+    "total_functions": 2206,
+    "with_any_annotation": 389,
     "with_var_args_any": 1,
     "with_var_kwargs": 165
   },
