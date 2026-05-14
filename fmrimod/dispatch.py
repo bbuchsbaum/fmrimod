@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import functools
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union
 
 import numpy as np
@@ -475,8 +474,8 @@ def get_hrf(hrf: Union[str, Dict[str, Any], Any], **kwargs) -> Any:
         HRF function object
     """
     if isinstance(hrf, str):
-        # Try fmrimod HRFs first
-        from .hrf_dispatch import get_hrf as _get_hrf
+        # Try canonical fmrimod HRFs first.
+        from .hrf.registry import get_hrf as _get_hrf
         try:
             return _get_hrf(hrf, **kwargs)
         except ValueError:

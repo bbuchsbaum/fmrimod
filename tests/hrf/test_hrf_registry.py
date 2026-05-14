@@ -1,7 +1,10 @@
 import pytest
 
+import fmrimod.hrf_dispatch as hrf_dispatch
+from fmrimod.dispatch import get_hrf as dispatch_get_hrf
 from fmrimod.hrf.aliases import _normalize_hrf_name
-from fmrimod.hrf.registry import get_hrf
+from fmrimod.hrf.core import as_hrf
+from fmrimod.hrf.registry import get_hrf, remove_hrf
 from fmrimod.hrf.registry import list_available_hrfs as registry_list_available_hrfs
 from fmrimod.utils import list_available_hrfs
 
@@ -64,3 +67,29 @@ class TestHRFRegistry:
 
         assert hrf.nbasis == 7
         assert hrf.params["degree"] == 2
+
+    def test_hrf_dispatch_has_no_parallel_registry(self):
+        """Compatibility dispatch must delegate to the canonical registry."""
+        assert not hasattr(hrf_dispatch, "_HRF_REGISTRY")
+
+        canonical = get_hrf("spm")
+        compat = hrf_dispatch.get_hrf("spm")
+        generic = dispatch_get_hrf("spm")
+
+        assert compat.name == canonical.name
+        assert compat.nbasis == canonical.nbasis
+        assert generic.name == canonical.name
+        assert generic.nbasis == canonical.nbasis
+
+    def test_hrf_dispatch_registers_custom_name_in_canonical_registry(self):
+        name = "unit_test_custom_dispatch"
+
+        def factory():
+            return as_hrf(lambda t: t, name=name)
+
+        hrf_dispatch.register_hrf(name, factory)
+        try:
+            assert hrf_dispatch.get_hrf(name).name == name
+            assert get_hrf(name).name == name
+        finally:
+            remove_hrf(name)

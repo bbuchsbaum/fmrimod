@@ -129,7 +129,10 @@ def get_hrf(
     Raises:
         ValueError: If HRF name not found in registry or alias table.
     """
-    canonical = _normalize_hrf_name(name)
+    try:
+        canonical = _normalize_hrf_name(name)
+    except ValueError:
+        canonical = str(name).strip().lower()
 
     if canonical not in _HRF_REGISTRY:
         available = [str(x) for x in list_available_hrfs()]

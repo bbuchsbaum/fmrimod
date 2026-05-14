@@ -1,14 +1,15 @@
-"""HRF dispatch: registry, lookup, and wrapper classes.
+"""HRF dispatch adapters and wrapper classes.
 
-Provides a local HRF registry with simple fallback implementations,
-plus generic conversion utilities (as_hrf, ArrayHRF, FunctionHRF, DictHRF)
-and generator factories (boxcar_hrf_gen, duration_hrf_gen, weighted_hrf_gen).
+The canonical HRF name registry lives in :mod:`fmrimod.hrf.registry`.
+This module keeps compatibility imports plus generic conversion utilities
+(``as_hrf``, ``ArrayHRF``, ``FunctionHRF``, ``DictHRF``) and generator
+factories (``boxcar_hrf_gen``, ``duration_hrf_gen``, ``weighted_hrf_gen``).
 
 For the full HRF basis library (SPM, Gamma, B-spline, FIR, etc.), see
 :mod:`fmrimod.hrf`.
 """
 
-from typing import Callable, Dict, Literal, Optional, Union, cast
+from typing import Any, Callable, Dict, Literal, Optional, Union, cast
 
 import numpy as np
 
@@ -130,16 +131,8 @@ class SPMCanonicalHRF(HRFProtocol):
         return hrf
 
 
-# Registry of available HRFs
-_HRF_REGISTRY: Dict[str, Union[type, callable]] = {
-    'simple': SimpleHRF,
-    'spm': SPMCanonicalHRF,
-    'spm_canonical': SPMCanonicalHRF,
-}
-
-
 def get_hrf(name: str, **kwargs) -> HRFProtocol:
-    """Get HRF function by name from the dispatch registry.
+    """Get an HRF by name through the canonical registry.
 
     Parameters
     ----------
@@ -153,22 +146,13 @@ def get_hrf(name: str, **kwargs) -> HRFProtocol:
     HRFProtocol
         HRF function instance
     """
-    if name not in _HRF_REGISTRY:
-        raise ValueError(
-            f"Unknown HRF '{name}'. "
-            f"Available: {list(_HRF_REGISTRY.keys())}"
-        )
+    from .hrf.registry import get_hrf as _get_hrf
 
-    hrf_class_or_factory = _HRF_REGISTRY[name]
-
-    if isinstance(hrf_class_or_factory, type):
-        return hrf_class_or_factory(**kwargs)
-    else:
-        return hrf_class_or_factory(**kwargs)
+    return cast(HRFProtocol, _get_hrf(name, **kwargs))
 
 
 def register_hrf(name: str, hrf_class_or_factory: Union[type, callable]) -> None:
-    """Register a new HRF class or factory function.
+    """Register an HRF through the canonical registry.
 
     Parameters
     ----------
@@ -178,7 +162,9 @@ def register_hrf(name: str, hrf_class_or_factory: Union[type, callable]) -> None
         HRF class (must implement HRFProtocol) or factory function
         that returns an HRF instance
     """
-    _HRF_REGISTRY[name] = hrf_class_or_factory
+    from .hrf.registry import register_hrf as _register_hrf
+
+    _register_hrf(name, cast(Any, hrf_class_or_factory), force=True)
 
 
 def as_hrf(x, **kwargs) -> HRFProtocol:

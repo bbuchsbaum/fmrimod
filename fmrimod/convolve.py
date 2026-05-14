@@ -8,14 +8,15 @@ via ``fmrimod.regressor().evaluate()`` for high-fidelity results;
 otherwise a fallback impulse-train convolution is used.
 """
 
-from typing import Union, List, Optional, Dict, Any
-import numpy as np
 from functools import singledispatch
+from typing import List, Optional
 
-from .types import Array, EventProtocol
-from .events import EventFactor, EventVariable, EventMatrix, EventBasis
-from .hrf_dispatch import get_hrf
+import numpy as np
+
 from ._warnings import call_safely, suppress_fmrimod_warnings
+from .events import EventBasis, EventFactor, EventMatrix, EventVariable
+from .hrf.registry import get_hrf
+from .types import Array, EventProtocol
 
 try:
     with suppress_fmrimod_warnings():

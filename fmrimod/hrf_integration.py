@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import inspect
 from typing import Any, Dict, List, Optional, Union
+
 import numpy as np
 
 from ._warnings import call_safely, suppress_fmrimod_warnings
@@ -23,7 +24,7 @@ except ImportError as err:
         "fmrimod HRF subpackage is required for HRF functionality."
     ) from err
 
-from .types import HRFProtocol, Array
+from .types import Array, HRFProtocol
 
 
 class PyFMRIHRF(HRFProtocol):
@@ -356,7 +357,7 @@ def register_fmrimod_hrfs():
     This function is called on module import to make all fmrimod
     HRFs available through fmrimod's get_hrf() function.
     """
-    from .hrf_dispatch import register_hrf
+    from .hrf.registry import _HRF_REGISTRY, register_hrf
     
     # Get all available HRFs
     available = list_hrfs()
@@ -369,9 +370,13 @@ def register_fmrimod_hrfs():
                 return PyFMRIHRF(name, **kwargs)
             return factory
         
-        # Register with fmrimod
-        register_hrf(hrf_name, make_hrf_factory(hrf_name))
-        if hrf_name.lower().startswith('spmg'):
+        # Register only names not already owned by the canonical registry.
+        if hrf_name.lower() not in _HRF_REGISTRY:
+            register_hrf(hrf_name, make_hrf_factory(hrf_name))
+        if (
+            hrf_name.lower().startswith('spmg')
+            and hrf_name.upper().lower() not in _HRF_REGISTRY
+        ):
             register_hrf(hrf_name.upper(), make_hrf_factory(hrf_name))
     
     # Also register common aliases
@@ -386,7 +391,8 @@ def register_fmrimod_hrfs():
     }
     
     for alias, target in aliases.items():
-        register_hrf(alias, make_hrf_factory(target))
+        if alias.lower() not in _HRF_REGISTRY:
+            register_hrf(alias, make_hrf_factory(target))
 
 
 # Auto-register on import

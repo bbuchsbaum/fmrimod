@@ -1,12 +1,12 @@
 """Tests for as_hrf function - mirroring and extending R tests."""
 
-import pytest
 import numpy as np
+import pytest
 from numpy.testing import assert_array_almost_equal
 
 from fmrimod import as_hrf, get_hrf
-from fmrimod.hrf_dispatch import ArrayHRF, FunctionHRF, DictHRF
-from fmrimod.utils.cache import clear_hrf_cache, cached_hrf_eval
+from fmrimod.hrf_dispatch import ArrayHRF, DictHRF, FunctionHRF
+from fmrimod.utils.cache import cached_hrf_eval, clear_hrf_cache
 
 
 class TestAsHRF:

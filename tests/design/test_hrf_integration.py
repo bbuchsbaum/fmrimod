@@ -1,19 +1,19 @@
 """Tests for HRF integration with pyfmrihrf."""
 
-import pytest
 import numpy as np
+import pytest
 
+from fmrimod import event_model
 from fmrimod.dispatch import get_hrf
+from fmrimod.formula.base import Term
+from fmrimod.formula.parser import parse_formula
+from fmrimod.hrf.core import HRF
 from fmrimod.hrf_integration import (
     PyFMRIHRF,
+    create_hrf_basis,
     get_fmrimod,
     list_hrfs,
-    create_hrf_basis,
 )
-from fmrimod.formula.parser import parse_formula
-from fmrimod import event_model
-from fmrimod.formula.base import Term
-from fmrimod.events.factor import EventFactor
 
 
 class TestPyFMRIHRF:
@@ -118,6 +118,13 @@ class TestDispatchIntegration:
         """Test getting HRF with parameters."""
         hrf = get_hrf("gamma", shape=6, scale=1)
         assert hasattr(hrf, "evaluate")
+
+    def test_dispatch_uses_canonical_registry_for_named_hrfs(self):
+        """String lookup should not return legacy PyFMRIHRF wrapper objects."""
+        hrf = get_hrf("gamma")
+
+        assert isinstance(hrf, HRF)
+        assert not isinstance(hrf, PyFMRIHRF)
 
 
 class TestFormulaIntegration:
