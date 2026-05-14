@@ -24,9 +24,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+_BD_PATTERN = re.compile(r"^bd-[0-9A-Z]+$")
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = REPO_ROOT / "benchmarks" / "parity" / "proof_artifacts.json"
@@ -136,6 +139,31 @@ def validate_row(
                 "numerical_canary rows require a 'replacement_target' field "
                 "naming the public workflow that should replace them"
             )
+
+    rt = row.get("replacement_target")
+    if rt is not None and rt != "":
+        if not isinstance(rt, dict):
+            errors.append(
+                "replacement_target must be a structured object with "
+                "'description', 'owner_bead', and 'blocking_api_gap' "
+                "(free-prose strings are no longer accepted)"
+            )
+        else:
+            if not (isinstance(rt.get("description"), str) and rt["description"]):
+                errors.append(
+                    "replacement_target.description must be a non-empty string"
+                )
+            owner = rt.get("owner_bead")
+            if not (isinstance(owner, str) and _BD_PATTERN.match(owner)):
+                errors.append(
+                    "replacement_target.owner_bead must match 'bd-[0-9A-Z]+' "
+                    "(a live mote bead id)"
+                )
+            if not (isinstance(rt.get("blocking_api_gap"), str) and rt["blocking_api_gap"]):
+                errors.append(
+                    "replacement_target.blocking_api_gap must be a non-empty "
+                    "string naming the API addition that would unblock the lift"
+                )
 
     if manifest is not None and "benchmark_id" in row:
         existing = {a.get("benchmark_id") for a in manifest.get("artifacts", [])}

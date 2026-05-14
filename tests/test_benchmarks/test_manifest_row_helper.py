@@ -32,7 +32,11 @@ def _good_canary_row() -> dict:
         "reference_path": "benchmarks/parity/tier_x_synthetic/workflow.py::reference",
         "fmrimod_path": "benchmarks/parity/tier_x_synthetic/workflow.py::fmrimod",
         "caveats": [],
-        "replacement_target": "tier_x_public_seam",
+        "replacement_target": {
+            "description": "Lift to public-seam workflow tier_x_public_seam.",
+            "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
+            "blocking_api_gap": "fmri_lm has no entry for pre-built design matrices",
+        },
     }
 
 
@@ -153,6 +157,39 @@ def test_validate_canary_must_not_be_public_seam() -> None:
     # also needs the public-seam fields when public_seam is true; we expect
     # at least one error specifically about the canary contradiction
     assert any("numerical_canary" in e and "public_seam" in e for e in validate_row(row))
+
+
+def test_validate_canary_rejects_free_prose_replacement_target() -> None:
+    """Plain strings are no longer accepted — must be structured."""
+    row = _good_canary_row()
+    row["replacement_target"] = "free-prose explanation"
+    errors = validate_row(row)
+    assert any("replacement_target" in e and "structured" in e for e in errors)
+
+
+def test_validate_replacement_target_requires_description() -> None:
+    row = _good_canary_row()
+    row["replacement_target"] = {"owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9"}
+    assert any("description" in e for e in validate_row(row))
+
+
+def test_validate_replacement_target_requires_owner_bead_pattern() -> None:
+    row = _good_canary_row()
+    row["replacement_target"] = {
+        "description": "lift to public seam",
+        "owner_bead": "not-a-bead-id",
+        "blocking_api_gap": "missing typed entry",
+    }
+    assert any("owner_bead" in e for e in validate_row(row))
+
+
+def test_validate_replacement_target_requires_blocking_api_gap() -> None:
+    row = _good_canary_row()
+    row["replacement_target"] = {
+        "description": "lift to public seam",
+        "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
+    }
+    assert any("blocking_api_gap" in e for e in validate_row(row))
 
 
 def test_validate_detects_duplicate_benchmark_id() -> None:
