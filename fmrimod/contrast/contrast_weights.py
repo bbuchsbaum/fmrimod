@@ -123,12 +123,19 @@ class Contrast:
 
 
 @singledispatch
-def contrast_weights(x, term=None, **kwargs):
+def contrast_weights(
+    x: Any,
+    term: Optional[object] = None,
+    **kwargs: Any,
+) -> "Contrast":
     """Compute contrast weights for a specification.
-    
-    This is a generic function that dispatches to specific implementations
-    based on the type of contrast specification.
-    
+
+    This is a :func:`functools.singledispatch` generic function: ``x``
+    is intentionally ``Any`` because the dispatcher inspects its
+    runtime type and routes to one of several typed registrations
+    keyed on contrast-spec subclasses. The registered implementations
+    carry their own typed signatures.
+
     Parameters
     ----------
     x : ContrastSpec

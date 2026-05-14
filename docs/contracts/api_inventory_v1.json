@@ -1,7 +1,7 @@
 {
   "counts": {
     "all_names": 204,
-    "any_in_signature": 2,
+    "any_in_signature": 4,
     "callable": 202,
     "classes": 21,
     "opaque_forwarder": 40
@@ -1000,7 +1000,7 @@
     },
     {
       "compatibility_status": "compat",
-      "has_any_in_signature": false,
+      "has_any_in_signature": true,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1008,9 +1008,9 @@
       "name": "contrast_weights",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.contrast.contrast_weights",
-      "runtime_signature": "(x, term=None, **kwargs)",
+      "runtime_signature": "(x: 'Any', term: 'Optional[object]' = None, **kwargs: 'Any') -> \"'Contrast'\"",
       "signature_source": "inspect.signature",
-      "tier": "compat_pending_fix",
+      "tier": "runtime_check",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -1045,7 +1045,7 @@
     },
     {
       "compatibility_status": "compat",
-      "has_any_in_signature": false,
+      "has_any_in_signature": true,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1053,9 +1053,9 @@
       "name": "design_matrix",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.design.design_matrix",
-      "runtime_signature": "(x, **kwargs)",
+      "runtime_signature": "(x: 'Any', **kwargs: 'Any') -> 'Array'",
       "signature_source": "inspect.signature",
-      "tier": "compat_pending_fix",
+      "tier": "runtime_check",
       "used_by_public_seam_artifact": "review_pending"
     },
     {

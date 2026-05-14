@@ -7,7 +7,7 @@ design matrices from various objects in a consistent way.
 from __future__ import annotations
 
 from functools import singledispatch
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -17,12 +17,16 @@ from ..types import Array
 
 
 @singledispatch
-def design_matrix(x, **kwargs):
+def design_matrix(x: Any, **kwargs: Any) -> Array:
     """Extract or construct a design matrix.
-    
-    This is a generic function that extracts design matrices from various
-    object types in fmrimod.
-    
+
+    This is a :func:`functools.singledispatch` generic function: ``x``
+    is intentionally ``Any`` because the dispatcher inspects its
+    runtime type and routes to one of several typed registrations
+    (``EventModel``, :class:`BaselineModel`, :class:`BaselineTerm`,
+    :class:`EventTerm`). The registered implementations carry their
+    own typed signatures.
+
     Parameters
     ----------
     x : object
