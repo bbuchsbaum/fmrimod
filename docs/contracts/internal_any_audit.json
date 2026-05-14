@@ -22,7 +22,7 @@
         "with_var_kwargs": 29
       }
     },
-    "files_scanned": 222,
+    "files_scanned": 223,
     "parse_failures": 0,
     "total_functions": 2140,
     "with_any_annotation": 392,

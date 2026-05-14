@@ -15,6 +15,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ...sampling import SamplingFrame
+from ..errors import ConfigError
 
 
 class NibabelAdapter:
@@ -48,11 +49,12 @@ class NibabelAdapter:
         start_time: float = 0.0,
     ) -> None:
         try:
-            import nibabel as nib
+            __import__("nibabel")
         except ImportError as e:
-            raise ImportError(
+            raise ConfigError(
                 "nibabel is required for NibabelAdapter. "
-                "Install with: pip install fmrimod[nibabel]"
+                "Install with: pip install fmrimod[nibabel]",
+                parameter="nibabel",
             ) from e
 
         # Normalise to list
@@ -84,7 +86,6 @@ class NibabelAdapter:
         """Load run data as ``(time, voxels)``."""
         data_4d = self._images[run].get_fdata()
         # (nx, ny, nz, nt) → (nt, n_voxels)
-        nt = data_4d.shape[-1]
         data_2d = data_4d[self._mask].T  # (nt, V)
         return np.asarray(data_2d, dtype=np.float64)
 

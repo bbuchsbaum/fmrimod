@@ -18,6 +18,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ...sampling import SamplingFrame
+from ..errors import ConfigError
 
 
 def _is_neurovec(obj: Any) -> bool:
@@ -85,9 +86,10 @@ class NeuroVecAdapter:
         try:
             import neuroim  # noqa: F401  # type: ignore[import-not-found]
         except ImportError as exc:  # pragma: no cover - import-time guard
-            raise ImportError(
+            raise ConfigError(
                 "neuroim is required for NeuroVecAdapter. "
-                "Install with: pip install neuroim"
+                "Install with: pip install neuroim",
+                parameter="neuroim",
             ) from exc
 
         if _is_neurovec(vecs):
@@ -183,7 +185,14 @@ class NeuroVecAdapter:
         start_time: float = 0.0,
     ) -> "NeuroVecAdapter":
         """Load NIfTI files via :func:`neuroim.read_vec` and wrap them."""
-        import neuroim  # type: ignore[import-not-found]
+        try:
+            import neuroim  # type: ignore[import-not-found]
+        except ImportError as exc:
+            raise ConfigError(
+                "neuroim is required to load NIfTI paths. "
+                "Install with: pip install neuroim",
+                parameter="neuroim",
+            ) from exc
 
         if isinstance(paths, (str, Path)):
             paths = [paths]
@@ -204,7 +213,14 @@ class NeuroVecAdapter:
         start_time: float = 0.0,
     ) -> "NeuroVecAdapter":
         """Wrap a 4-D ndarray as a single-run NeuroVecAdapter."""
-        import neuroim  # type: ignore[import-not-found]
+        try:
+            import neuroim  # type: ignore[import-not-found]
+        except ImportError as exc:
+            raise ConfigError(
+                "neuroim is required to wrap 4-D ndarray input. "
+                "Install with: pip install neuroim",
+                parameter="neuroim",
+            ) from exc
 
         arr = np.asarray(data)
         if arr.ndim != 4:
