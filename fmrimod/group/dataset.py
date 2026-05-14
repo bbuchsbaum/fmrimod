@@ -261,7 +261,7 @@ def group_dataset(
     )
 
 
-def group_dataset_from_group_data(data: Any) -> GroupDataset:
+def group_dataset_from_group_data(data: object) -> GroupDataset:
     """Convert existing ``fmrimod.dataset.GroupData`` into ``GroupDataset``.
 
     This adapter reuses the existing ``fmrimod.dataset.group_data`` loaders and
@@ -279,7 +279,7 @@ def group_dataset_from_group_data(data: Any) -> GroupDataset:
     return cast(GroupDataset, adapter(data))
 
 
-def _group_dataset_from_csv_group_data(data: Any) -> GroupDataset:
+def _group_dataset_from_csv_group_data(data: object) -> GroupDataset:
     payload = data.data
     frame = payload["data"].copy()
     effect_cols = dict(payload["effect_cols"])
@@ -337,7 +337,7 @@ def _group_dataset_from_csv_group_data(data: Any) -> GroupDataset:
     )
 
 
-def _single_contrast(data: Any) -> tuple[str, ...]:
+def _single_contrast(data: object) -> tuple[str, ...]:
     contrast = data.data.get("contrast")
     return ("c1",) if contrast is None else (str(contrast),)
 
@@ -346,7 +346,7 @@ def _sample_labels(n_samples: int) -> tuple[str, ...]:
     return tuple(f"sample{i + 1}" for i in range(n_samples))
 
 
-def _group_dataset_from_h5_group_data(data: Any) -> GroupDataset:
+def _group_dataset_from_h5_group_data(data: object) -> GroupDataset:
     from fmrimod.dataset.compat import read_h5_full
 
     stats = tuple(str(stat) for stat in data.data.get("stat", ("beta", "se")))
@@ -378,7 +378,7 @@ def _group_dataset_from_h5_group_data(data: Any) -> GroupDataset:
     )
 
 
-def _first_nifti_path(data: Any) -> str | None:
+def _first_nifti_path(data: object) -> str | None:
     for key in ("beta_paths", "se_paths", "var_paths", "t_paths"):
         paths = data.data.get(key)
         if paths:
@@ -386,7 +386,7 @@ def _first_nifti_path(data: Any) -> str | None:
     return None
 
 
-def _nifti_space(data: Any, *, n_samples: int) -> GroupSpace:
+def _nifti_space(data: object, *, n_samples: int) -> GroupSpace:
     try:
         nib = cast(Any, importlib.import_module("nibabel"))
     except Exception as exc:  # pragma: no cover - optional dependency behavior
@@ -426,7 +426,7 @@ def _nifti_space(data: Any, *, n_samples: int) -> GroupSpace:
     return VoxelSpace(shape=shape, affine=affine, template_id=template_id)
 
 
-def _group_dataset_from_nifti_group_data(data: Any) -> GroupDataset:
+def _group_dataset_from_nifti_group_data(data: object) -> GroupDataset:
     from fmrimod.dataset.compat import read_nifti_full
 
     try:
@@ -469,11 +469,11 @@ def _group_dataset_from_nifti_group_data(data: Any) -> GroupDataset:
     )
 
 
-def _maybe_call(value: Any) -> Any:
+def _maybe_call(value: object) -> Any:
     return value() if callable(value) else value
 
 
-def _as_lm_stat_matrix(value: Any, *, stat: str) -> NDArray[np.float64]:
+def _as_lm_stat_matrix(value: object, *, stat: str) -> NDArray[np.float64]:
     arr = np.asarray(_maybe_call(value), dtype=np.float64)
     if arr.ndim == 1:
         arr = arr[np.newaxis, :]
@@ -500,7 +500,7 @@ def _canonical_lm_stat(stat: str) -> str:
 
 
 def _lm_contrast_stat_matrix(
-    lm: Any,
+    lm: object,
     stat: str,
     contrast_name: str,
 ) -> NDArray[np.float64]:
@@ -580,7 +580,7 @@ def _fmrilm_contrast_data(
 
 
 def _lm_stat_matrix(
-    lm: Any,
+    lm: object,
     stat: str,
     contrast_name: str | None,
 ) -> NDArray[np.float64]:
@@ -599,7 +599,7 @@ def _lm_stat_matrix(
     raise AdapterContractError(f"fmrilm statistic '{stat}' is not supported")
 
 
-def _lm_contrast_labels(lm: Any, *, n_contrasts: int) -> tuple[str, ...]:
+def _lm_contrast_labels(lm: object, *, n_contrasts: int) -> tuple[str, ...]:
     raw = getattr(lm, "coef_names", None)
     if raw is None:
         raw = getattr(lm, "coefficient_names", None)
@@ -610,7 +610,7 @@ def _lm_contrast_labels(lm: Any, *, n_contrasts: int) -> tuple[str, ...]:
     return tuple(f"c{i + 1}" for i in range(n_contrasts))
 
 
-def _group_dataset_from_fmrilm_group_data(data: Any) -> GroupDataset:
+def _group_dataset_from_fmrilm_group_data(data: object) -> GroupDataset:
     lm_list = list(data.data["lm_list"])
     if not lm_list:
         raise AdapterContractError("fmrilm GroupData requires at least one model")
