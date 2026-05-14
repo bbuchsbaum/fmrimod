@@ -548,7 +548,10 @@ def render(report: dict[str, Any], out_dir: Path) -> tuple[Path, Path]:
     ]
     for case in report["cases"]:
         lines.append(
-            "| {case_id} | {status} | {scope} | {eff:.3g} | {stat:.3g} | {verdict} |".format(
+            (
+                "| {case_id} | {status} | {scope} | {eff:.3g} | "
+                "{stat:.3g} | {verdict} |"
+            ).format(
                 case_id=case["case_id"],
                 status=case["status"],
                 scope=case["centering_scope"],

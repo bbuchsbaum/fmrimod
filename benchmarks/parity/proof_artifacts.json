@@ -667,11 +667,11 @@
       "performance_stage": "tier_e_parametric_centering",
       "timings": {
         "status": "recorded",
-        "seconds": 0.056587248000000034,
+        "seconds": 0.02443891594884917,
         "stages": {
-          "global_centering_case_seconds": 0.011120165999999987,
-          "load_inputs_seconds": 0.03475179100000014,
-          "within_condition_case_seconds": 0.010715290999999905
+          "global_centering_case_seconds": 0.00808562501333654,
+          "load_inputs_seconds": 0.007842290971893817,
+          "within_condition_case_seconds": 0.008510999963618815
         },
         "source": "benchmarks/parity/tier_e_parametric_centering/reports/centering_stress_report.json"
       },
