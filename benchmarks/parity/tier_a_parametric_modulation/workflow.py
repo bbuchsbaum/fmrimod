@@ -60,6 +60,7 @@ from cross_testing.harness import (
     render,
     run,
 )
+from fmrimod.contrast import condition, modulator
 from fmrimod.design.columns import DesignColumns
 from fmrimod.spec import hrf
 
@@ -233,8 +234,13 @@ def fmrimod_pipeline(
         timing_sink["fmrimod_fit_seconds"] = time.perf_counter() - fit_start
 
     contrast_start = time.perf_counter()
-    t_main = fit.contrast(inputs.c_main_diff, name="main_A_minus_B")
-    t_param_diff = fit.contrast(inputs.c_param_diff, name="param_A_minus_B")
+    main_spec = condition("A", term="trial_type") - condition(
+        "B", term="trial_type"
+    )
+    rt = modulator("rt_c").within("trial_type")
+    slope_spec = rt.slope("A") - rt.slope("B")
+    t_main = fit.contrast(main_spec, name="main_A_minus_B")
+    t_param_diff = fit.contrast(slope_spec, name="param_A_minus_B")
     f_param = fit.contrast(inputs.c_param_F, name="param_omnibus")
     if timing_sink is not None:
         timing_sink["fmrimod_contrast_seconds"] = time.perf_counter() - contrast_start

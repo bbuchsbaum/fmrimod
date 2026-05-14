@@ -595,7 +595,7 @@
       "workflow_path": "benchmarks/parity/tier_a_parametric_modulation/workflow.py",
       "report_path": "benchmarks/parity/tier_a_parametric_modulation/reports/parity_report.json",
       "reference_path": "benchmarks/parity/tier_a_parametric_modulation/workflow.py::nilearn_pipeline",
-      "fmrimod_path": "benchmarks/parity/tier_a_parametric_modulation/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> typed parametric design -> precomputed contrast vectors",
+      "fmrimod_path": "benchmarks/parity/tier_a_parametric_modulation/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> typed parametric design -> condition(...) and modulator(...).within(...).slope(...) sugar for t contrasts; F omnibus still consumes precomputed matrix (v2 deferral)",
       "caveats": [],
       "hardware_tag": "Darwin-arm64-arm",
       "performance_stage": "tier_a_parametric_modulation",
@@ -616,12 +616,15 @@
         "fmrimod.spec.HrfTerm",
         "fmrimod.design.DesignColumns",
         "fmrimod.glm.FmriLm",
-        "fmrimod.glm.ContrastResult"
+        "fmrimod.glm.ContrastResult",
+        "fmrimod.contrast.ConditionRef",
+        "fmrimod.contrast.ModulatorRef",
+        "fmrimod.contrast.LinearSemanticContrast"
       ],
-      "fmrimod_expresses_better": "Main effects and continuous modulators are authored in one typed HRF term and resolved by design metadata instead of duplicated event rows or convolver-order guesses. The executable fmrimod contrast calls still consume precomputed vectors/matrices, so the typed contrast UX claim remains open.",
+      "fmrimod_expresses_better": "Main effects and continuous modulators are authored in one typed HRF term and resolved by design metadata instead of duplicated event rows or convolver-order guesses. The t-contrast call sites for the main A-B and the parametric slope difference now use the typed condition(...) and modulator(...).within(...).slope(...) sugar so user code no longer names internal term:modulator column shapes. The F-omnibus over the two parametric columns still consumes a precomputed matrix because the F-contrast spelling is deferred to v2 per docs/contracts/parametric_contrast_sugar_v1.md.",
       "claim_axes": {
         "typed_design_authoring": "full",
-        "typed_contrast_authoring": "none",
+        "typed_contrast_authoring": "partial",
         "native_public_seam": "full",
         "interop_bridge": false,
         "diagnostics": "none",
@@ -629,13 +632,13 @@
       },
       "ux_status": "partial",
       "ux_blockers": [
-        "main, parametric-difference, and parametric-omnibus hypotheses still pass inputs.c_* arrays to fit.contrast",
-        "needs authored semantic contrast sugar for parametric modulator terms"
+        "F-omnibus contrast over parametric columns still passes inputs.c_param_F to fit.contrast; F-contrast sugar (modulator(...).within(...).slopes(...) or .omnibus(...)) is deferred to v2 per docs/contracts/parametric_contrast_sugar_v1.md"
       ],
       "callsite_receipts": [
-        "benchmarks/parity/tier_a_parametric_modulation/workflow.py:225",
-        "benchmarks/parity/tier_a_parametric_modulation/workflow.py:236",
-        "benchmarks/parity/tier_a_parametric_modulation/workflow.py:238"
+        "benchmarks/parity/tier_a_parametric_modulation/workflow.py:226",
+        "benchmarks/parity/tier_a_parametric_modulation/workflow.py:237",
+        "benchmarks/parity/tier_a_parametric_modulation/workflow.py:240",
+        "benchmarks/parity/tier_a_parametric_modulation/workflow.py:244"
       ],
       "receipt": {
         "status": "regenerable",
