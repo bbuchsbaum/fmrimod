@@ -167,8 +167,16 @@ def register_hrf(name: str, hrf_class_or_factory: Union[type, callable]) -> None
     _register_hrf(name, cast(Any, hrf_class_or_factory), force=True)
 
 
-def as_hrf(x, **kwargs) -> HRFProtocol:
+def as_hrf(x: Any, **kwargs: Any) -> HRFProtocol:
     """Convert various objects to HRF instances.
+
+    This is a runtime-dispatch entry point; ``x`` is intentionally
+    ``Any`` because the function inspects the runtime type and routes
+    to one of several typed factories (registry lookup for ``str``,
+    :class:`ArrayHRF` for array-likes, :class:`DictHRF` for dicts
+    carrying ``evaluate``, :class:`FunctionHRF` for callables). The
+    HRFProtocol return type is the typed exit; callers should bind
+    the result, not the input.
 
     Parameters
     ----------

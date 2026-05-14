@@ -1,7 +1,7 @@
 {
   "counts": {
     "all_names": 204,
-    "any_in_signature": 1,
+    "any_in_signature": 2,
     "callable": 202,
     "classes": 21,
     "opaque_forwarder": 40
@@ -670,7 +670,7 @@
     },
     {
       "compatibility_status": "compat",
-      "has_any_in_signature": false,
+      "has_any_in_signature": true,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -678,9 +678,9 @@
       "name": "as_hrf",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.hrf_dispatch",
-      "runtime_signature": "(x, **kwargs) -> fmrimod.types.HRFProtocol",
+      "runtime_signature": "(x: Any, **kwargs: Any) -> fmrimod.types.HRFProtocol",
       "signature_source": "inspect.signature",
-      "tier": "compat_pending_fix",
+      "tier": "runtime_check",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -1683,9 +1683,9 @@
       "name": "gen_hrf_library",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.hrf.hrf_library",
-      "runtime_signature": "(*args, **kwargs) -> 'HRF'",
+      "runtime_signature": "(fun: 'Callable[..., HRF]', pgrid: 'Union[pd.DataFrame, Dict[str, list]]', **kwargs: 'object') -> 'HRF'",
       "signature_source": "inspect.signature",
-      "tier": "compat_pending_fix",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {

@@ -82,6 +82,10 @@ def hrf_library(
         return bind_basis(*hrfs)  # Unpack list
 
 
-def gen_hrf_library(*args, **kwargs) -> HRF:
+def gen_hrf_library(
+    fun: Callable[..., HRF],
+    pgrid: Union[pd.DataFrame, Dict[str, list]],
+    **kwargs: object,
+) -> HRF:
     """R-compatible alias for :func:`hrf_library`."""
-    return hrf_library(*args, **kwargs)
+    return hrf_library(fun, pgrid, **kwargs)
