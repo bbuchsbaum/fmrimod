@@ -8,7 +8,7 @@ formula syntax and design matrix construction.
 from __future__ import annotations
 
 import inspect
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 
@@ -69,7 +69,7 @@ class PyFMRIHRF(HRFProtocol):
     
     def __init__(
         self,
-        hrf_spec: Union[str, Any, Dict[str, Any]],
+        hrf_spec: Union[str, HRFProtocol, Dict[str, object]],
         tr: Optional[float] = None,
         **kwargs
     ):
@@ -99,7 +99,7 @@ class PyFMRIHRF(HRFProtocol):
                 f"hrf_spec must be str, dict, or HRF object, got {type(hrf_spec)}"
             )
     
-    def _get_hrf_by_name(self, name: str, **kwargs) -> Any:
+    def _get_hrf_by_name(self, name: str, **kwargs: object) -> HRFProtocol:
         """Get fmrimod HRF by name.
         
         Parameters
@@ -227,7 +227,7 @@ class PyFMRIHRF(HRFProtocol):
 
 
 def get_fmrimod(
-    hrf_spec: Union[str, Any, Dict[str, Any]],
+    hrf_spec: Union[str, HRFProtocol, Dict[str, object]],
     tr: Optional[float] = None,
     **kwargs
 ) -> PyFMRIHRF:
