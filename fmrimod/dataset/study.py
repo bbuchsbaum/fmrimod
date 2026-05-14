@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 import pandas as pd
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 MaskStrategy = Literal["subject_specific", "intersect", "union"]
 
 
-def _unwrap_dataset(value: Any, *, row: int, dataset_col: str) -> FmriDataset:
+def _unwrap_dataset(value: object, *, row: int, dataset_col: str) -> FmriDataset:
     """Accept R-style length-one list cells while storing canonical datasets."""
     if isinstance(value, FmriDataset):
         return value
@@ -35,7 +35,7 @@ def _unwrap_dataset(value: Any, *, row: int, dataset_col: str) -> FmriDataset:
 
 
 def _as_1d_float_array(
-    value: Any,
+    value: object,
     *,
     assay: str,
     subject: str,
@@ -55,10 +55,10 @@ def _as_1d_float_array(
 
 
 def _normalise_contrast_results(
-    contrast_results: Mapping[str, Any],
+    contrast_results: Mapping[str, object],
     *,
     subjects: Sequence[str],
-) -> tuple[tuple[str, ...], dict[tuple[str, str], Any]]:
+) -> tuple[tuple[str, ...], dict[tuple[str, str], object]]:
     """Return contrast names plus a (subject, contrast) result lookup."""
     missing = [subject for subject in subjects if subject not in contrast_results]
     if missing:
@@ -67,7 +67,7 @@ def _normalise_contrast_results(
         )
 
     contrast_order: list[str] = []
-    lookup: dict[tuple[str, str], Any] = {}
+    lookup: dict[tuple[str, str], object] = {}
     for subject in subjects:
         value = contrast_results[subject]
         if hasattr(value, "estimate"):
@@ -117,7 +117,7 @@ class StudyDataset:
     dataset_col: str = "dataset"
     space: str | None = None
     mask_strategy: MaskStrategy = "subject_specific"
-    metadata: Mapping[str, Any] = field(default_factory=dict)
+    metadata: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not isinstance(self.subjects, pd.DataFrame):
@@ -178,10 +178,10 @@ class StudyDataset:
 
     def to_group_dataset(
         self,
-        contrast_results: Mapping[str, Any],
+        contrast_results: Mapping[str, object],
         *,
-        sample_labels: Sequence[Any] | None = None,
-        metadata: Mapping[str, Any] | None = None,
+        sample_labels: Sequence[object] | None = None,
+        metadata: Mapping[str, object] | None = None,
     ) -> GroupDataset:
         """Materialize first-level contrast results for native group reducers.
 
@@ -295,7 +295,7 @@ def study_dataset(
     dataset_col: str = "dataset",
     space: str | None = None,
     mask_strategy: MaskStrategy = "subject_specific",
-    metadata: Mapping[str, Any] | None = None,
+    metadata: Mapping[str, object] | None = None,
 ) -> StudyDataset:
     """Construct the canonical study-level dataset container."""
     return StudyDataset(
@@ -315,7 +315,7 @@ def fmri_group(
     dataset_col: str = "dataset",
     space: str | None = None,
     mask_strategy: MaskStrategy = "subject_specific",
-    metadata: Mapping[str, Any] | None = None,
+    metadata: Mapping[str, object] | None = None,
 ) -> StudyDataset:
     """R-compatible spelling for constructing a study/group subject table."""
     return study_dataset(
@@ -330,10 +330,10 @@ def fmri_group(
 
 def study_to_group(
     study: StudyDataset,
-    contrast_results: Mapping[str, Any],
+    contrast_results: Mapping[str, object],
     *,
-    sample_labels: Sequence[Any] | None = None,
-    metadata: Mapping[str, Any] | None = None,
+    sample_labels: Sequence[object] | None = None,
+    metadata: Mapping[str, object] | None = None,
 ) -> GroupDataset:
     """Convert a :class:`StudyDataset` plus contrast results to ``GroupDataset``."""
     return study.to_group_dataset(

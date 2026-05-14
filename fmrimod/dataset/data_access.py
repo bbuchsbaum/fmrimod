@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import numpy as np
 from numpy.typing import NDArray
 
@@ -14,12 +12,12 @@ def get_data(
     dataset: FmriDataset,
     rows: NDArray[np.intp] | None = None,
     cols: NDArray[np.intp] | None = None,
-) -> NDArray[np.floating[Any]]:
+) -> NDArray[np.float64]:
     """Extract a data matrix from a dataset."""
     return dataset.get_data(rows=rows, cols=cols)
 
 
-def get_run_data(dataset: FmriDataset, run: int) -> NDArray[np.floating[Any]]:
+def get_run_data(dataset: FmriDataset, run: int) -> NDArray[np.float64]:
     """Extract one run from a dataset through the explicit run-access seam."""
     run_method = getattr(dataset, "get_run_data", None)
     if callable(run_method):
@@ -31,7 +29,7 @@ def get_data_matrix(
     dataset: FmriDataset,
     rows: NDArray[np.intp] | None = None,
     cols: NDArray[np.intp] | None = None,
-) -> NDArray[np.floating[Any]]:
+) -> NDArray[np.float64]:
     """Extract data as a ``timepoints x voxels`` matrix."""
     if hasattr(dataset, "get_data_matrix"):
         return dataset.get_data_matrix(rows=rows, cols=cols)
