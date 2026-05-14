@@ -8,6 +8,8 @@ GLM as the numerical reference on the realised public design matrix.
 from __future__ import annotations
 
 import argparse
+import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -220,16 +222,32 @@ def nilearn_pipeline(inputs: PublicFContrastInputs) -> PipelineOutput:
     )
 
 
-def fmrimod_pipeline(inputs: PublicFContrastInputs) -> PipelineOutput:
+def fmrimod_pipeline(
+    inputs: PublicFContrastInputs,
+    *,
+    timing_sink: dict[str, float] | None = None,
+) -> PipelineOutput:
     """Run the fmrimod typed public seam and public contrast method."""
 
+    dataset_start = time.perf_counter()
     dataset = fm.fmri_dataset(inputs.data, tr=TR, events=inputs.events)
+    if timing_sink is not None:
+        timing_sink["fmrimod_dataset_seconds"] = time.perf_counter() - dataset_start
+
+    fit_start = time.perf_counter()
     fit = fm.fmri_lm(inputs.spec, dataset)
+    if timing_sink is not None:
+        timing_sink["fmrimod_fit_seconds"] = time.perf_counter() - fit_start
+
+    contrast_start = time.perf_counter()
     t_result = fit.contrast(
         inputs.t_contrast,
         name="condition_a_minus_b",
     )
     f_result = fit.contrast(inputs.omnibus)
+    if timing_sink is not None:
+        timing_sink["fmrimod_contrast_seconds"] = time.perf_counter() - contrast_start
+
     return PipelineOutput(
         arrays={
             "design": fit.model.design_matrix_array(run=0),
@@ -240,12 +258,39 @@ def fmrimod_pipeline(inputs: PublicFContrastInputs) -> PipelineOutput:
     )
 
 
-def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
+def make_case(
+    max_voxels: int = MAX_VOXELS,
+    *,
+    timing_sink: dict[str, float] | None = None,
+) -> ParityCase:
+    if timing_sink is not None:
+        start = time.perf_counter()
+        inputs = load_inputs(max_voxels=max_voxels)
+        timing_sink["load_inputs_seconds"] = time.perf_counter() - start
+
+        def _timed_fmrimod(shared_inputs: PublicFContrastInputs) -> PipelineOutput:
+            return fmrimod_pipeline(shared_inputs, timing_sink=timing_sink)
+
+        def _timed_nilearn(shared_inputs: PublicFContrastInputs) -> PipelineOutput:
+            nilearn_start = time.perf_counter()
+            output = nilearn_pipeline(shared_inputs)
+            timing_sink["nilearn_pipeline_seconds"] = (
+                time.perf_counter() - nilearn_start
+            )
+            return output
+
+        fmrimod_fn = _timed_fmrimod
+        nilearn_fn = _timed_nilearn
+    else:
+        inputs = load_inputs(max_voxels=max_voxels)
+        fmrimod_fn = fmrimod_pipeline
+        nilearn_fn = nilearn_pipeline
+
     return ParityCase(
         name="tier_a_public_f_confound_drift",
-        fmrimod_pipeline=fmrimod_pipeline,
-        reference_pipeline=nilearn_pipeline,
-        inputs=load_inputs(max_voxels=max_voxels),
+        fmrimod_pipeline=fmrimod_fn,
+        reference_pipeline=nilearn_fn,
+        inputs=inputs,
         tolerances={
             "design": ParityTolerance(rtol=0.0, atol=0.0),
             "effect_condition_a_minus_b": ParityTolerance(rtol=1e-8, atol=1e-8),
@@ -253,6 +298,17 @@ def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
             "f_conditions_omnibus": ParityTolerance(rtol=1e-7, atol=1e-7),
         },
     )
+
+
+def _write_timing_payload(json_path: Path, timings: dict[str, float]) -> None:
+    payload = json.loads(json_path.read_text())
+    stages = {key: float(value) for key, value in sorted(timings.items())}
+    payload["timings"] = {
+        "status": "recorded",
+        "seconds": float(sum(stages.values())),
+        "stages": stages,
+    }
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -265,8 +321,10 @@ def main(argv: list[str] | None = None) -> None:
     )
     args = parser.parse_args(argv)
 
-    result = run(make_case())
-    render(result, args.out_dir)
+    timings: dict[str, float] = {}
+    result = run(make_case(timing_sink=timings))
+    json_path, _ = render(result, args.out_dir)
+    _write_timing_payload(json_path, timings)
     if result.status == "fail":
         raise SystemExit(1)
 

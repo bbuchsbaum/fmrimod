@@ -44,7 +44,6 @@ PERFORMANCE_HISTORY = (
 # verify that.
 _PENDING_HARDWARE_TAG_ROWS = frozenset(
     {
-        "tier_a_f_confound_drift",
         "tier_a_multirun_concat_public_seam",
         "tier_c_second_level",
         "tier_e_parametric_centering",

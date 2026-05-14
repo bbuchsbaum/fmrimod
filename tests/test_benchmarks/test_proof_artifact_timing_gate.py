@@ -37,7 +37,6 @@ MANIFEST = REPO_ROOT / "benchmarks" / "parity" / "proof_artifacts.json"
 # "not_recorded" to "recorded" without a payload still fails the test.
 _PENDING_TIMING_ROWS = frozenset(
     {
-        "tier_a_f_confound_drift",
         "tier_a_multirun_concat_public_seam",
         "tier_c_second_level",
         "tier_e_parametric_centering",

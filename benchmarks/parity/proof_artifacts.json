@@ -54,9 +54,19 @@
       "reference_path": "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py::nilearn_pipeline",
       "fmrimod_path": "benchmarks/parity/tier_a_f_confound_drift/public_workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> contrast",
       "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
+      "performance_stage": "tier_a_f_confound_drift",
       "timings": {
-        "status": "not_recorded",
-        "next": "capture stage-level timings in the public report"
+        "seconds": 0.10351566700000037,
+        "stages": {
+          "fmrimod_contrast_seconds": 0.0064204590000001005,
+          "fmrimod_dataset_seconds": 8.333300000007426e-05,
+          "fmrimod_fit_seconds": 0.005264625000000134,
+          "load_inputs_seconds": 0.08839529199999996,
+          "nilearn_pipeline_seconds": 0.0033519580000000992
+        },
+        "status": "recorded",
+        "source": "benchmarks/parity/tier_a_f_confound_drift/reports_public/parity_report.json"
       },
       "typed_objects": [
         "fmrimod.dataset.FmriDataset",
@@ -81,7 +91,9 @@
           "status",
           "caveats"
         ]
-      }
+      },
+      "hardware_tag": "Darwin-arm64-arm",
+      "performance_stage": "tier_a_f_confound_drift"
     },
     {
       "benchmark_id": "tier_group_semantic_survival",
