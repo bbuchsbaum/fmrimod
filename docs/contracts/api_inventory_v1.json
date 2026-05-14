@@ -1,7 +1,7 @@
 {
   "counts": {
     "all_names": 204,
-    "any_in_signature": 4,
+    "any_in_signature": 5,
     "callable": 202,
     "classes": 21,
     "opaque_forwarder": 40
@@ -55,7 +55,7 @@
     },
     {
       "compatibility_status": "compat",
-      "has_any_in_signature": false,
+      "has_any_in_signature": true,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -63,9 +63,9 @@
       "name": "Fcontrasts",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.contrast.fcontrast",
-      "runtime_signature": "(x, max_inter: 'int' = 4, **kwargs) -> 'Dict[str, Array]'",
+      "runtime_signature": "(x: 'Any', max_inter: 'int' = 4, **kwargs: 'Any') -> 'Dict[str, Array]'",
       "signature_source": "inspect.signature",
-      "tier": "compat_pending_fix",
+      "tier": "runtime_check",
       "used_by_public_seam_artifact": "review_pending"
     },
     {

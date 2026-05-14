@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import itertools
 from functools import reduce, singledispatch
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 
@@ -18,13 +18,19 @@ from ..types import Array
 
 
 @singledispatch
-def Fcontrasts(x, max_inter: int = 4, **kwargs) -> Dict[str, Array]:
+def Fcontrasts(x: Any, max_inter: int = 4, **kwargs: Any) -> Dict[str, Array]:
     """Generate F-contrast matrices for testing main effects and interactions.
-    
+
+    This is a :func:`functools.singledispatch` generic function: ``x``
+    is intentionally ``Any`` because the dispatcher routes on the
+    runtime type (registered for :class:`EventTerm`, :class:`EventModel`,
+    and the categorical event variants). The registered implementations
+    carry their own typed signatures.
+
     F-contrasts are used to test hypotheses about multiple parameters
     simultaneously. For categorical variables, this generates contrast
     matrices for main effects and interactions up to a specified order.
-    
+
     Parameters
     ----------
     x : object
