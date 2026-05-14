@@ -282,9 +282,19 @@
       "reference_path": "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py::nilearn_pipeline",
       "fmrimod_path": "benchmarks/parity/tier_a_fir_unconstrained_hrf/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> OmnibusContrast",
       "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
+      "performance_stage": "tier_a_fir_unconstrained_hrf",
       "timings": {
-        "status": "not_recorded",
-        "next": "record FIR design and fit timings after the unconstrained-HRF case is promoted to docs"
+        "status": "recorded",
+        "seconds": 0.07789733299999946,
+        "stages": {
+          "fmrimod_contrast_seconds": 0.021879541999999974,
+          "fmrimod_dataset_seconds": 6.304199999984661e-05,
+          "fmrimod_fit_seconds": 0.008296499999999929,
+          "load_inputs_seconds": 0.045926790999999856,
+          "nilearn_pipeline_seconds": 0.0017314579999998525
+        },
+        "source": "benchmarks/parity/tier_a_fir_unconstrained_hrf/reports/parity_report.json"
       },
       "typed_objects": [
         "fmrimod.dataset.FmriDataset",
@@ -412,13 +422,13 @@
       "performance_stage": "tier_a_parametric_modulation",
       "timings": {
         "status": "recorded",
-        "seconds": 0.08798183400000026,
+        "seconds": 0.1479211229999997,
         "stages": {
-          "fmrimod_contrast_seconds": 0.005996542000000105,
-          "fmrimod_dataset_seconds": 9.179200000009047e-05,
-          "fmrimod_fit_seconds": 0.0048461250000002565,
-          "load_inputs_seconds": 0.07415862499999992,
-          "nilearn_pipeline_seconds": 0.0028887499999998845
+          "fmrimod_contrast_seconds": 0.010205833000000109,
+          "fmrimod_dataset_seconds": 0.00020225000000007043,
+          "fmrimod_fit_seconds": 0.012920790999999987,
+          "load_inputs_seconds": 0.12337604099999977,
+          "nilearn_pipeline_seconds": 0.0012162079999997744
         },
         "source": "benchmarks/parity/tier_a_parametric_modulation/reports/parity_report.json"
       },
