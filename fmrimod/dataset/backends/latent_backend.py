@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -14,7 +13,7 @@ from ..errors import BackendIOError, ConfigError
 
 
 def _validate_indices(
-    indices: NDArray[np.intp] | Sequence[int] | int | None,
+    indices: NDArray[np.intp] | Sequence[int] | int | float | None,
     upper: int,
     name: str,
 ) -> NDArray[np.intp] | None:
@@ -22,7 +21,10 @@ def _validate_indices(
         return None
     arr = np.atleast_1d(np.asarray(indices))
     if not np.issubdtype(arr.dtype, np.integer):
-        raise ValueError(f"{name} indices must be integers")
+        if not np.issubdtype(arr.dtype, np.floating):
+            raise ValueError(f"{name} indices must be integers")
+        if not np.all(arr.astype(np.int64) == arr):
+            raise ValueError(f"{name} indices must be integers")
     result = arr.astype(np.intp, copy=False)
     if np.any(result < 0) or np.any(result >= upper):
         raise ValueError(f"{name} indices must be within [0, {upper - 1}]")
@@ -45,8 +47,20 @@ class LatentBackend(StorageBackend):
     ) -> None:
         if isinstance(source, (str, Path)):
             sources = [Path(source)]
+        elif isinstance(source, Sequence):
+            sources = []
+            for item in source:
+                if not isinstance(item, (str, Path)):
+                    raise ConfigError(
+                        "source entries must be strings or Path objects",
+                        parameter="source",
+                    )
+                sources.append(Path(item))
         else:
-            sources = [Path(item) for item in source]
+            raise ConfigError(
+                "source must be a path or a sequence of paths",
+                parameter="source",
+            )
         if not sources:
             raise ConfigError(
                 "source must contain at least one path",
@@ -219,7 +233,7 @@ class LatentBackend(StorageBackend):
             return self._loadings.copy()
         return self._loadings[:, comp_idx]
 
-    def get_metadata(self) -> dict[str, Any]:
+    def get_metadata(self) -> dict[str, object]:
         self._require_open("get_metadata")
         dims = self.get_dims()
         assert self._loadings is not None
@@ -363,7 +377,7 @@ class InMemoryLatentBackend(StorageBackend):
             return self._loadings.copy()
         return self._loadings[:, comp_idx]
 
-    def get_metadata(self) -> dict[str, Any]:
+    def get_metadata(self) -> dict[str, object]:
         loadings = self.get_loadings()
         basis_variance = (
             np.var(self._scores, axis=0, ddof=1)
