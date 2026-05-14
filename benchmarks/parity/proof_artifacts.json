@@ -401,9 +401,20 @@
       "fmrimod_path": "benchmarks/parity/tier_a_multirun_concat/workflow.py::public_seam_pipeline: matrix_dataset -> RealizedDesign(source='fmrimod') -> fmri_lm -> public vector contrasts",
       "realized_design_source": "fmrimod",
       "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
+      "performance_stage": "tier_a_multirun_concat_public_seam",
       "timings": {
-        "status": "not_recorded",
-        "next": "record concatenated-design realization and fit timings once the case is promoted to docs"
+        "seconds": 0.013054790964815766,
+        "stages": {
+          "fmrimod_contrast_seconds": 0.0012825420126318932,
+          "fmrimod_dataset_seconds": 0.0002413749461993575,
+          "fmrimod_design_seconds": 6.145803490653634e-05,
+          "fmrimod_fit_seconds": 0.0012073329999111593,
+          "load_inputs_seconds": 0.009290207992307842,
+          "nilearn_pipeline_seconds": 0.0009718749788589776
+        },
+        "status": "recorded",
+        "source": "benchmarks/parity/tier_a_multirun_concat/reports/parity_report.json"
       },
       "typed_objects": [
         "fmrimod.dataset.FmriDataset",
@@ -580,6 +591,8 @@
       "reference_path": "benchmarks/parity/tier_c_second_level/workflow.py::nilearn_pipeline",
       "fmrimod_path": "benchmarks/parity/tier_c_second_level/workflow.py::fmrimod_pipeline: group_data_from_csv -> group_fit",
       "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
+      "performance_stage": "tier_c_second_level",
       "timings": {
         "seconds": 1.533317459,
         "stages": {
@@ -609,9 +622,7 @@
           "status",
           "caveats"
         ]
-      },
-      "hardware_tag": "Darwin-arm64-arm",
-      "performance_stage": "tier_c_second_level"
+      }
     },
     {
       "benchmark_id": "tier_e_adversarial_gauntlet",

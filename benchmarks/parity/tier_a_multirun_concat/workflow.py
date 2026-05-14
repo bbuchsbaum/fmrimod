@@ -68,6 +68,8 @@ The compared quantities:
 
 from __future__ import annotations
 
+import json
+import time
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
@@ -362,7 +364,11 @@ def fmrimod_pipeline(inputs: MultirunInputs) -> PipelineOutput:
     )
 
 
-def public_seam_pipeline(inputs: MultirunInputs) -> PipelineOutput:
+def public_seam_pipeline(
+    inputs: MultirunInputs,
+    *,
+    timing_sink: dict[str, float] | None = None,
+) -> PipelineOutput:
     """Public fmrimod seam for the same concatenated-design policy.
 
     The exact matrix oracle remains in :func:`fmrimod_pipeline`. This
@@ -371,18 +377,31 @@ def public_seam_pipeline(inputs: MultirunInputs) -> PipelineOutput:
     kernels.
     """
 
+    dataset_start = time.perf_counter()
     dataset = matrix_dataset(
         inputs.data,
         tr=TR,
         event_table=inputs.events,
         mask=np.ones(inputs.data.shape[1], dtype=bool),
     )
+    if timing_sink is not None:
+        timing_sink["fmrimod_dataset_seconds"] = time.perf_counter() - dataset_start
+
+    design_start = time.perf_counter()
     realised = RealizedDesign.from_array(
         inputs.design,
         columns=inputs.design_columns.names,
         source="fmrimod",
     )
+    if timing_sink is not None:
+        timing_sink["fmrimod_design_seconds"] = time.perf_counter() - design_start
+
+    fit_start = time.perf_counter()
     fit = fm.fmri_lm(realised, dataset)
+    if timing_sink is not None:
+        timing_sink["fmrimod_fit_seconds"] = time.perf_counter() - fit_start
+
+    contrast_start = time.perf_counter()
     contrasts = {
         "main_A_minus_B": inputs.c_main_A_minus_B,
         "run_diff_A": inputs.c_run_diff_A,
@@ -393,6 +412,8 @@ def public_seam_pipeline(inputs: MultirunInputs) -> PipelineOutput:
         name: fit.contrast(weights, name=name)
         for name, weights in contrasts.items()
     }
+    if timing_sink is not None:
+        timing_sink["fmrimod_contrast_seconds"] = time.perf_counter() - contrast_start
     return PipelineOutput(
         arrays={
             "design": inputs.design,
@@ -440,24 +461,64 @@ def make_canary_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
     )
 
 
-def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
+def make_case(
+    max_voxels: int = MAX_VOXELS,
+    *,
+    timing_sink: dict[str, float] | None = None,
+) -> ParityCase:
     """Build the public-seam concatenated multi-run parity case."""
+    if timing_sink is not None:
+        start = time.perf_counter()
+        inputs = load_inputs(max_voxels=max_voxels)
+        timing_sink["load_inputs_seconds"] = time.perf_counter() - start
+
+        def _timed_public_seam(shared_inputs: MultirunInputs) -> PipelineOutput:
+            return public_seam_pipeline(shared_inputs, timing_sink=timing_sink)
+
+        def _timed_nilearn(shared_inputs: MultirunInputs) -> PipelineOutput:
+            nilearn_start = time.perf_counter()
+            output = nilearn_pipeline(shared_inputs)
+            timing_sink["nilearn_pipeline_seconds"] = (
+                time.perf_counter() - nilearn_start
+            )
+            return output
+
+        fmrimod_fn = _timed_public_seam
+        nilearn_fn = _timed_nilearn
+    else:
+        inputs = load_inputs(max_voxels=max_voxels)
+        fmrimod_fn = public_seam_pipeline
+        nilearn_fn = nilearn_pipeline
+
     return ParityCase(
         name="tier_a_multirun_concat_public_seam",
-        fmrimod_pipeline=public_seam_pipeline,
-        reference_pipeline=nilearn_pipeline,
-        inputs=load_inputs(max_voxels=max_voxels),
+        fmrimod_pipeline=fmrimod_fn,
+        reference_pipeline=nilearn_fn,
+        inputs=inputs,
         tolerances=_tolerances(),
     )
+
+
+def _write_timing_payload(json_path: Path, timings: dict[str, float]) -> None:
+    payload = json.loads(json_path.read_text())
+    stages = {key: float(value) for key, value in sorted(timings.items())}
+    payload["timings"] = {
+        "status": "recorded",
+        "seconds": float(sum(stages.values())),
+        "stages": stages,
+    }
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
 def main() -> None:
     canary_result = run(make_canary_case())
     canary_dir = Path(__file__).resolve().parent / "reports_canary"
     render(canary_result, canary_dir)
-    result = run(make_case())
+    timings: dict[str, float] = {}
+    result = run(make_case(timing_sink=timings))
     out_dir = Path(__file__).resolve().parent / "reports"
-    render(result, out_dir)
+    json_path, _ = render(result, out_dir)
+    _write_timing_payload(json_path, timings)
     if canary_result.status == "fail" or result.status == "fail":
         raise SystemExit(1)
 
