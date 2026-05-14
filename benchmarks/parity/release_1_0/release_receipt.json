@@ -1,92 +1,92 @@
 {
   "api_spine": [
     {
-      "classified": false,
-      "compatibility_status": "review_pending",
+      "classified": true,
+      "compatibility_status": "spine",
       "name": "fmri_dataset",
       "present": true,
       "tier": "spine",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
-      "classified": false,
-      "compatibility_status": "review_pending",
+      "classified": true,
+      "compatibility_status": "spine",
       "name": "fmri_lm",
       "present": true,
       "tier": "spine_review",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
-      "classified": false,
-      "compatibility_status": "review_pending",
+      "classified": true,
+      "compatibility_status": "spine",
       "name": "Spec",
       "present": true,
       "tier": "spine",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
-      "classified": false,
-      "compatibility_status": "review_pending",
+      "classified": true,
+      "compatibility_status": "spine",
       "name": "Term",
       "present": true,
       "tier": "spine",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
-      "classified": false,
-      "compatibility_status": "review_pending",
+      "classified": true,
+      "compatibility_status": "spine",
       "name": "event_model",
       "present": true,
       "tier": "spine_review",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
-      "classified": false,
-      "compatibility_status": "review_pending",
+      "classified": true,
+      "compatibility_status": "spine",
       "name": "baseline_model",
       "present": true,
       "tier": "spine",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
-      "classified": false,
-      "compatibility_status": "review_pending",
+      "classified": true,
+      "compatibility_status": "spine",
       "name": "fmri_meta",
       "present": true,
       "tier": "spine",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
-      "classified": false,
-      "compatibility_status": "review_pending",
+      "classified": true,
+      "compatibility_status": "spine",
       "name": "fmri_ttest",
       "present": true,
       "tier": "spine",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
-      "classified": false,
-      "compatibility_status": "review_pending",
+      "classified": true,
+      "compatibility_status": "spine",
       "name": "group_data_from_fmrilm",
       "present": true,
       "tier": "spine",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
-      "classified": false,
-      "compatibility_status": "review_pending",
+      "classified": true,
+      "compatibility_status": "spine",
       "name": "estimate_single_trial",
       "present": true,
       "tier": "spine",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
-      "classified": false,
-      "compatibility_status": "review_pending",
+      "classified": true,
+      "compatibility_status": "spine",
       "name": "estimate_single_trial_from_dataset",
       "present": true,
       "tier": "spine",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     }
   ],
   "blockers": [
@@ -108,18 +108,7 @@
     "tier_d_lss_trialwise: required public path 'fmri_dataset -> estimate_single_trial -> typed trialwise result' not in fmrimod_path",
     "tier_d_lss_trialwise: timings are not recorded",
     "tier_d_lss_trialwise: hardware_tag is missing",
-    "tier_d_lss_trialwise: receipt metadata is missing",
-    "api spine fmri_dataset: still review_pending",
-    "api spine fmri_lm: still review_pending",
-    "api spine Spec: still review_pending",
-    "api spine Term: still review_pending",
-    "api spine event_model: still review_pending",
-    "api spine baseline_model: still review_pending",
-    "api spine fmri_meta: still review_pending",
-    "api spine fmri_ttest: still review_pending",
-    "api spine group_data_from_fmrilm: still review_pending",
-    "api spine estimate_single_trial: still review_pending",
-    "api spine estimate_single_trial_from_dataset: still review_pending"
+    "tier_d_lss_trialwise: receipt metadata is missing"
   ],
   "board_source": "roadmap-to-1-0/post-01KRK7E46JRRD6BKQTAP9GMC03",
   "evidence_gates": [

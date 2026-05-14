@@ -489,7 +489,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "spine",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -501,7 +501,7 @@
       "runtime_signature": "(events: 'Tuple[Term, ...]' = (), baseline: 'Tuple[Term, ...]' = ()) -> None",
       "signature_source": "inspect.signature",
       "tier": "spine",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
       "compatibility_status": "review_pending",
@@ -534,7 +534,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "spine",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -546,7 +546,7 @@
       "runtime_signature": "()",
       "signature_source": "inspect.signature",
       "tier": "spine",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
       "compatibility_status": "review_pending",
@@ -699,7 +699,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "spine",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -711,7 +711,7 @@
       "runtime_signature": "(basis: 'BaselineBasis' = 'constant', degree: 'int' = 1, sframe: 'SamplingInfo | None' = None, intercept: 'BaselineIntercept' = 'runwise', nuisance_list: 'Sequence[Array | pd.DataFrame] | None' = None, nuisance_check: 'NuisanceCheckMode' = 'warn') -> 'BaselineModel'",
       "signature_source": "inspect.signature",
       "tier": "spine",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
       "compatibility_status": "review_pending",
@@ -1164,7 +1164,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "spine",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -1176,10 +1176,10 @@
       "runtime_signature": "(Y: 'NDArray[np.float64]', X: 'NDArray[np.float64]', method: 'SingleTrialMethodLike' = 'lss', confounds: 'NDArray[np.float64] | None' = None, trial_labels: 'list[str] | None' = None, return_se: 'bool' = False, *, prewhiten: 'PrewhitenConfig | None' = None, nuisance_projector: 'NuisanceProjector | None' = None, chunk_size: 'int | None' = None, oasis_config: 'OasisConfig | None' = None, sbhm_config: 'SbhmConfig | None' = None, sbhm_library: 'SbhmLibrary | None' = None, baseline_regressors: 'NDArray[np.float64] | None' = None, include_intercept: 'bool' = False) -> 'SingleTrialResult'",
       "signature_source": "inspect.signature",
       "tier": "spine",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "spine",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -1191,7 +1191,7 @@
       "runtime_signature": "(dataset: 'object', spec: 'object', *, method: 'SingleTrialMethodLike' = 'lss', confounds: 'NDArray[np.float64] | None' = None, return_se: 'bool' = False, block: 'object' = None, durations: 'object' = None, precision: 'float | None' = None, prewhiten: 'PrewhitenConfig | None' = None, nuisance_projector: 'NuisanceProjector | None' = None, chunk_size: 'int | None' = None, oasis_config: 'OasisConfig | None' = None, sbhm_config: 'SbhmConfig | None' = None, sbhm_library: 'SbhmLibrary | None' = None, include_intercept: 'bool' = False) -> 'SingleTrialResult'",
       "signature_source": "inspect.signature",
       "tier": "spine",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
       "compatibility_status": "review_pending",
@@ -1254,7 +1254,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "spine",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -1266,7 +1266,7 @@
       "runtime_signature": "(formula: 'Union[str, List[Term], EventModelBuilder]', data: 'Optional[pd.DataFrame]' = None, block: 'Optional[Union[str, Array]]' = None, sampling_frame=None, durations: 'Optional[Union[str, float, Array]]' = None, drop_empty: 'bool' = True, precision: 'Optional[float]' = None, events: 'Optional[Dict[str, EventProtocol]]' = None, sampling_info=None, tr: 'Optional[float]' = None, n_scans: 'Optional[int]' = None, sampling_rate: 'Optional[float]' = None, **kwargs) -> 'EventModel'",
       "signature_source": "inspect.signature",
       "tier": "spine_review",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
       "compatibility_status": "review_pending",
@@ -1434,7 +1434,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "spine",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -1446,7 +1446,7 @@
       "runtime_signature": "(img: 'object' = None, *, mask: 'object' = None, tr: 'float | Sequence[float] | None' = None, events: 'pd.DataFrame | None' = None, censor: 'NDArray[np.bool_] | list[NDArray[np.bool_]] | None' = None, start_time: 'float' = 0.0, run_length: 'int | Sequence[int] | None' = None, data_source: 'DatasetProtocol | None' = None, event_table: 'pd.DataFrame | None' = None) -> 'FmriDataset'",
       "signature_source": "inspect.signature",
       "tier": "spine",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
       "compatibility_status": "review_pending",
@@ -1464,7 +1464,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "spine",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -1476,7 +1476,7 @@
       "runtime_signature": "(spec_or_model: \"'Spec | Term | str | Sequence[object] | FmriModelLike'\", dataset_or_config: \"'FmriDataset | FmriLmConfig | None'\" = None, *, baseline: 'object' = None, block: 'Optional[Union[str, NDArray[np.float64]]]' = None, durations: 'Optional[Union[str, float, NDArray[np.float64]]]' = None, precision: 'Optional[float]' = None, config: 'Optional[FmriLmConfig]' = None, engine: 'EngineSelector' = RunwiseEngineOptions(n_jobs=1, blas_threads=None, compute_dtype=<class 'numpy.float64'>, cache_projections=False, chunk_size=5000, name='runwise'), **engine_kwargs: 'object') -> 'FmriLm'",
       "signature_source": "inspect.signature",
       "tier": "spine_review",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
       "compatibility_status": "review_pending",
@@ -1494,7 +1494,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "spine",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -1506,7 +1506,7 @@
       "runtime_signature": "(data: 'GroupData', formula: 'str' = '~ 1', method: 'MetaMethod' = 'pm', robust: 'MetaRobust' = 'none', weights: 'MetaWeights' = 'ivw', weights_custom: 'Optional[NDArray[np.float64]]' = None, combine: 'Optional[str]' = None) -> 'FmriMetaResult'",
       "signature_source": "inspect.signature",
       "tier": "spine",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
       "compatibility_status": "review_pending",
@@ -1599,7 +1599,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "spine",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -1611,7 +1611,7 @@
       "runtime_signature": "(data: 'GroupData', *, engine: 'TTestEngine' = 'auto', formula: 'str' = '~ 1', method: 'str' = 'pm', weights: 'str' = 'ivw', weights_custom: 'Optional[NDArray[np.float64]]' = None) -> 'FmriTTestResult'",
       "signature_source": "inspect.signature",
       "tier": "spine",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
       "compatibility_status": "review_pending",
@@ -1959,7 +1959,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "spine",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -1971,7 +1971,7 @@
       "runtime_signature": "(lm_list: 'Sequence[object]', contrast: 'Optional[str]' = None, stat: 'Sequence[str]' = ('beta', 'se'), subjects: 'Optional[Sequence[str]]' = None, covariates: 'Optional[pd.DataFrame]' = None) -> 'GroupData'",
       "signature_source": "inspect.signature",
       "tier": "spine",
-      "used_by_public_seam_artifact": "review_pending"
+      "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
       "compatibility_status": "review_pending",

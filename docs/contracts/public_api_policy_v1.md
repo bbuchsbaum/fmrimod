@@ -230,6 +230,22 @@ for the exact pinned set. New spine entries land as additions to that
 test's `_EXPECTED_SPINE_TIERS` map in the same commit that promotes
 the name to top-level.
 
+### Review-field vocabulary
+
+The inventory also carries two review fields beyond `tier`:
+
+- `used_by_public_seam_artifact` — the first proof artifact or proof
+  bundle role that needs the symbol to be part of the user-facing
+  seam. `release_1_0_api_spine` marks the symbols pulled into the 1.0
+  release receipt's API-spine gate. `review_pending` means no artifact
+  or bundle role has been reviewed yet.
+- `compatibility_status` — the current public compatibility posture for
+  the row. `spine` means the symbol is part of the release-facing seam.
+  It does not erase `tier=spine_review` debt; the tier still records
+  known signature soundness problems. Other ratified values are
+  `compat`, `deprecated`, `hidden`, `internal_forwarder`, and
+  `review_pending`.
+
 ## Relation to GOVERNANCE.md
 
 | Asks | Answered in |

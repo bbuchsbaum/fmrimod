@@ -48,7 +48,7 @@ def test_release_receipt_is_currently_blocked_by_named_red_checks() -> None:
     assert "tier_a_fiac: numerical_canary cannot be flagship proof" in blockers
     assert "tier_b_fitlins_bids: public_seam is not true" in blockers
     assert "tier_d_lss_trialwise: numerical_canary cannot be flagship proof" in blockers
-    assert "api spine fmri_dataset: still review_pending" in blockers
+    assert "api spine " not in blockers
 
 
 def test_release_receipt_carries_gate_files_and_api_spine_evidence() -> None:
@@ -60,8 +60,13 @@ def test_release_receipt_carries_gate_files_and_api_spine_evidence() -> None:
 
     spine = {row["name"]: row for row in receipt["api_spine"]}
     assert set(bundle.API_SPINE_NAMES) == set(spine)
+    assert all(row["classified"] for row in spine.values())
     assert spine["fmri_dataset"]["tier"] == "spine"
-    assert spine["fmri_dataset"]["compatibility_status"] == "review_pending"
+    assert spine["fmri_lm"]["tier"] == "spine_review"
+    assert {row["compatibility_status"] for row in spine.values()} == {"spine"}
+    assert {row["used_by_public_seam_artifact"] for row in spine.values()} == {
+        "release_1_0_api_spine"
+    }
 
 
 def test_release_receipt_writes_canonical_json(tmp_path: Path) -> None:
