@@ -56,6 +56,8 @@ What we compare
 
 from __future__ import annotations
 
+import json
+import time
 import warnings
 from dataclasses import dataclass
 from itertools import product as iter_product
@@ -373,6 +375,8 @@ def nilearn_pipeline(
 
 def fmrimod_pipeline(
     inputs: FactorialParametricInputs,
+    *,
+    timing_sink: dict[str, float] | None = None,
 ) -> PipelineOutput:
     """One-line spec: 3x3 factorial × rt_z parametric modulator.
 
@@ -380,6 +384,7 @@ def fmrimod_pipeline(
     surface is exercised at parity time) and names the modulator
     variable.
     """
+    dataset_start = time.perf_counter()
     spec = hrf(
         "difficulty",
         "emotion",
@@ -388,9 +393,15 @@ def fmrimod_pipeline(
         modulators=["rt_z"],
     )
     ds = fm.fmri_dataset(inputs.data, tr=TR, events=inputs.events)
+    if timing_sink is not None:
+        timing_sink["fmrimod_dataset_seconds"] = time.perf_counter() - dataset_start
+
+    fit_start = time.perf_counter()
     with warnings.catch_warnings(record=True) as captured:
         warnings.simplefilter("always")
         fit = fm.fmri_lm(spec, ds)
+    if timing_sink is not None:
+        timing_sink["fmrimod_fit_seconds"] = time.perf_counter() - fit_start
 
     if inputs.n_nan_trials > 0:
         nan_warnings = [
@@ -405,6 +416,7 @@ def fmrimod_pipeline(
                 "'rt_z' when the events table carries non-finite rt values"
             )
 
+    contrast_start = time.perf_counter()
     t_diff = fit.contrast(
         inputs.c_difficulty_linear, name="difficulty_linear"
     )
@@ -415,6 +427,8 @@ def fmrimod_pipeline(
     f_param = fit.contrast(
         inputs.c_parametric_F, name="parametric_omnibus"
     )
+    if timing_sink is not None:
+        timing_sink["fmrimod_contrast_seconds"] = time.perf_counter() - contrast_start
 
     rank_observed = int(fit.condition_report().runs[0].rank)
     return PipelineOutput(
@@ -471,10 +485,64 @@ def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
     )
 
 
+def _make_timed_case(
+    timings: dict[str, float], max_voxels: int = MAX_VOXELS,
+) -> ParityCase:
+    start = time.perf_counter()
+    inputs = load_inputs(max_voxels=max_voxels)
+    timings["load_inputs_seconds"] = time.perf_counter() - start
+
+    def _timed_fmrimod(shared_inputs: FactorialParametricInputs) -> PipelineOutput:
+        return fmrimod_pipeline(shared_inputs, timing_sink=timings)
+
+    def _timed_nilearn(shared_inputs: FactorialParametricInputs) -> PipelineOutput:
+        nilearn_start = time.perf_counter()
+        output = nilearn_pipeline(shared_inputs)
+        timings["nilearn_pipeline_seconds"] = time.perf_counter() - nilearn_start
+        return output
+
+    return ParityCase(
+        name="tier_a_factorial_3x3_parametric",
+        fmrimod_pipeline=_timed_fmrimod,
+        reference_pipeline=_timed_nilearn,
+        inputs=inputs,
+        tolerances={
+            "design": ParityTolerance(rtol=0.0, atol=0.0),
+            "effect_difficulty_linear": ParityTolerance(
+                rtol=1e-8, atol=1e-9
+            ),
+            "t_difficulty_linear": ParityTolerance(rtol=1e-7, atol=1e-8),
+            "effect_emotion_linear": ParityTolerance(rtol=1e-8, atol=1e-9),
+            "t_emotion_linear": ParityTolerance(rtol=1e-7, atol=1e-8),
+            "effect_diff_x_emo_quadrant": ParityTolerance(
+                rtol=1e-8, atol=1e-9
+            ),
+            "t_diff_x_emo_quadrant": ParityTolerance(
+                rtol=1e-7, atol=1e-8
+            ),
+            "f_parametric_omnibus": ParityTolerance(rtol=1e-7, atol=1e-8),
+            "rank": ParityTolerance(rtol=0.0, atol=0.0),
+        },
+    )
+
+
+def _write_timing_payload(json_path: Path, timings: dict[str, float]) -> None:
+    payload = json.loads(json_path.read_text())
+    stages = {key: float(value) for key, value in sorted(timings.items())}
+    payload["timings"] = {
+        "status": "recorded",
+        "seconds": float(sum(stages.values())),
+        "stages": stages,
+    }
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
 def main() -> None:
-    result = run(make_case())
+    timings: dict[str, float] = {}
+    result = run(_make_timed_case(timings))
     out_dir = Path(__file__).resolve().parent / "reports"
-    render(result, out_dir)
+    json_path, _ = render(result, out_dir)
+    _write_timing_payload(json_path, timings)
     if result.status == "fail":
         raise SystemExit(1)
 

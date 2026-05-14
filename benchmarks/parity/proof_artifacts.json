@@ -236,9 +236,19 @@
       "reference_path": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py::nilearn_pipeline",
       "fmrimod_path": "benchmarks/parity/tier_a_factorial_3x3_parametric/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> typed factorial and parametric contrasts",
       "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
+      "performance_stage": "tier_a_factorial_3x3_parametric",
       "timings": {
-        "status": "not_recorded",
-        "next": "record design-realization and fit timings after the 3x3 parametric case is promoted to docs"
+        "status": "recorded",
+        "seconds": 0.09800529300000038,
+        "stages": {
+          "fmrimod_contrast_seconds": 0.011784875000000028,
+          "fmrimod_dataset_seconds": 0.00014216699999991533,
+          "fmrimod_fit_seconds": 0.017547084000000268,
+          "load_inputs_seconds": 0.06532800000000005,
+          "nilearn_pipeline_seconds": 0.0032031670000001178
+        },
+        "source": "benchmarks/parity/tier_a_factorial_3x3_parametric/reports/parity_report.json"
       },
       "typed_objects": [
         "fmrimod.dataset.FmriDataset",
