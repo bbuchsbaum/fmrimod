@@ -39,6 +39,14 @@ MAX_VOXELS = 2048
 CONTRAST_NAME = "listening"
 
 
+def _fit_provenance_payload(fit: Any) -> dict[str, Any]:
+    if fit.provenance is None:
+        raise AssertionError("fit did not carry FitProvenance")
+    payload = fit.provenance.to_dict()
+    payload["completeness_errors"] = list(fit.provenance.completeness_errors)
+    return payload
+
+
 @dataclass(frozen=True)
 class SpmAuditoryInputs:
     """Inputs shared by the fmrimod and Nilearn pipelines."""
@@ -127,6 +135,7 @@ def fmrimod_pipeline(
     inputs: SpmAuditoryInputs,
     *,
     timing_sink: dict[str, float] | None = None,
+    provenance_sink: dict[str, Any] | None = None,
 ) -> PipelineOutput:
     """Run the SPM auditory parity case through the canonical fmrimod API.
 
@@ -157,6 +166,9 @@ def fmrimod_pipeline(
             }
         )
 
+    if provenance_sink is not None:
+        provenance_sink.update(_fit_provenance_payload(fit))
+
     return PipelineOutput(
         arrays={
             "design_listening": np.asarray(
@@ -172,6 +184,7 @@ def make_case(
     max_voxels: int = MAX_VOXELS,
     *,
     timing_sink: dict[str, float] | None = None,
+    provenance_sink: dict[str, Any] | None = None,
 ) -> ParityCase:
     """Build the P1 SPM auditory parity case.
 
@@ -186,6 +199,7 @@ def make_case(
         fmrimod_pipeline=lambda inputs: fmrimod_pipeline(
             inputs,
             timing_sink=timing_sink,
+            provenance_sink=provenance_sink,
         ),
         reference_pipeline=nilearn_pipeline,
         inputs=load_inputs(max_voxels=max_voxels),
@@ -214,7 +228,8 @@ def make_case(
 
 def main() -> None:
     timings: dict[str, float] = {}
-    result = run(make_case(timing_sink=timings))
+    provenance: dict[str, Any] = {}
+    result = run(make_case(timing_sink=timings, provenance_sink=provenance))
     out_dir = Path(__file__).resolve().parent / "reports"
     json_path, _ = render(result, out_dir)
     payload = json.loads(json_path.read_text())
@@ -223,6 +238,7 @@ def main() -> None:
         "seconds": float(sum(timings.values())),
         "stages": timings,
     }
+    payload["fit_provenance"] = provenance
     json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     if result.status == "fail":
         raise SystemExit(1)

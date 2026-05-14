@@ -23,6 +23,37 @@
     ],
     "typed_intent_term": "trial_type"
   },
+  "fit_provenance": {
+    "ar_config": {
+      "censor": null,
+      "convergence_tol": 0.005,
+      "exact_first": false,
+      "global_ar": false,
+      "iter_gls": 1,
+      "method": "ar",
+      "p": null,
+      "p_max": 6,
+      "parcels": null,
+      "pooling": "global",
+      "q": 0,
+      "struct": "iid",
+      "voxelwise": false
+    },
+    "ar_status": "carried",
+    "completeness_errors": [],
+    "design_source": "spec",
+    "design_source_status": "carried",
+    "fmrimod_version": "0.1.0",
+    "hrf_norm_modes": [
+      null
+    ],
+    "mask_mode": "none",
+    "mask_status": "carried",
+    "schema_version": "FitProvenance/v1",
+    "seed": null,
+    "seed_status": "not_randomized",
+    "solver_path": "RunwiseEngine"
+  },
   "group": {
     "contrast_data": [
       {
@@ -43,12 +74,12 @@
   "name": "tier_group_semantic_survival",
   "status": "pass",
   "timings": {
-    "seconds": 0.03181174997007474,
+    "seconds": 0.10369549899999964,
     "stages": {
-      "first_level_seconds": 0.017229874967597425,
-      "group_dataset_seconds": 0.0002246249932795763,
-      "group_fit_seconds": 0.0011361250071786344,
-      "load_inputs_seconds": 0.013221125002019107
+      "first_level_seconds": 0.05210962499999994,
+      "group_dataset_seconds": 0.00018949999999984257,
+      "group_fit_seconds": 0.00116654099999991,
+      "load_inputs_seconds": 0.050229832999999946
     },
     "status": "recorded"
   }

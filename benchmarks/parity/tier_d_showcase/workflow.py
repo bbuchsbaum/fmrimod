@@ -403,6 +403,7 @@ def build_proof_scorecard(rows: list[ShowcaseRow]) -> ShowcaseProofScorecard:
         "group_assays": checks["group_assays"],
         "group_result_assays": checks["group_result_assays"],
         "timings": semantic["timings"],
+        "fit_provenance": semantic.get("fit_provenance"),
     }
     return ShowcaseProofScorecard(
         public_seam=True,
@@ -449,6 +450,7 @@ def render(rows: list[ShowcaseRow], out_dir: Path) -> tuple[Path, Path]:
         else "fail",
         "caveats": [],
         "proof_scorecard": asdict(scorecard),
+        "fit_provenance": scorecard.semantic_survival.get("fit_provenance"),
         "rows": [asdict(row) for row in public_rows],
     }
     json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")

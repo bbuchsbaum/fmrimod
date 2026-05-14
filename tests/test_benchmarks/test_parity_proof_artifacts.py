@@ -31,6 +31,13 @@ def _load_manifest() -> dict:
     return json.loads(MANIFEST.read_text())
 
 
+def _load_report(path: str) -> dict | None:
+    report_path = ROOT / path
+    if not report_path.exists():
+        return None
+    return json.loads(report_path.read_text())
+
+
 def _has_numeric_timing_payload(timings: object) -> bool:
     if not isinstance(timings, dict):
         return False
@@ -233,6 +240,28 @@ def test_flagship_workflows_are_complete_public_proof_receipts() -> None:
                     f"{bid} flagship report includes non-public rows: "
                     f"{non_public}"
                 )
+
+
+def test_flagship_reports_render_complete_fit_provenance() -> None:
+    """Flagship receipts must expose complete FitProvenance, not just fits."""
+    for item in _load_manifest()["artifacts"]:
+        if item["evidence_level"] != "flagship_workflow":
+            continue
+
+        bid = item["benchmark_id"]
+        report = _load_report(item["report_path"])
+        if report is None:
+            continue
+        provenance = report.get("fit_provenance")
+        assert isinstance(provenance, dict), (
+            f"{bid} must render a fit_provenance block"
+        )
+        assert provenance.get("schema_version") == "FitProvenance/v1"
+        assert provenance.get("seed_status") in {"randomized", "not_randomized"}
+        assert provenance.get("ar_status") == "carried"
+        assert provenance.get("mask_status") == "carried"
+        assert provenance.get("design_source_status") == "carried"
+        assert provenance.get("completeness_errors") == []
 
 
 def test_canaries_name_the_public_workflow_that_should_replace_them() -> None:

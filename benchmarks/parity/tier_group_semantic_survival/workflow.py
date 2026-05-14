@@ -38,6 +38,14 @@ class SemanticSurvivalResult:
     report: dict[str, Any]
 
 
+def _fit_provenance_payload(fit: Any) -> dict[str, Any]:
+    if fit.provenance is None:
+        raise AssertionError("fit did not carry FitProvenance")
+    payload = fit.provenance.to_dict()
+    payload["completeness_errors"] = list(fit.provenance.completeness_errors)
+    return payload
+
+
 def _subject_data(
     inputs: PublicFContrastInputs,
     *,
@@ -79,6 +87,7 @@ def run_demo(
     subjects = tuple(f"sub-{idx + 1:02d}" for idx in range(n_subjects))
     stats = []
     explanations: list[dict[str, Any]] = []
+    fit_provenance: dict[str, Any] | None = None
 
     first_level_start = time.perf_counter()
     for subject_index, _subject in enumerate(subjects):
@@ -89,6 +98,8 @@ def run_demo(
         )
         dataset = fm.fmri_dataset(data, tr=TR, events=inputs.events)
         fit = fm.fmri_lm(inputs.spec, dataset)
+        if fit_provenance is None:
+            fit_provenance = _fit_provenance_payload(fit)
         contrast = fit.contrast(inputs.omnibus)
         stats.append(np.asarray(contrast.stat, dtype=np.float64))
         explanations.append(contrast.summary())
@@ -156,6 +167,7 @@ def run_demo(
             "seconds": float(sum(timings.values())),
             "stages": timings,
         },
+        "fit_provenance": fit_provenance,
     }
     return SemanticSurvivalResult(
         group=group,
