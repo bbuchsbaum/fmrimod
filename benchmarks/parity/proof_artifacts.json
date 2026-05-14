@@ -10,6 +10,7 @@
       "reference_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::nilearn_pipeline",
       "fmrimod_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> contrast via SemanticContrast -> contrast_receipt",
       "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
       "timings": {
         "status": "recorded",
         "seconds": 0.09398716600000023,
@@ -90,6 +91,7 @@
       "reference_path": "not_applicable: semantic-survival artifact built on the strict tier_a_f_confound_drift numerical oracle",
       "fmrimod_path": "benchmarks/parity/tier_group_semantic_survival/workflow.py::run_demo: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
       "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
       "timings": {
         "status": "recorded",
         "seconds": 0.0991808759999997,

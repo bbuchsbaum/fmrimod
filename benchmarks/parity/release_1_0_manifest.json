@@ -12,14 +12,14 @@
       "family": "SPM auditory / first-level modeling",
       "benchmark_id": "tier_a_spm_auditory",
       "required_public_path": "fmri_dataset -> fmri_lm -> contrast",
-      "current_status": "ready_missing_hardware_tag",
+      "current_status": "ready",
       "owner_bead": "bd-01KRFDHPVSJGCVZ967Y8TVCKJA"
     },
     {
       "family": "FIAC/localizer fixed effects",
       "benchmark_id": "tier_a_fiac",
-      "required_public_path": "fmri_dataset -> fmri_lm -> contrast",
-      "current_status": "blocked_public_seam_false",
+      "required_public_path": "fmri_dataset -> RealizedDesign(source='nilearn') -> fmri_lm",
+      "current_status": "ready_missing_timing_hardware",
       "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9"
     },
     {
@@ -33,7 +33,7 @@
       "family": "second-level/group inference",
       "benchmark_id": "tier_group_semantic_survival",
       "required_public_path": "fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
-      "current_status": "ready_missing_hardware_tag",
+      "current_status": "ready",
       "owner_bead": "bd-01KRHTJ9WFSSBZSDGAN4V7PHGS"
     },
     {

@@ -90,11 +90,8 @@
     }
   ],
   "blockers": [
-    "tier_a_spm_auditory: hardware_tag is missing",
-    "tier_a_fiac: required public path 'fmri_dataset -> fmri_lm -> contrast' not in fmrimod_path",
     "tier_a_fiac: timings are not recorded",
     "tier_a_fiac: hardware_tag is missing",
-    "tier_group_semantic_survival: hardware_tag is missing",
     "tier_d_lss_trialwise: public_seam is not true",
     "tier_d_lss_trialwise: numerical_canary cannot be flagship proof",
     "tier_d_lss_trialwise: required public path 'fmri_dataset -> estimate_single_trial -> typed trialwise result' not in fmrimod_path",
@@ -129,15 +126,13 @@
     {
       "artifact_present": true,
       "benchmark_id": "tier_a_spm_auditory",
-      "blockers": [
-        "tier_a_spm_auditory: hardware_tag is missing"
-      ],
+      "blockers": [],
       "caveats": [],
-      "current_status": "ready_missing_hardware_tag",
+      "current_status": "ready",
       "evidence_level": "flagship_workflow",
       "family": "SPM auditory / first-level modeling",
       "fmrimod_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> contrast via SemanticContrast -> contrast_receipt",
-      "hardware_tag": null,
+      "hardware_tag": "Darwin-arm64-arm",
       "owner_bead": "bd-01KRFDHPVSJGCVZ967Y8TVCKJA",
       "private_kernel_evidence": {
         "expected_private_kernel_rows": [],
@@ -187,12 +182,11 @@
       "artifact_present": true,
       "benchmark_id": "tier_a_fiac",
       "blockers": [
-        "tier_a_fiac: required public path 'fmri_dataset -> fmri_lm -> contrast' not in fmrimod_path",
         "tier_a_fiac: timings are not recorded",
         "tier_a_fiac: hardware_tag is missing"
       ],
       "caveats": [],
-      "current_status": "blocked_public_seam_false",
+      "current_status": "ready_missing_timing_hardware",
       "evidence_level": "workflow_parity",
       "family": "FIAC/localizer fixed effects",
       "fmrimod_path": "benchmarks/parity/tier_a_fiac/workflow.py::fmrimod_pipeline: fmri_dataset -> RealizedDesign(source='nilearn') -> fmri_lm -> combine_runs -> column_contrast",
@@ -221,7 +215,7 @@
       },
       "reference_path": "benchmarks/parity/tier_a_fiac/workflow.py::nilearn_pipeline",
       "report_path": "benchmarks/parity/tier_a_fiac/reports/parity_report.json",
-      "required_public_path": "fmri_dataset -> fmri_lm -> contrast",
+      "required_public_path": "fmri_dataset -> RealizedDesign(source='nilearn') -> fmri_lm",
       "timings": {
         "next": "record per-run dataset/fit + combined contrast timings now that the path is public-seam",
         "status": "not_recorded"
@@ -297,15 +291,13 @@
     {
       "artifact_present": true,
       "benchmark_id": "tier_group_semantic_survival",
-      "blockers": [
-        "tier_group_semantic_survival: hardware_tag is missing"
-      ],
+      "blockers": [],
       "caveats": [],
-      "current_status": "ready_missing_hardware_tag",
+      "current_status": "ready",
       "evidence_level": "flagship_workflow",
       "family": "second-level/group inference",
       "fmrimod_path": "benchmarks/parity/tier_group_semantic_survival/workflow.py::run_demo: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
-      "hardware_tag": null,
+      "hardware_tag": "Darwin-arm64-arm",
       "owner_bead": "bd-01KRHTJ9WFSSBZSDGAN4V7PHGS",
       "private_kernel_evidence": {
         "expected_private_kernel_rows": [],
