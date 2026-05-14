@@ -165,7 +165,7 @@ def _output_name(transform: Mapping[str, object]) -> str | None:
         return raw
     if isinstance(raw, Sequence) and len(raw) == 1:
         return str(raw[0])
-    raise TypeError("Only single-output Scale transformations are supported")
+    raise TypeError("Only single-output transformations are supported")
 
 
 def _convolved_model(node: Mapping[str, object]) -> _ConvolvedModel:
@@ -234,33 +234,99 @@ def _flag(transform: Mapping[str, object], *names: str, default: bool) -> bool:
     return default
 
 
-def _apply_scale_transforms(
+def _numeric_param(
+    transform: Mapping[str, object],
+    *names: str,
+    default: float,
+) -> float:
+    for name in names:
+        if name in transform:
+            return float(transform[name])
+    return default
+
+
+def _apply_scale_transform(
+    out: pd.DataFrame,
+    transform: Mapping[str, object],
+) -> None:
+    inputs = _input_list(transform)
+    if len(inputs) != 1:
+        raise NotImplementedError("Scale currently supports one input column")
+    source = inputs[0]
+    if source not in out.columns:
+        raise KeyError(f"Scale requested missing event column: {source!r}")
+    output = _output_name(transform) or source
+    values = out[source].to_numpy(dtype=np.float64)
+    scaled = values.copy()
+    if _flag(transform, "Demean", "demean", "Center", "center", default=True):
+        scaled = scaled - float(np.nanmean(scaled))
+    if _flag(transform, "Rescale", "rescale", "Scale", "scale", default=True):
+        sd = float(np.nanstd(scaled, ddof=0))
+        if sd == 0.0 or not np.isfinite(sd):
+            raise ValueError(f"Cannot scale constant event column {source!r}")
+        scaled = scaled / sd
+    out[output] = scaled
+
+
+def _apply_threshold_transform(
+    out: pd.DataFrame,
+    transform: Mapping[str, object],
+) -> None:
+    inputs = _input_list(transform)
+    if len(inputs) != 1:
+        raise NotImplementedError("Threshold currently supports one input column")
+    source = inputs[0]
+    if source not in out.columns:
+        raise KeyError(f"Threshold requested missing event column: {source!r}")
+    output = _output_name(transform) or source
+    threshold = _numeric_param(transform, "Threshold", "threshold", default=0.0)
+    binarize = _flag(transform, "Binarize", "binarize", default=False)
+    above = _flag(transform, "Above", "above", default=True)
+    signed = _flag(transform, "Signed", "signed", default=True)
+
+    data = pd.to_numeric(out[source], errors="raise").astype(float)
+    if not signed:
+        threshold = abs(threshold)
+        data = data.abs()
+    keep = data >= threshold if above else data <= threshold
+    result = data.copy()
+    result.loc[~keep] = 0.0
+    if binarize:
+        result.loc[keep] = 1.0
+    out[output] = result
+
+
+def _apply_or_transform(
+    out: pd.DataFrame,
+    transform: Mapping[str, object],
+) -> None:
+    inputs = _input_list(transform)
+    if len(inputs) < 2:
+        raise NotImplementedError("Or requires at least two input columns")
+    missing = [source for source in inputs if source not in out.columns]
+    if missing:
+        raise KeyError(f"Or requested missing event columns: {missing}")
+    output = _output_name(transform)
+    if output is None:
+        raise ValueError("Or transformations must declare Output")
+    out[output] = out[inputs].astype(bool).any(axis=1).astype(int)
+
+
+def _apply_event_table_transforms(
     node: Mapping[str, object],
     events: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Realise supported event-table Scale transforms."""
+    """Realise supported event-table transforms in BIDS instruction order."""
 
     out = events.copy()
     for transform in _transform_instructions(node):
-        if str(transform.get("Name", "")).lower() != "scale":
-            continue
-        inputs = _input_list(transform)
-        if len(inputs) != 1:
-            raise NotImplementedError("Scale currently supports one input column")
-        source = inputs[0]
-        if source not in out.columns:
-            raise KeyError(f"Scale requested missing event column: {source!r}")
-        output = _output_name(transform) or source
-        values = out[source].to_numpy(dtype=np.float64)
-        scaled = values.copy()
-        if _flag(transform, "Demean", "demean", "Center", "center", default=True):
-            scaled = scaled - float(np.nanmean(scaled))
-        if _flag(transform, "Rescale", "rescale", "Scale", "scale", default=True):
-            sd = float(np.nanstd(scaled, ddof=0))
-            if sd == 0.0 or not np.isfinite(sd):
-                raise ValueError(f"Cannot scale constant event column {source!r}")
-            scaled = scaled / sd
-        out[output] = scaled
+        name = str(transform.get("Name", "")).lower()
+        if name == "scale":
+            _apply_scale_transform(out, transform)
+        elif name == "threshold":
+            _apply_threshold_transform(out, transform)
+        elif name in {"or", "or_"}:
+            _apply_or_transform(out, transform)
     return out
 
 
@@ -418,7 +484,7 @@ def translate_run_node(
     Supported v1 surface:
     - one run-level node;
     - Factor + Convolve over one categorical event column;
-    - Scale + Product for event-table parametric modulators;
+    - Scale, Threshold, Or, and Product for event-table parametric modulators;
     - Model.X strings that are either event terms or confound columns;
     - integer ``1`` for a global intercept;
     - t and F contrasts over event conditions.
@@ -433,7 +499,7 @@ def translate_run_node(
 
     node = _run_node(stats_model, level=level)
     convolved = _convolved_model(node)
-    transformed_events = _apply_scale_transforms(node, events)
+    transformed_events = _apply_event_table_transforms(node, events)
     intercept, model_terms = _baseline_terms(node)
     event_levels = set(transformed_events[convolved.factor].astype(str))
     nuisance_cols = [

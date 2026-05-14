@@ -90,6 +90,49 @@ def _modulated_stats_model() -> dict:
     return model
 
 
+def _threshold_or_stats_model() -> dict:
+    model = _stats_model()
+    node = model["Nodes"][0]
+    node["Transformations"] = [
+        {"Name": "Factor", "Input": ["trial_type"]},
+        {"Name": "Scale", "Input": ["rt"], "Output": "rt_z"},
+        {
+            "Name": "Threshold",
+            "Input": ["rt_z"],
+            "Output": "fast_rt",
+            "Threshold": 0.0,
+            "Binarize": True,
+            "Above": False,
+        },
+        {
+            "Name": "Or",
+            "Input": ["fast_rt", "accuracy_error"],
+            "Output": "salient_trial",
+        },
+        {
+            "Name": "Product",
+            "Input": ["trial_type.word", "trial_type.pseudoword", "salient_trial"],
+            "Output": "trial_type_salient_trial",
+        },
+        {
+            "Name": "Convolve",
+            "Input": ["trial_type.word", "trial_type.pseudoword"],
+            "Model": "spm",
+        },
+    ]
+    node["Model"] = {
+        "X": [
+            "trial_type.word",
+            "trial_type.pseudoword",
+            "salient_trial",
+            "framewise_displacement",
+            "trans_x",
+            1,
+        ]
+    }
+    return model
+
+
 def test_translate_run_node_builds_design_and_contrasts():
     n_scans = 40
     sampling_frame = fm.SamplingFrame(blocklens=[n_scans], tr=2.0)
@@ -231,6 +274,60 @@ def test_translate_run_node_realises_scale_product_parametric_modulator():
     assert len(translated.event_model.column_names) == 4
     assert any("rt_z" in name for name in translated.event_model.column_names)
     assert "word_gt_pseudoword" in translated.contrast_vectors
+
+
+def test_translate_run_node_realises_threshold_or_parametric_modulator():
+    n_scans = 40
+    sampling_frame = fm.SamplingFrame(blocklens=[n_scans], tr=2.0)
+    events = pd.DataFrame(
+        {
+            "run": 1,
+            "onset": [4.0, 12.0, 20.0, 28.0],
+            "duration": [1.0, 1.0, 1.0, 1.0],
+            "trial_type": ["word", "pseudoword", "word", "pseudoword"],
+            "rt": [0.70, 1.10, 0.85, 1.25],
+            "accuracy_error": [0, 1, 0, 0],
+        }
+    )
+    confounds = pd.DataFrame(
+        {
+            "framewise_displacement": np.linspace(0.0, 1.0, n_scans),
+            "trans_x": np.linspace(1.0, 0.0, n_scans),
+        }
+    )
+
+    translated = translate_run_node(
+        _threshold_or_stats_model(),
+        events=events,
+        sampling_frame=sampling_frame,
+        confounds=confounds,
+    )
+
+    hrf_term = translated.model_spec.events[0]
+    assert isinstance(hrf_term, HrfTerm)
+    assert hrf_term.modulators == ("salient_trial",)
+    assert "fast_rt" not in events
+    assert "salient_trial" not in events
+    expected_rt_z = (
+        events["rt"].to_numpy(dtype=np.float64)
+        - float(np.nanmean(events["rt"].to_numpy(dtype=np.float64)))
+    ) / float(np.nanstd(events["rt"].to_numpy(dtype=np.float64), ddof=0))
+    expected_fast_rt = (expected_rt_z <= 0.0).astype(float)
+    expected_salient = np.logical_or(
+        expected_fast_rt.astype(bool),
+        events["accuracy_error"].astype(bool).to_numpy(),
+    ).astype(int)
+
+    np.testing.assert_allclose(translated.event_table["rt_z"], expected_rt_z)
+    np.testing.assert_array_equal(translated.event_table["fast_rt"], expected_fast_rt)
+    np.testing.assert_array_equal(
+        translated.event_table["salient_trial"],
+        expected_salient,
+    )
+    assert any(
+        "salient_trial" in name
+        for name in translated.event_model.column_names
+    )
 
 
 def test_modulated_bids_translation_fit_uses_transformed_event_table():
