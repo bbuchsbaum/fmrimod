@@ -7,7 +7,7 @@ for linear contrasts of regression coefficients.
 from __future__ import annotations
 
 import warnings
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -21,13 +21,35 @@ from fmrimod.glm.spatial import SpatialContext
 
 @dataclass(frozen=True)
 class ContrastIntent:
-    """Structured record of how a contrast was requested."""
+    """Structured record of how a contrast was requested.
+
+    The four trailing fields (``basis_label``, ``weights``, ``design_id``,
+    ``provenance_id``) carry the payload-equality invariant agreed on
+    ``beat-nilearn-10/post-01KRK7S86HMRS3JNMPX8QQR7CQ``: typed first-level
+    intent survives to group inference when these fields plus the legacy
+    ``{kind, term, levels}`` triple are byte-equal across the seam. Python
+    object identity is intentionally *not* the invariant because it does
+    not survive serialization or process boundaries. Producers populate
+    each field as the upstream identity becomes available; the release
+    receipt gate (filed separately) refuses ``None`` for flagship rows.
+
+    ``weights`` is normalized to a tuple-of-tuples shape so t- and
+    F-contrasts share the same payload schema (a t-contrast is a 1-row
+    F-matrix); ``provenance_id`` is a content-addressed hash of the
+    producing fit's :class:`FitProvenance`; ``design_id`` is a content
+    hash of the design matrix the contrast was resolved against;
+    ``basis_label`` is the HRF basis identifier the design was built on.
+    """
 
     kind: str
     name: str | None = None
     term: str | None = None
     levels: tuple[str, ...] = ()
     rows: int | None = None
+    basis_label: str | None = None
+    weights: tuple[tuple[float, ...], ...] | None = None
+    design_id: str | None = None
+    provenance_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-ready representation of the contrast intent."""
@@ -37,7 +59,61 @@ class ContrastIntent:
             "term": self.term,
             "levels": list(self.levels),
             "rows": self.rows,
+            "basis_label": self.basis_label,
+            "weights": (
+                None if self.weights is None else [list(row) for row in self.weights]
+            ),
+            "design_id": self.design_id,
+            "provenance_id": self.provenance_id,
         }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, object]) -> "ContrastIntent":
+        """Reconstruct a :class:`ContrastIntent` from a :meth:`to_dict`
+        payload. Missing trailing fields default to ``None`` / ``()`` so
+        legacy receipts that pre-date the payload extension round-trip
+        without modification.
+        """
+
+        raw_weights = payload.get("weights")
+        weights: tuple[tuple[float, ...], ...] | None
+        if raw_weights is None:
+            weights = None
+        elif isinstance(raw_weights, Sequence) and not isinstance(
+            raw_weights, (str, bytes, bytearray)
+        ):
+            weight_rows: list[tuple[float, ...]] = []
+            for row in raw_weights:
+                if not isinstance(row, Sequence) or isinstance(
+                    row, (str, bytes, bytearray)
+                ):
+                    raise TypeError("ContrastIntent weights must be a nested sequence")
+                weight_rows.append(tuple(float(value) for value in row))
+            weights = tuple(weight_rows)
+        else:
+            raise TypeError("ContrastIntent weights must be a nested sequence")
+        levels_raw = payload.get("levels", ())
+        if not isinstance(levels_raw, Sequence) or isinstance(
+            levels_raw, (str, bytes, bytearray)
+        ):
+            raise TypeError("ContrastIntent levels must be a sequence")
+        name_raw = payload.get("name")
+        term_raw = payload.get("term")
+        rows_raw = payload.get("rows")
+        basis_raw = payload.get("basis_label")
+        design_raw = payload.get("design_id")
+        provenance_raw = payload.get("provenance_id")
+        return cls(
+            kind=str(payload["kind"]),
+            name=None if name_raw is None else str(name_raw),
+            term=None if term_raw is None else str(term_raw),
+            levels=tuple(str(level) for level in levels_raw),
+            rows=None if rows_raw is None else int(rows_raw),
+            basis_label=None if basis_raw is None else str(basis_raw),
+            weights=weights,
+            design_id=None if design_raw is None else str(design_raw),
+            provenance_id=None if provenance_raw is None else str(provenance_raw),
+        )
 
 
 @dataclass(frozen=True)
