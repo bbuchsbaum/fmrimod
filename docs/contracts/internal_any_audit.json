@@ -13,7 +13,7 @@
       },
       "internal": {
         "total": 2085,
-        "with_any_annotation": 198,
+        "with_any_annotation": 197,
         "with_var_kwargs": 129
       },
       "public": {
@@ -25,8 +25,8 @@
     "files_scanned": 230,
     "parse_failures": 0,
     "total_functions": 2325,
-    "with_any_annotation": 205,
-    "with_var_args_any": 1,
+    "with_any_annotation": 204,
+    "with_var_args_any": 0,
     "with_var_kwargs": 162
   },
   "rows": [
@@ -6949,7 +6949,7 @@
     {
       "coercion_exemption": null,
       "endlineno": 45,
-      "has_any_annotation": true,
+      "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
@@ -6976,7 +6976,7 @@
       "coercion_exemption": null,
       "endlineno": 68,
       "has_any_annotation": true,
-      "has_var_args_any": true,
+      "has_var_args_any": false,
       "has_var_kwargs": true,
       "is_async": false,
       "lineno": 59,
