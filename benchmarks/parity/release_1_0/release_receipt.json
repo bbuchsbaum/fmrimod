@@ -140,6 +140,14 @@
         "row_uses_private_kernel": false
       },
       "public_seam": true,
+      "realized_design_evidence": {
+        "comparator_realized_design_sources": [],
+        "fmrimod_path_realized_design_sources": [],
+        "realized_design_source": "fmrimod",
+        "release_family_class": "native_flagship",
+        "workflow_realized_design_sources": []
+      },
+      "realized_design_source": "fmrimod",
       "receipt": {
         "checks": [
           "report_path",
@@ -155,6 +163,7 @@
         "status": "regenerable"
       },
       "reference_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::nilearn_pipeline",
+      "release_family_class": "native_flagship",
       "report_path": "benchmarks/parity/tier_a_spm_auditory/reports/parity_report.json",
       "required_public_path": "fmri_dataset -> fmri_lm -> contrast",
       "timings": {
@@ -198,6 +207,20 @@
         "row_uses_private_kernel": false
       },
       "public_seam": true,
+      "realized_design_evidence": {
+        "comparator_realized_design_sources": [
+          "nilearn"
+        ],
+        "fmrimod_path_realized_design_sources": [
+          "nilearn"
+        ],
+        "realized_design_source": "nilearn",
+        "release_family_class": "interop_bridge",
+        "workflow_realized_design_sources": [
+          "nilearn"
+        ]
+      },
+      "realized_design_source": "nilearn",
       "receipt": {
         "checks": [
           "report_path",
@@ -212,6 +235,7 @@
         "status": "regenerable"
       },
       "reference_path": "benchmarks/parity/tier_a_fiac/workflow.py::nilearn_pipeline",
+      "release_family_class": "interop_bridge",
       "report_path": "benchmarks/parity/tier_a_fiac/reports/parity_report.json",
       "required_public_path": "fmri_dataset -> RealizedDesign(source='nilearn') -> fmri_lm",
       "timings": {
@@ -247,6 +271,14 @@
         "row_uses_private_kernel": false
       },
       "public_seam": true,
+      "realized_design_evidence": {
+        "comparator_realized_design_sources": [],
+        "fmrimod_path_realized_design_sources": [],
+        "realized_design_source": "bids",
+        "release_family_class": "interop_bridge",
+        "workflow_realized_design_sources": []
+      },
+      "realized_design_source": "bids",
       "receipt": {
         "checks": [
           "report_path",
@@ -265,6 +297,7 @@
         "status": "regenerable"
       },
       "reference_path": "benchmarks/parity/tier_b_fitlins_bids/workflow.py::manual_pipeline: typed Spec -> fmri_lm",
+      "release_family_class": "interop_bridge",
       "report_path": "benchmarks/parity/tier_b_fitlins_bids/reports/parity_report.json",
       "required_public_path": "fmri_dataset -> fmri_lm -> typed BIDS contrasts",
       "timings": {
@@ -305,6 +338,14 @@
         "row_uses_private_kernel": false
       },
       "public_seam": true,
+      "realized_design_evidence": {
+        "comparator_realized_design_sources": [],
+        "fmrimod_path_realized_design_sources": [],
+        "realized_design_source": "fmrimod",
+        "release_family_class": "native_flagship",
+        "workflow_realized_design_sources": []
+      },
+      "realized_design_source": "fmrimod",
       "receipt": {
         "checks": [
           "report_path",
@@ -321,6 +362,7 @@
         "status": "regenerable"
       },
       "reference_path": "not_applicable: semantic-survival artifact built on the strict tier_a_f_confound_drift numerical oracle",
+      "release_family_class": "native_flagship",
       "report_path": "benchmarks/parity/tier_group_semantic_survival/reports/semantic_survival_report.json",
       "required_public_path": "fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
       "timings": {
@@ -367,6 +409,14 @@
         "row_uses_private_kernel": false
       },
       "public_seam": true,
+      "realized_design_evidence": {
+        "comparator_realized_design_sources": [],
+        "fmrimod_path_realized_design_sources": [],
+        "realized_design_source": "fmrimod",
+        "release_family_class": "native_flagship",
+        "workflow_realized_design_sources": []
+      },
+      "realized_design_source": "fmrimod",
       "receipt": {
         "checks": [
           "report_path",
@@ -381,6 +431,7 @@
         "status": "regenerable"
       },
       "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_lss_public_seam_showcase ground-truth recovery oracle and tier_d_lss_trialwise_oracle matrix exactness canary",
+      "release_family_class": "native_flagship",
       "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json",
       "required_public_path": "fmri_dataset -> estimate_single_trial_from_dataset -> typed SingleTrialResult",
       "timings": {
@@ -423,6 +474,14 @@
         "row_uses_private_kernel": false
       },
       "public_seam": true,
+      "realized_design_evidence": {
+        "comparator_realized_design_sources": [],
+        "fmrimod_path_realized_design_sources": [],
+        "realized_design_source": "fmrimod",
+        "release_family_class": "native_flagship",
+        "workflow_realized_design_sources": []
+      },
+      "realized_design_source": "fmrimod",
       "receipt": {
         "checks": [
           "report_path",
@@ -437,6 +496,7 @@
         "status": "regenerable"
       },
       "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::_lss_reference and exact GLM helpers plus tier_group_semantic_survival oracle",
+      "release_family_class": "native_flagship",
       "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json",
       "required_public_path": "fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
       "timings": {
@@ -459,6 +519,53 @@
         "fmrimod.group.GroupDataset"
       ],
       "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py"
+    }
+  ],
+  "native_interop_coverage": [
+    {
+      "benchmark_id": "tier_a_spm_auditory",
+      "blockers": [],
+      "family": "SPM auditory / first-level modeling",
+      "realized_design_source": "fmrimod",
+      "release_family_class": "native_flagship"
+    },
+    {
+      "benchmark_id": "tier_a_fiac",
+      "blockers": [
+        "tier_a_fiac: timings are not recorded",
+        "tier_a_fiac: hardware_tag is missing"
+      ],
+      "family": "FIAC/localizer fixed effects",
+      "realized_design_source": "nilearn",
+      "release_family_class": "interop_bridge"
+    },
+    {
+      "benchmark_id": "tier_b_fitlins_bids",
+      "blockers": [],
+      "family": "FitLins/BIDS Stats Model translation",
+      "realized_design_source": "bids",
+      "release_family_class": "interop_bridge"
+    },
+    {
+      "benchmark_id": "tier_group_semantic_survival",
+      "blockers": [],
+      "family": "second-level/group inference",
+      "realized_design_source": "fmrimod",
+      "release_family_class": "native_flagship"
+    },
+    {
+      "benchmark_id": "tier_d_lss_trialwise",
+      "blockers": [],
+      "family": "single-trial/LSS or trialwise estimation",
+      "realized_design_source": "fmrimod",
+      "release_family_class": "native_flagship"
+    },
+    {
+      "benchmark_id": "tier_d_showcase",
+      "blockers": [],
+      "family": "typed proof scorecard / underdog showcase",
+      "realized_design_source": "fmrimod",
+      "release_family_class": "native_flagship"
     }
   ],
   "owner_bead": "bd-01KRK7FPFCAEXR7P2RTHHJ51C3",

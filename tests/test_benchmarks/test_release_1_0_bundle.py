@@ -34,6 +34,7 @@ def test_release_manifest_maps_each_flagship_family_to_a_real_artifact() -> None
         assert bundle.REQUIRED_MAPPING_KEYS <= set(row)
         assert row["benchmark_id"] in artifact_ids
         assert row["required_public_path"]
+        assert row["release_family_class"] in bundle.RELEASE_FAMILY_CLASSES
         assert row["current_status"]
         assert row["owner_bead"].startswith("bd-")
 
@@ -115,6 +116,63 @@ def test_release_receipt_tier_d_lss_is_public_trialwise_seam() -> None:
         in lss["fmrimod_path"]
     )
     assert "fmrimod.single.SingleTrialResult" in lss["typed_objects"]
+
+
+def test_release_receipt_distinguishes_native_and_interop_families() -> None:
+    receipt = bundle.build_receipt()
+
+    coverage = {
+        row["benchmark_id"]: row for row in receipt["native_interop_coverage"]
+    }
+    assert coverage["tier_a_spm_auditory"]["release_family_class"] == "native_flagship"
+    assert coverage["tier_a_spm_auditory"]["realized_design_source"] == "fmrimod"
+    assert coverage["tier_a_fiac"]["release_family_class"] == "interop_bridge"
+    assert coverage["tier_a_fiac"]["realized_design_source"] == "nilearn"
+    assert coverage["tier_b_fitlins_bids"]["release_family_class"] == "interop_bridge"
+    assert coverage["tier_b_fitlins_bids"]["realized_design_source"] == "bids"
+    assert coverage["tier_d_lss_trialwise"]["release_family_class"] == "native_flagship"
+    assert coverage["tier_d_lss_trialwise"]["realized_design_source"] == "fmrimod"
+
+    rows = {row["benchmark_id"]: row for row in receipt["flagship_families"]}
+    fiac = rows["tier_a_fiac"]
+    assert fiac["realized_design_evidence"][
+        "fmrimod_path_realized_design_sources"
+    ] == ["nilearn"]
+    assert not any(
+        "requires release_family_class='interop_bridge'" in blocker
+        for blocker in fiac["blockers"]
+    )
+
+
+def test_release_receipt_blocks_native_label_on_comparator_realized_design() -> None:
+    artifact = {
+        "benchmark_id": "tier_a_fiac",
+        "public_seam": True,
+        "evidence_level": "workflow_parity",
+        "workflow_path": "benchmarks/parity/tier_a_fiac/workflow.py",
+        "fmrimod_path": "fmri_dataset -> RealizedDesign(source='nilearn') -> fmri_lm",
+        "realized_design_source": "fmrimod",
+        "timings": {"status": "recorded", "seconds": 1.0},
+        "hardware_tag": "Darwin-arm64-arm",
+        "receipt": {"status": "regenerable"},
+    }
+    mapping = {
+        "benchmark_id": "tier_a_fiac",
+        "required_public_path": (
+            "fmri_dataset -> RealizedDesign(source='nilearn') -> fmri_lm"
+        ),
+        "release_family_class": "native_flagship",
+    }
+    blockers = bundle._mapping_blockers(
+        mapping,
+        artifact,
+        private_kernel_evidence={"row_uses_private_kernel": False},
+        realized_design_evidence=bundle._realized_design_evidence(mapping, artifact),
+    )
+
+    assert any(
+        "conflicts with comparator-authored RealizedDesign" in b for b in blockers
+    )
 
 
 def test_release_receipt_reports_private_kernel_evidence_by_row() -> None:

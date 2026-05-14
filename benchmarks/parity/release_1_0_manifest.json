@@ -12,6 +12,7 @@
       "family": "SPM auditory / first-level modeling",
       "benchmark_id": "tier_a_spm_auditory",
       "required_public_path": "fmri_dataset -> fmri_lm -> contrast",
+      "release_family_class": "native_flagship",
       "current_status": "ready",
       "owner_bead": "bd-01KRFDHPVSJGCVZ967Y8TVCKJA"
     },
@@ -19,6 +20,7 @@
       "family": "FIAC/localizer fixed effects",
       "benchmark_id": "tier_a_fiac",
       "required_public_path": "fmri_dataset -> RealizedDesign(source='nilearn') -> fmri_lm",
+      "release_family_class": "interop_bridge",
       "current_status": "ready_missing_timing_hardware",
       "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9"
     },
@@ -26,6 +28,7 @@
       "family": "FitLins/BIDS Stats Model translation",
       "benchmark_id": "tier_b_fitlins_bids",
       "required_public_path": "fmri_dataset -> fmri_lm -> typed BIDS contrasts",
+      "release_family_class": "interop_bridge",
       "current_status": "ready",
       "owner_bead": "bd-01KRFKZ0J0Z0GJ9VK35ABCAGJW"
     },
@@ -33,6 +36,7 @@
       "family": "second-level/group inference",
       "benchmark_id": "tier_group_semantic_survival",
       "required_public_path": "fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
+      "release_family_class": "native_flagship",
       "current_status": "ready",
       "owner_bead": "bd-01KRHTJ9WFSSBZSDGAN4V7PHGS"
     },
@@ -40,6 +44,7 @@
       "family": "single-trial/LSS or trialwise estimation",
       "benchmark_id": "tier_d_lss_trialwise",
       "required_public_path": "fmri_dataset -> estimate_single_trial_from_dataset -> typed SingleTrialResult",
+      "release_family_class": "native_flagship",
       "current_status": "ready",
       "owner_bead": "bd-01KRKAEDBE9BV5HZ5SY0A3ZAA5"
     },
@@ -47,6 +52,7 @@
       "family": "typed proof scorecard / underdog showcase",
       "benchmark_id": "tier_d_showcase",
       "required_public_path": "fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
+      "release_family_class": "native_flagship",
       "current_status": "ready",
       "owner_bead": "bd-01KRJ0PM9ERPJH7GX0PYYVY2NK"
     }

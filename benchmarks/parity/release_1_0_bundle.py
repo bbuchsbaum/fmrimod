@@ -51,11 +51,18 @@ PRIVATE_KERNEL_NAMES = (
     "fast_preproject",
 )
 
+REALIZED_DESIGN_SOURCES = frozenset(
+    {"fmrimod", "nilearn", "bids", "fitlins", "user", "none"}
+)
+
+RELEASE_FAMILY_CLASSES = frozenset({"native_flagship", "interop_bridge"})
+
 REQUIRED_MAPPING_KEYS = frozenset(
     {
         "family",
         "benchmark_id",
         "required_public_path",
+        "release_family_class",
         "current_status",
         "owner_bead",
     }
@@ -213,13 +220,96 @@ def _private_kernel_evidence(artifact: dict[str, object]) -> dict[str, object]:
     }
 
 
+def _workflow_realized_design_sources(path: Path | None) -> list[str]:
+    if path is None or not path.exists():
+        return []
+    tree = ast.parse(path.read_text())
+    sources: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        for keyword in node.keywords:
+            if keyword.arg != "source":
+                continue
+            try:
+                value = ast.literal_eval(keyword.value)
+            except (ValueError, TypeError):
+                continue
+            if isinstance(value, str):
+                sources.add(value)
+    return sorted(sources)
+
+
+def _realized_design_evidence(
+    mapping: dict[str, object],
+    artifact: dict[str, object],
+) -> dict[str, object]:
+    source = artifact.get("realized_design_source")
+    family_class = mapping.get("release_family_class")
+    workflow_sources = _workflow_realized_design_sources(
+        _artifact_workflow_path(artifact)
+    )
+    fmrimod_path = artifact.get("fmrimod_path")
+    path_sources = sorted(
+        set(re.findall(r"RealizedDesign\(source=['\"]([^'\"]+)['\"]", fmrimod_path))
+        if isinstance(fmrimod_path, str)
+        else set()
+    )
+    comparator_sources = sorted(
+        {
+            item
+            for item in (*workflow_sources, *path_sources)
+            if item in {"nilearn", "bids", "fitlins"}
+        }
+    )
+    return {
+        "release_family_class": family_class,
+        "realized_design_source": source,
+        "workflow_realized_design_sources": workflow_sources,
+        "fmrimod_path_realized_design_sources": path_sources,
+        "comparator_realized_design_sources": comparator_sources,
+    }
+
+
 def _mapping_blockers(
     mapping: dict[str, object],
     artifact: dict[str, object],
     private_kernel_evidence: dict[str, object],
+    realized_design_evidence: dict[str, object],
 ) -> list[str]:
     blockers: list[str] = []
     benchmark_id = cast(str, mapping["benchmark_id"])
+    family_class = mapping.get("release_family_class")
+    if family_class not in RELEASE_FAMILY_CLASSES:
+        blockers.append(
+            f"{benchmark_id}: release_family_class must be one of "
+            f"{sorted(RELEASE_FAMILY_CLASSES)}"
+        )
+    realized_source = artifact.get("realized_design_source")
+    if realized_source not in REALIZED_DESIGN_SOURCES:
+        blockers.append(
+            f"{benchmark_id}: realized_design_source must be one of "
+            f"{sorted(REALIZED_DESIGN_SOURCES)}"
+        )
+    elif (
+        artifact.get("public_seam") is True
+        and artifact.get("evidence_level") != "numerical_canary"
+        and realized_source != "fmrimod"
+        and family_class != "interop_bridge"
+    ):
+        blockers.append(
+            f"{benchmark_id}: realized_design_source={realized_source!r} "
+            "requires release_family_class='interop_bridge'"
+        )
+    comparator_sources = cast(
+        list[str],
+        realized_design_evidence["comparator_realized_design_sources"],
+    )
+    if realized_source == "fmrimod" and comparator_sources:
+        blockers.append(
+            f"{benchmark_id}: realized_design_source='fmrimod' conflicts with "
+            f"comparator-authored RealizedDesign sources {comparator_sources}"
+        )
     if artifact.get("public_seam") is not True:
         blockers.append(f"{benchmark_id}: public_seam is not true")
     if artifact.get("evidence_level") == "numerical_canary":
@@ -293,8 +383,14 @@ def build_receipt() -> dict[str, object]:
             continue
 
         private_kernel_evidence = _private_kernel_evidence(artifact)
+        realized_design_evidence = _realized_design_evidence(mapping, artifact)
         row_blockers.extend(
-            _mapping_blockers(mapping, artifact, private_kernel_evidence)
+            _mapping_blockers(
+                mapping,
+                artifact,
+                private_kernel_evidence,
+                realized_design_evidence,
+            )
         )
         caveats: list[dict[str, object]] = []
         for caveat_id in cast(list[str], artifact.get("caveats", [])):
@@ -326,6 +422,9 @@ def build_receipt() -> dict[str, object]:
                 "reference_path": artifact.get("reference_path"),
                 "fmrimod_path": artifact.get("fmrimod_path"),
                 "typed_objects": artifact.get("typed_objects", []),
+                "release_family_class": mapping.get("release_family_class"),
+                "realized_design_source": artifact.get("realized_design_source"),
+                "realized_design_evidence": realized_design_evidence,
                 "caveats": caveats,
                 "timings": artifact.get("timings"),
                 "hardware_tag": artifact.get("hardware_tag"),
@@ -363,6 +462,16 @@ def build_receipt() -> dict[str, object]:
         "owner_bead": release_manifest["owner_bead"],
         "receipt_command": release_manifest["receipt_command"],
         "flagship_families": rows,
+        "native_interop_coverage": [
+            {
+                "family": row["family"],
+                "benchmark_id": row["benchmark_id"],
+                "release_family_class": row.get("release_family_class"),
+                "realized_design_source": row.get("realized_design_source"),
+                "blockers": row["blockers"],
+            }
+            for row in rows
+        ],
         "api_spine": api_spine,
         "evidence_gates": gate_rows,
         "blockers": blockers,
