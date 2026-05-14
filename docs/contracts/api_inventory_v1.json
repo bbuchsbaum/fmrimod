@@ -2238,7 +2238,7 @@
       "name": "latent_dataset",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.latent",
-      "runtime_signature": "(scores: 'ArrayLike', loadings: 'Optional[ArrayLike]' = None, tr: 'float' = 1.0, run_length: 'Optional[Union[int, Sequence[int]]]' = None, *, event_table: 'Optional[pd.DataFrame]' = None) -> 'LatentDataset'",
+      "runtime_signature": "(scores: 'ArrayLike | str | Path | Sequence[str | Path] | None' = None, loadings: 'ArrayLike | None' = None, tr: 'float' = 1.0, run_length: 'int | Sequence[int] | None' = None, *, source: 'str | Path | Sequence[str | Path] | None' = None, TR: 'float | None' = None, base_path: 'str | Path' = '.', event_table: 'pd.DataFrame | None' = None, preload: 'bool' = False, offset: 'ArrayLike | None' = None, censor: 'NDArray[np.bool_] | list[NDArray[np.bool_]] | None' = None) -> 'LatentDataset'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
