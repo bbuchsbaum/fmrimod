@@ -23,7 +23,7 @@ __all__ = ["__version__", "SamplingFrame", *_dataset_all]
 class _FacadeModule(ModuleType):
     """Keep root function re-exports stable after submodule imports."""
 
-    def __getattribute__(self, name: str):
+    def __getattribute__(self, name: str) -> object:
         if name == "data_chunks":
             return _canonical_data_chunks
         if name == "fmri_series":
