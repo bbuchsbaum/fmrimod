@@ -63,6 +63,11 @@ class _MatrixModel:
         return pd.DataFrame(self._X, columns=self._column_names())
 
     def design_columns(self) -> DesignColumns:
+        source_columns = getattr(self._source, "design_columns", None)
+        if callable(source_columns):
+            columns = source_columns()
+            if isinstance(columns, DesignColumns):
+                return columns
         return DesignColumns(
             tuple(
                 DesignColumn(
@@ -138,8 +143,9 @@ def fit_glm_from_matrix(
         raise ValueError("X and Y must be 2-D matrices")
     if X_arr.shape[0] != Y_arr.shape[0]:
         raise ValueError("X and Y must have the same number of rows")
+    source = model if model is not None else X
     fit = fmri_lm(
-        _MatrixModel(X_arr, Y_arr, source=model),
+        _MatrixModel(X_arr, Y_arr, source=source),
         cfg or FmriLmConfig(),
         engine=engine,
     )

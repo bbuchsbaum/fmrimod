@@ -574,6 +574,7 @@ class FmriLm:
         from fmrimod.contrast.contrast_spec import ContrastSpec
         from fmrimod.contrast.contrast_weights import contrast_weights
         from fmrimod.contrast.omnibus import OmnibusContrast
+        from fmrimod.contrast.semantic import SemanticContrast
 
         if isinstance(spec, OmnibusContrast):
             weights = spec.resolve(self.design_columns())
@@ -587,6 +588,14 @@ class FmriLm:
                     levels=spec.levels,
                     rows=int(weights.shape[0]),
                 ),
+            )
+
+        if isinstance(spec, SemanticContrast):
+            weights = spec.resolve(self.design_columns())
+            return self._compute_contrast(
+                weights,
+                name=name or spec.display_name,
+                intent=spec.intent(rows=1),
             )
 
         if isinstance(spec, ContrastSpec):
@@ -660,7 +669,7 @@ class FmriLm:
         self,
         weights: NDArray[np.float64],
         name: str,
-        intent: ContrastIntent | None = None,
+        intent: ContrastIntent | dict[str, Any] | None = None,
     ) -> ContrastResult:
         """Dispatch to t or F contrast based on weight dimensions."""
         weights = np.atleast_1d(weights)

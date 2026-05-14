@@ -477,11 +477,11 @@
     {
       "benchmark_id": "tier_e_semantic_contrast_alignment",
       "evidence_level": "workflow_parity",
-      "public_seam": true,
+      "public_seam": false,
       "workflow_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/workflow.py",
       "report_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/reports/semantic_contrast_alignment_report.json",
       "reference_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/workflow.py::nilearn_probe",
-      "fmrimod_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/workflow.py::fmrimod_probe: fit_glm_from_matrix(named DataFrame) -> column_contrast -> ContrastResult",
+      "fmrimod_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/workflow.py::fmrimod_probe + fmrimod_authored_probe: fit_glm_from_matrix(named DataFrame / source DesignColumns) -> column_contrast and condition('gain') - condition('loss') -> ContrastResult",
       "caveats": [],
       "timings": {
         "status": "not_recorded",
@@ -490,9 +490,15 @@
       "typed_objects": [
         "fmrimod.glm.FmriLm",
         "fmrimod.contrast.ColumnContrastSpec",
+        "fmrimod.contrast.SemanticContrast",
         "fmrimod.glm.ContrastResult"
       ],
-      "fmrimod_expresses_better": "The gain-minus-loss hypothesis is resolved by named typed contrast intent against each fitted design's columns; this is now an honest matrix-first partial ergonomic receipt, not a flagship fmri_dataset workflow. The Nilearn reference needs a freshly rebuilt numeric vector and a reused positional vector silently targets the wrong coefficients.",
+      "fmrimod_expresses_better": "The gain-minus-loss hypothesis is resolved by named column intent and by an authored condition contrast against declared DesignColumns; this is still an honest matrix-first partial receipt, not a flagship fmri_dataset workflow. The Nilearn reference needs a freshly rebuilt numeric vector and a reused positional vector silently targets the wrong coefficients.",
+      "replacement_target": {
+        "description": "Promote the semantic contrast-alignment stress to the canonical authored-model path once fmrimod carries the condition contrast through fmri_dataset -> fmri_lm instead of a matrix-first source DesignColumns fixture.",
+        "owner_bead": "bd-01KRGG0B8S79Q91QY83WV6277B",
+        "blocking_api_gap": "The term-level contrast prototype condition('gain') - condition('loss') resolves against declared DesignColumns on fit_glm_from_matrix; the ergonomic public target is carrying that authored contrast through fmri_dataset -> fmri_lm."
+      },
       "receipt": {
         "status": "regenerable",
         "command": [

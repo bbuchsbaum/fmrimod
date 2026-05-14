@@ -27,6 +27,7 @@ from .factorial import (
 from .fcontrast import Fcontrasts, plot_Fcontrasts
 from .omnibus import OmnibusContrast
 from .plot_contrasts import plot_contrasts
+from .semantic import ConditionRef, SemanticContrast, condition
 
 __all__ = [
     # Core contrast constructors
@@ -51,6 +52,9 @@ __all__ = [
     'plot_Fcontrasts',
     # Typed contrast intent
     'OmnibusContrast',
+    'ConditionRef',
+    'SemanticContrast',
+    'condition',
     'DesignProvenanceError',
     # Visualization
     'plot_contrasts',

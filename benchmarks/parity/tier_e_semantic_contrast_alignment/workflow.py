@@ -33,7 +33,8 @@ from nilearn.glm.first_level import run_glm
 from numpy.typing import NDArray
 
 import fmrimod as fm
-from fmrimod.contrast import column_contrast
+from fmrimod.contrast import column_contrast, condition
+from fmrimod.design import DesignColumn, DesignColumns
 from fmrimod.model.config import FmriLmConfig
 
 Array = NDArray[np.float64]
@@ -91,6 +92,7 @@ class CaseReport:
     fmrimod: EngineResult
     nilearn_aligned: EngineResult
     nilearn_positional_reuse: EngineResult
+    fmrimod_authored: EngineResult
     comparisons: dict[str, float | None]
     verdict: str
 
@@ -106,6 +108,22 @@ class CaseOutput:
     nilearn_aligned_stat: Array
     nilearn_positional_effect: Array
     nilearn_positional_stat: Array
+    fmrimod_authored_effect: Array
+    fmrimod_authored_stat: Array
+
+
+class _SemanticMatrixSource:
+    """Matrix source that carries declared design-column semantics."""
+
+    def __init__(self, design: Array, column_order: tuple[str, ...]) -> None:
+        self._design = pd.DataFrame(design, columns=column_order)
+        self._columns = _declared_design_columns(column_order)
+
+    def design_matrix(self) -> pd.DataFrame:
+        return self._design
+
+    def design_columns(self) -> DesignColumns:
+        return self._columns
 
 
 def _json_safe(value: Any) -> Any:
@@ -165,6 +183,36 @@ def _contrast_vector(order: tuple[str, ...]) -> Array:
 
 def _touched_columns(order: tuple[str, ...], weights: Array) -> tuple[str, ...]:
     return tuple(name for name, weight in zip(order, weights) if abs(weight) > 0.0)
+
+
+def _declared_design_columns(column_order: tuple[str, ...]) -> DesignColumns:
+    return DesignColumns(
+        tuple(
+            DesignColumn(
+                name=name,
+                index=index,
+                role="task" if name in {"gain", "loss"} else "nuisance",
+                model_source="matrix-fixture",
+                term="trial_type" if name in {"gain", "loss"} else "nuisance",
+                term_tag="trial_type" if name in {"gain", "loss"} else "nuisance",
+                condition=f"trial_type.{name}" if name in {"gain", "loss"} else name,
+                level=name if name in {"gain", "loss"} else None,
+                basis_ix=1 if name in {"gain", "loss"} else None,
+                basis_name="identity" if name in {"gain", "loss"} else None,
+                basis_total=1 if name in {"gain", "loss"} else None,
+                provenance={
+                    "role": "declared",
+                    "term": "declared",
+                    "condition": "declared",
+                    "level": "declared" if name in {"gain", "loss"} else "missing",
+                    "basis_ix": "declared" if name in {"gain", "loss"} else "missing",
+                    "basis_name": "derived" if name in {"gain", "loss"} else "missing",
+                    "basis_total": "derived" if name in {"gain", "loss"} else "missing",
+                },
+            )
+            for index, name in enumerate(column_order)
+        )
+    )
 
 
 def _fraction(mask: Array) -> float:
@@ -307,6 +355,54 @@ def fmrimod_probe(
     return engine, effect, stat
 
 
+def fmrimod_authored_probe(
+    design: Array,
+    data: Array,
+    column_order: tuple[str, ...],
+) -> tuple[EngineResult, Array, Array]:
+    """Fit fmrimod and resolve the contrast through authored condition intent."""
+
+    weights = _contrast_vector(column_order)
+    try:
+        with warnings.catch_warnings(record=True) as captured:
+            warnings.simplefilter("always")
+            source = _SemanticMatrixSource(design, column_order)
+            fit = fm.fit_glm_from_matrix(
+                design,
+                data,
+                model=source,
+                cfg=FmriLmConfig(),
+            )
+            result = fit.contrast(
+                condition("gain", term="trial_type")
+                - condition("loss", term="trial_type")
+            )
+    except Exception as exc:  # pragma: no cover - defensive report path
+        empty = np.array([], dtype=np.float64)
+        engine = _engine_result(
+            status="exception",
+            effect=empty,
+            stat=empty,
+            touched_columns=(),
+            contrast_vector=weights,
+            warnings_seen=(),
+            exception=exc,
+        )
+        return engine, empty, empty
+
+    effect = np.asarray(result.estimate, dtype=np.float64)
+    stat = np.asarray(result.stat, dtype=np.float64)
+    engine = _engine_result(
+        status="ok",
+        effect=effect,
+        stat=stat,
+        touched_columns=tuple(result.touched_columns),
+        contrast_vector=weights,
+        warnings_seen=tuple(str(w.message) for w in captured),
+    )
+    return engine, effect, stat
+
+
 def nilearn_probe(
     design: Array,
     data: Array,
@@ -353,8 +449,20 @@ def _case_status(comparisons: dict[str, float | None]) -> tuple[str, str]:
         and comparisons["aligned_stat_delta"] is not None
         and comparisons["aligned_stat_delta"] < 1e-5
     )
+    authored_ok = (
+        comparisons["authored_effect_delta"] is not None
+        and comparisons["authored_effect_delta"] < 1e-8
+        and comparisons["authored_stat_delta"] is not None
+        and comparisons["authored_stat_delta"] < 1e-5
+    )
+    if aligned_ok and authored_ok:
+        return (
+            "pass",
+            "fmrimod typed contrast matches the aligned Nilearn vector and "
+            "the authored condition contrast",
+        )
     if aligned_ok:
-        return "pass", "fmrimod typed contrast matches the aligned Nilearn vector"
+        return "fail", "authored condition contrast drifted against column contrast"
     return "fail", "semantic contrast alignment drifted against the Nilearn oracle"
 
 
@@ -370,6 +478,11 @@ def run_case(
     aligned_weights = _contrast_vector(column_order)
     positional_weights = _contrast_vector(inputs.base_order)
     f_engine, f_effect, f_stat = fmrimod_probe(design, inputs.data, column_order)
+    a_engine, a_effect, a_stat = fmrimod_authored_probe(
+        design,
+        inputs.data,
+        column_order,
+    )
     n_engine, n_effect, n_stat = nilearn_probe(
         design,
         inputs.data,
@@ -385,6 +498,8 @@ def run_case(
     comparisons = {
         "aligned_effect_delta": _max_abs_delta(f_effect, n_effect),
         "aligned_stat_delta": _max_abs_delta(f_stat, n_stat),
+        "authored_effect_delta": _max_abs_delta(a_effect, f_effect),
+        "authored_stat_delta": _max_abs_delta(a_stat, f_stat),
         "positional_effect_median_abs_delta": _median_abs_delta(n_effect, p_effect),
         "positional_stat_median_abs_delta": _median_abs_delta(n_stat, p_stat),
     }
@@ -399,6 +514,7 @@ def run_case(
         fmrimod=f_engine,
         nilearn_aligned=n_engine,
         nilearn_positional_reuse=p_engine,
+        fmrimod_authored=a_engine,
         comparisons=comparisons,
         verdict=verdict,
     )
@@ -410,6 +526,8 @@ def run_case(
         nilearn_aligned_stat=n_stat,
         nilearn_positional_effect=p_effect,
         nilearn_positional_stat=p_stat,
+        fmrimod_authored_effect=a_effect,
+        fmrimod_authored_stat=a_stat,
     )
 
 
@@ -432,6 +550,14 @@ def run_benchmark(
             permuted.fmrimod_effect,
         ),
         "fmrimod_stat_delta": _max_abs_delta(base.fmrimod_stat, permuted.fmrimod_stat),
+        "fmrimod_authored_effect_delta": _max_abs_delta(
+            base.fmrimod_authored_effect,
+            permuted.fmrimod_authored_effect,
+        ),
+        "fmrimod_authored_stat_delta": _max_abs_delta(
+            base.fmrimod_authored_stat,
+            permuted.fmrimod_authored_stat,
+        ),
         "nilearn_aligned_effect_delta": _max_abs_delta(
             base.nilearn_aligned_effect,
             permuted.nilearn_aligned_effect,
@@ -458,6 +584,10 @@ def run_benchmark(
         and invariance["fmrimod_effect_delta"] < 1e-8
         and invariance["fmrimod_stat_delta"] is not None
         and invariance["fmrimod_stat_delta"] < 1e-5
+        and invariance["fmrimod_authored_effect_delta"] is not None
+        and invariance["fmrimod_authored_effect_delta"] < 1e-8
+        and invariance["fmrimod_authored_stat_delta"] is not None
+        and invariance["fmrimod_authored_stat_delta"] < 1e-5
         and invariance["nilearn_aligned_effect_delta"] is not None
         and invariance["nilearn_aligned_effect_delta"] < 1e-8
         and invariance["nilearn_aligned_stat_delta"] is not None
@@ -495,6 +625,11 @@ def run_benchmark(
                     "fit_glm_from_matrix(named DataFrame) -> "
                     "column_contrast -> ContrastResult"
                 ),
+                "authored_term_prototype": (
+                    "fit_glm_from_matrix(source DesignColumns) -> "
+                    "condition('gain', term='trial_type') - "
+                    "condition('loss', term='trial_type') -> ContrastResult"
+                ),
                 "limitation": (
                     "This is a strict numerical/semantic canary, not yet the "
                     "flagship fmri_dataset -> fmri_lm mission path."
@@ -508,9 +643,10 @@ def run_benchmark(
                     "reused positional vector fails visibly after permutation"
                 ),
                 "ergonomic_win_status": (
-                    "matrix_first_partial: typed column intent survives "
-                    "permutation, but authored term-level contrast is still "
-                    "the flagship target"
+                    "authored_term_prototype_matrix_first: authored condition "
+                    "intent resolves against declared DesignColumns and survives "
+                    "permutation; the remaining target is the flagship "
+                    "fmri_dataset -> fmri_lm seam"
                 ),
             },
             "invariance": invariance,
@@ -547,6 +683,8 @@ def render(report: dict[str, Any], out_dir: Path) -> tuple[Path, Path]:
         f"Status: `{report['ergonomics']['status']}`",
         "",
         report["ergonomics"]["fmrimod_path"],
+        "",
+        f"Authored prototype: `{report['ergonomics']['authored_term_prototype']}`",
         "",
         report["ergonomics"]["limitation"],
         "",
