@@ -1,8 +1,8 @@
 """Test regressor equivalence between R and Python."""
 
-import pytest
 import numpy as np
-from fmrimod import regressor, regressor_set, SamplingFrame
+
+from fmrimod import SamplingFrame, regressor, regressor_set
 
 
 class TestRegressorEquivalence:
@@ -35,7 +35,8 @@ class TestRegressorEquivalence:
         result <- evaluate(reg, samples(sf, global = TRUE))
         """)
         
-        # Compare
+        # numerical_floor: independent R/Python HRF convolution paths need
+        # float64-level tolerance; this pins parity without bitwise identity.
         r_tester.compare_arrays(r_vars['result'], py_result, rtol=1e-10)
     
     def test_regressor_with_amplitudes(self, r_tester):
@@ -65,7 +66,8 @@ class TestRegressorEquivalence:
         result <- evaluate(reg, samples(sf, global = TRUE))
         """)
         
-        # Compare
+        # numerical_floor: amplitude-weighted convolution crosses independent
+        # R/Python implementations.
         r_tester.compare_arrays(r_vars['result'], py_result, rtol=1e-10)
     
     def test_regressor_with_durations(self, r_tester):
@@ -95,7 +97,8 @@ class TestRegressorEquivalence:
         result <- evaluate(reg, times)
         """)
         
-        # Compare
+        # numerical_floor: variable-duration convolution crosses independent
+        # R/Python implementations.
         r_tester.compare_arrays(r_vars['result'], py_result, rtol=1e-10)
     
     def test_regressor_summation(self, r_tester):
@@ -121,7 +124,8 @@ class TestRegressorEquivalence:
         result_nosum <- evaluate(reg_nosum, times)
         """)
         
-        # Compare
+        # numerical_floor: close-event summation crosses independent R/Python
+        # convolution implementations.
         r_tester.compare_arrays(r_vars['result_sum'], py_result_sum, rtol=1e-10)
         r_tester.compare_arrays(r_vars['result_nosum'], py_result_nosum, rtol=1e-10)
     
@@ -153,7 +157,8 @@ class TestRegressorEquivalence:
         design <- regressor_matrix(rset, sf)
         """)
         
-        # Compare design matrices
+        # numerical_floor: regressor-set design construction crosses
+        # independent R/Python factor and convolution paths.
         r_tester.compare_arrays(r_vars['design'], py_design, rtol=1e-10)
     
     def test_regressor_set_with_names(self, r_tester):
@@ -218,7 +223,8 @@ class TestRegressorEquivalence:
         result <- evaluate(reg, samples(sf, global = TRUE))
         """)
         
-        # Compare
+        # numerical_floor: multi-block regressor evaluation crosses independent
+        # R/Python sampling-frame implementations.
         r_tester.compare_arrays(r_vars['result'], py_result, rtol=1e-10)
     
     def test_regressor_sparse_output(self, r_tester):
@@ -240,6 +246,7 @@ class TestRegressorEquivalence:
         result_dense <- as.matrix(result_sparse)
         """)
         
-        # Compare dense versions
+        # numerical_floor: sparse-to-dense regressor output crosses independent
+        # R/Python sparse materialization paths.
         py_dense = py_sparse.toarray() if hasattr(py_sparse, 'toarray') else py_sparse
         r_tester.compare_arrays(r_vars['result_dense'], py_dense, rtol=1e-10)

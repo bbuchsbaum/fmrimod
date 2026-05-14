@@ -127,7 +127,7 @@ def test_audit_unjustified_count_does_not_silently_grow() -> None:
        commit.
     """
     counts = _load_audit()["counts"]["by_classification"]
-    BASELINE_UNJUSTIFIED = 15
+    BASELINE_UNJUSTIFIED = 0
     assert counts["unjustified"] <= BASELINE_UNJUSTIFIED, (
         f"unjustified-tolerance count grew from {BASELINE_UNJUSTIFIED} "
         f"to {counts['unjustified']}; either justify the new call-site "

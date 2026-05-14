@@ -2,11 +2,11 @@
   "counts": {
     "by_classification": {
       "baseline_default": 106,
-      "justified": 18,
+      "justified": 33,
       "unclassified": 8,
-      "unjustified": 15
+      "unjustified": 0
     },
-    "files_scanned": 78,
+    "files_scanned": 80,
     "total_call_sites": 147
   },
   "rows": [
@@ -1055,17 +1055,17 @@
       "value_repr": "tolerance.rtol"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_complex_scenarios.py",
       "kwarg": "rtol",
-      "lineno": 52,
+      "lineno": 51,
       "value": 1e-10,
       "value_repr": "1e-10"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_complex_scenarios.py",
       "kwarg": "rtol",
       "lineno": 95,
@@ -1073,47 +1073,47 @@
       "value_repr": "1e-10"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_complex_scenarios.py",
       "kwarg": "rtol",
-      "lineno": 130,
+      "lineno": 132,
       "value": 1e-10,
       "value_repr": "1e-10"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_complex_scenarios.py",
       "kwarg": "rtol",
-      "lineno": 191,
+      "lineno": 194,
       "value": 1e-10,
       "value_repr": "1e-10"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_complex_scenarios.py",
       "kwarg": "rtol",
-      "lineno": 218,
+      "lineno": 222,
       "value": 1e-10,
       "value_repr": "1e-10"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_complex_scenarios.py",
       "kwarg": "rtol",
-      "lineno": 219,
+      "lineno": 223,
       "value": 1e-10,
       "value_repr": "1e-10"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_complex_scenarios.py",
       "kwarg": "rtol",
-      "lineno": 247,
+      "lineno": 252,
       "value": 1e-10,
       "value_repr": "1e-10"
     },
@@ -1208,74 +1208,74 @@
       "value_repr": "1e-08"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_regressor_equivalence.py",
       "kwarg": "rtol",
-      "lineno": 39,
+      "lineno": 40,
       "value": 1e-10,
       "value_repr": "1e-10"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_regressor_equivalence.py",
       "kwarg": "rtol",
-      "lineno": 69,
+      "lineno": 71,
       "value": 1e-10,
       "value_repr": "1e-10"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_regressor_equivalence.py",
       "kwarg": "rtol",
-      "lineno": 99,
+      "lineno": 102,
       "value": 1e-10,
       "value_repr": "1e-10"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_regressor_equivalence.py",
       "kwarg": "rtol",
-      "lineno": 125,
+      "lineno": 129,
       "value": 1e-10,
       "value_repr": "1e-10"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_regressor_equivalence.py",
       "kwarg": "rtol",
-      "lineno": 126,
+      "lineno": 130,
       "value": 1e-10,
       "value_repr": "1e-10"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_regressor_equivalence.py",
       "kwarg": "rtol",
-      "lineno": 157,
+      "lineno": 162,
       "value": 1e-10,
       "value_repr": "1e-10"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_regressor_equivalence.py",
       "kwarg": "rtol",
-      "lineno": 222,
+      "lineno": 228,
       "value": 1e-10,
       "value_repr": "1e-10"
     },
     {
-      "classification": "unjustified",
-      "context_marker_found": false,
+      "classification": "justified",
+      "context_marker_found": true,
       "file": "cross_testing/test_regressor_equivalence.py",
       "kwarg": "rtol",
-      "lineno": 245,
+      "lineno": 252,
       "value": 1e-10,
       "value_repr": "1e-10"
     },

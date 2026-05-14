@@ -1,12 +1,10 @@
 """Test complex real-world scenarios for R-Python equivalence."""
 
-import pytest
 import numpy as np
 import pandas as pd
-from fmrimod import (
-    regressor, regressor_set, SamplingFrame, get_hrf, 
-    hrf_library, penalty_matrix, reconstruction_matrix
-)
+
+from fmrimod import SamplingFrame, get_hrf, regressor, regressor_set
+from fmrimod.hrf import hrf_library, penalty_matrix, reconstruction_matrix
 from fmrimod.hrf.generators import gamma_generator
 
 
@@ -48,7 +46,8 @@ class TestComplexScenarios:
         design <- regressor_matrix(rset, sf)
         """)
         
-        # Compare design matrices
+        # numerical_floor: independent R/Python HRF convolution paths need
+        # float64-level tolerance; this pins parity without bitwise identity.
         r_tester.compare_arrays(r_vars['design'], py_design, rtol=1e-10)
     
     def test_mixed_event_types(self, r_tester):
@@ -91,7 +90,8 @@ class TestComplexScenarios:
         design <- regressor_matrix(rset, sf)
         """)
         
-        # Compare
+        # numerical_floor: independent R/Python event-duration convolution
+        # paths need float64-level tolerance.
         r_tester.compare_arrays(r_vars['design'], py_design, rtol=1e-10)
     
     def test_hrf_library_glm(self, r_tester):
@@ -127,6 +127,8 @@ class TestComplexScenarios:
         
         # Compare - should have 3 columns (one per basis function)
         assert py_result.shape[1] == 3
+        # numerical_floor: HRF library evaluation crosses independent
+        # R/Python gamma-generator and convolution paths.
         r_tester.compare_arrays(r_vars['result'], py_result, rtol=1e-10)
     
     def test_multi_block_experiment(self, r_tester):
@@ -187,7 +189,8 @@ class TestComplexScenarios:
         design <- regressor_matrix(rset, sf)
         """)
         
-        # Compare
+        # numerical_floor: multi-block sampling and convolution cross
+        # independent R/Python implementations.
         r_tester.compare_arrays(r_vars['design'], py_design, rtol=1e-10)
     
     def test_regularized_estimation(self, r_tester):
@@ -214,7 +217,8 @@ class TestComplexScenarios:
         recon <- reconstruction_matrix(hrf, sf)
         """)
         
-        # Compare matrices
+        # numerical_floor: spline penalty/reconstruction matrices cross
+        # independent R/Python basis construction paths.
         r_tester.compare_arrays(r_vars['penalty'], py_penalty, rtol=1e-10)
         r_tester.compare_arrays(r_vars['recon'], py_recon, rtol=1e-10)
     
@@ -243,5 +247,6 @@ class TestComplexScenarios:
         result <- evaluate(reg, samples(sf_concat, global = TRUE))
         """)
         
-        # Compare
+        # numerical_floor: concatenated-run convolution crosses independent
+        # R/Python sampling-frame implementations.
         r_tester.compare_arrays(r_vars['result'], py_result, rtol=1e-10)
