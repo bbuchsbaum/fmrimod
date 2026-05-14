@@ -1,7 +1,24 @@
 """Per-condition basis splitting for design matrices."""
 
+from __future__ import annotations
 
-def condition_basis_list(event_term, hrf, sampling_frame, output="condition_list"):
+from typing import TYPE_CHECKING, Dict, Literal, Union
+
+import numpy as np
+from numpy.typing import NDArray
+
+if TYPE_CHECKING:
+    from .events.term import EventTerm
+    from .hrf.core import HRF
+    from .sampling import SamplingFrame
+
+
+def condition_basis_list(
+    event_term: "EventTerm",
+    hrf: "HRF",
+    sampling_frame: "SamplingFrame",
+    output: Literal["condition_list", "matrix"] = "condition_list",
+) -> Union[Dict[str, NDArray[np.float64]], NDArray[np.float64]]:
     """Split convolved design matrix by condition.
 
     Convolves an event term with HRF and splits the result into
@@ -15,7 +32,7 @@ def condition_basis_list(event_term, hrf, sampling_frame, output="condition_list
         HRF object to apply
     sampling_frame : SamplingFrame
         Sampling frame defining temporal grid
-    output : str
+    output : {"condition_list", "matrix"}
         'matrix' for full design matrix, 'condition_list' for split dict
 
     Returns

@@ -933,9 +933,9 @@
       "name": "condition_basis_list",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.condition_basis",
-      "runtime_signature": "(event_term, hrf, sampling_frame, output='condition_list')",
+      "runtime_signature": "(event_term: \"'EventTerm'\", hrf: \"'HRF'\", sampling_frame: \"'SamplingFrame'\", output: \"Literal['condition_list', 'matrix']\" = 'condition_list') -> 'Union[Dict[str, NDArray[np.float64]], NDArray[np.float64]]'",
       "signature_source": "inspect.signature",
-      "tier": "compat_pending_fix",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
