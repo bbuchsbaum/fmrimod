@@ -2,5 +2,13 @@
 
 from .columns import DesignColumn, DesignColumns
 from .design_matrix import design_matrix
+from .realized import ColumnKind, DesignSource, RealizedDesign
 
-__all__ = ["DesignColumn", "DesignColumns", "design_matrix"]
+__all__ = [
+    "ColumnKind",
+    "DesignColumn",
+    "DesignColumns",
+    "DesignSource",
+    "RealizedDesign",
+    "design_matrix",
+]

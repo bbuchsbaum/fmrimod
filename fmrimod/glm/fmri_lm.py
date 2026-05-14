@@ -108,6 +108,8 @@ class FitProvenance:
     ar_status: CarryStatus = "not_yet_carried"
     mask_mode: Optional[MaskMode] = None
     mask_status: CarryStatus = "not_yet_carried"
+    design_source: Optional[str] = None
+    design_source_status: CarryStatus = "not_yet_carried"
 
     def __post_init__(self) -> None:
         """Normalize config snapshots even for direct construction."""
@@ -133,6 +135,8 @@ class FitProvenance:
             "ar_status": self.ar_status,
             "mask_mode": self.mask_mode,
             "mask_status": self.mask_status,
+            "design_source": self.design_source,
+            "design_source_status": self.design_source_status,
         }
 
     @classmethod
@@ -152,6 +156,15 @@ class FitProvenance:
             ar_status=cast(CarryStatus, payload["ar_status"]),
             mask_mode=cast(Optional[MaskMode], payload.get("mask_mode")),
             mask_status=cast(CarryStatus, payload["mask_status"]),
+            design_source=(
+                None
+                if payload.get("design_source") is None
+                else str(payload["design_source"])
+            ),
+            design_source_status=cast(
+                CarryStatus,
+                payload.get("design_source_status", "not_yet_carried"),
+            ),
         )
 
     def to_json(self) -> str:
@@ -193,6 +206,13 @@ class FitProvenance:
             errors.append(f"mask provenance is {self.mask_status}")
         elif self.mask_mode is None:
             errors.append("mask_status is carried but mask_mode is missing")
+
+        if self.design_source_status != "carried":
+            errors.append(f"design_source provenance is {self.design_source_status}")
+        elif self.design_source is None:
+            errors.append(
+                "design_source_status is carried but design_source is missing"
+            )
 
         return tuple(errors)
 
@@ -284,6 +304,16 @@ def _mask_mode_provenance(model: Any) -> tuple[Optional[MaskMode], CarryStatus]:
     return "explicit", "carried"
 
 
+def _design_source_provenance(model: object) -> tuple[str, CarryStatus]:
+    """Return the source of the realized design used for this fit."""
+    source = getattr(model, "design_source", None)
+    if source is not None:
+        return str(source), "carried"
+    if getattr(model, "event_model", None) is not None:
+        return "spec", "carried"
+    return "model", "carried"
+
+
 def _build_fit_provenance(
     model: Any,
     config: FmriLmConfig,
@@ -302,6 +332,7 @@ def _build_fit_provenance(
     solver_path = type(engine).__name__
     seed, seed_status = _seed_provenance(engine, fit_kwargs)
     mask_mode, mask_status = _mask_mode_provenance(model)
+    design_source, design_source_status = _design_source_provenance(model)
     return FitProvenance(
         fmrimod_version=_fmrimod_version,
         solver_path=solver_path,
@@ -312,6 +343,8 @@ def _build_fit_provenance(
         ar_status="carried",
         mask_mode=mask_mode,
         mask_status=mask_status,
+        design_source=design_source,
+        design_source_status=design_source_status,
     )
 
 if TYPE_CHECKING:
@@ -319,6 +352,7 @@ if TYPE_CHECKING:
     from fmrimod.contrast.omnibus import OmnibusContrast
     from fmrimod.dataset import FmriDataset
     from fmrimod.dataset.protocols import DatasetProtocol
+    from fmrimod.design import RealizedDesign
     from fmrimod.glm.spatial import SpatialContext
     from fmrimod.model.fmri_model import FmriModel
     from fmrimod.spec import Spec, Term
@@ -341,6 +375,78 @@ class FmriModelLike(Protocol):
     def design_matrix_array(self, run: int = 0) -> NDArray[np.float64]:
         """Return the design matrix for a run."""
         ...
+
+
+class _RealizedDesignModel:
+    """Adapt a typed realized design plus dataset to the fitting protocol."""
+
+    def __init__(self, design: "RealizedDesign", dataset: object) -> None:
+        self._design = design
+        self.dataset = dataset
+        self._run_lengths = _dataset_run_lengths(dataset, design.n_timepoints)
+        total = sum(self._run_lengths)
+        if total != design.n_timepoints:
+            raise ValueError(
+                "RealizedDesign row count must match dataset timepoints: "
+                f"{design.n_timepoints} rows vs {total} dataset timepoints"
+            )
+        self.n_runs = len(self._run_lengths)
+
+    @property
+    def design_source(self) -> str:
+        """Source label carried into fit provenance."""
+        return self._design.source
+
+    @property
+    def n_timepoints(self) -> list[int]:
+        """Per-run timepoint counts."""
+        return list(self._run_lengths)
+
+    def design_matrix_array(self, run: int = 0) -> NDArray[np.float64]:
+        """Return the realized design matrix for a single run."""
+        start, stop = self._run_slice(run)
+        return np.asarray(self._design.matrix[start:stop, :], dtype=np.float64)
+
+    def design_matrix(self, run: Optional[int] = None):
+        """Return the realized design as a named DataFrame."""
+        import pandas as pd
+
+        if run is None:
+            return self._design.as_dataframe()
+        start, stop = self._run_slice(run)
+        return pd.DataFrame(
+            np.asarray(self._design.matrix[start:stop, :], dtype=np.float64),
+            columns=list(self._design.column_names),
+        )
+
+    def design_columns(self):
+        """Return typed column provenance for the realized design."""
+        return self._design.design_columns()
+
+    def contrast_weights(self) -> dict[str, NDArray[np.float64]]:
+        """Realized designs do not invent named contrasts."""
+        return {}
+
+    def _run_slice(self, run: int) -> tuple[int, int]:
+        if run < 0 or run >= self.n_runs:
+            raise IndexError(f"run {run} out of range for {self.n_runs} runs")
+        starts = np.cumsum([0, *self._run_lengths[:-1]])
+        start = int(starts[run])
+        return start, start + int(self._run_lengths[run])
+
+
+def _dataset_run_lengths(dataset: object, default_total: int) -> list[int]:
+    """Return per-run lengths from a dataset-like object."""
+    if hasattr(dataset, "run_lengths"):
+        lengths = getattr(dataset, "run_lengths")
+    elif hasattr(dataset, "n_timepoints"):
+        lengths = getattr(dataset, "n_timepoints")
+    else:
+        lengths = default_total
+
+    if isinstance(lengths, int):
+        return [int(lengths)]
+    return [int(value) for value in lengths]
 
 
 @dataclass(frozen=True)
@@ -951,6 +1057,11 @@ def fmri_lm(
         >>> fit = fm.fmri_lm("hrf(trial_type)", ds)
         >>> fit.contrast("trial_type[listening]")
 
+    Pre-built realized design::
+
+        >>> design = fm.design.RealizedDesign.from_array(X, columns, source="nilearn")
+        >>> fit = fm.fmri_lm(design, ds)
+
     Sketch engine::
 
         >>> from fmrimod.glm import SketchEngineOptions
@@ -969,8 +1080,17 @@ def fmri_lm(
     else:
         dataset = dataset_or_config
 
-    # -- Resolve first positional: spec vs. model ---------------------------
-    if _is_fmri_model_like(spec_or_model):
+    # -- Resolve first positional: realized design vs. spec vs. model -------
+    from ..design import RealizedDesign
+
+    if isinstance(spec_or_model, RealizedDesign):
+        if dataset is None:
+            raise ValueError(
+                "fmri_lm(RealizedDesign, dataset) requires a dataset as the "
+                "second argument"
+            )
+        model = _RealizedDesignModel(spec_or_model, dataset)
+    elif _is_fmri_model_like(spec_or_model):
         if dataset is not None:
             raise ValueError(
                 "fmri_lm: got a pre-built model and a dataset. "

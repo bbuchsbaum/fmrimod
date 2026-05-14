@@ -68,6 +68,8 @@ def test_fit_provenance_is_frozen_dataclass() -> None:
         "ar_status",
         "mask_mode",
         "mask_status",
+        "design_source",
+        "design_source_status",
     }
     assert field_names == expected, (
         f"FitProvenance shape drifted: got {field_names}, expected {expected}"
@@ -143,6 +145,8 @@ def test_slice_a_other_fields_carry_status() -> None:
     assert prov.ar_status == "carried"
     assert prov.mask_mode == "none"
     assert prov.mask_status == "carried"
+    assert prov.design_source == "spec"
+    assert prov.design_source_status == "carried"
 
 
 def test_spec_from_dict_branch_carries_all_fit_provenance_fields() -> None:
@@ -175,6 +179,8 @@ def test_spec_from_dict_branch_carries_all_fit_provenance_fields() -> None:
     assert prov.ar_status == "carried"
     assert prov.mask_mode == "none"
     assert prov.mask_status == "carried"
+    assert prov.design_source == "spec"
+    assert prov.design_source_status == "carried"
     assert prov.require_complete().provenance is prov
 
 
@@ -374,6 +380,8 @@ def test_provenance_constructor_defaults_match_slice_a() -> None:
     assert prov.ar_status == "not_yet_carried"
     assert prov.mask_mode is None
     assert prov.mask_status == "not_yet_carried"
+    assert prov.design_source is None
+    assert prov.design_source_status == "not_yet_carried"
 
 
 def test_fit_provenance_json_round_trips_status_fields() -> None:
@@ -388,6 +396,8 @@ def test_fit_provenance_json_round_trips_status_fields() -> None:
         ar_status="not_yet_carried",
         mask_mode=None,
         mask_status="not_yet_carried",
+        design_source=None,
+        design_source_status="not_yet_carried",
     )
 
     payload = prov.to_dict()
@@ -399,6 +409,8 @@ def test_fit_provenance_json_round_trips_status_fields() -> None:
     assert payload["ar_status"] == "not_yet_carried"
     assert payload["mask_mode"] is None
     assert payload["mask_status"] == "not_yet_carried"
+    assert payload["design_source"] is None
+    assert payload["design_source_status"] == "not_yet_carried"
 
     assert FitProvenance.from_dict(payload) == prov
     assert FitProvenance.from_json(prov.to_json()) == prov
