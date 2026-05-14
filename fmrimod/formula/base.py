@@ -10,7 +10,7 @@ programmatically.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import pandas as pd
 
@@ -64,7 +64,7 @@ class Term:
     name: Optional[str] = None
     normalize: bool = False
     summate: bool = True
-    _kwargs: Dict[str, Any] = field(default_factory=dict)
+    _kwargs: Dict[str, object] = field(default_factory=dict)
     
     def __post_init__(self):
         """Normalize events to list."""
@@ -126,7 +126,7 @@ class Term:
         self.name = name
         return self
     
-    def set(self, **kwargs) -> Term:
+    def set(self, **kwargs: object) -> Term:
         """Set additional parameters.
         
         Parameters
@@ -148,7 +148,7 @@ class Term:
         return len(self.events) > 1
     
     @property
-    def kwargs(self) -> Dict[str, Any]:
+    def kwargs(self) -> Dict[str, object]:
         """All parameters including HRF, basis, normalize, and summate."""
         params = self._kwargs.copy()
         if self.hrf is not None:
@@ -232,12 +232,12 @@ class EventModelBuilder:
     def __init__(self):
         """Initialize builder."""
         self._data: Optional[pd.DataFrame] = None
-        self._sampling: Optional[Any] = None  # Will be SamplingFrame
+        self._sampling: object = None  # Will be SamplingFrame
         self._terms: List[Term] = []
-        self._contrasts: Dict[str, Any] = {}
+        self._contrasts: Dict[str, object] = {}
         self._onset_column: str = 'onset'
         self._duration_column: Optional[str] = 'duration'
-        self._kwargs: Dict[str, Any] = {}
+        self._kwargs: Dict[str, object] = {}
     
     def set_data(self, data: pd.DataFrame) -> EventModelBuilder:
         """Set data frame containing event information.
@@ -255,7 +255,7 @@ class EventModelBuilder:
         self._data = data
         return self
     
-    def set_sampling(self, sampling: Any) -> EventModelBuilder:
+    def set_sampling(self, sampling: object) -> EventModelBuilder:
         """Set sampling frame.
         
         Parameters
@@ -335,7 +335,7 @@ class EventModelBuilder:
         self._terms.extend(terms)
         return self
     
-    def add_contrast(self, name: str, specification: Any) -> EventModelBuilder:
+    def add_contrast(self, name: str, specification: object) -> EventModelBuilder:
         """Add a contrast to the model.
         
         Parameters
@@ -353,7 +353,7 @@ class EventModelBuilder:
         self._contrasts[name] = specification
         return self
     
-    def set(self, **kwargs) -> EventModelBuilder:
+    def set(self, **kwargs: object) -> EventModelBuilder:
         """Set additional parameters.
         
         Parameters
@@ -414,7 +414,7 @@ class EventModelBuilder:
 
 
 # Convenience functions for creating terms
-def term(*events: str, **kwargs) -> Term:
+def term(*events: str, **kwargs: object) -> Term:
     """Create a term.
     
     Parameters
@@ -446,7 +446,7 @@ def term(*events: str, **kwargs) -> Term:
         return Term(list(events), **kwargs)
 
 
-def interaction(*events: str, **kwargs) -> Term:
+def interaction(*events: str, **kwargs: object) -> Term:
     """Create an interaction term.
     
     Parameters
