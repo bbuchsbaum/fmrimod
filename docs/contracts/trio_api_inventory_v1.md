@@ -51,7 +51,7 @@ Statuses:
 | R package | exports | ported | pythonized | pending | scoped_out |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | `fmrihrf` | 72 | 56 | 14 | 0 | 2 |
-| `fmridesign` | 94 | 87 | 7 | 0 | 0 |
+| `fmridesign` | 96 | 89 | 7 | 0 | 0 |
 | `fmrireg` | 171 | 147 | 16 | 0 | 8 |
 
 These counts are a snapshot of *coverage*, not progress against a
@@ -182,6 +182,8 @@ benchmarks and `CAVEATS.md`.
 | `conditions` | `ported` | fmrimod.utils.generics.conditions | tests/design/test_generics.py; tests/design/test_dispatch_columns.py; tests/design/test_dispatch_event_generics.py; tests/design/test_dispatch_design_matrix.py | docs/source/design/api/index.rst; docs/source/design/migration_guide.md; docs/source/design/tutorials/basic_event_model.rst | Python module symbol covered by the listed namespace tests and documentation anchors. |
 | `construct` | `ported` | fmrimod.utils.generics.construct | tests/design/test_generics.py; tests/design/test_dispatch_columns.py; tests/design/test_dispatch_event_generics.py; tests/design/test_dispatch_design_matrix.py | docs/source/design/api/index.rst; docs/source/design/migration_guide.md; docs/source/design/tutorials/basic_event_model.rst | Python module symbol covered by the listed namespace tests and documentation anchors. |
 | `contrast` | `ported` | fmrimod.contrast | tests/design/test_exports.py; tests/design/test_rpy2_parity.py | docs/source/design/api/index.rst; docs/source/design/migration_guide.md; docs/source/design/tutorials/basic_event_model.rst | Exact top-level Python public symbol. |
+| `contrast_from_mask` | `ported` | fmrimod.contrast.contrast_from_mask | tests/test_contrast/test_contrast_mask_pipeline.py | docs/contracts/trio_api_inventory_v1.md | Packages a base-condition contrast mask into a `Contrast`, expanding base rows across basis columns for non-column-targeted specs. |
+| `contrast_mask` | `ported` | fmrimod.contrast.contrast_mask | tests/test_contrast/test_contrast_mask_pipeline.py | docs/contracts/trio_api_inventory_v1.md | `functools.singledispatch` generic extension seam for custom contrast specs that want fmridesign-style basis expansion. Unregistered specs raise `NotImplementedError`. |
 | `contrast_set` | `ported` | fmrimod.contrast.contrast_spec.contrast_set | tests/design/test_contrast.py; tests/design/test_contrast_system.py; tests/design/test_fcontrast.py; tests/design/test_event_model_contrasts.py | docs/source/design/api/index.rst; docs/source/design/migration_guide.md; docs/source/design/tutorials/basic_event_model.rst | Python module symbol covered by the listed namespace tests and documentation anchors. |
 | `contrast_weights` | `ported` | fmrimod.contrast.contrast_weights.contrast_weights | tests/design/test_contrast.py; tests/design/test_contrast_system.py; tests/design/test_fcontrast.py; tests/design/test_event_model_contrasts.py | docs/source/design/api/index.rst; docs/source/design/migration_guide.md; docs/source/design/tutorials/basic_event_model.rst | Python module symbol covered by the listed namespace tests and documentation anchors. |
 | `contrasts` | `ported` | fmrimod.utils.generics.contrasts | tests/design/test_contrast.py; tests/design/test_contrast_system.py; tests/design/test_fcontrast.py; tests/design/test_event_model_contrasts.py | docs/source/design/api/index.rst; docs/source/design/migration_guide.md; docs/source/design/tutorials/basic_event_model.rst | Python module symbol covered by the listed namespace tests and documentation anchors. |

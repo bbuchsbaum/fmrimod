@@ -1,30 +1,30 @@
 """Tests for contrast functionality."""
 
-import pytest
 import numpy as np
+import pytest
 
 from fmrimod.contrast import (
-    contrast,
-    unit_contrast,
-    pair_contrast,
     column_contrast,
-    poly_contrast,
-    oneway_contrast,
-    interaction_contrast,
+    contrast,
     contrast_set,
-    pairwise_contrasts,
-    one_against_all_contrast,
     contrast_weights,
+    interaction_contrast,
+    one_against_all_contrast,
+    oneway_contrast,
+    pair_contrast,
+    pairwise_contrasts,
+    poly_contrast,
+    unit_contrast,
 )
 from fmrimod.contrast.contrast_spec import (
-    ContrastSpec,
-    UnitContrastSpec,
-    PairContrastSpec,
     ColumnContrastSpec,
-    PolyContrastSpec,
-    OnewayContrastSpec,
-    InteractionContrastSpec,
     ContrastSet,
+    ContrastSpec,
+    InteractionContrastSpec,
+    OnewayContrastSpec,
+    PairContrastSpec,
+    PolyContrastSpec,
+    UnitContrastSpec,
 )
 
 
@@ -612,3 +612,61 @@ class TestContrastWeightsReal:
 
         # Should return empty contrast matrix (no contrasts for 1 level)
         assert con.weights.shape == (1, 0)
+
+
+def test_contrast_weights_singledispatch_extension_point():
+    """Custom ContrastSpec subclasses can register their own ``contrast_weights``.
+
+    fmrimod exposes two complementary extension seams for external specs:
+
+    * :func:`fmrimod.contrast.contrast_mask` + :func:`contrast_from_mask` ports
+      fmridesign's mask/packaging shape and is exercised by
+      ``tests/test_contrast/test_contrast_mask_pipeline.py``.
+    * :func:`contrast_weights` itself is a :func:`functools.singledispatch`
+      generic, so specs that compute final weights directly (no mask/basis
+      expansion needed) can register a handler. This test pins that path.
+    """
+    from fmrimod.contrast.contrast_spec import ContrastSpec
+    from fmrimod.contrast.contrast_weights import Contrast
+
+    class _CustomContrastSpec(ContrastSpec):
+        def __init__(self, name: str = "custom_id_minus_neg"):
+            super().__init__(name=name)
+
+    class _MockTerm:
+        def __init__(self, conditions):
+            self._conditions = list(conditions)
+            self.varname = "mock"
+            self.nbasis = 1
+
+        def conditions(self, drop_empty=False, expand_basis=True):
+            return list(self._conditions)
+
+        def cells(self):
+            import pandas as pd
+            return pd.DataFrame()
+
+    term = _MockTerm(["cond.A", "cond.B", "cond.C"])
+    spec = _CustomContrastSpec()
+
+    with pytest.raises(NotImplementedError, match="_CustomContrastSpec"):
+        contrast_weights(spec, term)
+
+    @contrast_weights.register(_CustomContrastSpec)
+    def _custom_handler(x, term, **kwargs):
+        condnames = list(term.conditions())
+        weights = np.array([[1.0], [0.0], [-1.0]])
+        return Contrast(
+            term=term,
+            name=x.name,
+            weights=weights,
+            condnames=condnames,
+            contrast_spec=x,
+        )
+
+    con = contrast_weights(spec, term)
+    assert isinstance(con, Contrast)
+    assert con.name == "custom_id_minus_neg"
+    assert con.weights.shape == (3, 1)
+    np.testing.assert_array_equal(con.weights, [[1.0], [0.0], [-1.0]])
+    assert con.condnames == ["cond.A", "cond.B", "cond.C"]

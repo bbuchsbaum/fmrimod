@@ -39,8 +39,6 @@ still permissive in ways that will not scale:
   `nuisance_check`) were not represented in Python baseline construction.
 - Design metadata is reconstructed from column names in places where R attaches
   per-column metadata during construction.
-- A few R exports or extension points, notably contrast mask helpers, still
-  need an explicit Python decision.
 
 ## Landed Slices
 
@@ -65,6 +63,10 @@ legacy formula entry points available:
   before falling back to the legacy direct `event_model()` path.
   Focused spec/glm and design-seam tests cover string formula and functional
   formula-list adapters.
+- Contrast mask helpers (`contrast_mask`, `contrast_from_mask`) are ported
+  into `fmrimod.contrast` as a `functools.singledispatch` extension seam plus
+  a packaging driver, covered by `tests/test_contrast/test_contrast_mask_pipeline.py`
+  and recorded in the trio inventory.
 
 ## Remaining Work Items
 
@@ -73,7 +75,6 @@ legacy formula entry points available:
 | `bd-01KRGG0B7K58PMDQ9NBZHPXX3W` | 1 | Canonical typed lowering | String/list/DSL/functional formula inputs lower through typed `fmrimod.spec` primitives; no public implementation path relies on private kwargs as its contract. |
 | `bd-01KRGG0B84BPR1EJ2V74S2NST7` | 1 | Event formula semantic parity | R-fixture or oracle tests cover formula LHS onset handling, `hrf(subset=...)`, term-specific durations/onsets, HRF options beyond the first slice, and block validation/order. |
 | `bd-01KRGG0B8A9S05JREP7Q77R1TF` | 2 | Design metadata parity | Per-column metadata is attached during construction; factor multi-basis terms emit one metadata row per expanded design column. |
-| `bd-01KRGG0B8S79Q91QY83WV6277B` | 2 | Contrast mask helpers | `contrast_mask` / `contrast_from_mask` are ported or explicitly marked `pythonized`/`scoped_out` in the trio inventory with tests. |
 
 ## Target Shape
 
