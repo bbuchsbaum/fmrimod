@@ -431,6 +431,7 @@
         "checks": [
           "report_path",
           "status",
+          "caveats",
           "timings"
         ]
       }
