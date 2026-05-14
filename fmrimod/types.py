@@ -167,14 +167,14 @@ class DesignMatrixProtocol(Protocol):
 
 
 # Formula-related types
-FormulaSpec = Union[str, Dict[str, Any], List[Dict[str, Any]]]
+FormulaSpec = Union[str, Dict[str, object], List[Dict[str, object]]]
 
 
 class FormulaContext:
     """Context for formula evaluation."""
     
     def __init__(self, data: Optional[DataFrame] = None, 
-                 env: Optional[Dict[str, Any]] = None):
+                 env: Optional[Dict[str, object]] = None):
         """Initialize formula context.
         
         Parameters
@@ -187,7 +187,7 @@ class FormulaContext:
         self.data = data
         self.env = env or {}
     
-    def get(self, name: str) -> Any:
+    def get(self, name: str) -> object:
         """Get variable from context."""
         if self.data is not None and name in self.data.columns:
             return self.data[name]
@@ -208,7 +208,7 @@ class ValidationError(Exception):
     pass
 
 
-def validate_onsets(onsets: Any) -> Array:
+def validate_onsets(onsets: object) -> Array:
     """Validate and convert onsets to array.
     
     Parameters
@@ -246,7 +246,7 @@ def validate_onsets(onsets: Any) -> Array:
     return onsets
 
 
-def validate_durations(durations: Any, n_events: int) -> Array:
+def validate_durations(durations: object, n_events: int) -> Array:
     """Validate and convert durations to array.
     
     Parameters
