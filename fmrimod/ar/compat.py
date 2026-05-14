@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import warnings
 from functools import wraps
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 from numpy.typing import NDArray
 
@@ -22,8 +22,8 @@ from .plan import (
 
 @wraps(_plan_from_phi)
 def plan_from_phi(
-    phi: Union[NDArray, List[NDArray]],
-    theta: Union[NDArray, List[NDArray], None] = None,
+    phi: Union[NDArray, list[NDArray]],
+    theta: Union[NDArray, list[NDArray], None] = None,
     *,
     runs: Optional[NDArray] = None,
     parcels: Optional[NDArray] = None,
@@ -53,8 +53,8 @@ def plan_from_phi(
 def whiten_with_phi(
     X: NDArray,
     Y: NDArray,
-    phi: Union[NDArray, List[NDArray]],
-    theta: Union[NDArray, List[NDArray], None] = None,
+    phi: Union[NDArray, list[NDArray]],
+    theta: Union[NDArray, list[NDArray], None] = None,
     *,
     runs: Optional[NDArray] = None,
     parcels: Optional[NDArray] = None,

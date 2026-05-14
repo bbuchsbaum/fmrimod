@@ -11,7 +11,7 @@ going through the full ``fit_noise()`` pipeline.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Optional, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -50,17 +50,17 @@ class WhiteningPlan:
         0-based indices of censored timepoints.
     """
 
-    phi: Optional[List[NDArray]] = None
-    theta: Optional[List[NDArray]] = None
-    order: Tuple[int, int] = (0, 0)
+    phi: Optional[list[NDArray]] = None
+    theta: Optional[list[NDArray]] = None
+    order: tuple[int, int] = (0, 0)
     runs: Optional[NDArray] = None
     exact_first: bool = False
     method: str = "ar"
     pooling: str = "global"
     parcels: Optional[NDArray] = None
-    parcel_ids: Optional[List[str]] = None
-    phi_by_parcel: Optional[Dict[str, NDArray]] = None
-    theta_by_parcel: Optional[Dict[str, NDArray]] = None
+    parcel_ids: Optional[list[str]] = None
+    phi_by_parcel: Optional[dict[str, NDArray]] = None
+    theta_by_parcel: Optional[dict[str, NDArray]] = None
     censor: Optional[NDArray] = None
 
     def __repr__(self) -> str:
@@ -130,12 +130,12 @@ class WhitenResult:
 
     X: Optional[NDArray] = None
     Y: Optional[NDArray] = None
-    X_by: Optional[Dict[str, NDArray]] = None
+    X_by: Optional[dict[str, NDArray]] = None
 
 
 def plan_from_phi(
-    phi: Union[NDArray, List[NDArray]],
-    theta: Union[NDArray, List[NDArray], None] = None,
+    phi: Union[NDArray, list[NDArray]],
+    theta: Union[NDArray, list[NDArray], None] = None,
     *,
     runs: Optional[NDArray] = None,
     parcels: Optional[NDArray] = None,
@@ -236,8 +236,8 @@ def plan_from_phi(
 def whiten_with_phi(
     X: NDArray,
     Y: NDArray,
-    phi: Union[NDArray, List[NDArray]],
-    theta: Union[NDArray, List[NDArray], None] = None,
+    phi: Union[NDArray, list[NDArray]],
+    theta: Union[NDArray, list[NDArray], None] = None,
     *,
     runs: Optional[NDArray] = None,
     parcels: Optional[NDArray] = None,
