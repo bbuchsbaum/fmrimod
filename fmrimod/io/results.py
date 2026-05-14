@@ -9,7 +9,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal, Union
+from typing import Literal, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -35,7 +35,7 @@ class ManifestVolume:
     basis_name: str | None = None
     model_source: str | None = None
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, object]:
         return _drop_none(
             {
                 "index": self.index,
@@ -63,10 +63,10 @@ class ManifestFile:
     contrast: str | None = None
     beta_group: str | None = None
     volumes: tuple[ManifestVolume, ...] = ()
-    metadata: Mapping[str, Any] = field(default_factory=dict)
+    metadata: Mapping[str, object] = field(default_factory=dict)
 
-    def to_dict(self, *, root: Path) -> dict[str, Any]:
-        payload: dict[str, Any] = {
+    def to_dict(self, *, root: Path) -> dict[str, object]:
+        payload: dict[str, object] = {
             "path": self.path.relative_to(root).as_posix(),
             "kind": self.kind,
             "layout": self.layout,
@@ -111,7 +111,7 @@ class ResultsManifest:
     def __getitem__(self, index: int) -> Path:
         return self.paths[index]
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> dict[str, object]:
         return {
             "schema_version": self.schema_version,
             "generated_at": self.generated_at,
@@ -467,7 +467,7 @@ def _column_records(
             f"column_names length {len(names)} does not match beta rows {n_columns}"
         )
 
-    by_index: dict[int, Any] = {}
+    by_index: dict[int, object] = {}
     if design_columns is not None:
         for fallback_index, column in enumerate(design_columns):
             by_index[int(getattr(column, "index", fallback_index))] = column
@@ -624,12 +624,12 @@ def _require_unique_values(
         seen[value] = label
 
 
-def _attr_or_none(obj: object, attr: str) -> Any:
+def _attr_or_none(obj: object, attr: str) -> object:
     if obj is None:
         return None
     value = getattr(obj, attr, None)
     return value
 
 
-def _drop_none(values: Mapping[str, Any]) -> dict[str, Any]:
+def _drop_none(values: Mapping[str, object]) -> dict[str, object]:
     return {key: value for key, value in values.items() if value is not None}
