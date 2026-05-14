@@ -144,7 +144,7 @@ class SamplingDiff:
 class Composite:
     """Multiple disjoint diffs collapsed into a single value."""
 
-    parts: tuple["DesignDiffPart", ...]
+    parts: tuple[DesignDiffPart, ...]
 
 
 DesignDiffPart = EventDiff | HRFDiff | BaselineDiff | ColumnsDiff | SamplingDiff
