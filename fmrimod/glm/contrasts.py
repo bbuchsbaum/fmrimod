@@ -6,6 +6,7 @@ for linear contrasts of regression coefficients.
 
 from __future__ import annotations
 
+import hashlib
 import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -17,6 +18,35 @@ from numpy.typing import NDArray
 from scipy import special as sp_special
 
 from fmrimod.glm.spatial import SpatialContext
+
+
+def weights_payload(
+    weights: NDArray[np.float64] | Sequence[Sequence[float]] | Sequence[float],
+) -> tuple[tuple[float, ...], ...]:
+    """Normalize contrast weights to a tuple-of-tuples for payload equality.
+
+    A t-contrast (1-D) becomes a single-row F-matrix so t and F contrasts
+    share one payload schema.
+    """
+    arr = np.atleast_2d(np.asarray(weights, dtype=np.float64))
+    return tuple(tuple(float(v) for v in row) for row in arr)
+
+
+def provenance_id(fit: object) -> str | None:
+    """Return a content-addressed identifier for a fit's :class:`FitProvenance`.
+
+    Hashes :meth:`FitProvenance.to_json` so the value survives serialization
+    and process boundaries. Returns ``None`` when the fit exposes no
+    provenance to hash (legacy/test paths).
+    """
+    provenance = getattr(fit, "provenance", None)
+    if provenance is None:
+        return None
+    to_json = getattr(provenance, "to_json", None)
+    if not callable(to_json):
+        return None
+    blob = to_json().encode("utf-8")
+    return f"fitprov:sha256:{hashlib.sha256(blob).hexdigest()[:16]}"
 
 
 @dataclass(frozen=True)

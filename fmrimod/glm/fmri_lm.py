@@ -37,6 +37,8 @@ from .contrasts import (
     contrast_f_vectorized,
     contrast_t,
     contrast_t_batch,
+    provenance_id,
+    weights_payload,
 )
 from .engine import DEFAULT_ENGINE_OPTIONS, EngineResult, EngineSelector
 from .solver import ConditionReport, Projection, RunConditionReport
@@ -693,6 +695,8 @@ class FmriLm:
                     term=spec.term,
                     levels=spec.levels,
                     rows=int(weights.shape[0]),
+                    weights=weights_payload(weights),
+                    provenance_id=provenance_id(self),
                 ),
             )
 
@@ -716,6 +720,8 @@ class FmriLm:
                     name=cname,
                     term=type(spec).__name__,
                     rows=int(np.atleast_2d(weights).shape[0]),
+                    weights=weights_payload(weights),
+                    provenance_id=provenance_id(self),
                 ),
             )
 
@@ -741,6 +747,8 @@ class FmriLm:
                     kind="named",
                     name=spec,
                     rows=int(np.atleast_2d(weights).shape[0]),
+                    weights=weights_payload(weights),
+                    provenance_id=provenance_id(self),
                 ),
             )
 
@@ -756,6 +764,8 @@ class FmriLm:
                     kind="dict",
                     name=cname,
                     rows=int(np.atleast_2d(weights).shape[0]),
+                    weights=weights_payload(weights),
+                    provenance_id=provenance_id(self),
                 ),
             )
 
@@ -768,6 +778,8 @@ class FmriLm:
                 kind="array",
                 name=cname,
                 rows=int(np.atleast_2d(weights).shape[0]),
+                weights=weights_payload(weights),
+                provenance_id=provenance_id(self),
             ),
         )
 
@@ -794,6 +806,8 @@ class FmriLm:
                 kind="array",
                 name=name,
                 rows=int(np.atleast_2d(weights).shape[0]),
+                weights=weights_payload(weights),
+                provenance_id=provenance_id(self),
             )
         column_details = self._touched_column_details(weights)
         result.intent = intent
@@ -897,6 +911,8 @@ class FmriLm:
                     kind="named",
                     name=res.name,
                     rows=1,
+                    weights=weights_payload(weights),
+                    provenance_id=provenance_id(self),
                 )
                 res.touched_columns = tuple(
                     str(column["name"]) for column in column_details
@@ -920,6 +936,8 @@ class FmriLm:
                 kind="named",
                 name=cname,
                 rows=int(np.atleast_2d(w_arr).shape[0]),
+                weights=weights_payload(w_arr),
+                provenance_id=provenance_id(self),
             )
             res.touched_columns = tuple(
                 str(column["name"]) for column in column_details
