@@ -1,26 +1,28 @@
 """Tests for convolve, formula, and HRF modules to fill coverage gaps."""
 
-import pytest
 import numpy as np
 import pandas as pd
-from numpy.testing import assert_array_almost_equal
+import pytest
 
-from fmrimod.events.factor import EventFactor
-from fmrimod.events.variable import EventVariable
-from fmrimod.events.matrix import EventMatrix
-from fmrimod.events.basis import EventBasis
+from fmrimod import as_hrf, get_hrf
 from fmrimod.convolve import convolve
-from fmrimod import get_hrf, as_hrf
-from fmrimod.hrf_dispatch import (
-    ArrayHRF, FunctionHRF, DictHRF, SimpleHRF, SPMCanonicalHRF
-)
+from fmrimod.events.factor import EventFactor
+from fmrimod.events.matrix import EventMatrix
+from fmrimod.events.variable import EventVariable
+from fmrimod.formula.base import EventModelBuilder, Term
+from fmrimod.formula.parser import FormulaParser, parse_formula
+
 # Import generators from hrf_dispatch (they are defined there)
 from fmrimod.hrf_dispatch import (
-    boxcar_hrf_gen, duration_hrf_gen, weighted_hrf_gen
+    ArrayHRF,
+    DictHRF,
+    FunctionHRF,
+    SimpleHRF,
+    SPMCanonicalHRF,
+    boxcar_hrf_gen,
+    duration_hrf_gen,
+    weighted_hrf_gen,
 )
-from fmrimod.formula.parser import parse_formula, FormulaParser
-from fmrimod.formula.base import Term, EventModelBuilder
-
 
 # ============================================================================
 # Tests for convolve.py - targeting 50%+ coverage
