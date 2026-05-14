@@ -44,7 +44,8 @@ they are silently incomplete.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Callable
 
 from .terms import Confounds, Drift, HrfTerm, Intercept, Spec, Term
 
@@ -60,7 +61,7 @@ class SpecSerializationError(ValueError):
 # ---------------------------------------------------------------------------
 
 
-def to_dict(spec: Spec) -> Dict[str, Any]:
+def to_dict(spec: Spec) -> dict[str, object]:
     """Serialize a :class:`Spec` to a JSON-safe dict.
 
     The returned payload always carries ``schema_version`` so loaders
@@ -74,7 +75,7 @@ def to_dict(spec: Spec) -> Dict[str, Any]:
     }
 
 
-def _encode_term(term: Term) -> Dict[str, Any]:
+def _encode_term(term: Term) -> dict[str, object]:
     if isinstance(term, HrfTerm):
         return _encode_hrf_term(term)
     if isinstance(term, Drift):
@@ -89,7 +90,7 @@ def _encode_term(term: Term) -> Dict[str, Any]:
     )
 
 
-def _encode_hrf_term(term: HrfTerm) -> Dict[str, Any]:
+def _encode_hrf_term(term: HrfTerm) -> dict[str, object]:
     if term.contrasts:
         raise SpecSerializationError(
             f"HrfTerm(id={term.id!r}, variables={term.variables!r}) carries "
@@ -125,14 +126,14 @@ def _encode_hrf_term(term: HrfTerm) -> Dict[str, Any]:
     }
 
 
-def _encode_subset(term: HrfTerm) -> Any:
+def _encode_subset(term: HrfTerm) -> object:
     sub = term.subset
     if sub is None:
         return None
     if isinstance(sub, str):
         return {"kind": "str", "value": sub}
     if isinstance(sub, Mapping):
-        # Mapping[str, Any]. We don't recurse into the values: they're
+        # Mapping[str, object]. We don't recurse into the values: they're
         # typically scalar comparisons (e.g. {"block": 1}) and JSON's
         # native types cover the supported set. If a caller passes a
         # nested non-scalar, json.dumps will reject it later with a
@@ -151,7 +152,7 @@ def _encode_subset(term: HrfTerm) -> Any:
     )
 
 
-def _encode_drift(term: Drift) -> Dict[str, Any]:
+def _encode_drift(term: Drift) -> dict[str, object]:
     return {
         "kind": "Drift",
         "basis": term.basis,
@@ -160,11 +161,11 @@ def _encode_drift(term: Drift) -> Dict[str, Any]:
     }
 
 
-def _encode_intercept(term: Intercept) -> Dict[str, Any]:
+def _encode_intercept(term: Intercept) -> dict[str, object]:
     return {"kind": "Intercept", "per": term.per}
 
 
-def _encode_confounds(term: Confounds) -> Dict[str, Any]:
+def _encode_confounds(term: Confounds) -> dict[str, object]:
     if term.source is not None:
         raise SpecSerializationError(
             "Confounds(source=<DataFrame>) cannot be serialized to a Spec "
@@ -181,7 +182,7 @@ def _encode_confounds(term: Confounds) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def from_dict(payload: Mapping[str, Any]) -> Spec:
+def from_dict(payload: Mapping[str, object]) -> Spec:
     """Reconstruct a :class:`Spec` from :func:`to_dict` output.
 
     Raises :class:`SpecSerializationError` if the schema version does
@@ -198,17 +199,20 @@ def from_dict(payload: Mapping[str, Any]) -> Spec:
     return Spec(events=events, baseline=baseline)
 
 
-_DECODERS: Dict[str, Any] = {}
+_TermDecoder = Callable[[Mapping[str, object]], Term]
+_DECODERS: dict[str, _TermDecoder] = {}
 
 
-def _register_decoder(kind: str):
-    def deco(fn):
+def _register_decoder(
+    kind: str,
+) -> Callable[[_TermDecoder], _TermDecoder]:
+    def deco(fn: _TermDecoder) -> _TermDecoder:
         _DECODERS[kind] = fn
         return fn
     return deco
 
 
-def _decode_term(payload: Mapping[str, Any], *, slot: str) -> Term:
+def _decode_term(payload: Mapping[str, object], *, slot: str) -> Term:
     if not isinstance(payload, Mapping):
         raise SpecSerializationError(
             f"{slot} entry must be a mapping, got {type(payload).__name__}."
@@ -228,7 +232,7 @@ def _decode_term(payload: Mapping[str, Any], *, slot: str) -> Term:
 
 
 @_register_decoder("HrfTerm")
-def _decode_hrf_term(payload: Mapping[str, Any]) -> HrfTerm:
+def _decode_hrf_term(payload: Mapping[str, object]) -> HrfTerm:
     variables = _coerce_str_tuple(payload.get("variables", ()), field="variables")
     hrf_value = payload.get("hrf", "spm")
     if not isinstance(hrf_value, str):
@@ -254,7 +258,7 @@ def _decode_hrf_term(payload: Mapping[str, Any]) -> HrfTerm:
     )
 
 
-def _decode_subset(value: Any):
+def _decode_subset(value: object) -> object:
     if value is None:
         return None
     if not isinstance(value, Mapping):
@@ -284,7 +288,7 @@ def _decode_subset(value: Any):
 
 
 @_register_decoder("Drift")
-def _decode_drift(payload: Mapping[str, Any]) -> Drift:
+def _decode_drift(payload: Mapping[str, object]) -> Drift:
     return Drift(
         basis=payload.get("basis", "constant"),
         degree=int(payload.get("degree", 1)),
@@ -293,24 +297,24 @@ def _decode_drift(payload: Mapping[str, Any]) -> Drift:
 
 
 @_register_decoder("Intercept")
-def _decode_intercept(payload: Mapping[str, Any]) -> Intercept:
+def _decode_intercept(payload: Mapping[str, object]) -> Intercept:
     return Intercept(per=payload.get("per", "run"))
 
 
 @_register_decoder("Confounds")
-def _decode_confounds(payload: Mapping[str, Any]) -> Confounds:
+def _decode_confounds(payload: Mapping[str, object]) -> Confounds:
     columns = _coerce_str_tuple(payload.get("columns", ()), field="columns")
     if not columns:
         raise SpecSerializationError("Confounds requires at least one column.")
     return Confounds(columns=columns, source=None)
 
 
-def _coerce_str_tuple(value: Any, *, field: str) -> tuple:
+def _coerce_str_tuple(value: object, *, field: str) -> tuple[str, ...]:
     if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
         raise SpecSerializationError(
             f"{field} must be a sequence of strings, got {type(value).__name__}."
         )
-    out = []
+    out: list[str] = []
     for i, item in enumerate(value):
         if not isinstance(item, str):
             raise SpecSerializationError(
