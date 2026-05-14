@@ -564,7 +564,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": false,
@@ -575,7 +575,7 @@
       "owner_module": null,
       "runtime_signature": null,
       "signature_source": "non_callable",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -864,7 +864,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "internal_forwarder",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": false,
@@ -875,7 +875,7 @@
       "owner_module": null,
       "runtime_signature": null,
       "signature_source": "non_callable",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -1269,7 +1269,7 @@
       "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -1280,7 +1280,7 @@
       "owner_module": "fmrimod",
       "runtime_signature": "(*events, **kwargs)",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat_pending_fix",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -1884,7 +1884,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -1895,11 +1895,11 @@
       "owner_module": "fmrimod",
       "runtime_signature": "(*args, **kwargs)",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat_pending_fix",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -1910,7 +1910,7 @@
       "owner_module": "fmrimod",
       "runtime_signature": "(*args, **kwargs)",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat_pending_fix",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -2064,7 +2064,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -2075,7 +2075,7 @@
       "owner_module": "fmrimod",
       "runtime_signature": "(*args, **kwargs)",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat_pending_fix",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -2139,7 +2139,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -2150,7 +2150,7 @@
       "owner_module": null,
       "runtime_signature": "(*args, **kwargs)",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat_pending_fix",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -2334,7 +2334,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -2345,7 +2345,7 @@
       "owner_module": "fmrimod",
       "runtime_signature": "(data, tr=None, run_length=None, *, event_table=None, mask=None, TR=None)",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat_pending_fix",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
