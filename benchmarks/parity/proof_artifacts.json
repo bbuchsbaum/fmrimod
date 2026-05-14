@@ -422,10 +422,23 @@
       "report_path": "benchmarks/parity/tier_a_localizer_fixed_effects/reports/parity_report.json",
       "reference_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py::nilearn_pipeline",
       "fmrimod_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> contrast via RealizedDesign(source='nilearn')",
+      "realized_design_source": "nilearn",
       "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
+      "performance_stage": "tier_a_localizer_fixed_effects",
       "timings": {
-        "status": "not_recorded",
-        "next": "capture stage-level timings after localizer RealizedDesign path is promoted into the release manifest"
+        "status": "recorded",
+        "seconds": 1.1200084990000003,
+        "stages": {
+          "fmrimod_contrast_seconds": 0.0013190829999998321,
+          "fmrimod_dataset_seconds": 0.012205457999999947,
+          "fmrimod_design_seconds": 8.175000000010257e-05,
+          "fmrimod_fit_seconds": 0.03179091699999992,
+          "fmrimod_reference_design_seconds": 0.2818261249999998,
+          "load_inputs_seconds": 0.35658429100000033,
+          "nilearn_pipeline_seconds": 0.4362008750000004
+        },
+        "source": "benchmarks/parity/tier_a_localizer_fixed_effects/reports/parity_report.json"
       },
       "typed_objects": [
         "fmrimod.dataset.FmriDataset",

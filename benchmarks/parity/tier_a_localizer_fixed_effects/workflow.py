@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -113,7 +115,11 @@ def nilearn_pipeline(inputs: LocalizerInputs) -> PipelineOutput:
     )
 
 
-def fmrimod_pipeline(inputs: LocalizerInputs) -> PipelineOutput:
+def fmrimod_pipeline(
+    inputs: LocalizerInputs,
+    *,
+    timing_sink: dict[str, float] | None = None,
+) -> PipelineOutput:
     """Fit Nilearn's realized localizer design through fmrimod's public seam.
 
     Strict reference parity uses the explicit Moore-Penrose solver backend.
@@ -121,23 +127,41 @@ def fmrimod_pipeline(inputs: LocalizerInputs) -> PipelineOutput:
     different residual variance on sparse boundary voxels because it takes a
     different algebraic route through the same least-squares problem.
     """
+    reference_start = time.perf_counter()
     model = _fit_reference(inputs.img, inputs.events, inputs.mask_img)
+    if timing_sink is not None:
+        timing_sink["fmrimod_reference_design_seconds"] = (
+            time.perf_counter() - reference_start
+        )
     design_frame = model.design_matrices_[0]
     X = design_frame.to_numpy(dtype=np.float64)
     Y = model.masker_.transform(inputs.img)
+
+    dataset_start = time.perf_counter()
     dataset = fm.fmri_dataset(
         Y,
         tr=TR,
         mask=np.ones(Y.shape[1], dtype=bool),
         events=inputs.events,
     )
+    if timing_sink is not None:
+        timing_sink["fmrimod_dataset_seconds"] = time.perf_counter() - dataset_start
+
+    design_start = time.perf_counter()
     design = RealizedDesign.from_array(
         X,
         columns=tuple(str(column) for column in design_frame.columns),
         source="nilearn",
     )
+    if timing_sink is not None:
+        timing_sink["fmrimod_design_seconds"] = time.perf_counter() - design_start
 
+    fit_start = time.perf_counter()
     fit = fm.fmri_lm(design, dataset, config=FmriLmConfig(solver="pinv"))
+    if timing_sink is not None:
+        timing_sink["fmrimod_fit_seconds"] = time.perf_counter() - fit_start
+
+    contrast_start = time.perf_counter()
     cres = fit.contrast(
         fm.column_contrast(
             "^audio_computation$",
@@ -145,6 +169,8 @@ def fmrimod_pipeline(inputs: LocalizerInputs) -> PipelineOutput:
             name="tier_a_localizer_audio_gt_visual",
         )
     )
+    if timing_sink is not None:
+        timing_sink["fmrimod_contrast_seconds"] = time.perf_counter() - contrast_start
     if fit.provenance is None or fit.provenance.design_source != "nilearn":
         raise AssertionError("fmrimod localizer path did not carry design source")
     return PipelineOutput(
@@ -169,10 +195,50 @@ def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
     )
 
 
+def _make_timed_case(timings: dict[str, float]) -> ParityCase:
+    start = time.perf_counter()
+    inputs = load_inputs(max_voxels=MAX_VOXELS)
+    timings["load_inputs_seconds"] = time.perf_counter() - start
+
+    def _timed_fmrimod(shared_inputs: LocalizerInputs) -> PipelineOutput:
+        return fmrimod_pipeline(shared_inputs, timing_sink=timings)
+
+    def _timed_nilearn(shared_inputs: LocalizerInputs) -> PipelineOutput:
+        start = time.perf_counter()
+        output = nilearn_pipeline(shared_inputs)
+        timings["nilearn_pipeline_seconds"] = time.perf_counter() - start
+        return output
+
+    return ParityCase(
+        name="tier_a_localizer_audio_gt_visual",
+        fmrimod_pipeline=_timed_fmrimod,
+        reference_pipeline=_timed_nilearn,
+        inputs=inputs,
+        declared_caveats=(),
+        tolerances={
+            "effect_audio_gt_visual": ParityTolerance(),
+            "t_audio_gt_visual": ParityTolerance(),
+        },
+    )
+
+
+def _write_timing_payload(json_path: Path, timings: dict[str, float]) -> None:
+    payload = json.loads(json_path.read_text())
+    stages = {key: float(value) for key, value in sorted(timings.items())}
+    payload["timings"] = {
+        "status": "recorded",
+        "seconds": float(sum(stages.values())),
+        "stages": stages,
+    }
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
 def main() -> None:
-    result = run(make_case())
+    timings: dict[str, float] = {}
+    result = run(_make_timed_case(timings))
     out_dir = Path(__file__).resolve().parent / "reports"
-    render(result, out_dir)
+    json_path, _ = render(result, out_dir)
+    _write_timing_payload(json_path, timings)
     if result.status == "fail":
         raise SystemExit(1)
 
