@@ -8,7 +8,8 @@ string formula parser.
 
 from __future__ import annotations
 
-from typing import Any, Literal, Sequence, Tuple, cast
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -16,6 +17,12 @@ import pandas as pd
 from ..hrf.core import HRF
 from ..hrf.registry import get_hrf
 from .terms import Confounds, Drift, HrfTerm, Intercept, Spec, Term
+
+if TYPE_CHECKING:
+    from ..baseline.baseline_model import BaselineModel
+    from ..design.event_model import EventModel
+    from ..formula.base import Term as EventModelTerm
+    from ..sampling import SamplingFrame
 
 BaselineBasis = Literal["constant", "poly", "bs", "ns"]
 BaselineIntercept = Literal["runwise", "global", "none"]
@@ -34,7 +41,7 @@ def _resolve_hrf(term: HrfTerm) -> HRF | str:
     return normalize(base, term.norm)
 
 
-def _hrf_term_to_event_model_term(term: HrfTerm) -> Any:
+def _hrf_term_to_event_model_term(term: HrfTerm) -> EventModelTerm:
     """Translate one typed HRF term to EventModel's explicit Term object.
 
     This builds only the main-effect term; ``term.modulators`` is expanded
@@ -76,7 +83,7 @@ def _hrf_term_to_event_model_term(term: HrfTerm) -> Any:
     return lowered
 
 
-def _lower_hrf_term(term: HrfTerm) -> list[Any]:
+def _lower_hrf_term(term: HrfTerm) -> list[EventModelTerm]:
     """Lower one typed HrfTerm into one or more legacy EventModelTerms.
 
     With no modulators, this is a single main-effect term. With
@@ -96,7 +103,7 @@ def _lower_hrf_term(term: HrfTerm) -> list[Any]:
         return [main]
 
     base_id = term.id or main.name
-    lowered: list[Any] = [main]
+    lowered: list[EventModelTerm] = [main]
     for modulator in term.modulators:
         param_events = list(term.variables) + [modulator]
         param_name = f"{base_id}:{modulator}" if base_id else None
@@ -123,7 +130,7 @@ def _lower_hrf_term(term: HrfTerm) -> list[Any]:
     return lowered
 
 
-def _event_model_term_to_hrf_term(term: Any) -> HrfTerm:
+def _event_model_term_to_hrf_term(term: object) -> HrfTerm:
     """Convert a legacy formula Term to the typed HrfTerm representation."""
     events = getattr(term, "events", None)
     hrf_value = getattr(term, "hrf", None)
@@ -192,12 +199,12 @@ def legacy_formula_to_spec(formula: str | Sequence[object]) -> Spec:
 def compile_events(
     spec: Spec,
     data: pd.DataFrame,
-    sampling_frame: Any,
+    sampling_frame: SamplingFrame,
     *,
-    block: Any,
-    durations: Any,
+    block: object,
+    durations: object,
     precision: float | None,
-) -> Any:
+) -> EventModel | None:
     """Build an EventModel from the spec's event terms.
 
     Returns ``None`` if the spec has no event terms (baseline-only design).
@@ -208,7 +215,7 @@ def compile_events(
     if not event_terms:
         return None
 
-    lowered_terms: list[Any] = []
+    lowered_terms: list[EventModelTerm] = []
     for term in event_terms:
         if not isinstance(term, HrfTerm):
             raise TypeError(
@@ -217,7 +224,7 @@ def compile_events(
             )
         lowered_terms.extend(_lower_hrf_term(term))
 
-    kwargs: dict[str, Any] = dict(
+    kwargs: dict[str, object] = dict(
         data=data,
         sampling_frame=sampling_frame,
         block=block,
@@ -231,8 +238,8 @@ def compile_events(
 
 def compile_baseline(
     spec: Spec,
-    sampling_frame: Any,
-) -> Any:
+    sampling_frame: SamplingFrame,
+) -> BaselineModel:
     """Build a BaselineModel from the spec's baseline terms.
 
     If no baseline terms were declared, defaults to a runwise constant
@@ -293,12 +300,12 @@ def compile_baseline(
 def compile(
     spec: Spec | Term,
     data: pd.DataFrame,
-    sampling_frame: Any,
+    sampling_frame: SamplingFrame,
     *,
-    block: Any = None,
-    durations: Any = None,
+    block: object = None,
+    durations: object = None,
     precision: float | None = None,
-) -> Tuple[Any, Any]:
+) -> tuple[EventModel | None, BaselineModel]:
     """Lower a Spec or single Term to ``(EventModel, BaselineModel)``."""
     if isinstance(spec, Term):
         from .terms import as_spec
