@@ -18,7 +18,7 @@ def test_semantic_contrast_alignment_uses_existing_matrix_surface() -> None:
     assert not hasattr(workflow, "_MatrixDataset")
     assert not hasattr(workflow, "_NamedMatrixModel")
     report = workflow.run_benchmark(max_voxels=4)
-    assert report["ergonomics"]["status"] == "matrix-first partial"
+    assert report["ergonomics"]["status"] == "public seam partial"
     assert (
         "fit_glm_from_matrix(named DataFrame)"
         in report["ergonomics"]["fmrimod_path"]
@@ -27,13 +27,19 @@ def test_semantic_contrast_alignment_uses_existing_matrix_surface() -> None:
         "condition('gain', term='trial_type')"
         in report["ergonomics"]["authored_term_prototype"]
     )
-    assert "not yet the flagship" in report["ergonomics"]["limitation"]
+    assert "fmri_dataset" in report["ergonomics"]["public_seam"]
+    assert "fmri_lm" in report["ergonomics"]["public_seam"]
+    assert report["public_seam"]["status"] == "pass"
+    assert report["public_seam"]["order_changed"] is True
+    assert report["public_seam"]["effect_delta"] < 1e-8
+    assert report["public_seam"]["stat_delta"] < 1e-5
+    assert "now crosses the flagship" in report["ergonomics"]["limitation"]
     assert "matched within tolerance" in report["win_ladder"][
         "numerical_oracle_status"
     ]
     assert "fails visibly" in report["win_ladder"]["positional_trap_status"]
     assert (
-        "authored_term_prototype_matrix_first"
+        "authored_term_public_seam"
         in report["win_ladder"]["ergonomic_win_status"]
     )
 
@@ -50,7 +56,7 @@ def test_semantic_contrast_manifest_is_matrix_first_not_full_public_seam() -> No
 
     assert row["evidence_level"] == "workflow_parity"
     assert row["public_seam"] is False
-    assert "matrix-first partial" in row["fmrimod_expresses_better"]
+    assert "ordinary event designs" in row["fmrimod_expresses_better"]
     assert "fit_glm_from_matrix" in row["fmrimod_path"]
     assert row["replacement_target"]["owner_bead"] == (
         "bd-01KRJ3J97HYXK9DV0EKV0HVMYX"

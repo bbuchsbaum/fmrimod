@@ -493,7 +493,7 @@
         "fmrimod.contrast.SemanticContrast",
         "fmrimod.glm.ContrastResult"
       ],
-      "fmrimod_expresses_better": "The gain-minus-loss hypothesis is resolved by named column intent and by an authored condition contrast against declared DesignColumns; this is still an honest matrix-first partial receipt, not a flagship fmri_dataset workflow. The Nilearn reference needs a freshly rebuilt numeric vector and a reused positional vector silently targets the wrong coefficients.",
+      "fmrimod_expresses_better": "The gain-minus-loss hypothesis is resolved by named column intent and by an authored condition contrast against declared DesignColumns; ordinary event designs now carry that authored condition contrast through fmri_dataset -> fmri_lm. The exact Nilearn parity trap remains a matrix-first fixture because Nilearn needs a freshly rebuilt numeric vector and a reused positional vector silently targets the wrong coefficients.",
       "replacement_target": {
         "description": "Promote the exact semantic contrast-alignment stress to the canonical authored-model path once this benchmark fixture is expressed as events/spec rather than a matrix-first source DesignColumns fixture.",
         "owner_bead": "bd-01KRJ3J97HYXK9DV0EKV0HVMYX",

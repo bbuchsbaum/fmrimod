@@ -97,15 +97,23 @@ def test_fmri_lm_semantic_contrast_survives_categorical_ordering() -> None:
             {
                 "onset": np.arange(labels.size, dtype=np.float64) * 12.0,
                 "duration": np.full(labels.size, 6.0),
-                "trial_type": pd.Categorical(labels, categories=list(order), ordered=True),
+                "trial_type": pd.Categorical(
+                    labels,
+                    categories=list(order),
+                    ordered=True,
+                ),
                 "run": np.ones(labels.size, dtype=int),
             }
         )
-        return fmri_lm("hrf(trial_type)", fm.fmri_dataset(y, tr=tr, events=events))
+        dataset = fm.fmri_dataset(y, tr=tr, events=events)
+        return fmri_lm("hrf(trial_type)", dataset)
 
     canonical = fit_with_order(("gain", "loss"))
     reversed_levels = fit_with_order(("loss", "gain"))
-    contrast = condition("gain", term="trial_type") - condition("loss", term="trial_type")
+    contrast = condition("gain", term="trial_type") - condition(
+        "loss",
+        term="trial_type",
+    )
 
     canonical_names = canonical.design_columns().names
     reversed_names = reversed_levels.design_columns().names
@@ -118,13 +126,17 @@ def test_fmri_lm_semantic_contrast_survives_categorical_ordering() -> None:
         "trial_type_trial_type.loss",
     )
     assert reversed_result.touched_columns == (
-        "trial_type_trial_type.gain",
         "trial_type_trial_type.loss",
+        "trial_type_trial_type.gain",
     )
     assert np.allclose(canonical_result.estimate, reversed_result.estimate, atol=1e-10)
     assert np.allclose(canonical_result.stat, reversed_result.stat, atol=1e-7)
     assert canonical_result.intent["kind"] == "semantic_contrast"
+    assert canonical_result.intent["positive"]["level"] == "gain"
+    assert canonical_result.intent["negative"]["level"] == "loss"
     assert reversed_result.intent["kind"] == "semantic_contrast"
+    assert reversed_result.intent["positive"]["level"] == "gain"
+    assert reversed_result.intent["negative"]["level"] == "loss"
 
 
 def test_fmri_lm_hrf_formula_routes_through_typed_spec(synthetic_run, monkeypatch):

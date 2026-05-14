@@ -442,6 +442,104 @@ def nilearn_probe(
     return engine, effect, stat
 
 
+def _public_events(level_order: tuple[str, str]) -> pd.DataFrame:
+    labels = np.array(["gain", "loss"] * 7, dtype=object)
+    return pd.DataFrame(
+        {
+            "onset": np.arange(labels.size, dtype=np.float64) * 12.0,
+            "duration": np.full(labels.size, 6.0),
+            "trial_type": pd.Categorical(
+                labels,
+                categories=list(level_order),
+                ordered=True,
+            ),
+            "run": np.ones(labels.size, dtype=int),
+        }
+    )
+
+
+def public_seam_probe(
+    max_voxels: int = MAX_VOXELS,
+    seed: int = 20260513,
+) -> dict[str, Any]:
+    """Verify authored contrast intent through ``fmri_dataset -> fmri_lm``."""
+
+    rng = np.random.default_rng(seed)
+    n_voxels = min(int(max_voxels), MAX_VOXELS)
+    data = rng.normal(size=(N_SCANS, n_voxels)).astype(np.float64)
+    contrast = condition("gain", term="trial_type") - condition(
+        "loss",
+        term="trial_type",
+    )
+
+    def fit_case(level_order: tuple[str, str]) -> dict[str, Any]:
+        dataset = fm.fmri_dataset(
+            data,
+            tr=2.0,
+            events=_public_events(level_order),
+        )
+        fit = fm.fmri_lm("hrf(trial_type)", dataset)
+        result = fit.contrast(contrast)
+        explanation = result.explain().to_dict()
+        return {
+            "level_order": level_order,
+            "design_columns": fit.design_columns().names,
+            "effect": np.asarray(result.estimate, dtype=np.float64),
+            "stat": np.asarray(result.stat, dtype=np.float64),
+            "touched_columns": tuple(result.touched_columns),
+            "intent": explanation["intent"],
+            "design_column_provenance": tuple(
+                {
+                    "name": column["name"],
+                    "term": column["term"],
+                    "level": column["level"],
+                    "level_provenance": column["provenance"]["level"],
+                }
+                for column in explanation["design_columns"]
+            ),
+        }
+
+    canonical = fit_case(("gain", "loss"))
+    reversed_levels = fit_case(("loss", "gain"))
+    effect_delta = _max_abs_delta(canonical["effect"], reversed_levels["effect"])
+    stat_delta = _max_abs_delta(canonical["stat"], reversed_levels["stat"])
+    order_changed = canonical["design_columns"] != reversed_levels["design_columns"]
+    invariant = (
+        effect_delta is not None
+        and effect_delta < 1e-8
+        and stat_delta is not None
+        and stat_delta < 1e-5
+    )
+    return {
+        "status": "pass" if order_changed and invariant else "fail",
+        "fmrimod_path": (
+            "fmri_dataset(events with categorical trial_type) -> "
+            "fmri_lm('hrf(trial_type)') -> "
+            "condition('gain', term='trial_type') - "
+            "condition('loss', term='trial_type') -> ContrastResult"
+        ),
+        "canonical": {
+            key: value
+            for key, value in canonical.items()
+            if key not in {"effect", "stat"}
+        },
+        "reversed_levels": {
+            key: value
+            for key, value in reversed_levels.items()
+            if key not in {"effect", "stat"}
+        },
+        "effect_delta": effect_delta,
+        "stat_delta": stat_delta,
+        "order_changed": order_changed,
+        "verdict": (
+            "authored condition contrast follows declared event semantics across "
+            "the public fmri_dataset -> fmri_lm seam"
+            if order_changed and invariant
+            else "public authored condition contrast did not survive design ordering"
+        ),
+    }
+
+
 def _case_status(comparisons: dict[str, float | None]) -> tuple[str, str]:
     aligned_ok = (
         comparisons["aligned_effect_delta"] is not None
@@ -544,6 +642,7 @@ def run_benchmark(
         case_id="permuted_order",
         column_order=inputs.permuted_order,
     )
+    public_seam = public_seam_probe(max_voxels=max_voxels, seed=seed + 1)
     invariance = {
         "fmrimod_effect_delta": _max_abs_delta(
             base.fmrimod_effect,
@@ -596,7 +695,12 @@ def run_benchmark(
     cases = (base.report, permuted.report)
     status = (
         "pass"
-        if all(case.status == "pass" for case in cases) and invariant and pain_observed
+        if (
+            all(case.status == "pass" for case in cases)
+            and invariant
+            and pain_observed
+            and public_seam["status"] == "pass"
+        )
         else "fail"
     )
     return _json_safe(
@@ -620,7 +724,7 @@ def run_benchmark(
             },
             "true_effect_median": inputs.true_effect_median,
             "ergonomics": {
-                "status": "matrix-first partial",
+                "status": "public seam partial",
                 "fmrimod_path": (
                     "fit_glm_from_matrix(named DataFrame) -> "
                     "column_contrast -> ContrastResult"
@@ -630,11 +734,14 @@ def run_benchmark(
                     "condition('gain', term='trial_type') - "
                     "condition('loss', term='trial_type') -> ContrastResult"
                 ),
+                "public_seam": public_seam["fmrimod_path"],
                 "limitation": (
-                    "This is a strict numerical/semantic canary, not yet the "
-                    "flagship fmri_dataset -> fmri_lm mission path."
+                    "The exact Nilearn parity trap remains a matrix canary, but "
+                    "the authored condition contrast now crosses the flagship "
+                    "fmri_dataset -> fmri_lm mission path."
                 ),
             },
+            "public_seam": public_seam,
             "win_ladder": {
                 "numerical_oracle_status": (
                     "aligned Nilearn numeric vector matched within tolerance"
@@ -643,10 +750,10 @@ def run_benchmark(
                     "reused positional vector fails visibly after permutation"
                 ),
                 "ergonomic_win_status": (
-                    "authored_term_prototype_matrix_first: authored condition "
-                    "intent resolves against declared DesignColumns and survives "
-                    "permutation; the remaining target is the flagship "
-                    "fmri_dataset -> fmri_lm seam"
+                    "authored_term_public_seam: authored condition intent resolves "
+                    "against declared event term/level provenance through "
+                    "fmri_dataset -> fmri_lm and survives categorical design-order "
+                    "changes"
                 ),
             },
             "invariance": invariance,
@@ -686,6 +793,8 @@ def render(report: dict[str, Any], out_dir: Path) -> tuple[Path, Path]:
         "",
         f"Authored prototype: `{report['ergonomics']['authored_term_prototype']}`",
         "",
+        f"Public seam: `{report['ergonomics']['public_seam']}`",
+        "",
         report["ergonomics"]["limitation"],
         "",
         "## Win Ladder",
@@ -707,6 +816,22 @@ def render(report: dict[str, Any], out_dir: Path) -> tuple[Path, Path]:
         "",
         f"- Canonical: `{', '.join(report['design_column_orders']['canonical'])}`",
         f"- Permuted: `{', '.join(report['design_column_orders']['permuted'])}`",
+        "",
+        "## Public Seam",
+        "",
+        f"Status: `{report['public_seam']['status']}`",
+        "",
+        report["public_seam"]["verdict"],
+        "",
+        (
+            "- Categorical order changed realized columns: "
+            f"`{report['public_seam']['order_changed']}`"
+        ),
+        (
+            "- Max effect/stat delta: "
+            f"`{report['public_seam']['effect_delta']:.3g}` / "
+            f"`{report['public_seam']['stat_delta']:.3g}`"
+        ),
         "",
         "## Cases",
         "",
