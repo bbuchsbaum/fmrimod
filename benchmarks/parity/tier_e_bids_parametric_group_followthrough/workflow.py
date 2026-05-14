@@ -21,9 +21,8 @@ from numpy.typing import NDArray
 
 import fmrimod as fm
 from fmrimod.bids.stats_model import translate_run_node
-from fmrimod.contrast import condition
-from fmrimod.dataset import group_data_from_csv
-from fmrimod.group import group_dataset_from_group_data, group_model, ols_voxelwise
+from fmrimod.contrast import group_dataset_from_contrasts, modulator
+from fmrimod.group import group_model, ols_voxelwise
 from fmrimod.sampling import SamplingFrame
 
 Array = NDArray[np.float64]
@@ -191,10 +190,8 @@ def fit_subject(
     fit = translated.fit(dataset)
     main = translated.contrast(fit, "word_gt_pseudoword")
     omnibus = translated.contrast(fit, "task_omnibus")
-    slope_spec = condition("word", term="trial_type:rt_z") - condition(
-        "pseudoword",
-        term="trial_type:rt_z",
-    )
+    rt = modulator("rt_z").within("trial_type")
+    slope_spec = rt.slope("word") - rt.slope("pseudoword")
     slope = fit.contrast(
         slope_spec,
         name="word_rt_slope_gt_pseudoword_rt_slope",
@@ -207,18 +204,11 @@ def fit_subject(
     }
 
 
-def group_followthrough(subject_rows: pd.DataFrame, covariates: pd.DataFrame) -> Any:
+def group_followthrough(contrasts: dict[str, Any], covariates: pd.DataFrame) -> Any:
     """Run the native group model on first-level semantic slope estimates."""
 
-    group_data = group_data_from_csv(
-        subject_rows,
-        effect_cols={"beta": "beta", "se": "se"},
-        subject_col="subject",
-        roi_col="feature",
-        covariates=covariates,
-    )
     return ols_voxelwise(
-        group_dataset_from_group_data(group_data),
+        group_dataset_from_contrasts(contrasts, covariates=covariates),
         model=group_model("behavior"),
     )
 
@@ -247,7 +237,7 @@ def run_benchmark(
     behavior = np.linspace(-1.0, 1.0, n_subjects, dtype=np.float64)
     subjects = [f"sub-{i + 1:02d}" for i in range(n_subjects)]
     subject_summaries: list[dict[str, Any]] = []
-    rows: list[dict[str, Any]] = []
+    slope_contrasts: dict[str, Any] = {}
     first_level_start = time.perf_counter()
     for subject_index, (subject, value) in enumerate(zip(subjects, behavior)):
         bold = _subject_bold(
@@ -259,20 +249,7 @@ def run_benchmark(
         )
         outputs = fit_subject(translated, events, bold)
         slope = outputs["slope"]
-        se = np.asarray(slope.se, dtype=np.float64)
-        if se.size == 0:
-            se = np.ones(n_voxels, dtype=np.float64)
-        for feature, (beta, beta_se) in enumerate(
-            zip(np.asarray(slope.estimate, dtype=np.float64), se)
-        ):
-            rows.append(
-                {
-                    "subject": subject,
-                    "feature": f"v{feature:03d}",
-                    "beta": float(beta),
-                    "se": float(beta_se) if np.isfinite(beta_se) else 1.0,
-                }
-            )
+        slope_contrasts[subject] = slope
         subject_summaries.append(
             {
                 "subject": subject,
@@ -287,9 +264,8 @@ def run_benchmark(
     timings["first_level_subjects_seconds"] = time.perf_counter() - first_level_start
 
     group_start = time.perf_counter()
-    subject_rows = pd.DataFrame(rows)
     covariates = pd.DataFrame({"subject": subjects, "behavior": behavior})
-    group_result = group_followthrough(subject_rows, covariates)
+    group_result = group_followthrough(slope_contrasts, covariates)
     timings["native_group_model_seconds"] = time.perf_counter() - group_start
 
     behavior_coef = np.asarray(group_result.assay("coef:behavior"))[:, 0, 0]
@@ -322,42 +298,20 @@ def run_benchmark(
                 "caveats": list(translated.caveats),
             },
             "ergonomics": {
-                "ux_status": "typed_contrast_full_group_manual",
+                "ux_status": "typed_contrast_full_group",
                 "fmrimod_path": (
                     "BIDS JSON -> translate_run_node -> fmri_dataset -> "
-                    "StatsModelContrast.apply -> condition(term='trial_type:rt_z') "
+                    "StatsModelContrast.apply -> modulator('rt_z').within('trial_type') "
                     "-> group_model('behavior') -> ols_voxelwise"
                 ),
                 "raw_vector_user_code": False,
                 "typed_contrast_authoring_status": "full",
-                "e2e_ux_status": "partial",
+                "e2e_ux_status": "full",
                 "parametric_contrast_callsite": (
-                    "condition('word', term='trial_type:rt_z') - "
-                    "condition('pseudoword', term='trial_type:rt_z')"
+                    "modulator('rt_z').within('trial_type').slope('word') - "
+                    "modulator('rt_z').within('trial_type').slope('pseudoword')"
                 ),
-                "ux_blockers": [
-                    {
-                        "owner_bead": "bd-01KRM9PVWWKTH7A0TJDYTZ9XB7",
-                        "gap": (
-                            "Parametric authoring still requires the generated "
-                            "term spelling trial_type:rt_z."
-                        ),
-                    },
-                    {
-                        "owner_bead": "bd-01KRM9PVWWKTH7A0TJDYTZ9XB7",
-                        "gap": (
-                            "Group handoff manually packs ContrastResult "
-                            "estimates into subject/feature/beta/se rows."
-                        ),
-                    },
-                    {
-                        "owner_bead": "bd-01KRM9PVWWKTH7A0TJDYTZ9XB7",
-                        "gap": (
-                            "Diagnostics expose generated implementation "
-                            "column names for parametric terms."
-                        ),
-                    },
-                ],
+                "ux_blockers": [],
             },
             "subject_summary": subject_summaries,
             "group": {

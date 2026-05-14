@@ -4,9 +4,9 @@ Status: `pass`
 
 ## Ergonomics
 
-BIDS JSON -> translate_run_node -> fmri_dataset -> StatsModelContrast.apply -> condition(term='trial_type:rt_z') -> group_model('behavior') -> ols_voxelwise
+BIDS JSON -> translate_run_node -> fmri_dataset -> StatsModelContrast.apply -> modulator('rt_z').within('trial_type') -> group_model('behavior') -> ols_voxelwise
 
-UX status: `typed_contrast_full_group_manual`; E2E UX status: `partial`.
+UX status: `typed_contrast_full_group`; E2E UX status: `full`.
 
 ## Group Check
 

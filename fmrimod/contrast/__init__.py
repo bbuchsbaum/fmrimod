@@ -25,14 +25,18 @@ from .factorial import (
     generate_main_effect_contrast,
 )
 from .fcontrast import Fcontrasts, plot_Fcontrasts
+from .group_collection import group_dataset_from_contrasts
 from .omnibus import OmnibusContrast
 from .plot_contrasts import plot_contrasts
 from .semantic import (
     ConditionRef,
     LinearSemanticContrast,
+    ModulatorRef,
     SemanticContrast,
+    ScopedModulatorRef,
     cell,
     condition,
+    modulator,
 )
 
 __all__ = [
@@ -62,9 +66,13 @@ __all__ = [
     'OmnibusContrast',
     'ConditionRef',
     'LinearSemanticContrast',
+    'ModulatorRef',
     'SemanticContrast',
+    'ScopedModulatorRef',
     'cell',
     'condition',
+    'modulator',
+    'group_dataset_from_contrasts',
     'DesignProvenanceError',
     # Visualization
     'plot_contrasts',

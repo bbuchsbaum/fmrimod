@@ -701,7 +701,11 @@ class FmriLm:
         from fmrimod.contrast.contrast_spec import ContrastSpec
         from fmrimod.contrast.contrast_weights import contrast_weights
         from fmrimod.contrast.omnibus import OmnibusContrast
-        from fmrimod.contrast.semantic import LinearSemanticContrast, SemanticContrast
+        from fmrimod.contrast.semantic import (
+            ConditionRef,
+            LinearSemanticContrast,
+            SemanticContrast,
+        )
 
         if isinstance(spec, OmnibusContrast):
             weights = spec.resolve(self.design_columns())
@@ -716,6 +720,17 @@ class FmriLm:
                     rows=int(weights.shape[0]),
                     **self._contrast_intent_payload_fields(weights),
                 ),
+            )
+
+        if isinstance(spec, ConditionRef):
+            semantic = SemanticContrast(positive=spec, name=name or spec.display_name)
+            weights = semantic.resolve(self.design_columns())
+            intent_payload = semantic.intent(rows=1)
+            intent_payload.update(self._contrast_intent_payload_fields(weights))
+            return self._compute_contrast(
+                weights,
+                name=name or semantic.display_name,
+                intent=intent_payload,
             )
 
         if isinstance(spec, SemanticContrast):

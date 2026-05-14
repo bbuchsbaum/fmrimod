@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from difflib import get_close_matches
 from numbers import Real
 
 import numpy as np
@@ -319,6 +320,58 @@ def cell(
     return condition(level, term=term, basis_ix=basis_ix)
 
 
+@dataclass(frozen=True)
+class ModulatorRef:
+    """Reference to a parametric modulator before it is scoped to a term."""
+
+    name: str
+
+    def within(self, term: str) -> "ScopedModulatorRef":
+        """Scope this modulator to a factor/term that owns condition levels."""
+        if not isinstance(term, str) or not term:
+            raise ValueError("modulator(...).within(...) requires a non-empty term")
+        return ScopedModulatorRef(name=self.name, term=term)
+
+
+@dataclass(frozen=True)
+class ScopedModulatorRef:
+    """Parametric modulator scoped to one design term."""
+
+    name: str
+    term: str
+
+    @property
+    def parametric_term(self) -> str:
+        return f"{self.term}:{self.name}"
+
+    def slope(self, level: str) -> ConditionRef:
+        """Reference the modulator slope column for one condition level."""
+        if not isinstance(level, str) or not level:
+            raise ValueError("slope(...) requires a non-empty level")
+        return condition(level, term=self.parametric_term)
+
+    def slopes(self, *levels: str) -> None:
+        """Reserve the v2 F-contrast spelling recorded in the contract."""
+        raise NotImplementedError(
+            "Parametric F-contrast sugar is deferred to v2; see "
+            "docs/contracts/parametric_contrast_sugar_v1.md"
+        )
+
+    def omnibus(self, *levels: str) -> None:
+        """Reserve the v2 omnibus spelling recorded in the contract."""
+        raise NotImplementedError(
+            "Parametric F-contrast sugar is deferred to v2; see "
+            "docs/contracts/parametric_contrast_sugar_v1.md"
+        )
+
+
+def modulator(name: str) -> ModulatorRef:
+    """Author a parametric-modulator reference for semantic slope contrasts."""
+    if not isinstance(name, str) or not name:
+        raise ValueError("modulator(...) requires a non-empty modulator name")
+    return ModulatorRef(name=name)
+
+
 def _select_condition(
     columns: DesignColumns,
     ref: ConditionRef,
@@ -350,23 +403,7 @@ def _select_condition(
         )
 
     if not candidates:
-        available = sorted(
-            {
-                column.level
-                for column in columns
-                if column.level is not None
-                and (ref.term is None or column.term == ref.term)
-            }
-        )
-        raise DesignProvenanceError(
-            f"SemanticContrast {side} condition {ref.display_name!r} "
-            f"matched no declared design columns; available levels={available!r}",
-            weak_fields=("level",),
-            repair_path=(
-                "author the contrast against a level emitted by the typed design "
-                "compiler, or carry declared level provenance into DesignColumns."
-            ),
-        )
+        _raise_missing_condition(columns, ref, side=side)
 
     if ref.term is None:
         terms = {column.term for column in candidates}
@@ -398,6 +435,68 @@ def _select_condition(
             ),
         )
     return candidates
+
+
+def _raise_missing_condition(
+    columns: DesignColumns,
+    ref: ConditionRef,
+    *,
+    side: str,
+) -> None:
+    if ref.term is not None and ":" in ref.term:
+        factor, modulator_name = ref.term.split(":", 1)
+        available_modulators = sorted(
+            {
+                str(column.term).split(":", 1)[1]
+                for column in columns
+                if column.term is not None
+                and ":" in str(column.term)
+                and str(column.term).split(":", 1)[0] == factor
+            }
+        )
+        available_levels = sorted(
+            {
+                str(column.level)
+                for column in columns
+                if column.level is not None and column.term == ref.term
+            }
+        )
+        suggestions = get_close_matches(modulator_name, available_modulators, n=3)
+        suggestion_text = (
+            f"; did you mean {suggestions[0]!r}?"
+            if len(suggestions) == 1
+            else (f"; did you mean one of {suggestions!r}?" if suggestions else "")
+        )
+        raise DesignProvenanceError(
+            f"Parametric modulator {modulator_name!r} within term {factor!r} "
+            f"could not resolve level {ref.level!r}{suggestion_text}. "
+            f"Available modulators: {available_modulators!r}; "
+            f"available levels for requested modulator: {available_levels!r}.",
+            weak_fields=("term", "level"),
+            repair_path=(
+                "Use modulator(<available>).within(<term>).slope(<level>) "
+                "or the lower-level condition(level, term='term:modulator') "
+                "escape hatch."
+            ),
+        )
+
+    available = sorted(
+        {
+            column.level
+            for column in columns
+            if column.level is not None
+            and (ref.term is None or column.term == ref.term)
+        }
+    )
+    raise DesignProvenanceError(
+        f"SemanticContrast {side} condition {ref.display_name!r} "
+        f"matched no declared design columns; available levels={available!r}",
+        weak_fields=("level",),
+        repair_path=(
+            "author the contrast against a level emitted by the typed design "
+            "compiler, or carry declared level provenance into DesignColumns."
+        ),
+    )
 
 
 def _weak_provenance(
@@ -474,7 +573,10 @@ def _combine_terms(
 __all__ = [
     "ConditionRef",
     "LinearSemanticContrast",
+    "ModulatorRef",
     "SemanticContrast",
+    "ScopedModulatorRef",
     "cell",
     "condition",
+    "modulator",
 ]
