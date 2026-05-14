@@ -11,9 +11,9 @@ from typing import Optional
 import numpy as np
 from numpy.typing import NDArray
 
-from ..glm.solver import fast_preproject, fast_lm_matrix
-from .lss import _build_adjustment_matrix
+from ..glm.solver import fast_lm_matrix, fast_preproject
 from ._types import SingleTrialMethod, SingleTrialResult
+from .lss import _build_adjustment_matrix
 
 
 def lsa_single_trial(

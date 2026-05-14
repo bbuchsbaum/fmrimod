@@ -7,6 +7,7 @@ with library coordinates to find the best-matching HRF shape per voxel.
 from __future__ import annotations
 
 from dataclasses import dataclass
+
 import numpy as np
 from numpy.typing import NDArray
 

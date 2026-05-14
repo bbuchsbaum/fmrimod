@@ -19,11 +19,11 @@ Example
 >>> result.betas  # (n_trials, n_voxels)
 """
 
-from .library import SbhmLibrary, build_sbhm_library
-from .prepass import sbhm_prepass
-from .match import SbhmMatchResult, sbhm_match
 from .amplitude import sbhm_amplitude
+from .library import SbhmLibrary, build_sbhm_library
+from .match import SbhmMatchResult, sbhm_match
 from .pipeline import sbhm_single_trial
+from .prepass import sbhm_prepass
 
 __all__ = [
     "SbhmLibrary",

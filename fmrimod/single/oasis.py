@@ -19,7 +19,6 @@ from scipy import linalg
 
 from ._types import OasisConfig, SingleTrialMethod, SingleTrialResult
 
-
 # =========================================================================
 # K = 1 path
 # =========================================================================
