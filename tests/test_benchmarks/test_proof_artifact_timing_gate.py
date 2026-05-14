@@ -47,6 +47,7 @@ _PENDING_TIMING_ROWS = frozenset(
         "tier_b_fitlins_bids",
         "tier_c_second_level",
         "tier_e_parametric_centering",
+        "tier_e_scrubbed_timebase_alignment",
         "tier_e_semantic_contrast_alignment",
     }
 )

@@ -53,9 +53,9 @@ def test_semantic_contrast_manifest_is_matrix_first_not_full_public_seam() -> No
     assert "matrix-first partial" in row["fmrimod_expresses_better"]
     assert "fit_glm_from_matrix" in row["fmrimod_path"]
     assert row["replacement_target"]["owner_bead"] == (
-        "bd-01KRGG0B8S79Q91QY83WV6277B"
+        "bd-01KRJ3J97HYXK9DV0EKV0HVMYX"
     )
-    assert "term-level contrast" in row["replacement_target"]["blocking_api_gap"]
+    assert "fmri_dataset -> fmri_lm" in row["replacement_target"]["blocking_api_gap"]
 
 
 def test_semantic_contrast_alignment_records_invariance_and_pain_point() -> None:

@@ -495,9 +495,9 @@
       ],
       "fmrimod_expresses_better": "The gain-minus-loss hypothesis is resolved by named column intent and by an authored condition contrast against declared DesignColumns; this is still an honest matrix-first partial receipt, not a flagship fmri_dataset workflow. The Nilearn reference needs a freshly rebuilt numeric vector and a reused positional vector silently targets the wrong coefficients.",
       "replacement_target": {
-        "description": "Promote the semantic contrast-alignment stress to the canonical authored-model path once fmrimod carries the condition contrast through fmri_dataset -> fmri_lm instead of a matrix-first source DesignColumns fixture.",
-        "owner_bead": "bd-01KRGG0B8S79Q91QY83WV6277B",
-        "blocking_api_gap": "The term-level contrast prototype condition('gain') - condition('loss') resolves against declared DesignColumns on fit_glm_from_matrix; the ergonomic public target is carrying that authored contrast through fmri_dataset -> fmri_lm."
+        "description": "Promote the exact semantic contrast-alignment stress to the canonical authored-model path once this benchmark fixture is expressed as events/spec rather than a matrix-first source DesignColumns fixture.",
+        "owner_bead": "bd-01KRJ3J97HYXK9DV0EKV0HVMYX",
+        "blocking_api_gap": "Authored condition contrasts now resolve through fmri_dataset -> fmri_lm for ordinary event designs; the remaining gap is porting this exact column-permutation stress to an event/spec fixture with a matched Nilearn oracle."
       },
       "receipt": {
         "status": "regenerable",
@@ -515,22 +515,38 @@
     },
     {
       "benchmark_id": "tier_e_scrubbed_timebase_alignment",
-      "evidence_level": "numerical_canary",
-      "public_seam": false,
+      "evidence_level": "workflow_parity",
+      "public_seam": true,
       "workflow_path": "benchmarks/parity/tier_e_scrubbed_timebase_alignment/workflow.py",
       "report_path": "benchmarks/parity/tier_e_scrubbed_timebase_alignment/reports/scrubbed_timebase_alignment_report.json",
-      "reference_path": "benchmarks/parity/tier_e_scrubbed_timebase_alignment/workflow.py::nilearn_probe",
-      "fmrimod_path": "benchmarks/parity/tier_e_scrubbed_timebase_alignment/workflow.py::fmrimod_probe: fit_glm_from_matrix(row-filtered design/data) -> task contrast",
+      "reference_path": "benchmarks/parity/tier_e_scrubbed_timebase_alignment/workflow.py::nilearn_aligned_probe",
+      "fmrimod_path": "benchmarks/parity/tier_e_scrubbed_timebase_alignment/workflow.py::fmrimod_pipeline: fmri_dataset(censor=...) -> fmri_lm -> semantic condition contrast",
       "caveats": [],
+      "timings": {
+        "status": "not_recorded",
+        "next": "record design-realization, censored-fit, and Nilearn oracle timings if this stress case is promoted into a release benchmark suite"
+      },
       "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.spec.HrfTerm",
+        "fmrimod.spec.DriftTerm",
+        "fmrimod.contrast.SemanticContrast",
         "fmrimod.glm.FmriLm",
         "fmrimod.glm.ContrastResult"
       ],
-      "fmrimod_expresses_better": "The canary shows fmrimod matches Nilearn when scrubbed rows are removed from both the original-timebase design and the data, while a compacted post-scrub timeline silently targets the wrong task regressor.",
-      "replacement_target": {
-        "description": "Promote scrubbed timebase alignment into a public fmri_dataset/fmri_lm workflow once fmrimod has a first-class censor/scrub helper that row-filters data, design, and reports together.",
-        "owner_bead": "bd-01KRJ36AJD1XQEVM23356BSXV1",
-        "blocking_api_gap": "The current proof is a matrix canary; the public target is a typed scrubbed-volume path that keeps original acquisition timing explicit while removing censored rows."
+      "fmrimod_expresses_better": "Censoring lives on the dataset and A-minus-B resolves through declared semantic contrast provenance; the Nilearn oracle matches only when handed the realized row-subset design explicitly, while the compressed-timebase variant silently changes the modeled hypothesis.",
+      "receipt": {
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_e_scrubbed_timebase_alignment.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ]
       }
     },
     {

@@ -12,6 +12,7 @@ import pandas as pd
 import pytest
 
 import fmrimod as fm
+from fmrimod.contrast import condition
 from fmrimod.glm.engine import ChunkwiseEngineOptions
 from fmrimod.glm.fmri_lm import FmriLm, _is_fmri_model_like, fmri_lm
 from fmrimod.model.config import FmriLmConfig
@@ -58,6 +59,72 @@ def test_fmri_lm_canonical_spec_dataset_call(synthetic_run):
     assert fit.n_coefficients >= 2
     assert fit.n_voxels == Y.shape[1]
     assert fit.betas.shape == (fit.n_coefficients, fit.n_voxels)
+
+
+def test_fmri_lm_spec_dataset_accepts_authored_semantic_contrast(synthetic_run):
+    """Authored condition intent resolves through the public dataset seam."""
+    events, Y, tr = synthetic_run
+    ds = fm.fmri_dataset(Y, tr=tr, events=events)
+
+    fit = fmri_lm("hrf(trial_type)", ds)
+    semantic = fit.contrast(
+        condition("listening", term="trial_type")
+        - condition("rest", term="trial_type"),
+    )
+    columns = semantic.explain().to_dict()["design_columns"]
+
+    assert semantic.intent["kind"] == "semantic_contrast"
+    assert semantic.touched_columns == (
+        "trial_type_trial_type.listening",
+        "trial_type_trial_type.rest",
+    )
+    assert [column["level"] for column in columns] == ["listening", "rest"]
+    assert {column["provenance"]["level"] for column in columns} == {"declared"}
+    assert semantic.estimate.shape == (Y.shape[1],)
+
+
+def test_fmri_lm_semantic_contrast_survives_categorical_ordering() -> None:
+    """Semantic contrasts follow event levels, not realized design positions."""
+
+    rng = np.random.default_rng(20260513)
+    tr = 2.0
+    n_scans = 84
+    labels = np.array(["gain", "loss"] * 5, dtype=object)
+    y = rng.normal(size=(n_scans, 5)).astype(np.float64)
+
+    def fit_with_order(order: tuple[str, str]) -> FmriLm:
+        events = pd.DataFrame(
+            {
+                "onset": np.arange(labels.size, dtype=np.float64) * 12.0,
+                "duration": np.full(labels.size, 6.0),
+                "trial_type": pd.Categorical(labels, categories=list(order), ordered=True),
+                "run": np.ones(labels.size, dtype=int),
+            }
+        )
+        return fmri_lm("hrf(trial_type)", fm.fmri_dataset(y, tr=tr, events=events))
+
+    canonical = fit_with_order(("gain", "loss"))
+    reversed_levels = fit_with_order(("loss", "gain"))
+    contrast = condition("gain", term="trial_type") - condition("loss", term="trial_type")
+
+    canonical_names = canonical.design_columns().names
+    reversed_names = reversed_levels.design_columns().names
+    canonical_result = canonical.contrast(contrast)
+    reversed_result = reversed_levels.contrast(contrast)
+
+    assert canonical_names != reversed_names
+    assert canonical_result.touched_columns == (
+        "trial_type_trial_type.gain",
+        "trial_type_trial_type.loss",
+    )
+    assert reversed_result.touched_columns == (
+        "trial_type_trial_type.gain",
+        "trial_type_trial_type.loss",
+    )
+    assert np.allclose(canonical_result.estimate, reversed_result.estimate, atol=1e-10)
+    assert np.allclose(canonical_result.stat, reversed_result.stat, atol=1e-7)
+    assert canonical_result.intent["kind"] == "semantic_contrast"
+    assert reversed_result.intent["kind"] == "semantic_contrast"
 
 
 def test_fmri_lm_hrf_formula_routes_through_typed_spec(synthetic_run, monkeypatch):

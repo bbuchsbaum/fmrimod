@@ -1,10 +1,16 @@
-"""Scrubbed-volume timebase alignment stress benchmark.
+"""Scrubbed-volume timebase alignment parity stress benchmark.
 
-This Tier E canary targets a first-level GLM trap shared by fmrimod and
-Nilearn users: after scrubbing/censoring volumes, the design must remain on the
-original acquisition timebase and then drop the same rows as the data. Rebuilding
-the design on a compacted post-scrub timeline gives the right shape and a wrong
+This Tier E workflow targets a common first-level GLM trap: after censoring
+volumes, the design must stay on the original acquisition timebase and then
+drop the same rows as the data. Rebuilding the design on a compacted
+post-scrub timeline has the right shape, but it changes the modeled
 hypothesis.
+
+The fmrimod side uses the public seam ``fmri_dataset(..., censor=...) ->
+fmri_lm -> semantic condition contrast``. The Nilearn reference uses the
+same realized fmrimod design with the same rows removed. A second Nilearn fit
+uses a compacted event timeline to quantify the pain point that fmrimod should
+make hard to hit.
 """
 
 from __future__ import annotations
@@ -23,25 +29,40 @@ from nilearn.glm.first_level import run_glm
 from numpy.typing import NDArray
 
 import fmrimod as fm
-from fmrimod.model.config import FmriLmConfig
+from fmrimod.contrast import condition
+from fmrimod.design import DesignColumns
+from fmrimod.spec import drift, hrf
 
 Array = NDArray[np.float64]
 SCHEMA_VERSION = "scrubbed-timebase-alignment/v1"
 MAX_VOXELS = 96
-N_SCANS = 160
-CONTRAST_NAME = "task_vs_baseline"
-COLUMNS = ("intercept", "task", "motion", "drift")
+N_SCANS = 180
+TR = 2.0
+CONTRAST_NAME = "A_minus_B"
+ALIGNED_EFFECT_ATOL = 1e-8
+ALIGNED_STAT_ATOL = 1e-6
+COMPRESSED_EFFECT_FLOOR = 0.15
+COMPRESSED_STAT_FLOOR = 0.10
 
 
 @dataclass(frozen=True)
 class ScrubbedInputs:
-    """Shared synthetic fixture for the scrubbed timebase trap."""
+    """Shared synthetic fixture for the scrubbed-timebase stress case."""
 
-    original_design: Array
-    compacted_design: Array
+    events: pd.DataFrame
+    compressed_events: pd.DataFrame
     data: Array
+    design: pd.DataFrame
+    compressed_design: pd.DataFrame
+    design_columns: DesignColumns
+    compressed_design_columns: DesignColumns
+    spec: Any
+    semantic_contrast: Any
+    contrast_weights: Array
+    compressed_contrast_weights: Array
+    censor: NDArray[np.bool_]
     keep_mask: NDArray[np.bool_]
-    true_task_effect_median: float
+    onset_shifts_seconds: Array
 
 
 @dataclass(frozen=True)
@@ -53,6 +74,8 @@ class EngineResult:
     stat_median: float | None
     finite_effect_fraction: float
     finite_stat_fraction: float
+    fitted_rows: int | None
+    residual_df: float | None
     touched_columns: tuple[str, ...]
     warning_messages: tuple[str, ...]
     exception_type: str | None = None
@@ -66,14 +89,13 @@ class ScrubbedReport:
     schema_version: str
     name: str
     status: str
-    n_scans_original: int
-    n_scans_kept: int
-    scrubbed_fraction: float
+    alignment_contract: dict[str, Any]
     fmrimod: EngineResult
     nilearn_aligned: EngineResult
-    compacted_timebase: EngineResult
+    nilearn_compressed_timebase: EngineResult
     comparisons: dict[str, float | None]
     pain_point: dict[str, Any]
+    win_ladder: tuple[str, ...]
     verdict: str
 
 
@@ -89,36 +111,73 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
-def _center_scale(values: Array) -> Array:
-    arr = np.asarray(values, dtype=np.float64)
-    arr = arr - float(np.mean(arr))
-    scale = float(np.linalg.norm(arr))
-    return arr if scale == 0.0 else arr / scale
+def _make_spec() -> Any:
+    return hrf("trial_type", basis="spm", norm="spm") + drift("poly", degree=2)
 
 
-def _boxcar(n_scans: int, starts: tuple[int, ...], width: int) -> Array:
-    arr = np.zeros(n_scans, dtype=np.float64)
-    for start in starts:
-        arr[start : min(start + width, n_scans)] = 1.0
-    return _center_scale(arr)
-
-
-def _design(n_scans: int) -> Array:
-    time = np.linspace(-1.0, 1.0, n_scans, dtype=np.float64)
-    task = _boxcar(n_scans, (12, 37, 66, 101, 132), width=7)
-    motion = _center_scale(np.sin(np.linspace(0.0, 8.0 * np.pi, n_scans)))
-    drift = _center_scale(time + 0.35 * time * time)
-    return np.column_stack([np.ones(n_scans), task, motion, drift]).astype(np.float64)
-
-
-def _keep_mask(n_scans: int) -> NDArray[np.bool_]:
-    keep = np.ones(n_scans, dtype=bool)
-    scrubbed = np.array(
-        [0, 1, 2, 18, 19, 20, 44, 45, 72, 73, 74, 115, 116, 142, 143],
-        dtype=int,
+def _make_events(seed: int) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    labels = np.array(["A", "B"] * 18)
+    onsets = np.linspace(10.0, N_SCANS * TR - 30.0, len(labels))
+    onsets = onsets + rng.uniform(-1.0, 1.0, size=len(labels))
+    events = pd.DataFrame(
+        {
+            "onset": onsets,
+            "duration": np.where(labels == "A", 2.0, 3.0),
+            "trial_type": labels,
+            "run": 1,
+        }
     )
-    keep[scrubbed] = False
-    return keep
+    return events.sort_values("onset").reset_index(drop=True)
+
+
+def _make_censor() -> NDArray[np.bool_]:
+    censor = np.zeros(N_SCANS, dtype=bool)
+    for start, stop in ((38, 47), (74, 83), (116, 126), (150, 156)):
+        censor[start:stop] = True
+    censor[[20, 21, 98, 99]] = True
+    return censor
+
+
+def _realize_design(
+    spec: Any,
+    events: pd.DataFrame,
+    n_scans: int,
+) -> tuple[pd.DataFrame, DesignColumns]:
+    dataset = fm.fmri_dataset(
+        np.zeros((n_scans, 1), dtype=np.float64),
+        tr=TR,
+        events=events,
+    )
+    fit = fm.fmri_lm(spec, dataset)
+    return fit.model.design_matrix(run=0), fit.design_columns()
+
+
+def _compress_events(
+    events: pd.DataFrame,
+    censor: NDArray[np.bool_],
+) -> tuple[pd.DataFrame, Array]:
+    """Move event onsets onto a naive post-scrub compressed timebase."""
+
+    n_keep = int(np.sum(~censor))
+    rows: list[dict[str, Any]] = []
+    shifts: list[float] = []
+    for event in events.to_dict("records"):
+        onset = float(event["onset"])
+        source_scan = int(np.floor(onset / TR))
+        source_scan = max(0, min(source_scan, len(censor)))
+        removed_before_onset = int(np.sum(censor[:source_scan]))
+        shift = removed_before_onset * TR
+        shifted_onset = onset - shift
+        if 0.0 <= shifted_onset < n_keep * TR:
+            shifted = dict(event)
+            shifted["onset"] = shifted_onset
+            rows.append(shifted)
+            shifts.append(float(shift))
+
+    compressed = pd.DataFrame(rows, columns=list(events.columns))
+    compressed = compressed.sort_values("onset").reset_index(drop=True)
+    return compressed, np.asarray(shifts, dtype=np.float64)
 
 
 def _fraction(mask: Array) -> float:
@@ -152,45 +211,13 @@ def _median_abs_delta(candidate: Array, reference: Array) -> float | None:
     return float(np.median(np.abs(candidate[finite] - reference[finite])))
 
 
-def load_inputs(
-    max_voxels: int = MAX_VOXELS,
-    seed: int = 20260514,
-) -> ScrubbedInputs:
-    """Create original-timebase data plus aligned and compacted designs."""
-
-    rng = np.random.default_rng(seed)
-    n_voxels = min(int(max_voxels), MAX_VOXELS)
-    original_design = _design(N_SCANS)
-    keep = _keep_mask(N_SCANS)
-    compacted_design = _design(int(np.sum(keep)))
-
-    ramp = np.linspace(0.8, 1.3, n_voxels, dtype=np.float64)
-    betas = np.zeros((len(COLUMNS), n_voxels), dtype=np.float64)
-    betas[COLUMNS.index("intercept")] = 100.0 + rng.normal(
-        scale=0.2,
-        size=n_voxels,
-    )
-    betas[COLUMNS.index("task")] = 1.4 * ramp
-    betas[COLUMNS.index("motion")] = rng.normal(scale=0.08, size=n_voxels)
-    betas[COLUMNS.index("drift")] = rng.normal(scale=0.10, size=n_voxels)
-    data = original_design @ betas + rng.normal(
-        scale=0.025,
-        size=(N_SCANS, n_voxels),
-    )
-    return ScrubbedInputs(
-        original_design=original_design,
-        compacted_design=compacted_design,
-        data=data.astype(np.float64),
-        keep_mask=keep,
-        true_task_effect_median=float(np.median(betas[COLUMNS.index("task")])),
-    )
-
-
 def _engine_result(
     *,
     status: str,
     effect: Array,
     stat: Array,
+    fitted_rows: int | None,
+    residual_df: float | None,
     touched_columns: tuple[str, ...],
     warnings_seen: tuple[str, ...],
     exception: Exception | None = None,
@@ -201,6 +228,8 @@ def _engine_result(
         stat_median=_median(stat),
         finite_effect_fraction=_fraction(np.isfinite(effect)),
         finite_stat_fraction=_fraction(np.isfinite(stat)),
+        fitted_rows=fitted_rows,
+        residual_df=residual_df,
         touched_columns=touched_columns,
         warning_messages=warnings_seen,
         exception_type=None if exception is None else type(exception).__name__,
@@ -208,26 +237,105 @@ def _engine_result(
     )
 
 
-def fmrimod_probe(design: Array, data: Array) -> tuple[EngineResult, Array, Array]:
-    """Fit fmrimod on scrubbed rows with the original-timebase design."""
+def load_inputs(
+    max_voxels: int = MAX_VOXELS,
+    seed: int = 20260514,
+) -> ScrubbedInputs:
+    """Create original-timebase data plus aligned and compressed designs."""
+
+    n_voxels = max(1, min(int(max_voxels), MAX_VOXELS))
+    rng = np.random.default_rng(seed)
+    spec = _make_spec()
+    semantic_contrast = condition("A", term="trial_type") - condition(
+        "B",
+        term="trial_type",
+    )
+    events = _make_events(seed)
+    censor = _make_censor()
+    keep = ~censor
+
+    design, design_columns = _realize_design(spec, events, N_SCANS)
+    contrast_weights = np.asarray(
+        semantic_contrast.resolve(design_columns),
+        dtype=np.float64,
+    )
+
+    compressed_events, shifts = _compress_events(events, censor)
+    compressed_design, compressed_design_columns = _realize_design(
+        spec,
+        compressed_events,
+        int(np.sum(keep)),
+    )
+    compressed_contrast_weights = np.asarray(
+        semantic_contrast.resolve(compressed_design_columns),
+        dtype=np.float64,
+    )
+
+    full_design = design.to_numpy(dtype=np.float64)
+    betas = np.zeros((full_design.shape[1], n_voxels), dtype=np.float64)
+    ramp = np.linspace(0.8, 1.2, n_voxels, dtype=np.float64)
+    pos = np.flatnonzero(contrast_weights > 0.0)
+    neg = np.flatnonzero(contrast_weights < 0.0)
+    if len(pos) != 1 or len(neg) != 1:
+        raise ValueError(
+            "Expected one positive and one negative condition column for A - B"
+        )
+    betas[pos[0]] = 1.0 * ramp
+    betas[neg[0]] = 0.25 * ramp
+    nuisance_rows = [
+        idx for idx in range(full_design.shape[1]) if idx not in (*pos, *neg)
+    ]
+    for idx, row in enumerate(nuisance_rows):
+        if idx == 0:
+            betas[row] = 2.0 * ramp
+        elif idx == 1:
+            betas[row] = -1.5 * ramp
+        else:
+            betas[row] = 100.0 + rng.normal(scale=0.1, size=n_voxels)
+
+    data = full_design @ betas
+    data = data + rng.normal(scale=0.05, size=(N_SCANS, n_voxels))
+
+    return ScrubbedInputs(
+        events=events,
+        compressed_events=compressed_events,
+        data=data.astype(np.float64),
+        design=design,
+        compressed_design=compressed_design,
+        design_columns=design_columns,
+        compressed_design_columns=compressed_design_columns,
+        spec=spec,
+        semantic_contrast=semantic_contrast,
+        contrast_weights=contrast_weights,
+        compressed_contrast_weights=compressed_contrast_weights,
+        censor=censor,
+        keep_mask=keep,
+        onset_shifts_seconds=shifts,
+    )
+
+
+def fmrimod_pipeline(inputs: ScrubbedInputs) -> tuple[EngineResult, Array, Array]:
+    """Run the public fmrimod path with dataset-level censoring."""
 
     try:
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
-            design_frame = pd.DataFrame(design, columns=COLUMNS)
-            fit = fm.fit_glm_from_matrix(
-                design,
-                data,
-                model=design_frame,
-                cfg=FmriLmConfig(),
+            dataset = fm.fmri_dataset(
+                inputs.data,
+                tr=TR,
+                events=inputs.events,
+                censor=inputs.censor,
             )
-            result = fit.contrast(np.array([0.0, 1.0, 0.0, 0.0]), name=CONTRAST_NAME)
+            fit = fm.fmri_lm(inputs.spec, dataset)
+            result = fit.contrast(inputs.semantic_contrast, name=CONTRAST_NAME)
     except Exception as exc:  # pragma: no cover - defensive report path
         empty = np.array([], dtype=np.float64)
         engine = _engine_result(
             status="exception",
             effect=empty,
             stat=empty,
+            fitted_rows=None,
+            residual_df=None,
             touched_columns=(),
             warnings_seen=(),
             exception=exc,
@@ -240,18 +348,57 @@ def fmrimod_probe(design: Array, data: Array) -> tuple[EngineResult, Array, Arra
         status="ok",
         effect=effect,
         stat=stat,
+        fitted_rows=int(np.sum(inputs.keep_mask)),
+        residual_df=float(fit.residual_df),
         touched_columns=tuple(result.touched_columns),
         warnings_seen=tuple(str(w.message) for w in captured),
     )
     return engine, effect, stat
 
 
-def nilearn_probe(
+def nilearn_aligned_probe(
+    inputs: ScrubbedInputs,
+) -> tuple[EngineResult, Array, Array]:
+    """Run Nilearn on the original-timebase design after row subsetting."""
+
+    design = inputs.design.to_numpy(dtype=np.float64)[inputs.keep_mask]
+    data = inputs.data[inputs.keep_mask]
+    return _nilearn_probe(
+        design=design,
+        data=data,
+        contrast_weights=inputs.contrast_weights,
+        touched_columns=_touched_columns(
+            tuple(inputs.design.columns),
+            inputs.contrast_weights,
+        ),
+    )
+
+
+def nilearn_compressed_timebase_probe(
+    inputs: ScrubbedInputs,
+) -> tuple[EngineResult, Array, Array]:
+    """Run Nilearn on a naive compacted post-scrub event timeline."""
+
+    design = inputs.compressed_design.to_numpy(dtype=np.float64)
+    data = inputs.data[inputs.keep_mask]
+    return _nilearn_probe(
+        design=design,
+        data=data,
+        contrast_weights=inputs.compressed_contrast_weights,
+        touched_columns=_touched_columns(
+            tuple(inputs.compressed_design.columns),
+            inputs.compressed_contrast_weights,
+        ),
+    )
+
+
+def _nilearn_probe(
+    *,
     design: Array,
     data: Array,
+    contrast_weights: Array,
+    touched_columns: tuple[str, ...],
 ) -> tuple[EngineResult, Array, Array]:
-    """Fit Nilearn on a supplied design/data pair."""
-
     try:
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
@@ -259,7 +406,7 @@ def nilearn_probe(
             result = compute_contrast(
                 labels,
                 estimates,
-                np.array([0.0, 1.0, 0.0, 0.0]),
+                contrast_weights,
                 stat_type="t",
             )
     except Exception as exc:  # pragma: no cover - defensive report path
@@ -268,6 +415,8 @@ def nilearn_probe(
             status="exception",
             effect=empty,
             stat=empty,
+            fitted_rows=None,
+            residual_df=None,
             touched_columns=(),
             warnings_seen=(),
             exception=exc,
@@ -280,78 +429,131 @@ def nilearn_probe(
         status="ok",
         effect=effect,
         stat=stat,
-        touched_columns=("task",),
+        fitted_rows=int(data.shape[0]),
+        residual_df=float(data.shape[0] - np.linalg.matrix_rank(design)),
+        touched_columns=touched_columns,
         warnings_seen=tuple(str(w.message) for w in captured),
     )
     return engine, effect, stat
+
+
+def _touched_columns(
+    columns: tuple[str, ...],
+    weights: Array,
+) -> tuple[str, ...]:
+    return tuple(
+        name for name, weight in zip(columns, weights) if abs(float(weight)) > 0.0
+    )
 
 
 def run_benchmark(
     max_voxels: int = MAX_VOXELS,
     seed: int = 20260514,
 ) -> dict[str, Any]:
-    """Run the scrubbed-volume timebase alignment canary."""
+    """Run the scrubbed-volume timebase alignment benchmark."""
 
     inputs = load_inputs(max_voxels=max_voxels, seed=seed)
-    scrubbed_design = inputs.original_design[inputs.keep_mask]
-    scrubbed_data = inputs.data[inputs.keep_mask]
-
-    f_engine, f_effect, f_stat = fmrimod_probe(scrubbed_design, scrubbed_data)
-    n_engine, n_effect, n_stat = nilearn_probe(scrubbed_design, scrubbed_data)
-    c_engine, c_effect, c_stat = nilearn_probe(
-        inputs.compacted_design,
-        scrubbed_data,
-    )
+    f_engine, f_effect, f_stat = fmrimod_pipeline(inputs)
+    n_engine, n_effect, n_stat = nilearn_aligned_probe(inputs)
+    c_engine, c_effect, c_stat = nilearn_compressed_timebase_probe(inputs)
 
     aligned_effect_delta = _max_abs_delta(f_effect, n_effect)
     aligned_stat_delta = _max_abs_delta(f_stat, n_stat)
-    compacted_effect_drift = _median_abs_delta(n_effect, c_effect)
-    compacted_stat_drift = _median_abs_delta(n_stat, c_stat)
+    compressed_effect_drift = _median_abs_delta(n_effect, c_effect)
+    compressed_stat_drift = _median_abs_delta(n_stat, c_stat)
+
     aligned_ok = (
-        aligned_effect_delta is not None
-        and aligned_effect_delta < 1e-8
+        f_engine.status == "ok"
+        and n_engine.status == "ok"
+        and aligned_effect_delta is not None
+        and aligned_effect_delta < ALIGNED_EFFECT_ATOL
         and aligned_stat_delta is not None
-        and aligned_stat_delta < 1e-5
+        and aligned_stat_delta < ALIGNED_STAT_ATOL
     )
     trap_observed = (
-        compacted_effect_drift is not None
-        and compacted_effect_drift > 0.15
-        and compacted_stat_drift is not None
-        and compacted_stat_drift > 5.0
+        c_engine.status == "ok"
+        and compressed_effect_drift is not None
+        and compressed_effect_drift > COMPRESSED_EFFECT_FLOOR
+        and compressed_stat_drift is not None
+        and compressed_stat_drift > COMPRESSED_STAT_FLOOR
     )
     status = "pass" if aligned_ok and trap_observed else "fail"
 
+    n_original = int(inputs.data.shape[0])
+    n_kept = int(np.sum(inputs.keep_mask))
+    n_censored = n_original - n_kept
     report = ScrubbedReport(
         schema_version=SCHEMA_VERSION,
         name="tier_e_scrubbed_timebase_alignment",
         status=status,
-        n_scans_original=int(inputs.data.shape[0]),
-        n_scans_kept=int(np.sum(inputs.keep_mask)),
-        scrubbed_fraction=float(1.0 - np.mean(inputs.keep_mask)),
+        alignment_contract={
+            "censor_policy": "row_subset_original_timebase",
+            "original_timebase_rows": n_original,
+            "kept_rows": n_kept,
+            "censored_rows": n_censored,
+            "scrubbed_fraction": float(n_censored / n_original),
+            "design_columns": list(inputs.design.columns),
+            "semantic_contrast": (
+                "condition('A', term='trial_type') - "
+                "condition('B', term='trial_type')"
+            ),
+        },
         fmrimod=f_engine,
         nilearn_aligned=n_engine,
-        compacted_timebase=c_engine,
+        nilearn_compressed_timebase=c_engine,
         comparisons={
-            "aligned_effect_delta": aligned_effect_delta,
-            "aligned_stat_delta": aligned_stat_delta,
-            "compacted_timebase_effect_median_abs_delta": compacted_effect_drift,
-            "compacted_timebase_stat_median_abs_delta": compacted_stat_drift,
+            "aligned_effect_max_abs_delta": aligned_effect_delta,
+            "aligned_stat_max_abs_delta": aligned_stat_delta,
+            "compressed_timebase_effect_median_abs_delta": compressed_effect_drift,
+            "compressed_timebase_stat_median_abs_delta": compressed_stat_drift,
         },
         pain_point={
             "observed": bool(trap_observed),
+            "trap": "compressed_post_scrub_timebase_rebuild",
+            "thresholds": {
+                "effect_median_abs_delta_gt": COMPRESSED_EFFECT_FLOOR,
+                "stat_median_abs_delta_gt": COMPRESSED_STAT_FLOOR,
+            },
+            "max_event_onset_shift_seconds": _median_or_max(
+                inputs.onset_shifts_seconds,
+                kind="max",
+            ),
+            "median_event_onset_shift_seconds": _median_or_max(
+                inputs.onset_shifts_seconds,
+                kind="median",
+            ),
             "verdict": (
-                "a compacted post-scrub timeline has the right row count but "
-                "targets a shifted task regressor"
+                "The compressed timeline has the right row count but targets "
+                "shifted event regressors."
             ),
         },
+        win_ladder=(
+            "fmrimod carries censoring on FmriDataset instead of rebuilding a "
+            "shorter experiment clock",
+            "fmrimod resolves A - B through declared design-column provenance",
+            "Nilearn matches when handed the same row-subset design explicitly",
+            "Nilearn also accepts the compressed-timebase design, exposing the "
+            "manual bookkeeping pain point",
+        ),
         verdict=(
-            "fmrimod matches the correctly row-filtered Nilearn oracle; the "
-            "compacted-timebase design visibly drifts"
+            "fmrimod matches the correctly row-filtered Nilearn oracle and the "
+            "compressed-timebase variant visibly drifts"
             if status == "pass"
-            else "scrubbed timebase alignment canary failed"
+            else "scrubbed timebase alignment benchmark failed"
         ),
     )
     return _json_safe(report)
+
+
+def _median_or_max(values: Array, *, kind: str) -> float | None:
+    arr = np.asarray(values, dtype=np.float64)
+    if arr.size == 0:
+        return None
+    if kind == "median":
+        return float(np.median(arr))
+    if kind == "max":
+        return float(np.max(arr))
+    raise ValueError(f"unknown summary kind: {kind}")
 
 
 def render(report: dict[str, Any], out_dir: Path) -> tuple[Path, Path]:
@@ -362,16 +564,18 @@ def render(report: dict[str, Any], out_dir: Path) -> tuple[Path, Path]:
     md_path = out_dir / "REPORT.md"
     json_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
 
+    rows = report["alignment_contract"]
     lines = [
         "# Scrubbed Timebase Alignment",
         "",
         f"Status: `{report['status']}`",
         "",
-        "## Rows",
+        "## Alignment Contract",
         "",
-        f"- Original scans: `{report['n_scans_original']}`",
-        f"- Kept scans: `{report['n_scans_kept']}`",
-        f"- Scrubbed fraction: `{report['scrubbed_fraction']:.3f}`",
+        f"- Policy: `{rows['censor_policy']}`",
+        f"- Original rows: `{rows['original_timebase_rows']}`",
+        f"- Kept rows: `{rows['kept_rows']}`",
+        f"- Censored rows: `{rows['censored_rows']}`",
         "",
         "## Comparisons",
         "",
@@ -387,6 +591,8 @@ def render(report: dict[str, Any], out_dir: Path) -> tuple[Path, Path]:
             "## Pain Point",
             "",
             report["pain_point"]["verdict"],
+            "",
+            "## Verdict",
             "",
             report["verdict"],
         ]
