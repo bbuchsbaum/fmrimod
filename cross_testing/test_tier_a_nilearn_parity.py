@@ -40,6 +40,10 @@ def test_tier_a_nilearn_case_passes_and_renders(module_name, tmp_path):
 
     assert result.status in {"pass", "pass_with_caveats"}
     assert all(delta.passes for delta in result.deltas.values())
+    if module_name == "benchmarks.parity.tier_a_multicollinear_baseline.workflow":
+        assert result.status == "pass_with_caveats"
+        caveat_ids = {caveat.caveat_id for caveat in result.caveats}
+        assert caveat_ids == {"dfres-n-minus-rank"}
 
     json_path, md_path = render(result, tmp_path)
     assert json_path.exists()

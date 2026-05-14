@@ -73,6 +73,7 @@ from numpy.typing import NDArray
 
 import fmrimod as fm
 from cross_testing.harness import (
+    Caveat,
     ParityCase,
     ParityTolerance,
     PipelineOutput,
@@ -88,6 +89,7 @@ TR = 2.0
 N_SCANS = 160
 MAX_VOXELS = 1024
 TRIAL_TYPES: tuple[str, ...] = ("A", "B")
+DFRES_CAVEAT = "dfres-n-minus-rank"
 
 
 @dataclass(frozen=True)
@@ -386,6 +388,22 @@ def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
             ),
             "rank": ParityTolerance(rtol=0.0, atol=0.0),
         },
+        declared_caveats=(
+            Caveat(
+                caveat_id=DFRES_CAVEAT,
+                quantity="t_task_main, f_task_omnibus",
+                reason=(
+                    "fmrimod uses rank-aware residual degrees of freedom "
+                    "for rank-deficient designs; Nilearn's run_glm uses "
+                    "n - p regardless of numerical rank."
+                ),
+                expected=(
+                    "Effects remain allclose, while t/F statistics differ "
+                    "by the deterministic residual-DoF scale factor."
+                ),
+                link="docs/contracts/CAVEATS.md#dfres-n-minus-rank",
+            ),
+        ),
     )
 
 
