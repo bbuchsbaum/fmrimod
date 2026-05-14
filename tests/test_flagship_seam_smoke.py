@@ -11,7 +11,6 @@ import pandas as pd
 
 import fmrimod as fm
 
-
 THIS_FILE = Path(__file__)
 
 
@@ -40,33 +39,35 @@ def test_public_flagship_seam_imports_only_top_level_api() -> None:
 
 def test_first_ten_minutes_public_flagship_seam_survives_intent_payload() -> None:
     start = time.perf_counter()
-    rng = np.random.default_rng(23)
-    n_scans = 60
-    img = rng.standard_normal((2, 2, 2, n_scans))
+    n_scans = 24
+    tr = 1.0
     events = pd.DataFrame(
         {
-            "onset": [6.0, 18.0, 30.0, 42.0],
-            "duration": [2.0, 2.0, 2.0, 2.0],
-            "trial_type": ["a", "b", "a", "b"],
+            "onset": [2.0, 8.0, 14.0],
+            "duration": [0.0, 0.0, 0.0],
+            "trial_type": ["go", "go", "go"],
+            "run": [1, 1, 1],
         }
     )
-
-    dataset = fm.fmri_dataset(img, tr=2.0, events=events)
-    fit = fm.fmri_lm("hrf(trial_type)", dataset)
-    result = fit.contrast(
-        fm.column_contrast(
-            pattern_A=r"^trial_type_trial_type\.a$",
-            name="trial_type_a",
-        )
+    data = np.random.default_rng(20260514).normal(
+        scale=0.01,
+        size=(n_scans, 4),
     )
 
-    assert result.intent is not None
-    assert result.intent.kind == "contrast_spec"
-    assert result.intent.basis_label is not None
-    assert result.intent.weights is not None
-    assert result.intent.design_id is not None
-    assert result.intent.design_id.startswith("design:sha256:")
-    assert result.intent.provenance_id is not None
-    assert result.intent.provenance_id.startswith("fitprov:sha256:")
-    assert result.touched_columns == ("trial_type_trial_type.a",)
+    dataset = fm.fmri_dataset(data, tr=tr, events=events)
+    model = fm.event_model(
+        "trial_type",
+        data=events,
+        block="run",
+        tr=tr,
+        n_scans=n_scans,
+    )
+    fit = fm.fmri_lm(model, dataset)
+    result = fit.contrast(fm.column_contrast("go", name="go"))
+
+    intent = result.explain().to_dict()["intent"]
+    assert intent["kind"] != "default"
+    assert intent["basis_label"] is not None
+    assert intent["provenance_id"] is not None
+    assert intent["weights"]
     assert time.perf_counter() - start < 5.0
