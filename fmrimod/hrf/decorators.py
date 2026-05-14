@@ -79,7 +79,13 @@ class LaggedHRF(HRF):
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         assert self.base is not None  # for type checkers; __post_init__ guarantees
-        return self.base(np.asarray(t) - self.lag)
+        shifted = np.asarray(t, dtype=np.float64) - self.lag
+        values = self.base(shifted)
+        before_onset = shifted < 0
+        if np.any(before_onset):
+            values = np.asarray(values, dtype=np.float64).copy()
+            values[before_onset] = 0.0
+        return values
 
 
 @dataclass

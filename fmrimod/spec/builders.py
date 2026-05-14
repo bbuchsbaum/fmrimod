@@ -13,7 +13,7 @@ They return frozen :class:`Term` dataclasses; compose with ``+``.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, cast
+from typing import TYPE_CHECKING, Callable, Literal, Optional, Sequence, cast
 
 import pandas as pd
 
@@ -46,6 +46,8 @@ def _validate_norm(norm: str | None) -> NormMode | None:
 def hrf(
     *variables: str,
     basis: HRF | str = "spm",
+    hrf_fun: Optional[Callable[..., object]] = None,
+    nbasis: Optional[int] = None,
     contrasts: Sequence[ContrastSpec] = (),
     modulators: Sequence[str] = (),
     durations: str | float | None = None,
@@ -72,14 +74,19 @@ def hrf(
     --------
     >>> hrf("trial_type")
     >>> hrf("trial_type", basis="spmg3")
+    >>> hrf("trial_type", basis="fir", nbasis=8)
     >>> hrf("trial_type", norm="spm")  # Nilearn-compatible scale
     >>> hrf("trial_type", "block", subset={"task": "memory"})
     """
     if not variables:
         raise ValueError("hrf() requires at least one variable name")
+    if nbasis is not None and int(nbasis) < 1:
+        raise ValueError("hrf(..., nbasis=) must be a positive integer")
     return HrfTerm(
         variables=tuple(variables),
         hrf=basis,
+        hrf_fun=hrf_fun,
+        nbasis=None if nbasis is None else int(nbasis),
         contrasts=tuple(contrasts),
         modulators=tuple(modulators),
         durations=durations,
@@ -137,6 +144,8 @@ def confounds(
 def trialwise(
     basis: HRF | str = "spm",
     *,
+    hrf_fun: Optional[Callable[..., object]] = None,
+    nbasis: Optional[int] = None,
     durations: str | float | None = None,
     lag: float = 0.0,
     subset: Optional[Predicate] = None,
@@ -152,9 +161,13 @@ def trialwise(
     Realisation happens in :mod:`fmrimod.spec._compile`. See
     :func:`hrf` for the ``norm`` argument.
     """
+    if nbasis is not None and int(nbasis) < 1:
+        raise ValueError("trialwise(..., nbasis=) must be a positive integer")
     return HrfTerm(
         variables=("__trial__",),  # sentinel resolved at compile time
         hrf=basis,
+        hrf_fun=hrf_fun,
+        nbasis=None if nbasis is None else int(nbasis),
         durations=durations,
         lag=lag,
         subset=subset,

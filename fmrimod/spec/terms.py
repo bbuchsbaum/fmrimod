@@ -76,6 +76,12 @@ class HrfTerm(Term):
     hrf
         HRF basis. Either an :class:`~fmrimod.hrf.HRF` instance or a registry
         key string (e.g. ``"spm"``, ``"spmg3"``, ``"gamma"``).
+    hrf_fun
+        Optional callable HRF implementation. When supplied, realization wraps
+        it as a typed HRF and uses ``nbasis`` to declare its basis width.
+    nbasis
+        Optional basis count for generator-backed HRFs such as ``"fir"`` or
+        custom ``hrf_fun`` callables.
     contrasts
         Optional :class:`~fmrimod.contrast.ContrastSpec` objects attached to
         this term (filled in by bd-01KRFMD3F66TENJMP6BQYE32HC).
@@ -112,6 +118,8 @@ class HrfTerm(Term):
 
     variables: Tuple[str, ...]
     hrf: Union[HRF, str] = "spm"
+    hrf_fun: Optional[Callable[..., object]] = None
+    nbasis: Optional[int] = None
     contrasts: Tuple[ContrastSpec, ...] = ()
     modulators: Tuple[str, ...] = ()
     durations: Union[str, float, None] = None

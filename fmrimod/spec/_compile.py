@@ -59,6 +59,10 @@ def _hrf_term_to_event_model_term(term: HrfTerm) -> Any:
         normalize=term.normalize,
         summate=term.summate,
     )
+    if term.hrf_fun is not None:
+        lowered._kwargs["hrf_fun"] = term.hrf_fun
+    if term.nbasis is not None:
+        lowered._kwargs["nbasis"] = term.nbasis
     if term.contrasts:
         lowered._kwargs["contrasts"] = term.contrasts
     if term.durations is not None:
@@ -103,6 +107,10 @@ def _lower_hrf_term(term: HrfTerm) -> list[Any]:
             normalize=term.normalize,
             summate=term.summate,
         )
+        if term.hrf_fun is not None:
+            param._kwargs["hrf_fun"] = term.hrf_fun
+        if term.nbasis is not None:
+            param._kwargs["nbasis"] = term.nbasis
         if term.durations is not None:
             param._kwargs["durations"] = term.durations
         if term.subset is not None:
@@ -133,6 +141,8 @@ def _event_model_term_to_hrf_term(term: Any) -> HrfTerm:
     return HrfTerm(
         variables=tuple(str(event) for event in events),
         hrf=hrf_value,
+        hrf_fun=extra.get("hrf_fun"),
+        nbasis=extra.get("nbasis"),
         contrasts=tuple(contrasts),
         modulators=tuple(modulators),
         durations=extra.get("durations"),

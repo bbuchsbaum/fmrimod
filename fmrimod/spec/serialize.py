@@ -48,7 +48,6 @@ from typing import Any, Dict, Mapping, Sequence
 
 from .terms import Confounds, Drift, HrfTerm, Intercept, Spec, Term
 
-
 SCHEMA_VERSION = "Spec/v1"
 
 
@@ -97,6 +96,11 @@ def _encode_hrf_term(term: HrfTerm) -> Dict[str, Any]:
             f"{len(term.contrasts)} contrasts; Spec/v1 cannot round-trip them. "
             "Attach contrasts after loading the spec."
         )
+    if term.hrf_fun is not None:
+        raise SpecSerializationError(
+            f"HrfTerm(id={term.id!r}, variables={term.variables!r}) carries "
+            "a callable hrf_fun; Spec/v1 only serializes registry-key HRFs."
+        )
     if not isinstance(term.hrf, str):
         raise SpecSerializationError(
             f"HrfTerm(id={term.id!r}, variables={term.variables!r}).hrf is a "
@@ -108,6 +112,7 @@ def _encode_hrf_term(term: HrfTerm) -> Dict[str, Any]:
         "kind": "HrfTerm",
         "variables": list(term.variables),
         "hrf": term.hrf,
+        "nbasis": term.nbasis,
         "modulators": list(term.modulators),
         "durations": term.durations,
         "lag": term.lag,
@@ -237,6 +242,7 @@ def _decode_hrf_term(payload: Mapping[str, Any]) -> HrfTerm:
         hrf=hrf_value,
         contrasts=(),  # Spec/v1 never round-trips contrasts; load-time empty.
         modulators=modulators,
+        nbasis=payload.get("nbasis"),
         durations=payload.get("durations"),
         lag=float(payload.get("lag", 0.0)),
         subset=_decode_subset(payload.get("subset")),

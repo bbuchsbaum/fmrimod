@@ -2,44 +2,45 @@
 
 from __future__ import annotations
 
-from itertools import product as iter_product
-from typing import Dict, List, Optional, Union, Any
 import warnings
+from itertools import product as iter_product
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 
+from .._warnings import call_safely, suppress_fmrimod_warnings
+from ..covariate import CovariateEvent, CovariateTerm, create_covariate_events
+from ..dispatch import get_hrf
+from ..events import (
+    EventBasis,
+    EventFactor,
+    EventMatrix,
+    EventVariable,
+    create_event,
+    events_from_dataframe,
+)
+from ..events.cells import (
+    cells_event_model,
+    conditions_event_model,
+)
+from ..events.term import EventTerm, create_interaction
+from ..formula.base import EventModelBuilder, Term
+from ..naming import (
+    continuous_token,
+    level_token,
+    make_column_names,
+    make_cond_tag,
+    make_term_tag,
+    make_unique_colnames,
+    sanitize,
+)
 from ..types import (
     Array,
     EventProtocol,
     HRFProtocol,
     ModelProtocol,
     SamplingInfo,
-)
-from ..events import (
-    EventFactor,
-    EventVariable,
-    EventMatrix,
-    EventBasis,
-    create_event,
-    events_from_dataframe,
-)
-from ..events.term import EventTerm, create_interaction
-from ..formula.base import Term, EventModelBuilder
-from ..covariate import CovariateTerm, CovariateEvent, create_covariate_events
-from ..dispatch import get_hrf
-from .._warnings import call_safely, suppress_fmrimod_warnings
-from ..naming import (
-    make_term_tag,
-    make_column_names,
-    make_unique_colnames,
-    make_cond_tag,
-    level_token,
-    continuous_token,
-)
-from ..events.cells import (
-    cells_event_model,
-    conditions_event_model,
 )
 
 
@@ -471,6 +472,77 @@ class EventModel(ModelProtocol):
                 return hrf
         return fmrimod.SPM_CANONICAL
 
+    def _resolve_hrf_for_term(self, term: Term) -> object:
+        """Resolve a term HRF while honoring term-local HRF options."""
+
+        extra = getattr(term, "_kwargs", None) or {}
+        hrf_fun = extra.get("hrf_fun")
+        nbasis = extra.get("nbasis")
+        lag = float(extra.get("lag", 0.0) or 0.0)
+
+        if hrf_fun is not None:
+            from ..hrf.core import as_hrf
+
+            try:
+                hrf_fun(np.asarray([0.0], dtype=np.float64))
+            except TypeError:
+                hrf_obj = self._resolve_hrf(term.hrf)
+            else:
+                hrf_obj = as_hrf(
+                    hrf_fun,
+                    name=getattr(hrf_fun, "__name__", term.name or "custom_hrf"),
+                    nbasis=1 if nbasis is None else int(nbasis),
+                )
+        elif nbasis is not None and isinstance(term.hrf, str):
+            try:
+                hrf_obj = get_hrf(term.hrf, n_basis=int(nbasis))
+            except (TypeError, ValueError):
+                hrf_obj = self._resolve_hrf(term.hrf)
+        else:
+            hrf_obj = self._resolve_hrf(term.hrf)
+
+        if lag != 0.0:
+            from ..hrf.decorators import lag_hrf
+
+            hrf_obj = lag_hrf(hrf_obj, lag=lag)
+        return hrf_obj
+
+    def _hrf_for_event_data(self, hrf_obj, hrf_fun, event, mask=None):
+        """Return a term HRF, allowing event-data-driven HRF generators."""
+
+        if hrf_fun is None:
+            return hrf_obj
+
+        event_data = {
+            "onset": event.onsets if mask is None else event.onsets[mask],
+            "duration": (
+                event.durations if mask is None else event.durations[mask]
+            ),
+        }
+        try:
+            generated = hrf_fun(event_data)
+        except TypeError:
+            return hrf_obj
+        return generated
+
+    def _convolution_span_for_hrf(self, hrf_obj) -> float | None:
+        """Use the pre-lag span for convolution alignment when needed."""
+
+        if isinstance(hrf_obj, list):
+            spans = [
+                self._convolution_span_for_hrf(item) for item in hrf_obj
+            ]
+            spans = [span for span in spans if span is not None]
+            return max(spans) if spans else None
+
+        base = getattr(hrf_obj, "base", None)
+        raw_lag = getattr(hrf_obj, "lag", 0.0)
+        lag = 0.0 if callable(raw_lag) else float(raw_lag or 0.0)
+        if base is not None and lag != 0.0:
+            return float(getattr(base, "span", getattr(hrf_obj, "span", 24.0)))
+        span = getattr(hrf_obj, "span", None)
+        return None if span is None else float(span)
+
     def _is_valid_fmrimod_hrf(self, hrf, fmrimod) -> bool:
         """Check if an HRF object is valid for fmrimod.
 
@@ -555,6 +627,14 @@ class EventModel(ModelProtocol):
                 ),
                 existing_tags=existing_tags
             )
+            prefix = (getattr(term, "_kwargs", None) or {}).get("prefix")
+            if prefix is not None:
+                prefix_tag = sanitize(str(prefix), allow_dot=False)
+                term_tag = (
+                    prefix_tag
+                    if term_tag is None
+                    else f"{prefix_tag}_{term_tag}"
+                )
             if term_tag:
                 existing_tags.append(term_tag)
 
@@ -580,7 +660,7 @@ class EventModel(ModelProtocol):
                 nb = 1
                 if term.hrf is not None:
                     try:
-                        hrf_obj = self._resolve_hrf(term.hrf)
+                        hrf_obj = self._resolve_hrf_for_term(term)
                         nb = hrf_obj.nbasis
                         basis_name = getattr(hrf_obj, "name", type(hrf_obj).__name__)
                         basis_total = nb
@@ -761,10 +841,7 @@ class EventModel(ModelProtocol):
         Array
             Convolved design matrix columns
         """
-        fmrimod = _import_fmrimod()
-
-        hrf_obj = self._resolve_hrf(term.hrf)
-        nb = hrf_obj.nbasis
+        hrf_obj = self._resolve_hrf_for_term(term)
         sf = self.sampling_info
 
         # Read normalize/summate from Term
@@ -778,13 +855,15 @@ class EventModel(ModelProtocol):
             and sf.n_blocks > 1
         )
 
+        hrf_fun = (getattr(term, "_kwargs", None) or {}).get("hrf_fun")
+
         if has_multiblock:
             result = self._convolve_term_multiblock(
                 event_term, hrf_obj, summate=summate
             )
         else:
             result = self._convolve_term_single(
-                event_term, hrf_obj, summate=summate
+                event_term, hrf_obj, summate=summate, hrf_fun=hrf_fun
             )
 
         # Apply peak normalization after convolution
@@ -802,7 +881,11 @@ class EventModel(ModelProtocol):
         return result
 
     def _convolve_term_single(
-        self, event_term: EventTerm, hrf_obj, summate: bool = True
+        self,
+        event_term: EventTerm,
+        hrf_obj,
+        summate: bool = True,
+        hrf_fun=None,
     ) -> Array:
         """Convolve event term for single block design.
 
@@ -820,15 +903,12 @@ class EventModel(ModelProtocol):
         Array
             Convolved columns, shape (n_samples, n_conditions * nbasis)
         """
-        fmrimod = _import_fmrimod()
-
         grid = self.sampling_points
-        nb = hrf_obj.nbasis
         events = event_term.events
 
         if len(events) == 1 and not event_term.interaction:
             return self._convolve_single_event(
-                events[0], hrf_obj, grid, summate=summate
+                events[0], hrf_obj, grid, summate=summate, hrf_fun=hrf_fun
             )
         else:
             return self._convolve_interaction_events(
@@ -836,7 +916,7 @@ class EventModel(ModelProtocol):
             )
 
     def _convolve_single_event(
-        self, event, hrf_obj, grid: Array, summate: bool = True
+        self, event, hrf_obj, grid: Array, summate: bool = True, hrf_fun=None
     ) -> Array:
         """Convolve a single event with HRF.
 
@@ -872,10 +952,17 @@ class EventModel(ModelProtocol):
         if handler is None:
             raise ValueError(f"Unknown event type: {event.event_type}")
 
-        return handler(event, hrf_obj, grid, nb, n_samples, summate)
+        return handler(event, hrf_obj, grid, nb, n_samples, summate, hrf_fun)
 
     def _convolve_categorical_event(
-        self, event, hrf_obj, grid: Array, nb: int, n_samples: int, summate: bool
+        self,
+        event,
+        hrf_obj,
+        grid: Array,
+        nb: int,
+        n_samples: int,
+        summate: bool,
+        hrf_fun=None,
     ) -> Array:
         """Convolve categorical event with HRF.
 
@@ -910,13 +997,15 @@ class EventModel(ModelProtocol):
 
             onsets = event.onsets[mask]
             durs = event.durations[mask]
+            event_hrf = self._hrf_for_event_data(hrf_obj, hrf_fun, event, mask)
 
             reg = fmrimod.regressor(
                 onsets=onsets,
-                hrf=hrf_obj,
+                hrf=event_hrf,
                 duration=durs,
                 amplitude=1.0,
-                summate=summate
+                summate=summate,
+                span=self._convolution_span_for_hrf(event_hrf),
             )
             result = reg.evaluate(grid, precision=self.precision)
             if result.ndim == 1:
@@ -926,7 +1015,14 @@ class EventModel(ModelProtocol):
         return np.hstack(per_level)
 
     def _convolve_continuous_event(
-        self, event, hrf_obj, grid: Array, nb: int, n_samples: int, summate: bool
+        self,
+        event,
+        hrf_obj,
+        grid: Array,
+        nb: int,
+        n_samples: int,
+        summate: bool,
+        hrf_fun=None,
     ) -> Array:
         """Convolve continuous event with HRF.
 
@@ -951,13 +1047,15 @@ class EventModel(ModelProtocol):
             Convolved column
         """
         fmrimod = _import_fmrimod()
+        event_hrf = self._hrf_for_event_data(hrf_obj, hrf_fun, event)
 
         reg = fmrimod.regressor(
             onsets=event.onsets,
-            hrf=hrf_obj,
+            hrf=event_hrf,
             duration=event.durations,
             amplitude=event.values,
-            summate=summate
+            summate=summate,
+            span=self._convolution_span_for_hrf(event_hrf),
         )
         result = reg.evaluate(grid, precision=self.precision)
         if result.ndim == 1:
@@ -965,7 +1063,14 @@ class EventModel(ModelProtocol):
         return result
 
     def _convolve_matrix_event(
-        self, event, hrf_obj, grid: Array, nb: int, n_samples: int, summate: bool
+        self,
+        event,
+        hrf_obj,
+        grid: Array,
+        nb: int,
+        n_samples: int,
+        summate: bool,
+        hrf_fun=None,
     ) -> Array:
         """Convolve matrix event with HRF.
 
@@ -990,15 +1095,17 @@ class EventModel(ModelProtocol):
             Convolved columns, one per matrix column
         """
         fmrimod = _import_fmrimod()
+        event_hrf = self._hrf_for_event_data(hrf_obj, hrf_fun, event)
 
         cols = []
         for i in range(event.n_columns):
             reg = fmrimod.regressor(
                 onsets=event.onsets,
-                hrf=hrf_obj,
+                hrf=event_hrf,
                 duration=event.durations,
                 amplitude=event.values[:, i],
-                summate=summate
+                summate=summate,
+                span=self._convolution_span_for_hrf(event_hrf),
             )
             result = reg.evaluate(grid, precision=self.precision)
             if result.ndim == 1:
@@ -1007,7 +1114,14 @@ class EventModel(ModelProtocol):
         return np.hstack(cols)
 
     def _convolve_basis_event(
-        self, event, hrf_obj, grid: Array, nb: int, n_samples: int, summate: bool
+        self,
+        event,
+        hrf_obj,
+        grid: Array,
+        nb: int,
+        n_samples: int,
+        summate: bool,
+        hrf_fun=None,
     ) -> Array:
         """Convolve basis event with HRF.
 
@@ -1032,16 +1146,18 @@ class EventModel(ModelProtocol):
             Convolved columns
         """
         fmrimod = _import_fmrimod()
+        event_hrf = self._hrf_for_event_data(hrf_obj, hrf_fun, event)
 
         if hasattr(event, 'basis_matrix') and event.basis_matrix is not None:
             cols = []
             for i in range(event.basis_matrix.shape[1]):
                 reg = fmrimod.regressor(
                     onsets=event.onsets,
-                    hrf=hrf_obj,
+                    hrf=event_hrf,
                     duration=event.durations,
                     amplitude=event.basis_matrix[:, i],
-                    summate=summate
+                    summate=summate,
+                    span=self._convolution_span_for_hrf(event_hrf),
                 )
                 result = reg.evaluate(grid, precision=self.precision)
                 if result.ndim == 1:
@@ -1052,10 +1168,11 @@ class EventModel(ModelProtocol):
             # Fallback: treat like continuous with unit amplitude
             reg = fmrimod.regressor(
                 onsets=event.onsets,
-                hrf=hrf_obj,
+                hrf=event_hrf,
                 duration=event.durations,
                 amplitude=1.0,
-                summate=summate
+                summate=summate,
+                span=self._convolution_span_for_hrf(event_hrf),
             )
             result = reg.evaluate(grid, precision=self.precision)
             if result.ndim == 1:
@@ -1336,7 +1453,8 @@ class EventModel(ModelProtocol):
             hrf=hrf_obj,
             duration=durations,
             amplitude=amplitude,
-            summate=summate
+            summate=summate,
+            span=self._convolution_span_for_hrf(hrf_obj),
         )
         result = reg.evaluate(grid, precision=self.precision)
         if result.ndim == 1:

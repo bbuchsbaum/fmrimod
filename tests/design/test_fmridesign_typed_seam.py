@@ -303,3 +303,163 @@ def test_clean_nuisance_returns_cleaned_matrices_and_audit_report():
     assert isinstance(cleaned, CleanedNuisance)
     assert isinstance(cleaned.report, NuisanceCheck)
     assert list(cleaned.nuisance_list[0].columns) == ["dvars"]
+
+
+def test_hrf_lag_shifts_realized_design_matrix():
+    """`lag` is preserved on the term and applied to the HRF before convolution.
+
+    Currently parsed and stored in ``term._kwargs['lag']`` but never realized:
+    the design matrix is identical to lag=0. Red until the convolution path
+    applies ``lag_hrf(hrf_obj, lag)`` from the term's options.
+    """
+    df = _single_condition_events()
+
+    m_zero = event_model(
+        [term("condition") | hrf("spmg1", lag=0.0)],
+        data=df,
+        tr=1.0,
+        n_scans=40,
+    )
+    m_lag = event_model(
+        [term("condition") | hrf("spmg1", lag=5.0)],
+        data=df,
+        tr=1.0,
+        n_scans=40,
+    )
+
+    col_zero = m_zero.design_matrix[:, 0]
+    col_lag = m_lag.design_matrix[:, 0]
+
+    assert not np.allclose(col_zero, col_lag), (
+        "lag=5.0 must change the realized design matrix"
+    )
+    peak_shift = int(np.argmax(np.abs(col_lag))) - int(np.argmax(np.abs(col_zero)))
+    assert peak_shift == 5, (
+        f"lag=5.0 (sec) at tr=1.0 must shift the peak by 5 samples, got {peak_shift}"
+    )
+
+
+def test_hrf_lag_matches_direct_lag_hrf_construction():
+    """`lag` realization equals a direct ``lag_hrf`` of the same base HRF."""
+    from fmrimod.hrf.decorators import lag_hrf
+    from fmrimod.hrf.library import SPM_CANONICAL
+
+    df = _single_condition_events()
+
+    m_lag = event_model(
+        [term("condition") | hrf("spmg1", lag=3.0)],
+        data=df,
+        tr=1.0,
+        n_scans=40,
+    )
+    lagged = lag_hrf(SPM_CANONICAL, 3.0)
+    m_direct = event_model(
+        [term("condition") | hrf(lagged)],
+        data=df,
+        tr=1.0,
+        n_scans=40,
+    )
+
+    np.testing.assert_allclose(
+        m_lag.design_matrix, m_direct.design_matrix, atol=1e-10
+    )
+
+
+def test_hrf_nbasis_rebuilds_variable_basis_hrf():
+    """`nbasis` overrides the default basis count on variable-basis HRFs.
+
+    The default bspline HRF has nbasis=5. Asking for ``nbasis=3`` should
+    rebuild the basis and yield three columns per condition, not five.
+    Red until the convolution path consumes ``term._kwargs['nbasis']``
+    for bspline/fir/fourier.
+    """
+    df = _single_condition_events()
+
+    m_default = event_model(
+        [term("condition") | hrf("bspline")],
+        data=df,
+        tr=1.0,
+        n_scans=40,
+    )
+    m_three = event_model(
+        [term("condition") | hrf("bspline", nbasis=3)],
+        data=df,
+        tr=1.0,
+        n_scans=40,
+    )
+
+    assert m_default.design_matrix.shape == (40, 5)
+    assert m_three.design_matrix.shape == (40, 3), (
+        f"bspline nbasis=3 must yield 3 columns, got {m_three.design_matrix.shape}"
+    )
+    assert sum(1 for c in m_three.column_names if "_b" in c) == 3
+
+
+def test_hrf_prefix_prepends_to_realized_column_tags():
+    """`prefix` disambiguates two hrf terms by prepending to the term tag.
+
+    R semantics (fmridesign): prefix is "prepended to the variable names
+    and used to identify the term" so two ``hrf(condition)`` terms with
+    different prefixes produce non-colliding columns. Red until the column-
+    naming path reads ``term._kwargs['prefix']``.
+    """
+    df = _single_condition_events()
+
+    model = event_model(
+        [
+            term("condition") | hrf("spmg1", prefix="stim"),
+            term("condition") | hrf("spmg1", prefix="late", lag=4.0),
+        ],
+        data=df,
+        tr=1.0,
+        n_scans=40,
+    )
+
+    assert any(name.startswith("stim") for name in model.column_names), (
+        f"prefix='stim' must appear in column names, got {model.column_names}"
+    )
+    assert any(name.startswith("late") for name in model.column_names), (
+        f"prefix='late' must appear in column names, got {model.column_names}"
+    )
+    assert model.design_matrix.shape[1] == 2
+
+
+def test_hrf_fun_generator_drives_per_event_hrf_list():
+    """`hrf_fun` produces per-event HRFs (boxcar widths from durations).
+
+    With ``boxcar_hrf_gen()`` and varying event durations, the per-event
+    width differs across events. The default canonical HRF cannot reproduce
+    that pattern, so the design matrix must differ from the spmg1-only
+    realization. Red until the convolution path invokes the generator
+    callable and passes the resulting list to ``regressor(hrf=list)``.
+    """
+    from fmrimod.hrf_dispatch import boxcar_hrf_gen
+
+    df = pd.DataFrame(
+        {
+            "onset": [2.0, 10.0, 18.0],
+            "condition": ["A", "A", "A"],
+            "duration": [1.0, 4.0, 8.0],
+        }
+    )
+
+    m_canonical = event_model(
+        [term("condition") | hrf("spmg1")],
+        data=df,
+        tr=1.0,
+        n_scans=40,
+    )
+    m_hrf_fun = event_model(
+        [term("condition") | hrf("spmg1", hrf_fun=boxcar_hrf_gen())],
+        data=df,
+        tr=1.0,
+        n_scans=40,
+    )
+
+    assert m_hrf_fun.design_matrix.shape == m_canonical.design_matrix.shape
+    assert not np.allclose(
+        m_hrf_fun.design_matrix, m_canonical.design_matrix
+    ), (
+        "hrf_fun=boxcar_hrf_gen() must drive a per-event boxcar HRF list "
+        "that differs from the default spmg1 realization"
+    )
