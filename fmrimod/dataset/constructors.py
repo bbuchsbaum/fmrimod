@@ -98,7 +98,7 @@ def fmri_dataset(
 
 
 def matrix_dataset(
-    data: Any,
+    data: NDArray[np.float64] | Sequence[NDArray[np.float64]],
     tr: float | list[float] | None = None,
     run_length: int | list[int] | None = None,
     *,

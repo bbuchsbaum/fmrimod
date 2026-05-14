@@ -1946,7 +1946,7 @@ def event_model(
     tr: Optional[float] = None,
     n_scans: Optional[int] = None,
     sampling_rate: Optional[float] = None,
-    **kwargs
+    **kwargs: object,
 ) -> EventModel:
     """Create an event model from a formula, term list, or builder.
 

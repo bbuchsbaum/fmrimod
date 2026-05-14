@@ -388,7 +388,7 @@ def soft_subspace_options(
     nuisance_mask: Optional[object] = None,
     lam: Union[float, Literal["auto", "gcv"], object] = _LAMBDA_SENTINEL,
     warn_redundant: bool = True,
-    **kwargs,
+    **kwargs: object,
 ) -> SoftSubspaceOptions:
     """Construct :class:`SoftSubspaceOptions` with R-style compatibility.
 

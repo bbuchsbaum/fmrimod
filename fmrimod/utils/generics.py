@@ -360,7 +360,7 @@ def condition_map(
     x,
     drop_empty: bool = True,
     expand_basis: bool = False,
-    **kwargs,
+    **kwargs: object,
 ) -> pd.DataFrame:
     """Map compact display condition names to canonical condition names.
 
