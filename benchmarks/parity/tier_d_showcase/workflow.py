@@ -19,6 +19,7 @@ from fmrimod.robust import huber_weights, mad_scale
 from fmrimod.single import estimate_single_trial
 
 Array = NDArray[np.float64]
+EXPECTED_PRIVATE_KERNEL_ROWS = ("tier_d_sketched_glm",)
 
 
 @dataclass(frozen=True)

@@ -46,9 +46,33 @@ def test_release_receipt_is_currently_blocked_by_named_red_checks() -> None:
     blockers = "\n".join(receipt["blockers"])
     assert "tier_a_fiac: public_seam is not true" in blockers
     assert "tier_a_fiac: numerical_canary cannot be flagship proof" in blockers
+    assert (
+        "tier_a_fiac: private kernel path cannot be flagship proof "
+        "(fit_glm_from_suffstats)"
+    ) in blockers
     assert "tier_b_fitlins_bids: public_seam is not true" in blockers
     assert "tier_d_lss_trialwise: numerical_canary cannot be flagship proof" in blockers
     assert "api spine " not in blockers
+
+
+def test_release_receipt_reports_private_kernel_evidence_by_row() -> None:
+    receipt = bundle.build_receipt()
+
+    rows = {row["benchmark_id"]: row for row in receipt["flagship_families"]}
+    fiac = rows["tier_a_fiac"]["private_kernel_evidence"]
+    assert fiac["row_uses_private_kernel"] is True
+    assert fiac["row_private_kernels"] == ["fit_glm_from_suffstats"]
+    assert "fit_glm_from_suffstats" in fiac["imported_private_kernels"]
+
+    showcase = rows["tier_d_showcase"]["private_kernel_evidence"]
+    assert "fast_lm_matrix" in showcase["imported_private_kernels"]
+    assert "fast_preproject" in showcase["imported_private_kernels"]
+    assert showcase["expected_private_kernel_rows"] == ["tier_d_sketched_glm"]
+    assert showcase["row_uses_private_kernel"] is False
+    assert not any(
+        blocker.startswith("tier_d_showcase: private kernel path")
+        for blocker in rows["tier_d_showcase"]["blockers"]
+    )
 
 
 def test_release_receipt_carries_gate_files_and_api_spine_evidence() -> None:

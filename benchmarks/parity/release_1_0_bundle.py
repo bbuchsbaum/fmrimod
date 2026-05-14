@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 from pathlib import Path
@@ -38,6 +39,15 @@ API_SPINE_NAMES = (
     "group_data_from_fmrilm",
     "estimate_single_trial",
     "estimate_single_trial_from_dataset",
+)
+
+PRIVATE_KERNEL_NAMES = (
+    "fit_glm_from_suffstats",
+    "fit_glm_from_matrix",
+    "contrast_t",
+    "contrast_f",
+    "fast_lm_matrix",
+    "fast_preproject",
 )
 
 REQUIRED_MAPPING_KEYS = frozenset(
@@ -133,9 +143,79 @@ def _has_numeric_timing(timings: object) -> bool:
     )
 
 
+def _artifact_workflow_path(artifact: dict[str, object]) -> Path | None:
+    workflow_path = artifact.get("workflow_path")
+    if not isinstance(workflow_path, str) or not workflow_path:
+        return None
+    return ROOT / workflow_path
+
+
+def _private_kernel_imports(path: Path | None) -> list[str]:
+    if path is None or not path.exists():
+        return []
+    tree = ast.parse(path.read_text())
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                name = alias.name.rsplit(".", maxsplit=1)[-1]
+                if name in PRIVATE_KERNEL_NAMES:
+                    imported.add(name)
+        elif isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if alias.name in PRIVATE_KERNEL_NAMES:
+                    imported.add(alias.name)
+    return sorted(imported)
+
+
+def _expected_private_kernel_rows(path: Path | None) -> list[str]:
+    if path is None or not path.exists():
+        return []
+    tree = ast.parse(path.read_text())
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(
+            isinstance(target, ast.Name)
+            and target.id == "EXPECTED_PRIVATE_KERNEL_ROWS"
+            for target in node.targets
+        ):
+            continue
+        value = ast.literal_eval(node.value)
+        if not isinstance(value, tuple):
+            raise ValueError("EXPECTED_PRIVATE_KERNEL_ROWS must be a tuple")
+        if not all(isinstance(item, str) for item in value):
+            raise ValueError("EXPECTED_PRIVATE_KERNEL_ROWS must contain strings")
+        return sorted(value)
+    return []
+
+
+def _private_kernel_names_in_text(value: object) -> list[str]:
+    if not isinstance(value, str):
+        return []
+    return sorted(name for name in PRIVATE_KERNEL_NAMES if name in value)
+
+
+def _private_kernel_evidence(artifact: dict[str, object]) -> dict[str, object]:
+    workflow_path = _artifact_workflow_path(artifact)
+    benchmark_id = cast(str, artifact["benchmark_id"])
+    fmrimod_path_names = _private_kernel_names_in_text(artifact.get("fmrimod_path"))
+    expected_rows = _expected_private_kernel_rows(workflow_path)
+    expected_for_row = benchmark_id in expected_rows
+    row_private_names = sorted(set(fmrimod_path_names))
+    return {
+        "imported_private_kernels": _private_kernel_imports(workflow_path),
+        "expected_private_kernel_rows": expected_rows,
+        "row_expected_private_kernel": expected_for_row,
+        "row_private_kernels": row_private_names,
+        "row_uses_private_kernel": expected_for_row or bool(row_private_names),
+    }
+
+
 def _mapping_blockers(
     mapping: dict[str, object],
     artifact: dict[str, object],
+    private_kernel_evidence: dict[str, object],
 ) -> list[str]:
     blockers: list[str] = []
     benchmark_id = cast(str, mapping["benchmark_id"])
@@ -163,6 +243,14 @@ def _mapping_blockers(
         blockers.append(f"{benchmark_id}: receipt metadata is missing")
     elif receipt.get("status") != "regenerable":
         blockers.append(f"{benchmark_id}: receipt is not regenerable")
+    if private_kernel_evidence["row_uses_private_kernel"]:
+        names = private_kernel_evidence["row_private_kernels"]
+        if private_kernel_evidence["row_expected_private_kernel"] and not names:
+            names = ["declared expected private-kernel row"]
+        blockers.append(
+            f"{benchmark_id}: private kernel path cannot be flagship proof "
+            f"({', '.join(cast(list[str], names))})"
+        )
     return blockers
 
 
@@ -203,7 +291,10 @@ def build_receipt() -> dict[str, object]:
             blockers.extend(row_blockers)
             continue
 
-        row_blockers.extend(_mapping_blockers(mapping, artifact))
+        private_kernel_evidence = _private_kernel_evidence(artifact)
+        row_blockers.extend(
+            _mapping_blockers(mapping, artifact, private_kernel_evidence)
+        )
         caveats: list[dict[str, object]] = []
         for caveat_id in cast(list[str], artifact.get("caveats", [])):
             caveat_row = caveat_index.get(caveat_id)
@@ -238,6 +329,7 @@ def build_receipt() -> dict[str, object]:
                 "timings": artifact.get("timings"),
                 "hardware_tag": artifact.get("hardware_tag"),
                 "receipt": artifact.get("receipt"),
+                "private_kernel_evidence": private_kernel_evidence,
                 "blockers": row_blockers,
             }
         )

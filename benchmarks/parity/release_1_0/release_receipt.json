@@ -97,6 +97,7 @@
     "tier_a_fiac: timings are not recorded",
     "tier_a_fiac: hardware_tag is missing",
     "tier_a_fiac: receipt metadata is missing",
+    "tier_a_fiac: private kernel path cannot be flagship proof (fit_glm_from_suffstats)",
     "tier_b_fitlins_bids: public_seam is not true",
     "tier_b_fitlins_bids: required public path 'fmri_dataset -> fmri_lm -> typed BIDS contrasts' not in fmrimod_path",
     "tier_b_fitlins_bids: timings are not recorded",
@@ -147,6 +148,13 @@
       "fmrimod_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> contrast",
       "hardware_tag": null,
       "owner_bead": "bd-01KRFDHPVSJGCVZ967Y8TVCKJA",
+      "private_kernel_evidence": {
+        "expected_private_kernel_rows": [],
+        "imported_private_kernels": [],
+        "row_expected_private_kernel": false,
+        "row_private_kernels": [],
+        "row_uses_private_kernel": false
+      },
       "public_seam": true,
       "receipt": {
         "checks": [
@@ -191,7 +199,8 @@
         "tier_a_fiac: required public path 'fmri_dataset -> fmri_lm -> contrast' not in fmrimod_path",
         "tier_a_fiac: timings are not recorded",
         "tier_a_fiac: hardware_tag is missing",
-        "tier_a_fiac: receipt metadata is missing"
+        "tier_a_fiac: receipt metadata is missing",
+        "tier_a_fiac: private kernel path cannot be flagship proof (fit_glm_from_suffstats)"
       ],
       "caveats": [],
       "current_status": "blocked_public_seam_false",
@@ -200,6 +209,17 @@
       "fmrimod_path": "benchmarks/parity/tier_a_fiac/workflow.py::fmrimod_pipeline: fit_glm_from_suffstats -> combine_runs -> contrast",
       "hardware_tag": null,
       "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
+      "private_kernel_evidence": {
+        "expected_private_kernel_rows": [],
+        "imported_private_kernels": [
+          "fit_glm_from_suffstats"
+        ],
+        "row_expected_private_kernel": false,
+        "row_private_kernels": [
+          "fit_glm_from_suffstats"
+        ],
+        "row_uses_private_kernel": true
+      },
       "public_seam": false,
       "receipt": null,
       "reference_path": "benchmarks/parity/tier_a_fiac/workflow.py::nilearn_pipeline",
@@ -226,6 +246,13 @@
       "fmrimod_path": "benchmarks/parity/tier_b_fitlins_bids/workflow.py::translated_pipeline plus ar1_nilearn derivative writer",
       "hardware_tag": null,
       "owner_bead": "bd-01KRFKZ0J0Z0GJ9VK35ABCAGJW",
+      "private_kernel_evidence": {
+        "expected_private_kernel_rows": [],
+        "imported_private_kernels": [],
+        "row_expected_private_kernel": false,
+        "row_private_kernels": [],
+        "row_uses_private_kernel": false
+      },
       "public_seam": false,
       "receipt": null,
       "reference_path": "benchmarks/parity/tier_b_fitlins_bids/workflow.py::manual_pipeline and FitLins CLI derivative fixture",
@@ -248,6 +275,13 @@
       "fmrimod_path": "benchmarks/parity/tier_group_semantic_survival/workflow.py::run_demo: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
       "hardware_tag": null,
       "owner_bead": "bd-01KRHTJ9WFSSBZSDGAN4V7PHGS",
+      "private_kernel_evidence": {
+        "expected_private_kernel_rows": [],
+        "imported_private_kernels": [],
+        "row_expected_private_kernel": false,
+        "row_private_kernels": [],
+        "row_uses_private_kernel": false
+      },
       "public_seam": true,
       "receipt": {
         "checks": [
@@ -305,6 +339,18 @@
       "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_lss_showcase: estimate_single_trial",
       "hardware_tag": null,
       "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
+      "private_kernel_evidence": {
+        "expected_private_kernel_rows": [
+          "tier_d_sketched_glm"
+        ],
+        "imported_private_kernels": [
+          "fast_lm_matrix",
+          "fast_preproject"
+        ],
+        "row_expected_private_kernel": false,
+        "row_private_kernels": [],
+        "row_uses_private_kernel": false
+      },
       "public_seam": false,
       "receipt": null,
       "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::_lss_reference",
@@ -325,6 +371,18 @@
       "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::render: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
       "hardware_tag": "Darwin-arm64-arm",
       "owner_bead": "bd-01KRJ0PM9ERPJH7GX0PYYVY2NK",
+      "private_kernel_evidence": {
+        "expected_private_kernel_rows": [
+          "tier_d_sketched_glm"
+        ],
+        "imported_private_kernels": [
+          "fast_lm_matrix",
+          "fast_preproject"
+        ],
+        "row_expected_private_kernel": false,
+        "row_private_kernels": [],
+        "row_uses_private_kernel": false
+      },
       "public_seam": true,
       "receipt": {
         "checks": [
