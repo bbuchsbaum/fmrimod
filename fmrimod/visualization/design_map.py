@@ -6,10 +6,14 @@ correlation matrices, and time series plots.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
 
 try:
     import matplotlib.patches as mpatches
@@ -37,7 +41,7 @@ def design_map(
     figsize: Optional[Tuple[float, float]] = None,
     cmap: Optional[str] = None,
     **kwargs
-) -> Any:
+) -> tuple[Figure, Axes]:
     """Visualize design matrix as a heatmap.
 
     Creates a heatmap visualization of the design matrix showing the
@@ -212,7 +216,7 @@ def correlation_map(
     annot: bool = False,
     fmt: str = '.2f',
     **kwargs
-) -> Any:
+) -> tuple[Figure, Axes]:
     """Visualize correlation matrix of design matrix regressors.
 
     Creates a heatmap showing the correlation between all pairs of
@@ -372,7 +376,7 @@ def plot_design_matrix(
     figsize: Optional[Tuple[float, float]] = None,
     separate_regressors: bool = True,
     **kwargs
-) -> Any:
+) -> tuple[Figure, Axes]:
     """Plot time series of design matrix regressors.
     
     Creates line plots showing the time course of regressors in the
@@ -490,7 +494,7 @@ def plot_design_matrix(
 def plot_model_summary(
     model: EventModel,
     figsize: Optional[Tuple[float, float]] = None
-) -> Dict[str, Any]:
+) -> Dict[str, tuple[Figure, Axes]]:
     """Create summary visualization of event model.
     
     Generates three plots:
@@ -546,7 +550,7 @@ def plot_baseline_model(
     title: Optional[str] = None,
     figsize: Optional[Tuple[float, float]] = None,
     **kwargs
-) -> Any:
+) -> tuple[Figure, Axes]:
     """Plot baseline model terms over time.
 
     Shows drift, block, and nuisance terms as line plots,
@@ -631,7 +635,7 @@ def plot_sampling_frame(
     tick_every: Optional[float] = None,
     figsize: Optional[Tuple[float, float]] = None,
     **kwargs
-) -> Any:
+) -> tuple[Figure, Axes]:
     """Plot sampling frame structure.
 
     Parameters
