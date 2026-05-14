@@ -139,6 +139,8 @@
       "fmrimod_path": "benchmarks/parity/tier_a_fiac/workflow.py::fmrimod_pipeline: fmri_dataset -> RealizedDesign(source='nilearn') -> fmri_lm -> combine_runs -> column_contrast",
       "realized_design_source": "nilearn",
       "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
+      "performance_stage": "tier_a_fiac",
       "typed_objects": [
         "fmrimod.dataset.FmriDataset",
         "fmrimod.design.RealizedDesign",
@@ -149,8 +151,22 @@
       ],
       "fmrimod_expresses_better": "The 2x2 factorial main effects (sentence_effect, speaker_effect) resolve as typed column_contrast patterns against the realised design rather than hand-built weight vectors, and the per-run designs flow through RealizedDesign(source='nilearn') so the Nilearn provenance survives the fmri_dataset -> fmri_lm -> combine_runs seam.",
       "timings": {
-        "status": "not_recorded",
-        "next": "record per-run dataset/fit + combined contrast timings now that the path is public-seam"
+        "seconds": 2.1142703760000003,
+        "stages": {
+          "fmrimod_combine_seconds": 2.5250000000198725e-05,
+          "fmrimod_contrast_seconds": 0.003040541999999924,
+          "fmrimod_masker_seconds": 0.09241316699999969,
+          "fmrimod_run1_dataset_seconds": 0.2076667080000001,
+          "fmrimod_run1_design_seconds": 7.299999999998974e-05,
+          "fmrimod_run1_fit_seconds": 0.04012062500000013,
+          "fmrimod_run2_dataset_seconds": 0.20497925000000006,
+          "fmrimod_run2_design_seconds": 6.191700000002243e-05,
+          "fmrimod_run2_fit_seconds": 0.0025535000000003194,
+          "load_inputs_seconds": 0.28987808300000006,
+          "nilearn_pipeline_seconds": 1.2734583339999999
+        },
+        "status": "recorded",
+        "source": "benchmarks/parity/tier_a_fiac/reports/parity_report.json"
       },
       "receipt": {
         "status": "regenerable",

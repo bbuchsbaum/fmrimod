@@ -39,11 +39,12 @@ def test_release_manifest_maps_each_flagship_family_to_a_real_artifact() -> None
         assert row["owner_bead"].startswith("bd-")
 
 
-def test_release_receipt_is_currently_blocked_by_named_red_checks() -> None:
+def test_release_receipt_passes_after_named_red_checks_are_retired() -> None:
     receipt = bundle.build_receipt()
 
     assert receipt["schema_version"] == "release_1_0_receipt/v1"
-    assert receipt["release_status"] == "blocked"
+    assert receipt["release_status"] == "pass"
+    assert receipt["blockers"] == []
     blockers = "\n".join(receipt["blockers"])
     # Tier A FIAC retired its public_seam, numerical_canary, and
     # private-kernel blockers in bd-01KRKACNDMRB6WYYQGE050SJB3: the
@@ -135,6 +136,9 @@ def test_release_receipt_distinguishes_native_and_interop_families() -> None:
 
     rows = {row["benchmark_id"]: row for row in receipt["flagship_families"]}
     fiac = rows["tier_a_fiac"]
+    assert fiac["blockers"] == []
+    assert fiac["timings"]["status"] == "recorded"
+    assert fiac["hardware_tag"] == "Darwin-arm64-arm"
     assert fiac["realized_design_evidence"][
         "fmrimod_path_realized_design_sources"
     ] == ["nilearn"]
@@ -258,11 +262,13 @@ def test_release_bundle_module_command_writes_requested_output(tmp_path: Path) -
     )
 
     payload = json.loads(output.read_text())
-    assert payload["release_status"] == "blocked"
+    assert payload["release_status"] == "pass"
     assert json.loads(result.stdout)["source"] == payload["source"]
 
 
-def test_release_bundle_strict_mode_exits_nonzero_while_blocked(tmp_path: Path) -> None:
+def test_release_bundle_strict_mode_exits_zero_after_release_receipt_passes(
+    tmp_path: Path,
+) -> None:
     output = tmp_path / "receipt.json"
 
     result = subprocess.run(
@@ -279,6 +285,6 @@ def test_release_bundle_strict_mode_exits_nonzero_while_blocked(tmp_path: Path) 
         text=True,
     )
 
-    assert result.returncode == 1
+    assert result.returncode == 0
     assert output.exists()
-    assert json.loads(output.read_text())["release_status"] == "blocked"
+    assert json.loads(output.read_text())["release_status"] == "pass"

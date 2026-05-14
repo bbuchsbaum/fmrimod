@@ -21,7 +21,7 @@
       "benchmark_id": "tier_a_fiac",
       "required_public_path": "fmri_dataset -> RealizedDesign(source='nilearn') -> fmri_lm",
       "release_family_class": "interop_bridge",
-      "current_status": "ready_missing_timing_hardware",
+      "current_status": "ready",
       "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9"
     },
     {

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -132,7 +134,11 @@ def nilearn_pipeline(inputs: FiacInputs) -> PipelineOutput:
     return PipelineOutput(arrays=arrays)
 
 
-def fmrimod_pipeline(inputs: FiacInputs) -> PipelineOutput:
+def fmrimod_pipeline(
+    inputs: FiacInputs,
+    *,
+    timing_sink: dict[str, float] | None = None,
+) -> PipelineOutput:
     """FIAC public-seam path: per-run RealizedDesign -> fmri_lm -> combine_runs.
 
     Each run is fit through the public ``fmri_dataset -> fmri_lm``
@@ -146,10 +152,16 @@ def fmrimod_pipeline(inputs: FiacInputs) -> PipelineOutput:
     the flagship path. The Moore-Penrose solver matches Nilearn's
     least-squares route for strict numerical parity.
     """
-
+    start = time.perf_counter()
     masker = NiftiMasker(mask_img=inputs.mask_img).fit()
+    if timing_sink is not None:
+        timing_sink["fmrimod_masker_seconds"] = time.perf_counter() - start
     fits = []
-    for img, design in zip(inputs.run_imgs, inputs.design_matrices):
+    for index, (img, design) in enumerate(
+        zip(inputs.run_imgs, inputs.design_matrices),
+        start=1,
+    ):
+        dataset_start = time.perf_counter()
         X = np.asarray(design, dtype=np.float64)
         Y = masker.transform(img)
         dataset = fm.fmri_dataset(
@@ -157,14 +169,26 @@ def fmrimod_pipeline(inputs: FiacInputs) -> PipelineOutput:
             tr=float(np.diff(design.index.values[:2])[0]),
             mask=np.ones(Y.shape[1], dtype=bool),
         )
+        if timing_sink is not None:
+            timing_sink[f"fmrimod_run{index}_dataset_seconds"] = (
+                time.perf_counter() - dataset_start
+            )
+        design_start = time.perf_counter()
         realised = RealizedDesign.from_array(
             X,
             columns=tuple(str(column) for column in design.columns),
             source="nilearn",
         )
-        fits.append(
-            fm.fmri_lm(realised, dataset, config=FmriLmConfig(solver="pinv"))
-        )
+        if timing_sink is not None:
+            timing_sink[f"fmrimod_run{index}_design_seconds"] = (
+                time.perf_counter() - design_start
+            )
+        fit_start = time.perf_counter()
+        fits.append(fm.fmri_lm(realised, dataset, config=FmriLmConfig(solver="pinv")))
+        if timing_sink is not None:
+            timing_sink[f"fmrimod_run{index}_fit_seconds"] = (
+                time.perf_counter() - fit_start
+            )
 
     for fit in fits:
         if fit.provenance is None or fit.provenance.design_source != "nilearn":
@@ -172,15 +196,21 @@ def fmrimod_pipeline(inputs: FiacInputs) -> PipelineOutput:
                 "FIAC fmrimod path did not carry design_source='nilearn'"
             )
 
+    combine_start = time.perf_counter()
     combined = fm.combine_runs(fits)
+    if timing_sink is not None:
+        timing_sink["fmrimod_combine_seconds"] = time.perf_counter() - combine_start
 
     arrays = {}
+    contrast_start = time.perf_counter()
     for name, (pattern_A, pattern_B) in _FIAC_CONTRAST_PATTERNS.items():
         result = combined.contrast(
             fm.column_contrast(pattern_A=pattern_A, pattern_B=pattern_B, name=name)
         )
         arrays[f"effect_{name}"] = result.estimate
         arrays[f"t_{name}"] = result.stat
+    if timing_sink is not None:
+        timing_sink["fmrimod_contrast_seconds"] = time.perf_counter() - contrast_start
     return PipelineOutput(arrays=arrays)
 
 
@@ -199,10 +229,51 @@ def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
     )
 
 
+def _make_timed_case(timings: dict[str, float]) -> ParityCase:
+    start = time.perf_counter()
+    inputs = load_inputs(max_voxels=MAX_VOXELS)
+    timings["load_inputs_seconds"] = time.perf_counter() - start
+
+    def _timed_fmrimod(shared_inputs: FiacInputs) -> PipelineOutput:
+        return fmrimod_pipeline(shared_inputs, timing_sink=timings)
+
+    def _timed_nilearn(shared_inputs: FiacInputs) -> PipelineOutput:
+        start = time.perf_counter()
+        output = nilearn_pipeline(shared_inputs)
+        timings["nilearn_pipeline_seconds"] = time.perf_counter() - start
+        return output
+
+    return ParityCase(
+        name="tier_a_fiac_fixed_effects",
+        fmrimod_pipeline=_timed_fmrimod,
+        reference_pipeline=_timed_nilearn,
+        inputs=inputs,
+        tolerances={
+            "effect_sentence_effect": ParityTolerance(),
+            "t_sentence_effect": ParityTolerance(),
+            "effect_speaker_effect": ParityTolerance(),
+            "t_speaker_effect": ParityTolerance(),
+        },
+    )
+
+
+def _write_timing_payload(json_path: Path, timings: dict[str, float]) -> None:
+    payload = json.loads(json_path.read_text())
+    stages = {key: float(value) for key, value in sorted(timings.items())}
+    payload["timings"] = {
+        "status": "recorded",
+        "seconds": float(sum(stages.values())),
+        "stages": stages,
+    }
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
 def main() -> None:
-    result = run(make_case())
+    timings: dict[str, float] = {}
+    result = run(_make_timed_case(timings))
     out_dir = Path(__file__).resolve().parent / "reports"
-    render(result, out_dir)
+    json_path, _ = render(result, out_dir)
+    _write_timing_payload(json_path, timings)
     if result.status == "fail":
         raise SystemExit(1)
 

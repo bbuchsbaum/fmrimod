@@ -89,10 +89,7 @@
       "used_by_public_seam_artifact": "release_1_0_api_spine"
     }
   ],
-  "blockers": [
-    "tier_a_fiac: timings are not recorded",
-    "tier_a_fiac: hardware_tag is missing"
-  ],
+  "blockers": [],
   "board_source": "roadmap-to-1-0/post-01KRK7E46JRRD6BKQTAP9GMC03",
   "evidence_gates": [
     {
@@ -188,16 +185,13 @@
     {
       "artifact_present": true,
       "benchmark_id": "tier_a_fiac",
-      "blockers": [
-        "tier_a_fiac: timings are not recorded",
-        "tier_a_fiac: hardware_tag is missing"
-      ],
+      "blockers": [],
       "caveats": [],
-      "current_status": "ready_missing_timing_hardware",
+      "current_status": "ready",
       "evidence_level": "workflow_parity",
       "family": "FIAC/localizer fixed effects",
       "fmrimod_path": "benchmarks/parity/tier_a_fiac/workflow.py::fmrimod_pipeline: fmri_dataset -> RealizedDesign(source='nilearn') -> fmri_lm -> combine_runs -> column_contrast",
-      "hardware_tag": null,
+      "hardware_tag": "Darwin-arm64-arm",
       "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
       "private_kernel_evidence": {
         "expected_private_kernel_rows": [],
@@ -239,8 +233,22 @@
       "report_path": "benchmarks/parity/tier_a_fiac/reports/parity_report.json",
       "required_public_path": "fmri_dataset -> RealizedDesign(source='nilearn') -> fmri_lm",
       "timings": {
-        "next": "record per-run dataset/fit + combined contrast timings now that the path is public-seam",
-        "status": "not_recorded"
+        "seconds": 2.1142703760000003,
+        "source": "benchmarks/parity/tier_a_fiac/reports/parity_report.json",
+        "stages": {
+          "fmrimod_combine_seconds": 2.5250000000198725e-05,
+          "fmrimod_contrast_seconds": 0.003040541999999924,
+          "fmrimod_masker_seconds": 0.09241316699999969,
+          "fmrimod_run1_dataset_seconds": 0.2076667080000001,
+          "fmrimod_run1_design_seconds": 7.299999999998974e-05,
+          "fmrimod_run1_fit_seconds": 0.04012062500000013,
+          "fmrimod_run2_dataset_seconds": 0.20497925000000006,
+          "fmrimod_run2_design_seconds": 6.191700000002243e-05,
+          "fmrimod_run2_fit_seconds": 0.0025535000000003194,
+          "load_inputs_seconds": 0.28987808300000006,
+          "nilearn_pipeline_seconds": 1.2734583339999999
+        },
+        "status": "recorded"
       },
       "typed_objects": [
         "fmrimod.dataset.FmriDataset",
@@ -531,10 +539,7 @@
     },
     {
       "benchmark_id": "tier_a_fiac",
-      "blockers": [
-        "tier_a_fiac: timings are not recorded",
-        "tier_a_fiac: hardware_tag is missing"
-      ],
+      "blockers": [],
       "family": "FIAC/localizer fixed effects",
       "realized_design_source": "nilearn",
       "release_family_class": "interop_bridge"
@@ -574,7 +579,7 @@
     "-m",
     "benchmarks.parity.release_1_0_bundle"
   ],
-  "release_status": "blocked",
+  "release_status": "pass",
   "schema_version": "release_1_0_receipt/v1",
   "source": {
     "api_inventory": "docs/contracts/api_inventory_v1.json",
