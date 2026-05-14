@@ -18,7 +18,7 @@ from .contrast_spec import (
     sliding_window_contrasts,
     unit_contrast,
 )
-from .contrast_weights import contrast_weights
+from .contrast_weights import contrast_from_mask, contrast_mask, contrast_weights
 from .errors import DesignProvenanceError
 from .factorial import (
     generate_interaction_contrast,
@@ -47,6 +47,8 @@ __all__ = [
     'generate_interaction_contrast',
     # Weight computation
     'contrast_weights',
+    'contrast_mask',
+    'contrast_from_mask',
     # F-contrasts
     'Fcontrasts',
     'plot_Fcontrasts',

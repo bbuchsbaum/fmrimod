@@ -6,26 +6,27 @@ numerical weights for different types of contrast specifications.
 
 from __future__ import annotations
 
-from typing import Optional, Union, List, Dict, Any
-from functools import singledispatch
 import ast
-import numpy as np
 import re
 import warnings
+from functools import singledispatch
+from typing import Any, Dict, List, Mapping, Optional, Sequence
+
+import numpy as np
 
 from ..types import Array
+from .basis_filter import apply_basis_filter
 from .contrast_spec import (
-    ContrastSpec, 
-    UnitContrastSpec,
-    PairContrastSpec,
     ColumnContrastSpec,
-    PolyContrastSpec,
-    OnewayContrastSpec,
-    InteractionContrastSpec,
     ContrastFormulaSpec,
-    ContrastSet
+    ContrastSet,
+    ContrastSpec,
+    InteractionContrastSpec,
+    OnewayContrastSpec,
+    PairContrastSpec,
+    PolyContrastSpec,
+    UnitContrastSpec,
 )
-
 
 # Tolerance for sum-to-zero checks
 CONTRAST_TOLERANCE = 1e-8
@@ -149,6 +150,122 @@ def contrast_weights(x, term=None, **kwargs):
     """
     raise NotImplementedError(
         f"No contrast_weights method for type {type(x).__name__}"
+    )
+
+
+@singledispatch
+def contrast_mask(
+    x: object,
+    term: object | None = None,
+) -> Mapping[str, object]:
+    """Return a base-condition contrast mask for extension specs.
+
+    Built-in contrast specs continue to implement :func:`contrast_weights`
+    directly.  This generic is the extension seam for third-party/custom specs
+    that want fmridesign-style basis expansion and packaging via
+    :func:`contrast_from_mask`.
+    """
+    raise NotImplementedError(
+        f"No contrast_mask method for type {type(x).__name__}"
+    )
+
+
+def _as_weight_matrix(weights: object) -> np.ndarray:
+    weights_mat = np.asarray(weights, dtype=float)
+    if weights_mat.ndim == 1:
+        weights_mat = weights_mat.reshape(-1, 1)
+    if weights_mat.ndim != 2:
+        raise ValueError("contrast mask weights must be a 1D or 2D array")
+    return weights_mat
+
+
+def _mask_condnames(mask: Mapping[str, object], term, n_rows: int) -> List[str]:
+    raw_condnames = mask.get("condnames")
+    if raw_condnames is None:
+        raw_condnames = _get_conditions(term, expand_basis=False)
+    condnames = [str(name) for name in raw_condnames]
+    if len(condnames) != n_rows:
+        raise ValueError(
+            "contrast mask condnames length must match weights rows: "
+            f"{len(condnames)} != {n_rows}"
+        )
+    return condnames
+
+
+def _is_column_targeted(spec: ContrastSpec) -> bool:
+    return isinstance(spec, (ColumnContrastSpec, ContrastFormulaSpec))
+
+
+def _expand_base_mask(
+    weights_base: np.ndarray,
+    base_condnames: Sequence[str],
+    term,
+    spec: ContrastSpec,
+) -> tuple[np.ndarray, List[str]]:
+    nbasis = int(getattr(term, "nbasis", 1) or 1)
+    if nbasis <= 1 or weights_base.shape[0] == 0:
+        return weights_base, list(base_condnames)
+
+    expanded_condnames = _get_conditions(term, expand_basis=True)
+    if not expanded_condnames:
+        return weights_base, list(base_condnames)
+
+    expanded_weights = np.zeros(
+        (len(expanded_condnames), weights_base.shape[1]),
+        dtype=float,
+    )
+    for row_ix, base_name in enumerate(base_condnames):
+        pattern = re.compile(rf"^{re.escape(str(base_name))}(_b\d+)?$")
+        for expanded_ix, expanded_name in enumerate(expanded_condnames):
+            if pattern.match(expanded_name):
+                expanded_weights[expanded_ix, :] = weights_base[row_ix, :]
+
+    filtered = apply_basis_filter(
+        expanded_weights,
+        expanded_condnames,
+        basis_spec=getattr(spec, "basis", None),
+        nbasis=nbasis,
+        contrast_name=spec.name,
+        basis_weights=getattr(spec, "basis_weights", None),
+    )
+    return filtered["weights"], filtered["condnames"]
+
+
+def contrast_from_mask(
+    mask: Mapping[str, object],
+    spec: ContrastSpec,
+    term,
+    classes: Sequence[type] | None = None,
+) -> Contrast:
+    """Package a base-condition contrast mask as a :class:`Contrast`.
+
+    ``mask`` must provide ``weights`` and may provide ``condnames``.  Non-column
+    targeted specs are expanded across multi-basis term columns before the
+    standard :class:`Contrast` object is returned.
+    """
+    if not isinstance(mask, Mapping) or "weights" not in mask:
+        raise TypeError("contrast_from_mask() expects a mapping with 'weights'")
+
+    weights_base = _as_weight_matrix(mask["weights"])
+    base_condnames = _mask_condnames(mask, term, weights_base.shape[0])
+
+    if _is_column_targeted(spec):
+        weights_out = weights_base
+        condnames = base_condnames
+    else:
+        weights_out, condnames = _expand_base_mask(
+            weights_base,
+            base_condnames,
+            term,
+            spec,
+        )
+
+    return Contrast(
+        term=term,
+        name=spec.name,
+        weights=weights_out,
+        condnames=condnames,
+        contrast_spec=spec,
     )
 
 
@@ -686,7 +803,6 @@ def _(x: InteractionContrastSpec, term, **kwargs) -> Contrast:
     else:
         # General case: try to find factors
         # For now, use a simple pattern for 2xk designs
-        import math
         # Try to factorize n
         k = n // 2
         if n == 2 * k:
@@ -728,8 +844,6 @@ def _(x: ContrastFormulaSpec, term, **kwargs) -> Contrast:
     - Parentheses for grouping
     - Simple condition names: "A" maps to condition matching "A"
     """
-    import ast
-
     all_condnames = _get_conditions(term, expand_basis=False)
     if not all_condnames:
         weights = np.zeros((0, 1))
@@ -800,7 +914,7 @@ def _evaluate_formula_expression(formula_expr: str, condnames: List[str]) -> np.
     # Parse the formula expression into an AST
     try:
         tree = ast.parse(preprocessed, mode='eval')
-    except SyntaxError as e:
+    except SyntaxError:
         # Try treating it as a simple condition name
         mask = _match_conditions_to_formula(condnames, formula_expr)
         weights = np.zeros(len(condnames), dtype=float)
