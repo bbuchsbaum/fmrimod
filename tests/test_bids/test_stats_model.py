@@ -133,6 +133,13 @@ def _threshold_or_stats_model() -> dict:
     return model
 
 
+def _derivative_stats_model(hrf_model: str) -> dict:
+    model = _stats_model()
+    node = model["Nodes"][0]
+    node["Transformations"][1]["Model"] = hrf_model
+    return model
+
+
 def test_translate_run_node_builds_design_and_contrasts():
     n_scans = 40
     sampling_frame = fm.SamplingFrame(blocklens=[n_scans], tr=2.0)
@@ -328,6 +335,88 @@ def test_translate_run_node_realises_threshold_or_parametric_modulator():
         "salient_trial" in name
         for name in translated.event_model.column_names
     )
+
+
+@pytest.mark.parametrize(
+    ("model_label", "basis", "n_basis"),
+    [
+        ("spm + derivative", "spmg2", 2),
+        ("spm + derivative + dispersion", "spmg3", 3),
+    ],
+)
+def test_translate_run_node_normalizes_convolve_derivative_hrf_models(
+    model_label: str,
+    basis: str,
+    n_basis: int,
+):
+    n_scans = 40
+    sampling_frame = fm.SamplingFrame(blocklens=[n_scans], tr=2.0)
+    events = pd.DataFrame(
+        {
+            "run": 1,
+            "onset": [4.0, 12.0, 20.0, 28.0],
+            "duration": [1.0, 1.0, 1.0, 1.0],
+            "trial_type": ["word", "pseudoword", "word", "pseudoword"],
+        }
+    )
+    confounds = pd.DataFrame(
+        {
+            "framewise_displacement": np.linspace(0.0, 1.0, n_scans),
+            "trans_x": np.sin(np.linspace(0.0, 1.0, n_scans)),
+        }
+    )
+
+    translated = translate_run_node(
+        _derivative_stats_model(model_label),
+        events=events,
+        sampling_frame=sampling_frame,
+        confounds=confounds,
+    )
+
+    hrf_term = translated.model_spec.events[0]
+    assert isinstance(hrf_term, HrfTerm)
+    assert hrf_term.hrf == basis
+    assert len(translated.event_model.column_names) == 2 * n_basis
+    assert any(name.endswith("_b01") for name in translated.event_model.column_names)
+    assert any(
+        name.endswith(f"_b0{n_basis}")
+        for name in translated.event_model.column_names
+    )
+
+    contrast = translated.contrast_vectors["word_gt_pseudoword"]
+    nonzero = np.flatnonzero(contrast)
+    assert len(nonzero) == 2
+    assert translated.column_names[int(nonzero[0])].endswith("pseudoword_b01")
+    assert translated.column_names[int(nonzero[1])].endswith("word_b01")
+    assert contrast[int(nonzero[0])] == -1.0
+    assert contrast[int(nonzero[1])] == 1.0
+
+
+def test_translate_run_node_rejects_unknown_convolve_hrf_model():
+    n_scans = 40
+    sampling_frame = fm.SamplingFrame(blocklens=[n_scans], tr=2.0)
+    events = pd.DataFrame(
+        {
+            "run": 1,
+            "onset": [4.0, 12.0, 20.0, 28.0],
+            "duration": [1.0, 1.0, 1.0, 1.0],
+            "trial_type": ["word", "pseudoword", "word", "pseudoword"],
+        }
+    )
+    confounds = pd.DataFrame(
+        {
+            "framewise_displacement": np.linspace(0.0, 1.0, n_scans),
+            "trans_x": np.sin(np.linspace(0.0, 1.0, n_scans)),
+        }
+    )
+
+    with pytest.raises(NotImplementedError, match="Unsupported Convolve HRF model"):
+        translate_run_node(
+            _derivative_stats_model("fir"),
+            events=events,
+            sampling_frame=sampling_frame,
+            confounds=confounds,
+        )
 
 
 def test_modulated_bids_translation_fit_uses_transformed_event_table():

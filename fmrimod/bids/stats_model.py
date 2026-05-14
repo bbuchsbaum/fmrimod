@@ -168,6 +168,32 @@ def _output_name(transform: Mapping[str, object]) -> str | None:
     raise TypeError("Only single-output transformations are supported")
 
 
+def _normalize_convolve_hrf_model(model: object) -> str:
+    """Map BIDS/FitLins Convolve model labels to fmrimod HRF basis names."""
+
+    key = str(model).strip().lower().replace("_", " ")
+    key = " ".join(key.replace("+", " + ").split())
+    aliases = {
+        "spm": "spm",
+        "spmg1": "spm",
+        "spm canonical": "spm",
+        "spm + derivative": "spmg2",
+        "spm + derivatives": "spmg2",
+        "spmg2": "spmg2",
+        "spm + derivative + dispersion": "spmg3",
+        "spm + derivatives + dispersion": "spmg3",
+        "spm + derivative + dispersion derivative": "spmg3",
+        "spmg3": "spmg3",
+    }
+    if key not in aliases:
+        raise NotImplementedError(
+            "Unsupported Convolve HRF model "
+            f"{model!r}; supported models are 'spm', 'spm + derivative', "
+            "and 'spm + derivative + dispersion'."
+        )
+    return aliases[key]
+
+
 def _convolved_model(node: Mapping[str, object]) -> _ConvolvedModel:
     """Return the supported run-level convolved event model."""
 
@@ -187,7 +213,7 @@ def _convolved_model(node: Mapping[str, object]) -> _ConvolvedModel:
                 "Only single-factor Convolve transformations are supported"
             )
         factor = bases.pop()
-        hrf_model = str(transform.get("Model", "spm")).lower()
+        hrf_model = _normalize_convolve_hrf_model(transform.get("Model", "spm"))
         convolved_inputs = set(inputs)
         break
     if factor is None:
@@ -345,11 +371,19 @@ def _event_column_for_condition(column_names: Sequence[str], condition: str) -> 
         condition.replace(".", "_"),
         condition.replace(".", "_trial_type."),
     ]
+    candidates.extend(f"{candidate}_b01" for candidate in tuple(candidates))
     for candidate in candidates:
         if candidate in column_names:
             return candidate
     suffix = "." + condition.split(".")[-1]
     matches = [name for name in column_names if name.endswith(suffix)]
+    if not matches:
+        level = condition.split(".")[-1]
+        matches = [
+            name
+            for name in column_names
+            if name.endswith(f".{level}_b01") or name.endswith(f"_{level}_b01")
+        ]
     if len(matches) == 1:
         return matches[0]
     raise KeyError(f"Could not align BIDS condition {condition!r} to fmrimod columns")
