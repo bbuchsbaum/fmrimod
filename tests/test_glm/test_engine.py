@@ -10,6 +10,7 @@ from fmrimod.glm.engine import (
     FittingEngine,
     RunwiseEngineOptions,
     SketchEngineOptions,
+    _normalize_engine_name,
     get_engine,
     list_engines,
     register_engine,
@@ -41,6 +42,20 @@ class TestEngineRegistry:
     def test_unknown_engine_raises(self):
         with pytest.raises(KeyError, match="Unknown engine"):
             get_engine("nonexistent_engine_xyz")
+
+    def test_normalize_engine_name_is_builtin_only(self):
+        assert _normalize_engine_name("runwise") == "runwise"
+        assert _normalize_engine_name("chunkwise") == "chunkwise"
+        assert _normalize_engine_name("sketch") == "sketch"
+
+        with pytest.raises(KeyError, match="Unknown built-in engine"):
+            _normalize_engine_name("plugin_engine")
+
+    def test_resolve_legacy_builtin_selector_preserves_kwargs(self):
+        eng, kwargs = resolve_engine("chunkwise", {"chunk_size": 9, "n_jobs": 2})
+
+        assert eng.name == "chunkwise"
+        assert kwargs == {"chunk_size": 9, "n_jobs": 2}
 
     def test_resolve_typed_runwise_options(self):
         eng, kwargs = resolve_engine(RunwiseEngineOptions(n_jobs=2, chunk_size=17))

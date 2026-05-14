@@ -49,6 +49,24 @@ EngineName = Literal["runwise", "chunkwise", "sketch"]
 SketchKindName = Literal["gaussian", "srht", "countsketch"]
 LandmarkMethodName = Literal["kmeans", "random"]
 
+_BUILTIN_ENGINE_NAMES: frozenset[str] = frozenset(("runwise", "chunkwise", "sketch"))
+
+
+def _normalize_engine_name(name: str) -> EngineName:
+    """Validate a built-in engine name and return the typed literal."""
+    if name in _BUILTIN_ENGINE_NAMES:
+        return cast(EngineName, name)
+    raise KeyError(
+        f"Unknown built-in engine {name!r}. Built-ins: "
+        f"{', '.join(sorted(_BUILTIN_ENGINE_NAMES))}"
+    )
+
+
+def _engine_registry_key(name: EngineName | str) -> str:
+    if name in _BUILTIN_ENGINE_NAMES:
+        return _normalize_engine_name(name)
+    return name
+
 
 def _validate_positive_int(value: int, *, name: str) -> None:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
@@ -398,7 +416,7 @@ def _load_builtin_engines() -> None:
     _BUILTINS_LOADED = True
 
 
-def get_engine(name: str) -> FittingEngine:
+def get_engine(name: EngineName | str) -> FittingEngine:
     """Look up an engine by name and return an instance.
 
     Built-in engines are always available.  Third-party engines are
@@ -421,13 +439,12 @@ def get_engine(name: str) -> FittingEngine:
     """
     _load_builtin_engines()
     _load_entry_points()
+    registry_key = _engine_registry_key(name)
 
-    cls = _ENGINES.get(name)
+    cls = _ENGINES.get(registry_key)
     if cls is None:
         available = ", ".join(sorted(_ENGINES)) or "(none)"
-        raise KeyError(
-            f"Unknown engine {name!r}. Available: {available}"
-        )
+        raise KeyError(f"Unknown engine {registry_key!r}. Available: {available}")
     return cls()
 
 
@@ -443,14 +460,14 @@ def resolve_engine(
     """
     legacy = dict(legacy_kwargs or {})
     if isinstance(engine, str):
-        return get_engine(engine), legacy
+        return get_engine(_engine_registry_key(engine)), legacy
 
     if legacy:
         raise ValueError(
             "fmri_lm: pass either a typed engine options object or legacy "
             "engine keyword arguments, not both"
         )
-    return get_engine(engine.name), engine.fit_kwargs()
+    return get_engine(_normalize_engine_name(engine.name)), engine.fit_kwargs()
 
 
 def list_engines() -> list[str]:
