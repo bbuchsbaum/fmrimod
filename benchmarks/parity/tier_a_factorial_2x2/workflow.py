@@ -22,18 +22,19 @@ fmrimod expresses the same scenario as one composed spec::
 
 The categorical-by-categorical interaction term produces one column per
 (task, valence) cell, with construction-time provenance carrying the
-combined level string. Cells are addressed by typed
-``columns.where(term="task:valence", level=...)`` lookups instead of
-column-index reasoning, and the canonical [+1, -1, -1, +1] interaction
-weights are placed onto the looked-up indices.
+combined level string. Cells are addressed by authored typed references such
+as ``cell("task:valence", task="recall", valence="emotional")``. Main effects
+and interactions are ordinary Python algebra over those cells, so the
+hypothesis is written before it is lowered to design-column weights.
 
 Pattern B parity claim
 ----------------------
-Both pipelines share the realised fmrimod design and the typed contrast
-vectors are pre-resolved once at input-load time, so the parity claim is
-cross-engine: fmrimod's GLM and Nilearn's ``run_glm + compute_contrast``
-should produce identical effect, t, and F statistics on identical
-inputs.
+Both pipelines share the realised fmrimod design. Nilearn receives raw
+contrast vectors because that is its public API; fmrimod receives authored
+cell-level contrast objects that resolve through declared design-column
+provenance. The parity claim is cross-engine: fmrimod's GLM and Nilearn's
+``run_glm + compute_contrast`` should produce identical effect, t, and F
+statistics on identical inputs.
 """
 
 from __future__ import annotations
@@ -59,6 +60,8 @@ from cross_testing.harness import (
     render,
     run,
 )
+from fmrimod.contrast import OmnibusContrast
+from fmrimod.contrast import cell as contrast_cell
 from fmrimod.design.columns import DesignColumns
 from fmrimod.spec import hrf
 
@@ -76,7 +79,7 @@ CELLS: tuple[tuple[str, str], ...] = tuple(
 
 @dataclass(frozen=True)
 class FactorialInputs:
-    """Shared inputs: events, BOLD, realised design, typed contrasts."""
+    """Shared inputs plus raw Nilearn contrast vectors."""
 
     events: pd.DataFrame
     data: Array
@@ -174,10 +177,45 @@ def _build_contrasts(
     c_interaction[cells[("encode", "neutral")]] = 1.0
 
     c_cells_F = np.zeros((4, n_total), dtype=np.float64)
-    for row, cell in enumerate(CELLS):
-        c_cells_F[row, cells[cell]] = 1.0
+    for row, factorial_cell in enumerate(CELLS):
+        c_cells_F[row, cells[factorial_cell]] = 1.0
 
     return c_task_main, c_valence_main, c_interaction, c_cells_F
+
+
+def _cell(task: str, valence: str):
+    """Return an authored 2x2 cell reference for the fmrimod contrast path."""
+    return contrast_cell("task:valence", task=task, valence=valence)
+
+
+def _authored_task_main():
+    """recall - encode, averaged over valence."""
+    return 0.5 * (
+        _cell("recall", "emotional")
+        + _cell("recall", "neutral")
+        - _cell("encode", "emotional")
+        - _cell("encode", "neutral")
+    )
+
+
+def _authored_valence_main():
+    """emotional - neutral, averaged over task."""
+    return 0.5 * (
+        _cell("encode", "emotional")
+        + _cell("recall", "emotional")
+        - _cell("encode", "neutral")
+        - _cell("recall", "neutral")
+    )
+
+
+def _authored_interaction():
+    """2x2 interaction with canonical [+1, -1, -1, +1] cell algebra."""
+    return (
+        _cell("recall", "emotional")
+        - _cell("recall", "neutral")
+        - _cell("encode", "emotional")
+        + _cell("encode", "neutral")
+    )
 
 
 def load_inputs(
@@ -202,8 +240,8 @@ def load_inputs(
         ("recall", "neutral"): 0.30,
     }
     voxel_ramp = np.linspace(0.4, 1.6, n_voxels, dtype=np.float64)
-    for cell, idx in cells.items():
-        betas[idx] = cell_offsets[cell] * voxel_ramp
+    for factorial_cell, idx in cells.items():
+        betas[idx] = cell_offsets[factorial_cell] * voxel_ramp
 
     baseline_idx = next(
         (c.index for c in columns.columns if c.role != "task"),
@@ -261,7 +299,7 @@ def fmrimod_pipeline(
     *,
     timing_sink: dict[str, float] | None = None,
 ) -> PipelineOutput:
-    """Three-line fmrimod path: dataset → fit → typed factorial contrasts."""
+    """Typed fmrimod path: dataset → fit → authored factorial contrasts."""
     dataset_start = time.perf_counter()
     spec = hrf("task", "valence", basis="spm", norm="spm")
     ds = fm.fmri_dataset(inputs.data, tr=TR, events=inputs.events)
@@ -274,10 +312,12 @@ def fmrimod_pipeline(
         timing_sink["fmrimod_fit_seconds"] = time.perf_counter() - fit_start
 
     contrast_start = time.perf_counter()
-    t_task = fit.contrast(inputs.c_task_main, name="task_main")
-    t_valence = fit.contrast(inputs.c_valence_main, name="valence_main")
-    t_inter = fit.contrast(inputs.c_interaction, name="interaction")
-    f_cells = fit.contrast(inputs.c_cells_F, name="cells_omnibus")
+    t_task = fit.contrast(_authored_task_main(), name="task_main")
+    t_valence = fit.contrast(_authored_valence_main(), name="valence_main")
+    t_inter = fit.contrast(_authored_interaction(), name="interaction")
+    f_cells = fit.contrast(
+        OmnibusContrast(term="task:valence", name="cells_omnibus")
+    )
     if timing_sink is not None:
         timing_sink["fmrimod_contrast_seconds"] = time.perf_counter() - contrast_start
 

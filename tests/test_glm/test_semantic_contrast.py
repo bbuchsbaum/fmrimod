@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fmrimod.contrast import DesignProvenanceError, condition
+from fmrimod.contrast import DesignProvenanceError, cell, condition
 from fmrimod.design import DesignColumn, DesignColumns
 from fmrimod.glm.matrix import fit_glm_from_matrix
 
@@ -57,6 +57,37 @@ def _weak_column(name: str, index: int, *, level: str) -> DesignColumn:
             "term": "inferred",
             "condition": "inferred",
             "level": "inferred",
+        },
+    )
+
+
+def _declared_factorial_column(
+    name: str,
+    index: int,
+    *,
+    level: str,
+    term: str = "task:valence",
+) -> DesignColumn:
+    return DesignColumn(
+        name=name,
+        index=index,
+        role="task",
+        model_source="matrix-fixture",
+        term=term,
+        term_tag=term.replace(":", "_"),
+        condition=level,
+        level=level,
+        basis_ix=1,
+        basis_name="identity",
+        basis_total=1,
+        provenance={
+            "role": "declared",
+            "term": "declared",
+            "condition": "declared",
+            "level": "declared",
+            "basis_ix": "declared",
+            "basis_name": "derived",
+            "basis_total": "derived",
         },
     )
 
@@ -171,3 +202,108 @@ def test_authored_condition_contrast_refuses_implicit_multi_basis_average() -> N
         - condition("loss", term="trial_type", basis_ix=1)
     ).resolve(columns)
     np.testing.assert_allclose(resolved, [1.0, 0.0, -1.0])
+
+
+def test_factorial_cell_linear_contrast_resolves_by_declared_levels() -> None:
+    columns = DesignColumns(
+        (
+            _declared_factorial_column(
+                "task_valence_task.encode_valence.emotional",
+                0,
+                level="task.encode_valence.emotional",
+            ),
+            _declared_factorial_column(
+                "task_valence_task.encode_valence.neutral",
+                1,
+                level="task.encode_valence.neutral",
+            ),
+            _declared_factorial_column(
+                "task_valence_task.recall_valence.emotional",
+                2,
+                level="task.recall_valence.emotional",
+            ),
+            _declared_factorial_column(
+                "task_valence_task.recall_valence.neutral",
+                3,
+                level="task.recall_valence.neutral",
+            ),
+            DesignColumn(
+                name="intercept",
+                index=4,
+                role="baseline",
+                model_source="matrix-fixture",
+            ),
+        )
+    )
+
+    def task_cell(task: str, valence: str):
+        return cell("task:valence", task=task, valence=valence)
+
+    contrast = 0.5 * (
+        task_cell("recall", "emotional")
+        + task_cell("recall", "neutral")
+        - task_cell("encode", "emotional")
+        - task_cell("encode", "neutral")
+    )
+
+    np.testing.assert_allclose(
+        contrast.resolve(columns),
+        [-0.5, -0.5, 0.5, 0.5, 0.0],
+    )
+    assert contrast.intent()["kind"] == "semantic_linear_contrast"
+    assert contrast.intent()["term"] == "task:valence"
+
+
+def test_fit_contrast_accepts_factorial_cell_arithmetic() -> None:
+    rng = np.random.default_rng(20260514)
+    n = 96
+    design = pd.DataFrame(
+        {
+            "task_valence_task.encode_valence.emotional": rng.normal(size=n),
+            "task_valence_task.encode_valence.neutral": rng.normal(size=n),
+            "task_valence_task.recall_valence.emotional": rng.normal(size=n),
+            "task_valence_task.recall_valence.neutral": rng.normal(size=n),
+            "intercept": np.ones(n),
+        }
+    )
+    beta = np.array([[0.2], [0.1], [0.8], [0.5], [1.0]])
+    y = design.to_numpy(dtype=np.float64) @ beta
+    y = y + rng.normal(scale=0.05, size=(n, 4))
+    levels = (
+        "task.encode_valence.emotional",
+        "task.encode_valence.neutral",
+        "task.recall_valence.emotional",
+        "task.recall_valence.neutral",
+    )
+    columns = DesignColumns(
+        tuple(
+            _declared_factorial_column(name, index, level=level)
+            for index, (name, level) in enumerate(zip(design.columns[:4], levels))
+        )
+        + (
+            DesignColumn(
+                name="intercept",
+                index=4,
+                role="baseline",
+                model_source="matrix-fixture",
+            ),
+        )
+    )
+    fit = fit_glm_from_matrix(design, y, model=_DeclaredMatrixSource(design, columns))
+
+    def task_cell(task: str, valence: str):
+        return cell("task:valence", task=task, valence=valence)
+
+    authored = 0.5 * (
+        task_cell("recall", "emotional")
+        + task_cell("recall", "neutral")
+        - task_cell("encode", "emotional")
+        - task_cell("encode", "neutral")
+    )
+    raw = fit.contrast(np.array([-0.5, -0.5, 0.5, 0.5, 0.0]), name="raw_task")
+    semantic = fit.contrast(authored, name="task_main")
+
+    np.testing.assert_allclose(semantic.stat, raw.stat, atol=1e-12)
+    np.testing.assert_allclose(semantic.estimate, raw.estimate, atol=1e-12)
+    assert semantic.intent["kind"] == "semantic_linear_contrast"
+    assert semantic.touched_columns == tuple(design.columns[:4])

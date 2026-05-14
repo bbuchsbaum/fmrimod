@@ -354,6 +354,7 @@ def _build_fit_provenance(
 if TYPE_CHECKING:
     from fmrimod.contrast.contrast_spec import ContrastSpec
     from fmrimod.contrast.omnibus import OmnibusContrast
+    from fmrimod.contrast.semantic import LinearSemanticContrast
     from fmrimod.dataset import FmriDataset
     from fmrimod.dataset.protocols import DatasetProtocol
     from fmrimod.design import RealizedDesign
@@ -668,6 +669,7 @@ class FmriLm:
             dict[str, Any],
             "OmnibusContrast",
             "ContrastSpec",
+            "LinearSemanticContrast",
         ],
         name: Optional[str] = None,
     ) -> ContrastResult:
@@ -684,6 +686,9 @@ class FmriLm:
             - A dict ``{"weights": array, "name": str}``
             - An :class:`~fmrimod.contrast.OmnibusContrast` typed intent
               value, resolved against the fit's :class:`DesignColumns`
+            - A semantic condition/cell contrast authored with
+              :func:`~fmrimod.contrast.condition` or
+              :func:`~fmrimod.contrast.cell`
             - A formula-backed :class:`~fmrimod.contrast.ContrastSpec`
               value, resolved against realized design-column names
         name : str, optional
@@ -696,7 +701,7 @@ class FmriLm:
         from fmrimod.contrast.contrast_spec import ContrastSpec
         from fmrimod.contrast.contrast_weights import contrast_weights
         from fmrimod.contrast.omnibus import OmnibusContrast
-        from fmrimod.contrast.semantic import SemanticContrast
+        from fmrimod.contrast.semantic import LinearSemanticContrast, SemanticContrast
 
         if isinstance(spec, OmnibusContrast):
             weights = spec.resolve(self.design_columns())
@@ -714,6 +719,16 @@ class FmriLm:
             )
 
         if isinstance(spec, SemanticContrast):
+            weights = spec.resolve(self.design_columns())
+            intent_payload = spec.intent(rows=1)
+            intent_payload.update(self._contrast_intent_payload_fields(weights))
+            return self._compute_contrast(
+                weights,
+                name=name or spec.display_name,
+                intent=intent_payload,
+            )
+
+        if isinstance(spec, LinearSemanticContrast):
             weights = spec.resolve(self.design_columns())
             intent_payload = spec.intent(rows=1)
             intent_payload.update(self._contrast_intent_payload_fields(weights))
