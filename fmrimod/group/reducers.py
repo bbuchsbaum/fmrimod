@@ -1,4 +1,35 @@
-"""Native group-analysis reducers."""
+"""Native group-analysis reducers.
+
+This module hosts the public reducer surface that
+:func:`fmrimod.group.registry.reducer_registry` registers: fixed- and
+random-effects meta-analysis (``meta_fe``, ``meta_re``, ``meta_fe_reg``,
+``meta_re_reg``), p-value combiners (``combine_stouffer``,
+``combine_fisher``, ``combine_lancaster``), permutation reducers
+(``perm_onesample``, ``perm_twosample``), OLS (``ols_voxelwise``), and
+the native LMM workflow (``lmm_unavailable``, ``lmm_ri``,
+``lmm_ri_slope1``). ``register_core_reducers`` wires them into the
+shared registry.
+
+The supporting machinery lives in three private sibling modules so the
+public reducer file stays focused on the workflow surface:
+
+* :mod:`fmrimod.group._reducers_kernels` — pure-compute helpers:
+  finite-safe inverses, two-sided permutation accounting, t/p
+  transforms, weight-and-Q kernels, and array reshapes used across
+  reducers.
+* :mod:`fmrimod.group._reducers_lmm` — LMM-specific glue: one-sided
+  formula validation, subject x contrast observation tables and
+  fixed-effects designs, the ``statsmodels`` ``MixedLM`` fit wrapper,
+  fit-failure classification, and result-dataset packaging.
+* :mod:`fmrimod.group._reducers_policy` — chunking, threading, and
+  dataset-adapter glue: BLAS-thread limiting, feature-axis chunking
+  and worker dispatch, the beta/var assay adapter, the group-level
+  result-dataset builder, and the subjects x predictors design matrix.
+
+The split is internal: all helper names remain re-imported here so
+existing tests that monkeypatch ``fmrimod.group.reducers.<helper>``
+continue to bind to the same object.
+"""
 
 from __future__ import annotations
 
