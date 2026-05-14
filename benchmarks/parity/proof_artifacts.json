@@ -481,7 +481,7 @@
       "workflow_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/workflow.py",
       "report_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/reports/semantic_contrast_alignment_report.json",
       "reference_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/workflow.py::nilearn_probe",
-      "fmrimod_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/workflow.py::fmrimod_probe: named design -> fmri_lm -> column_contrast -> ContrastResult",
+      "fmrimod_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/workflow.py::fmrimod_probe: fit_glm_from_matrix(named DataFrame) -> column_contrast -> ContrastResult",
       "caveats": [],
       "timings": {
         "status": "not_recorded",
@@ -492,7 +492,7 @@
         "fmrimod.contrast.ColumnContrastSpec",
         "fmrimod.glm.ContrastResult"
       ],
-      "fmrimod_expresses_better": "The gain-minus-loss hypothesis is resolved by named typed contrast intent against each fitted design's columns; the Nilearn reference needs a freshly rebuilt numeric vector and a reused positional vector silently targets the wrong coefficients.",
+      "fmrimod_expresses_better": "The gain-minus-loss hypothesis is resolved by named typed contrast intent against each fitted design's columns; this is now an honest matrix-first partial ergonomic receipt, not a flagship fmri_dataset workflow. The Nilearn reference needs a freshly rebuilt numeric vector and a reused positional vector silently targets the wrong coefficients.",
       "receipt": {
         "status": "regenerable",
         "command": [

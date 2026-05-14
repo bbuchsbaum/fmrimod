@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 import fmrimod
+from fmrimod.contrast import column_contrast
 from fmrimod.glm.preprocess import soft_subspace_projection as _soft_subspace_projection
 from fmrimod.model import FmriLmConfig
 
@@ -115,6 +116,20 @@ def test_fit_contrasts_and_suffstats_build_fmri_lm_results():
     )
     np.testing.assert_allclose(suff_fit.betas, fit.betas)
     np.testing.assert_allclose(suff_fit.sigma, fit.sigma)
+
+
+def test_fit_glm_from_matrix_preserves_dataframe_columns_for_typed_contrast():
+    x, y = _toy_xy()
+    design = pd.DataFrame(x, columns=["intercept", "slope"])
+    fit = fmrimod.fit_glm_from_matrix(x, y, model=design, cfg=FmriLmConfig())
+
+    assert fit.design_columns().names == ("intercept", "slope")
+    typed = fit.contrast(column_contrast("^slope$", name="slope_by_name"))
+    positional = fit.contrast(np.array([0.0, 1.0]), name="slope_positional")
+
+    assert typed.touched_columns == ("slope",)
+    np.testing.assert_allclose(typed.estimate, positional.estimate)
+    np.testing.assert_allclose(typed.stat, positional.stat)
 
 
 def test_matrix_ols_and_small_helpers():

@@ -11,6 +11,26 @@ from benchmarks.parity.tier_e_semantic_contrast_alignment import workflow
 pytest.importorskip("nilearn")
 
 
+def test_semantic_contrast_alignment_uses_existing_matrix_surface() -> None:
+    assert not hasattr(workflow, "_MatrixDataset")
+    assert not hasattr(workflow, "_NamedMatrixModel")
+    report = workflow.run_benchmark(max_voxels=4)
+    assert report["ergonomics"]["status"] == "matrix-first partial"
+    assert (
+        "fit_glm_from_matrix(named DataFrame)"
+        in report["ergonomics"]["fmrimod_path"]
+    )
+    assert "not yet the flagship" in report["ergonomics"]["limitation"]
+    assert "matched within tolerance" in report["win_ladder"][
+        "numerical_oracle_status"
+    ]
+    assert "fails visibly" in report["win_ladder"]["positional_trap_status"]
+    assert (
+        "matrix_first_partial"
+        in report["win_ladder"]["ergonomic_win_status"]
+    )
+
+
 def test_semantic_contrast_alignment_records_invariance_and_pain_point() -> None:
     report = workflow.run_benchmark(max_voxels=12)
 

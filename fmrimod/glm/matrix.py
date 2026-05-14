@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import ArrayLike, NDArray
 
+from ..design.columns import DesignColumn, DesignColumns
 from ..model.config import FmriLmConfig
 from .fmri_lm import FmriLm, fmri_lm
 
@@ -59,21 +60,52 @@ class _MatrixModel:
         return self._X
 
     def design_matrix(self) -> pd.DataFrame:
-        if self._source is not None and hasattr(self._source, "design_matrix"):
-            try:
-                dm = self._source.design_matrix()
-                if hasattr(dm, "columns") and len(dm.columns) == self._X.shape[1]:
-                    return pd.DataFrame(self._X, columns=[str(c) for c in dm.columns])
-            except Exception:
-                pass
-        return pd.DataFrame(
-            self._X, columns=[f"coef_{idx}" for idx in range(self._X.shape[1])]
+        return pd.DataFrame(self._X, columns=self._column_names())
+
+    def design_columns(self) -> DesignColumns:
+        return DesignColumns(
+            tuple(
+                DesignColumn(
+                    name=name,
+                    index=index,
+                    role="matrix",
+                    model_source="matrix",
+                    provenance={
+                        "role": "inferred",
+                        "term": "missing",
+                        "condition": "missing",
+                        "level": "missing",
+                        "basis_ix": "missing",
+                        "basis_name": "missing",
+                        "basis_total": "missing",
+                    },
+                )
+                for index, name in enumerate(self._column_names())
+            )
         )
+
+    def _column_names(self) -> list[str]:
+        dm = _source_design_matrix(self._source)
+        if hasattr(dm, "columns") and len(dm.columns) == self._X.shape[1]:
+            return [str(c) for c in dm.columns]
+        return [f"coef_{idx}" for idx in range(self._X.shape[1])]
 
     def contrast_weights(self) -> Dict[str, NDArray[np.float64]]:
         if self._source is not None and hasattr(self._source, "contrast_weights"):
             return self._source.contrast_weights()
         return {}
+
+
+def _source_design_matrix(source: Any) -> Any:
+    if isinstance(source, pd.DataFrame):
+        return source
+    design_matrix = getattr(source, "design_matrix", None)
+    if callable(design_matrix):
+        try:
+            return design_matrix()
+        except TypeError:
+            return design_matrix(run=0)
+    return None
 
 
 def _design_matrix_from_model(model: object) -> NDArray[np.float64]:

@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pandas as pd
 from nilearn.glm.contrasts import compute_contrast
 from nilearn.glm.first_level import run_glm
 from numpy.typing import NDArray
@@ -105,41 +106,6 @@ class CaseOutput:
     nilearn_aligned_stat: Array
     nilearn_positional_effect: Array
     nilearn_positional_stat: Array
-
-
-class _MatrixDataset:
-    """Minimal dataset object for the legacy matrix-model path."""
-
-    def __init__(self, data: Array):
-        self._data = np.asarray(data, dtype=np.float64)
-
-    def get_data(self, run: int) -> Array:
-        if run != 0:
-            raise IndexError("only one run is available")
-        return self._data
-
-    def get_censor(self, run: int) -> None:
-        if run != 0:
-            raise IndexError("only one run is available")
-        return None
-
-
-class _NamedMatrixModel:
-    """Minimal named-design model accepted by ``fmri_lm``."""
-
-    def __init__(self, design: Array, data: Array, column_order: tuple[str, ...]):
-        self._design = np.asarray(design, dtype=np.float64)
-        self.dataset = _MatrixDataset(data)
-        self.n_runs = 1
-        self._column_order = tuple(column_order)
-
-    def design_matrix_array(self, run: int) -> Array:
-        if run != 0:
-            raise IndexError("only one run is available")
-        return self._design
-
-    def design_columns(self) -> tuple[str, ...]:
-        return self._column_order
 
 
 def _json_safe(value: Any) -> Any:
@@ -301,8 +267,13 @@ def fmrimod_probe(
     try:
         with warnings.catch_warnings(record=True) as captured:
             warnings.simplefilter("always")
-            model = _NamedMatrixModel(design, data, column_order)
-            fit = fm.fmri_lm(model, FmriLmConfig())
+            design_frame = pd.DataFrame(design, columns=column_order)
+            fit = fm.fit_glm_from_matrix(
+                design,
+                data,
+                model=design_frame,
+                cfg=FmriLmConfig(),
+            )
             result = fit.contrast(
                 column_contrast(
                     "^gain$",
@@ -518,6 +489,30 @@ def run_benchmark(
                 "permuted": inputs.permuted_order,
             },
             "true_effect_median": inputs.true_effect_median,
+            "ergonomics": {
+                "status": "matrix-first partial",
+                "fmrimod_path": (
+                    "fit_glm_from_matrix(named DataFrame) -> "
+                    "column_contrast -> ContrastResult"
+                ),
+                "limitation": (
+                    "This is a strict numerical/semantic canary, not yet the "
+                    "flagship fmri_dataset -> fmri_lm mission path."
+                ),
+            },
+            "win_ladder": {
+                "numerical_oracle_status": (
+                    "aligned Nilearn numeric vector matched within tolerance"
+                ),
+                "positional_trap_status": (
+                    "reused positional vector fails visibly after permutation"
+                ),
+                "ergonomic_win_status": (
+                    "matrix_first_partial: typed column intent survives "
+                    "permutation, but authored term-level contrast is still "
+                    "the flagship target"
+                ),
+            },
             "invariance": invariance,
             "pain_points": {
                 "nilearn_positional_effect_median_abs_delta": positional_effect_shift,
@@ -547,6 +542,29 @@ def render(report: dict[str, Any], out_dir: Path) -> tuple[Path, Path]:
         "",
         f"Status: `{report['status']}`",
         "",
+        "## fmrimod Path",
+        "",
+        f"Status: `{report['ergonomics']['status']}`",
+        "",
+        report["ergonomics"]["fmrimod_path"],
+        "",
+        report["ergonomics"]["limitation"],
+        "",
+        "## Win Ladder",
+        "",
+        (
+            "- Numerical oracle: "
+            f"{report['win_ladder']['numerical_oracle_status']}"
+        ),
+        (
+            "- Positional trap: "
+            f"{report['win_ladder']['positional_trap_status']}"
+        ),
+        (
+            "- Ergonomic win: "
+            f"{report['win_ladder']['ergonomic_win_status']}"
+        ),
+        "",
         "## Column Orders",
         "",
         f"- Canonical: `{', '.join(report['design_column_orders']['canonical'])}`",
@@ -554,12 +572,18 @@ def render(report: dict[str, Any], out_dir: Path) -> tuple[Path, Path]:
         "",
         "## Cases",
         "",
-        "| case | status | fmrimod touched | aligned delta | positional effect drift | verdict |",
+        (
+            "| case | status | fmrimod touched | aligned delta | "
+            "positional effect drift | verdict |"
+        ),
         "| --- | --- | --- | ---: | ---: | --- |",
     ]
     for case in report["cases"]:
         lines.append(
-            "| {case_id} | {status} | {touched} | {aligned:.3g} | {drift:.3g} | {verdict} |".format(
+            (
+                "| {case_id} | {status} | {touched} | {aligned:.3g} | "
+                "{drift:.3g} | {verdict} |"
+            ).format(
                 case_id=case["case_id"],
                 status=case["status"],
                 touched=", ".join(case["fmrimod"]["touched_columns"]),
@@ -575,8 +599,8 @@ def render(report: dict[str, Any], out_dir: Path) -> tuple[Path, Path]:
             "## Pain Point",
             "",
             (
-                "Median effect drift from reusing the canonical positional "
-                "vector after permutation: "
+                "Median effect drift from reusing the canonical positional vector "
+                "after permutation: "
                 f"`{pain['nilearn_positional_effect_median_abs_delta']:.6g}`."
             ),
             pain["verdict"],
