@@ -69,7 +69,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -80,7 +80,7 @@
       "owner_module": "fmrimod.spec.diff",
       "runtime_signature": "(left: 'object', right: 'object') -> None",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -399,7 +399,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -410,7 +410,7 @@
       "owner_module": "fmrimod.basis.transform",
       "runtime_signature": "(center: bool = True, scale: str = 'mad', constant: float = 1.4826, name: Optional[str] = None) -> None",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -474,7 +474,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -485,7 +485,7 @@
       "owner_module": "fmrimod.basis.transform",
       "runtime_signature": "(center: bool = True, scale: bool = True, name: Optional[str] = None) -> None",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -504,7 +504,7 @@
       "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -515,7 +515,7 @@
       "owner_module": "fmrimod.spec.diff",
       "runtime_signature": "(added_events: 'Tuple[HrfTerm, ...]' = (), removed_events: 'Tuple[HrfTerm, ...]' = (), changed_events: 'Tuple[TermDiff, ...]' = (), added_baseline: 'Tuple[Term, ...]' = (), removed_baseline: 'Tuple[Term, ...]' = (), changed_baseline: 'Tuple[TermDiff, ...]' = ()) -> None",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -549,7 +549,7 @@
       "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -560,7 +560,7 @@
       "owner_module": "fmrimod.spec.diff",
       "runtime_signature": "(left: 'Term', right: 'Term', fields: 'Mapping[str, FieldDiff]') -> None",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -594,7 +594,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -605,7 +605,7 @@
       "owner_module": "fmrimod.utils.generics",
       "runtime_signature": "(x, **kwargs) -> numpy.ndarray",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -624,7 +624,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -635,7 +635,7 @@
       "owner_module": "fmrimod.utils.generics",
       "runtime_signature": "(x, **kwargs) -> numpy.ndarray",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -939,7 +939,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -950,11 +950,11 @@
       "owner_module": "fmrimod.utils.generics",
       "runtime_signature": "(x, drop_empty: bool = True, expand_basis: bool = False, **kwargs) -> pandas.DataFrame",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -965,7 +965,7 @@
       "owner_module": "fmrimod.spec.builders",
       "runtime_signature": "(*columns: 'str', source: 'Optional[pd.DataFrame]' = None) -> 'Confounds'",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -1089,7 +1089,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -1100,7 +1100,7 @@
       "owner_module": "fmrimod.spec.builders",
       "runtime_signature": "(basis: \"Literal['constant', 'poly', 'bs', 'ns', 'cosine']\" = 'cosine', *, cutoff: 'Optional[float]' = None, degree: 'int' = 1) -> 'Drift'",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -1194,7 +1194,7 @@
       "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -1205,7 +1205,7 @@
       "owner_module": "fmrimod.utils.generics",
       "runtime_signature": "(x, *args, **kwargs)",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -1914,7 +1914,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -1925,7 +1925,7 @@
       "owner_module": "fmrimod.utils.generics",
       "runtime_signature": "(x, onsets, blockids, **kwargs) -> numpy.ndarray",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -2184,7 +2184,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -2195,7 +2195,7 @@
       "owner_module": "fmrimod.spec.builders",
       "runtime_signature": "(per: \"Literal['run', 'global', 'none']\" = 'run') -> 'Intercept'",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -2379,7 +2379,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -2390,7 +2390,7 @@
       "owner_module": "fmrimod.regressor.core",
       "runtime_signature": "(hrf: 'Optional[HRFLike]' = None, span: 'float' = 24.0) -> 'Regressor'",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -2589,7 +2589,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -2600,11 +2600,11 @@
       "owner_module": "fmrimod.regressor.core",
       "runtime_signature": "(onsets: 'ArrayLike', hrf: 'HRFLike' = 'spmg1', duration: 'Union[float, ArrayLike]' = 0.0, amplitude: 'Union[float, ArrayLike]' = 1.0, span: 'Optional[float]' = None, summate: 'bool' = True) -> 'Regressor'",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -2615,7 +2615,7 @@
       "owner_module": "fmrimod.regressor.core",
       "runtime_signature": "(onsets: 'ArrayLike', fac: 'ArrayLike', hrf: 'HRFLike' = 'spmg1', duration: 'Union[float, ArrayLike]' = 0.0, amplitude: 'Union[float, ArrayLike]' = 1.0, span: 'Optional[float]' = None, summate: 'bool' = True) -> 'RegressorSet'",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -2664,7 +2664,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -2675,7 +2675,7 @@
       "owner_module": "fmrimod.utils.generics",
       "runtime_signature": "(x, global_time: bool = True, **kwargs) -> numpy.ndarray",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -2709,7 +2709,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -2720,7 +2720,7 @@
       "owner_module": "fmrimod.utils.generics",
       "runtime_signature": "(x, shift_amount=None, **kwargs)",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -2829,7 +2829,7 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
-      "compatibility_status": "review_pending",
+      "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -2840,7 +2840,7 @@
       "owner_module": "fmrimod.spec.diff",
       "runtime_signature": "(left: 'Union[Spec, Term]', right: 'Union[Spec, Term]') -> 'SpecDiff'",
       "signature_source": "inspect.signature",
-      "tier": "review_pending",
+      "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
