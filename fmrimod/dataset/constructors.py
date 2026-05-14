@@ -45,6 +45,7 @@ def fmri_dataset(
     events: pd.DataFrame | None = None,
     censor: NDArray[np.bool_] | list[NDArray[np.bool_]] | None = None,
     start_time: float = 0.0,
+    run_length: int | Sequence[int] | None = None,
     # legacy spellings:
     data_source: DatasetProtocol | None = None,
     event_table: pd.DataFrame | None = None,
@@ -67,6 +68,12 @@ def fmri_dataset(
         Optional boolean censor vector(s).
     start_time
         Onset of the first volume (defaults to 0.0).
+    run_length
+        Split a single 2-D ``(time, voxels)`` matrix into multiple runs.
+        Mirrors :func:`matrix_dataset`'s ``run_length``. Only valid for
+        2-D ndarray input; raises ``ValueError`` for any other ``img``
+        type, including sequences (which already encode runs explicitly)
+        and 4-D ndarrays.
     data_source
         Legacy alias accepting a :class:`DatasetProtocol`-compatible object.
     event_table
@@ -77,12 +84,16 @@ def fmri_dataset(
     if data_source is not None:
         if img is not None:
             raise ValueError("Pass `img` or `data_source`, not both")
+        if run_length is not None:
+            raise ValueError("`run_length` is not valid with `data_source`")
         return FmriDataset(data_source, event_table=resolved_events, censor=censor)
 
     if img is None:
         raise ValueError("fmri_dataset requires `img` (or legacy `data_source`)")
 
-    adapter = _build_adapter(img, mask=mask, tr=tr, start_time=start_time)
+    adapter = _build_adapter(
+        img, mask=mask, tr=tr, start_time=start_time, run_length=run_length
+    )
     return FmriDataset(adapter, event_table=resolved_events, censor=censor)
 
 
@@ -182,7 +193,19 @@ def _build_adapter(
     mask: Any,
     tr: float | Sequence[float] | None,
     start_time: float,
+    run_length: int | Sequence[int] | None = None,
 ) -> Any:
+    # `run_length` only has a meaning for a single 2-D matrix input.
+    # Sequences (NeuroVec/Nifti/path lists) already encode runs explicitly,
+    # and 4-D ndarrays carry their own time dimension semantics.
+    if run_length is not None and not (
+        isinstance(img, np.ndarray) and img.ndim == 2
+    ):
+        raise ValueError(
+            "`run_length` is only valid for 2-D ndarray input; "
+            "for image sequences, pass a list of runs instead"
+        )
+
     # DatasetProtocol-compatible: use as-is.
     if _is_dataset_protocol(img):
         return img
@@ -214,7 +237,7 @@ def _build_adapter(
         if img.ndim == 4:
             return _make_array4d_adapter(img, mask=mask, tr=tr, start_time=start_time)
         if img.ndim == 2:
-            return _make_matrix_adapter(img, mask=mask, tr=tr)
+            return _make_matrix_adapter(img, mask=mask, tr=tr, run_length=run_length)
 
     raise TypeError(
         f"fmri_dataset: cannot build adapter from {type(img).__name__!r}; "
@@ -281,9 +304,20 @@ def _make_array4d_adapter(
     )
 
 
-def _make_matrix_adapter(arr: NDArray, *, mask: Any, tr: Any) -> Any:
+def _make_matrix_adapter(
+    arr: NDArray,
+    *,
+    mask: Any,
+    tr: Any,
+    run_length: int | Sequence[int] | None = None,
+) -> Any:
     resolved_tr = _require_tr(tr, what="2-D matrix")
-    sampling_frame = SamplingFrame(blocklens=[int(arr.shape[0])], tr=resolved_tr)
+    n_rows = int(arr.shape[0])
+    if run_length is None:
+        blocklens = [n_rows]
+    else:
+        blocklens = _normalize_run_lengths(run_length, n_rows=n_rows)
+    sampling_frame = SamplingFrame(blocklens=blocklens, tr=resolved_tr)
     flat_mask = None if mask is None else np.asarray(mask, dtype=bool).reshape(-1)
     backend = matrix_backend(np.asarray(arr, dtype=np.float64), mask=flat_mask)
     return BackendAdapter(backend, sampling_frame)
@@ -303,7 +337,7 @@ def _resolve_tr(
 
 
 def _normalize_run_lengths(
-    run_length: int | list[int],
+    run_length: int | Sequence[int],
     *,
     n_rows: int,
 ) -> list[int]:

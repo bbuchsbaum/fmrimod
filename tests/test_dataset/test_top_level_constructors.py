@@ -70,6 +70,29 @@ def test_matrix_dataset_split_by_run_length_list_and_event_table():
     assert ds.event_table is events
 
 
+def test_fmri_dataset_matrix_input_accepts_run_length():
+    y = np.arange(72, dtype=float).reshape(24, 3)
+    events = pd.DataFrame({"onset": [1.0], "condition": ["A"]})
+
+    ds = fm.fmri_dataset(y, tr=2.0, run_length=[8, 16], events=events)
+
+    assert isinstance(ds, FmriDataset)
+    assert isinstance(ds.storage_backend, MatrixBackend)
+    assert ds.n_runs == 2
+    assert ds.run_lengths == [8, 16]
+    assert ds.get_data(0).shape == (8, 3)
+    assert ds.get_data(1).shape == (16, 3)
+    assert ds.event_table is events
+
+
+def test_fmri_dataset_run_length_rejects_non_matrix_inputs():
+    with pytest.raises(ValueError, match="run_length.*2-D ndarray"):
+        fm.fmri_dataset(np.zeros((2, 2, 2, 4)), tr=2.0, run_length=2)
+
+    with pytest.raises(ValueError, match="run_length.*2-D ndarray"):
+        fm.fmri_dataset([np.zeros((2, 2, 2, 4))], tr=2.0, run_length=2)
+
+
 def test_matrix_dataset_accepts_TR_compatibility_spelling():
     y = np.arange(60, dtype=float).reshape(20, 3)
     ds = dataset.matrix_dataset(y, TR=2.0)
