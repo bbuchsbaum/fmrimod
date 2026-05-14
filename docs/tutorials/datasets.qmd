@@ -1,10 +1,39 @@
 ---
 title: "Datasets"
-subtitle: "Represent fMRI data as typed containers with timing and event metadata."
+subtitle: "Use fmrimod.dataset as the substrate for modeling, contrasts, and group analysis."
 jupyter: python3
 execute:
   freeze: auto
 ---
+
+## Dataset API Overview
+
+`fmrimod.dataset` is the canonical Python home for dataset containers and
+storage adapters. The compatibility package `fmridataset` is only a re-export
+facade for migrated code; new examples should import from `fmrimod` or
+`fmrimod.dataset`.
+
+The dataset layer is intentionally a substrate for modeling rather than a
+separate project. A typical workflow is:
+
+```text
+matrix_dataset / fmri_dataset
+  -> fmri_lm or single-trial estimator
+  -> contrasts
+  -> group_data or group_fit
+```
+
+Use these entry points as the public surface:
+
+| Need | Use | Notes |
+| --- | --- | --- |
+| Timing grid | `SamplingFrame` | Shared by design and dataset code. |
+| In-memory matrices | `matrix_dataset()` | Tests, simulations, and pre-extracted features. |
+| Image-backed data | `fmri_dataset()` | Real image IO should enter through the neuroim-compatible boundary. |
+| Low-rank features | `latent_dataset()` | Stores component scores with optional loadings. |
+| Study tables | `study_dataset()` / `fmri_group()` | Subject-level containers feeding native group analysis. |
+| Chunked voxel work | `data_chunks()` / `voxel_index_chunks()` | Batch execution without changing the model contract. |
+| BIDS-HDF5 archives | `bids_h5_dataset()` / `compress_bids_study()` | Optional HDF5/BIDS IO boundary, not a second tutorial track. |
 
 ## Sampling Frames
 
@@ -53,6 +82,24 @@ dset.n_runs, dset.n_timepoints, dset.n_voxels
 dset.get_data(rows=[0, 1, 2], cols=[0, 1]).shape, dset.get_all_data().shape
 ```
 
+## Image and Archive IO
+
+`fmri_dataset()` is the preferred constructor when a workflow starts from
+image-like objects or paths. It keeps image IO at the boundary and returns the
+same typed `FmriDataset` object used by matrix-backed examples.
+
+BIDS-HDF5 helpers are available when a workflow needs a compact archive:
+
+- `compress_bids_study()` writes a v1 BIDS-HDF5 archive from already
+  materialized datasets, or from an optional BIDS-directory IO path when the
+  BIDS/NIfTI dependencies are installed.
+- `bids_h5_dataset()` opens the archive as a study object whose scan backends
+  follow the same feature-space storage contract as matrix, latent, HDF5, and
+  NIfTI-backed datasets.
+
+These helpers are documented here because they are dataset substrate. There is
+no separate backend-registry or BIDS-HDF5 tutorial to keep in sync.
+
 ## Latent Data
 
 Latent datasets store component scores and optional loadings. They can be used
@@ -83,6 +130,22 @@ Chunk helpers make it easy to split voxel-space work into reviewable batches.
 chunks = fm.data_chunks(dset, nchunks=4)
 [(chunk.chunk_num, chunk.data.shape, chunk.voxel_ind.tolist()) for chunk in chunks]
 ```
+
+## Migrating From fmridataset
+
+Existing `fmridataset` imports should move mechanically to `fmrimod.dataset`
+or the root `fmrimod` namespace. During consolidation, `fmridataset` re-exports
+only implemented canonical objects identity-equivalently:
+
+```{python}
+import fmridataset
+import fmrimod.dataset as ds
+
+fmridataset.FmriDataset is ds.FmriDataset
+```
+
+Names that have not landed in `fmrimod.dataset` are intentionally absent from
+the facade rather than implemented as placeholders.
 
 ## Next
 

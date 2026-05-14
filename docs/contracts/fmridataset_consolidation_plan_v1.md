@@ -758,7 +758,8 @@ Exit criteria:
 Current status:
 
 - A thin `fmridataset` package now ships from this distribution and is included
-  in the wheel/sdist package list.
+  in the wheel/sdist package list. Its package-local README is a migration
+  pointer to `fmrimod.dataset`, not a parallel documentation set.
 - The facade currently re-exports implemented canonical objects only:
   `FmriDataset`, `MatrixBackend`, `SamplingFrame`, backend protocol/registry
   objects, `matrix_backend`, `matrix_dataset`, `fmri_dataset`, backend method
@@ -793,6 +794,14 @@ Exit criteria:
 - Only `fmrimod` contains detailed dataset API docs.
 - Compatibility-package docs point to `fmrimod.dataset`.
 - No duplicate BIDS-HDF5 or backend registry tutorials exist.
+
+Current status:
+
+- `docs/tutorials/datasets.qmd` is the canonical dataset API overview. It
+  covers timing, matrix/image/archive IO, latent data, chunking, and migration
+  from `fmridataset` as one modeling substrate.
+- `fmridataset/README.md` is a short migration pointer and contains no backend
+  or BIDS-HDF5 tutorial content.
 
 ### Phase 10: Verification And Release Gate
 
