@@ -6,7 +6,7 @@ with the fmrimod formula and convolution pipeline.
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 
 @dataclass
@@ -26,14 +26,14 @@ class HRFSpecExtension:
 _registry: Dict[str, HRFSpecExtension] = {}
 
 
-def _validate_single_string(value: Any, name: str) -> str:
+def _validate_single_string(value: object, name: str) -> str:
     if not isinstance(value, str) or value == "":
         raise TypeError(f"{name} must be a single non-empty string")
     return value
 
 
 def _coerce_formula_functions(
-    formula_functions: Optional[Any],
+    formula_functions: object,
 ) -> Optional[List[str]]:
     if formula_functions is None:
         return None
@@ -46,7 +46,7 @@ def _coerce_formula_functions(
     return list(formula_functions)
 
 
-def _candidate_spec_classes(spec_class_or_object: Any) -> List[str]:
+def _candidate_spec_classes(spec_class_or_object: object) -> List[str]:
     if isinstance(spec_class_or_object, str):
         return [spec_class_or_object]
     explicit = getattr(spec_class_or_object, "__fmrimod_hrfspec_classes__", None)
@@ -107,7 +107,7 @@ def register_hrfspec_extension(
     )
 
 
-def is_external_hrfspec(spec_class: Any) -> bool:
+def is_external_hrfspec(spec_class: object) -> bool:
     """Check if a spec class is registered as external.
 
     Parameters
@@ -131,7 +131,7 @@ def is_external_hrfspec(spec_class: Any) -> bool:
     return any(cls in _registry for cls in _candidate_spec_classes(spec_class))
 
 
-def get_external_hrfspec_info(spec_class: Any) -> Optional[HRFSpecExtension]:
+def get_external_hrfspec_info(spec_class: object) -> Optional[HRFSpecExtension]:
     """Get registration info for an external spec class.
 
     Parameters
@@ -173,7 +173,7 @@ def list_external_hrfspecs() -> List[str]:
     return list(_registry.keys())
 
 
-def requires_external_processing(spec_class: Any) -> bool:
+def requires_external_processing(spec_class: object) -> bool:
     """Check if external processing is required for a spec class.
 
     Parameters
@@ -195,7 +195,7 @@ def requires_external_processing(spec_class: Any) -> bool:
     return ext.requires_external_processing if ext else False
 
 
-def get_external_hrfspec_functions(spec_class: Any) -> Optional[List[str]]:
+def get_external_hrfspec_functions(spec_class: object) -> Optional[List[str]]:
     """Get formula function names for a registered spec class.
 
     Parameters
