@@ -10,6 +10,8 @@ import fmridataset.backend_protocol as facade_backend_protocol
 import fmridataset.backend_registry as facade_backend_registry
 import fmridataset.backends.latent_backend as facade_latent_backend
 import fmridataset.backends.matrix_backend as facade_matrix_backend
+import fmridataset.bids_h5_dataset as facade_bids_h5_dataset
+import fmridataset.bids_h5_write as facade_bids_h5_write
 import fmridataset.data_access as facade_data_access
 import fmridataset.dataset as facade_dataset
 import fmridataset.dataset_constructors as facade_constructors
@@ -33,8 +35,13 @@ def test_fmridataset_root_reexports_canonical_objects() -> None:
     assert facade.LatentBackend is dataset.LatentBackend
     assert facade.LatentDataset is dataset.LatentDataset
     assert facade.StudyDataset is dataset.StudyDataset
+    assert facade.BidsH5ArchiveSpec is dataset.BidsH5ArchiveSpec
+    assert facade.BidsH5ScanBackend is dataset.BidsH5ScanBackend
+    assert facade.BidsH5StudyDataset is dataset.BidsH5StudyDataset
     assert facade.matrix_dataset is dataset.matrix_dataset
     assert facade.fmri_dataset is dataset.fmri_dataset
+    assert facade.bids_h5_dataset is dataset.bids_h5_dataset
+    assert facade.compress_bids_study is dataset.compress_bids_study
     assert facade.matrix_backend is dataset.matrix_backend
     assert facade.latent_backend is dataset.latent_backend
     assert facade.latent_dataset is dataset.latent_dataset
@@ -49,6 +56,14 @@ def test_fmridataset_root_reexports_canonical_objects() -> None:
     assert facade.get_TR is dataset.get_TR
     assert facade.mask_to_logical is dataset.mask_to_logical
     assert facade.SamplingFrame is SamplingFrame
+
+
+def test_fmridataset_root_reexports_every_dataset_public_name() -> None:
+    facade = importlib.reload(fmridataset)
+
+    assert set(dataset.__all__).issubset(set(facade.__all__))
+    for name in dataset.__all__:
+        assert getattr(facade, name) is getattr(dataset, name), name
 
 
 def test_fmridataset_submodules_are_reexport_facades() -> None:
@@ -73,6 +88,11 @@ def test_fmridataset_submodules_are_reexport_facades() -> None:
     assert facade_errors.FmriDatasetError is dataset.FmriDatasetError
     assert facade_errors.BackendIOError is dataset.BackendIOError
     assert facade_errors.ConfigError is dataset.ConfigError
+    assert facade_bids_h5_dataset.BidsH5StudyDataset is dataset.BidsH5StudyDataset
+    assert facade_bids_h5_dataset.bids_h5_dataset is dataset.bids_h5_dataset
+    assert facade_bids_h5_dataset.subset_bids_h5 is dataset.subset_bids_h5
+    assert facade_bids_h5_write.BidsH5ArchiveSpec is dataset.BidsH5ArchiveSpec
+    assert facade_bids_h5_write.compress_bids_study is dataset.compress_bids_study
     assert facade_sampling.SamplingFrame is SamplingFrame
     assert facade_data_access.get_data is dataset.get_data
     assert facade_data_access.get_data_matrix is dataset.get_data_matrix

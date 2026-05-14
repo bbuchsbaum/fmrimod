@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -60,31 +60,31 @@ class BidsH5ArchiveSpec:
             raise ConfigError("space must be non-empty", parameter="space")
 
 
-def _as_string_array(values: Sequence[Any]) -> NDArray[np.object_]:
+def _as_string_array(values: Sequence[object]) -> NDArray[np.object_]:
     return np.asarray(["" if v is None else str(v) for v in values], dtype=object)
 
 
-def _write_string_array(group: Any, name: str, values: Sequence[Any]) -> None:
+def _write_string_array(group: object, name: str, values: Sequence[object]) -> None:
     import h5py
 
     dtype = h5py.string_dtype("utf-8")
     group.create_dataset(name, data=_as_string_array(values), dtype=dtype)
 
 
-def _write_string_scalar(group: Any, name: str, value: Any) -> None:
+def _write_string_scalar(group: object, name: str, value: object) -> None:
     import h5py
 
     dtype = h5py.string_dtype("utf-8")
     group.create_dataset(name, data="" if value is None else str(value), dtype=dtype)
 
 
-def _compression_kwargs(compression: int) -> dict[str, Any]:
+def _compression_kwargs(compression: int) -> dict[str, object]:
     if compression == 0:
         return {}
     return {"compression": "gzip", "compression_opts": compression}
 
 
-def _write_events(group: Any, events: pd.DataFrame, compression: int) -> None:
+def _write_events(group: object, events: pd.DataFrame, compression: int) -> None:
     if len(events) == 0:
         return
     event_group = group.create_group("events")
@@ -101,7 +101,7 @@ def _write_events(group: Any, events: pd.DataFrame, compression: int) -> None:
 
 
 def _write_confounds(
-    group: Any,
+    group: object,
     confounds: pd.DataFrame | None,
     compression: int,
 ) -> bool:
@@ -142,9 +142,9 @@ def _normalise_input(
     tasks: Sequence[str] | str | None = None,
     subjects: Sequence[str] | str | None = None,
     sessions: Sequence[str] | str | None = None,
-    clusters: Any | None = None,
-    mask: Any | None = None,
-    summary_fun: Any | None = None,
+    clusters: object | None = None,
+    mask: object | None = None,
+    summary_fun: object | None = None,
 ) -> list[tuple[str, FmriDataset]]:
     if isinstance(x, (str, Path)) and Path(x).is_dir():
         return _normalise_bids_dir(
@@ -173,9 +173,9 @@ def _normalise_bids_dir(
     tasks: Sequence[str] | str | None = None,
     subjects: Sequence[str] | str | None = None,
     sessions: Sequence[str] | str | None = None,
-    clusters: Any | None = None,
-    mask: Any | None = None,
-    summary_fun: Any | None = None,
+    clusters: object | None = None,
+    mask: object | None = None,
+    summary_fun: object | None = None,
 ) -> list[tuple[str, FmriDataset]]:
     try:
         from bids import BIDSLayout  # type: ignore[import-not-found]
@@ -196,7 +196,7 @@ def _normalise_bids_dir(
         ) from exc
 
     layout = BIDSLayout(str(root))
-    query: dict[str, Any] = {
+    query: dict[str, object] = {
         "datatype": "func",
         "suffix": "bold",
         "extension": [".nii.gz", ".nii"],
@@ -233,7 +233,7 @@ def _normalise_bids_dir(
         if tr is None:
             raise ValueError(f"BIDS file '{bold_path}' has no RepetitionTime metadata")
 
-        img: Any = nib.load(str(bold_path))
+        img = nib.load(str(bold_path))
         data = np.asarray(img.dataobj, dtype=np.float64)
         if data.ndim == 3:
             data = data[..., np.newaxis]
@@ -269,15 +269,15 @@ def _normalise_bids_dir(
 
 
 def _load_optional_spatial_vector(
-    value: Any | None,
+    value: object | None,
     *,
     name: str,
-    nib: Any,
-) -> NDArray[Any] | None:
+    nib: object,
+) -> NDArray[np.object_] | None:
     if value is None:
         return None
     if isinstance(value, (str, Path)):
-        img: Any = nib.load(str(value))
+        img = nib.load(str(value))
         arr = np.asarray(img.dataobj)
     else:
         arr = np.asarray(value)
@@ -289,11 +289,11 @@ def _load_optional_spatial_vector(
 def _summarise_bids_matrix(
     matrix: NDArray[np.float64],
     *,
-    mask: NDArray[Any] | None,
-    clusters: NDArray[Any] | None,
-    summary_fun: Any | None,
+    mask: NDArray[np.object_] | None,
+    clusters: NDArray[np.object_] | None,
+    summary_fun: object | None,
     source: Path,
-) -> tuple[NDArray[np.float64], NDArray[Any] | None]:
+) -> tuple[NDArray[np.float64], NDArray[np.object_] | None]:
     n_voxels = matrix.shape[1]
     mask_bool: NDArray[np.bool_] | None = None
     if mask is not None:
@@ -325,7 +325,7 @@ def _summarise_bids_matrix(
     return np.column_stack(summaries), cluster_ids
 
 
-def _read_bids_events(layout: Any, bold_path: Path) -> pd.DataFrame:
+def _read_bids_events(layout: object, bold_path: Path) -> pd.DataFrame:
     events_getter = getattr(layout, "get_events", None)
     if events_getter is not None:
         try:
@@ -374,7 +374,7 @@ def _event_rows_for_run(dataset: FmriDataset, run_id: int) -> pd.DataFrame:
 
 
 def _pca_encode(
-    data: NDArray[np.floating[Any]],
+    data: NDArray[np.float64],
     n_components: int | None,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     matrix = np.asarray(data, dtype=np.float64)
@@ -382,7 +382,11 @@ def _pca_encode(
     centered = matrix - offset[np.newaxis, :]
     u, singular_values, vt = np.linalg.svd(centered, full_matrices=False)
     max_components = min(u.shape[1], vt.shape[0])
-    k = max_components if n_components is None else min(int(n_components), max_components)
+    k = (
+        max_components
+        if n_components is None
+        else min(int(n_components), max_components)
+    )
     basis = u[:, :k] * singular_values[:k]
     loadings = vt[:k, :].T
     return basis, loadings, offset
@@ -399,12 +403,12 @@ def compress_bids_study(
     x: StudyDataset | Mapping[str, FmriDataset] | Sequence[FmriDataset] | str | Path,
     file: str | Path,
     mode: CompressionMode = "parcellated",
-    clusters: Sequence[Any] | None = None,
-    summary_fun: Any | None = None,
-    encoding: Any | None = None,
+    clusters: Sequence[object] | None = None,
+    summary_fun: object | None = None,
+    encoding: object | None = None,
     n_components: int | None = None,
-    template: Any | None = None,
-    mask: Any | None = None,
+    template: object | None = None,
+    mask: object | None = None,
     space: str = "MNI152NLin2009cAsym",
     tasks: Sequence[str] | str | None = None,
     subjects: Sequence[str] | str | None = None,
@@ -472,10 +476,10 @@ def compress_bids_study(
     path = Path(file)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    scan_rows: list[dict[str, Any]] = []
+    scan_rows: list[dict[str, object]] = []
     time_offset = 0
     first_n_features: int | None = None
-    feature_ids: NDArray[Any] | None = None
+    feature_ids: NDArray[np.object_] | None = None
 
     with h5py.File(path, "w") as handle:
         handle.attrs["format"] = spec.archive_format
@@ -561,7 +565,9 @@ def compress_bids_study(
 
                 events = _event_rows_for_run(dataset, run_id)
                 _write_events(scan_group, events, compression=spec.compression)
-                confound_frame = confounds.get(scan_name) if confounds is not None else None
+                confound_frame = (
+                    confounds.get(scan_name) if confounds is not None else None
+                )
                 has_confounds = _write_confounds(
                     scan_group,
                     confound_frame,
