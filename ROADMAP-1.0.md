@@ -23,8 +23,19 @@ discipline, native group inference, and a classified API spine.
 ### 1. One Regenerable Proof Bundle
 
 The release candidate must produce a single 1.0 receipt that a user can rerun
-and inspect. This is probably a benchmark/report artifact, not a new public
-API.
+and inspect. It is release infrastructure, not a new public API.
+
+The command is:
+
+```bash
+python -m benchmarks.parity.release_1_0_bundle
+```
+
+It writes the canonical receipt to:
+
+```text
+benchmarks/parity/release_1_0/release_receipt.json
+```
 
 The bundle must show:
 
@@ -38,6 +49,18 @@ The bundle must show:
   semantic information that fmrimod preserves.
 
 A pile of demos is not enough. The proof must read as one release artifact.
+
+The family-to-artifact mapping lives in
+`benchmarks/parity/release_1_0_manifest.json` with these columns:
+
+| Family | `proof_artifacts.benchmark_id` | Required public path | Current status | Owner bead |
+| --- | --- | --- | --- | --- |
+| SPM auditory / first-level modeling | `tier_a_spm_auditory` | `fmri_dataset -> fmri_lm -> contrast` | `ready_missing_hardware_tag` | `bd-01KRFDHPVSJGCVZ967Y8TVCKJA` |
+| FIAC/localizer fixed effects | `tier_a_fiac` | `fmri_dataset -> fmri_lm -> contrast` | `blocked_public_seam_false` | `bd-01KRFMY8FNTZM60BKZ7MW5W2Q9` |
+| FitLins/BIDS Stats Model translation | `tier_b_fitlins_bids` | `fmri_dataset -> fmri_lm -> typed BIDS contrasts` | `blocked_public_seam_false` | `bd-01KRFKZ0J0Z0GJ9VK35ABCAGJW` |
+| Second-level/group inference | `tier_group_semantic_survival` | `fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise` | `ready_missing_hardware_tag` | `bd-01KRHTJ9WFSSBZSDGAN4V7PHGS` |
+| Single-trial/LSS or trialwise estimation | `tier_d_lss_trialwise` | `fmri_dataset -> estimate_single_trial -> typed trialwise result` | `blocked_numerical_canary` | `bd-01KRFMY8FNTZM60BKZ7MW5W2Q9` |
+| Typed proof scorecard / underdog showcase | `tier_d_showcase` | `fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise` | `ready` | `bd-01KRJ0PM9ERPJH7GX0PYYVY2NK` |
 
 ### 2. The Four-Stage Seam Carries the Flagship Path
 
@@ -143,6 +166,14 @@ It must also pass the flagship proof bundle and any parity/benchmark checks
 attached to changed artifacts. The 26 rpy2 baseline-spline parity failures are
 pre-existing and excluded by the documented filter.
 
+The named release-discipline gates are:
+
+- `tests/test_public_api/test_api_inventory.py`
+- `tests/test_benchmarks/test_proof_artifact_timing_gate.py`
+- `tests/test_benchmarks/test_proof_artifact_hardware_tag_gate.py`
+- `tests/test_benchmarks/test_tolerance_audit.py`
+- `tests/test_benchmarks/test_report_caveats_schema.py`
+
 ## Critical Path
 
 Current ordering from the board consensus:
@@ -154,9 +185,8 @@ Current ordering from the board consensus:
    `bd-01KRFMY8FNTZM60BKZ7MW5W2Q9`.
 3. Finish the native group reducer policy/kernel/registry boundary:
    `bd-01KRHTJ9WFSSBZSDGAN4V7PHGS`.
-4. Build the 1.0 proof bundle target and release receipt. This roadmap is
-   tracked by `bd-01KRJ6KVSHNJDVM374563P45S6`; a separate implementation bead
-   should own the proof-bundle command once its exact red check is specified.
+4. Build the 1.0 proof bundle target and release receipt:
+   `bd-01KRK7FPFCAEXR7P2RTHHJ51C3`.
 5. Classify the public spine and flagship-artifact symbols:
    `bd-01KRHY6EQW0K06KESGF6MGVZT3`.
 6. Decide or permanently record the rank-deficient dfres divergence:

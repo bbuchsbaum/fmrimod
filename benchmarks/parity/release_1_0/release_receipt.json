@@ -1,0 +1,392 @@
+{
+  "api_spine": [
+    {
+      "classified": false,
+      "compatibility_status": "review_pending",
+      "name": "fmri_dataset",
+      "present": true,
+      "tier": "spine",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
+      "classified": false,
+      "compatibility_status": "review_pending",
+      "name": "fmri_lm",
+      "present": true,
+      "tier": "spine_review",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
+      "classified": false,
+      "compatibility_status": "review_pending",
+      "name": "Spec",
+      "present": true,
+      "tier": "spine",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
+      "classified": false,
+      "compatibility_status": "review_pending",
+      "name": "Term",
+      "present": true,
+      "tier": "spine",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
+      "classified": false,
+      "compatibility_status": "review_pending",
+      "name": "event_model",
+      "present": true,
+      "tier": "spine_review",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
+      "classified": false,
+      "compatibility_status": "review_pending",
+      "name": "baseline_model",
+      "present": true,
+      "tier": "spine",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
+      "classified": false,
+      "compatibility_status": "review_pending",
+      "name": "fmri_meta",
+      "present": true,
+      "tier": "spine",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
+      "classified": false,
+      "compatibility_status": "review_pending",
+      "name": "fmri_ttest",
+      "present": true,
+      "tier": "spine",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
+      "classified": false,
+      "compatibility_status": "review_pending",
+      "name": "group_data_from_fmrilm",
+      "present": true,
+      "tier": "spine",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
+      "classified": false,
+      "compatibility_status": "review_pending",
+      "name": "estimate_single_trial",
+      "present": true,
+      "tier": "spine",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
+      "classified": false,
+      "compatibility_status": "review_pending",
+      "name": "estimate_single_trial_from_dataset",
+      "present": true,
+      "tier": "spine",
+      "used_by_public_seam_artifact": "review_pending"
+    }
+  ],
+  "blockers": [
+    "tier_a_spm_auditory: hardware_tag is missing",
+    "tier_a_fiac: public_seam is not true",
+    "tier_a_fiac: numerical_canary cannot be flagship proof",
+    "tier_a_fiac: required public path 'fmri_dataset -> fmri_lm -> contrast' not in fmrimod_path",
+    "tier_a_fiac: timings are not recorded",
+    "tier_a_fiac: hardware_tag is missing",
+    "tier_a_fiac: receipt metadata is missing",
+    "tier_b_fitlins_bids: public_seam is not true",
+    "tier_b_fitlins_bids: required public path 'fmri_dataset -> fmri_lm -> typed BIDS contrasts' not in fmrimod_path",
+    "tier_b_fitlins_bids: timings are not recorded",
+    "tier_b_fitlins_bids: hardware_tag is missing",
+    "tier_b_fitlins_bids: receipt metadata is missing",
+    "tier_group_semantic_survival: hardware_tag is missing",
+    "tier_d_lss_trialwise: public_seam is not true",
+    "tier_d_lss_trialwise: numerical_canary cannot be flagship proof",
+    "tier_d_lss_trialwise: required public path 'fmri_dataset -> estimate_single_trial -> typed trialwise result' not in fmrimod_path",
+    "tier_d_lss_trialwise: timings are not recorded",
+    "tier_d_lss_trialwise: hardware_tag is missing",
+    "tier_d_lss_trialwise: receipt metadata is missing",
+    "api spine fmri_dataset: still review_pending",
+    "api spine fmri_lm: still review_pending",
+    "api spine Spec: still review_pending",
+    "api spine Term: still review_pending",
+    "api spine event_model: still review_pending",
+    "api spine baseline_model: still review_pending",
+    "api spine fmri_meta: still review_pending",
+    "api spine fmri_ttest: still review_pending",
+    "api spine group_data_from_fmrilm: still review_pending",
+    "api spine estimate_single_trial: still review_pending",
+    "api spine estimate_single_trial_from_dataset: still review_pending"
+  ],
+  "board_source": "roadmap-to-1-0/post-01KRK7E46JRRD6BKQTAP9GMC03",
+  "evidence_gates": [
+    {
+      "exists": true,
+      "path": "tests/test_public_api/test_api_inventory.py"
+    },
+    {
+      "exists": true,
+      "path": "tests/test_benchmarks/test_proof_artifact_timing_gate.py"
+    },
+    {
+      "exists": true,
+      "path": "tests/test_benchmarks/test_proof_artifact_hardware_tag_gate.py"
+    },
+    {
+      "exists": true,
+      "path": "tests/test_benchmarks/test_tolerance_audit.py"
+    },
+    {
+      "exists": true,
+      "path": "tests/test_benchmarks/test_report_caveats_schema.py"
+    }
+  ],
+  "flagship_families": [
+    {
+      "artifact_present": true,
+      "benchmark_id": "tier_a_spm_auditory",
+      "blockers": [
+        "tier_a_spm_auditory: hardware_tag is missing"
+      ],
+      "caveats": [],
+      "current_status": "ready_missing_hardware_tag",
+      "evidence_level": "flagship_workflow",
+      "family": "SPM auditory / first-level modeling",
+      "fmrimod_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> contrast",
+      "hardware_tag": null,
+      "owner_bead": "bd-01KRFDHPVSJGCVZ967Y8TVCKJA",
+      "public_seam": true,
+      "receipt": {
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ],
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_a_spm_auditory.workflow"
+        ],
+        "status": "regenerable"
+      },
+      "reference_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::nilearn_pipeline",
+      "report_path": "benchmarks/parity/tier_a_spm_auditory/reports/parity_report.json",
+      "required_public_path": "fmri_dataset -> fmri_lm -> contrast",
+      "timings": {
+        "seconds": 0.0935906670000004,
+        "source": "benchmarks/parity/tier_a_spm_auditory/reports/parity_report.json",
+        "stages": {
+          "contrast_seconds": 0.0030698749999999997,
+          "dataset_seconds": 0.01582687500000013,
+          "fit_seconds": 0.07469391700000028
+        },
+        "status": "recorded"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.spec.HrfTerm",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.glm.ContrastResult"
+      ],
+      "workflow_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py"
+    },
+    {
+      "artifact_present": true,
+      "benchmark_id": "tier_a_fiac",
+      "blockers": [
+        "tier_a_fiac: public_seam is not true",
+        "tier_a_fiac: numerical_canary cannot be flagship proof",
+        "tier_a_fiac: required public path 'fmri_dataset -> fmri_lm -> contrast' not in fmrimod_path",
+        "tier_a_fiac: timings are not recorded",
+        "tier_a_fiac: hardware_tag is missing",
+        "tier_a_fiac: receipt metadata is missing"
+      ],
+      "caveats": [],
+      "current_status": "blocked_public_seam_false",
+      "evidence_level": "numerical_canary",
+      "family": "FIAC/localizer fixed effects",
+      "fmrimod_path": "benchmarks/parity/tier_a_fiac/workflow.py::fmrimod_pipeline: fit_glm_from_suffstats -> combine_runs -> contrast",
+      "hardware_tag": null,
+      "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
+      "public_seam": false,
+      "receipt": null,
+      "reference_path": "benchmarks/parity/tier_a_fiac/workflow.py::nilearn_pipeline",
+      "report_path": "benchmarks/parity/tier_a_fiac/reports/parity_report.json",
+      "required_public_path": "fmri_dataset -> fmri_lm -> contrast",
+      "timings": null,
+      "typed_objects": [],
+      "workflow_path": "benchmarks/parity/tier_a_fiac/workflow.py"
+    },
+    {
+      "artifact_present": true,
+      "benchmark_id": "tier_b_fitlins_bids",
+      "blockers": [
+        "tier_b_fitlins_bids: public_seam is not true",
+        "tier_b_fitlins_bids: required public path 'fmri_dataset -> fmri_lm -> typed BIDS contrasts' not in fmrimod_path",
+        "tier_b_fitlins_bids: timings are not recorded",
+        "tier_b_fitlins_bids: hardware_tag is missing",
+        "tier_b_fitlins_bids: receipt metadata is missing"
+      ],
+      "caveats": [],
+      "current_status": "blocked_public_seam_false",
+      "evidence_level": "workflow_parity",
+      "family": "FitLins/BIDS Stats Model translation",
+      "fmrimod_path": "benchmarks/parity/tier_b_fitlins_bids/workflow.py::translated_pipeline plus ar1_nilearn derivative writer",
+      "hardware_tag": null,
+      "owner_bead": "bd-01KRFKZ0J0Z0GJ9VK35ABCAGJW",
+      "public_seam": false,
+      "receipt": null,
+      "reference_path": "benchmarks/parity/tier_b_fitlins_bids/workflow.py::manual_pipeline and FitLins CLI derivative fixture",
+      "report_path": "benchmarks/parity/tier_b_fitlins_bids/reports/parity_report.json",
+      "required_public_path": "fmri_dataset -> fmri_lm -> typed BIDS contrasts",
+      "timings": null,
+      "typed_objects": [],
+      "workflow_path": "benchmarks/parity/tier_b_fitlins_bids/workflow.py"
+    },
+    {
+      "artifact_present": true,
+      "benchmark_id": "tier_group_semantic_survival",
+      "blockers": [
+        "tier_group_semantic_survival: hardware_tag is missing"
+      ],
+      "caveats": [],
+      "current_status": "ready_missing_hardware_tag",
+      "evidence_level": "flagship_workflow",
+      "family": "second-level/group inference",
+      "fmrimod_path": "benchmarks/parity/tier_group_semantic_survival/workflow.py::run_demo: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
+      "hardware_tag": null,
+      "owner_bead": "bd-01KRHTJ9WFSSBZSDGAN4V7PHGS",
+      "public_seam": true,
+      "receipt": {
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ],
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_group_semantic_survival.workflow",
+          "--out-dir",
+          "benchmarks/parity/tier_group_semantic_survival/reports"
+        ],
+        "status": "regenerable"
+      },
+      "reference_path": "not_applicable: semantic-survival artifact built on the strict tier_a_f_confound_drift numerical oracle",
+      "report_path": "benchmarks/parity/tier_group_semantic_survival/reports/semantic_survival_report.json",
+      "required_public_path": "fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
+      "timings": {
+        "seconds": 0.0991808759999997,
+        "source": "benchmarks/parity/tier_group_semantic_survival/reports/semantic_survival_report.json",
+        "stages": {
+          "first_level_seconds": 0.0372889169999997,
+          "group_dataset_seconds": 0.00018512499999978616,
+          "group_fit_seconds": 0.0014443750000001643,
+          "load_inputs_seconds": 0.060262459000000046
+        },
+        "status": "recorded"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.design.DesignColumns",
+        "fmrimod.contrast.OmnibusContrast",
+        "fmrimod.glm.ContrastResult",
+        "fmrimod.group.GroupDataset"
+      ],
+      "workflow_path": "benchmarks/parity/tier_group_semantic_survival/workflow.py"
+    },
+    {
+      "artifact_present": true,
+      "benchmark_id": "tier_d_lss_trialwise",
+      "blockers": [
+        "tier_d_lss_trialwise: public_seam is not true",
+        "tier_d_lss_trialwise: numerical_canary cannot be flagship proof",
+        "tier_d_lss_trialwise: required public path 'fmri_dataset -> estimate_single_trial -> typed trialwise result' not in fmrimod_path",
+        "tier_d_lss_trialwise: timings are not recorded",
+        "tier_d_lss_trialwise: hardware_tag is missing",
+        "tier_d_lss_trialwise: receipt metadata is missing"
+      ],
+      "caveats": [],
+      "current_status": "blocked_numerical_canary",
+      "evidence_level": "numerical_canary",
+      "family": "single-trial/LSS or trialwise estimation",
+      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_lss_showcase: estimate_single_trial",
+      "hardware_tag": null,
+      "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
+      "public_seam": false,
+      "receipt": null,
+      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::_lss_reference",
+      "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_canaries.json",
+      "required_public_path": "fmri_dataset -> estimate_single_trial -> typed trialwise result",
+      "timings": null,
+      "typed_objects": [],
+      "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py"
+    },
+    {
+      "artifact_present": true,
+      "benchmark_id": "tier_d_showcase",
+      "blockers": [],
+      "caveats": [],
+      "current_status": "ready",
+      "evidence_level": "flagship_workflow",
+      "family": "typed proof scorecard / underdog showcase",
+      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::render: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
+      "hardware_tag": "Darwin-arm64-arm",
+      "owner_bead": "bd-01KRJ0PM9ERPJH7GX0PYYVY2NK",
+      "public_seam": true,
+      "receipt": {
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ],
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_d_showcase.workflow"
+        ],
+        "status": "regenerable"
+      },
+      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::_lss_reference and exact GLM helpers plus tier_group_semantic_survival oracle",
+      "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json",
+      "required_public_path": "fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
+      "timings": {
+        "seconds": 0.04528841700000008,
+        "source": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json",
+        "stages": {
+          "first_level_seconds": 0.018909874999999854,
+          "group_dataset_seconds": 0.00017412500000002495,
+          "group_fit_seconds": 0.0006257500000002025,
+          "load_inputs_seconds": 0.025578667
+        },
+        "status": "recorded"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.spec.Spec",
+        "fmrimod.contrast.OmnibusContrast",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.glm.ContrastResult",
+        "fmrimod.group.GroupDataset"
+      ],
+      "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py"
+    }
+  ],
+  "owner_bead": "bd-01KRK7FPFCAEXR7P2RTHHJ51C3",
+  "receipt_command": [
+    "python",
+    "-m",
+    "benchmarks.parity.release_1_0_bundle"
+  ],
+  "release_status": "blocked",
+  "schema_version": "release_1_0_receipt/v1",
+  "source": {
+    "api_inventory": "docs/contracts/api_inventory_v1.json",
+    "caveats": "docs/contracts/CAVEATS.md",
+    "proof_artifacts": "benchmarks/parity/proof_artifacts.json",
+    "release_manifest": "benchmarks/parity/release_1_0_manifest.json"
+  }
+}
