@@ -99,6 +99,24 @@ def test_release_receipt_tier_b_is_public_typed_bids_seam() -> None:
     assert "fmrimod.bids.StatsModelContrast" in tier_b["typed_objects"]
 
 
+def test_release_receipt_tier_d_lss_is_public_trialwise_seam() -> None:
+    receipt = bundle.build_receipt()
+
+    rows = {row["benchmark_id"]: row for row in receipt["flagship_families"]}
+    lss = rows["tier_d_lss_trialwise"]
+    assert lss["blockers"] == []
+    assert lss["current_status"] == "ready"
+    assert lss["public_seam"] is True
+    assert lss["evidence_level"] == "workflow_parity"
+    assert lss["timings"]["status"] == "recorded"
+    assert lss["hardware_tag"] == "Darwin-arm64-arm"
+    assert (
+        "fmri_dataset -> estimate_single_trial_from_dataset -> typed SingleTrialResult"
+        in lss["fmrimod_path"]
+    )
+    assert "fmrimod.single.SingleTrialResult" in lss["typed_objects"]
+
+
 def test_release_receipt_reports_private_kernel_evidence_by_row() -> None:
     receipt = bundle.build_receipt()
 

@@ -172,7 +172,7 @@ def run_lss_showcase(seed: int = 2028) -> ShowcaseRow:
     max_abs = float(np.max(np.abs(fmrimod_result.betas - reference)))
     status = "pass" if max_abs < 1e-10 else "fail"
     return ShowcaseRow(
-        case_id="tier_d_lss_trialwise",
+        case_id="tier_d_lss_trialwise_oracle",
         capability="vectorized LSS trial-wise betas",
         status=status,
         metric="max_abs_delta",

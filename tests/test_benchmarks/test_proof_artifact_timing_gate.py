@@ -47,7 +47,6 @@ _PENDING_TIMING_ROWS = frozenset(
         "tier_a_multirun_concat",
         "tier_a_parametric_modulation",
         "tier_c_second_level",
-        "tier_d_lss_trialwise",
         "tier_e_parametric_centering",
         "tier_e_scrubbed_timebase_alignment",
         "tier_e_semantic_contrast_alignment",

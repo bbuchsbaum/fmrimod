@@ -95,5 +95,5 @@ def test_tier_d_render_writes_json_ready_proof_scorecard(tmp_path) -> None:
     assert {row["case_id"] for row in canary_payload["rows"]} == {
         "tier_d_ar2_robust",
         "tier_d_sketched_glm",
-        "tier_d_lss_trialwise",
+        "tier_d_lss_trialwise_oracle",
     }

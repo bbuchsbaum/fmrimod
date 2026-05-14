@@ -726,6 +726,7 @@
       "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_lss_public_seam_showcase ground-truth recovery oracle and tier_d_lss_trialwise_oracle matrix exactness canary",
       "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_lss_public_seam_showcase + run_lss_public_seam_independent_generative: fmri_dataset -> estimate_single_trial_from_dataset -> typed SingleTrialResult",
       "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
       "typed_objects": [
         "fmrimod.dataset.FmriDataset",
         "fmrimod.single.SingleTrialResult",
@@ -733,8 +734,13 @@
       ],
       "fmrimod_expresses_better": "The public-seam wrapper takes only the dataset and a string spec ('trialwise()' or 'trialwise(basis=...)' ) and returns a typed SingleTrialResult carrying per-trial betas plus recovered trial_labels; the call site never reaches into the realised design matrix and never builds a per-trial weight vector by hand. The matrix oracle (tier_d_lss_trialwise_oracle) survives as a numerical canary beneath this public-seam row.",
       "timings": {
-        "status": "not_recorded",
-        "next": "promote run_lss_public_seam_showcase wrapper_seconds (already recorded per-row in showcase_report.json) into the proof_artifact timings block"
+        "status": "recorded",
+        "seconds": 0.003164666937664151,
+        "stages": {
+          "public_seam_lss_seconds": 0.0016486249514855444,
+          "independent_generative_lss_seconds": 0.0015160419861786067
+        },
+        "source": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json"
       },
       "receipt": {
         "status": "regenerable",

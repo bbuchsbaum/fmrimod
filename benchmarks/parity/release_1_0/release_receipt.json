@@ -91,9 +91,7 @@
   ],
   "blockers": [
     "tier_a_fiac: timings are not recorded",
-    "tier_a_fiac: hardware_tag is missing",
-    "tier_d_lss_trialwise: timings are not recorded",
-    "tier_d_lss_trialwise: hardware_tag is missing"
+    "tier_a_fiac: hardware_tag is missing"
   ],
   "board_source": "roadmap-to-1-0/post-01KRK7E46JRRD6BKQTAP9GMC03",
   "evidence_gates": [
@@ -348,16 +346,13 @@
     {
       "artifact_present": true,
       "benchmark_id": "tier_d_lss_trialwise",
-      "blockers": [
-        "tier_d_lss_trialwise: timings are not recorded",
-        "tier_d_lss_trialwise: hardware_tag is missing"
-      ],
+      "blockers": [],
       "caveats": [],
       "current_status": "ready",
       "evidence_level": "workflow_parity",
       "family": "single-trial/LSS or trialwise estimation",
       "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_lss_public_seam_showcase + run_lss_public_seam_independent_generative: fmri_dataset -> estimate_single_trial_from_dataset -> typed SingleTrialResult",
-      "hardware_tag": null,
+      "hardware_tag": "Darwin-arm64-arm",
       "owner_bead": "bd-01KRKAEDBE9BV5HZ5SY0A3ZAA5",
       "private_kernel_evidence": {
         "expected_private_kernel_rows": [
@@ -389,8 +384,13 @@
       "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json",
       "required_public_path": "fmri_dataset -> estimate_single_trial_from_dataset -> typed SingleTrialResult",
       "timings": {
-        "next": "promote run_lss_public_seam_showcase wrapper_seconds (already recorded per-row in showcase_report.json) into the proof_artifact timings block",
-        "status": "not_recorded"
+        "seconds": 0.003164666937664151,
+        "source": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json",
+        "stages": {
+          "independent_generative_lss_seconds": 0.0015160419861786067,
+          "public_seam_lss_seconds": 0.0016486249514855444
+        },
+        "status": "recorded"
       },
       "typed_objects": [
         "fmrimod.dataset.FmriDataset",
