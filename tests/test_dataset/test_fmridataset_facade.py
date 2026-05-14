@@ -15,7 +15,6 @@ import fmridataset.dataset as facade_dataset
 import fmridataset.dataset_constructors as facade_constructors
 import fmridataset.dataset_methods as facade_dataset_methods
 import fmridataset.errors as facade_errors
-import fmridataset.latent_dataset as facade_latent_dataset
 import fmridataset.mask_utils as facade_mask_utils
 import fmridataset.sampling_frame as facade_sampling
 import fmridataset.selectors as facade_selectors
@@ -51,6 +50,7 @@ def test_fmridataset_root_reexports_canonical_objects() -> None:
 def test_fmridataset_submodules_are_reexport_facades() -> None:
     facade_data_chunks = importlib.import_module("fmridataset.data_chunks")
     facade_fmri_series = importlib.import_module("fmridataset.fmri_series")
+    facade_latent_dataset = importlib.import_module("fmridataset.latent_dataset")
 
     assert facade_dataset.FmriDataset is dataset.FmriDataset
     assert facade_constructors.matrix_dataset is dataset.matrix_dataset
