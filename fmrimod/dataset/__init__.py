@@ -118,6 +118,7 @@ from .series import (
     series,
     to_dataframe,
 )
+from .study import StudyDataset, fmri_group, study_dataset, study_to_group
 from .timing import sample_indices
 
 __all__ = [
@@ -211,6 +212,7 @@ __all__ = [
     "group_data_from_nifti",
     "detect_group_data_format",
     "LatentDataset",
+    "StudyDataset",
     "get_latent_scores",
     "get_spatial_loadings",
     "get_component_info",
@@ -229,4 +231,7 @@ __all__ = [
     "create_design_matrix_from_benchmark",
     "evaluate_method_performance",
     "design_plot",
+    "study_dataset",
+    "fmri_group",
+    "study_to_group",
 ]

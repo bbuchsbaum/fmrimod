@@ -18,6 +18,7 @@ import fmridataset.errors as facade_errors
 import fmridataset.mask_utils as facade_mask_utils
 import fmridataset.sampling_frame as facade_sampling
 import fmridataset.selectors as facade_selectors
+import fmridataset.study_dataset as facade_study_dataset
 import fmrimod
 import fmrimod.dataset as dataset
 from fmrimod.sampling import SamplingFrame
@@ -31,11 +32,14 @@ def test_fmridataset_root_reexports_canonical_objects() -> None:
     assert facade.MatrixBackend is dataset.MatrixBackend
     assert facade.LatentBackend is dataset.LatentBackend
     assert facade.LatentDataset is dataset.LatentDataset
+    assert facade.StudyDataset is dataset.StudyDataset
     assert facade.matrix_dataset is dataset.matrix_dataset
     assert facade.fmri_dataset is dataset.fmri_dataset
     assert facade.matrix_backend is dataset.matrix_backend
     assert facade.latent_backend is dataset.latent_backend
     assert facade.latent_dataset is dataset.latent_dataset
+    assert facade.study_dataset is dataset.study_dataset
+    assert facade.fmri_group is dataset.fmri_group
     assert facade.get_data is dataset.get_data
     assert facade.DataChunk is dataset.DataChunk
     assert facade.data_chunks is dataset.data_chunks
@@ -87,3 +91,6 @@ def test_fmridataset_submodules_are_reexport_facades() -> None:
     assert facade_mask_utils.mask_to_volume is dataset.mask_to_volume
     assert facade_latent_dataset.LatentDataset is dataset.LatentDataset
     assert facade_latent_dataset.latent_dataset is dataset.latent_dataset
+    assert facade_study_dataset.StudyDataset is dataset.StudyDataset
+    assert facade_study_dataset.study_dataset is dataset.study_dataset
+    assert facade_study_dataset.fmri_group is dataset.fmri_group
