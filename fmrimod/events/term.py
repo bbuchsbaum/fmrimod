@@ -17,10 +17,10 @@ import pandas as pd
 
 from ..base import BaseEvent, CacheMixin
 from ..types import Array, EventType
-from .factor import EventFactor
-from .variable import EventVariable
-from .matrix import EventMatrix
 from .basis import EventBasis
+from .factor import EventFactor
+from .matrix import EventMatrix
+from .variable import EventVariable
 
 
 class EventTerm(CacheMixin):

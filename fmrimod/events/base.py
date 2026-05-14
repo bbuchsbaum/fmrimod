@@ -2,10 +2,10 @@
 
 from typing import Dict, List, Union
 
-from .factor import EventFactor
-from .variable import EventVariable
-from .matrix import EventMatrix
 from .basis import EventBasis
+from .factor import EventFactor
+from .matrix import EventMatrix
+from .variable import EventVariable
 
 # Event type mapping for construction
 EVENT_TYPES = {

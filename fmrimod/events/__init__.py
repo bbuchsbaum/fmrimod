@@ -8,13 +8,13 @@ This module provides event representations for fMRI design matrices:
 - EventBasis: Basis function expanded events
 """
 
-from .factor import EventFactor
-from .variable import EventVariable
-from .matrix import EventMatrix
-from .basis import EventBasis
-from .term import EventTerm
 from .base import create_event, events_from_dataframe
+from .basis import EventBasis
 from .event_table import event_table
+from .factor import EventFactor
+from .matrix import EventMatrix
+from .term import EventTerm
+from .variable import EventVariable
 
 __all__ = [
     "EventFactor",

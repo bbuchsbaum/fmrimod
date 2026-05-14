@@ -6,13 +6,14 @@ condition names from an ``EventTerm``, as well as model-level wrappers
 :func:`cells_event_model` and :func:`conditions_event_model`.
 """
 
-from typing import List, Dict, Optional, Union, Tuple
+from itertools import product
+from typing import Dict, List, Optional, Tuple, Union
+
 import numpy as np
 import pandas as pd
-from itertools import product
 
+from ..naming import continuous_token, level_token, make_cond_tag
 from ..types import EventProtocol
-from ..naming import level_token, continuous_token, make_cond_tag
 
 
 def cells_event_term(event_term, drop_empty: bool = True) -> pd.DataFrame:

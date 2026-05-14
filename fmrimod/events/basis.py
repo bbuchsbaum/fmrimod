@@ -14,8 +14,6 @@ import numpy as np
 import pandas as pd
 
 from ..base import BaseEvent
-from .matrix import EventMatrix
-
 from ..types import (
     Array,
     BasisProtocol,
@@ -25,6 +23,7 @@ from ..types import (
     validate_durations,
     validate_onsets,
 )
+from .matrix import EventMatrix
 
 
 class EventBasis(BaseEvent):

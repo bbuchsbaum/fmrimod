@@ -8,17 +8,18 @@ combinations from ``EventTerm``, ``EventFactor``, ``EventVariable``,
 
 from __future__ import annotations
 
-from typing import Union, List, Dict, Any, Optional
-import pandas as pd
-import numpy as np
 from functools import singledispatch
+from typing import Any, Dict, List, Optional, Union
+
+import numpy as np
+import pandas as pd
 
 from ..types import EventProtocol
-from .term import EventTerm
-from .factor import EventFactor
-from .variable import EventVariable
-from .matrix import EventMatrix
 from .basis import EventBasis
+from .factor import EventFactor
+from .matrix import EventMatrix
+from .term import EventTerm
+from .variable import EventVariable
 
 
 @singledispatch

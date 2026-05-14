@@ -14,8 +14,6 @@ import numpy as np
 import pandas as pd
 
 from ..base import BaseEvent
-from .variable import EventVariable
-
 from ..types import (
     Array,
     DurationType,
@@ -24,6 +22,7 @@ from ..types import (
     validate_durations,
     validate_onsets,
 )
+from .variable import EventVariable
 
 
 class EventMatrix(BaseEvent):
