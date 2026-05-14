@@ -5,11 +5,11 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_ROOT = PROJECT_ROOT / "fmrimod"
 
 NIBABEL_BOUNDARY_ALLOWLIST = {
+    Path("fmrimod/dataset/bids_h5_write.py"),
     Path("fmrimod/dataset/constructors.py"),
     Path("fmrimod/group/dataset.py"),
 }
