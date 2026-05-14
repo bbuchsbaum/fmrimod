@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import warnings
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -715,13 +715,12 @@ class FmriLm:
 
         if isinstance(spec, SemanticContrast):
             weights = spec.resolve(self.design_columns())
+            intent_payload = spec.intent(rows=1)
+            intent_payload.update(self._contrast_intent_payload_fields(weights))
             return self._compute_contrast(
                 weights,
                 name=name or spec.display_name,
-                intent=replace(
-                    spec.intent(rows=1),
-                    **self._contrast_intent_payload_fields(weights),
-                ),
+                intent=intent_payload,
             )
 
         if isinstance(spec, ContrastSpec):

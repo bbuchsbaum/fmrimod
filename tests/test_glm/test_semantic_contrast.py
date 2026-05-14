@@ -117,6 +117,23 @@ def test_authored_condition_contrast_survives_column_permutation() -> None:
     assert [column["index"] for column in explanation["design_columns"]] == [0, 2]
 
 
+def test_one_sided_semantic_contrast_resolves_declared_level() -> None:
+    fit = _fit_with_order(("intercept", "gain", "loss"))
+    contrast = condition("gain", term="trial_type")
+
+    from fmrimod.contrast import SemanticContrast
+
+    result = fit.contrast(SemanticContrast(contrast, name="gain"))
+
+    explanation = result.explain().to_dict()
+    assert result.touched_columns == ("gain",)
+    assert explanation["intent"]["kind"] == "semantic_contrast"
+    assert explanation["intent"]["positive"]["level"] == "gain"
+    assert explanation["intent"]["negative"] is None
+    assert explanation["intent"]["levels"] == ["gain"]
+    assert explanation["intent"]["weights"] == ((0.0, 1.0, 0.0),)
+
+
 def test_authored_condition_contrast_refuses_weak_level_provenance() -> None:
     columns = DesignColumns(
         (

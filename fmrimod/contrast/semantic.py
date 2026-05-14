@@ -39,14 +39,16 @@ class SemanticContrast:
     """A t-contrast authored over condition levels, not rendered columns."""
 
     positive: ConditionRef
-    negative: ConditionRef
+    negative: ConditionRef | None = None
     name: str | None = None
 
     @property
     def display_name(self) -> str:
-        return self.name or (
-            f"{self.positive.display_name}_minus_{self.negative.display_name}"
-        )
+        if self.name:
+            return self.name
+        if self.negative is None:
+            return self.positive.display_name
+        return f"{self.positive.display_name}_minus_{self.negative.display_name}"
 
     def resolve(self, columns: DesignColumns) -> NDArray[np.float64]:
         """Return a weight vector resolved against declared design provenance."""
@@ -57,8 +59,10 @@ class SemanticContrast:
             )
 
         positive = _select_condition(columns, self.positive, side="positive")
-        negative = _select_condition(columns, self.negative, side="negative")
-        _ensure_disjoint(positive, negative)
+        negative: tuple[DesignColumn, ...] = ()
+        if self.negative is not None:
+            negative = _select_condition(columns, self.negative, side="negative")
+            _ensure_disjoint(positive, negative)
 
         weights = np.zeros(len(columns), dtype=np.float64)
         for column in positive:
@@ -73,13 +77,20 @@ class SemanticContrast:
             "kind": "semantic_contrast",
             "name": self.display_name,
             "positive": _ref_payload(self.positive),
-            "negative": _ref_payload(self.negative),
+            "negative": (
+                None if self.negative is None else _ref_payload(self.negative)
+            ),
             "term": (
                 self.positive.term
-                if self.positive.term == self.negative.term
+                if self.negative is None
+                or self.positive.term == self.negative.term
                 else None
             ),
-            "levels": [self.positive.level, self.negative.level],
+            "levels": (
+                [self.positive.level]
+                if self.negative is None
+                else [self.positive.level, self.negative.level]
+            ),
             "rows": rows,
         }
 

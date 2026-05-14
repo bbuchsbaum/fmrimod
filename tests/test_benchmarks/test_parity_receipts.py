@@ -78,3 +78,33 @@ def test_tier_a_f_confound_drift_uses_typed_omnibus_intent() -> None:
     assert "reference_f_contrast" not in fmrimod_source
     assert "np.vstack" not in inspect.getsource(public_workflow)
     assert "fmrimod.contrast.OmnibusContrast" in artifact["typed_objects"]
+
+
+def test_tier_a_spm_auditory_uses_semantic_contrast_receipt() -> None:
+    result = verify_receipt("tier_a_spm_auditory")
+
+    assert result["report_path"] == (
+        "benchmarks/parity/tier_a_spm_auditory/reports/parity_report.json"
+    )
+    assert result["status"] == "pass"
+    assert result["caveats"] == []
+
+    report_path = ROOT / result["report_path"]
+    report = json.loads(Path(report_path).read_text())
+    receipt = report["contrast_receipt"]
+    intent = receipt["intent"]
+    assert intent["kind"] == "semantic_contrast"
+    assert intent["term"] == "trial_type"
+    assert intent["levels"] == ["listening"]
+    assert intent["name"] == "listening"
+    assert intent["basis_label"] == "hrf_norm:spm"
+    assert intent["weights"]
+    assert str(intent["design_id"]).startswith("design:sha256:")
+    assert str(intent["provenance_id"]).startswith("fitprov:sha256:")
+
+    from benchmarks.parity.tier_a_spm_auditory import workflow
+
+    source = inspect.getsource(workflow.fmrimod_pipeline)
+    assert "LISTENING_CONTRAST" in source
+    assert "np.array([1.0, 0.0]" not in source
+    assert "column_contrast" not in source

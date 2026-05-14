@@ -29,6 +29,7 @@ from cross_testing.harness import (
     render,
     run,
 )
+from fmrimod.contrast import SemanticContrast, condition
 from fmrimod.spec import hrf as hrf_term
 
 Array = NDArray[np.float64]
@@ -37,6 +38,10 @@ Array = NDArray[np.float64]
 TR = 7.0
 MAX_VOXELS = 2048
 CONTRAST_NAME = "listening"
+LISTENING_CONTRAST = SemanticContrast(
+    positive=condition(CONTRAST_NAME, term="trial_type"),
+    name=CONTRAST_NAME,
+)
 
 
 def _fit_provenance_payload(fit: Any) -> dict[str, Any]:
@@ -45,6 +50,21 @@ def _fit_provenance_payload(fit: Any) -> dict[str, Any]:
     payload = fit.provenance.to_dict()
     payload["completeness_errors"] = list(fit.provenance.completeness_errors)
     return payload
+
+
+def _contrast_receipt_payload(result: Any) -> dict[str, Any]:
+    explanation = result.explain().to_dict()
+    intent = explanation["intent"]
+    required = ("basis_label", "weights", "design_id", "provenance_id")
+    missing = [key for key in required if intent.get(key) in (None, [], "")]
+    if missing:
+        raise AssertionError(f"contrast intent missing payload fields: {missing}")
+    return {
+        "name": explanation["name"],
+        "intent": intent,
+        "touched_columns": explanation["touched_columns"],
+        "statistic": explanation["statistic"],
+    }
 
 
 @dataclass(frozen=True)
@@ -136,6 +156,7 @@ def fmrimod_pipeline(
     *,
     timing_sink: dict[str, float] | None = None,
     provenance_sink: dict[str, Any] | None = None,
+    contrast_sink: dict[str, Any] | None = None,
 ) -> PipelineOutput:
     """Run the SPM auditory parity case through the canonical fmrimod API.
 
@@ -154,7 +175,7 @@ def fmrimod_pipeline(
         lambda: fm.fmri_lm(hrf_term("trial_type", norm="spm"), ds, precision=0.02)
     )
     cres, contrast_seconds = _elapsed_seconds(
-        lambda: fit.contrast(np.array([1.0, 0.0], dtype=np.float64))
+        lambda: fit.contrast(LISTENING_CONTRAST, name=CONTRAST_NAME)
     )
 
     if timing_sink is not None:
@@ -168,6 +189,9 @@ def fmrimod_pipeline(
 
     if provenance_sink is not None:
         provenance_sink.update(_fit_provenance_payload(fit))
+
+    if contrast_sink is not None:
+        contrast_sink.update(_contrast_receipt_payload(cres))
 
     return PipelineOutput(
         arrays={
@@ -185,6 +209,7 @@ def make_case(
     *,
     timing_sink: dict[str, float] | None = None,
     provenance_sink: dict[str, Any] | None = None,
+    contrast_sink: dict[str, Any] | None = None,
 ) -> ParityCase:
     """Build the P1 SPM auditory parity case.
 
@@ -200,6 +225,7 @@ def make_case(
             inputs,
             timing_sink=timing_sink,
             provenance_sink=provenance_sink,
+            contrast_sink=contrast_sink,
         ),
         reference_pipeline=nilearn_pipeline,
         inputs=load_inputs(max_voxels=max_voxels),
@@ -229,7 +255,14 @@ def make_case(
 def main() -> None:
     timings: dict[str, float] = {}
     provenance: dict[str, Any] = {}
-    result = run(make_case(timing_sink=timings, provenance_sink=provenance))
+    contrast_receipt: dict[str, Any] = {}
+    result = run(
+        make_case(
+            timing_sink=timings,
+            provenance_sink=provenance,
+            contrast_sink=contrast_receipt,
+        )
+    )
     out_dir = Path(__file__).resolve().parent / "reports"
     json_path, _ = render(result, out_dir)
     payload = json.loads(json_path.read_text())
@@ -239,6 +272,7 @@ def main() -> None:
         "stages": timings,
     }
     payload["fit_provenance"] = provenance
+    payload["contrast_receipt"] = contrast_receipt
     json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     if result.status == "fail":
         raise SystemExit(1)
