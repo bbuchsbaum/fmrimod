@@ -57,40 +57,37 @@ BASELINE_REVIEW_PENDING_NAMES = frozenset({
     "SPM_CANONICAL", "SPM_WITH_DERIVATIVE", "SPM_WITH_DISPERSION", "SamplingFrame",
     "Scale", "SpecDiff", "SpecSerializationError", "TermDiff",
     "__version__", "acorr_diagnostics", "acquisition_onsets", "afni_restricted_plan",
-    "amplitudes", "apply_soft_projection", "ar_parameters", "as_hrf",
-    "as_spec", "block_hrf", "bootstrap_glm", "build_nuisance_projector",
-    "check_nuisance", "clean_nuisance", "coef_image", "coef_names",
-    "column_contrast", "combine_contrasts", "combine_runs", "compat",
-    "compute_dvars", "compute_lm_contrasts", "compute_lm_contrasts_from_suffstats", "condition_basis_list",
-    "condition_map", "confounds", "contrast", "contrast_set",
-    "contrast_weights", "data_chunks", "design_matrix", "detect_group_data_format",
-    "drift", "dvars_to_weights", "estimate", "estimate_betas",
+    "amplitudes", "ar_parameters", "as_hrf", "as_spec",
+    "block_hrf", "bootstrap_glm", "build_nuisance_projector", "check_nuisance",
+    "clean_nuisance", "coef_image", "coef_names", "column_contrast",
+    "combine_contrasts", "combine_runs", "compat", "compute_dvars",
+    "condition_basis_list", "condition_map", "confounds", "contrast",
+    "contrast_set", "contrast_weights", "data_chunks", "design_matrix",
+    "detect_group_data_format", "drift", "dvars_to_weights", "estimate_betas",
     "estimate_hrf", "evaluate", "event_factor", "event_matrix",
-    "event_term", "event_variable", "fit_contrasts", "fit_glm_on_transformed_series",
-    "fit_glm_with_config", "fit_noise", "fitted_hrf", "flip_sign",
+    "event_term", "event_variable", "fit_noise", "fitted_hrf",
     "fmri_meta_fit", "fmri_meta_fit_contrasts", "fmri_meta_fit_cov", "fmri_meta_fit_extended",
-    "fmri_ols_fit", "fmri_rlm", "gamma_hrf", "gaussian_hrf",
-    "gen_empirical_hrf", "gen_hrf", "gen_hrf_library", "gen_hrf_set",
-    "generate_interaction_contrast", "generate_main_effect_contrast", "get_contrasts", "get_covariates",
-    "get_data", "get_data_matrix", "get_formula", "get_hrf",
-    "get_mask", "get_rois", "get_subjects", "glm_lss",
-    "glm_ols", "global_onsets", "group_data", "group_data_from_csv",
-    "group_data_from_h5", "group_data_from_nifti", "hrf_blocked", "hrf_bspline_generator",
-    "hrf_daguerre_generator", "hrf_fir_generator", "hrf_formula", "hrf_fourier_generator",
-    "hrf_lagged", "hrf_set", "hrf_smoothing_kernel", "hrf_spmg1",
-    "hrf_tent_generator", "interaction_contrast", "intercept", "is_spec",
-    "lag_hrf", "latent_dataset", "list_available_hrfs", "lowrank_control",
+    "gamma_hrf", "gaussian_hrf", "gen_empirical_hrf", "gen_hrf",
+    "gen_hrf_library", "gen_hrf_set", "generate_interaction_contrast", "generate_main_effect_contrast",
+    "get_contrasts", "get_covariates", "get_data", "get_data_matrix",
+    "get_formula", "get_hrf", "get_mask", "get_rois",
+    "get_subjects", "glm_lss", "glm_ols", "global_onsets",
+    "group_data", "group_data_from_csv", "group_data_from_h5", "group_data_from_nifti",
+    "hrf_blocked", "hrf_bspline_generator", "hrf_daguerre_generator", "hrf_fir_generator",
+    "hrf_formula", "hrf_fourier_generator", "hrf_lagged", "hrf_set",
+    "hrf_spmg1", "hrf_tent_generator", "interaction_contrast", "intercept",
+    "is_spec", "lag_hrf", "latent_dataset", "list_available_hrfs",
     "lsa_single_trial", "lss_single_trial", "matrix_dataset", "meta_effective_n",
     "n_subjects", "null_regressor", "one_against_all_contrast", "oneway_contrast",
-    "p_values", "pair_contrast", "paired_diff_block", "pairwise_contrasts",
-    "poly_contrast", "pvalues", "r_to_z", "regressor",
-    "regressor_set", "samples", "sandwich_from_whitened_resid", "se",
-    "shift", "simulate_bold_signal", "simulate_fmri_matrix", "simulate_noise_vector",
-    "simulate_simple_dataset", "sliding_window_contrasts", "soft_projection", "soft_subspace_options",
-    "spec_diff", "spm_canonical", "standard_error", "stats",
-    "t_to_beta_se", "t_to_d", "tidy", "tidy_fitted_hrf",
-    "unit_contrast", "volume_weights", "voxel_index_chunks", "whiten",
-    "whiten_apply", "write_results", "z_to_r", "zscores",
+    "p_values", "pair_contrast", "pairwise_contrasts", "poly_contrast",
+    "pvalues", "r_to_z", "regressor", "regressor_set",
+    "samples", "sandwich_from_whitened_resid", "se", "shift",
+    "simulate_bold_signal", "simulate_fmri_matrix", "simulate_noise_vector", "simulate_simple_dataset",
+    "sliding_window_contrasts", "soft_subspace_options", "spec_diff", "spm_canonical",
+    "standard_error", "stats", "t_to_d", "tidy",
+    "tidy_fitted_hrf", "unit_contrast", "volume_weights", "voxel_index_chunks",
+    "whiten", "whiten_apply", "write_results", "z_to_r",
+    "zscores",
 })
 
 
@@ -113,8 +110,8 @@ def _current_review_pending() -> set[str]:
 
 def test_baseline_size_is_known() -> None:
     """Sanity-check the pinned baseline size to catch silent drift."""
-    assert len(BASELINE_REVIEW_PENDING_NAMES) == 172, (
-        f"BASELINE_REVIEW_PENDING_NAMES size drifted from 172 to "
+    assert len(BASELINE_REVIEW_PENDING_NAMES) == 157, (
+        f"BASELINE_REVIEW_PENDING_NAMES size drifted from 157 to "
         f"{len(BASELINE_REVIEW_PENDING_NAMES)}. Update the assertion "
         f"in the same commit that intentionally changed the baseline."
     )
