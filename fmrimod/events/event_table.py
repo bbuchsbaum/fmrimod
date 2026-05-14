@@ -22,7 +22,7 @@ from .variable import EventVariable
 
 
 @singledispatch
-def event_table(x, **kwargs) -> pd.DataFrame:
+def event_table(x, **kwargs: object) -> pd.DataFrame:
     """Extract event table from an object.
     
     This generic function extracts a table containing all unique
@@ -61,7 +61,7 @@ def event_table(x, **kwargs) -> pd.DataFrame:
 
 
 @event_table.register(EventTerm)
-def _(x: EventTerm, **kwargs) -> pd.DataFrame:
+def _(x: EventTerm, **kwargs: object) -> pd.DataFrame:
     """Extract event table from EventTerm.
     
     Parameters
@@ -192,7 +192,7 @@ def _register_event_model():
     from ..design.event_model import EventModel
     
     @event_table.register(EventModel)
-    def _(x: EventModel, **kwargs) -> pd.DataFrame:
+    def _(x: EventModel, **kwargs: object) -> pd.DataFrame:
         """Extract event table from EventModel.
         
         Combines event tables from all terms in the model.
@@ -217,13 +217,13 @@ def _register_event_model():
 
 # Register for individual event types
 @event_table.register(EventFactor)
-def _(x: EventFactor, **kwargs) -> pd.DataFrame:
+def _(x: EventFactor, **kwargs: object) -> pd.DataFrame:
     """Extract event table from EventFactor."""
     return pd.DataFrame({x.name: x.levels})
 
 
 @event_table.register(EventVariable)
-def _(x: EventVariable, **kwargs) -> pd.DataFrame:
+def _(x: EventVariable, **kwargs: object) -> pd.DataFrame:
     """Extract event table from EventVariable."""
     values = np.unique(x.values)
     if len(values) > 20:
@@ -236,7 +236,7 @@ def _(x: EventVariable, **kwargs) -> pd.DataFrame:
 
 
 @event_table.register(EventMatrix)
-def _(x: EventMatrix, **kwargs) -> pd.DataFrame:
+def _(x: EventMatrix, **kwargs: object) -> pd.DataFrame:
     """Extract event table from EventMatrix."""
     return pd.DataFrame({
         'column': x.column_names,
@@ -245,7 +245,7 @@ def _(x: EventMatrix, **kwargs) -> pd.DataFrame:
 
 
 @event_table.register(EventBasis)
-def _(x: EventBasis, **kwargs) -> pd.DataFrame:
+def _(x: EventBasis, **kwargs: object) -> pd.DataFrame:
     """Extract event table from EventBasis."""
     n_basis = getattr(x, "n_basis", getattr(x, "nbasis", None))
     if n_basis is None:
