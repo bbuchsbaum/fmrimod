@@ -1,0 +1,59 @@
+"""Contract tests for the Tier E semantic contrast-alignment stress benchmark."""
+
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from benchmarks.parity.tier_e_semantic_contrast_alignment import workflow
+
+pytest.importorskip("nilearn")
+
+
+def test_semantic_contrast_alignment_records_invariance_and_pain_point() -> None:
+    report = workflow.run_benchmark(max_voxels=12)
+
+    assert report["schema_version"] == "semantic-contrast-alignment/v1"
+    assert report["status"] == "pass"
+    assert (
+        report["design_column_orders"]["canonical"]
+        != report["design_column_orders"]["permuted"]
+    )
+    assert report["invariance"]["fmrimod_effect_delta"] < 1e-8
+    assert report["invariance"]["fmrimod_stat_delta"] < 1e-5
+    assert report["pain_points"]["observed"] is True
+    assert report["pain_points"]["nilearn_positional_effect_median_abs_delta"] > 10.0
+    assert "targets different columns" in report["pain_points"]["verdict"]
+
+    cases = {case["case_id"]: case for case in report["cases"]}
+    assert set(cases) == {"canonical_order", "permuted_order"}
+    for case in cases.values():
+        assert case["status"] == "pass"
+        assert case["design_rank"] == case["design_shape"][1]
+        assert case["fmrimod"]["finite_effect_fraction"] == 1.0
+        assert case["fmrimod"]["finite_stat_fraction"] == 1.0
+        assert set(case["fmrimod"]["touched_columns"]) == {"gain", "loss"}
+        assert case["comparisons"]["aligned_effect_delta"] < 1e-8
+        assert case["comparisons"]["aligned_stat_delta"] < 1e-5
+        assert "matches the aligned Nilearn vector" in case["verdict"]
+
+    canonical = cases["canonical_order"]
+    permuted = cases["permuted_order"]
+    assert canonical["comparisons"]["positional_effect_median_abs_delta"] < 1e-8
+    assert permuted["nilearn_positional_reuse"]["touched_columns"] != [
+        "gain",
+        "loss",
+    ]
+    assert permuted["comparisons"]["positional_stat_median_abs_delta"] > 10.0
+
+
+def test_semantic_contrast_alignment_main_writes_report(tmp_path) -> None:
+    workflow.main(["--out-dir", str(tmp_path), "--max-voxels", "8"])
+
+    report_path = tmp_path / "semantic_contrast_alignment_report.json"
+    markdown_path = tmp_path / "REPORT.md"
+    report = json.loads(report_path.read_text())
+    assert report["status"] == "pass"
+    assert report["pain_points"]["observed"] is True
+    assert "Semantic Contrast Alignment" in markdown_path.read_text()

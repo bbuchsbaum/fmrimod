@@ -475,6 +475,39 @@
       }
     },
     {
+      "benchmark_id": "tier_e_semantic_contrast_alignment",
+      "evidence_level": "workflow_parity",
+      "public_seam": true,
+      "workflow_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/workflow.py",
+      "report_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/reports/semantic_contrast_alignment_report.json",
+      "reference_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/workflow.py::nilearn_probe",
+      "fmrimod_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/workflow.py::fmrimod_probe: named design -> fmri_lm -> column_contrast -> ContrastResult",
+      "caveats": [],
+      "timings": {
+        "status": "not_recorded",
+        "next": "record fit and contrast-resolution timings if this semantic-alignment trap becomes a README-grade demo"
+      },
+      "typed_objects": [
+        "fmrimod.glm.FmriLm",
+        "fmrimod.contrast.ColumnContrastSpec",
+        "fmrimod.glm.ContrastResult"
+      ],
+      "fmrimod_expresses_better": "The gain-minus-loss hypothesis is resolved by named typed contrast intent against each fitted design's columns; the Nilearn reference needs a freshly rebuilt numeric vector and a reused positional vector silently targets the wrong coefficients.",
+      "receipt": {
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_e_semantic_contrast_alignment.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ]
+      }
+    },
+    {
       "benchmark_id": "tier_d_showcase",
       "evidence_level": "flagship_workflow",
       "public_seam": true,
