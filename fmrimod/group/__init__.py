@@ -44,9 +44,11 @@ from .progress import (
     emit_progress,
 )
 from .reducers import (
+    GroupLinearModel,
     combine_fisher,
     combine_lancaster,
     combine_stouffer,
+    group_model,
     lmm_ri,
     lmm_ri_slope1,
     lmm_unavailable,
@@ -90,6 +92,7 @@ __all__ = [
     "GroupDataset",
     "GroupProbe",
     "GroupProgressEvent",
+    "GroupLinearModel",
     "GroupReducerError",
     "GroupRegistry",
     "GroupRegistryError",
@@ -116,6 +119,7 @@ __all__ = [
     "emit_progress",
     "group_dataset",
     "group_dataset_from_group_data",
+    "group_model",
     "lmm_ri",
     "lmm_ri_slope1",
     "lmm_unavailable",

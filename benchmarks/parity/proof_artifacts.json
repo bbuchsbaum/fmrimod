@@ -131,18 +131,18 @@
       "workflow_path": "benchmarks/parity/tier_group_semantic_survival/workflow.py",
       "report_path": "benchmarks/parity/tier_group_semantic_survival/reports/semantic_survival_report.json",
       "reference_path": "not_applicable: semantic-survival artifact built on the strict tier_a_f_confound_drift numerical oracle",
-      "fmrimod_path": "benchmarks/parity/tier_group_semantic_survival/workflow.py::run_demo: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
+      "fmrimod_path": "benchmarks/parity/tier_group_semantic_survival/workflow.py::run_demo: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> group_model -> ols_voxelwise",
       "realized_design_source": "fmrimod",
       "caveats": [],
       "hardware_tag": "Darwin-arm64-arm",
       "timings": {
         "status": "recorded",
-        "seconds": 0.0991808759999997,
+        "seconds": 0.27850279100000064,
         "stages": {
-          "first_level_seconds": 0.0372889169999997,
-          "group_dataset_seconds": 0.00018512499999978616,
-          "group_fit_seconds": 0.0014443750000001643,
-          "load_inputs_seconds": 0.060262459000000046
+          "first_level_seconds": 0.20433100000000026,
+          "group_dataset_seconds": 0.0001897909999999392,
+          "group_fit_seconds": 0.0011652500000001176,
+          "load_inputs_seconds": 0.07281675000000032
         },
         "source": "benchmarks/parity/tier_group_semantic_survival/reports/semantic_survival_report.json"
       },
@@ -151,22 +151,21 @@
         "fmrimod.design.DesignColumns",
         "fmrimod.contrast.OmnibusContrast",
         "fmrimod.glm.ContrastResult",
-        "fmrimod.group.GroupDataset"
+        "fmrimod.group.GroupDataset",
+        "fmrimod.group.GroupLinearModel"
       ],
       "fmrimod_expresses_better": "The authored F hypothesis remains visible as OmnibusContrast intent, resolved design columns, a structured ContrastResult explanation, and contrast_data on the group object instead of becoming anonymous coefficient rows.",
       "claim_axes": {
         "typed_design_authoring": "full",
         "typed_contrast_authoring": "full",
-        "native_public_seam": "partial",
+        "native_public_seam": "full",
         "interop_bridge": false,
         "diagnostics": "semantic_survival",
         "performance": "recorded",
-        "group_model_authoring": "formula_string"
+        "group_model_authoring": "typed_group_model"
       },
-      "ux_status": "semantic_full_group_formula_partial",
-      "ux_blockers": [
-        "group-level ols_voxelwise still uses formula='~ 1'; group UX normalization is tracked by bd-01KRM6BY29M35P1AMEYTVYWVMD"
-      ],
+      "ux_status": "full",
+      "ux_blockers": [],
       "callsite_receipts": [
         "benchmarks/parity/tier_group_semantic_survival/workflow.py:99",
         "benchmarks/parity/tier_group_semantic_survival/workflow.py:103",
@@ -736,24 +735,23 @@
         "fmrimod.glm.FmriLm",
         "fmrimod.contrast.ContrastResult"
       ],
-      "fmrimod_expresses_better": "BIDS Stats Model JSON flows into the public fmri_dataset -> fmri_lm -> contrast seam as typed Spec + StatsModelContrast records; the contrast intent survives to the fit and the JSON node is the single source of truth, instead of FitLins's TSV-vector + statmap-file hand-off. Expressible BIDS contrasts still lower through a vector bridge today, so this is an interop UX receipt until StatsModelContrast can lower to semantic/omnibus objects when possible.",
+      "fmrimod_expresses_better": "BIDS Stats Model JSON flows into the public fmri_dataset -> fmri_lm -> contrast seam as typed Spec + StatsModelContrast records; the JSON node is the single source of truth, instead of FitLins's TSV-vector + statmap-file hand-off. Expressible BIDS t/F contrasts lower through fmrimod semantic or omnibus contrast objects, while unsupported shapes remain on an explicitly named vector bridge fallback.",
       "claim_axes": {
         "typed_design_authoring": "full",
-        "typed_contrast_authoring": "bids_vector_bridge",
+        "typed_contrast_authoring": "semantic_lowering_with_vector_fallback",
         "native_public_seam": "full",
         "interop_bridge": true,
         "diagnostics": "none",
         "performance": "recorded"
       },
-      "ux_status": "bids_vector_bridge",
-      "ux_blockers": [
-        "StatsModelContrast.apply resolves weights and calls fit.contrast(weights); lowering expressible BIDS t/F contrasts to semantic/omnibus objects is tracked by bd-01KRM6BY27ZDFKH1VM64NE1TEW"
-      ],
+      "ux_status": "semantic_lowering_with_vector_fallback",
+      "ux_blockers": [],
       "callsite_receipts": [
         "benchmarks/parity/tier_b_fitlins_bids/workflow.py:164",
         "benchmarks/parity/tier_b_fitlins_bids/workflow.py:181",
-        "fmrimod/bids/stats_model.py:53",
-        "fmrimod/bids/stats_model.py:55"
+        "fmrimod/bids/stats_model.py:27",
+        "fmrimod/bids/stats_model.py:99",
+        "fmrimod/bids/stats_model.py:109"
       ],
       "timings": {
         "status": "recorded",
@@ -791,40 +789,38 @@
       "workflow_path": "benchmarks/parity/tier_c_second_level/workflow.py",
       "report_path": "benchmarks/parity/tier_c_second_level/reports/parity_report.json",
       "reference_path": "benchmarks/parity/tier_c_second_level/workflow.py::nilearn_pipeline",
-      "fmrimod_path": "benchmarks/parity/tier_c_second_level/workflow.py::fmrimod_pipeline: group_data_from_csv -> group_fit",
+      "fmrimod_path": "benchmarks/parity/tier_c_second_level/workflow.py::fmrimod_pipeline: group_data_from_csv -> GroupDataset -> group_model -> ols_voxelwise",
       "caveats": [],
       "hardware_tag": "Darwin-arm64-arm",
       "performance_stage": "tier_c_second_level",
       "timings": {
-        "seconds": 1.533317459,
+        "seconds": 2.2132718739999997,
         "stages": {
-          "fmrimod_age_regression_seconds": 0.011026042000000125,
-          "fmrimod_one_sample_seconds": 0.009660042000000146,
-          "make_inputs_seconds": 0.002118832999999931,
-          "nilearn_pipeline_seconds": 1.5105125419999998
+          "fmrimod_age_regression_seconds": 0.009366666999999662,
+          "fmrimod_one_sample_seconds": 0.006761291000000114,
+          "make_inputs_seconds": 0.0025116249999999063,
+          "nilearn_pipeline_seconds": 2.194632291
         },
         "status": "recorded",
         "source": "benchmarks/parity/tier_c_second_level/reports/parity_report.json"
       },
       "typed_objects": [
         "fmrimod.dataset.GroupData",
-        "fmrimod.stats.GroupFitRequest",
-        "fmrimod.stats.GroupFitResult"
+        "fmrimod.group.GroupDataset",
+        "fmrimod.group.GroupLinearModel"
       ],
-      "fmrimod_expresses_better": "The group path carries effect-size standard errors and model intent as explicit request fields rather than hiding them inside a fitted second-level estimator. The row still mixes GroupFitRequest for one-sample tests with formula-string ols_voxelwise for regression, so the group UX claim is partial.",
+      "fmrimod_expresses_better": "The group path carries subject maps as a GroupDataset and authors both one-sample and age-regression models with group_model(...) typed intent before dispatching to the native voxelwise OLS reducer.",
       "claim_axes": {
         "typed_design_authoring": "not_applicable_group",
         "typed_contrast_authoring": "not_applicable_group",
-        "native_public_seam": "partial",
+        "native_public_seam": "full",
         "interop_bridge": false,
         "diagnostics": "none",
         "performance": "recorded",
-        "group_model_authoring": "mixed_request_and_formula"
+        "group_model_authoring": "typed_group_model"
       },
-      "ux_status": "partial",
-      "ux_blockers": [
-        "second-level workflow mixes GroupFitRequest with ols_voxelwise(formula='~ 1 + age'); normalized group UX is tracked by bd-01KRM6BY29M35P1AMEYTVYWVMD"
-      ],
+      "ux_status": "full",
+      "ux_blockers": [],
       "callsite_receipts": [
         "benchmarks/parity/tier_c_second_level/workflow.py:117",
         "benchmarks/parity/tier_c_second_level/workflow.py:123",
@@ -1050,19 +1046,19 @@
       "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py",
       "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json",
       "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::_lss_reference and exact GLM helpers plus tier_group_semantic_survival oracle",
-      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::render: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
+      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::render: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> group_model -> ols_voxelwise",
       "realized_design_source": "fmrimod",
       "caveats": [],
       "hardware_tag": "Darwin-arm64-arm",
       "performance_stage": "tier_d_showcase",
       "timings": {
         "status": "recorded",
-        "seconds": 0.04528841700000008,
+        "seconds": 0.09773583299999977,
         "stages": {
-          "first_level_seconds": 0.018909874999999854,
-          "group_dataset_seconds": 0.00017412500000002495,
-          "group_fit_seconds": 0.0006257500000002025,
-          "load_inputs_seconds": 0.025578667
+          "first_level_seconds": 0.018393042000000026,
+          "group_dataset_seconds": 0.00017104099999976086,
+          "group_fit_seconds": 0.0005860840000000422,
+          "load_inputs_seconds": 0.07858566599999994
         },
         "source": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json"
       },
@@ -1072,9 +1068,10 @@
         "fmrimod.contrast.OmnibusContrast",
         "fmrimod.glm.FmriLm",
         "fmrimod.glm.ContrastResult",
-        "fmrimod.group.GroupDataset"
+        "fmrimod.group.GroupDataset",
+        "fmrimod.group.GroupLinearModel"
       ],
-      "fmrimod_expresses_better": "The showcase report carries only public-seam evidence: LSS rows through dataset/spec wrappers, semantic survival of typed contrast intent into a GroupDataset, recorded timing, caveats, and win-axis fields instead of a loose numeric demo table. Low-level Tier D canaries are classified as separate numerical-canary artifacts. The aggregate still inherits partial group-formula and string-spec UX from its component rows.",
+      "fmrimod_expresses_better": "The showcase report carries only public-seam evidence: LSS rows through dataset/spec wrappers, semantic survival of typed contrast intent into a GroupDataset, typed group_model authoring, recorded timing, caveats, and win-axis fields instead of a loose numeric demo table. Low-level Tier D canaries are classified as separate numerical-canary artifacts. The aggregate still inherits the LSS string-spec UX gap from its component rows.",
       "claim_axes": {
         "typed_design_authoring": "aggregate_mixed",
         "typed_contrast_authoring": "aggregate_mixed",
@@ -1082,12 +1079,11 @@
         "interop_bridge": false,
         "diagnostics": "proof_scorecard",
         "performance": "recorded",
-        "group_model_authoring": "formula_string",
+        "group_model_authoring": "typed_group_model",
         "single_trial_authoring": "string_spec"
       },
       "ux_status": "aggregate_partial",
       "ux_blockers": [
-        "showcase aggregate inherits group formula-string UX from tier_group_semantic_survival; tracked by bd-01KRM6BY29M35P1AMEYTVYWVMD",
         "LSS public row still authors trialwise() as a string spec rather than a typed trialwise value"
       ],
       "callsite_receipts": [

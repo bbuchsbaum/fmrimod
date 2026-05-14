@@ -11,6 +11,12 @@ from fmrimod.bids import StatsModelContrast, translate_run_node
 from fmrimod.spec import Confounds, HrfTerm, Intercept, Spec
 
 
+def _intent_field(intent: object, key: str) -> object:
+    if isinstance(intent, dict):
+        return intent[key]
+    return getattr(intent, key)
+
+
 def _stats_model() -> dict:
     return {
         "Name": "synthetic_fitlins_style",
@@ -227,6 +233,7 @@ def test_translate_run_node_exposes_typed_model_and_contrast_artifacts():
     assert isinstance(t_spec, StatsModelContrast)
     assert t_spec.test == "t"
     assert t_spec.conditions == ("trial_type.word", "trial_type.pseudoword")
+    assert t_spec.semantic_spec() is not None
     np.testing.assert_array_equal(
         t_spec.weights,
         translated.contrast_vectors["word_gt_pseudoword"],
@@ -234,6 +241,7 @@ def test_translate_run_node_exposes_typed_model_and_contrast_artifacts():
 
     f_spec = translated.contrast_specs["task_omnibus"]
     assert f_spec.test == "F"
+    assert f_spec.semantic_spec() is not None
     assert translated.contrast_matrices["task_omnibus"].shape == (
         2,
         len(translated.column_names),
@@ -392,6 +400,51 @@ def test_translate_run_node_normalizes_convolve_derivative_hrf_models(
     assert contrast[int(nonzero[1])] == 1.0
 
 
+def test_derivative_bids_contrast_uses_explicit_vector_bridge_fallback():
+    n_scans = 40
+    sampling_frame = fm.SamplingFrame(blocklens=[n_scans], tr=2.0)
+    events = pd.DataFrame(
+        {
+            "run": 1,
+            "onset": [4.0, 12.0, 20.0, 28.0],
+            "duration": [1.0, 1.0, 1.0, 1.0],
+            "trial_type": ["word", "pseudoword", "word", "pseudoword"],
+        }
+    )
+    confounds = pd.DataFrame(
+        {
+            "framewise_displacement": np.linspace(0.0, 1.0, n_scans),
+            "trans_x": np.sin(np.linspace(0.0, 1.0, n_scans)),
+        }
+    )
+    translated = translate_run_node(
+        _derivative_stats_model("spm + derivative"),
+        events=events,
+        sampling_frame=sampling_frame,
+        confounds=confounds,
+    )
+    legacy_design = np.column_stack(
+        [
+            translated.event_model.design_matrix,
+            translated.baseline_model.design_matrix,
+        ]
+    )
+    beta = np.zeros((legacy_design.shape[1], 2), dtype=np.float64)
+    beta[translated.column_names.index("trial_type_trial_type.word_b01"), :] = 0.6
+    beta[
+        translated.column_names.index("trial_type_trial_type.pseudoword_b01"),
+        :,
+    ] = -0.1
+    rng = np.random.default_rng(41)
+    bold = legacy_design @ beta + rng.normal(0.0, 0.03, size=(n_scans, 2))
+
+    fit = translated.fit(fm.fmri_dataset(bold, tr=2.0, events=events))
+    result = translated.contrast(fit, "word_gt_pseudoword")
+
+    assert result.stat_type == "t"
+    assert _intent_field(result.intent, "kind") == "bids_vector_bridge"
+
+
 def test_translate_run_node_rejects_unknown_convolve_hrf_model():
     n_scans = 40
     sampling_frame = fm.SamplingFrame(blocklens=[n_scans], tr=2.0)
@@ -473,7 +526,7 @@ def test_modulated_bids_translation_fit_uses_transformed_event_table():
     )
     result = translated.contrast(fit, "word_gt_pseudoword")
     assert result.stat_type == "t"
-    assert result.intent.kind == "bids_stats_model"
+    assert _intent_field(result.intent, "kind") == "semantic_linear_contrast"
 
 
 def test_translate_run_node_rejects_ambiguous_flat_f_weights():
@@ -566,11 +619,16 @@ def test_translated_bids_artifacts_drive_public_lm_contrast_path():
         "task_omnibus",
     }
     assert results["word_gt_pseudoword"].stat_type == "t"
-    assert results["word_gt_pseudoword"].intent.kind == "bids_stats_model"
-    assert results["word_gt_pseudoword"].intent.term == "trial_type"
-    assert results["word_gt_pseudoword"].intent.levels == ("word", "pseudoword")
+    assert _intent_field(
+        results["word_gt_pseudoword"].intent,
+        "kind",
+    ) == "semantic_linear_contrast"
+    assert _intent_field(results["word_gt_pseudoword"].intent, "term") == "trial_type"
+    assert tuple(
+        _intent_field(results["word_gt_pseudoword"].intent, "levels")
+    ) == ("word", "pseudoword")
     assert results["task_omnibus"].stat_type == "F"
-    assert results["task_omnibus"].intent.kind == "bids_stats_model"
+    assert _intent_field(results["task_omnibus"].intent, "kind") == "omnibus"
 
     manual_t = fit.contrast(
         translated.contrast_vectors["word_gt_pseudoword"],
@@ -643,5 +701,5 @@ def test_scale_product_modulator_fits_through_public_seam_with_transformed_event
     )
     result = translated.contrast(fit, "word_gt_pseudoword")
 
-    assert result.intent.kind == "bids_stats_model"
+    assert _intent_field(result.intent, "kind") == "semantic_linear_contrast"
     assert result.stat_type == "t"

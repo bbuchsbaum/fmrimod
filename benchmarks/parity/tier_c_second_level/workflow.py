@@ -23,8 +23,7 @@ from cross_testing.harness import (
     run,
 )
 from fmrimod.dataset import group_data_from_csv
-from fmrimod.group import group_dataset_from_group_data, ols_voxelwise
-from fmrimod.stats import GroupFitRequest, group_fit
+from fmrimod.group import group_dataset_from_group_data, group_model, ols_voxelwise
 
 Array = NDArray[np.float64]
 
@@ -120,14 +119,7 @@ def fmrimod_pipeline(
         subject_col="subject",
         roi_col="feature",
     )
-    one = group_fit(
-        GroupFitRequest(
-            data=gd_one,
-            model="ttest",
-            ttest_engine="classic",
-            effects="fixed",
-        )
-    )
+    one = ols_voxelwise(group_dataset_from_group_data(gd_one), model=group_model())
     if timing_sink is not None:
         timing_sink["fmrimod_one_sample_seconds"] = (
             time.perf_counter() - one_sample_start
@@ -141,7 +133,7 @@ def fmrimod_pipeline(
         roi_col="feature",
         covariates=inputs.covariates,
     )
-    reg = ols_voxelwise(group_dataset_from_group_data(gd_reg), formula="~ 1 + age")
+    reg = ols_voxelwise(group_dataset_from_group_data(gd_reg), model=group_model("age"))
     if timing_sink is not None:
         timing_sink["fmrimod_age_regression_seconds"] = (
             time.perf_counter() - regression_start
@@ -149,8 +141,8 @@ def fmrimod_pipeline(
 
     return PipelineOutput(
         arrays={
-            "one_sample_effect": one.estimate[:, 0],
-            "one_sample_t": one.statistic[:, 0],
+            "one_sample_effect": one.assay("coef:Intercept")[:, 0, 0],
+            "one_sample_t": one.assay("t_coef:Intercept")[:, 0, 0],
             "age_effect": reg.assay("coef:age")[:, 0, 0],
             "age_t": reg.assay("t_coef:age")[:, 0, 0],
             # Nilearn's SecondLevelModel exposes a signed one-sided p-value

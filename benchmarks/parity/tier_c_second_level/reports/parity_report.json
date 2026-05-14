@@ -83,11 +83,11 @@
     "one_sample_effect": {
       "failed_gates": [],
       "gate": "allclose+pearson+spearman",
-      "mae": 1.925143979416196e-09,
-      "max_abs": 5.035095562710978e-09,
+      "mae": 1.925143984556117e-09,
+      "max_abs": 5.03509561822213e-09,
       "name": "one_sample_effect",
       "passes": true,
-      "pearson_r": 0.9999999999999992,
+      "pearson_r": 0.9999999999999996,
       "rank_candidate": 1,
       "rank_reference": 1,
       "scale": 1.0,
@@ -109,11 +109,11 @@
     "one_sample_t": {
       "failed_gates": [],
       "gate": "allclose+pearson+spearman",
-      "mae": 3.50567466611551e-07,
-      "max_abs": 2.629211834914713e-06,
+      "mae": 3.505674665951033e-07,
+      "max_abs": 2.6292118420201405e-06,
       "name": "one_sample_t",
       "passes": true,
-      "pearson_r": 0.999999999999997,
+      "pearson_r": 0.9999999999999971,
       "rank_candidate": 1,
       "rank_reference": 1,
       "scale": 1.0,
@@ -136,12 +136,12 @@
   "name": "tier_c_second_level_synthetic",
   "status": "pass",
   "timings": {
-    "seconds": 1.533317459,
+    "seconds": 2.2132718739999997,
     "stages": {
-      "fmrimod_age_regression_seconds": 0.011026042000000125,
-      "fmrimod_one_sample_seconds": 0.009660042000000146,
-      "make_inputs_seconds": 0.002118832999999931,
-      "nilearn_pipeline_seconds": 1.5105125419999998
+      "fmrimod_age_regression_seconds": 0.009366666999999662,
+      "fmrimod_one_sample_seconds": 0.006761291000000114,
+      "make_inputs_seconds": 0.0025116249999999063,
+      "nilearn_pipeline_seconds": 2.194632291
     },
     "status": "recorded"
   }

@@ -56,7 +56,7 @@ def test_tier_d_proof_scorecard_names_public_typed_seam() -> None:
     assert scorecard.public_seam is True
     assert scorecard.fmrimod_path == (
         "fmri_dataset -> fmri_lm -> OmnibusContrast -> "
-        "ContrastResult.explain -> GroupDataset -> ols_voxelwise"
+        "ContrastResult.explain -> GroupDataset -> group_model -> ols_voxelwise"
     )
     assert "fmrimod.glm.ContrastResult" in scorecard.typed_objects
     assert "fmrimod.group.GroupDataset" in scorecard.typed_objects

@@ -24,6 +24,46 @@ class StatsModelContrast:
     weights: NDArray[np.float64]
     condition_weights: NDArray[np.float64] | None = None
 
+    def semantic_spec(self) -> object | None:
+        """Return the strongest typed contrast object expressible by this BIDS row.
+
+        BIDS contrasts arrive as condition names plus numeric weights. When
+        those names share a term (for example ``trial_type.word`` and
+        ``trial_type.pseudoword``), lower through fmrimod's semantic contrast
+        objects instead of routing directly to a realised vector. Unsupported
+        shapes deliberately return ``None`` so ``apply`` can use the explicit
+        vector bridge fallback.
+        """
+        term, levels = _condition_term_and_levels(self.conditions)
+        if term is None or not levels or self.condition_weights is None:
+            return None
+
+        weights = np.asarray(self.condition_weights, dtype=np.float64)
+        if self.test == "F":
+            if weights.shape == (len(levels), len(levels)) and np.allclose(
+                weights,
+                np.eye(len(levels), dtype=np.float64),
+            ):
+                from fmrimod.contrast import OmnibusContrast
+
+                return OmnibusContrast(term=term, levels=levels, name=self.name)
+            return None
+
+        if weights.ndim != 1 or weights.shape[0] != len(levels):
+            return None
+
+        from fmrimod.contrast import condition
+
+        semantic = None
+        for level, weight in zip(levels, weights):
+            if float(weight) == 0.0:
+                continue
+            term_spec = float(weight) * condition(level, term=term)
+            semantic = term_spec if semantic is None else semantic + term_spec
+        if semantic is None:
+            return None
+        return semantic.named(self.name)
+
     def resolve(self, column_names: Sequence[str]) -> NDArray[np.float64]:
         """Resolve this contrast against a realised design-column order."""
         weights = self.condition_weights
@@ -51,11 +91,22 @@ class StatsModelContrast:
         )
 
         columns = fit.design_columns()  # type: ignore[attr-defined]
+        semantic = self.semantic_spec()
+        if semantic is not None:
+            from fmrimod.contrast import DesignProvenanceError
+
+            try:
+                return fit.contrast(semantic, name=self.name)  # type: ignore[attr-defined]
+            except DesignProvenanceError:
+                # Multi-basis or weak-provenance designs remain valid BIDS
+                # interop cases; keep them visibly on the vector bridge.
+                pass
+
         weights = self.resolve(columns.names)
         result = fit.contrast(weights, name=self.name)  # type: ignore[attr-defined]
         term, levels = _condition_term_and_levels(self.conditions)
         result.intent = ContrastIntent(
-            kind="bids_stats_model",
+            kind="bids_vector_bridge",
             name=self.name,
             term=term,
             levels=levels,

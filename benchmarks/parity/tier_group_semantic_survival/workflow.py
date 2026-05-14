@@ -25,7 +25,7 @@ from benchmarks.parity.tier_a_f_confound_drift.public_workflow import (
     PublicFContrastInputs,
     load_inputs,
 )
-from fmrimod.group import SampleLabelSpace, group_dataset, ols_voxelwise
+from fmrimod.group import SampleLabelSpace, group_dataset, group_model, ols_voxelwise
 
 
 @dataclass(frozen=True)
@@ -140,7 +140,7 @@ def run_demo(
     )
     timings["group_dataset_seconds"] = float(time.perf_counter() - group_build_start)
     group_fit_start = time.perf_counter()
-    group_result = ols_voxelwise(group, formula="~ 1")
+    group_result = ols_voxelwise(group, model=group_model())
     timings["group_fit_seconds"] = float(time.perf_counter() - group_fit_start)
 
     report = {

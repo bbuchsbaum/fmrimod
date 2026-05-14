@@ -33,6 +33,7 @@ continue to bind to the same object.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Literal
 
 import numpy as np
@@ -75,6 +76,47 @@ from .errors import AdapterContractError, UnsupportedGroupFeatureError
 from .registry import reducer_registry
 
 Tail = Literal["two.sided"]
+
+
+@dataclass(frozen=True)
+class GroupLinearModel:
+    """Typed group-level OLS model intent for native reducers."""
+
+    predictors: tuple[str, ...] = ()
+    intercept: bool = True
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "predictors",
+            tuple(str(predictor) for predictor in self.predictors),
+        )
+        if not self.intercept and not self.predictors:
+            raise AdapterContractError(
+                "GroupLinearModel requires an intercept or at least one predictor"
+            )
+        for predictor in self.predictors:
+            if not predictor.isidentifier():
+                raise AdapterContractError(
+                    "GroupLinearModel predictors must be simple column names; "
+                    f"got {predictor!r}"
+                )
+
+    @property
+    def formula(self) -> str:
+        """Return the patsy formula used by the current OLS backend."""
+        rhs = " + ".join(self.predictors)
+        if self.intercept:
+            return "~ 1" if not rhs else f"~ 1 + {rhs}"
+        return f"~ 0 + {rhs}"
+
+
+def group_model(
+    *predictors: str,
+    intercept: bool = True,
+) -> GroupLinearModel:
+    """Author a native group-level linear model without writing formula text."""
+    return GroupLinearModel(predictors=tuple(predictors), intercept=intercept)
 
 
 def meta_fe(
@@ -878,6 +920,7 @@ def perm_twosample(
 def ols_voxelwise(
     dataset: GroupDataset,
     *,
+    model: GroupLinearModel | None = None,
     formula: str = "~ 1",
     X: NDArray[np.float64] | None = None,
     return_cov: Literal["none", "tri"] = "none",
@@ -888,6 +931,12 @@ def ols_voxelwise(
     """OLS reducer across subjects for each sample/contrast feature."""
     if return_cov not in ("none", "tri"):
         raise AdapterContractError("return_cov must be 'none' or 'tri'")
+    if model is not None:
+        if X is not None:
+            raise AdapterContractError("model= cannot be combined with X=")
+        if formula != "~ 1":
+            raise AdapterContractError("model= cannot be combined with formula=")
+        formula = model.formula
     beta = dataset.assay("beta")
     X_mat, predictor_names = _design_matrix(dataset, X=X, formula=formula)
     pcols = X_mat.shape[1]
@@ -1000,6 +1049,7 @@ def ols_voxelwise(
         method="ols:voxelwise",
         metadata={
             "formula": formula,
+            "model": None if model is None else "GroupLinearModel",
             "predictor_names": tuple(predictor_names),
             "return_cov": return_cov,
             "n_jobs": int(n_workers),
@@ -1091,7 +1141,9 @@ def lmm_ri(
         sigma2[feature_idx] = scale
         vc_intercept[feature_idx] = vc_i
         log_lik[feature_idx] = float(result.llf)
-        converged[feature_idx] = 1.0 if bool(getattr(result, "converged", False)) else 0.0
+        converged[feature_idx] = (
+            1.0 if bool(getattr(result, "converged", False)) else 0.0
+        )
         lambda_intercept[feature_idx] = vc_i / scale if scale > 0 else np.nan
 
     _raise_if_all_lmm_fits_failed(
@@ -1160,7 +1212,9 @@ def lmm_ri_slope1(
         raise AdapterContractError(f"slope variable '{slope}' is not present")
     slope_values = np.asarray(obs[slope], dtype=np.float64)
     if not np.all(np.isfinite(slope_values)):
-        raise AdapterContractError(f"slope variable '{slope}' must be numeric and finite")
+        raise AdapterContractError(
+            f"slope variable '{slope}' must be numeric and finite"
+        )
     if center_slope:
         slope_values = slope_values - float(np.mean(slope_values))
     if len(np.unique(slope_values)) < 2:
@@ -1228,7 +1282,9 @@ def lmm_ri_slope1(
         vc_slope[feature_idx] = vc_s
         vc_cov[feature_idx] = vc_is
         log_lik[feature_idx] = float(result.llf)
-        converged[feature_idx] = 1.0 if bool(getattr(result, "converged", False)) else 0.0
+        converged[feature_idx] = (
+            1.0 if bool(getattr(result, "converged", False)) else 0.0
+        )
         lambda_intercept[feature_idx] = vc_i / scale if scale > 0 else np.nan
         lambda_slope[feature_idx] = vc_s / scale if scale > 0 else np.nan
         lambda_cov[feature_idx] = vc_is / scale if scale > 0 else np.nan

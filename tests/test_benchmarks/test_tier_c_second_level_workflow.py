@@ -16,7 +16,9 @@ def test_tier_c_age_model_uses_native_ols_voxelwise() -> None:
     age_branch = source.split("gd_reg = ", maxsplit=1)[1]
 
     assert "ols_voxelwise" in age_branch
+    assert "group_model(\"age\")" in age_branch
     assert "GroupFitRequest" not in age_branch
+    assert "formula=" not in age_branch
     assert 'model="meta"' not in age_branch
     assert 'weights="equal"' not in age_branch
 

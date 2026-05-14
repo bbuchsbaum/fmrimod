@@ -17,6 +17,7 @@ from fmrimod.group import (
     combine_lancaster,
     combine_stouffer,
     group_dataset,
+    group_model,
     lmm_ri,
     lmm_ri_slope1,
     meta_fe,
@@ -448,7 +449,7 @@ def test_perm_twosample_parallel_matches_serial() -> None:
 
 def test_ols_voxelwise_matches_numpy_least_squares() -> None:
     ds = _meta_reg_dataset()
-    out = ols_voxelwise(ds, formula="~ 1 + age", return_cov="tri")
+    out = ols_voxelwise(ds, model=group_model("age"), return_cov="tri")
 
     X = np.column_stack([np.ones(4), np.array([0.0, 1.0, 2.0, 3.0])])
     y = ds.assay("beta")[0, :, 0]
@@ -459,11 +460,36 @@ def test_ols_voxelwise_matches_numpy_least_squares() -> None:
     cov = xtx_inv * sigma2
 
     assert out.metadata["reduce_method"] == "ols:voxelwise"
+    assert out.metadata["model"] == "GroupLinearModel"
+    assert out.metadata["formula"] == "~ 1 + age"
     np.testing.assert_allclose(out.assay("coef:Intercept")[0, 0, 0], expected_coef[0])
     np.testing.assert_allclose(out.assay("coef:age")[0, 0, 0], expected_coef[1])
     np.testing.assert_allclose(out.assay("sigma2")[0, 0, 0], sigma2)
     np.testing.assert_allclose(out.assay("se_coef:age")[0, 0, 0], np.sqrt(cov[1, 1]))
     assert "cov_tri:0" in out.assays
+
+
+def test_group_model_validates_predictor_surface() -> None:
+    assert group_model("age").formula == "~ 1 + age"
+    assert group_model("age", intercept=False).formula == "~ 0 + age"
+
+    with pytest.raises(AdapterContractError, match="simple column names"):
+        group_model("age + sex")
+    with pytest.raises(AdapterContractError, match="intercept"):
+        group_model(intercept=False)
+
+
+def test_ols_voxelwise_rejects_mixed_model_authoring() -> None:
+    ds = _meta_reg_dataset()
+
+    with pytest.raises(AdapterContractError, match="formula"):
+        ols_voxelwise(ds, model=group_model("age"), formula="~ 1 + age")
+    with pytest.raises(AdapterContractError, match="X="):
+        ols_voxelwise(
+            ds,
+            model=group_model("age"),
+            X=np.ones((ds.n_subjects, 1), dtype=np.float64),
+        )
 
 
 def test_ols_voxelwise_dispatches_from_registry() -> None:
@@ -590,7 +616,11 @@ def _lmm_slope_dataset():
         ]
     )
     beta = np.empty((2, len(subjects), len(contrasts)), dtype=np.float64)
-    beta[0, :, :] = np.outer(1.1 + b0, np.ones_like(time)) + np.outer(0.65 + b1, time) + eps1
+    beta[0, :, :] = (
+        np.outer(1.1 + b0, np.ones_like(time))
+        + np.outer(0.65 + b1, time)
+        + eps1
+    )
     beta[1, :, :] = (
         np.outer(-0.3 + 0.8 * b0, np.ones_like(time))
         + np.outer(0.95 + 1.3 * b1, time)
@@ -664,7 +694,9 @@ def test_lmm_ri_records_partial_voxelwise_fit_failures(monkeypatch) -> None:
     assert out.metadata["fit_attempted_features"] == 2
     assert out.metadata["fit_failed_features"] == 1
     assert out.metadata["fit_failed_feature_indices"] == (1,)
-    assert out.metadata["fit_failed_reasons"] == ("ValueError: Singular matrix fixture",)
+    assert out.metadata["fit_failed_reasons"] == (
+        "ValueError: Singular matrix fixture",
+    )
     np.testing.assert_allclose(out.assay("coef:condition")[0, 0, 0], 0.75)
     assert np.isnan(out.assay("coef:condition")[1, 0, 0])
     assert out.assay("converged")[0, 0, 0] == 1.0
@@ -702,7 +734,9 @@ def test_lmm_ri_slope1_records_partial_voxelwise_fit_failures(monkeypatch) -> No
     def fake_fit(y, X, groups, exog_re, *, reml, covariance="full"):
         calls.append(y.copy())
         if len(calls) == 2:
-            raise RuntimeError("Maximum likelihood optimization failed to converge fixture")
+            raise RuntimeError(
+                "Maximum likelihood optimization failed to converge fixture"
+            )
         return SimpleNamespace(
             fe_params=np.array([1.0, 0.5]),
             bse_fe=np.array([0.20, 0.25]),

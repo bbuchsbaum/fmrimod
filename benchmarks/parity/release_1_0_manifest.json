@@ -35,7 +35,7 @@
     {
       "family": "second-level/group inference",
       "benchmark_id": "tier_group_semantic_survival",
-      "required_public_path": "fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
+      "required_public_path": "fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> group_model -> ols_voxelwise",
       "release_family_class": "native_flagship",
       "current_status": "ready",
       "owner_bead": "bd-01KRHTJ9WFSSBZSDGAN4V7PHGS"
@@ -51,7 +51,7 @@
     {
       "family": "typed proof scorecard / underdog showcase",
       "benchmark_id": "tier_d_showcase",
-      "required_public_path": "fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
+      "required_public_path": "fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> group_model -> ols_voxelwise",
       "release_family_class": "native_flagship",
       "current_status": "ready",
       "owner_bead": "bd-01KRJ0PM9ERPJH7GX0PYYVY2NK"

@@ -410,7 +410,7 @@ def build_proof_scorecard(rows: list[ShowcaseRow]) -> ShowcaseProofScorecard:
         public_seam=True,
         fmrimod_path=(
             "fmri_dataset -> fmri_lm -> OmnibusContrast -> "
-            "ContrastResult.explain -> GroupDataset -> ols_voxelwise"
+            "ContrastResult.explain -> GroupDataset -> group_model -> ols_voxelwise"
         ),
         reference_path=(
             "Nilearn-compatible numerical oracles plus low-level exact "

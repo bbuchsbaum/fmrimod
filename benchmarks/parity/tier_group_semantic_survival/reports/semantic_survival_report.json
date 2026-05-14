@@ -74,12 +74,12 @@
   "name": "tier_group_semantic_survival",
   "status": "pass",
   "timings": {
-    "seconds": 0.10369549899999964,
+    "seconds": 0.27850279100000064,
     "stages": {
-      "first_level_seconds": 0.05210962499999994,
-      "group_dataset_seconds": 0.00018949999999984257,
-      "group_fit_seconds": 0.00116654099999991,
-      "load_inputs_seconds": 0.050229832999999946
+      "first_level_seconds": 0.20433100000000026,
+      "group_dataset_seconds": 0.0001897909999999392,
+      "group_fit_seconds": 0.0011652500000001176,
+      "load_inputs_seconds": 0.07281675000000032
     },
     "status": "recorded"
   }
