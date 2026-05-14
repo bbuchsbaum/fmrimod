@@ -207,13 +207,15 @@ available for migration code, but new code should prefer result methods.
 Writing Results
 ---------------
 
-R ``write_results()`` maps to ``fmrimod.write_results``. The Python function
-writes BIDS-style beta and contrast images. It needs a mask and affine either
-from the dataset adapter or from explicit arguments.
+R ``write_results()`` maps to ``fmrimod.write_results``, but the Python API is
+not a literal port. It is NIfTI-first and writes a manifest JSON that records
+every output file plus the column metadata needed to interpret bundled beta
+volumes. The writer needs a mask and affine either from the dataset adapter or
+from explicit arguments.
 
 .. code-block:: python
 
-   paths = fm.write_results(
+   manifest = fm.write_results(
        fit,
        "derivatives/fmrimod",
        subject="01",
@@ -223,7 +225,27 @@ from the dataset adapter or from explicit arguments.
        overwrite=True,
    )
 
-The writer refuses to overwrite existing files unless ``overwrite=True``.
+By default, task betas are written as one compact 4-D NIfTI bundle and contrast
+statistics are written as separate 3-D stat maps. Nuisance, drift, and
+intercept betas are not exported by default; request them explicitly when an
+audit trail needs the full design:
+
+.. code-block:: python
+
+   manifest = fm.write_results(
+       fit,
+       "derivatives/fmrimod",
+       subject="01",
+       task="localizer",
+       betas="all",
+       beta_groups=("task", "nuisance", "drift", "intercept"),
+   )
+
+``manifest.files`` lists the NIfTI outputs and each beta bundle includes a
+``volumes`` table mapping 4-D volume index to the original design column,
+role, condition, term, and basis metadata when available. The manifest is also
+written as ``*_manifest.json`` in the output directory. The writer refuses to
+overwrite existing files unless ``overwrite=True``.
 
 LSA and LSS
 -----------

@@ -1,9 +1,9 @@
 {
   "counts": {
-    "all_names": 204,
+    "all_names": 205,
     "any_in_signature": 5,
-    "callable": 202,
-    "classes": 21,
+    "callable": 203,
+    "classes": 22,
     "opaque_forwarder": 32
   },
   "fmrimod_version": "0.1.0",
@@ -394,6 +394,21 @@
       "opaque_forwarder": false,
       "owner_module": "fmrimod.glm.replay",
       "runtime_signature": "(diff: \"'SpecDiff'\", fit_a: \"'FmriLm'\", fit_b: \"'FmriLm'\", contrast_deltas: 'tuple[ContrastDelta, ...]', dropped_from_a: 'tuple[str, ...]' = (), dropped_from_b: 'tuple[str, ...]' = ()) -> None",
+      "signature_source": "inspect.signature",
+      "tier": "compat",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
+      "compatibility_status": "compat",
+      "has_any_in_signature": false,
+      "has_untagged_kwargs_dict": false,
+      "is_callable": true,
+      "is_class": true,
+      "is_function": false,
+      "name": "ResultsManifest",
+      "opaque_forwarder": false,
+      "owner_module": "fmrimod.io.results",
+      "runtime_signature": "(root: 'Path', manifest_path: 'Path', files: 'tuple[ManifestFile, ...]', entities: 'BidsEntities', schema_version: 'str' = 'fmrimod.results_manifest.v1', generated_at: 'str' = <factory>) -> None",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -3033,7 +3048,7 @@
       "name": "write_results",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.io.results",
-      "runtime_signature": "(result: 'object', output_dir: 'str | Path', *, subject: 'str', task: 'str', space: 'str' = 'MNI152NLin2009cAsym', run: 'Optional[str]' = None, desc: 'Optional[str]' = 'GLM', save_betas: 'bool' = True, save_contrasts: 'bool' = True, contrast_stats: 'Sequence[str]' = ('beta', 'tstat', 'pvalue', 'se'), mask: 'Optional[NDArray[np.bool_]]' = None, affine: 'Optional[NDArray[np.float64]]' = None, column_names: 'Optional[Sequence[str]]' = None, overwrite: 'bool' = False) -> 'list[Path]'",
+      "runtime_signature": "(result: 'object', output_dir: 'str | Path', *, subject: 'str', task: 'str', space: 'str' = 'MNI152NLin2009cAsym', run: 'str | None' = None, desc: 'str | None' = 'firstlevel', betas: 'BetaSelection' = 'task', beta_layout: \"Literal['4d']\" = '4d', beta_groups: 'Sequence[str]' = ('task',), contrasts: \"Literal['all'] | Sequence[str] | bool\" = 'all', stats: 'Sequence[str]' = ('effect', 'stat', 'se', 'pvalue'), save_betas: 'bool | None' = None, save_contrasts: 'bool | None' = None, contrast_stats: 'Sequence[str] | None' = None, mask: 'NDArray[np.bool_] | None' = None, affine: 'NDArray[np.float64] | None' = None, column_names: 'Sequence[str] | None' = None, overwrite: 'bool' = False) -> 'ResultsManifest'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"

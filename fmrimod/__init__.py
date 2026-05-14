@@ -367,6 +367,7 @@ def glm_lss(
         include_intercept=include_intercept,
     )
 
+
 # ── Bootstrap (lazy) ──────────────────────────────────────────────
 
 # ── Group data constructors (parity API) ────────────────────────
@@ -498,6 +499,7 @@ _LAZY_ATTRS: dict[str, tuple[str, str]] = {
     "replay_fits": ("fmrimod.glm", "replay_fits"),
     "ReplayContractError": ("fmrimod.glm", "ReplayContractError"),
     "ReplayResult": ("fmrimod.glm", "ReplayResult"),
+    "ResultsManifest": ("fmrimod.io", "ResultsManifest"),
     "read_fmri_config": ("fmrimod.dataset", "read_fmri_config"),
     "read_h5_full": ("fmrimod.dataset", "read_h5_full"),
     "read_nifti_full": ("fmrimod.dataset", "read_nifti_full"),
@@ -535,6 +537,7 @@ def __getattr__(name: str):  # PEP 562
         raise AttributeError(f"module 'fmrimod' has no attribute {name!r}")
     module_path, attr = entry
     from importlib import import_module
+
     value = getattr(import_module(module_path), attr)
     globals()[name] = value
     return value
@@ -750,6 +753,7 @@ __all__ = [
     "fmri_meta_fit_extended",
     "meta_effective_n",
     # Output helpers
+    "ResultsManifest",
     "write_results",
     "t_to_d",
     "r_to_z",
