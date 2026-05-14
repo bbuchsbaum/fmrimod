@@ -6,13 +6,14 @@ correlation matrices, and time series plots.
 
 from __future__ import annotations
 
-from typing import Optional, Tuple, List, Dict, Any, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import numpy as np
 import pandas as pd
 
 try:
-    import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
+    import matplotlib.pyplot as plt
     from matplotlib.colors import LinearSegmentedColormap
     HAS_MATPLOTLIB = True
 except ImportError:
