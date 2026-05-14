@@ -135,6 +135,14 @@ class FmriDataset:
         """The event table, or *None* if not set."""
         return self._event_table
 
+    def with_event_table(self, event_table: pd.DataFrame) -> "FmriDataset":
+        """Return this dataset with a replacement event table."""
+        return FmriDataset(
+            self._source,
+            event_table=event_table,
+            censor=self._censor,
+        )
+
     # -- Censoring --
 
     @property

@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -37,7 +38,23 @@ CLI_DERIVATIVE_AR_CONFIG = Ar1NilearnConfig(
 def _stats_model() -> dict:
     from examples.design.fitlins_style_first_level import FITLINS_STYLE_MODEL
 
-    return FITLINS_STYLE_MODEL
+    model = deepcopy(FITLINS_STYLE_MODEL)
+    node = model["Nodes"][0]
+    node["Transformations"] = [
+        {"Name": "Factor", "Input": ["trial_type"]},
+        {"Name": "Scale", "Input": ["rt"], "Output": "rt_z"},
+        {
+            "Name": "Product",
+            "Input": ["trial_type.word", "trial_type.pseudoword", "rt_z"],
+            "Output": "trial_type_rt_z",
+        },
+        {
+            "Name": "Convolve",
+            "Input": ["trial_type.word", "trial_type.pseudoword"],
+            "Model": "spm",
+        },
+    ]
+    return model
 
 
 def _fitlins_cli_stats_model() -> dict:
@@ -103,6 +120,7 @@ def _inputs() -> dict:
                 "word" if idx % 2 == 0 else "pseudoword"
                 for idx in range(len(np.arange(8.0, 200.0, 12.0)))
             ],
+            "rt": rng.uniform(0.55, 1.25, size=len(np.arange(8.0, 200.0, 12.0))),
         }
     )
     confounds = pd.DataFrame(
@@ -142,12 +160,22 @@ def translated_pipeline(inputs: dict) -> PipelineOutput:
 
 
 def manual_pipeline(inputs: dict) -> PipelineOutput:
-    event_model = fm.event_model(
-        "hrf(trial_type)",
-        data=inputs["events"],
-        sampling_frame=inputs["sampling_frame"],
+    from fmrimod.spec import compile_events, hrf, intercept
+
+    events = inputs["events"].copy()
+    rt = events["rt"].to_numpy(dtype=np.float64)
+    events["rt_z"] = (rt - float(np.nanmean(rt))) / float(np.nanstd(rt, ddof=0))
+    spec = (
+        hrf("trial_type", basis="spm", durations="duration", modulators=["rt_z"])
+        + intercept(per="none")
+    )
+    event_model = compile_events(
+        spec,
+        events,
+        inputs["sampling_frame"],
         block="run",
         durations="duration",
+        precision=None,
     )
     baseline = fm.baseline_model(
         basis="constant",

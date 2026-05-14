@@ -60,6 +60,36 @@ def _stats_model() -> dict:
     }
 
 
+def _modulated_stats_model() -> dict:
+    model = _stats_model()
+    node = model["Nodes"][0]
+    node["Transformations"] = [
+        {"Name": "Factor", "Input": ["trial_type"]},
+        {"Name": "Scale", "Input": ["rt"], "Output": "rt_z"},
+        {
+            "Name": "Product",
+            "Input": ["trial_type.word", "trial_type.pseudoword", "rt_z"],
+            "Output": "trial_type_rt_z",
+        },
+        {
+            "Name": "Convolve",
+            "Input": ["trial_type.word", "trial_type.pseudoword"],
+            "Model": "spm",
+        },
+    ]
+    node["Model"] = {
+        "X": [
+            "trial_type.word",
+            "trial_type.pseudoword",
+            "rt_z",
+            "framewise_displacement",
+            "trans_x",
+            1,
+        ]
+    }
+    return model
+
+
 def test_translate_run_node_builds_design_and_contrasts():
     n_scans = 40
     sampling_frame = fm.SamplingFrame(blocklens=[n_scans], tr=2.0)
@@ -75,6 +105,7 @@ def test_translate_run_node_builds_design_and_contrasts():
         {
             "framewise_displacement": np.linspace(0.0, 1.0, n_scans),
             "trans_x": np.linspace(1.0, 0.0, n_scans),
+            "physio": np.cos(np.linspace(0.0, 1.0, n_scans)),
         }
     )
 
@@ -160,6 +191,105 @@ def test_translate_run_node_exposes_typed_model_and_contrast_artifacts():
     assert "task_omnibus" not in translated.contrast_vectors
 
 
+def test_translate_run_node_realises_scale_product_parametric_modulator():
+    n_scans = 40
+    sampling_frame = fm.SamplingFrame(blocklens=[n_scans], tr=2.0)
+    events = pd.DataFrame(
+        {
+            "run": 1,
+            "onset": [4.0, 12.0, 20.0, 28.0],
+            "duration": [1.0, 1.0, 1.0, 1.0],
+            "trial_type": ["word", "pseudoword", "word", "pseudoword"],
+            "rt": [0.70, 1.10, 0.85, 1.25],
+        }
+    )
+    confounds = pd.DataFrame(
+        {
+            "framewise_displacement": np.linspace(0.0, 1.0, n_scans),
+            "trans_x": np.linspace(1.0, 0.0, n_scans),
+        }
+    )
+
+    translated = translate_run_node(
+        _modulated_stats_model(),
+        events=events,
+        sampling_frame=sampling_frame,
+        confounds=confounds,
+    )
+
+    assert isinstance(translated.model_spec, Spec)
+    hrf_term = translated.model_spec.events[0]
+    assert isinstance(hrf_term, HrfTerm)
+    assert hrf_term.modulators == ("rt_z",)
+    assert "rt_z" in translated.event_table
+    assert "rt_z" not in events
+    expected_rt_z = (
+        events["rt"].to_numpy(dtype=np.float64)
+        - float(np.nanmean(events["rt"].to_numpy(dtype=np.float64)))
+    ) / float(np.nanstd(events["rt"].to_numpy(dtype=np.float64), ddof=0))
+    np.testing.assert_allclose(translated.event_table["rt_z"], expected_rt_z)
+    assert len(translated.event_model.column_names) == 4
+    assert any("rt_z" in name for name in translated.event_model.column_names)
+    assert "word_gt_pseudoword" in translated.contrast_vectors
+
+
+def test_modulated_bids_translation_fit_uses_transformed_event_table():
+    n_scans = 40
+    sampling_frame = fm.SamplingFrame(blocklens=[n_scans], tr=2.0)
+    events = pd.DataFrame(
+        {
+            "run": 1,
+            "onset": [4.0, 12.0, 20.0, 28.0],
+            "duration": [1.0, 1.0, 1.0, 1.0],
+            "trial_type": ["word", "pseudoword", "word", "pseudoword"],
+            "rt": [0.70, 1.10, 0.85, 1.25],
+        }
+    )
+    confounds = pd.DataFrame(
+        {
+            "framewise_displacement": np.linspace(0.0, 1.0, n_scans),
+            "trans_x": np.sin(np.linspace(0.0, 1.0, n_scans)),
+            "physio": np.cos(np.linspace(0.0, 1.0, n_scans)),
+        }
+    )
+    translated = translate_run_node(
+        _modulated_stats_model(),
+        events=events,
+        sampling_frame=sampling_frame,
+        confounds=confounds,
+    )
+    legacy_design = np.column_stack(
+        [
+            translated.event_model.design_matrix,
+            translated.baseline_model.design_matrix,
+        ]
+    )
+    beta = np.zeros((legacy_design.shape[1], 3), dtype=np.float64)
+    beta[translated.column_names.index("trial_type_trial_type.word"), :] = 0.6
+    beta[translated.column_names.index("trial_type_trial_type.pseudoword"), :] = -0.1
+    modulated_word_ix = next(
+        idx
+        for idx, name in enumerate(translated.column_names)
+        if "rt_z" in name
+    )
+    beta[modulated_word_ix, :] = 0.3
+    rng = np.random.default_rng(23)
+    bold = legacy_design @ beta + rng.normal(0.0, 0.03, size=(n_scans, 3))
+
+    dataset = fm.fmri_dataset(bold, tr=2.0, events=events)
+    fit = translated.fit(dataset)
+
+    np.testing.assert_allclose(
+        fit.model.design_matrix_array(),
+        legacy_design,
+        rtol=1e-12,
+        atol=1e-12,
+    )
+    result = translated.contrast(fit, "word_gt_pseudoword")
+    assert result.stat_type == "t"
+    assert result.intent.kind == "bids_stats_model"
+
+
 def test_translate_run_node_rejects_ambiguous_flat_f_weights():
     model = _stats_model()
     model["Nodes"][0]["Contrasts"] = [
@@ -197,3 +327,135 @@ def test_translate_run_node_rejects_ambiguous_flat_f_weights():
             sampling_frame=sampling_frame,
             confounds=confounds,
         )
+
+
+def test_translated_bids_artifacts_drive_public_lm_contrast_path():
+    n_scans = 40
+    sampling_frame = fm.SamplingFrame(blocklens=[n_scans], tr=2.0)
+    events = pd.DataFrame(
+        {
+            "run": 1,
+            "onset": [4.0, 12.0, 20.0, 28.0],
+            "duration": [1.0, 1.0, 1.0, 1.0],
+            "trial_type": ["word", "pseudoword", "word", "pseudoword"],
+        }
+    )
+    confounds = pd.DataFrame(
+        {
+            "framewise_displacement": np.linspace(0.0, 1.0, n_scans),
+            "trans_x": np.sin(np.linspace(0.0, 1.0, n_scans)),
+        }
+    )
+    translated = translate_run_node(
+        _stats_model(),
+        events=events,
+        sampling_frame=sampling_frame,
+        confounds=confounds,
+    )
+    legacy_design = np.column_stack(
+        [
+            translated.event_model.design_matrix,
+            translated.baseline_model.design_matrix,
+        ]
+    )
+    beta = np.zeros((legacy_design.shape[1], 4), dtype=np.float64)
+    beta[translated.column_names.index("trial_type_trial_type.word"), :] = 0.8
+    beta[translated.column_names.index("trial_type_trial_type.pseudoword"), :] = -0.2
+    rng = np.random.default_rng(17)
+    bold = legacy_design @ beta + rng.normal(0.0, 0.05, size=(n_scans, 4))
+
+    dataset = fm.fmri_dataset(bold, tr=2.0, events=events)
+    fit = translated.fit(dataset)
+
+    np.testing.assert_allclose(
+        fit.model.design_matrix_array(),
+        legacy_design,
+        rtol=1e-12,
+        atol=1e-12,
+    )
+    results = translated.compute_contrasts(fit)
+
+    assert set(results) == {
+        "word_gt_pseudoword",
+        "task_omnibus",
+    }
+    assert results["word_gt_pseudoword"].stat_type == "t"
+    assert results["word_gt_pseudoword"].intent.kind == "bids_stats_model"
+    assert results["word_gt_pseudoword"].intent.term == "trial_type"
+    assert results["word_gt_pseudoword"].intent.levels == ("word", "pseudoword")
+    assert results["task_omnibus"].stat_type == "F"
+    assert results["task_omnibus"].intent.kind == "bids_stats_model"
+
+    manual_t = fit.contrast(
+        translated.contrast_vectors["word_gt_pseudoword"],
+        name="manual_word_gt_pseudoword",
+    )
+    manual_f = fit.contrast(
+        translated.contrast_matrices["task_omnibus"],
+        name="manual_task_omnibus",
+    )
+    np.testing.assert_allclose(results["word_gt_pseudoword"].stat, manual_t.stat)
+    np.testing.assert_allclose(results["task_omnibus"].stat, manual_f.stat)
+
+
+def test_scale_product_modulator_fits_through_public_seam_with_transformed_events():
+    n_scans = 40
+    sampling_frame = fm.SamplingFrame(blocklens=[n_scans], tr=2.0)
+    events = pd.DataFrame(
+        {
+            "run": 1,
+            "onset": [4.0, 12.0, 20.0, 28.0],
+            "duration": [1.0, 1.0, 1.0, 1.0],
+            "trial_type": ["word", "pseudoword", "word", "pseudoword"],
+            "rt": [0.5, 0.7, 0.6, 1.2],
+        }
+    )
+    confounds = pd.DataFrame(
+        {
+            "framewise_displacement": np.linspace(0.0, 1.0, n_scans),
+            "trans_x": np.sin(np.linspace(0.0, 1.0, n_scans)),
+        }
+    )
+
+    translated = translate_run_node(
+        _modulated_stats_model(),
+        events=events,
+        sampling_frame=sampling_frame,
+        confounds=confounds,
+    )
+
+    hrf_term = translated.model_spec.events[0]
+    assert hrf_term.modulators == ("rt_z",)
+    assert "rt_z" not in events.columns
+    assert "rt_z" in translated.event_table.columns
+    assert any(
+        isinstance(term, Confounds)
+        and term.columns == ("framewise_displacement", "trans_x")
+        for term in translated.model_spec.baseline
+    )
+
+    legacy_design = np.column_stack(
+        [
+            translated.event_model.design_matrix,
+            translated.baseline_model.design_matrix,
+        ]
+    )
+    beta = np.zeros((legacy_design.shape[1], 3), dtype=np.float64)
+    beta[0, :] = -0.25
+    beta[1, :] = 0.7
+    beta[2, :] = 0.2
+    rng = np.random.default_rng(23)
+    bold = legacy_design @ beta + rng.normal(0.0, 0.05, size=(n_scans, 3))
+    dataset = fm.fmri_dataset(bold, tr=2.0, events=events)
+
+    fit = translated.fit(dataset)
+    np.testing.assert_allclose(
+        fit.model.design_matrix_array(),
+        legacy_design,
+        rtol=1e-12,
+        atol=1e-12,
+    )
+    result = translated.contrast(fit, "word_gt_pseudoword")
+
+    assert result.intent.kind == "bids_stats_model"
+    assert result.stat_type == "t"
