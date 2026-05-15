@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from functools import singledispatch
-from typing import TYPE_CHECKING, Any, List, Optional, Union
+from typing import TYPE_CHECKING, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -431,7 +431,7 @@ def durations(x, **kwargs: object) -> Union[np.ndarray, List[float]]:
 
 
 @singledispatch
-def elements(x, what: str = "values", transformed: bool = True, **kwargs: object) -> Any:
+def elements(x, what: str = "values", transformed: bool = True, **kwargs: object) -> Union[np.ndarray, List[str]]:
     """Extract elements (values or labels) from an event object.
 
     Parameters
@@ -647,7 +647,7 @@ def event_terms(x, **kwargs: object) -> list[EventTerm]:
 
 
 @singledispatch
-def construct(x, *args, **kwargs: object) -> Any:
+def construct(x, *args: object, **kwargs: object) -> object:
     """Construct a model component from a specification object.
 
     Materializes a specification (e.g., ``NuisanceSpec``,
