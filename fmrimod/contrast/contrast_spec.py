@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import warnings
 from itertools import combinations
-from typing import Any, Callable, Dict, List, Mapping, Optional, Union
+from typing import Callable, Dict, List, Mapping, Optional, Union
 
 
 # Simple placeholder for Formula type
@@ -27,10 +27,10 @@ class Formula:
 # original strict type; ``dict`` / ``str`` are the ergonomic v1 conveniences;
 # ``callable`` is the escape hatch (stored on the Formula object's ``_fn``
 # attribute, resolved later when contrast weights are computed).
-Predicate = Union[Formula, str, Mapping[str, Any], Callable[..., Any]]
+Predicate = Union[Formula, str, Mapping[str, object], Callable[..., object]]
 
 
-def _dict_to_predicate_string(d: Mapping[str, Any]) -> str:
+def _dict_to_predicate_string(d: Mapping[str, object]) -> str:
     """Render a ``{column: value}`` dict as a Python-evaluable predicate.
 
     Multi-key dicts are joined with ``&`` (AND).  String values are quoted.
@@ -55,7 +55,7 @@ def _to_formula(predicate: Predicate, *, arg_name: str = "predicate") -> Formula
 
     - :class:`Formula` — returned unchanged.
     - ``str`` — wrapped as ``Formula(expr)``.
-    - ``Mapping[str, Any]`` — rendered to a string predicate via
+    - ``Mapping[str, object]`` — rendered to a string predicate via
       :func:`_dict_to_predicate_string` and wrapped.
     - ``callable`` — wrapped in a Formula with the callable attached as
       ``_fn``; the contrast-weights resolver should evaluate it against the
