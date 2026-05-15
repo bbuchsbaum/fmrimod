@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import warnings
 from functools import wraps
+from typing import Any
 
 from numpy.typing import NDArray
 
@@ -21,11 +22,11 @@ from .plan import (
 
 @wraps(_plan_from_phi)
 def plan_from_phi(
-    phi: NDArray | list[NDArray],
-    theta: NDArray | list[NDArray] | None = None,
+    phi: NDArray[Any] | list[NDArray[Any]],
+    theta: NDArray[Any] | list[NDArray[Any]] | None = None,
     *,
-    runs: NDArray | None = None,
-    parcels: NDArray | None = None,
+    runs: NDArray[Any] | None = None,
+    parcels: NDArray[Any] | None = None,
     pooling: str = "global",
     exact_first: bool = True,
     method: str | None = None,
@@ -50,13 +51,13 @@ def plan_from_phi(
 
 @wraps(_whiten_with_phi)
 def whiten_with_phi(
-    X: NDArray,
-    Y: NDArray,
-    phi: NDArray | list[NDArray],
-    theta: NDArray | list[NDArray] | None = None,
+    X: NDArray[Any],
+    Y: NDArray[Any],
+    phi: NDArray[Any] | list[NDArray[Any]],
+    theta: NDArray[Any] | list[NDArray[Any]] | None = None,
     *,
-    runs: NDArray | None = None,
-    parcels: NDArray | None = None,
+    runs: NDArray[Any] | None = None,
+    parcels: NDArray[Any] | None = None,
     pooling: str = "global",
     exact_first: bool = False,
 ) -> WhitenResult:

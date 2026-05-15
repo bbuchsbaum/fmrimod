@@ -8,7 +8,7 @@
       },
       "compat": {
         "total": 65,
-        "with_any_annotation": 0,
+        "with_any_annotation": 2,
         "with_var_kwargs": 8
       },
       "internal": {
@@ -25,7 +25,7 @@
     "files_scanned": 230,
     "parse_failures": 0,
     "total_functions": 2341,
-    "with_any_annotation": 283,
+    "with_any_annotation": 285,
     "with_var_args_any": 4,
     "with_var_kwargs": 162
   },
@@ -734,12 +734,12 @@
     },
     {
       "coercion_exemption": null,
-      "endlineno": 48,
-      "has_any_annotation": false,
+      "endlineno": 49,
+      "has_any_annotation": true,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 23,
+      "lineno": 24,
       "module": "fmrimod.ar.compat",
       "owner_bead": null,
       "qualname": "plan_from_phi",
@@ -747,12 +747,12 @@
     },
     {
       "coercion_exemption": null,
-      "endlineno": 79,
-      "has_any_annotation": false,
+      "endlineno": 80,
+      "has_any_annotation": true,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 52,
+      "lineno": 53,
       "module": "fmrimod.ar.compat",
       "owner_bead": null,
       "qualname": "whiten_with_phi",
