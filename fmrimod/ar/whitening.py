@@ -41,9 +41,9 @@ def ar_whiten(
 
     Parameters
     ----------
-    x : NDArray
+    x : NDArray[np.float64]
         Input array.  Shape ``(n,)`` or ``(n, V)``.
-    phi : NDArray
+    phi : NDArray[np.float64]
         AR coefficients, shape ``(p,)``.
     exact_first_ar1 : bool
         If ``True`` and *phi* is AR(1), scale the first sample by
@@ -52,7 +52,7 @@ def ar_whiten(
 
     Returns
     -------
-    NDArray
+    NDArray[np.float64]
         Whitened array, same shape as *x* but with the first *p*
         rows replaced by their pre-whitened versions.
     """
@@ -94,11 +94,11 @@ def ar_whiten_matrix(
 
     Parameters
     ----------
-    X : NDArray
+    X : NDArray[np.float64]
         Design matrix, shape ``(n, p)``.
-    Y : NDArray
+    Y : NDArray[np.float64]
         Data matrix, shape ``(n, V)``.
-    phi : NDArray
+    phi : NDArray[np.float64]
         AR coefficients.  Shape ``(ar_order,)`` for global or
         ``(ar_order, V)`` for voxelwise.
     exact_first_ar1 : bool
@@ -108,7 +108,7 @@ def ar_whiten_matrix(
 
     Returns
     -------
-    X_w, Y_w : tuple of NDArray
+    X_w, Y_w : tuple of NDArray[np.float64]
         Whitened design and data matrices.
     """
     phi = np.asarray(phi, dtype=np.float64)
@@ -148,14 +148,14 @@ def ar_covariance_matrix(
 
     Parameters
     ----------
-    phi : NDArray
+    phi : NDArray[np.float64]
         AR coefficients, shape ``(p,)``.
     n : int
         Matrix dimension (number of timepoints).
 
     Returns
     -------
-    NDArray
+    NDArray[np.float64]
         Covariance matrix, shape ``(n, n)``.
     """
     p = len(phi)
@@ -173,7 +173,7 @@ def ar_covariance_matrix(
             r[k] += phi[j] * r[k - j - 1]
 
     # Build Toeplitz matrix
-    return linalg.toeplitz(r)
+    return cast("NDArray[np.float64]", linalg.toeplitz(r))
 
 
 # ---------------------------------------------------------------------------
@@ -181,24 +181,24 @@ def ar_covariance_matrix(
 # ---------------------------------------------------------------------------
 
 def _arma_whiten_segments_numba_core(
-    y: NDArray,
-    phi: NDArray,
-    theta: NDArray,
-    seg_starts: NDArray,
+    y: NDArray[np.float64],
+    phi: NDArray[np.float64],
+    theta: NDArray[np.float64],
+    seg_starts: NDArray[np.float64],
     do_exact: bool,
-) -> NDArray:
+) -> NDArray[np.float64]:
     """Placeholder numba backend symbol for monkeypatching in tests."""
     raise RuntimeError("Numba ARMA backend unavailable")
 
 if _USE_NUMBA_ARMA:
     @njit(cache=True)  # type: ignore[untyped-decorator]
     def _arma_whiten_segments_numba_core(
-        y: NDArray,
-        phi: NDArray,
-        theta: NDArray,
-        seg_starts: NDArray,
+        y: NDArray[np.float64],
+        phi: NDArray[np.float64],
+        theta: NDArray[np.float64],
+        seg_starts: NDArray[np.float64],
         do_exact: bool,
-    ) -> NDArray:
+    ) -> NDArray[np.float64]:
         """Numba core for segment-aware ARMA whitening."""
         n, v = y.shape
         p = phi.shape[0]
@@ -239,12 +239,12 @@ if _USE_NUMBA_ARMA:
         return out
 
 def arma_whiten_segments(
-    y: NDArray,
-    phi: NDArray,
-    theta: NDArray,
-    seg_starts: NDArray,
+    y: NDArray[np.float64],
+    phi: NDArray[np.float64],
+    theta: NDArray[np.float64],
+    seg_starts: NDArray[np.float64],
     exact_first_ar1: bool = False,
-) -> NDArray:
+) -> NDArray[np.float64]:
     """Apply ARMA whitening filter with segment resets.
 
     At each segment boundary the filter state is reset so that
@@ -252,13 +252,13 @@ def arma_whiten_segments(
 
     Parameters
     ----------
-    y : NDArray
+    y : NDArray[np.float64]
         Input array, shape ``(n,)`` or ``(n, V)``.
-    phi : NDArray
+    phi : NDArray[np.float64]
         AR coefficients, shape ``(p,)``.
-    theta : NDArray
+    theta : NDArray[np.float64]
         MA coefficients, shape ``(q,)``.
-    seg_starts : NDArray
+    seg_starts : NDArray[np.float64]
         0-based segment start indices (must include 0).
     exact_first_ar1 : bool
         If ``True`` and ``p == 1, q == 0``, multiply the first sample
@@ -266,7 +266,7 @@ def arma_whiten_segments(
 
     Returns
     -------
-    NDArray
+    NDArray[np.float64]
         Whitened array, same shape as *y*.
     """
     phi = np.asarray(phi, dtype=np.float64).ravel()
@@ -347,7 +347,7 @@ def arma_whiten_segments(
     return out
 
 
-def _sub_run_starts(n_run: int, censor_rel: NDArray) -> NDArray:
+def _sub_run_starts(n_run: int, censor_rel: NDArray[Any]) -> NDArray[np.intp]:
     """Compute 0-based sub-run starts from relative censor indices."""
     starts = [0]
     if len(censor_rel) > 0:
@@ -357,7 +357,7 @@ def _sub_run_starts(n_run: int, censor_rel: NDArray) -> NDArray:
     return np.array(starts, dtype=np.intp)
 
 
-def _full_run_starts(runs: NDArray, censor: Optional[NDArray], n: int) -> NDArray:
+def _full_run_starts(runs: NDArray[np.float64], censor: Optional[NDArray[np.float64]], n: int) -> NDArray[np.float64]:
     """Merge run boundaries and censor gaps into segment starts."""
     starts = {0}
     if runs is not None:
@@ -374,12 +374,12 @@ def _full_run_starts(runs: NDArray, censor: Optional[NDArray], n: int) -> NDArra
 
 def whiten_apply(
     plan: "WhiteningPlan",
-    X: NDArray,
-    Y: NDArray,
+    X: NDArray[np.float64],
+    Y: NDArray[np.float64],
     *,
-    runs: Optional[NDArray] = None,
-    censor: Optional[NDArray] = None,
-    parcels: Optional[NDArray] = None,
+    runs: Optional[NDArray[np.float64]] = None,
+    censor: Optional[NDArray[np.float64]] = None,
+    parcels: Optional[NDArray[np.float64]] = None,
 ) -> "WhitenResult":
     """Apply a whitening plan to design and data matrices.
 
@@ -387,15 +387,15 @@ def whiten_apply(
     ----------
     plan : WhiteningPlan
         Plan from :func:`~fmrimod.ar.estimation.fit_noise`.
-    X : NDArray
+    X : NDArray[np.float64]
         Design matrix, shape ``(n, k)``.
-    Y : NDArray
+    Y : NDArray[np.float64]
         Data matrix, shape ``(n, V)``.
-    runs : NDArray, optional
+    runs : NDArray[np.float64], optional
         Run labels (overrides plan's runs).
-    censor : NDArray, optional
+    censor : NDArray[np.float64], optional
         0-based censor indices (overrides plan's censor).
-    parcels : NDArray, optional
+    parcels : NDArray[np.float64], optional
         Parcel labels (overrides plan's parcels).
 
     Returns
@@ -436,7 +436,7 @@ def whiten_apply(
         theta_by = plan.theta_by_parcel or {}
 
         Yw = np.empty_like(Y)
-        X_by: Dict[str, NDArray] = {}
+        X_by: Dict[str, NDArray[np.float64]] = {}
 
         for pid in (plan.parcel_ids or sorted(phi_by.keys())):
             key = str(pid)
@@ -539,11 +539,11 @@ def whiten_apply(
 
 
 def whiten(
-    X: NDArray,
-    Y: NDArray,
+    X: NDArray[np.float64],
+    Y: NDArray[np.float64],
     *,
-    runs: Optional[NDArray] = None,
-    censor: Optional[NDArray] = None,
+    runs: Optional[NDArray[np.float64]] = None,
+    censor: Optional[NDArray[np.float64]] = None,
     **fit_kwargs: object,
 ) -> "WhitenResult":
     """Fit noise model and apply whitening in one call.
@@ -554,11 +554,11 @@ def whiten(
 
     Parameters
     ----------
-    X, Y : NDArray
+    X, Y : NDArray[np.float64]
         Design and data matrices.
-    runs : NDArray, optional
+    runs : NDArray[np.float64], optional
         Run labels.
-    censor : NDArray, optional
+    censor : NDArray[np.float64], optional
         0-based censor indices.
     **fit_kwargs
         Additional arguments passed to ``fit_noise()``.
