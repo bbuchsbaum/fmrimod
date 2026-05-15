@@ -7,7 +7,7 @@ and design matrices.
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional, Pattern, Union
+from typing import Any, Dict, List, Optional, Pattern, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -18,12 +18,12 @@ from .types import Array
 
 
 def regressors(
-    model,
-    term: Optional[Union[str, Pattern, List[str]]] = None,
+    model: Any,
+    term: Optional[Union[str, "Pattern[str]", List[str]]] = None,
     include_baseline: bool = True,
     as_dict: bool = False,
-    hrf=None,
-    sampling_frame=None,
+    hrf: Any = None,
+    sampling_frame: Any = None,
     precision: float = 0.3,
 ) -> Union[Array, pd.DataFrame, Dict[str, Array]]:
     """Extract regressors from an event model or event term.
@@ -84,8 +84,11 @@ def regressors(
     # Dispatch on EventTerm
     from .events.term import EventTerm
     if isinstance(model, EventTerm):
-        return _regressors_event_term(
-            model, hrf=hrf, sampling_frame=sampling_frame, precision=precision
+        return cast(
+            "Union[Array, pd.DataFrame, Dict[str, Array]]",
+            _regressors_event_term(
+                model, hrf=hrf, sampling_frame=sampling_frame, precision=precision
+            ),
         )
 
     # Get full design matrix and column names
@@ -112,6 +115,7 @@ def regressors(
         col_indices = []
 
         # Convert term to list for uniform processing
+        terms: List[Any]
         if isinstance(term, str):
             terms = [term]
         elif isinstance(term, Pattern):
@@ -146,8 +150,7 @@ def regressors(
                 )
 
         # Remove duplicates while preserving order
-        seen = set()
-        col_indices = [i for i in col_indices if not (i in seen or seen.add(i))]
+        col_indices = list(dict.fromkeys(col_indices))
 
         # Apply baseline filter if needed
         if not include_baseline:
@@ -184,7 +187,7 @@ def regressors(
 
 def regressor_names(
     model: EventModel,
-    term: Optional[Union[str, Pattern, List[str]]] = None,
+    term: Optional[Union[str, "Pattern[str]", List[str]]] = None,
     include_baseline: bool = True
 ) -> List[str]:
     """Get names of regressors matching criteria.
@@ -216,7 +219,7 @@ def regressor_names(
     """
     # Use regressors() to get the selection, then extract names
     reg_df = regressors(model, term=term, include_baseline=include_baseline, as_dict=False)
-    return list(reg_df.columns)
+    return list(cast(pd.DataFrame, reg_df).columns)
 
 
 def term_regressors(
@@ -251,7 +254,7 @@ def term_regressors(
     >>> # Get as DataFrames
     >>> term_dfs = term_regressors(model, as_dict=False)
     """
-    result = {}
+    result: Dict[str, Any] = {}
     X = model.design_matrix
     col_names = model.column_names
     model_col_indices = getattr(model, 'column_indices', {}) or {}
@@ -286,7 +289,7 @@ def term_regressors(
                 term_regs = regressors(model, term=term_name, include_baseline=False, as_dict=as_dict)
                 if as_dict and term_regs:
                     result[term_name] = term_regs
-                elif not as_dict and not term_regs.empty:
+                elif not as_dict and not cast(pd.DataFrame, term_regs).empty:
                     result[term_name] = term_regs
             except ValueError:
                 continue
@@ -294,7 +297,12 @@ def term_regressors(
     return result
 
 
-def _regressors_event_term(event_term, hrf=None, sampling_frame=None, precision=0.3):
+def _regressors_event_term(
+    event_term: Any,
+    hrf: Any = None,
+    sampling_frame: Any = None,
+    precision: float = 0.3,
+) -> Any:
     """Convolve a single event term with HRF and sampling frame.
 
     Parameters
@@ -318,7 +326,11 @@ def _regressors_event_term(event_term, hrf=None, sampling_frame=None, precision=
 
     try:
         with suppress_fmrimod_warnings():
-            from . import regressor as _regressor_module
+            # Import the callable directly: `from . import regressor` is
+            # ambiguous (fmrimod/__init__ rebinds the name to the function,
+            # shadowing the subpackage) — runtime resolves the submodule but
+            # mypy resolves the function. Direct import agrees both ways.
+            from .regressor import regressor as _regressor_func
             from .hrf import library as _hrf_library
     except ImportError as err:
         raise ImportError(
@@ -326,6 +338,7 @@ def _regressors_event_term(event_term, hrf=None, sampling_frame=None, precision=
         ) from err
 
     # Resolve HRF
+    hrf_obj: Any
     if hrf is None:
         hrf_obj = _hrf_library.SPM_CANONICAL
     elif isinstance(hrf, str):
@@ -366,7 +379,7 @@ def _regressors_event_term(event_term, hrf=None, sampling_frame=None, precision=
     for j in range(n_dm_cols):
         amplitudes = dm[:, j]
         # Create regressor and evaluate on grid
-        reg = _regressor_module.regressor(
+        reg = _regressor_func(
             onsets=onsets_arr,
             hrf=hrf_obj,
             duration=durations_arr,
