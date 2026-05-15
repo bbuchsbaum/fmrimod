@@ -9,7 +9,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal, Protocol, Union, cast
+from typing import Any, Literal, Protocol, Union, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -426,8 +426,9 @@ def _write_4d_nifti(
 ) -> None:
     import nibabel as nib
 
-    img = nib.Nifti1Image(data, affine=np.asarray(affine, dtype=np.float64))
-    nib.save(img, str(path))
+    nib_any = cast(Any, nib)
+    img = nib_any.Nifti1Image(data, affine=np.asarray(affine, dtype=np.float64))
+    nib_any.save(img, str(path))
 
 
 def _column_records(
