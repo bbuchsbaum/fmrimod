@@ -145,12 +145,12 @@ def _load_func() -> Any:
 
 
 def arma_whiten_segments_c(
-    y: NDArray,
-    phi: NDArray,
-    theta: NDArray,
-    seg_starts: NDArray,
+    y: NDArray[np.float64],
+    phi: NDArray[np.float64],
+    theta: NDArray[np.float64],
+    seg_starts: NDArray[Any],
     do_exact: bool,
-) -> Optional[NDArray]:
+) -> Optional[NDArray[np.float64]]:
     """Run C backend whitening. Returns None when backend is unavailable."""
     fn = _load_func()
     if fn is None:
