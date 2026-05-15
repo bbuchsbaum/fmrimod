@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Optional, Protocol, Sequence, cast
 
 import numpy as np
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -13,6 +13,31 @@ else:
     Axes = Any
 
 from .hrf.core import HRF
+
+
+class _RegressorLike(Protocol):
+    """Duck-typed view of fmrimod.regressor.Regressor for plot helpers.
+
+    Names the attributes the plotting helpers read so the module's typed
+    seam doesn't have to import the concrete Regressor class at runtime.
+    ``hrf`` is intentionally Any because the underlying type is either a
+    single HRF or a Sequence[HRF], distinguished by ``hrf_is_list``; the
+    branch logic lives in the plotting body, not in the protocol.
+    """
+
+    onsets: NDArray[np.float64]
+    span: float
+    hrf: Any
+
+    @property
+    def hrf_is_list(self) -> bool: ...
+
+    def evaluate(
+        self,
+        grid: NDArray[np.float64],
+        *,
+        precision: float = ...,
+    ) -> NDArray[np.float64]: ...
 
 
 def plot_hrf(
@@ -50,16 +75,17 @@ def plot_hrf(
 
     if normalize:
         for i in range(vals.shape[1]):
-            mx = np.max(np.abs(vals[:, i]))
+            mx: float = float(np.max(np.abs(vals[:, i])))
             if mx > 0:
                 vals[:, i] /= mx
 
     if ax is None:
         _, ax = plt.subplots()
 
+    plot_kwargs = cast("dict[str, Any]", kwargs)
     for i in range(vals.shape[1]):
         label = f"{hrf.name}" if vals.shape[1] == 1 else f"{hrf.name} [{i}]"
-        ax.plot(time, vals[:, i], label=label, **kwargs)
+        ax.plot(time, vals[:, i], label=label, **plot_kwargs)
 
     if show_peak and vals.shape[1] == 1:
         peak_idx = int(np.argmax(vals[:, 0]))
@@ -125,15 +151,16 @@ def plot_hrfs(
     if ax is None:
         _, ax = plt.subplots()
 
+    plot_kwargs = cast("dict[str, Any]", kwargs)
     for hrf, label in zip(hrfs, labels):
         vals = hrf(time)
         if vals.ndim == 2:
             vals = vals[:, 0]
         if normalize:
-            mx = np.max(np.abs(vals))
+            mx: float = float(np.max(np.abs(vals)))
             if mx > 0:
                 vals = vals / mx
-        ax.plot(time, vals, label=label, **kwargs)
+        ax.plot(time, vals, label=label, **plot_kwargs)
 
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Amplitude")
@@ -144,7 +171,7 @@ def plot_hrfs(
 
 
 def plot_regressor(
-    reg,
+    reg: _RegressorLike,
     grid: Optional[ArrayLike] = None,
     precision: float = 0.33,
     show_onsets: bool = True,
@@ -182,9 +209,10 @@ def plot_regressor(
         _, ax = plt.subplots()
 
     hrf_name = reg.hrf[0].name if reg.hrf_is_list else reg.hrf.name
+    plot_kwargs = cast("dict[str, Any]", kwargs)
     for i in range(vals.shape[1]):
         label = hrf_name if vals.shape[1] == 1 else f"{hrf_name} [{i}]"
-        ax.plot(grid, vals[:, i], label=label, **kwargs)
+        ax.plot(grid, vals[:, i], label=label, **plot_kwargs)
 
     if show_onsets and len(reg.onsets) > 0:
         for onset in reg.onsets:
@@ -200,7 +228,7 @@ def plot_regressor(
 
 
 def plot_regressors(
-    *regs,
+    *regs: _RegressorLike,
     grid: Optional[ArrayLike] = None,
     precision: float = 0.33,
     labels: Optional[Sequence[str]] = None,
@@ -245,11 +273,12 @@ def plot_regressors(
     if ax is None:
         _, ax = plt.subplots()
 
+    plot_kwargs = cast("dict[str, Any]", kwargs)
     for reg, label in zip(regs, labels):
         vals = reg.evaluate(grid, precision=precision)
         if vals.ndim == 2:
             vals = vals[:, 0]
-        ax.plot(grid, vals, label=label, **kwargs)
+        ax.plot(grid, vals, label=label, **plot_kwargs)
 
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Predicted response")
