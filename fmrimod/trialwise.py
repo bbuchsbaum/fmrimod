@@ -21,7 +21,7 @@ def trialwise(
     nbasis: int = 1,
     add_sum: bool = False,
     label: str = "trial",
-    durations: Optional[Any] = None,
+    durations: Optional[object] = None,
     normalize: bool = False,
 ) -> Term:
     """Generate one regressor per trial (plus an optional grand-mean column).

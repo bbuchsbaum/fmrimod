@@ -275,9 +275,9 @@ class CacheMixin:
     
     def __init__(self):
         """Initialize cache."""
-        self._cache: Dict[str, Any] = {}
+        self._cache: Dict[str, object] = {}
     
-    def _get_cached(self, key: str, compute_func, *args, **kwargs) -> Any:
+    def _get_cached(self, key: str, compute_func, *args: object, **kwargs: object) -> object:
         """Get cached value or compute it.
         
         Parameters

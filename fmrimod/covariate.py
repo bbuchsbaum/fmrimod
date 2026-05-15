@@ -301,7 +301,7 @@ def covariate(
 def create_covariate_events(
     data: pd.DataFrame,
     covariate_names: List[str],
-    sampling_info: Any,
+    sampling_info: object,
     prefix: Optional[str] = None
 ) -> Dict[str, CovariateEvent]:
     """Create covariate events from data.
