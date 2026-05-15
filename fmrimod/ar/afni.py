@@ -14,7 +14,7 @@ from numpy.typing import NDArray
 from .plan import WhiteningPlan
 
 
-def afni_phi_ar3(a: float, r1: float, t1: float) -> NDArray:
+def afni_phi_ar3(a: float, r1: float, t1: float) -> NDArray[np.float64]:
     """Convert AFNI AR(3) root parameters to AR coefficients.
 
     Parameters
@@ -43,7 +43,7 @@ def afni_phi_ar3(a: float, r1: float, t1: float) -> NDArray:
 
 def afni_phi_ar5(
     a: float, r1: float, t1: float, r2: float, t2: float
-) -> NDArray:
+) -> NDArray[np.float64]:
     """Convert AFNI AR(5) root parameters to AR coefficients.
 
     Parameters
@@ -80,12 +80,12 @@ def afni_phi_ar5(
 
 
 def afni_restricted_plan(
-    resid: NDArray,
+    resid: NDArray[np.float64],
     *,
     p: int = 3,
     roots: object = None,
-    runs: Optional[NDArray] = None,
-    parcels: Optional[NDArray] = None,
+    runs: Optional[NDArray[Any]] = None,
+    parcels: Optional[NDArray[Any]] = None,
     estimate_ma1: bool = True,
     exact_first: bool = True,
 ) -> WhiteningPlan:
