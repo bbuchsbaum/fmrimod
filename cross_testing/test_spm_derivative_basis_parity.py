@@ -1,0 +1,31 @@
+"""SPM + temporal derivative basis parity case against Nilearn."""
+
+from __future__ import annotations
+
+import pytest
+
+from cross_testing.harness import render, run
+
+pytestmark = pytest.mark.parity
+
+pytest.importorskip("nilearn")
+pytest.importorskip("nibabel")
+
+
+def test_spm_derivative_basis_case_passes_and_renders(tmp_path):
+    try:
+        from benchmarks.parity.tier_a_spm_derivative_basis.workflow import make_case
+    except Exception as exc:  # pragma: no cover - import environment guard
+        pytest.skip(f"SPM derivative parity dependencies unavailable: {exc}")
+
+    try:
+        result = run(make_case(max_voxels=2048))
+    except Exception as exc:
+        pytest.skip(f"SPM auditory dataset unavailable: {exc}")
+
+    assert result.status == "pass"
+    assert all(delta.passes for delta in result.deltas.values())
+
+    json_path, md_path = render(result, tmp_path)
+    assert json_path.exists()
+    assert md_path.exists()

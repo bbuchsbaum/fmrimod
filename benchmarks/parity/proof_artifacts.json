@@ -2,65 +2,6 @@
   "schema_version": "parity-proof-artifacts/v1",
   "artifacts": [
     {
-      "benchmark_id": "tier_a_spm_auditory",
-      "evidence_level": "flagship_workflow",
-      "public_seam": true,
-      "workflow_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py",
-      "report_path": "benchmarks/parity/tier_a_spm_auditory/reports/parity_report.json",
-      "reference_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::nilearn_pipeline",
-      "fmrimod_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> contrast via SemanticContrast -> contrast_receipt",
-      "realized_design_source": "fmrimod",
-      "caveats": [],
-      "hardware_tag": "Darwin-arm64-arm",
-      "timings": {
-        "status": "recorded",
-        "seconds": 0.09398716600000023,
-        "stages": {
-          "contrast_seconds": 0.005215375000000133,
-          "dataset_seconds": 0.017075041000000013,
-          "fit_seconds": 0.07169675000000009
-        },
-        "source": "benchmarks/parity/tier_a_spm_auditory/reports/parity_report.json"
-      },
-      "typed_objects": [
-        "fmrimod.dataset.FmriDataset",
-        "fmrimod.spec.HrfTerm",
-        "fmrimod.glm.FmriLm",
-        "fmrimod.contrast.SemanticContrast",
-        "fmrimod.glm.ContrastResult"
-      ],
-      "fmrimod_expresses_better": "The user-facing path keeps HRF normalization, dataset construction, fitting, and contrast evaluation as typed inspectable objects instead of a stateful FirstLevelModel call.",
-      "claim_axes": {
-        "typed_design_authoring": "full",
-        "typed_contrast_authoring": "full",
-        "native_public_seam": "full",
-        "interop_bridge": false,
-        "diagnostics": "fit_and_contrast_receipts",
-        "performance": "recorded"
-      },
-      "ux_status": "full",
-      "ux_blockers": [],
-      "callsite_receipts": [
-        "benchmarks/parity/tier_a_spm_auditory/workflow.py:166",
-        "benchmarks/parity/tier_a_spm_auditory/workflow.py:174",
-        "benchmarks/parity/tier_a_spm_auditory/workflow.py:177"
-      ],
-      "receipt": {
-        "status": "regenerable",
-        "command": [
-          "python",
-          "-m",
-          "benchmarks.parity.tier_a_spm_auditory.workflow"
-        ],
-        "checks": [
-          "report_path",
-          "status",
-          "caveats",
-          "contrast_receipt"
-        ]
-      }
-    },
-    {
       "benchmark_id": "tier_a_f_confound_drift",
       "evidence_level": "workflow_parity",
       "public_seam": true,
@@ -116,140 +57,6 @@
           "benchmarks.parity.tier_a_f_confound_drift.public_workflow",
           "--out-dir",
           "benchmarks/parity/tier_a_f_confound_drift/reports_public"
-        ],
-        "checks": [
-          "report_path",
-          "status",
-          "caveats"
-        ]
-      }
-    },
-    {
-      "benchmark_id": "tier_group_semantic_survival",
-      "evidence_level": "flagship_workflow",
-      "public_seam": true,
-      "workflow_path": "benchmarks/parity/tier_group_semantic_survival/workflow.py",
-      "report_path": "benchmarks/parity/tier_group_semantic_survival/reports/semantic_survival_report.json",
-      "reference_path": "not_applicable: semantic-survival artifact built on the strict tier_a_f_confound_drift numerical oracle",
-      "fmrimod_path": "benchmarks/parity/tier_group_semantic_survival/workflow.py::run_demo: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> group_model -> ols_voxelwise",
-      "realized_design_source": "fmrimod",
-      "caveats": [],
-      "hardware_tag": "Darwin-arm64-arm",
-      "timings": {
-        "status": "recorded",
-        "seconds": 0.27850279100000064,
-        "stages": {
-          "first_level_seconds": 0.20433100000000026,
-          "group_dataset_seconds": 0.0001897909999999392,
-          "group_fit_seconds": 0.0011652500000001176,
-          "load_inputs_seconds": 0.07281675000000032
-        },
-        "source": "benchmarks/parity/tier_group_semantic_survival/reports/semantic_survival_report.json"
-      },
-      "typed_objects": [
-        "fmrimod.dataset.FmriDataset",
-        "fmrimod.design.DesignColumns",
-        "fmrimod.contrast.OmnibusContrast",
-        "fmrimod.glm.ContrastResult",
-        "fmrimod.group.GroupDataset",
-        "fmrimod.group.GroupLinearModel"
-      ],
-      "fmrimod_expresses_better": "The authored F hypothesis remains visible as OmnibusContrast intent, resolved design columns, a structured ContrastResult explanation, and contrast_data on the group object instead of becoming anonymous coefficient rows.",
-      "claim_axes": {
-        "typed_design_authoring": "full",
-        "typed_contrast_authoring": "full",
-        "native_public_seam": "full",
-        "interop_bridge": false,
-        "diagnostics": "semantic_survival",
-        "performance": "recorded",
-        "group_model_authoring": "typed_group_model"
-      },
-      "ux_status": "full",
-      "ux_blockers": [],
-      "callsite_receipts": [
-        "benchmarks/parity/tier_group_semantic_survival/workflow.py:99",
-        "benchmarks/parity/tier_group_semantic_survival/workflow.py:103",
-        "benchmarks/parity/tier_group_semantic_survival/workflow.py:126",
-        "benchmarks/parity/tier_group_semantic_survival/workflow.py:143"
-      ],
-      "receipt": {
-        "status": "regenerable",
-        "command": [
-          "python",
-          "-m",
-          "benchmarks.parity.tier_group_semantic_survival.workflow",
-          "--out-dir",
-          "benchmarks/parity/tier_group_semantic_survival/reports"
-        ],
-        "checks": [
-          "report_path",
-          "status",
-          "caveats"
-        ]
-      }
-    },
-    {
-      "benchmark_id": "tier_a_fiac",
-      "evidence_level": "workflow_parity",
-      "public_seam": true,
-      "workflow_path": "benchmarks/parity/tier_a_fiac/workflow.py",
-      "report_path": "benchmarks/parity/tier_a_fiac/reports/parity_report.json",
-      "reference_path": "benchmarks/parity/tier_a_fiac/workflow.py::nilearn_pipeline",
-      "fmrimod_path": "benchmarks/parity/tier_a_fiac/workflow.py::fmrimod_pipeline: fmri_dataset -> RealizedDesign(source='nilearn') -> fmri_lm -> combine_runs -> column_contrast",
-      "realized_design_source": "nilearn",
-      "caveats": [],
-      "hardware_tag": "Darwin-arm64-arm",
-      "performance_stage": "tier_a_fiac",
-      "typed_objects": [
-        "fmrimod.dataset.FmriDataset",
-        "fmrimod.design.RealizedDesign",
-        "fmrimod.glm.FmriLm",
-        "fmrimod.glm.CombinedFmriLm",
-        "fmrimod.contrast.ColumnContrastSpec",
-        "fmrimod.contrast.ContrastResult"
-      ],
-      "fmrimod_expresses_better": "The 2x2 factorial main effects (sentence_effect, speaker_effect) resolve as typed column_contrast patterns against the realised design rather than hand-built weight vectors, and the per-run designs flow through RealizedDesign(source='nilearn') so the Nilearn provenance survives the fmri_dataset -> fmri_lm -> combine_runs seam. This is an interop/provenance receipt, not native design-authoring UX.",
-      "claim_axes": {
-        "typed_design_authoring": "interop",
-        "typed_contrast_authoring": "column_provenance",
-        "native_public_seam": "bridge",
-        "interop_bridge": true,
-        "diagnostics": "provenance",
-        "performance": "recorded"
-      },
-      "ux_status": "interop_bridge",
-      "ux_blockers": [
-        "FIAC still consumes Nilearn-realized design matrices instead of authoring the event model natively in fmrimod"
-      ],
-      "callsite_receipts": [
-        "benchmarks/parity/tier_a_fiac/workflow.py:177",
-        "benchmarks/parity/tier_a_fiac/workflow.py:187",
-        "benchmarks/parity/tier_a_fiac/workflow.py:207"
-      ],
-      "timings": {
-        "seconds": 2.1142703760000003,
-        "stages": {
-          "fmrimod_combine_seconds": 2.5250000000198725e-05,
-          "fmrimod_contrast_seconds": 0.003040541999999924,
-          "fmrimod_masker_seconds": 0.09241316699999969,
-          "fmrimod_run1_dataset_seconds": 0.2076667080000001,
-          "fmrimod_run1_design_seconds": 7.299999999998974e-05,
-          "fmrimod_run1_fit_seconds": 0.04012062500000013,
-          "fmrimod_run2_dataset_seconds": 0.20497925000000006,
-          "fmrimod_run2_design_seconds": 6.191700000002243e-05,
-          "fmrimod_run2_fit_seconds": 0.0025535000000003194,
-          "load_inputs_seconds": 0.28987808300000006,
-          "nilearn_pipeline_seconds": 1.2734583339999999
-        },
-        "status": "recorded",
-        "source": "benchmarks/parity/tier_a_fiac/reports/parity_report.json"
-      },
-      "receipt": {
-        "status": "regenerable",
-        "command": [
-          "python",
-          "-m",
-          "benchmarks.parity.tier_a_fiac.workflow"
         ],
         "checks": [
           "report_path",
@@ -383,6 +190,76 @@
       }
     },
     {
+      "benchmark_id": "tier_a_fiac",
+      "evidence_level": "workflow_parity",
+      "public_seam": true,
+      "workflow_path": "benchmarks/parity/tier_a_fiac/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_fiac/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_fiac/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_fiac/workflow.py::fmrimod_pipeline: fmri_dataset -> RealizedDesign(source='nilearn') -> fmri_lm -> combine_runs -> column_contrast",
+      "realized_design_source": "nilearn",
+      "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
+      "performance_stage": "tier_a_fiac",
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.design.RealizedDesign",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.glm.CombinedFmriLm",
+        "fmrimod.contrast.ColumnContrastSpec",
+        "fmrimod.contrast.ContrastResult"
+      ],
+      "fmrimod_expresses_better": "The 2x2 factorial main effects (sentence_effect, speaker_effect) resolve as typed column_contrast patterns against the realised design rather than hand-built weight vectors, and the per-run designs flow through RealizedDesign(source='nilearn') so the Nilearn provenance survives the fmri_dataset -> fmri_lm -> combine_runs seam. This is an interop/provenance receipt, not native design-authoring UX.",
+      "claim_axes": {
+        "typed_design_authoring": "interop",
+        "typed_contrast_authoring": "column_provenance",
+        "native_public_seam": "bridge",
+        "interop_bridge": true,
+        "diagnostics": "provenance",
+        "performance": "recorded"
+      },
+      "ux_status": "interop_bridge",
+      "ux_blockers": [
+        "FIAC still consumes Nilearn-realized design matrices instead of authoring the event model natively in fmrimod"
+      ],
+      "callsite_receipts": [
+        "benchmarks/parity/tier_a_fiac/workflow.py:177",
+        "benchmarks/parity/tier_a_fiac/workflow.py:187",
+        "benchmarks/parity/tier_a_fiac/workflow.py:207"
+      ],
+      "timings": {
+        "seconds": 2.1142703760000003,
+        "stages": {
+          "fmrimod_combine_seconds": 2.5250000000198725e-05,
+          "fmrimod_contrast_seconds": 0.003040541999999924,
+          "fmrimod_masker_seconds": 0.09241316699999969,
+          "fmrimod_run1_dataset_seconds": 0.2076667080000001,
+          "fmrimod_run1_design_seconds": 7.299999999998974e-05,
+          "fmrimod_run1_fit_seconds": 0.04012062500000013,
+          "fmrimod_run2_dataset_seconds": 0.20497925000000006,
+          "fmrimod_run2_design_seconds": 6.191700000002243e-05,
+          "fmrimod_run2_fit_seconds": 0.0025535000000003194,
+          "load_inputs_seconds": 0.28987808300000006,
+          "nilearn_pipeline_seconds": 1.2734583339999999
+        },
+        "status": "recorded",
+        "source": "benchmarks/parity/tier_a_fiac/reports/parity_report.json"
+      },
+      "receipt": {
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_a_fiac.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ]
+      }
+    },
+    {
       "benchmark_id": "tier_a_fir_unconstrained_hrf",
       "evidence_level": "workflow_parity",
       "public_seam": true,
@@ -435,6 +312,72 @@
           "python",
           "-m",
           "benchmarks.parity.tier_a_fir_unconstrained_hrf.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier_a_localizer_fixed_effects",
+      "evidence_level": "workflow_parity",
+      "public_seam": true,
+      "workflow_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_localizer_fixed_effects/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> contrast via RealizedDesign(source='nilearn')",
+      "realized_design_source": "nilearn",
+      "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
+      "performance_stage": "tier_a_localizer_fixed_effects",
+      "timings": {
+        "status": "recorded",
+        "seconds": 1.1200084990000003,
+        "stages": {
+          "fmrimod_contrast_seconds": 0.0013190829999998321,
+          "fmrimod_dataset_seconds": 0.012205457999999947,
+          "fmrimod_design_seconds": 8.175000000010257e-05,
+          "fmrimod_fit_seconds": 0.03179091699999992,
+          "fmrimod_reference_design_seconds": 0.2818261249999998,
+          "load_inputs_seconds": 0.35658429100000033,
+          "nilearn_pipeline_seconds": 0.4362008750000004
+        },
+        "source": "benchmarks/parity/tier_a_localizer_fixed_effects/reports/parity_report.json"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.design.RealizedDesign",
+        "fmrimod.design.DesignColumns",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.glm.FitProvenance",
+        "fmrimod.glm.ContrastResult"
+      ],
+      "fmrimod_expresses_better": "The externally realized Nilearn design enters as a typed RealizedDesign with DesignColumns and source provenance, so the public fmri_dataset -> fmri_lm seam can fit and contrast it without raw matrix helpers. This is an interop/provenance receipt, not native localizer design-authoring UX.",
+      "claim_axes": {
+        "typed_design_authoring": "interop",
+        "typed_contrast_authoring": "column_provenance",
+        "native_public_seam": "bridge",
+        "interop_bridge": true,
+        "diagnostics": "provenance",
+        "performance": "recorded"
+      },
+      "ux_status": "interop_bridge",
+      "ux_blockers": [
+        "localizer still fits Nilearn's realized design instead of authoring the first-level design natively in fmrimod"
+      ],
+      "callsite_receipts": [
+        "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py:151",
+        "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py:160",
+        "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py:165"
+      ],
+      "receipt": {
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_a_localizer_fixed_effects.workflow"
         ],
         "checks": [
           "report_path",
@@ -655,68 +598,121 @@
       }
     },
     {
-      "benchmark_id": "tier_a_localizer_fixed_effects",
-      "evidence_level": "workflow_parity",
+      "benchmark_id": "tier_a_spm_auditory",
+      "evidence_level": "flagship_workflow",
       "public_seam": true,
-      "workflow_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py",
-      "report_path": "benchmarks/parity/tier_a_localizer_fixed_effects/reports/parity_report.json",
-      "reference_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py::nilearn_pipeline",
-      "fmrimod_path": "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> contrast via RealizedDesign(source='nilearn')",
-      "realized_design_source": "nilearn",
+      "workflow_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_spm_auditory/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_spm_auditory/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm -> contrast via SemanticContrast -> contrast_receipt",
+      "realized_design_source": "fmrimod",
       "caveats": [],
       "hardware_tag": "Darwin-arm64-arm",
-      "performance_stage": "tier_a_localizer_fixed_effects",
       "timings": {
         "status": "recorded",
-        "seconds": 1.1200084990000003,
+        "seconds": 0.09398716600000023,
         "stages": {
-          "fmrimod_contrast_seconds": 0.0013190829999998321,
-          "fmrimod_dataset_seconds": 0.012205457999999947,
-          "fmrimod_design_seconds": 8.175000000010257e-05,
-          "fmrimod_fit_seconds": 0.03179091699999992,
-          "fmrimod_reference_design_seconds": 0.2818261249999998,
-          "load_inputs_seconds": 0.35658429100000033,
-          "nilearn_pipeline_seconds": 0.4362008750000004
+          "contrast_seconds": 0.005215375000000133,
+          "dataset_seconds": 0.017075041000000013,
+          "fit_seconds": 0.07169675000000009
         },
-        "source": "benchmarks/parity/tier_a_localizer_fixed_effects/reports/parity_report.json"
+        "source": "benchmarks/parity/tier_a_spm_auditory/reports/parity_report.json"
       },
       "typed_objects": [
         "fmrimod.dataset.FmriDataset",
-        "fmrimod.design.RealizedDesign",
-        "fmrimod.design.DesignColumns",
+        "fmrimod.spec.HrfTerm",
         "fmrimod.glm.FmriLm",
-        "fmrimod.glm.FitProvenance",
+        "fmrimod.contrast.SemanticContrast",
         "fmrimod.glm.ContrastResult"
       ],
-      "fmrimod_expresses_better": "The externally realized Nilearn design enters as a typed RealizedDesign with DesignColumns and source provenance, so the public fmri_dataset -> fmri_lm seam can fit and contrast it without raw matrix helpers. This is an interop/provenance receipt, not native localizer design-authoring UX.",
+      "fmrimod_expresses_better": "The user-facing path keeps HRF normalization, dataset construction, fitting, and contrast evaluation as typed inspectable objects instead of a stateful FirstLevelModel call.",
       "claim_axes": {
-        "typed_design_authoring": "interop",
-        "typed_contrast_authoring": "column_provenance",
-        "native_public_seam": "bridge",
-        "interop_bridge": true,
-        "diagnostics": "provenance",
+        "typed_design_authoring": "full",
+        "typed_contrast_authoring": "full",
+        "native_public_seam": "full",
+        "interop_bridge": false,
+        "diagnostics": "fit_and_contrast_receipts",
         "performance": "recorded"
       },
-      "ux_status": "interop_bridge",
-      "ux_blockers": [
-        "localizer still fits Nilearn's realized design instead of authoring the first-level design natively in fmrimod"
-      ],
+      "ux_status": "full",
+      "ux_blockers": [],
       "callsite_receipts": [
-        "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py:151",
-        "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py:160",
-        "benchmarks/parity/tier_a_localizer_fixed_effects/workflow.py:165"
+        "benchmarks/parity/tier_a_spm_auditory/workflow.py:166",
+        "benchmarks/parity/tier_a_spm_auditory/workflow.py:174",
+        "benchmarks/parity/tier_a_spm_auditory/workflow.py:177"
       ],
       "receipt": {
         "status": "regenerable",
         "command": [
           "python",
           "-m",
-          "benchmarks.parity.tier_a_localizer_fixed_effects.workflow"
+          "benchmarks.parity.tier_a_spm_auditory.workflow"
         ],
         "checks": [
           "report_path",
           "status",
-          "caveats"
+          "caveats",
+          "contrast_receipt"
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier_a_spm_derivative_basis",
+      "evidence_level": "workflow_parity",
+      "public_seam": true,
+      "workflow_path": "benchmarks/parity/tier_a_spm_derivative_basis/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_spm_derivative_basis/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_spm_derivative_basis/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_spm_derivative_basis/workflow.py::fmrimod_pipeline: fmri_dataset -> fmri_lm(hrf(basis='spmg2', norm='spm')) -> contrast via SemanticContrast(basis_ix=1) -> contrast_receipt",
+      "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
+      "performance_stage": "tier_a_spm_derivative_basis",
+      "timings": {
+        "seconds": 0.11986500100000042,
+        "stages": {
+          "contrast_seconds": 0.0054588340000001345,
+          "dataset_seconds": 0.02559400000000034,
+          "fit_seconds": 0.08881216699999994
+        },
+        "status": "recorded",
+        "source": "benchmarks/parity/tier_a_spm_derivative_basis/reports/parity_report.json"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.spec.HrfTerm",
+        "fmrimod.hrf.SPMG2_HRF",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.contrast.SemanticContrast",
+        "fmrimod.glm.ContrastResult"
+      ],
+      "fmrimod_expresses_better": "The informed-basis-set expansion (canonical + temporal derivative) is selected by a typed HRF kind (basis='spmg2') and the canonical-side contrast is pinned by SemanticContrast(condition(..., basis_ix=1)) \u2014 multi-basis contrast intent is recorded in the contrast receipt rather than implied by column position.",
+      "claim_axes": {
+        "typed_design_authoring": "full",
+        "typed_contrast_authoring": "full",
+        "native_public_seam": "full",
+        "interop_bridge": false,
+        "diagnostics": "fit_and_contrast_receipts",
+        "performance": "recorded"
+      },
+      "ux_status": "full",
+      "ux_blockers": [],
+      "callsite_receipts": [
+        "benchmarks/parity/tier_a_spm_derivative_basis/workflow.py:202",
+        "benchmarks/parity/tier_a_spm_derivative_basis/workflow.py:210",
+        "benchmarks/parity/tier_a_spm_derivative_basis/workflow.py:222"
+      ],
+      "receipt": {
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_a_spm_derivative_basis.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats",
+          "contrast_receipt"
         ]
       }
     },
@@ -845,6 +841,174 @@
       }
     },
     {
+      "benchmark_id": "tier_d_ar2_robust",
+      "evidence_level": "numerical_canary",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py",
+      "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_canaries.json",
+      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_ar_robust_showcase",
+      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_ar_robust_showcase: estimate_ar + huber_weights",
+      "caveats": [],
+      "replacement_target": {
+        "description": "Promote AR(p) and robust refit into a public dataset/model workflow receipt instead of a low-level residual canary.",
+        "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
+        "blocking_api_gap": "Public typed AR/robust model configuration and reportable contrast output are not yet wired through fmri_dataset -> fmri_lm."
+      }
+    },
+    {
+      "benchmark_id": "tier_d_lss_trialwise",
+      "evidence_level": "workflow_parity",
+      "public_seam": true,
+      "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py",
+      "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json",
+      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_lss_public_seam_showcase ground-truth recovery oracle and tier_d_lss_trialwise_oracle matrix exactness canary",
+      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_lss_public_seam_showcase + run_lss_public_seam_independent_generative: fmri_dataset -> estimate_single_trial_from_dataset -> typed SingleTrialResult",
+      "realized_design_source": "fmrimod",
+      "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.single.SingleTrialResult",
+        "fmrimod.single.estimate_single_trial_from_dataset"
+      ],
+      "fmrimod_expresses_better": "The public-seam wrapper takes only the dataset and a string spec ('trialwise()' or 'trialwise(basis=...)' ) and returns a typed SingleTrialResult carrying per-trial betas plus recovered trial_labels; the call site never reaches into the realised design matrix and never builds a per-trial weight vector by hand. The matrix oracle (tier_d_lss_trialwise_oracle) survives as a numerical canary beneath this public-seam row. The remaining ergonomic gap is that the single-trial model itself is still authored as a string spec.",
+      "claim_axes": {
+        "typed_design_authoring": "string_spec",
+        "typed_contrast_authoring": "not_applicable_single_trial",
+        "native_public_seam": "partial",
+        "interop_bridge": false,
+        "diagnostics": "single_trial_result_labels",
+        "performance": "recorded",
+        "single_trial_authoring": "string_spec"
+      },
+      "ux_status": "partial",
+      "ux_blockers": [
+        "estimate_single_trial_from_dataset currently takes 'trialwise()' / 'trialwise(basis=...)' string specs instead of a typed trialwise value"
+      ],
+      "callsite_receipts": [
+        "benchmarks/parity/tier_d_showcase/workflow.py:194",
+        "benchmarks/parity/tier_d_showcase/workflow.py:252"
+      ],
+      "timings": {
+        "status": "recorded",
+        "seconds": 0.003164666937664151,
+        "stages": {
+          "public_seam_lss_seconds": 0.0016486249514855444,
+          "independent_generative_lss_seconds": 0.0015160419861786067
+        },
+        "source": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json"
+      },
+      "receipt": {
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_d_showcase.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier_d_lss_trialwise_oracle",
+      "evidence_level": "numerical_canary",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py",
+      "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_canaries.json",
+      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::_lss_reference",
+      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_lss_showcase: estimate_single_trial",
+      "caveats": [],
+      "replacement_target": {
+        "description": "Matrix LSS exactness check stays as the oracle beneath the public-seam tier_d_lss_trialwise row; promoting this canary itself is not in scope.",
+        "owner_bead": "bd-01KRKAEDBE9BV5HZ5SY0A3ZAA5",
+        "blocking_api_gap": "The matrix-first call site exists for algebraic drift detection; the public-seam flagship is the sibling tier_d_lss_trialwise row pointing at run_lss_public_seam_showcase."
+      }
+    },
+    {
+      "benchmark_id": "tier_d_showcase",
+      "evidence_level": "flagship_workflow",
+      "public_seam": true,
+      "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py",
+      "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json",
+      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::_lss_reference and exact GLM helpers plus tier_group_semantic_survival oracle",
+      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::render: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> group_model -> ols_voxelwise",
+      "realized_design_source": "fmrimod",
+      "caveats": [],
+      "hardware_tag": "Darwin-arm64-arm",
+      "performance_stage": "tier_d_showcase",
+      "timings": {
+        "status": "recorded",
+        "seconds": 0.09773583299999977,
+        "stages": {
+          "first_level_seconds": 0.018393042000000026,
+          "group_dataset_seconds": 0.00017104099999976086,
+          "group_fit_seconds": 0.0005860840000000422,
+          "load_inputs_seconds": 0.07858566599999994
+        },
+        "source": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json"
+      },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.spec.Spec",
+        "fmrimod.contrast.OmnibusContrast",
+        "fmrimod.glm.FmriLm",
+        "fmrimod.glm.ContrastResult",
+        "fmrimod.group.GroupDataset",
+        "fmrimod.group.GroupLinearModel"
+      ],
+      "fmrimod_expresses_better": "The showcase report carries only public-seam evidence: LSS rows through dataset/spec wrappers, semantic survival of typed contrast intent into a GroupDataset, typed group_model authoring, recorded timing, caveats, and win-axis fields instead of a loose numeric demo table. Low-level Tier D canaries are classified as separate numerical-canary artifacts. The aggregate still inherits the LSS string-spec UX gap from its component rows.",
+      "claim_axes": {
+        "typed_design_authoring": "aggregate_mixed",
+        "typed_contrast_authoring": "aggregate_mixed",
+        "native_public_seam": "partial",
+        "interop_bridge": false,
+        "diagnostics": "proof_scorecard",
+        "performance": "recorded",
+        "group_model_authoring": "typed_group_model",
+        "single_trial_authoring": "string_spec"
+      },
+      "ux_status": "aggregate_partial",
+      "ux_blockers": [
+        "LSS public row still authors trialwise() as a string spec rather than a typed trialwise value"
+      ],
+      "callsite_receipts": [
+        "benchmarks/parity/tier_d_showcase/workflow.py:389",
+        "benchmarks/parity/tier_d_showcase/workflow.py:410",
+        "benchmarks/parity/tier_d_showcase/workflow.py:448"
+      ],
+      "receipt": {
+        "status": "regenerable",
+        "command": [
+          "python",
+          "-m",
+          "benchmarks.parity.tier_d_showcase.workflow"
+        ],
+        "checks": [
+          "report_path",
+          "status",
+          "caveats"
+        ]
+      }
+    },
+    {
+      "benchmark_id": "tier_d_sketched_glm",
+      "evidence_level": "numerical_canary",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py",
+      "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_canaries.json",
+      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_sketched_glm_showcase exact fast_lm_matrix comparison",
+      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_sketched_glm_showcase: fit_sketched",
+      "caveats": [],
+      "replacement_target": {
+        "description": "Promote sketched GLM into a public typed engine option with an end-to-end dataset/spec/contrast receipt.",
+        "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
+        "blocking_api_gap": "Low-rank engine selection is still demonstrated as a matrix-level capability rather than a typed fmri_lm engine option."
+      }
+    },
+    {
       "benchmark_id": "tier_e_adversarial_gauntlet",
       "evidence_level": "numerical_canary",
       "public_seam": false,
@@ -857,82 +1021,6 @@
         "description": "Promote any observed fmrimod boundary that survives review into a public-seam caveat or solver fix, and convert the survivable case to fmri_dataset -> fmri_lm once typed stress-design construction exists.",
         "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
         "blocking_api_gap": "no typed stress-design constructor; fast_preproject + fast_lm_matrix bypass fmri_lm."
-      }
-    },
-    {
-      "benchmark_id": "tier_e_reparameterization_invariance",
-      "evidence_level": "numerical_canary",
-      "public_seam": false,
-      "workflow_path": "benchmarks/parity/tier_e_reparameterization_invariance/workflow.py",
-      "report_path": "benchmarks/parity/tier_e_reparameterization_invariance/reports/reparameterization_invariance_report.json",
-      "reference_path": "benchmarks/parity/tier_e_reparameterization_invariance/workflow.py::_nilearn_once",
-      "fmrimod_path": "benchmarks/parity/tier_e_reparameterization_invariance/workflow.py::_fmrimod_once: fast_preproject -> fast_lm_matrix -> contrast_t",
-      "caveats": [],
-      "replacement_target": {
-        "description": "Promote surviving reparameterization-invariance probes into a public-seam fmri_dataset -> fmri_lm stress receipt once typed design transforms and contrast remapping are available.",
-        "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
-        "blocking_api_gap": "no typed design transforms / contrast remapping for stress probes; fast_preproject + fast_lm_matrix bypass fmri_lm."
-      }
-    },
-    {
-      "benchmark_id": "tier_e_parametric_centering",
-      "evidence_level": "workflow_parity",
-      "public_seam": true,
-      "workflow_path": "benchmarks/parity/tier_e_parametric_centering/workflow.py",
-      "report_path": "benchmarks/parity/tier_e_parametric_centering/reports/centering_stress_report.json",
-      "reference_path": "benchmarks/parity/tier_e_parametric_centering/workflow.py::nilearn_probe",
-      "fmrimod_path": "benchmarks/parity/tier_e_parametric_centering/workflow.py::fmrimod_probe: fmri_dataset -> fmri_lm -> contrast",
-      "caveats": [],
-      "hardware_tag": "Darwin-arm64-arm",
-      "performance_stage": "tier_e_parametric_centering",
-      "timings": {
-        "status": "recorded",
-        "seconds": 0.02443891594884917,
-        "stages": {
-          "global_centering_case_seconds": 0.00808562501333654,
-          "load_inputs_seconds": 0.007842290971893817,
-          "within_condition_case_seconds": 0.008510999963618815
-        },
-        "source": "benchmarks/parity/tier_e_parametric_centering/reports/centering_stress_report.json"
-      },
-      "typed_objects": [
-        "fmrimod.dataset.FmriDataset",
-        "fmrimod.spec.HrfTerm",
-        "fmrimod.design.DesignColumns",
-        "fmrimod.glm.FmriLm",
-        "fmrimod.glm.ContrastResult"
-      ],
-      "fmrimod_expresses_better": "The RT modulator, centering column, and task levels remain inspectable through typed fmrimod design objects; the Nilearn reference sees the same GLM only after the design has already been realized as anonymous columns. The main-effect/slope contrasts still come from raw vectors, so typed contrast authoring remains open.",
-      "claim_axes": {
-        "typed_design_authoring": "full",
-        "typed_contrast_authoring": "none",
-        "native_public_seam": "full",
-        "interop_bridge": false,
-        "diagnostics": "centering_stress",
-        "performance": "recorded"
-      },
-      "ux_status": "partial",
-      "ux_blockers": [
-        "fmrimod_probe calls _contrasts(...) to build raw main/slope vectors before fit.contrast; parametric semantic contrast sugar is tracked by bd-01KRM5FRQP16S05T3DA57DQY31 and bd-01KRM6BY25444C5ZTHRGDBHVFN"
-      ],
-      "callsite_receipts": [
-        "benchmarks/parity/tier_e_parametric_centering/workflow.py:197",
-        "benchmarks/parity/tier_e_parametric_centering/workflow.py:281",
-        "benchmarks/parity/tier_e_parametric_centering/workflow.py:287",
-        "benchmarks/parity/tier_e_parametric_centering/workflow.py:288"
-      ],
-      "receipt": {
-        "status": "regenerable",
-        "command": [
-          "python",
-          "-m",
-          "benchmarks.parity.tier_e_parametric_centering.workflow"
-        ],
-        "checks": [
-          "report_path",
-          "status",
-          "caveats"
-        ]
       }
     },
     {
@@ -1004,51 +1092,79 @@
       }
     },
     {
-      "benchmark_id": "tier_e_semantic_contrast_alignment",
+      "benchmark_id": "tier_e_parametric_centering",
       "evidence_level": "workflow_parity",
-      "public_seam": false,
-      "workflow_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/workflow.py",
-      "report_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/reports/semantic_contrast_alignment_report.json",
-      "reference_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/workflow.py::nilearn_probe",
-      "fmrimod_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/workflow.py::fmrimod_probe + fmrimod_authored_probe: fit_glm_from_matrix(named DataFrame / source DesignColumns) -> column_contrast and condition('gain') - condition('loss') -> ContrastResult",
+      "public_seam": true,
+      "workflow_path": "benchmarks/parity/tier_e_parametric_centering/workflow.py",
+      "report_path": "benchmarks/parity/tier_e_parametric_centering/reports/centering_stress_report.json",
+      "reference_path": "benchmarks/parity/tier_e_parametric_centering/workflow.py::nilearn_probe",
+      "fmrimod_path": "benchmarks/parity/tier_e_parametric_centering/workflow.py::fmrimod_probe: fmri_dataset -> fmri_lm -> contrast",
       "caveats": [],
       "hardware_tag": "Darwin-arm64-arm",
-      "performance_stage": "tier_e_semantic_contrast_alignment",
+      "performance_stage": "tier_e_parametric_centering",
       "timings": {
         "status": "recorded",
-        "seconds": 0.07358179200000059,
+        "seconds": 0.02443891594884917,
         "stages": {
-          "canonical_order_case_seconds": 0.04628295900000001,
-          "load_inputs_seconds": 0.0003644580000004005,
-          "permuted_order_case_seconds": 0.001015084000000055,
-          "public_seam_probe_seconds": 0.025919291000000122
+          "global_centering_case_seconds": 0.00808562501333654,
+          "load_inputs_seconds": 0.007842290971893817,
+          "within_condition_case_seconds": 0.008510999963618815
         },
-        "source": "benchmarks/parity/tier_e_semantic_contrast_alignment/reports/semantic_contrast_alignment_report.json"
+        "source": "benchmarks/parity/tier_e_parametric_centering/reports/centering_stress_report.json"
       },
       "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.spec.HrfTerm",
+        "fmrimod.design.DesignColumns",
         "fmrimod.glm.FmriLm",
-        "fmrimod.contrast.ColumnContrastSpec",
-        "fmrimod.contrast.SemanticContrast",
         "fmrimod.glm.ContrastResult"
       ],
-      "fmrimod_expresses_better": "The gain-minus-loss hypothesis is resolved by named column intent and by an authored condition contrast against declared DesignColumns; ordinary event designs now carry that authored condition contrast through fmri_dataset -> fmri_lm. The exact Nilearn parity trap remains a matrix-first fixture because Nilearn needs a freshly rebuilt numeric vector and a reused positional vector silently targets the wrong coefficients.",
-      "replacement_target": {
-        "description": "Promote the exact semantic contrast-alignment stress to the canonical authored-model path once this benchmark fixture is expressed as events/spec rather than a matrix-first source DesignColumns fixture.",
-        "owner_bead": "bd-01KRJ3J97HYXK9DV0EKV0HVMYX",
-        "blocking_api_gap": "Authored condition contrasts now resolve through fmri_dataset -> fmri_lm for ordinary event designs; the remaining gap is porting this exact column-permutation stress to an event/spec fixture with a matched Nilearn oracle."
+      "fmrimod_expresses_better": "The RT modulator, centering column, and task levels remain inspectable through typed fmrimod design objects; the Nilearn reference sees the same GLM only after the design has already been realized as anonymous columns. The main-effect/slope contrasts still come from raw vectors, so typed contrast authoring remains open.",
+      "claim_axes": {
+        "typed_design_authoring": "full",
+        "typed_contrast_authoring": "none",
+        "native_public_seam": "full",
+        "interop_bridge": false,
+        "diagnostics": "centering_stress",
+        "performance": "recorded"
       },
+      "ux_status": "partial",
+      "ux_blockers": [
+        "fmrimod_probe calls _contrasts(...) to build raw main/slope vectors before fit.contrast; parametric semantic contrast sugar is tracked by bd-01KRM5FRQP16S05T3DA57DQY31 and bd-01KRM6BY25444C5ZTHRGDBHVFN"
+      ],
+      "callsite_receipts": [
+        "benchmarks/parity/tier_e_parametric_centering/workflow.py:197",
+        "benchmarks/parity/tier_e_parametric_centering/workflow.py:281",
+        "benchmarks/parity/tier_e_parametric_centering/workflow.py:287",
+        "benchmarks/parity/tier_e_parametric_centering/workflow.py:288"
+      ],
       "receipt": {
         "status": "regenerable",
         "command": [
           "python",
           "-m",
-          "benchmarks.parity.tier_e_semantic_contrast_alignment.workflow"
+          "benchmarks.parity.tier_e_parametric_centering.workflow"
         ],
         "checks": [
           "report_path",
           "status",
           "caveats"
         ]
+      }
+    },
+    {
+      "benchmark_id": "tier_e_reparameterization_invariance",
+      "evidence_level": "numerical_canary",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_e_reparameterization_invariance/workflow.py",
+      "report_path": "benchmarks/parity/tier_e_reparameterization_invariance/reports/reparameterization_invariance_report.json",
+      "reference_path": "benchmarks/parity/tier_e_reparameterization_invariance/workflow.py::_nilearn_once",
+      "fmrimod_path": "benchmarks/parity/tier_e_reparameterization_invariance/workflow.py::_fmrimod_once: fast_preproject -> fast_lm_matrix -> contrast_t",
+      "caveats": [],
+      "replacement_target": {
+        "description": "Promote surviving reparameterization-invariance probes into a public-seam fmri_dataset -> fmri_lm stress receipt once typed design transforms and contrast remapping are available.",
+        "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
+        "blocking_api_gap": "no typed design transforms / contrast remapping for stress probes; fast_preproject + fast_lm_matrix bypass fmri_lm."
       }
     },
     {
@@ -1111,63 +1227,45 @@
       }
     },
     {
-      "benchmark_id": "tier_d_showcase",
-      "evidence_level": "flagship_workflow",
-      "public_seam": true,
-      "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py",
-      "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json",
-      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::_lss_reference and exact GLM helpers plus tier_group_semantic_survival oracle",
-      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::render: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> group_model -> ols_voxelwise",
-      "realized_design_source": "fmrimod",
+      "benchmark_id": "tier_e_semantic_contrast_alignment",
+      "evidence_level": "workflow_parity",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/workflow.py",
+      "report_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/reports/semantic_contrast_alignment_report.json",
+      "reference_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/workflow.py::nilearn_probe",
+      "fmrimod_path": "benchmarks/parity/tier_e_semantic_contrast_alignment/workflow.py::fmrimod_probe + fmrimod_authored_probe: fit_glm_from_matrix(named DataFrame / source DesignColumns) -> column_contrast and condition('gain') - condition('loss') -> ContrastResult",
       "caveats": [],
       "hardware_tag": "Darwin-arm64-arm",
-      "performance_stage": "tier_d_showcase",
+      "performance_stage": "tier_e_semantic_contrast_alignment",
       "timings": {
         "status": "recorded",
-        "seconds": 0.09773583299999977,
+        "seconds": 0.07358179200000059,
         "stages": {
-          "first_level_seconds": 0.018393042000000026,
-          "group_dataset_seconds": 0.00017104099999976086,
-          "group_fit_seconds": 0.0005860840000000422,
-          "load_inputs_seconds": 0.07858566599999994
+          "canonical_order_case_seconds": 0.04628295900000001,
+          "load_inputs_seconds": 0.0003644580000004005,
+          "permuted_order_case_seconds": 0.001015084000000055,
+          "public_seam_probe_seconds": 0.025919291000000122
         },
-        "source": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json"
+        "source": "benchmarks/parity/tier_e_semantic_contrast_alignment/reports/semantic_contrast_alignment_report.json"
       },
       "typed_objects": [
-        "fmrimod.dataset.FmriDataset",
-        "fmrimod.spec.Spec",
-        "fmrimod.contrast.OmnibusContrast",
         "fmrimod.glm.FmriLm",
-        "fmrimod.glm.ContrastResult",
-        "fmrimod.group.GroupDataset",
-        "fmrimod.group.GroupLinearModel"
+        "fmrimod.contrast.ColumnContrastSpec",
+        "fmrimod.contrast.SemanticContrast",
+        "fmrimod.glm.ContrastResult"
       ],
-      "fmrimod_expresses_better": "The showcase report carries only public-seam evidence: LSS rows through dataset/spec wrappers, semantic survival of typed contrast intent into a GroupDataset, typed group_model authoring, recorded timing, caveats, and win-axis fields instead of a loose numeric demo table. Low-level Tier D canaries are classified as separate numerical-canary artifacts. The aggregate still inherits the LSS string-spec UX gap from its component rows.",
-      "claim_axes": {
-        "typed_design_authoring": "aggregate_mixed",
-        "typed_contrast_authoring": "aggregate_mixed",
-        "native_public_seam": "partial",
-        "interop_bridge": false,
-        "diagnostics": "proof_scorecard",
-        "performance": "recorded",
-        "group_model_authoring": "typed_group_model",
-        "single_trial_authoring": "string_spec"
+      "fmrimod_expresses_better": "The gain-minus-loss hypothesis is resolved by named column intent and by an authored condition contrast against declared DesignColumns; ordinary event designs now carry that authored condition contrast through fmri_dataset -> fmri_lm. The exact Nilearn parity trap remains a matrix-first fixture because Nilearn needs a freshly rebuilt numeric vector and a reused positional vector silently targets the wrong coefficients.",
+      "replacement_target": {
+        "description": "Promote the exact semantic contrast-alignment stress to the canonical authored-model path once this benchmark fixture is expressed as events/spec rather than a matrix-first source DesignColumns fixture.",
+        "owner_bead": "bd-01KRJ3J97HYXK9DV0EKV0HVMYX",
+        "blocking_api_gap": "Authored condition contrasts now resolve through fmri_dataset -> fmri_lm for ordinary event designs; the remaining gap is porting this exact column-permutation stress to an event/spec fixture with a matched Nilearn oracle."
       },
-      "ux_status": "aggregate_partial",
-      "ux_blockers": [
-        "LSS public row still authors trialwise() as a string spec rather than a typed trialwise value"
-      ],
-      "callsite_receipts": [
-        "benchmarks/parity/tier_d_showcase/workflow.py:389",
-        "benchmarks/parity/tier_d_showcase/workflow.py:410",
-        "benchmarks/parity/tier_d_showcase/workflow.py:448"
-      ],
       "receipt": {
         "status": "regenerable",
         "command": [
           "python",
           "-m",
-          "benchmarks.parity.tier_d_showcase.workflow"
+          "benchmarks.parity.tier_e_semantic_contrast_alignment.workflow"
         ],
         "checks": [
           "report_path",
@@ -1177,99 +1275,61 @@
       }
     },
     {
-      "benchmark_id": "tier_d_ar2_robust",
-      "evidence_level": "numerical_canary",
-      "public_seam": false,
-      "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py",
-      "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_canaries.json",
-      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_ar_robust_showcase",
-      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_ar_robust_showcase: estimate_ar + huber_weights",
-      "caveats": [],
-      "replacement_target": {
-        "description": "Promote AR(p) and robust refit into a public dataset/model workflow receipt instead of a low-level residual canary.",
-        "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
-        "blocking_api_gap": "Public typed AR/robust model configuration and reportable contrast output are not yet wired through fmri_dataset -> fmri_lm."
-      }
-    },
-    {
-      "benchmark_id": "tier_d_sketched_glm",
-      "evidence_level": "numerical_canary",
-      "public_seam": false,
-      "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py",
-      "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_canaries.json",
-      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_sketched_glm_showcase exact fast_lm_matrix comparison",
-      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_sketched_glm_showcase: fit_sketched",
-      "caveats": [],
-      "replacement_target": {
-        "description": "Promote sketched GLM into a public typed engine option with an end-to-end dataset/spec/contrast receipt.",
-        "owner_bead": "bd-01KRFMY8FNTZM60BKZ7MW5W2Q9",
-        "blocking_api_gap": "Low-rank engine selection is still demonstrated as a matrix-level capability rather than a typed fmri_lm engine option."
-      }
-    },
-    {
-      "benchmark_id": "tier_d_lss_trialwise_oracle",
-      "evidence_level": "numerical_canary",
-      "public_seam": false,
-      "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py",
-      "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_canaries.json",
-      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::_lss_reference",
-      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_lss_showcase: estimate_single_trial",
-      "caveats": [],
-      "replacement_target": {
-        "description": "Matrix LSS exactness check stays as the oracle beneath the public-seam tier_d_lss_trialwise row; promoting this canary itself is not in scope.",
-        "owner_bead": "bd-01KRKAEDBE9BV5HZ5SY0A3ZAA5",
-        "blocking_api_gap": "The matrix-first call site exists for algebraic drift detection; the public-seam flagship is the sibling tier_d_lss_trialwise row pointing at run_lss_public_seam_showcase."
-      }
-    },
-    {
-      "benchmark_id": "tier_d_lss_trialwise",
-      "evidence_level": "workflow_parity",
+      "benchmark_id": "tier_group_semantic_survival",
+      "evidence_level": "flagship_workflow",
       "public_seam": true,
-      "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py",
-      "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json",
-      "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_lss_public_seam_showcase ground-truth recovery oracle and tier_d_lss_trialwise_oracle matrix exactness canary",
-      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::run_lss_public_seam_showcase + run_lss_public_seam_independent_generative: fmri_dataset -> estimate_single_trial_from_dataset -> typed SingleTrialResult",
+      "workflow_path": "benchmarks/parity/tier_group_semantic_survival/workflow.py",
+      "report_path": "benchmarks/parity/tier_group_semantic_survival/reports/semantic_survival_report.json",
+      "reference_path": "not_applicable: semantic-survival artifact built on the strict tier_a_f_confound_drift numerical oracle",
+      "fmrimod_path": "benchmarks/parity/tier_group_semantic_survival/workflow.py::run_demo: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> group_model -> ols_voxelwise",
       "realized_design_source": "fmrimod",
       "caveats": [],
       "hardware_tag": "Darwin-arm64-arm",
-      "typed_objects": [
-        "fmrimod.dataset.FmriDataset",
-        "fmrimod.single.SingleTrialResult",
-        "fmrimod.single.estimate_single_trial_from_dataset"
-      ],
-      "fmrimod_expresses_better": "The public-seam wrapper takes only the dataset and a string spec ('trialwise()' or 'trialwise(basis=...)' ) and returns a typed SingleTrialResult carrying per-trial betas plus recovered trial_labels; the call site never reaches into the realised design matrix and never builds a per-trial weight vector by hand. The matrix oracle (tier_d_lss_trialwise_oracle) survives as a numerical canary beneath this public-seam row. The remaining ergonomic gap is that the single-trial model itself is still authored as a string spec.",
-      "claim_axes": {
-        "typed_design_authoring": "string_spec",
-        "typed_contrast_authoring": "not_applicable_single_trial",
-        "native_public_seam": "partial",
-        "interop_bridge": false,
-        "diagnostics": "single_trial_result_labels",
-        "performance": "recorded",
-        "single_trial_authoring": "string_spec"
-      },
-      "ux_status": "partial",
-      "ux_blockers": [
-        "estimate_single_trial_from_dataset currently takes 'trialwise()' / 'trialwise(basis=...)' string specs instead of a typed trialwise value"
-      ],
-      "callsite_receipts": [
-        "benchmarks/parity/tier_d_showcase/workflow.py:194",
-        "benchmarks/parity/tier_d_showcase/workflow.py:252"
-      ],
       "timings": {
         "status": "recorded",
-        "seconds": 0.003164666937664151,
+        "seconds": 0.27850279100000064,
         "stages": {
-          "public_seam_lss_seconds": 0.0016486249514855444,
-          "independent_generative_lss_seconds": 0.0015160419861786067
+          "first_level_seconds": 0.20433100000000026,
+          "group_dataset_seconds": 0.0001897909999999392,
+          "group_fit_seconds": 0.0011652500000001176,
+          "load_inputs_seconds": 0.07281675000000032
         },
-        "source": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json"
+        "source": "benchmarks/parity/tier_group_semantic_survival/reports/semantic_survival_report.json"
       },
+      "typed_objects": [
+        "fmrimod.dataset.FmriDataset",
+        "fmrimod.design.DesignColumns",
+        "fmrimod.contrast.OmnibusContrast",
+        "fmrimod.glm.ContrastResult",
+        "fmrimod.group.GroupDataset",
+        "fmrimod.group.GroupLinearModel"
+      ],
+      "fmrimod_expresses_better": "The authored F hypothesis remains visible as OmnibusContrast intent, resolved design columns, a structured ContrastResult explanation, and contrast_data on the group object instead of becoming anonymous coefficient rows.",
+      "claim_axes": {
+        "typed_design_authoring": "full",
+        "typed_contrast_authoring": "full",
+        "native_public_seam": "full",
+        "interop_bridge": false,
+        "diagnostics": "semantic_survival",
+        "performance": "recorded",
+        "group_model_authoring": "typed_group_model"
+      },
+      "ux_status": "full",
+      "ux_blockers": [],
+      "callsite_receipts": [
+        "benchmarks/parity/tier_group_semantic_survival/workflow.py:99",
+        "benchmarks/parity/tier_group_semantic_survival/workflow.py:103",
+        "benchmarks/parity/tier_group_semantic_survival/workflow.py:126",
+        "benchmarks/parity/tier_group_semantic_survival/workflow.py:143"
+      ],
       "receipt": {
         "status": "regenerable",
         "command": [
           "python",
           "-m",
-          "benchmarks.parity.tier_d_showcase.workflow"
+          "benchmarks.parity.tier_group_semantic_survival.workflow",
+          "--out-dir",
+          "benchmarks/parity/tier_group_semantic_survival/reports"
         ],
         "checks": [
           "report_path",
