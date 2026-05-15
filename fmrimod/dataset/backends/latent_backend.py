@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -28,7 +29,7 @@ def _validate_indices(
     result = arr.astype(np.intp, copy=False)
     if np.any(result < 0) or np.any(result >= upper):
         raise ValueError(f"{name} indices must be within [0, {upper - 1}]")
-    return result
+    return cast("NDArray[np.intp]", result)
 
 
 class LatentBackend(StorageBackend):
