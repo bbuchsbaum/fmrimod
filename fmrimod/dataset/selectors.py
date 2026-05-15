@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import warnings
 from abc import ABC, abstractmethod
-from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -110,7 +109,7 @@ class SphereSelector(SeriesSelector):
 
     def __init__(
         self,
-        center: NDArray[np.floating[Any]] | list[float] | tuple[float, ...],
+        center: np.ndarray | list[float] | tuple[float, ...],
         radius: float,
     ) -> None:
         c = np.asarray(center, dtype=np.float64)
@@ -194,7 +193,7 @@ def voxel_selector(coords: NDArray[np.intp] | list[list[int]]) -> VoxelSelector:
 
 
 def sphere_selector(
-    center: NDArray[np.floating[Any]] | list[float] | tuple[float, ...],
+    center: np.ndarray | list[float] | tuple[float, ...],
     radius: float,
 ) -> SphereSelector:
     """Create a spherical ROI selector."""
