@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from typing import Any
-
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
 from fmrimod.glm.contrasts import ContrastResult
 from fmrimod.glm.spatial import SpatialContext
-from fmrimod.group.dataset import contrast_intent_payload, group_dataset
+from fmrimod.group.dataset import GroupDataset, contrast_intent_payload, group_dataset
 from fmrimod.group.errors import AdapterContractError
 from fmrimod.group.space import SampleLabelSpace, VoxelSpace
 
@@ -21,7 +19,7 @@ def group_dataset_from_contrasts(
     contrasts: Mapping[str, ContrastResult | Sequence[ContrastResult]],
     *,
     covariates: pd.DataFrame | None = None,
-) -> Any:
+) -> GroupDataset:
     """Lower one first-level contrast per subject into a ``GroupDataset``."""
     if not isinstance(contrasts, Mapping) or not contrasts:
         raise AdapterContractError("contrasts must be a non-empty subject mapping")
