@@ -1,7 +1,7 @@
 """Visualization functions for contrasts."""
 
 from functools import singledispatch
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,13 +10,13 @@ from ..types import Array, ModelProtocol
 
 
 @singledispatch
-def plot_contrasts(x, 
+def plot_contrasts(x: Any,
                   absolute_limits: bool = False,
                   rotate_x_text: bool = True,
                   scale_mode: str = "auto",
                   figsize: Optional[Tuple[float, float]] = None,
                   cmap: Optional[str] = None,
-                  **kwargs: object):
+                  **kwargs: object) -> Any:
     """Plot contrast weights as a heatmap.
     
     This is a generic function that dispatches based on the type of x.
@@ -53,7 +53,7 @@ def _plot_contrasts_dict(contrast_dict: Dict[str, Array],
                         scale_mode: str = "auto",
                         figsize: Optional[Tuple[float, float]] = None,
                         cmap: Optional[str] = None,
-                        **kwargs: object):
+                        **kwargs: object) -> Any:
     """Plot contrasts from a dictionary of contrast weights.
     
     Parameters
@@ -116,8 +116,8 @@ def _plot_contrasts_dict(contrast_dict: Dict[str, Array],
         scale_mode = "diverging" if has_negative else "one_sided"
     
     # Determine color limits
-    vmin = np.min(contrast_matrix)
-    vmax = np.max(contrast_matrix)
+    vmin: float = float(np.min(contrast_matrix))
+    vmax: float = float(np.max(contrast_matrix))
     
     if absolute_limits:
         if scale_mode == "diverging":
@@ -200,7 +200,7 @@ def plot_contrasts_event_model(model: ModelProtocol,
                              scale_mode: str = "auto",
                              figsize: Optional[Tuple[float, float]] = None,
                              cmap: Optional[str] = None,
-                             **kwargs: object):
+                             **kwargs: object) -> Any:
     """Plot contrasts for an EventModel.
     
     Parameters
@@ -237,11 +237,11 @@ def plot_contrasts_event_model(model: ModelProtocol,
     flat_contrasts = {}
     regressor_names = model.design_matrix.columns if hasattr(model.design_matrix, 'columns') else None
     
-    for term_name, term_contrasts in cws.items():
+    for term_name, term_contrasts in cast(Any, cws).items():
         if term_contrasts is None:
             continue
-            
-        for contrast_name, contrast_obj in term_contrasts.items():
+
+        for contrast_name, contrast_obj in cast(Any, term_contrasts).items():
             if contrast_obj is None:
                 continue
                 
@@ -272,11 +272,11 @@ def plot_contrasts_event_model(model: ModelProtocol,
 
 # Register the EventModel implementation
 # We do this outside the function to avoid circular imports
-def _register_event_model():
+def _register_event_model() -> None:
     """Register EventModel implementation after imports are resolved."""
     try:
         from ..design.event_model import EventModel
-        plot_contrasts.register(EventModel)(plot_contrasts_event_model)
+        cast(Any, plot_contrasts).register(EventModel)(plot_contrasts_event_model)
     except ImportError:
         pass
 

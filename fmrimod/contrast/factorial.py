@@ -13,7 +13,7 @@ factors are difference-coded, and non-selected factors are grand-mean coded.
 from __future__ import annotations
 
 from functools import reduce
-from typing import Sequence
+from typing import Any, Sequence
 
 import numpy as np
 import pandas as pd
@@ -21,7 +21,7 @@ import pandas as pd
 from ..types import Array
 
 
-def _coerce_design(des: pd.DataFrame | dict) -> pd.DataFrame:
+def _coerce_design(des: pd.DataFrame | dict[str, Any]) -> pd.DataFrame:
     """Coerce input design to a DataFrame while preserving column order."""
     if isinstance(des, pd.DataFrame):
         out = des.copy()
@@ -32,7 +32,7 @@ def _coerce_design(des: pd.DataFrame | dict) -> pd.DataFrame:
     return out
 
 
-def _nlevels(series: pd.Series) -> int:
+def _nlevels(series: "pd.Series[Any]") -> int:
     """Count levels for a factor-like series."""
     if isinstance(series.dtype, pd.CategoricalDtype):
         return int(len(series.cat.categories))
@@ -54,7 +54,7 @@ def _as_factor_list(factors: str | Sequence[str]) -> list[str]:
 
 
 def generate_interaction_contrast(
-    des: pd.DataFrame | dict,
+    des: pd.DataFrame | dict[str, Any],
     factors: str | Sequence[str],
 ) -> Array:
     """Generate factorial interaction/main-effect contrast matrices.
@@ -101,7 +101,7 @@ def generate_interaction_contrast(
 
 
 def generate_main_effect_contrast(
-    des: pd.DataFrame | dict,
+    des: pd.DataFrame | dict[str, Any],
     factor: str | Sequence[str],
 ) -> Array:
     """Generate a main-effect contrast matrix for a single factor."""

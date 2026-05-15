@@ -10,9 +10,10 @@ import ast
 import re
 import warnings
 from functools import singledispatch
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence, cast
 
 import numpy as np
+from numpy.typing import NDArray
 
 from ..types import Array
 from .basis_filter import apply_basis_filter
@@ -111,7 +112,7 @@ class Contrast:
     @property
     def is_fcontrast(self) -> bool:
         """Check if this is an F-contrast (multiple columns)."""
-        return self.weights.ndim > 1 and self.weights.shape[1] > 1
+        return bool(self.weights.ndim > 1 and self.weights.shape[1] > 1)
     
     def __repr__(self) -> str:
         """String representation."""
@@ -177,7 +178,7 @@ def contrast_mask(
     )
 
 
-def _as_weight_matrix(weights: object) -> np.ndarray:
+def _as_weight_matrix(weights: object) -> NDArray[Any]:
     weights_mat = np.asarray(weights, dtype=float)
     if weights_mat.ndim == 1:
         weights_mat = weights_mat.reshape(-1, 1)
@@ -186,11 +187,11 @@ def _as_weight_matrix(weights: object) -> np.ndarray:
     return weights_mat
 
 
-def _mask_condnames(mask: Mapping[str, object], term, n_rows: int) -> List[str]:
+def _mask_condnames(mask: Mapping[str, object], term: Any, n_rows: int) -> List[str]:
     raw_condnames = mask.get("condnames")
     if raw_condnames is None:
         raw_condnames = _get_conditions(term, expand_basis=False)
-    condnames = [str(name) for name in raw_condnames]
+    condnames = [str(name) for name in cast(Any, raw_condnames)]
     if len(condnames) != n_rows:
         raise ValueError(
             "contrast mask condnames length must match weights rows: "
@@ -204,11 +205,11 @@ def _is_column_targeted(spec: ContrastSpec) -> bool:
 
 
 def _expand_base_mask(
-    weights_base: np.ndarray,
+    weights_base: NDArray[Any],
     base_condnames: Sequence[str],
-    term,
+    term: Any,
     spec: ContrastSpec,
-) -> tuple[np.ndarray, List[str]]:
+) -> tuple[NDArray[Any], List[str]]:
     nbasis = int(getattr(term, "nbasis", 1) or 1)
     if nbasis <= 1 or weights_base.shape[0] == 0:
         return weights_base, list(base_condnames)
@@ -235,13 +236,13 @@ def _expand_base_mask(
         contrast_name=spec.name,
         basis_weights=getattr(spec, "basis_weights", None),
     )
-    return filtered["weights"], filtered["condnames"]
+    return cast(NDArray[Any], filtered["weights"]), cast("list[str]", filtered["condnames"])
 
 
 def contrast_from_mask(
     mask: Mapping[str, object],
     spec: ContrastSpec,
-    term,
+    term: Any,
     classes: Sequence[type] | None = None,
 ) -> Contrast:
     """Package a base-condition contrast mask as a :class:`Contrast`.
@@ -278,10 +279,10 @@ def contrast_from_mask(
 
 def _calculate_mask_weights(
     names: List[str],
-    A_mask: np.ndarray,
-    B_mask: Optional[np.ndarray] = None,
+    A_mask: NDArray[Any],
+    B_mask: Optional[NDArray[Any]] = None,
     tol: float = CONTRAST_TOLERANCE
-) -> np.ndarray:
+) -> NDArray[Any]:
     """Calculate contrast weights from logical masks.
     
     Parameters
@@ -301,8 +302,8 @@ def _calculate_mask_weights(
         Named weight vector
     """
     A_mask = np.asarray(A_mask, dtype=bool)
-    nA = np.sum(A_mask)
-    nB = 0
+    nA: int = int(np.sum(A_mask))
+    nB: int = 0
     
     if B_mask is not None:
         B_mask = np.asarray(B_mask, dtype=bool)
@@ -347,7 +348,7 @@ def _calculate_mask_weights(
     return w
 
 
-def _get_conditions(term, expand_basis: bool = True) -> List[str]:
+def _get_conditions(term: Any, expand_basis: bool = True) -> List[str]:
     """Get condition names from a term.
     
     Parameters
@@ -365,7 +366,7 @@ def _get_conditions(term, expand_basis: bool = True) -> List[str]:
     # This would interface with the actual term implementation
     # For now, we'll assume the term has a conditions method
     if hasattr(term, 'conditions'):
-        return term.conditions(drop_empty=False, expand_basis=expand_basis)
+        return cast("List[str]", term.conditions(drop_empty=False, expand_basis=expand_basis))
     else:
         # Fallback - try to get from design matrix columns
         if hasattr(term, 'design_matrix'):
@@ -435,7 +436,7 @@ def _parse_formula_condition(formula_expr: str) -> tuple[Optional[str], Optional
     return None, None
 
 
-def _match_conditions_to_formula(condnames: List[str], formula_expr: str) -> np.ndarray:
+def _match_conditions_to_formula(condnames: List[str], formula_expr: str) -> NDArray[Any]:
     """Match condition names against a formula expression.
 
     Parameters
@@ -447,7 +448,7 @@ def _match_conditions_to_formula(condnames: List[str], formula_expr: str) -> np.
 
     Returns
     -------
-    np.ndarray
+    NDArray[Any]
         Boolean mask indicating which conditions match
     """
     mask = np.zeros(len(condnames), dtype=bool)
@@ -497,7 +498,7 @@ def _match_conditions_to_formula(condnames: List[str], formula_expr: str) -> np.
 
 
 @contrast_weights.register(UnitContrastSpec)
-def _(x: UnitContrastSpec, term, **kwargs: object) -> Contrast:
+def _(x: UnitContrastSpec, term: Any, **kwargs: object) -> Contrast:
     """Compute weights for unit contrast."""
     # Get all condition names
     all_condnames = _get_conditions(term, expand_basis=False)
@@ -517,7 +518,7 @@ def _(x: UnitContrastSpec, term, **kwargs: object) -> Contrast:
 
     # Calculate weights - unit contrast sums to 1
     # For unit contrast, B_mask should be None (not a pairwise contrast)
-    nA = np.sum(mask_A)
+    nA: int = int(np.sum(mask_A))
 
     if nA == 0:
         warnings.warn(
@@ -542,7 +543,7 @@ def _(x: UnitContrastSpec, term, **kwargs: object) -> Contrast:
 
 
 @contrast_weights.register(PairContrastSpec)
-def _(x: PairContrastSpec, term, **kwargs: object) -> Contrast:
+def _(x: PairContrastSpec, term: Any, **kwargs: object) -> Contrast:
     """Compute weights for pairwise contrast."""
     # Get condition names
     base_condnames = _get_conditions(term, expand_basis=False)
@@ -598,7 +599,7 @@ def _(x: PairContrastSpec, term, **kwargs: object) -> Contrast:
 
 
 @contrast_weights.register(ColumnContrastSpec)
-def _(x: ColumnContrastSpec, term, **kwargs: object) -> Contrast:
+def _(x: ColumnContrastSpec, term: Any, **kwargs: object) -> Contrast:
     """Compute weights for column contrast using regex patterns."""
     # Get expanded column names
     all_colnames = _get_conditions(term, expand_basis=True)
@@ -668,7 +669,7 @@ def _(x: ColumnContrastSpec, term, **kwargs: object) -> Contrast:
 
 
 @contrast_weights.register(PolyContrastSpec)
-def _(x: PolyContrastSpec, term, **kwargs: object) -> Contrast:
+def _(x: PolyContrastSpec, term: Any, **kwargs: object) -> Contrast:
     """Compute polynomial contrast weights."""
     # Get condition names
     all_condnames = _get_conditions(term, expand_basis=False)
@@ -703,7 +704,7 @@ def _(x: PolyContrastSpec, term, **kwargs: object) -> Contrast:
     # Generate Vandermonde matrix up to degree x.degree
     # legvander generates columns [1, L_1(x), L_2(x), ..., L_degree(x)]
     # We want columns 1 through degree (skip the constant column 0)
-    vander = legvander(vals_scaled, x.degree)
+    vander = cast(NDArray[Any], cast(Any, legvander)(vals_scaled, x.degree))
 
     # Take columns 1 through degree (skip constant term)
     poly_matrix = vander[:, 1:(x.degree + 1)]
@@ -724,7 +725,7 @@ def _(x: PolyContrastSpec, term, **kwargs: object) -> Contrast:
 
 
 @contrast_weights.register(OnewayContrastSpec)
-def _(x: OnewayContrastSpec, term, **kwargs: object) -> Contrast:
+def _(x: OnewayContrastSpec, term: Any, **kwargs: object) -> Contrast:
     """Compute one-way contrast weights (main effect).
 
     Generates k-1 Helmert contrasts for k conditions.
@@ -765,7 +766,7 @@ def _(x: OnewayContrastSpec, term, **kwargs: object) -> Contrast:
 
 
 @contrast_weights.register(InteractionContrastSpec)
-def _(x: InteractionContrastSpec, term, **kwargs: object) -> Contrast:
+def _(x: InteractionContrastSpec, term: Any, **kwargs: object) -> Contrast:
     """Compute interaction contrast weights.
 
     For a term with n conditions representing a factorial design,
@@ -842,7 +843,7 @@ def _(x: InteractionContrastSpec, term, **kwargs: object) -> Contrast:
 
 
 @contrast_weights.register(ContrastFormulaSpec)
-def _(x: ContrastFormulaSpec, term, **kwargs: object) -> Contrast:
+def _(x: ContrastFormulaSpec, term: Any, **kwargs: object) -> Contrast:
     """Compute weights for formula-based contrast.
 
     Parses formula expressions and computes proper weights. Supports:
@@ -857,7 +858,7 @@ def _(x: ContrastFormulaSpec, term, **kwargs: object) -> Contrast:
         return Contrast(term, x.name, weights, [], x)
 
     # Get the formula expression
-    formula_expr = x.A.expr if hasattr(x.A, 'expr') else str(x.A)
+    formula_expr = x.A.expr if x.A is not None and hasattr(x.A, 'expr') else str(x.A)
 
     # Parse and evaluate the formula
     try:
@@ -894,7 +895,7 @@ def _(x: ContrastFormulaSpec, term, **kwargs: object) -> Contrast:
     )
 
 
-def _evaluate_formula_expression(formula_expr: str, condnames: List[str]) -> np.ndarray:
+def _evaluate_formula_expression(formula_expr: str, condnames: List[str]) -> NDArray[Any]:
     """Evaluate a formula expression to produce weight vector.
 
     Parameters
@@ -906,7 +907,7 @@ def _evaluate_formula_expression(formula_expr: str, condnames: List[str]) -> np.
 
     Returns
     -------
-    np.ndarray
+    NDArray[Any]
         Weight vector
     """
     import ast
@@ -932,7 +933,7 @@ def _evaluate_formula_expression(formula_expr: str, condnames: List[str]) -> np.
     return _eval_formula_ast(tree.body, condnames)
 
 
-def _eval_formula_ast(node: ast.AST, condnames: List[str]) -> np.ndarray:
+def _eval_formula_ast(node: ast.AST, condnames: List[str]) -> NDArray[Any]:
     """Recursively evaluate formula AST to produce weight vector.
 
     Parameters
@@ -944,7 +945,7 @@ def _eval_formula_ast(node: ast.AST, condnames: List[str]) -> np.ndarray:
 
     Returns
     -------
-    np.ndarray
+    NDArray[Any]
         Weight vector
     """
     import ast
@@ -984,7 +985,7 @@ def _eval_formula_ast(node: ast.AST, condnames: List[str]) -> np.ndarray:
         # Single simple comparison: condition == 'A'
         # Try to use astor if available, otherwise reconstruct manually
         try:
-            import astor
+            import astor  # type: ignore[import-not-found]
             expr_str = astor.to_source(node).strip()
         except (ImportError, Exception):
             # Fallback: reconstruct manually
@@ -1006,6 +1007,10 @@ def _eval_formula_ast(node: ast.AST, condnames: List[str]) -> np.ndarray:
     elif isinstance(node, ast.Constant):
         # Numeric constant
         value = node.value
+        if not isinstance(value, (int, float, str)):
+            raise ValueError(
+                f"Unsupported constant value type: {type(value).__name__}"
+            )
 
         # Return a constant vector
         return np.full(len(condnames), float(value))
@@ -1059,11 +1064,11 @@ def _reconstruct_compare(node: ast.Compare) -> str:
         raise ValueError(f"Unsupported right side in comparison: {type(right_node).__name__}")
 
     # Reconstruct the expression
-    return f"{left} == '{right}'"
+    return f"{left} == '{right!s}'"
 
 
 @contrast_weights.register(ContrastSet)
-def _(x: ContrastSet, term, **kwargs: object) -> Dict[str, Contrast]:
+def _(x: ContrastSet, term: Any, **kwargs: object) -> Dict[str, Contrast]:
     """Compute weights for a set of contrasts.
 
     Returns
@@ -1085,7 +1090,7 @@ def _(x: ContrastSet, term, **kwargs: object) -> Dict[str, Contrast]:
     return results
 
 
-def _contrast_weights_event_model(model, **kwargs: object):
+def _contrast_weights_event_model(model: Any, **kwargs: object) -> Dict[str, Any]:
     """Compute contrast weights for an EventModel.
 
     Extracts contrasts from each term's contrast_specs attribute and maps
@@ -1171,8 +1176,8 @@ def _contrast_weights_event_model(model, **kwargs: object):
                 )
 
                 # Store the offset weights as an attribute for access
-                full_contrast.offset_weights = offset_weights
-                full_contrast.local_weights = local_contrast.weights
+                cast(Any, full_contrast).offset_weights = offset_weights
+                cast(Any, full_contrast).local_weights = local_contrast.weights
 
                 term_contrasts[local_contrast.name] = full_contrast
 
@@ -1188,11 +1193,11 @@ def _contrast_weights_event_model(model, **kwargs: object):
     return result
 
 
-def _register_event_model_contrast_weights():
+def _register_event_model_contrast_weights() -> None:
     """Register EventModel handler after module load to avoid circular imports."""
     try:
         from ..design.event_model import EventModel
-        contrast_weights.register(EventModel)(_contrast_weights_event_model)
+        cast(Any, contrast_weights).register(EventModel)(_contrast_weights_event_model)
     except ImportError:
         pass
 

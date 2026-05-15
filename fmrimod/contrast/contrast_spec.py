@@ -9,17 +9,17 @@ from __future__ import annotations
 
 import warnings
 from itertools import combinations
-from typing import Callable, Dict, List, Mapping, Optional, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Union
 
 
 # Simple placeholder for Formula type
 class Formula:
     """Placeholder for formula objects."""
-    def __init__(self, expr: str):
+    def __init__(self, expr: str) -> None:
         self.expr = expr
-    def __str__(self):
+    def __str__(self) -> str:
         return self.expr
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Formula({self.expr!r})"
 
 
@@ -335,10 +335,10 @@ class InteractionContrastSpec(ContrastSpec):
     pass
 
 
-class ContrastSet(list):
+class ContrastSet(list[Any]):
     """Collection of contrast specifications."""
-    
-    def __init__(self, *contrasts):
+
+    def __init__(self, *contrasts: Any) -> None:
         """Initialize contrast set.
         
         Parameters
@@ -360,7 +360,7 @@ class ContrastSet(list):
             return "ContrastSet(empty)"
 
         names = [c.name for c in self]
-        types = {}
+        types: dict[str, int] = {}
         for c in self:
             ctype = type(c).__name__
             types[ctype] = types.get(ctype, 0) + 1
@@ -660,7 +660,7 @@ def interaction_contrast(
     return InteractionContrastSpec(name=name, A=A_f, where=where_f)
 
 
-def contrast_set(*contrasts) -> ContrastSet:
+def contrast_set(*contrasts: Any) -> ContrastSet:
     """Create a set of contrasts.
     
     Parameters
@@ -776,7 +776,13 @@ def one_against_all_contrast(
     return ContrastSet(*contrasts)
 
 
-def sliding_window_contrasts(levels, facname, window_size=2, where=None, name_prefix="win"):
+def sliding_window_contrasts(
+    levels: Any,
+    facname: Any,
+    window_size: int = 2,
+    where: Any = None,
+    name_prefix: str = "win",
+) -> ContrastSet:
     """Create contrasts comparing adjacent sliding windows of conditions.
 
     For window_size k, creates contrasts where window A = levels[i:i+k]

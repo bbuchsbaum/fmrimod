@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import itertools
 from functools import reduce, singledispatch
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 import numpy as np
 
@@ -294,8 +294,8 @@ def _fcontrasts_event_model(model: EventModel, **kwargs: object) -> Dict[str, Ar
 
 
 @singledispatch
-def plot_Fcontrasts(x,
-                    figsize: Optional[tuple] = None,
+def plot_Fcontrasts(x: Any,
+                    figsize: Optional[tuple[float, float]] = None,
                     cmap: str = 'RdBu_r') -> None:
     """Plot F-contrast matrices as heatmaps.
 
@@ -325,7 +325,7 @@ def plot_Fcontrasts(x,
 
 @plot_Fcontrasts.register(dict)
 def _plot_fcontrasts_dict(fcontrasts: Dict[str, Array],
-                         figsize: Optional[tuple] = None,
+                         figsize: Optional[tuple[float, float]] = None,
                          cmap: str = 'RdBu_r') -> None:
     """Plot F-contrast matrices from dictionary.
 
@@ -390,7 +390,7 @@ def _plot_fcontrasts_dict(fcontrasts: Dict[str, Array],
 
 
 def _plot_fcontrasts_event_model(model: EventModel,
-                                figsize: Optional[tuple] = None,
+                                figsize: Optional[tuple[float, float]] = None,
                                 cmap: str = 'RdBu_r') -> None:
     """Plot F-contrasts for an EventModel.
 
@@ -415,11 +415,11 @@ def _plot_fcontrasts_event_model(model: EventModel,
 
 # Register the EventModel implementation
 # We do this outside the function to avoid circular imports
-def _register_event_model_fcontrasts():
+def _register_event_model_fcontrasts() -> None:
     """Register EventModel implementation after imports are resolved."""
     try:
         from ..design.event_model import EventModel
-        plot_Fcontrasts.register(EventModel)(_plot_fcontrasts_event_model)
+        cast(Any, plot_Fcontrasts).register(EventModel)(_plot_fcontrasts_event_model)
     except ImportError:
         pass
 

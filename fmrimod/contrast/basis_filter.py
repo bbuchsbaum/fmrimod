@@ -9,6 +9,7 @@ import warnings
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
+from numpy.typing import NDArray
 
 
 def filter_basis(
@@ -70,12 +71,12 @@ def filter_basis(
 
 
 def apply_basis_filter(
-    weights_mat: np.ndarray,
+    weights_mat: NDArray[np.float64],
     condnames: List[str],
     basis_spec: Optional[Union[str, List[int]]] = None,
     nbasis: int = 1,
     contrast_name: str = "",
-    basis_weights: Optional[np.ndarray] = None,
+    basis_weights: Optional[NDArray[np.float64]] = None,
 ) -> Dict[str, object]:
     """Apply basis filtering to contrast weight matrix.
 
@@ -143,7 +144,7 @@ def apply_basis_filter(
             )
 
         # Normalize to sum to 1
-        weight_sum = np.sum(basis_weights)
+        weight_sum: float = float(np.sum(basis_weights))
         TOLERANCE = 1e-8
         if abs(weight_sum - 1.0) > TOLERANCE:
             warnings.warn(
