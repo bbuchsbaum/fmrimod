@@ -227,9 +227,9 @@ def _register_baseline_model() -> None:
                 names = []
                 for term in model.terms:
                     if hasattr(term, 'varname'):
-                        names.append(term.varname)
+                        names.append(cast(Any, term).varname)
                     elif hasattr(term, 'name'):
-                        names.append(term.name)
+                        names.append(cast(Any, term).name)
                 return names
             return []
             
@@ -837,7 +837,7 @@ def _register_event_extractors() -> None:
             """Extract onsets from EventTerm."""
             # Get onsets from first event (all should have same onsets)
             if term.events:
-                return np.array(term.events[0].onsets)
+                return np.array(cast(Any, term.events[0]).onsets)
             return np.array([])
         
         # Durations implementations
@@ -866,7 +866,7 @@ def _register_event_extractors() -> None:
             """Extract durations from EventTerm."""
             # Get durations from first event (all should have same durations)
             if term.events:
-                return np.array(term.events[0].durations)
+                return np.array(cast(Any, term.events[0]).durations)
             return np.array([])
         
         # Elements implementations
@@ -1130,7 +1130,7 @@ def _register_labels_levels() -> None:
         @labels.register(EventFactor)
         def _labels_event_factor(event: EventFactor, **kwargs: object) -> Any:
             """Extract labels from EventFactor."""
-            return list(event.levels)
+            return list(event.levels or [])
         
         @labels.register(EventVariable)
         def _labels_event_variable(event: EventVariable, **kwargs: object) -> Any:
@@ -1140,7 +1140,7 @@ def _register_labels_levels() -> None:
         @labels.register(EventMatrix)
         def _labels_event_matrix(event: EventMatrix, **kwargs: object) -> Any:
             """Extract labels from EventMatrix."""
-            return list(event.column_names)
+            return list(event.column_names or [])
         
         @labels.register(EventBasis)
         def _labels_event_basis(event: EventBasis, **kwargs: object) -> Any:
@@ -1160,7 +1160,7 @@ def _register_labels_levels() -> None:
         @levels.register(EventFactor)
         def _levels_event_factor(event: EventFactor, **kwargs: object) -> Any:
             """Extract levels from EventFactor."""
-            return list(event.levels)
+            return list(event.levels or [])
         
         @levels.register(EventVariable)
         def _levels_event_variable(event: EventVariable, **kwargs: object) -> Any:
@@ -1216,7 +1216,7 @@ def _register_columns() -> None:
         @columns.register(EventFactor)
         def _columns_event_factor(event: EventFactor, **kwargs: object) -> Any:
             """Extract columns from EventFactor."""
-            return [f"{event.name}.{level}" for level in event.levels]
+            return [f"{event.name}.{level}" for level in (event.levels or [])]
 
         @columns.register(EventVariable)
         def _columns_event_variable(event: EventVariable, **kwargs: object) -> Any:
@@ -1227,7 +1227,7 @@ def _register_columns() -> None:
         def _columns_event_matrix(event: EventMatrix, **kwargs: object) -> Any:
             """Extract columns from EventMatrix."""
             if hasattr(event, 'column_names'):
-                return list(event.column_names)
+                return list(event.column_names or [])
             return [f"V{i+1}" for i in range(event.n_columns)]
 
         @columns.register(EventBasis)
@@ -1325,7 +1325,7 @@ def _register_construct() -> None:
                 spec.basis,
                 degree=spec.degree,
                 sframe=sampling_frame,
-                **kwargs
+                **cast("dict[str, Any]", kwargs),
             )
             
     except ImportError:
@@ -1349,7 +1349,7 @@ def _register_nbasis() -> None:
         def _nbasis_event_factor(event: EventFactor, **kwargs: object) -> Any:
             """Extract nbasis from EventFactor."""
             # Factors have nlevels - 1 degrees of freedom (contrast coding)
-            return max(0, len(event.levels) - 1)
+            return max(0, len(event.levels or []) - 1)
 
         @nbasis.register(EventVariable)
         def _nbasis_event_variable(event: EventVariable, **kwargs: object) -> Any:
@@ -1575,10 +1575,10 @@ def _register_events_event_conditions_contrasts() -> None:
             for ev in categorical_events:
                 tok = [level_token(ev.name, lev) for lev in ev.levels]
                 vals = ev.values
-                event_labels = []
+                event_labels: list[Optional[str]] = []
                 for v in vals:
                     try:
-                        idx = list(ev.levels).index(v)
+                        idx = list(ev.levels or []).index(v)
                         event_labels.append(tok[idx])
                     except (ValueError, IndexError):
                         event_labels.append(None)
