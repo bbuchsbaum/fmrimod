@@ -101,13 +101,13 @@ class AROptions:
     global_ar: bool = False
     voxelwise: bool = False
     exact_first: bool = False
-    censor: Optional[Union[NDArray, List[int], Literal["auto"]]] = None
+    censor: Optional[Union[NDArray[Any], List[int], Literal["auto"]]] = None
     method: Literal["ar", "arma", "afni"] = "ar"
     q: int = 0
     p_max: int = 6
     pooling: Literal["global", "run", "parcel"] = "global"
     convergence_tol: float = 5e-3
-    parcels: Optional[NDArray] = None
+    parcels: Optional[NDArray[Any]] = None
 
     def __init__(
         self,
@@ -117,13 +117,13 @@ class AROptions:
         global_ar: bool = False,
         voxelwise: bool = False,
         exact_first: bool = False,
-        censor: Optional[Union[NDArray, List[int], Literal["auto"]]] = None,
+        censor: Optional[Union[NDArray[Any], List[int], Literal["auto"]]] = None,
         method: Literal["ar", "arma", "afni"] = "ar",
         q: int = 0,
         p_max: int = 6,
         pooling: Literal["global", "run", "parcel"] = "global",
         convergence_tol: float = 5e-3,
-        parcels: Optional[NDArray] = None,
+        parcels: Optional[NDArray[Any]] = None,
         **kwargs: object,
     ) -> None:
         # R-compat alias: ar_options$global -> global_ar
@@ -261,7 +261,7 @@ class VolumeWeightOptions:
     enabled: bool = False
     method: Literal["inverse_squared", "soft_threshold", "tukey"] = "inverse_squared"
     threshold: float = 1.5
-    weights: Optional[NDArray] = None
+    weights: Optional[NDArray[np.float64]] = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.enabled, (bool, np.bool_)):
@@ -304,7 +304,7 @@ class SoftSubspaceOptions:
     """
 
     enabled: bool = False
-    nuisance_matrix: Optional[NDArray] = None
+    nuisance_matrix: Optional[NDArray[np.float64]] = None
     nuisance_mask: Optional[object] = None
     lam: Union[float, Literal["auto"], Literal["gcv"]] = "auto"
     warn_redundant: bool = True
@@ -384,7 +384,7 @@ _LAMBDA_SENTINEL = object()
 def soft_subspace_options(
     *,
     enabled: bool = False,
-    nuisance_matrix: Optional[NDArray] = None,
+    nuisance_matrix: Optional[NDArray[np.float64]] = None,
     nuisance_mask: Optional[object] = None,
     lam: Union[float, Literal["auto", "gcv"], object] = _LAMBDA_SENTINEL,
     warn_redundant: bool = True,
