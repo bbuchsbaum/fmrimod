@@ -9,8 +9,10 @@ import subprocess
 import tempfile
 from collections.abc import Mapping
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
+from numpy.typing import NDArray
 
 from fmrimod.stats.interfaces import GroupFitRequest, GroupFitResult
 
@@ -18,7 +20,7 @@ _DEFAULT_RSCRIPT = "Rscript"
 _BRIDGE_SCRIPT = Path(__file__).with_name("fmrigds_bridge.R")
 
 
-def _as_2d_float(x: object) -> np.ndarray:
+def _as_2d_float(x: object) -> NDArray[np.float64]:
     arr = np.asarray(x, dtype=np.float64)
     if arr.ndim == 1:
         return arr[:, np.newaxis]
@@ -169,7 +171,7 @@ def _decode_bridge_result(result: Mapping[str, object], request: GroupFitRequest
     tau2_raw = result.get("tau2")
     tau2 = None if tau2_raw is None else np.asarray(tau2_raw, dtype=np.float64)
 
-    md = dict(result.get("metadata") or {})
+    md = dict(cast("dict[str, Any]", result.get("metadata") or {}))
     md["source"] = "fmrigds_bridge"
     return GroupFitResult(
         estimate=estimate,
@@ -178,8 +180,8 @@ def _decode_bridge_result(result: Mapping[str, object], request: GroupFitRequest
         p=p,
         q=None,
         tau2=tau2,
-        predictor_names=list(result.get("predictor_names") or ["Intercept"]),
-        feature_names=list(result.get("feature_names") or [f"f{i+1}" for i in range(estimate.shape[0])]),
+        predictor_names=list(cast("list[str]", result.get("predictor_names") or ["Intercept"])),
+        feature_names=list(cast("list[str]", result.get("feature_names") or [f"f{i+1}" for i in range(estimate.shape[0])])),
         model=str(result.get("model") or request.model),
         method=str(result.get("method") or request.method),
         formula=str(result.get("formula") or request.formula),

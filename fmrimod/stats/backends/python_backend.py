@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -235,7 +235,7 @@ class PythonParityBackend:
 
 
 def _flatten_group_assay(
-    dataset: object,
+    dataset: Any,
     assay: str,
 ) -> NDArray[np.float64]:
     values = np.asarray(dataset.assay(assay)[:, 0, :], dtype=np.float64)
@@ -243,7 +243,7 @@ def _flatten_group_assay(
 
 
 def _flatten_regression_assays(
-    dataset: object,
+    dataset: Any,
     predictor_names: list[str],
     prefix: str,
 ) -> NDArray[np.float64]:
@@ -313,7 +313,7 @@ def _combine_options(
     return options
 
 
-def _group_sample_names(dataset: object) -> list[str]:
+def _group_sample_names(dataset: Any) -> list[str]:
     from fmrimod.group import SampleLabelSpace, VoxelSpace
 
     if isinstance(dataset.space, SampleLabelSpace):
@@ -325,7 +325,7 @@ def _group_sample_names(dataset: object) -> list[str]:
     return [f"sample{i + 1}" for i in range(dataset.n_samples)]
 
 
-def _group_feature_names(dataset: object) -> list[str]:
+def _group_feature_names(dataset: Any) -> list[str]:
     samples = _group_sample_names(dataset)
     if dataset.n_contrasts == 1:
         return samples

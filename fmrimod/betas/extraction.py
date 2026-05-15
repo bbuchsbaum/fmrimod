@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -52,7 +52,7 @@ class BetaResult:
 
     betas: NDArray[np.float64]
     method: str
-    trial_labels: Optional[list] = None
+    trial_labels: Optional[list[Any]] = None
     residual_df: float = 0.0
 
     @classmethod
@@ -162,7 +162,7 @@ def estimate_betas_lss(
         Y,
         trial_regressors,
         confounds=confounds,
-        nuisance_projector=nuisance_projector,
+        nuisance_projector=cast(Any, nuisance_projector),
         chunk_size=chunk_size,
         baseline_regressors=baseline_regressors,
         include_intercept=include_intercept,

@@ -7,7 +7,7 @@ Ports R's ``fmri_model()`` / ``create_fmri_model()``.
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Any, List, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -81,7 +81,7 @@ class FmriModel:
     @property
     def n_runs(self) -> int:
         """Number of runs."""
-        return self._dataset.n_runs
+        return int(self._dataset.n_runs)
 
     @property
     def n_timepoints(self) -> List[int]:
@@ -150,7 +150,7 @@ class FmriModel:
         """Return only the baseline columns."""
         return self._get_baseline_dm(run)
 
-    def design_columns(self):
+    def design_columns(self) -> Any:
         """Return typed provenance for realized design columns."""
         from fmrimod.design import DesignColumns
 
@@ -186,7 +186,7 @@ class FmriModel:
 
     # -- Contrast weights --
 
-    def contrast_weights(self, **kwargs: object) -> dict:
+    def contrast_weights(self, **kwargs: object) -> dict[str, Any]:
         """Extract contrast weight specifications from the event model.
 
         Returns
@@ -195,7 +195,10 @@ class FmriModel:
             Contrast specifications.
         """
         if hasattr(self._event_model, "contrast_weights"):
-            return self._event_model.contrast_weights(**kwargs)
+            return cast(
+                "dict[str, Any]",
+                self._event_model.contrast_weights(**cast("dict[str, Any]", kwargs)),
+            )
         return {}
 
     # -- Internal helpers --
@@ -206,9 +209,9 @@ class FmriModel:
         names: object = None,
     ) -> pd.DataFrame:
         """Return *dm* as a DataFrame, preserving supplied column names."""
-        frame = dm if isinstance(dm, pd.DataFrame) else pd.DataFrame(dm)
+        frame = dm if isinstance(dm, pd.DataFrame) else pd.DataFrame(cast(Any, dm))
         if names is not None:
-            colnames = list(names)
+            colnames = list(cast(Any, names))
             if len(colnames) == frame.shape[1]:
                 frame = frame.copy()
                 frame.columns = colnames
@@ -281,7 +284,7 @@ class FmriModel:
 
         return self._as_named_frame(dm, colnames)
 
-    def _run_slices(self) -> tuple:
+    def _run_slices(self) -> tuple[Any, ...]:
         """Compute start/end row indices for each run."""
         lengths = self.n_timepoints
         ends = np.cumsum(lengths)

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass, field
-from typing import List, Literal, Optional, Union
+from typing import Any, List, Literal, Optional, Union, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -130,7 +130,7 @@ class AROptions:
         if "global" in kwargs:
             if global_ar is not False:
                 raise TypeError("Specify only one of 'global' or 'global_ar'")
-            global_ar = kwargs.pop("global")
+            global_ar = cast(bool, kwargs.pop("global"))
         if kwargs:
             extras = ", ".join(sorted(kwargs.keys()))
             raise TypeError(f"Unexpected AR option(s): {extras}")
@@ -396,12 +396,14 @@ def soft_subspace_options(
     accepted for R parity. A warning is emitted when both
     ``nuisance_matrix`` and ``nuisance_mask`` are supplied.
     """
-    lam_value: Union[float, Literal["auto", "gcv"]] = "auto" if lam is _LAMBDA_SENTINEL else lam
+    lam_value: Union[float, Literal["auto", "gcv"]] = (
+        "auto" if lam is _LAMBDA_SENTINEL else cast("Union[float, Literal['auto', 'gcv']]", lam)
+    )
     if kwargs:
         if "lambda" in kwargs:
             if lam is not _LAMBDA_SENTINEL:
                 raise TypeError("Specify only one of 'lambda' or 'lam'")
-            lam_value = kwargs.pop("lambda")
+            lam_value = cast("Union[float, Literal['auto', 'gcv']]", kwargs.pop("lambda"))
         if kwargs:
             extras = ", ".join(sorted(kwargs.keys()))
             raise TypeError(f"Unexpected soft_subspace option(s): {extras}")
@@ -429,10 +431,10 @@ _soft_subspace_options = soft_subspace_options
 
 
 def fmri_lm_control(
-    robust_options: Optional[dict] = None,
-    ar_options: Optional[dict] = None,
-    volume_weights_options: Optional[dict] = None,
-    soft_subspace_options: Optional[dict] = None,
+    robust_options: Optional[dict[str, Any]] = None,
+    ar_options: Optional[dict[str, Any]] = None,
+    volume_weights_options: Optional[dict[str, Any]] = None,
+    soft_subspace_options: Optional[dict[str, Any]] = None,
     solver: Literal["auto", "pinv"] = "auto",
 ) -> FmriLmConfig:
     """Create an :class:`FmriLmConfig` from dictionaries.

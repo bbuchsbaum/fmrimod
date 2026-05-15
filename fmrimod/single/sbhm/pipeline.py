@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -19,7 +19,7 @@ def sbhm_single_trial(
     X: NDArray[np.float64],
     confounds: Optional[NDArray[np.float64]] = None,
     config: Optional[SbhmConfig] = None,
-    trial_labels: Optional[list] = None,
+    trial_labels: Optional[list[Any]] = None,
     library: Optional[SbhmLibrary] = None,
 ) -> SingleTrialResult:
     """SBHM single-trial estimation pipeline.
