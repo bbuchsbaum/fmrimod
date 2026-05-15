@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -118,7 +118,10 @@ class LatentDataset(FmriDataset):
         cols: NDArray[np.intp] | Sequence[int] | int | None = None,
     ) -> NDArray[np.float64]:
         """Return latent scores with optional row/component selection."""
-        return np.asarray(self.backend.get_data(rows=rows, cols=cols), dtype=np.float64)
+        return np.asarray(
+            self.backend.get_data(rows=cast(Any, rows), cols=cast(Any, cols)),
+            dtype=np.float64,
+        )
 
     def get_scores(self, run: int = 0) -> NDArray[np.float64]:
         """Return latent scores for one run."""
@@ -195,7 +198,7 @@ def latent_dataset(
     event_table = _validate_event_table(event_table)
 
     if source is None and _looks_like_source(scores) and loadings is None:
-        source = scores
+        source = cast(Any, scores)
         scores = None
 
     backend: StorageBackend
