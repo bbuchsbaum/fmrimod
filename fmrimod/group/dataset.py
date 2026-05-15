@@ -96,6 +96,14 @@ def _json_ready_mapping(payload: Mapping[object, object]) -> dict[str, object]:
     return {str(key): _json_ready(value) for key, value in payload.items()}
 
 
+# Scoped/strict divergence (bd-01KRNN0H73CCYGFJSJ30JPVFTW): the two
+# cast(dict[str, object], ...to_dict()) below are REQUIRED under scoped
+# mypy (--follow-imports=skip) -- ContrastIntent is opaque Any there so
+# to_dict() returns Any and removing the cast raises no-any-return
+# against the dict[str, object] | None return. Full-strict resolves
+# ContrastIntent and flags the same casts redundant-cast. Verified
+# empirically (scoped goes red without them). Scoped is the epic gate
+# so the casts stay; same divergence shape as events/basis.py:160.
 def contrast_intent_payload(result: object) -> dict[str, object] | None:
     """Return a JSON-ready typed intent payload from a contrast-like result."""
     intent = getattr(result, "intent", None)
@@ -375,7 +383,7 @@ def _group_dataset_from_h5_group_data(data: _GroupDataLike) -> GroupDataset:
     from fmrimod.dataset.compat import read_h5_full
 
     stats = tuple(str(stat) for stat in data.data.get("stat", ("beta", "se")))
-    raw = read_h5_full(data, stat=stats)
+    raw = read_h5_full(cast(Any, data), stat=stats)
     if raw.ndim != 3:
         raise AdapterContractError(
             "H5 GroupData reader must return voxels x subjects x stats"
@@ -455,7 +463,7 @@ def _group_dataset_from_nifti_group_data(data: _GroupDataLike) -> GroupDataset:
     from fmrimod.dataset.compat import read_nifti_full
 
     try:
-        payload = read_nifti_full(data)
+        payload = read_nifti_full(cast(Any, data))
     except ImportError as exc:  # pragma: no cover - optional dependency behavior
         raise UnsupportedGroupFeatureError(
             "NIfTI GroupData materialization requires the existing NIfTI reader dependencies"
