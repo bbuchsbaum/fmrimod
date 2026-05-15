@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -53,7 +53,7 @@ def backend_get_loadings(
     method = getattr(backend, "get_loadings", None)
     if method is None:
         raise NotImplementedError("backend does not expose get_loadings()")
-    return method(components=components)
+    return cast("NDArray[np.float64]", method(components=components))
 
 
 def backend_reconstruct_voxels(
@@ -65,7 +65,7 @@ def backend_reconstruct_voxels(
     method = getattr(backend, "reconstruct_voxels", None)
     if method is None:
         raise NotImplementedError("backend does not expose reconstruct_voxels()")
-    return method(*args, **kwargs)
+    return cast("NDArray[np.float64]", method(*args, **kwargs))
 
 
 def validate_backend(backend: StorageBackend) -> bool:
