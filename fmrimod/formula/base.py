@@ -400,7 +400,7 @@ class EventModelBuilder:
             sampling_info=self._sampling,
             onset_column=self._onset_column,
             duration_column=self._duration_column,
-            **self._kwargs
+            **cast("dict[str, Any]", self._kwargs),
         )
     
     def __enter__(self) -> EventModelBuilder:
