@@ -79,7 +79,7 @@ class StorageBackend(ABC):
         self,
         rows: NDArray[np.intp] | None = None,
         cols: NDArray[np.intp] | None = None,
-    ) -> NDArray[np.floating[Any]]:
+    ) -> NDArray[np.float64]:
         """Read data in ``timepoints x voxels`` orientation."""
 
     @abstractmethod

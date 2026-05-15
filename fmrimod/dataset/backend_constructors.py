@@ -15,7 +15,7 @@ from .backends.nifti_backend import NiftiBackend
 
 
 def matrix_backend(
-    data_matrix: NDArray[np.floating[Any]],
+    data_matrix: NDArray[np.float64],
     *,
     mask: NDArray[np.bool_] | None = None,
     spatial_dims: tuple[int, int, int] | None = None,

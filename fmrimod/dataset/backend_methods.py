@@ -35,7 +35,7 @@ def backend_get_data(
     backend: StorageBackend,
     rows: NDArray[np.intp] | None = None,
     cols: NDArray[np.intp] | None = None,
-) -> NDArray[np.floating[Any]]:
+) -> NDArray[np.float64]:
     """Return backend data."""
     return backend.get_data(rows=rows, cols=cols)
 
@@ -48,7 +48,7 @@ def backend_get_metadata(backend: StorageBackend) -> dict[str, object]:
 def backend_get_loadings(
     backend: StorageBackend,
     components: NDArray[np.intp] | Sequence[int] | int | None = None,
-) -> NDArray[np.floating[Any]]:
+) -> NDArray[np.float64]:
     """Return backend loadings when implemented."""
     method = getattr(backend, "get_loadings", None)
     if method is None:
@@ -60,7 +60,7 @@ def backend_reconstruct_voxels(
     backend: StorageBackend,
     *args: object,
     **kwargs: object,
-) -> NDArray[np.floating[Any]]:
+) -> NDArray[np.float64]:
     """Reconstruct voxel data when implemented by the backend."""
     method = getattr(backend, "reconstruct_voxels", None)
     if method is None:

@@ -18,7 +18,7 @@ class FmriSeries:
 
     def __init__(
         self,
-        data: NDArray[np.floating[Any]],
+        data: NDArray[np.float64],
         voxel_info: pd.DataFrame,
         temporal_info: pd.DataFrame,
         selection_info: dict[str, object] | None = None,
@@ -44,7 +44,7 @@ class FmriSeries:
             )
 
     @property
-    def data(self) -> NDArray[np.floating[Any]]:
+    def data(self) -> NDArray[np.float64]:
         return self._data
 
     @property
@@ -67,7 +67,7 @@ class FmriSeries:
     def shape(self) -> tuple[int, int]:
         return (int(self._data.shape[0]), int(self._data.shape[1]))
 
-    def to_numpy(self) -> NDArray[np.floating[Any]]:
+    def to_numpy(self) -> NDArray[np.float64]:
         """Return the series data as a dense array."""
         return np.array(self._data)
 
@@ -98,7 +98,7 @@ class FmriSeries:
 
 
 def new_fmri_series(
-    data: NDArray[np.floating[Any]],
+    data: NDArray[np.float64],
     voxel_info: pd.DataFrame,
     temporal_info: pd.DataFrame,
     selection_info: dict[str, object] | None = None,
@@ -113,7 +113,7 @@ def is_fmri_series(obj: object) -> bool:
     return isinstance(obj, FmriSeries)
 
 
-def as_matrix(obj: FmriSeries) -> NDArray[np.floating[Any]]:
+def as_matrix(obj: FmriSeries) -> NDArray[np.float64]:
     """Return an :class:`FmriSeries` as a dense NumPy matrix."""
     if not isinstance(obj, FmriSeries):
         raise TypeError("obj must be an FmriSeries")
@@ -171,7 +171,7 @@ def fmri_series(
     timepoints: NDArray[np.intp] | NDArray[np.bool_] | None = None,
     output: str = "fmri_series",
     event_window: object | None = None,
-) -> FmriSeries | NDArray[np.floating[Any]]:
+) -> FmriSeries | NDArray[np.float64]:
     """Query fMRI time-series from a canonical dataset."""
     del event_window
     voxel_ind = resolve_selector(dataset, selector)
@@ -201,7 +201,7 @@ def series(
     timepoints: NDArray[np.intp] | NDArray[np.bool_] | None = None,
     output: str = "fmri_series",
     event_window: object | None = None,
-) -> FmriSeries | NDArray[np.floating[Any]]:
+) -> FmriSeries | NDArray[np.float64]:
     """Compatibility alias for :func:`fmri_series`."""
     warnings.warn(
         "series() is deprecated; use fmri_series() instead.",

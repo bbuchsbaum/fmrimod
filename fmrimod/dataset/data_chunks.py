@@ -18,7 +18,7 @@ from .fmri_dataset import FmriDataset
 class DataChunk:
     """A single chunk of data extracted from a dataset."""
 
-    data: NDArray[np.floating[Any]]
+    data: NDArray[np.float64]
     voxel_ind: NDArray[np.intp]
     row_ind: NDArray[np.intp]
     chunk_num: int
@@ -33,7 +33,7 @@ class DataChunk:
 
 
 def data_chunk(
-    mat: NDArray[np.floating[Any]],
+    mat: NDArray[np.float64],
     voxel_ind: NDArray[np.intp],
     row_ind: NDArray[np.intp],
     chunk_num: int,

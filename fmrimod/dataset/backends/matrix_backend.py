@@ -16,7 +16,7 @@ class MatrixBackend(StorageBackend):
 
     def __init__(
         self,
-        data_matrix: NDArray[np.floating[Any]],
+        data_matrix: NDArray[np.float64],
         mask: NDArray[np.bool_] | None = None,
         spatial_dims: tuple[int, int, int] | None = None,
         metadata: dict[str, object] | None = None,
@@ -77,7 +77,7 @@ class MatrixBackend(StorageBackend):
         self,
         rows: NDArray[np.intp] | None = None,
         cols: NDArray[np.intp] | None = None,
-    ) -> NDArray[np.floating[Any]]:
+    ) -> NDArray[np.float64]:
         """Return masked matrix data with optional row/column selection."""
         data = self._data[:, self._mask]
         if rows is not None:
