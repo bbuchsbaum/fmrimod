@@ -61,10 +61,14 @@ Top files: `glm/strategies.py` 165, `design/event_model.py` 93,
    decision, not a latent bug.
 
 3. **`utils/event_utils.py:257` — `Unexpected keyword argument
-   "name"/"onsets" for "EventProtocol"` [needs check].**
-   `EventProtocol(...)` constructed with kwargs the protocol does
-   not declare; either the protocol is under-specified or the call
-   site targets the wrong type. Not yet runtime-verified.
+   "name"/"onsets" for "EventProtocol"` [VERIFIED ARTIFACT, not a
+   bug].** The line is `type(event)(name=..., onsets=...)` where
+   `event` is `EventProtocol`-typed, so mypy infers
+   `type[EventProtocol]` and rejects the kwargs (Protocols declare
+   no such `__init__`). At runtime `type(event)` is the *concrete*
+   event class (EventFactor/Variable/…), which accepts them; the 19
+   `event_util` tests pass. Same Protocol-typed-variable artifact
+   family as #2.
 
 4. **`convolve.py:815` — `Too many arguments for "convolve"`
    [VERIFIED ARTIFACT, not a bug].** `convolve` is a
@@ -123,16 +127,18 @@ path:
 
 Triage of the judgment/likely-real items found exactly **one
 confirmed runtime bug** in 746 strict errors: finding #1
-(`fmri_rlm`, now fixed + regression-tested). Findings #2 and #4
-were runtime-verified as **singledispatch/Protocol typing
+(`fmri_rlm`, now fixed + regression-tested). Findings #2, #3 and
+#4 were runtime-verified as **singledispatch/Protocol typing
 artifacts, not bugs** (`EventModel` is instantiable;
-`convolve(list, total_duration=...)` works with real events). #5
-is the same artifact family (unverified but low-suspicion). #6 is
-a correct idiom flagged cosmetically. #3 remains the only
-unverified judgment item. #7 is a separate, real observation
-(runwise-robust IRLS broadcast with minimal models), surfaced
-*because* #1's fix unblocked that path — tracked as a follow-up,
-not a strict-mypy finding.
+`type(event)(...)` on a Protocol-typed var hits the concrete
+class at runtime; `convolve(list, total_duration=...)` works
+with real events). #5 is the same artifact family (low-suspicion,
+not separately verified — the pattern is now well-established).
+#6 is a correct idiom flagged cosmetically. #7 is a separate,
+real observation (runwise-robust IRLS broadcast with minimal
+models), surfaced *because* #1's fix unblocked that path —
+tracked as its own bead, not a strict-mypy finding. Judgment
+triage is now complete: no unverified judgment items remain.
 
 Implication for the gate decision: full-strict's incremental
 bug-finding value over the scoped gate, on this codebase, was ~1
@@ -143,6 +149,5 @@ input: full-strict is not a large hidden-bug reservoir here, but
 the one bug it found was a 100%-broken untested public API. The
 steward call is whether that yield justifies adopting full-strict
 as the gate vs. documenting the scoped/strict divergence as a
-caveat. Open items to bead independently of the gate decision:
-**#3** (verify EventProtocol kwargs call site) and **#7**
-(runwise-robust broadcast).
+caveat. The only item to bead independently of the gate decision
+is **#7** (runwise-robust IRLS broadcast) — filed separately.
