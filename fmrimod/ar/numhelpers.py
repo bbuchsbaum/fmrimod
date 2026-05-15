@@ -6,7 +6,7 @@ solver into pure NumPy/SciPy.
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -16,19 +16,19 @@ from scipy.linalg import solve_toeplitz
 # PACF <-> AR conversion (Durbin-Levinson recursion)
 # ---------------------------------------------------------------------------
 
-def pacf_to_ar(kappa: NDArray) -> NDArray:
+def pacf_to_ar(kappa: NDArray[np.float64]) -> NDArray[np.float64]:
     """Convert partial autocorrelations to AR coefficients.
 
     Uses the Durbin-Levinson forward recursion.
 
     Parameters
     ----------
-    kappa : NDArray
+    kappa : NDArray[np.float64]
         PACF values, shape ``(p,)``.
 
     Returns
     -------
-    NDArray
+    NDArray[np.float64]
         AR coefficients, shape ``(p,)``.
     """
     kappa = np.asarray(kappa, dtype=np.float64).ravel()
@@ -48,21 +48,21 @@ def pacf_to_ar(kappa: NDArray) -> NDArray:
     return phi_prev
 
 
-def ar_to_pacf(phi: NDArray, eps: float = 1e-12) -> NDArray:
+def ar_to_pacf(phi: NDArray[np.float64], eps: float = 1e-12) -> NDArray[np.float64]:
     """Convert AR coefficients to partial autocorrelations.
 
     Inverse of :func:`pacf_to_ar` via backward Levinson recursion.
 
     Parameters
     ----------
-    phi : NDArray
+    phi : NDArray[np.float64]
         AR coefficients, shape ``(p,)``.
     eps : float
         Floor for denominator to avoid division by zero.
 
     Returns
     -------
-    NDArray
+    NDArray[np.float64]
         PACF values, shape ``(p,)``.
     """
     phi = np.asarray(phi, dtype=np.float64).ravel()
@@ -93,8 +93,8 @@ def ar_to_pacf(phi: NDArray, eps: float = 1e-12) -> NDArray:
 # ---------------------------------------------------------------------------
 
 def enforce_stationary_ar(
-    phi: NDArray, bound: float = 0.99
-) -> NDArray:
+    phi: NDArray[np.float64], bound: float = 0.99
+) -> NDArray[np.float64]:
     """Enforce stationarity by clipping PACF values.
 
     Converts AR coefficients to PACF, clips each to ``[-bound, bound]``,
@@ -103,14 +103,14 @@ def enforce_stationary_ar(
 
     Parameters
     ----------
-    phi : NDArray
+    phi : NDArray[np.float64]
         AR coefficients, shape ``(p,)``.
     bound : float
         PACF clipping bound (default 0.99).
 
     Returns
     -------
-    NDArray
+    NDArray[np.float64]
         Stationary AR coefficients, shape ``(p,)``.
     """
     phi = np.asarray(phi, dtype=np.float64).ravel()
@@ -122,20 +122,20 @@ def enforce_stationary_ar(
 
 
 def enforce_invertible_ma(
-    theta: NDArray, tol: float = 1e-8
-) -> NDArray:
+    theta: NDArray[np.float64], tol: float = 1e-8
+) -> NDArray[np.float64]:
     """Enforce MA invertibility by reflecting roots inside the unit circle.
 
     Parameters
     ----------
-    theta : NDArray
+    theta : NDArray[np.float64]
         MA coefficients, shape ``(q,)``.
     tol : float
         Tolerance for unit-circle boundary.
 
     Returns
     -------
-    NDArray
+    NDArray[np.float64]
         Invertible MA coefficients, shape ``(q,)``.
     """
     theta = np.asarray(theta, dtype=np.float64).ravel()
@@ -173,8 +173,8 @@ def enforce_invertible_ma(
 # ---------------------------------------------------------------------------
 
 def levinson_durbin(
-    gamma: NDArray, p: int
-) -> Tuple[NDArray, float]:
+    gamma: NDArray[np.float64], p: int
+) -> Tuple[NDArray[np.float64], float]:
     """Solve Yule-Walker equations via Levinson-Durbin.
 
     Uses ``scipy.linalg.solve_toeplitz`` for the symmetric positive-definite
@@ -182,14 +182,14 @@ def levinson_durbin(
 
     Parameters
     ----------
-    gamma : NDArray
+    gamma : NDArray[np.float64]
         Autocovariance values ``gamma[0], gamma[1], ..., gamma[p]``.
     p : int
         AR order.
 
     Returns
     -------
-    phi : NDArray
+    phi : NDArray[np.float64]
         AR coefficients, shape ``(p,)``.
     sigma2 : float
         Innovation variance.
@@ -213,21 +213,21 @@ def levinson_durbin(
 # ---------------------------------------------------------------------------
 
 def segmented_acvf(
-    y: NDArray,
-    seg_starts: NDArray,
+    y: NDArray[np.float64],
+    seg_starts: NDArray[Any],
     max_lag: int,
     unbiased: bool = False,
     center: bool = True,
-) -> NDArray:
+) -> NDArray[np.float64]:
     """Compute autocovariance from a segmented 1-D series.
 
     Each segment is treated independently (no cross-segment products).
 
     Parameters
     ----------
-    y : NDArray
+    y : NDArray[np.float64]
         1-D time series, shape ``(n,)``.
-    seg_starts : NDArray
+    seg_starts : NDArray[np.float64]
         0-based segment start indices (must include 0).
     max_lag : int
         Maximum lag to compute.
@@ -238,7 +238,7 @@ def segmented_acvf(
 
     Returns
     -------
-    NDArray
+    NDArray[np.float64]
         Autocovariance values, shape ``(max_lag + 1,)``.
     """
     y = np.asarray(y, dtype=np.float64).ravel()
@@ -276,8 +276,8 @@ def segmented_acvf(
 
 
 def run_avg_acvf(
-    mat: NDArray, max_lag: int, run_starts: Optional[NDArray] = None
-) -> NDArray:
+    mat: NDArray[np.float64], max_lag: int, run_starts: Optional[NDArray[np.float64]] = None
+) -> NDArray[np.float64]:
     """Compute column-pooled autocovariance from a matrix.
 
     Pools ACVF across columns (voxels) by computing the mean
@@ -285,17 +285,17 @@ def run_avg_acvf(
 
     Parameters
     ----------
-    mat : NDArray
+    mat : NDArray[np.float64]
         Data matrix, shape ``(n, V)``.
     max_lag : int
         Maximum lag.
-    run_starts : NDArray or None
+    run_starts : NDArray[np.float64] or None
         0-based run start indices.  If ``None``, treats the whole
         series as one segment.
 
     Returns
     -------
-    NDArray
+    NDArray[np.float64]
         Pooled autocovariance, shape ``(max_lag + 1,)``.
     """
     mat = np.asarray(mat, dtype=np.float64)
