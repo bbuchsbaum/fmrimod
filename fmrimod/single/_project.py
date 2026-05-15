@@ -7,7 +7,7 @@ T x T projection matrix.  Shared by all single-trial estimation methods.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional, Tuple, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -36,7 +36,10 @@ class NuisanceProjector:
                     f"Target has {M.shape[0]} rows, expected {self.n_rows}."
                 )
             results.append(M - self.Q @ (self.Q.T @ M))
-        return tuple(results) if len(results) > 1 else results[0]
+        return cast(
+            "Tuple[NDArray[np.float64], ...]",
+            tuple(results) if len(results) > 1 else results[0],
+        )
 
 
 def build_nuisance_projector(
@@ -99,5 +102,8 @@ def project_nuisance(
     """
     projector = build_nuisance_projector(X_nuisance)
     if projector is None:
-        return targets if len(targets) > 1 else targets[0]
+        return cast(
+            "Tuple[NDArray[np.float64], ...]",
+            targets if len(targets) > 1 else targets[0],
+        )
     return projector.project(*targets)
