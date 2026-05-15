@@ -123,9 +123,9 @@ def coef_names(x: object, include_baseline: bool = True) -> list[str]:
             return names[: int(n_event)] if n_event is not None else names
 
     event_model = getattr(model, "event_model", model)
-    names = getattr(event_model, "column_names", None)
-    if names is not None:
-        return [str(name) for name in names]
+    event_names = getattr(event_model, "column_names", None)
+    if event_names is not None:
+        return [str(name) for name in event_names]
 
     n_coef = getattr(x, "n_coefficients", None)
     if n_coef is not None:
@@ -314,9 +314,13 @@ def get_data(x: object, run: int = 0, **kwargs: object) -> NDArray[np.float64]:
 
 def get_data_matrix(x: object, **kwargs: object) -> NDArray[np.float64]:
     """Return all run data concatenated along time."""
+    forwarded = cast("dict[str, object]", {k: v for k, v in kwargs.items() if k != "run"})
     if hasattr(x, "n_runs") and hasattr(x, "get_data"):
-        return np.vstack([get_data(x, run=i, **kwargs) for i in range(int(x.n_runs))])
-    return get_data(x, **kwargs)
+        return np.vstack(
+            [get_data(x, run=i, **forwarded) for i in range(int(x.n_runs))]
+        )
+    run = int(cast(int, kwargs.get("run", 0)))
+    return get_data(x, run=run, **forwarded)
 
 
 def get_mask(x: object, **kwargs: object) -> NDArray[np.bool_]:
@@ -406,9 +410,9 @@ def tidy(x: object, type: AccessorTarget = "estimates") -> pd.DataFrame:
     type = _normalize_target(type)
     if type == "estimates":
         estimates = _coef_matrix(x, include_baseline=True)
-        se_vals = standard_error(x, type="estimates")
-        stat_vals = stats(x, type="estimates")
-        p_vals = p_values(x, type="estimates")
+        se_vals = cast(NDArray[np.float64], standard_error(x, type="estimates"))
+        stat_vals = cast(NDArray[np.float64], stats(x, type="estimates"))
+        p_vals = cast(NDArray[np.float64], p_values(x, type="estimates"))
         names = coef_names(x, include_baseline=True)
         rows = []
         for coef_idx, name in enumerate(names):
