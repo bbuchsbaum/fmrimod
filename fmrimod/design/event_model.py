@@ -11,6 +11,7 @@ import pandas as pd
 
 from .._warnings import call_safely, suppress_fmrimod_warnings
 from ..covariate import CovariateTerm, create_covariate_events
+from ..hrf.core import HRF
 from ..dispatch import get_hrf
 from ..events import (
     EventBasis,
@@ -348,7 +349,7 @@ class EventModel(ModelProtocol):
         else:
             return create_interaction(*term_events, name=term.name)
 
-    def _resolve_hrf(self, hrf) -> Any:
+    def _resolve_hrf(self, hrf: object) -> HRF:
         """Resolve HRF specification to a fmrimod HRF object.
 
         Parameters
@@ -374,7 +375,7 @@ class EventModel(ModelProtocol):
         else:
             return self._resolve_hrf_from_object(hrf, fmrimod)
 
-    def _resolve_hrf_from_string(self, hrf: str, fmrimod) -> Any:
+    def _resolve_hrf_from_string(self, hrf: str, fmrimod: object) -> HRF:
         """Resolve HRF from string specification.
 
         Parameters
@@ -404,7 +405,7 @@ class EventModel(ModelProtocol):
         # Try local registry
         return self._resolve_local_hrf(hrf, fmrimod)
 
-    def _get_spm_hrf(self, hrf_lower: str, fmrimod) -> Any:
+    def _get_spm_hrf(self, hrf_lower: str, fmrimod: object) -> HRF | None:
         """Get SPM HRF by name.
 
         Parameters
@@ -429,7 +430,7 @@ class EventModel(ModelProtocol):
         }
         return spm_map.get(hrf_lower)
 
-    def _resolve_local_hrf(self, hrf: str, fmrimod) -> Any:
+    def _resolve_local_hrf(self, hrf: str, fmrimod: object) -> HRF:
         """Resolve HRF from local registry.
 
         Parameters
@@ -450,7 +451,7 @@ class EventModel(ModelProtocol):
             return fmrimod.SPM_CANONICAL
         return hrf_obj
 
-    def _resolve_hrf_from_object(self, hrf, fmrimod) -> Any:
+    def _resolve_hrf_from_object(self, hrf: object, fmrimod: object) -> HRF:
         """Resolve HRF from object.
 
         Parameters
