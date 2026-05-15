@@ -64,11 +64,36 @@ def hrf(
     Parameters
     ----------
     norm
-        HRF normalization mode. ``"spm"`` matches Nilearn's
-        ``hrf_model="spm"`` scale on the reference grid;
-        ``"unit_peak"`` mirrors R's ``normalise_hrf``; ``"unit_integral"``
-        gives a continuous-integral of 1. Leave as ``None`` for the raw
-        canonical scale.
+        HRF normalization mode. Leave as ``None`` for the raw canonical
+        scale.
+
+        - ``"spm"`` — divide by the *sum* of the HRF evaluated on
+          Nilearn's reference grid (``time_length=32``,
+          ``oversampling=50``). Matches Nilearn's ``hrf_model="spm"``
+          scale.
+        - ``"unit_peak"`` — divide by the absolute peak of the HRF on
+          its span. Mirrors R's ``normalise_hrf``.
+        - ``"unit_integral"`` — divide by the trapezoidal integral so
+          the continuous integral equals 1.
+        - ``"unit_peak_per_basis"`` — multi-basis only: each column is
+          divided by *its own* absolute peak so every column has unit
+          peak. Use when the basis columns are heterogeneously scaled
+          (e.g. an ``as_hrf`` wrapper around a hand-built basis).
+
+        **Multi-basis behaviour (SPMG2 / SPMG3 / FIR / B-spline).**
+        ``"spm"``, ``"unit_peak"``, and ``"unit_integral"`` all derive a
+        *single* scalar from the canonical column (column 0) on the
+        reference grid and apply that same scalar uniformly to every
+        basis column. This preserves the physical interpretation of the
+        derivative / dispersion columns as latency / shape *perturbations*
+        of a fixed-amplitude canonical — ``β_derivative`` units stay
+        commensurate with ``β_canonical`` units. ``"unit_peak_per_basis"``
+        rescales each column independently, which breaks that
+        interpretation but is useful when the columns are not basis
+        functions in the SPM sense (e.g. an arbitrary multi-channel
+        kernel). For ``basis="spmg2"`` / ``"spmg3"``, prefer ``"spm"``
+        (Nilearn-compatible) or ``"unit_peak"`` (R-aligned) over
+        ``"unit_peak_per_basis"``.
 
     Notes
     -----

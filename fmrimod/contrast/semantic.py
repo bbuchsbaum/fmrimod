@@ -372,6 +372,31 @@ def modulator(name: str) -> ModulatorRef:
     return ModulatorRef(name=name)
 
 
+_SPM_INFORMED_BASIS_LABELS: dict[int, str] = {
+    1: "canonical",
+    2: "derivative",
+    3: "dispersion",
+}
+
+
+def _basis_role_label(basis_ix: int, basis_name: str | None) -> str:
+    """Map ``(basis_ix, basis_name)`` to a human-readable basis role label.
+
+    SPM informed-basis-set columns (SPMG2/SPMG3) follow the canonical /
+    derivative / dispersion ordering; FIR columns are numbered lags. Unknown
+    bases fall back to a generic phrasing so the repair hint never invents
+    a role label it cannot guarantee from the realized provenance.
+    """
+    name = (basis_name or "").upper()
+    if name.startswith(("SPMG", "SPM_")):
+        label = _SPM_INFORMED_BASIS_LABELS.get(basis_ix)
+        if label is not None:
+            return label
+    if name.startswith("FIR"):
+        return f"lag {basis_ix}"
+    return f"basis column {basis_ix}"
+
+
 def _select_condition(
     columns: DesignColumns,
     ref: ConditionRef,
@@ -392,13 +417,26 @@ def _select_condition(
                 if column.basis_ix is not None
             }
         )
+        basis_names = {
+            column.basis_name
+            for column in candidates
+            if column.basis_name is not None
+        }
+        shared_basis_name = (
+            next(iter(basis_names)) if len(basis_names) == 1 else None
+        )
+        labelled = ", ".join(
+            f"basis_ix={ix} for {_basis_role_label(ix, shared_basis_name)}"
+            for ix in basis
+        )
         raise DesignProvenanceError(
             f"SemanticContrast {side} condition {ref.display_name!r} is "
             f"ambiguous across basis columns={basis!r}",
             weak_fields=("basis_ix",),
             repair_path=(
-                "pass basis_ix=... to condition(...) or use an F/omnibus "
-                "contrast for multi-basis condition effects."
+                f"pass basis_ix=N to condition(...) to pin a single basis "
+                f"column ({labelled}), or use an F/omnibus contrast for "
+                f"the joint multi-basis effect."
             ),
         )
 

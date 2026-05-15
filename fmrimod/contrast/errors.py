@@ -21,6 +21,12 @@ class DesignProvenanceError(ValueError):
         self.weak_fields = tuple(weak_fields)
         self.repair_path = repair_path
 
+    def __str__(self) -> str:
+        message = str(self.args[0]) if self.args else ""
+        if self.repair_path:
+            return f"{message}\n  Repair: {self.repair_path}"
+        return message
+
     def __repr__(self) -> str:
         return (
             f"DesignProvenanceError(message={self.args[0]!r}, "

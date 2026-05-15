@@ -34,6 +34,22 @@ Modes
 ``"unit_integral"``
     Divide by the trapezoidal integral on the HRF span so the
     continuous integral equals 1.
+
+Multi-basis broadcasting rule
+-----------------------------
+For multi-basis HRFs (SPMG2 / SPMG3 / FIR / B-spline), ``"spm"``,
+``"unit_peak"``, and ``"unit_integral"`` all collapse to a **single
+scalar divisor** computed from the canonical column (column 0) on the
+reference grid; that scalar is then applied uniformly to every basis
+column. This preserves the physical interpretation of derivative and
+dispersion columns as latency / shape perturbations of a
+fixed-amplitude canonical — ``β`` units stay commensurate across
+columns.
+
+``"unit_peak_per_basis"`` is the only mode that rescales each basis
+column independently. Use it when the basis columns are not SPM-style
+shape derivatives — e.g. an arbitrary multi-channel kernel wrapped via
+``as_hrf``.
 """
 
 from __future__ import annotations
