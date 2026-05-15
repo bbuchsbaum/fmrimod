@@ -27,7 +27,7 @@ from .space import GroupSpace, SampleLabelSpace, VoxelSpace
 CONTRAST_INTENT_COLUMN = "contrast_intent"
 
 
-def _coerce_axis(values: Sequence[Any], *, name: str) -> tuple[str, ...]:
+def _coerce_axis(values: Sequence[object], *, name: str) -> tuple[str, ...]:
     out = tuple(str(value) for value in values)
     if not out:
         raise AdapterContractError(f"{name} must be non-empty")
@@ -107,14 +107,14 @@ class GroupDataset:
     Assays are stored as ``sample x subject x contrast`` float64 arrays.
     """
 
-    assays: Mapping[str, Any]
+    assays: Mapping[str, object]
     space: GroupSpace
-    subjects: Sequence[Any]
-    contrasts: Sequence[Any]
+    subjects: Sequence[object]
+    contrasts: Sequence[object]
     col_data: pd.DataFrame | None = None
     row_data: pd.DataFrame | None = None
     contrast_data: pd.DataFrame | None = None
-    metadata: Mapping[str, Any] = field(default_factory=dict)
+    metadata: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not isinstance(self.assays, Mapping) or not self.assays:
@@ -217,9 +217,9 @@ class GroupDataset:
 
     def with_assays(
         self,
-        assays: Mapping[str, Any],
+        assays: Mapping[str, object],
         *,
-        metadata: Mapping[str, Any] | None = None,
+        metadata: Mapping[str, object] | None = None,
     ) -> GroupDataset:
         """Return a dataset with replaced assays and preserved axes."""
         md = dict(self.metadata)
@@ -238,15 +238,15 @@ class GroupDataset:
 
 
 def group_dataset(
-    assays: Mapping[str, Any],
+    assays: Mapping[str, object],
     *,
     space: GroupSpace,
-    subjects: Sequence[Any],
-    contrasts: Sequence[Any],
+    subjects: Sequence[object],
+    contrasts: Sequence[object],
     col_data: pd.DataFrame | None = None,
     row_data: pd.DataFrame | None = None,
     contrast_data: pd.DataFrame | None = None,
-    metadata: Mapping[str, Any] | None = None,
+    metadata: Mapping[str, object] | None = None,
 ) -> GroupDataset:
     """Construct a :class:`GroupDataset` from materialized assay arrays."""
     return GroupDataset(
@@ -469,7 +469,7 @@ def _group_dataset_from_nifti_group_data(data: object) -> GroupDataset:
     )
 
 
-def _maybe_call(value: object) -> Any:
+def _maybe_call(value: object) -> object:
     return value() if callable(value) else value
 
 
