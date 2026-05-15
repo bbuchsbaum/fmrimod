@@ -8,7 +8,7 @@ the design matrix.
 
 from __future__ import annotations
 
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -26,7 +26,7 @@ from ..types import (
 from .matrix import EventMatrix
 
 
-class EventBasis(BaseEvent):
+class EventBasis(BaseEvent):  # type: ignore[misc]
     """Event with basis function expansion.
     
     This represents continuous events that are expanded using basis functions
@@ -82,7 +82,7 @@ class EventBasis(BaseEvent):
         self,
         name: str,
         onsets: OnsetType,
-        values: Union[Array, pd.Series],
+        values: Union[Array, "pd.Series[Any]"],
         basis: BasisProtocol,
         durations: DurationType = 0,
     ):
@@ -93,62 +93,66 @@ class EventBasis(BaseEvent):
         self._values = values
         self._durations = durations
         
-        # Initialize base attributes
-        self.onsets = None
-        self.durations = None
-        self.values = None
-        self.expanded_values = None
-        
+        # Initialize base attributes — typed as Optional so post-init narrowing
+        # is explicit. _validate() reassigns these to concrete arrays.
+        self.onsets: Optional[Array] = None
+        self.durations: Optional[Array] = None
+        self.values: Optional[Array] = None
+        self.expanded_values: Optional[Array] = None
+
         # Trigger validation and setup
         self.__post_init__()
-    
+
     def _validate(self) -> None:
         """Validate and process event data."""
         # Validate onsets
         self.onsets = validate_onsets(self._onsets)
-        
+        assert self.onsets is not None
+
         # Validate durations
         self.durations = validate_durations(self._durations, len(self.onsets))
-        
+
         # Process values
         if isinstance(self._values, pd.Series):
-            self.values = self._values.values.astype(np.float64)
+            values = cast(Array, self._values.values.astype(np.float64))
         else:
-            self.values = np.asarray(self._values, dtype=np.float64)
-        
+            values = np.asarray(self._values, dtype=np.float64)
+        self.values = values
+
         # Validate values
-        if self.values.ndim != 1:
+        if values.ndim != 1:
             raise ValueError(
-                f"Values must be 1-dimensional, got {self.values.ndim}D"
+                f"Values must be 1-dimensional, got {values.ndim}D"
             )
-        
-        if len(self.values) != len(self.onsets):
+
+        if len(values) != len(self.onsets):
             raise ValueError(
-                f"Length mismatch: {len(self.values)} values "
+                f"Length mismatch: {len(values)} values "
                 f"but {len(self.onsets)} onsets"
             )
-        
-        if not np.all(np.isfinite(self.values)):
+
+        if not np.all(np.isfinite(values)):
             raise ValueError("Values must be finite (no NaN or inf)")
-        
+
         # Validate basis
         if not hasattr(self.basis, 'evaluate'):
             raise TypeError("Basis must have an 'evaluate' method")
-        
+
         # Expand values using basis functions
         self.expanded_values = self._expand_values()
     
     def _expand_values(self) -> Array:
         """Expand values using basis functions.
-        
+
         Returns
         -------
         Array
             Expanded values, shape (n_events, n_basis)
         """
+        assert self.values is not None
         # Evaluate basis at each value
-        expanded = self.basis.evaluate(self.values)
-        
+        expanded = cast(Array, self.basis.evaluate(self.values))
+
         # Ensure 2D
         if expanded.ndim == 1:
             expanded = expanded.reshape(-1, 1)
@@ -172,13 +176,14 @@ class EventBasis(BaseEvent):
     @property
     def n_basis(self) -> int:
         """Number of basis functions."""
-        return self.expanded_values.shape[1]
-    
+        assert self.expanded_values is not None
+        return int(self.expanded_values.shape[1])
+
     @property
     def basis_names(self) -> List[str]:
         """Names for each basis function."""
         if hasattr(self.basis, 'basis_names'):
-            return self.basis.basis_names
+            return cast(List[str], self.basis.basis_names)
         else:
             return [f"{self.name}_basis{i+1}" for i in range(self.n_basis)]
 
@@ -190,6 +195,7 @@ class EventBasis(BaseEvent):
         ``basis_matrix``. This compatibility shim keeps ``EventBasis`` aligned
         with the rest of the event-convolution and generics stack.
         """
+        assert self.expanded_values is not None
         return self.expanded_values
     
     def design_matrix(self, sampling_points: Array) -> Array:
@@ -213,6 +219,11 @@ class EventBasis(BaseEvent):
         X = np.zeros((n_points, self.n_basis))
         
         # Fill in expanded values at event times
+        assert (
+            self.onsets is not None
+            and self.durations is not None
+            and self.expanded_values is not None
+        )
         for onset, duration, exp_values in zip(
             self.onsets, self.durations, self.expanded_values
         ):
@@ -237,16 +248,17 @@ class EventBasis(BaseEvent):
         pd.DataFrame
             DataFrame with onset, duration, original value, and basis columns
         """
-        data = {
+        data: Dict[str, Any] = {
             'onset': self.onsets,
             'duration': self.durations,
             f'{self.name}_value': self.values,
         }
-        
+
         # Add basis columns
+        assert self.expanded_values is not None
         for i, basis_name in enumerate(self.basis_names):
             data[basis_name] = self.expanded_values[:, i]
-        
+
         return pd.DataFrame(data)
     
     @classmethod
@@ -295,7 +307,7 @@ class EventBasis(BaseEvent):
             values=df[value_col].values,
             basis=basis,
             durations=durations,
-            **kwargs
+            **cast("dict[str, Any]", kwargs),
         )
     
     def to_matrix(self) -> EventMatrix:

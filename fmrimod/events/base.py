@@ -1,6 +1,8 @@
 """Base event class and utilities."""
 
-from typing import Dict, Union
+from typing import Any, Dict, Union, cast
+
+import pandas as pd
 
 from .basis import EventBasis
 from .factor import EventFactor
@@ -47,12 +49,15 @@ def create_event(event_type: str, **kwargs: object) -> Union[EventFactor, EventV
         )
     
     event_class = EVENT_TYPES[event_type]
-    return event_class(**kwargs)
+    return cast(
+        Union[EventFactor, EventVariable, EventMatrix, EventBasis],
+        event_class(**kwargs),
+    )
 
 
 def events_from_dataframe(
-    df,
-    event_specs: Dict[str, Dict],
+    df: pd.DataFrame,
+    event_specs: Dict[str, Dict[str, Any]],
     onset_col: str = 'onset',
     duration_col: str = 'duration'
 ) -> Dict[str, Union[EventFactor, EventVariable, EventMatrix, EventBasis]]:
@@ -95,9 +100,9 @@ def events_from_dataframe(
             raise ValueError(f"Unknown event type '{event_type}' for '{name}'")
         
         event_class = EVENT_TYPES[event_type]
-        
+
         # Create event from dataframe
-        events[name] = event_class.from_dataframe(
+        events[name] = cast(Any, event_class).from_dataframe(
             df,
             name=name,
             onset_col=onset_col,

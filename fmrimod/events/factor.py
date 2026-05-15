@@ -8,7 +8,7 @@ indicator column per level.
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -24,7 +24,7 @@ from ..types import (
 )
 
 
-class EventFactor(BaseEvent):
+class EventFactor(BaseEvent):  # type: ignore[misc]
     """Categorical event with discrete levels.
     
     This represents events that take on discrete values (conditions, 
@@ -79,24 +79,25 @@ class EventFactor(BaseEvent):
         self,
         name: str,
         onsets: OnsetType,
-        values: Union[List, Array, pd.Series],
+        values: Union[List[Any], Array, "pd.Series[Any]"],
         durations: DurationType = 0,
         levels: Optional[List[str]] = None,
         contrasts: Optional[Dict[str, Array]] = None,
     ):
         """Initialize EventFactor."""
         self.name = name
-        self.levels = levels
+        self.levels: Optional[List[str]] = levels
         self.contrasts = contrasts
         self._onsets = onsets
         self._values = values
         self._durations = durations
-        
-        # Initialize base attributes
-        self.onsets = None
-        self.durations = None
-        self._categorical_values = None
-        
+
+        # Initialize base attributes — typed as Optional so post-init narrowing
+        # is explicit. _validate() reassigns these to concrete arrays.
+        self.onsets: Optional[Array] = None
+        self.durations: Optional[Array] = None
+        self._categorical_values: Optional[pd.Categorical] = None
+
         # Trigger validation and setup
         self.__post_init__()
     
@@ -114,7 +115,7 @@ class EventFactor(BaseEvent):
         else:
             # Convert to categorical
             self._categorical_values = pd.Categorical(
-                self._values,
+                cast(Any, self._values),
                 categories=self.levels,
                 ordered=self.levels is not None
             )
@@ -151,11 +152,13 @@ class EventFactor(BaseEvent):
     @property
     def values(self) -> pd.Categorical:
         """Event values."""
+        assert self._categorical_values is not None
         return self._categorical_values
-    
+
     @property
     def n_levels(self) -> int:
         """Number of unique levels."""
+        assert self.levels is not None
         return len(self.levels)
     
     def get_level_indices(self, level: str) -> Array:
@@ -187,8 +190,9 @@ class EventFactor(BaseEvent):
             Onset times for the level
         """
         indices = self.get_level_indices(level)
+        assert self.onsets is not None
         return self.onsets[indices]
-    
+
     def get_level_durations(self, level: str) -> Array:
         """Get durations for a specific level.
         
@@ -203,6 +207,7 @@ class EventFactor(BaseEvent):
             Durations for the level
         """
         indices = self.get_level_indices(level)
+        assert self.durations is not None
         return self.durations[indices]
     
     def split_by_level(self) -> Dict[str, EventFactor]:
@@ -213,7 +218,8 @@ class EventFactor(BaseEvent):
         dict
             Dictionary mapping level names to EventFactor objects
         """
-        result = {}
+        result: Dict[str, EventFactor] = {}
+        assert self.levels is not None and self.onsets is not None and self.durations is not None
         for level in self.levels:
             indices = self.get_level_indices(level)
             if np.any(indices):
@@ -248,6 +254,7 @@ class EventFactor(BaseEvent):
         X = np.zeros((n_points, n_levels))
         
         # For each level, create indicator column
+        assert self.levels is not None
         for i, level in enumerate(self.levels):
             level_onsets = self.get_level_onsets(level)
             level_durations = self.get_level_durations(level)
@@ -323,11 +330,12 @@ class EventFactor(BaseEvent):
             onsets=df[onset_col].values,
             values=df[value_col].values,
             durations=durations,
-            **kwargs
+            **cast("dict[str, Any]", kwargs),
         )
     
     def __repr__(self) -> str:
         """String representation."""
+        assert self.levels is not None
         level_str = ", ".join(self.levels[:3])
         if self.n_levels > 3:
             level_str += ", ..."

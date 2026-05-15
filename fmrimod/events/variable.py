@@ -9,7 +9,7 @@ placed into the design matrix.
 from __future__ import annotations
 
 import warnings
-from typing import List, Literal, Optional, Union
+from typing import Any, List, Literal, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -26,7 +26,7 @@ from ..types import (
 from .factor import EventFactor
 
 
-class EventVariable(BaseEvent):
+class EventVariable(BaseEvent):  # type: ignore[misc]
     """Continuous event with numeric values.
     
     This represents events with continuous values (ratings, reaction times,
@@ -80,7 +80,7 @@ class EventVariable(BaseEvent):
         self,
         name: str,
         onsets: OnsetType,
-        values: Union[Array, pd.Series],
+        values: Union[Array, "pd.Series[Any]"],
         durations: DurationType = 0,
         center: bool = True,
         scale: bool = False,
@@ -107,12 +107,13 @@ class EventVariable(BaseEvent):
         self._values = values
         self._durations = durations
 
-        # Initialize base attributes
-        self.onsets = None
-        self.durations = None
-        self.values = None
-        self.raw_values = None
-        self.nan_mask = None
+        # Initialize base attributes — typed as Optional so post-init
+        # narrowing is explicit. _validate() reassigns these to concrete arrays.
+        self.onsets: Optional[Array] = None
+        self.durations: Optional[Array] = None
+        self.values: Optional[Array] = None
+        self.raw_values: Optional[Array] = None
+        self.nan_mask: Optional[Array] = None
 
         # Trigger validation and setup
         self.__post_init__()
@@ -121,29 +122,31 @@ class EventVariable(BaseEvent):
         """Validate and process event data."""
         # Validate onsets
         self.onsets = validate_onsets(self._onsets)
+        assert self.onsets is not None
 
         # Validate durations
         self.durations = validate_durations(self._durations, len(self.onsets))
 
         # Process continuous values
         if isinstance(self._values, pd.Series):
-            self.raw_values = self._values.values.astype(np.float64)
+            raw_values = cast(Array, self._values.values.astype(np.float64))
         else:
-            self.raw_values = np.asarray(self._values, dtype=np.float64)
+            raw_values = np.asarray(self._values, dtype=np.float64)
+        self.raw_values = raw_values
 
         # Validate values
-        if self.raw_values.ndim != 1:
+        if raw_values.ndim != 1:
             raise ValueError(
-                f"Values must be 1-dimensional, got {self.raw_values.ndim}D"
+                f"Values must be 1-dimensional, got {raw_values.ndim}D"
             )
 
-        if len(self.raw_values) != len(self.onsets):
+        if len(raw_values) != len(self.onsets):
             raise ValueError(
-                f"Length mismatch: {len(self.raw_values)} values "
+                f"Length mismatch: {len(raw_values)} values "
                 f"but {len(self.onsets)} onsets"
             )
 
-        nan_mask = ~np.isfinite(self.raw_values)
+        nan_mask = ~np.isfinite(raw_values)
         n_nan = int(np.sum(nan_mask))
         if n_nan > 0:
             if self.nan_strategy == "error":
@@ -153,7 +156,7 @@ class EventVariable(BaseEvent):
                     f"or remove the rows upstream."
                 )
             warnings.warn(
-                f"EventVariable {self.name!r}: {n_nan}/{len(self.raw_values)} "
+                f"EventVariable {self.name!r}: {n_nan}/{len(raw_values)} "
                 f"value(s) are non-finite (NaN / inf). Those trials "
                 f"contribute zero amplitude to any column that uses this "
                 f"variable as a parametric modulator; they remain in any "
@@ -166,10 +169,11 @@ class EventVariable(BaseEvent):
 
         # Apply centering and scaling, then zero out non-finite entries
         # so the convolution amplitude for those trials is exactly zero.
-        self.values = self._transform_values(self.raw_values)
+        values = self._transform_values(raw_values)
         if n_nan > 0:
-            self.values = self.values.copy()
-            self.values[nan_mask] = 0.0
+            values = values.copy()
+            values[nan_mask] = 0.0
+        self.values = values
 
     def _transform_values(self, values: Array) -> Array:
         """Apply centering and/or scaling to values.
@@ -254,6 +258,7 @@ class EventVariable(BaseEvent):
         X = np.zeros((n_points, 1))
         
         # Fill in values at event times
+        assert self.onsets is not None and self.durations is not None and self.values is not None
         for onset, duration, value in zip(self.onsets, self.durations, self.values):
             if duration == 0:
                 # Impulse event - find nearest sampling point
@@ -325,7 +330,7 @@ class EventVariable(BaseEvent):
             onsets=df[onset_col].values,
             values=df[value_col].values,
             durations=durations,
-            **kwargs
+            **cast("dict[str, Any]", kwargs),
         )
     
     def bin_values(self, n_bins: int = 3, 
@@ -351,19 +356,21 @@ class EventVariable(BaseEvent):
         if labels is not None and len(labels) != n_bins:
             raise ValueError("labels length must match n_bins")
         
-        if np.allclose(self.raw_values, self.raw_values[0]):
-            center = float(self.raw_values[0])
+        assert self.raw_values is not None
+        raw_values = self.raw_values
+        if np.allclose(raw_values, raw_values[0]):
+            center = float(raw_values[0])
             bins = np.array([center - 1e-10, center + 1e-10], dtype=np.float64)
         else:
             # Create bins from quantiles
-            bins = np.quantile(self.raw_values, np.linspace(0, 1, n_bins + 1))
+            bins = cast(Array, np.quantile(raw_values, np.linspace(0, 1, n_bins + 1)))
             bins[0] -= 1e-10  # Ensure leftmost edge includes minimum
             bins[-1] += 1e-10  # Ensure rightmost edge includes maximum
 
             # Quantile edges can still collapse; drop duplicates.
             bins = np.unique(bins)
             if bins.size < 2:
-                center = float(self.raw_values[0])
+                center = float(raw_values[0])
                 bins = np.array([center - 1e-10, center + 1e-10], dtype=np.float64)
         effective_n_bins = bins.size - 1
         cut_labels = labels

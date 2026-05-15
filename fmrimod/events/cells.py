@@ -7,7 +7,7 @@ condition names from an ``EventTerm``, as well as model-level wrappers
 """
 
 from itertools import product
-from typing import List
+from typing import Any, List, cast
 
 import numpy as np
 import pandas as pd
@@ -15,7 +15,7 @@ import pandas as pd
 from ..naming import continuous_token, level_token, make_cond_tag
 
 
-def cells_event_term(event_term, drop_empty: bool = True) -> pd.DataFrame:
+def cells_event_term(event_term: Any, drop_empty: bool = True) -> pd.DataFrame:
     """Extract cells (factor combinations) from an event term.
     
     For categorical events, returns all possible combinations of factor levels
@@ -36,7 +36,7 @@ def cells_event_term(event_term, drop_empty: bool = True) -> pd.DataFrame:
     # Check cache
     cache_key = f"cells_{drop_empty}"
     if hasattr(event_term, '_cache') and cache_key in event_term._cache:
-        return event_term._cache[cache_key]
+        return cast(pd.DataFrame, event_term._cache[cache_key])
     
     # Separate categorical and continuous events
     categorical_events = []
@@ -145,7 +145,7 @@ def cells_event_term(event_term, drop_empty: bool = True) -> pd.DataFrame:
 
 
 def conditions_event_term(
-    event_term,
+    event_term: Any,
     drop_empty: bool = True,
     expand_basis: bool = False
 ) -> List[str]:
@@ -172,7 +172,7 @@ def conditions_event_term(
     # Check cache
     cache_key = f"conditions_{drop_empty}_{expand_basis}"
     if hasattr(event_term, '_cache') and cache_key in event_term._cache:
-        return event_term._cache[cache_key]
+        return cast("List[str]", event_term._cache[cache_key])
     
     # Shortcut for single continuous event with one column
     if (len(event_term.events) == 1 and 
@@ -226,7 +226,7 @@ def conditions_event_term(
     
     # Handle empty case
     if not comp_tokens_list:
-        result = []
+        result: List[str] = []
         if not hasattr(event_term, '_cache'):
             event_term._cache = {}
         event_term._cache[cache_key] = result
@@ -258,7 +258,7 @@ def conditions_event_term(
     return final_cond_tags
 
 
-def cells_event_model(model, drop_empty: bool = True) -> List[pd.DataFrame]:
+def cells_event_model(model: Any, drop_empty: bool = True) -> List[pd.DataFrame]:
     """Extract cells from all terms in an event model.
     
     Parameters
@@ -278,7 +278,7 @@ def cells_event_model(model, drop_empty: bool = True) -> List[pd.DataFrame]:
 
 
 def conditions_event_model(
-    model,
+    model: Any,
     drop_empty: bool = True,
     expand_basis: bool = False
 ) -> List[List[str]]:

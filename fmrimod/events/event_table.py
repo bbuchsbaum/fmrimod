@@ -9,6 +9,7 @@ combinations from ``EventTerm``, ``EventFactor``, ``EventVariable``,
 from __future__ import annotations
 
 from functools import singledispatch
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -22,7 +23,7 @@ from .variable import EventVariable
 
 
 @singledispatch
-def event_table(x, **kwargs: object) -> pd.DataFrame:
+def event_table(x: Any, **kwargs: object) -> pd.DataFrame:
     """Extract event table from an object.
     
     This generic function extracts a table containing all unique
@@ -187,7 +188,7 @@ def _cartesian_product_2(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
 
 
 # Register for EventModel when implemented
-def _register_event_model():
+def _register_event_model() -> None:
     """Register event_table method for EventModel."""
     from ..design.event_model import EventModel
     

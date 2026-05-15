@@ -8,7 +8,7 @@ event). Each column is convolved independently.
 
 from __future__ import annotations
 
-from typing import Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -25,7 +25,7 @@ from ..types import (
 from .variable import EventVariable
 
 
-class EventMatrix(BaseEvent):
+class EventMatrix(BaseEvent):  # type: ignore[misc]
     """Multi-column event representation.
     
     This represents events with multiple simultaneous values, such as
@@ -87,56 +87,59 @@ class EventMatrix(BaseEvent):
     ):
         """Initialize EventMatrix."""
         self.name = name
-        self.column_names = column_names
+        self.column_names: Optional[List[str]] = column_names
         self._onsets = onsets
         self._values = values
         self._durations = durations
-        
-        # Initialize base attributes
-        self.onsets = None
-        self.durations = None
-        self.values = None
-        
+
+        # Initialize base attributes — typed as Optional so post-init narrowing
+        # is explicit. _validate() reassigns these to concrete arrays.
+        self.onsets: Optional[Array] = None
+        self.durations: Optional[Array] = None
+        self.values: Optional[Array] = None
+
         # Trigger validation and setup
         self.__post_init__()
-    
+
     def _validate(self) -> None:
         """Validate and process event data."""
         # Validate onsets
         self.onsets = validate_onsets(self._onsets)
-        
+        assert self.onsets is not None
+
         # Validate durations
         self.durations = validate_durations(self._durations, len(self.onsets))
-        
+
         # Process matrix values
         if isinstance(self._values, pd.DataFrame):
-            self.values = self._values.values.astype(np.float64)
+            values = cast(Array, self._values.values.astype(np.float64))
             if self.column_names is None:
                 self.column_names = list(self._values.columns)
         else:
-            self.values = np.asarray(self._values, dtype=np.float64)
-        
+            values = np.asarray(self._values, dtype=np.float64)
+
         # Ensure 2D
-        if self.values.ndim == 1:
-            self.values = self.values.reshape(-1, 1)
-        elif self.values.ndim != 2:
+        if values.ndim == 1:
+            values = values.reshape(-1, 1)
+        elif values.ndim != 2:
             raise ValueError(
-                f"Values must be 1D or 2D, got {self.values.ndim}D"
+                f"Values must be 1D or 2D, got {values.ndim}D"
             )
-        
+
         # Validate shape
-        if self.values.shape[0] != len(self.onsets):
+        if values.shape[0] != len(self.onsets):
             raise ValueError(
-                f"Shape mismatch: {self.values.shape[0]} rows "
+                f"Shape mismatch: {values.shape[0]} rows "
                 f"but {len(self.onsets)} onsets"
             )
 
-        if self.values.shape[1] == 0:
+        if values.shape[1] == 0:
             raise ValueError("Values must contain at least one column")
 
         # Validate finite
-        if not np.all(np.isfinite(self.values)):
+        if not np.all(np.isfinite(values)):
             raise ValueError("Values must be finite (no NaN or inf)")
+        self.values = values
         
         # Set default column names if needed
         if self.column_names is None:
@@ -159,26 +162,28 @@ class EventMatrix(BaseEvent):
     @property
     def n_columns(self) -> int:
         """Number of columns."""
-        return self.values.shape[1]
-    
+        assert self.values is not None
+        return int(self.values.shape[1])
+
     def get_column(self, index: Union[int, str]) -> Array:
         """Get a specific column.
-        
+
         Parameters
         ----------
         index : int or str
             Column index or name
-        
+
         Returns
         -------
         Array
             Column values
         """
+        assert self.column_names is not None and self.values is not None
         if isinstance(index, str):
             if index not in self.column_names:
                 raise KeyError(f"Column '{index}' not found")
             index = self.column_names.index(index)
-        
+
         return self.values[:, index]
     
     def design_matrix(self, sampling_points: Array) -> Array:
@@ -202,6 +207,7 @@ class EventMatrix(BaseEvent):
         X = np.zeros((n_points, self.n_columns))
         
         # Fill in values at event times
+        assert self.onsets is not None and self.durations is not None and self.values is not None
         for onset, duration, values in zip(self.onsets, self.durations, self.values):
             if duration == 0:
                 # Impulse event - find nearest sampling point
@@ -224,15 +230,16 @@ class EventMatrix(BaseEvent):
         pd.DataFrame
             DataFrame with onset, duration, and value columns
         """
-        data = {
+        data: Dict[str, Any] = {
             'onset': self.onsets,
             'duration': self.durations,
         }
-        
+
         # Add value columns
+        assert self.column_names is not None and self.values is not None
         for i, col_name in enumerate(self.column_names):
             data[col_name] = self.values[:, i]
-        
+
         return pd.DataFrame(data)
     
     @classmethod
@@ -287,7 +294,7 @@ class EventMatrix(BaseEvent):
             values=df[value_cols].values,
             durations=durations,
             column_names=value_cols,
-            **kwargs
+            **cast("dict[str, Any]", kwargs),
         )
     
     def split_columns(self) -> Dict[str, EventVariable]:
@@ -299,8 +306,9 @@ class EventMatrix(BaseEvent):
             Dictionary mapping column names to EventVariable objects
         """
         from .variable import EventVariable
-        
-        result = {}
+
+        result: Dict[str, EventVariable] = {}
+        assert self.column_names is not None and self.values is not None
         for i, col_name in enumerate(self.column_names):
             result[col_name] = EventVariable(
                 name=col_name,
@@ -312,7 +320,7 @@ class EventMatrix(BaseEvent):
             )
         return result
     
-    def apply_transform(self, transform: Union[Array, Callable]) -> EventMatrix:
+    def apply_transform(self, transform: Union[Array, Callable[..., Any]]) -> EventMatrix:
         """Apply transformation to values.
         
         Parameters
@@ -341,6 +349,7 @@ class EventMatrix(BaseEvent):
     
     def __repr__(self) -> str:
         """String representation."""
+        assert self.column_names is not None
         col_str = ", ".join(self.column_names[:3])
         if self.n_columns > 3:
             col_str += ", ..."

@@ -10,7 +10,7 @@ product of continuous values).
 from __future__ import annotations
 
 from itertools import product
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, cast
 
 import numpy as np
 import pandas as pd
@@ -19,7 +19,7 @@ from ..base import BaseEvent, CacheMixin
 from ..types import Array
 
 
-class EventTerm(CacheMixin):
+class EventTerm(CacheMixin):  # type: ignore[misc]
     """A model term combining one or more event objects.
 
     ``EventTerm`` is the bridge between high-level ``Term`` specifications
@@ -164,16 +164,16 @@ class EventTerm(CacheMixin):
             # Single non-categorical event
             event = self.events[0]
             if event.event_type == "matrix":
-                return event.column_names
+                return cast("List[str]", event.column_names)
             elif event.event_type == "basis":
-                return event.basis_names
+                return cast("List[str]", event.basis_names)
             else:
-                return [event.name]
+                return [str(event.name)]
         
         else:
             # Multiple events (interaction)
             if self.is_continuous:
-                return [self.name]
+                return [str(self.name)]
             else:
                 # Mixed or complex - generate names
                 n_cols = self._get_n_columns()
@@ -186,9 +186,9 @@ class EventTerm(CacheMixin):
         elif len(self.events) == 1:
             event = self.events[0]
             if event.event_type == "matrix":
-                return event.n_columns
+                return int(event.n_columns)
             elif event.event_type == "basis":
-                return event.n_basis
+                return int(event.n_basis)
             else:
                 return 1
         else:
