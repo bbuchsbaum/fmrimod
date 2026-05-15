@@ -83,7 +83,7 @@ def _write_csv_payload_inputs(
 ) -> Mapping[str, object]:
     data = request.data.data
     csv_path = workdir / "group_data.csv"
-    df = data["data"].copy()
+    df = cast(Any, data["data"]).copy()
     sample_col = data.get("roi_col") or "sample"
     contrast_col = data.get("contrast_col") or "contrast"
 
@@ -97,7 +97,7 @@ def _write_csv_payload_inputs(
     payload: dict[str, object] = {
         "format": "csv",
         "path": str(csv_path),
-        "effect_cols": dict(data["effect_cols"]),
+        "effect_cols": dict(cast(Any, data["effect_cols"])),
         "subject_col": data["subject_col"],
         "sample_col": sample_col,
         "contrast_col": contrast_col,
@@ -128,10 +128,10 @@ def _build_bridge_payload(
     elif gd.format == "h5":
         input_payload = {
             "format": "h5",
-            "paths": list(gd.data.get("paths") or []),
+            "paths": list(cast(Any, gd.data.get("paths") or [])),
             "mask": gd.data.get("mask"),
             "contrast": gd.data.get("contrast"),
-            "stat": list(gd.data.get("stat") or []),
+            "stat": list(cast(Any, gd.data.get("stat") or [])),
             "subjects": list(gd.subjects),
         }
     elif gd.format == "nifti":
