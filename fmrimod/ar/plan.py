@@ -11,6 +11,7 @@ going through the full ``fit_noise()`` pipeline.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -22,14 +23,14 @@ class WhiteningPlan:
 
     Parameters
     ----------
-    phi : list of NDArray or None
+    phi : list of NDArray[Any] or None
         Per-run AR coefficients (global/run pooling).  ``None`` for
         parcel-level plans.
-    theta : list of NDArray or None
+    theta : list of NDArray[Any] or None
         Per-run MA coefficients.  ``None`` for parcel-level plans.
     order : tuple of (int, int)
         ``(p, q)`` — AR and MA orders.
-    runs : NDArray or None
+    runs : NDArray[Any] or None
         Integer run labels (length *n*).
     exact_first : bool
         Apply exact AR(1) first-sample scaling at segment starts.
@@ -37,30 +38,30 @@ class WhiteningPlan:
         Estimation method: ``"ar"``, ``"arma"``, or ``"afni"``.
     pooling : str
         Pooling mode: ``"global"``, ``"run"``, or ``"parcel"``.
-    parcels : NDArray or None
+    parcels : NDArray[Any] or None
         Voxel-to-parcel mapping (length *V*).
     parcel_ids : list of str or None
         Unique parcel identifiers.
-    phi_by_parcel : dict mapping str -> NDArray or None
+    phi_by_parcel : dict mapping str -> NDArray[Any] or None
         Per-parcel AR coefficients.
-    theta_by_parcel : dict mapping str -> NDArray or None
+    theta_by_parcel : dict mapping str -> NDArray[Any] or None
         Per-parcel MA coefficients.
-    censor : NDArray or None
+    censor : NDArray[Any] or None
         0-based indices of censored timepoints.
     """
 
-    phi: list[NDArray] | None = None
-    theta: list[NDArray] | None = None
+    phi: list[NDArray[Any]] | None = None
+    theta: list[NDArray[Any]] | None = None
     order: tuple[int, int] = (0, 0)
-    runs: NDArray | None = None
+    runs: NDArray[Any] | None = None
     exact_first: bool = False
     method: str = "ar"
     pooling: str = "global"
-    parcels: NDArray | None = None
+    parcels: NDArray[Any] | None = None
     parcel_ids: list[str] | None = None
-    phi_by_parcel: dict[str, NDArray] | None = None
-    theta_by_parcel: dict[str, NDArray] | None = None
-    censor: NDArray | None = None
+    phi_by_parcel: dict[str, NDArray[Any]] | None = None
+    theta_by_parcel: dict[str, NDArray[Any]] | None = None
+    censor: NDArray[Any] | None = None
 
     def __repr__(self) -> str:
         p, q = self.order
@@ -78,7 +79,7 @@ class WhiteningPlan:
             f"{'AR(1)' if self.exact_first else 'none'}"
         )
 
-        def _fmt(v: NDArray | None) -> str:
+        def _fmt(v: NDArray[Any] | None) -> str:
             if v is None or len(v) == 0:
                 return "(none)"
             return ", ".join(f"{x:.3g}" for x in v)
@@ -119,25 +120,25 @@ class WhitenResult:
 
     Parameters
     ----------
-    X : NDArray or None
+    X : NDArray[Any] or None
         Whitened design matrix.  ``None`` for parcel plans.
-    Y : NDArray
+    Y : NDArray[Any]
         Whitened data matrix.
-    X_by : dict mapping str -> NDArray or None
+    X_by : dict mapping str -> NDArray[Any] or None
         Per-parcel whitened design matrices (parcel plans only).
     """
 
-    X: NDArray | None = None
-    Y: NDArray | None = None
-    X_by: dict[str, NDArray] | None = None
+    X: NDArray[Any] | None = None
+    Y: NDArray[Any] | None = None
+    X_by: dict[str, NDArray[Any]] | None = None
 
 
 def plan_from_phi(
-    phi: NDArray | list[NDArray],
-    theta: NDArray | list[NDArray] | None = None,
+    phi: NDArray[Any] | list[NDArray[Any]],
+    theta: NDArray[Any] | list[NDArray[Any]] | None = None,
     *,
-    runs: NDArray | None = None,
-    parcels: NDArray | None = None,
+    runs: NDArray[Any] | None = None,
+    parcels: NDArray[Any] | None = None,
     pooling: str = "global",
     exact_first: bool = True,
     method: str | None = None,
@@ -146,14 +147,14 @@ def plan_from_phi(
 
     Parameters
     ----------
-    phi : NDArray or list of NDArray
+    phi : NDArray[Any] or list of NDArray[Any]
         AR coefficients.  A single array for global pooling, a list for
         run/parcel pooling.
-    theta : NDArray or list of NDArray, optional
+    theta : NDArray[Any] or list of NDArray[Any], optional
         MA coefficients.
-    runs : NDArray, optional
+    runs : NDArray[Any], optional
         Run labels.
-    parcels : NDArray, optional
+    parcels : NDArray[Any], optional
         Parcel labels (required for ``pooling="parcel"``).
     pooling : str
         ``"global"``, ``"run"``, or ``"parcel"``.
@@ -233,13 +234,13 @@ def plan_from_phi(
 
 
 def whiten_with_phi(
-    X: NDArray,
-    Y: NDArray,
-    phi: NDArray | list[NDArray],
-    theta: NDArray | list[NDArray] | None = None,
+    X: NDArray[Any],
+    Y: NDArray[Any],
+    phi: NDArray[Any] | list[NDArray[Any]],
+    theta: NDArray[Any] | list[NDArray[Any]] | None = None,
     *,
-    runs: NDArray | None = None,
-    parcels: NDArray | None = None,
+    runs: NDArray[Any] | None = None,
+    parcels: NDArray[Any] | None = None,
     pooling: str = "global",
     exact_first: bool = False,
 ) -> WhitenResult:
@@ -247,11 +248,11 @@ def whiten_with_phi(
 
     Parameters
     ----------
-    X, Y : NDArray
+    X, Y : NDArray[Any]
         Design and data matrices.
-    phi, theta : NDArray or list
+    phi, theta : NDArray[Any] or list
         AR/MA coefficients.
-    runs, parcels : NDArray, optional
+    runs, parcels : NDArray[Any], optional
         Run/parcel labels.
     pooling : str
         Pooling mode.
