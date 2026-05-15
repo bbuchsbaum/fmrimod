@@ -121,6 +121,7 @@ def convolve_design(
     # Generate time points if needed
     n_timepoints = X.shape[0]
     if time_points is None:
+        assert sampling_rate is not None  # guarded above (both-None raises)
         time_points = np.arange(n_timepoints) * sampling_rate
     else:
         time_points = np.asarray(time_points)
