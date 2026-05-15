@@ -956,13 +956,13 @@ def _eval_formula_ast(node: ast.AST, condnames: List[str]) -> NDArray[Any]:
         right = _eval_formula_ast(node.right, condnames)
 
         if isinstance(node.op, ast.Add):
-            return left + right
+            return cast("NDArray[Any]", left + right)
         elif isinstance(node.op, ast.Sub):
-            return left - right
+            return cast("NDArray[Any]", left - right)
         elif isinstance(node.op, ast.Mult):
-            return left * right
+            return cast("NDArray[Any]", left * right)
         elif isinstance(node.op, ast.Div):
-            return left / right
+            return cast("NDArray[Any]", left / right)
         else:
             raise ValueError(f"Unsupported binary operator: {type(node.op).__name__}")
 
