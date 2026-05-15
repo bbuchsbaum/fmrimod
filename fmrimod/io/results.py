@@ -9,7 +9,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal, Union
+from typing import Literal, Protocol, Union, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -481,11 +481,11 @@ def _column_records(
                 name=str(getattr(column, "name", name)),
                 safe_label=_safe_label(str(getattr(column, "name", name))),
                 role=str(getattr(column, "role", default_role)),
-                term=_attr_or_none(column, "term"),
-                condition=_attr_or_none(column, "condition"),
-                basis_index=_attr_or_none(column, "basis_ix"),
-                basis_name=_attr_or_none(column, "basis_name"),
-                model_source=_attr_or_none(column, "model_source"),
+                term=_attr_str_or_none(column, "term"),
+                condition=_attr_str_or_none(column, "condition"),
+                basis_index=_attr_int_or_none(column, "basis_ix"),
+                basis_name=_attr_str_or_none(column, "basis_name"),
+                model_source=_attr_str_or_none(column, "model_source"),
             )
         )
     return tuple(records)
@@ -560,19 +560,38 @@ def _select_contrasts(
     return {name: contrast_results[name] for name in contrasts}
 
 
+class _ContrastResultLike(Protocol):
+    """Duck-typed view of fmrimod.glm.ContrastResult for result export.
+
+    Only the attributes the result writer reads off each contrast result are
+    declared; this keeps the typed seam decoupled from the concrete result
+    class while still rejecting raw object lookups in mypy.
+    """
+
+    @property
+    def estimate(self) -> object: ...
+
+    @property
+    def stat(self) -> object: ...
+
+    @property
+    def p_value(self) -> object: ...
+
+
 def _contrast_stat_array(cres: object, stat_name: str) -> NDArray[np.float64] | None:
     stat = _normalize_stat_name(stat_name)
+    typed = cast(_ContrastResultLike, cres)
     if stat == "effect":
-        estimate = np.asarray(cres.estimate, dtype=np.float64)
+        estimate = np.asarray(typed.estimate, dtype=np.float64)
         return estimate if estimate.ndim == 1 else estimate[0]
     if stat == "stat":
-        return np.asarray(cres.stat, dtype=np.float64)
+        return np.asarray(typed.stat, dtype=np.float64)
     if stat == "pvalue":
-        return np.asarray(cres.p_value, dtype=np.float64)
+        return np.asarray(typed.p_value, dtype=np.float64)
     if stat == "se":
         se = getattr(cres, "se", None)
         if se is None:
-            return np.zeros_like(np.asarray(cres.stat, dtype=np.float64))
+            return np.zeros_like(np.asarray(typed.stat, dtype=np.float64))
         return np.asarray(se, dtype=np.float64)
     return None
 
@@ -624,11 +643,39 @@ def _require_unique_values(
         seen[value] = label
 
 
-def _attr_or_none(obj: object, attr: str) -> object:
+def _attr_str_or_none(obj: object, attr: str) -> str | None:
+    """Return ``getattr(obj, attr, None)`` coerced to ``str | None``.
+
+    Treats the column-fact attribute access as a typed boundary: anything
+    falsy that is not exactly None still passes through as None, otherwise
+    the value is rendered through ``str``. Keeps `_ColumnRecord` fields
+    well-typed without making the caller name the duck type.
+    """
     if obj is None:
         return None
     value = getattr(obj, attr, None)
-    return value
+    if value is None:
+        return None
+    return str(value)
+
+
+def _attr_int_or_none(obj: object, attr: str) -> int | None:
+    """Return ``getattr(obj, attr, None)`` coerced to ``int | None``.
+
+    Used for basis_index-style integer column-fact attributes. Returns
+    None if the attribute is missing or the value cannot be coerced
+    cleanly (e.g. a non-numeric string), matching the prior behavior of
+    silently dropping unparseable values to None.
+    """
+    if obj is None:
+        return None
+    value = getattr(obj, attr, None)
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _drop_none(values: Mapping[str, object]) -> dict[str, object]:
