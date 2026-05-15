@@ -382,7 +382,7 @@ def study_to_group(
     if contrast_results is None:
         method = getattr(study, "to_group", None)
         if callable(method):
-            return method()
+            return cast("GroupDataset", method())
         raise TypeError("contrast_results is required for StudyDataset conversion")
     return study.to_group_dataset(
         contrast_results, sample_labels=sample_labels, metadata=metadata
