@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Optional, cast
+from typing import Any, Literal, Optional, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -39,8 +39,8 @@ def _extract_csv_feature_effects(
         )
 
     payload = data.data
-    df = payload.get("data")
-    effect_cols = payload.get("effect_cols") or {}
+    df = cast(Any, payload.get("data"))
+    effect_cols = cast(Any, payload.get("effect_cols") or {})
     subject_col = payload.get("subject_col")
     roi_col = payload.get("roi_col")
     contrast_col = payload.get("contrast_col")
@@ -129,7 +129,7 @@ def fmri_ttest(
         raise NotImplementedError("fmri_ttest currently supports formula='~ 1' only")
 
     if engine == "auto":
-        effect_cols = data.data.get("effect_cols") or {}
+        effect_cols = cast(Any, data.data.get("effect_cols") or {})
         if "se" in effect_cols or "var" in effect_cols:
             resolved_engine = "meta"
         else:
