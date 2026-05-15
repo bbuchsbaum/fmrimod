@@ -3,6 +3,13 @@
 This module provides seamless integration between fmrimod and fmrimod,
 allowing users to use all HRF functions from fmrimod within fmrimod's
 formula syntax and design matrix construction.
+
+Scoped/strict divergence residue (bd-01KRNN0H73CCYGFJSJ30JPVFTW):
+the remaining `# type: ignore` and the ``evaluate``-vs-HRFProtocol
+[override] are the same gate-choice either/or documented in
+hrf_dispatch.py — scoped (--follow-imports=skip) requires/accepts
+them, full-strict flags them. Scoped is the epic gate so they stay;
+the [override] is the HRFProtocol seam-shape steward question.
 """
 
 from __future__ import annotations
@@ -84,7 +91,7 @@ class PyFMRIHRF(HRFProtocol):  # type: ignore[misc]
         elif isinstance(hrf_spec, dict):
             # HRF specification with parameters
             params = dict(hrf_spec)
-            name = params.pop('name', 'spm')
+            name = str(params.pop('name', 'spm'))
             self._name = name
             params = {**params, **kwargs}
             if tr is not None:
@@ -136,23 +143,23 @@ class PyFMRIHRF(HRFProtocol):  # type: ignore[misc]
         kwargs = {key: value for key, value in kwargs.items() if value is not None}
 
         # Get available HRFs
-        available = _utils_misc.list_available_hrfs()
+        available = cast("list[str]", _utils_misc.list_available_hrfs())
         available_lower = {avail.lower() for avail in available}
 
         # Try exact match first
         if name in available:
-            return call_safely(_hrf_registry.get_hrf, name, **kwargs)
+            return cast(HRFProtocol, call_safely(_hrf_registry.get_hrf, name, **kwargs))
 
         # Try case-insensitive match
         if name in available_lower:
             for avail in available:
                 if avail.lower() == name:
-                    return call_safely(_hrf_registry.get_hrf, avail, **kwargs)
+                    return cast(HRFProtocol, call_safely(_hrf_registry.get_hrf, avail, **kwargs))
 
         if name != name_lower and name_lower in available_lower:
             for avail in available:
                 if avail.lower() == name_lower:
-                    return call_safely(_hrf_registry.get_hrf, avail, **kwargs)
+                    return cast(HRFProtocol, call_safely(_hrf_registry.get_hrf, avail, **kwargs))
         
         # If not found, raise error with suggestions
         raise ValueError(
@@ -194,6 +201,7 @@ class PyFMRIHRF(HRFProtocol):  # type: ignore[misc]
         t = np.atleast_1d(t)
         
         # Call fmrimod evaluate
+        result: Any
         if hasattr(self._hrf, 'evaluate'):
             result = self._hrf.evaluate(t)
         elif callable(self._hrf):
@@ -218,8 +226,8 @@ class PyFMRIHRF(HRFProtocol):  # type: ignore[misc]
             # If single time point was passed, squeeze the time dimension
             if scalar_input and result.shape[0] == 1:
                 result = result.squeeze(axis=0)
-        
-        return result
+
+        return cast(Array, result)
     
     def __repr__(self) -> str:
         """String representation."""
@@ -372,12 +380,12 @@ def register_fmrimod_hrfs() -> None:
         
         # Register only names not already owned by the canonical registry.
         if hrf_name.lower() not in _HRF_REGISTRY:
-            register_hrf(hrf_name, make_hrf_factory(hrf_name))
+            register_hrf(hrf_name, cast(Any, make_hrf_factory(hrf_name)))
         if (
             hrf_name.lower().startswith('spmg')
             and hrf_name.upper().lower() not in _HRF_REGISTRY
         ):
-            register_hrf(hrf_name.upper(), make_hrf_factory(hrf_name))
+            register_hrf(hrf_name.upper(), cast(Any, make_hrf_factory(hrf_name)))
     
     # Also register common aliases
     aliases = {
@@ -392,7 +400,7 @@ def register_fmrimod_hrfs() -> None:
     
     for alias, target in aliases.items():
         if alias.lower() not in _HRF_REGISTRY:
-            register_hrf(alias, make_hrf_factory(target))
+            register_hrf(alias, cast(Any, make_hrf_factory(target)))
 
 
 # Auto-register on import
