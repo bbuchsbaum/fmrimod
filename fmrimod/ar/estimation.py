@@ -265,15 +265,15 @@ def fit_noise(
     resid: Optional[NDArray[np.float64]] = None,
     Y: Optional[NDArray[np.float64]] = None,
     X: Optional[NDArray[np.float64]] = None,
-    runs: Optional[NDArray] = None,
-    censor: Optional[NDArray] = None,
+    runs: Optional[NDArray[Any]] = None,
+    censor: Optional[NDArray[Any]] = None,
     method: str = "ar",
     p: object = "auto",
     q: int = 0,
     p_max: int = 6,
     exact_first: str = "ar1",
     pooling: str = "global",
-    parcels: Optional[NDArray] = None,
+    parcels: Optional[NDArray[Any]] = None,
     parcel_sets: Optional[dict[str, Any]] = None,
     multiscale: object = None,
     ms_mode: Optional[str] = None,
@@ -407,10 +407,10 @@ def fit_noise(
             if len(c_in):
                 censor_by_run[ri] = c_in - start
 
-    def _rows_from_idx(mat: NDArray, idx: NDArray) -> NDArray:
+    def _rows_from_idx(mat: NDArray[Any], idx: NDArray[Any]) -> NDArray[Any]:
         """Return run rows, preferring slice views for contiguous indices."""
         if len(idx) == 0:
-            return mat[idx]
+            return cast("NDArray[Any]", mat[idx])
         if len(idx) == 1:
             i0 = int(idx[0])
             return mat[i0 : i0 + 1]
@@ -419,7 +419,7 @@ def fit_noise(
         # Fast contiguous check: run labels are typically contiguous blocks.
         if (i1 - i0 + 1) == len(idx) and np.all(np.diff(idx) == 1):
             return mat[i0 : i1 + 1]
-        return mat[idx]
+        return cast("NDArray[Any]", mat[idx])
 
     run_mats = [_rows_from_idx(resid, idx) for idx in run_sets]
 
@@ -603,7 +603,7 @@ def fit_noise(
                             total_contrib[lag] += contrib
 
                 gamma = np.where(total_contrib > 0, gamma_sum / total_contrib, 0.0)
-                p_cap = max(np.max(np.where(total_contrib > 0)[0]) if np.any(total_contrib > 0) else 0, 0)
+                p_cap = int(max(np.max(np.where(total_contrib > 0)[0]) if np.any(total_contrib > 0) else 0, 0))
                 gamma = gamma[: p_cap + 1]
             else:
                 gamma = run_avg_acvf(mat[valid_idx], p_cap)
