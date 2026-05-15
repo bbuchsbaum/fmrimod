@@ -190,7 +190,7 @@ def _coef_columns(columns: Optional[Sequence[str]], p: int) -> Optional[list[str
     return out
 
 
-def _contrast_to_array(spec: Any, p: int, columns: Optional[list[str]]) -> NDArray[np.float64]:
+def _contrast_to_array(spec: object, p: int, columns: Optional[list[str]]) -> NDArray[np.float64]:
     if isinstance(spec, pd.Series):
         if spec.index is not None and columns is not None:
             arr = np.zeros(p, dtype=np.float64)
@@ -232,7 +232,7 @@ def _split_contrasts(
     t_out: Dict[str, NDArray[np.float64]] = {}
     f_out: Dict[str, NDArray[np.float64]] = {}
 
-    def add(name: str, spec: Any, force: Optional[str] = None) -> None:
+    def add(name: str, spec: object, force: Optional[str] = None) -> None:
         arr = _contrast_to_array(spec, p, columns)
         if force == "t" or (force is None and arr.ndim == 1):
             arr = np.ravel(arr)

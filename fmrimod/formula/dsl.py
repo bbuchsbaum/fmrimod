@@ -324,7 +324,7 @@ class BasisNamespace:
     >>> transform = basis.spline(df=5)
     """
     
-    def poly(self, degree: int, **kwargs) -> BasisTransform:
+    def poly(self, degree: int, **kwargs: object) -> BasisTransform:
         """Polynomial basis.
         
         Parameters
@@ -343,7 +343,7 @@ class BasisNamespace:
         from ..basis import Poly
         return BasisTransform(Poly(degree=degree, **kwargs))
     
-    def spline(self, df: int, **kwargs) -> BasisTransform:
+    def spline(self, df: int, **kwargs: object) -> BasisTransform:
         """B-spline basis.
         
         Parameters

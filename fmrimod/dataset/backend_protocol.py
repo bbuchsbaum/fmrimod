@@ -83,7 +83,7 @@ class StorageBackend(ABC):
         """Read data in ``timepoints x voxels`` orientation."""
 
     @abstractmethod
-    def get_metadata(self) -> dict[str, Any]:
+    def get_metadata(self) -> dict[str, object]:
         """Return backend metadata."""
 
     def validate(self) -> bool:
