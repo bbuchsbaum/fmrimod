@@ -548,5 +548,6 @@ class Standardized(ParametricBasis):
             self.fit(x)
         
         # Apply transformation
+        assert self._mean is not None and self._std is not None  # set by fit()
         result = (x - self._mean) / self._std
         return result.reshape(-1, 1)
