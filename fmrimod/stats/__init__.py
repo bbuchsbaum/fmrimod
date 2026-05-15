@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 import types
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from fmrimod.accessors import EstimateOrContrastMap
@@ -65,7 +65,7 @@ class _CallableStatsModule(types.ModuleType):
     ) -> EstimateOrContrastMap:
         from fmrimod.accessors import stats as _accessor_stats
 
-        return _accessor_stats(x, type=type)
+        return _accessor_stats(x, type=cast(Any, type))
 
 
 sys.modules[__name__].__class__ = _CallableStatsModule
