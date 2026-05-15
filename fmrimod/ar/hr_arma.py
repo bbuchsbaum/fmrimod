@@ -5,7 +5,7 @@ Ports ``hr_arma.R`` and ``fmriAR_hr.cpp`` into pure NumPy/SciPy.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -18,7 +18,7 @@ from .numhelpers import (
 )
 
 
-def _lag_matrix(x: NDArray, k: int) -> NDArray:
+def _lag_matrix(x: NDArray[np.float64], k: int) -> NDArray[np.float64]:
     """Build a matrix of lagged values.
 
     Parameters
@@ -45,8 +45,8 @@ def _lag_matrix(x: NDArray, k: int) -> NDArray:
 
 
 def _arma_innovations(
-    y: NDArray, phi: NDArray, theta: NDArray
-) -> NDArray:
+    y: NDArray[np.float64], phi: NDArray[np.float64], theta: NDArray[np.float64]
+) -> NDArray[np.float64]:
     """Compute ARMA innovations (residuals) via filtering.
 
     Applies the ARMA filter::
@@ -79,11 +79,11 @@ def _arma_innovations(
     # MA polynomial: a = [1, theta_1, theta_2, ...]
     a = np.concatenate([[1.0], theta])
 
-    return lfilter(b, a, y)
+    return cast("NDArray[np.float64]", lfilter(b, a, y))
 
 
 def hr_arma(
-    y: NDArray,
+    y: NDArray[np.float64],
     p: int,
     q: int,
     *,
