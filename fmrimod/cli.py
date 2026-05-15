@@ -12,10 +12,11 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence, cast
 
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 
 from .hrf.registry import get_hrf, list_available_hrfs
 from .regressor.core import regressor, regressor_set
@@ -209,7 +210,7 @@ def _cli_eval(args: list[str]) -> int:
     )
 
     grid = _grid_from_options(opts)
-    hrf = _get_cli_hrf(opts)
+    hrf = cast(Any, _get_cli_hrf(opts))
     values = hrf.evaluate(
         grid,
         duration=_as_scalar_numeric(opts["duration"], "duration"),
@@ -448,7 +449,7 @@ def _require_columns(data: pd.DataFrame, columns: Iterable[str]) -> None:
         raise CliDomainError("Missing required column(s): " + ", ".join(missing))
 
 
-def _grid_from_options(opts: Mapping[str, object]) -> np.ndarray:
+def _grid_from_options(opts: Mapping[str, object]) -> NDArray[np.float64]:
     if opts.get("times") is not None:
         values = _parse_numeric_list(opts["times"], "times")
         if len(values) == 0:
@@ -465,7 +466,9 @@ def _grid_from_options(opts: Mapping[str, object]) -> np.ndarray:
     return np.arange(start, stop + step / 2.0, step, dtype=np.float64)
 
 
-def _regressor_grid(opts: dict[str, object], onsets: np.ndarray) -> np.ndarray:
+def _regressor_grid(
+    opts: dict[str, object], onsets: NDArray[np.float64]
+) -> NDArray[np.float64]:
     if opts.get("blocklens") is not None or opts.get("tr") is not None:
         _require_options(opts, ("blocklens", "tr"))
         return _sampling_frame_from_options(opts).sample_times(global_time=True)
@@ -534,7 +537,7 @@ def _read_events_table(path: str) -> pd.DataFrame:
     return pd.read_csv(path, sep=sep)
 
 
-def _get_cli_hrf(opts: Mapping[str, object], *, allow_decorators: bool = True):
+def _get_cli_hrf(opts: Mapping[str, object], *, allow_decorators: bool = True) -> object:
     kwargs = _cli_hrf_constructor_kwargs(opts)
     lag = _as_scalar_numeric(opts.get("lag", "0"), "lag") if allow_decorators else 0.0
     width = _as_scalar_numeric(opts.get("width", "0"), "width") if allow_decorators else 0.0
@@ -560,9 +563,9 @@ def _cli_hrf_constructor_kwargs(opts: Mapping[str, object]) -> dict[str, object]
     return {}
 
 
-def _parse_numeric_list(value: object, name: str) -> np.ndarray:
+def _parse_numeric_list(value: object, name: str) -> NDArray[np.float64]:
     if isinstance(value, np.ndarray):
-        return value.astype(np.float64)
+        return cast(NDArray[np.float64], value.astype(np.float64))
     if isinstance(value, (int, float, np.integer, np.floating)):
         return np.asarray([value], dtype=np.float64)
     if not isinstance(value, str) or value == "":
@@ -590,25 +593,27 @@ def _as_scalar_integer(value: object, name: str) -> int:
     return int(number)
 
 
-def _match_choice(value: str, choices: set[str], name: str) -> str:
-    if value not in choices:
+def _match_choice(value: object, choices: set[str], name: str) -> str:
+    if not isinstance(value, str) or value not in choices:
         raise CliUsageError(f"--{name} must be one of: {', '.join(sorted(choices))}")
     if value in {"loop", "Rconv"}:
         return "conv"
     return value
 
 
-def _recycle_or_error(values: np.ndarray, n: int, name: str) -> np.ndarray:
+def _recycle_or_error(
+    values: NDArray[np.float64], n: int, name: str
+) -> NDArray[np.float64]:
     if len(values) == 1:
-        return np.repeat(values, n)
+        return cast(NDArray[np.float64], np.repeat(values, n))
     if len(values) == n:
         return values
     raise CliUsageError(f"`{name}` must have length 1 or {n}, not {len(values)}")
 
 
 def _values_to_rows(
-    grid: np.ndarray,
-    values: np.ndarray,
+    grid: NDArray[np.float64],
+    values: NDArray[np.float64],
     *,
     column_names: Sequence[str] | None = None,
 ) -> list[dict[str, object]]:
@@ -631,7 +636,7 @@ def _values_to_rows(
     return rows
 
 
-def _design_column_names(rset) -> list[str]:
+def _design_column_names(rset: Any) -> list[str]:
     names: list[str] = []
     for level, reg in zip(rset.levels, rset.regressors):
         if reg.nbasis == 1:
@@ -645,8 +650,15 @@ def _write_cli_table(
     data: Sequence[Mapping[str, object]],
     *,
     json_output: bool,
-    output: str | None,
+    output: object,
 ) -> None:
+    output_path: str | None
+    if output is None:
+        output_path = None
+    elif isinstance(output, str):
+        output_path = output
+    else:
+        raise CliUsageError("--output must be a string path")
     if json_output:
         text = json.dumps(list(data), indent=2)
     else:
@@ -665,10 +677,10 @@ def _write_cli_table(
         writer.writerows(rows)
         text = handle.getvalue().rstrip("\n")
 
-    if output is None:
+    if output_path is None:
         print(text)
     else:
-        Path(output).write_text(text + "\n", encoding="utf-8")
+        Path(output_path).write_text(text + "\n", encoding="utf-8")
 
 
 def _json_scalar(value: object) -> object:
