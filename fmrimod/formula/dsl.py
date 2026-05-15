@@ -18,7 +18,7 @@ Example::
 
 from __future__ import annotations
 
-from typing import List, Union
+from typing import Any, List, Union, cast
 
 from ..types import BasisProtocol, HRFProtocol
 from .base import Term
@@ -341,7 +341,7 @@ class BasisNamespace:
         """
         # Import here to avoid circular dependency
         from ..basis import Poly
-        return BasisTransform(Poly(degree=degree, **kwargs))
+        return BasisTransform(cast(BasisProtocol, Poly(degree=degree, **cast("dict[str, Any]", kwargs))))
     
     def spline(self, df: int, **kwargs: object) -> BasisTransform:
         """B-spline basis.
@@ -360,7 +360,7 @@ class BasisNamespace:
         """
         # Import here to avoid circular dependency
         from ..basis import BSpline
-        return BasisTransform(BSpline(df=df, **kwargs))
+        return BasisTransform(cast(BasisProtocol, BSpline(df=df, **cast("dict[str, Any]", kwargs))))
     
     def __call__(self, basis: BasisProtocol) -> BasisTransform:
         """Create basis transform with explicit specification.
