@@ -14943,7 +14943,7 @@
     },
     {
       "coercion_exemption": null,
-      "endlineno": 340,
+      "endlineno": 346,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": true,
@@ -14956,12 +14956,12 @@
     },
     {
       "coercion_exemption": null,
-      "endlineno": 353,
+      "endlineno": 359,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 342,
+      "lineno": 348,
       "module": "fmrimod.events.factor",
       "owner_bead": null,
       "qualname": "EventFactor.__repr__",
@@ -19142,7 +19142,7 @@
     },
     {
       "coercion_exemption": null,
-      "endlineno": 411,
+      "endlineno": 412,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,

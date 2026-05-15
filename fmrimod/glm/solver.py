@@ -7,7 +7,7 @@ All operations work on ``(time, voxels)`` matrices for vectorised computation.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -22,12 +22,12 @@ def _rss_needs_direct_residual(
     """Flag voxels where sufficient-stat RSS is dominated by cancellation."""
     scale = np.maximum(yTy, np.abs(fitted_ss))
     threshold = np.sqrt(np.finfo(np.float64).eps) * np.maximum(scale, 1.0)
-    return rss <= threshold
+    return cast("NDArray[np.bool_]", rss <= threshold)
 
 
 def _resolve_compute_dtype(dtype: object) -> "np.dtype[Any]":
     """Normalize and validate solver compute dtype."""
-    dt = np.dtype(dtype)
+    dt = np.dtype(cast(Any, dtype))
     if dt.kind != "f":
         raise ValueError(f"compute dtype must be floating-point, got {dt}")
     if dt not in (np.dtype(np.float32), np.dtype(np.float64)):
@@ -376,11 +376,12 @@ def fast_lm_matrix(
     )
 
     if not use_fast_rss:
-        fitted = X @ betas
-        residuals = Y - fitted
+        fitted_arr = X @ betas
+        residuals = Y - fitted_arr
         rss = np.sum(residuals ** 2, axis=0)
-        if not return_fitted:
-            fitted = None
+        fitted: Optional[NDArray[np.float64]] = (
+            fitted_arr if return_fitted else None
+        )
     else:
         # Memory-efficient: compute RSS without materialising residuals.
         # RSS = Y'Y - B' X'Y
