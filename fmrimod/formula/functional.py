@@ -77,7 +77,7 @@ class PipeTerm(Term):
             )
 
 
-def term(*events: str, **kwargs) -> PipeTerm:
+def term(*events: str, **kwargs: object) -> PipeTerm:
     """Create a pipeable term.
     
     Parameters
@@ -225,7 +225,7 @@ def basis(spec: BasisProtocol) -> Callable[[Term], Term]:
     return transform
 
 
-def poly(degree: int, **kwargs) -> Callable[[Term], Term]:
+def poly(degree: int, **kwargs: object) -> Callable[[Term], Term]:
     """Create polynomial basis transformation.
     
     Parameters
@@ -256,7 +256,7 @@ def poly(degree: int, **kwargs) -> Callable[[Term], Term]:
     return transform
 
 
-def spline(df: int, **kwargs) -> Callable[[Term], Term]:
+def spline(df: int, **kwargs: object) -> Callable[[Term], Term]:
     """Create B-spline basis transformation.
     
     Parameters
@@ -287,7 +287,7 @@ def spline(df: int, **kwargs) -> Callable[[Term], Term]:
     return transform
 
 
-def scale(**kwargs) -> Callable[[Term], Term]:
+def scale(**kwargs: object) -> Callable[[Term], Term]:
     """Create scaling transformation.
     
     Parameters
