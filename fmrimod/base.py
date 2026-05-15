@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union, cast
 
 import numpy as np
 
@@ -23,7 +23,7 @@ class BaseEvent(ABC):
     # - onsets: Array
     # - durations: Array
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate inputs after initialization."""
         self._validate()
     
@@ -46,12 +46,12 @@ class BaseEvent(ABC):
     @property
     def n_events(self) -> int:
         """Number of events."""
-        return len(self.onsets)
+        return len(cast(Any, self).onsets)
     
     def __repr__(self) -> str:
         """String representation."""
         return (
-            f"{self.__class__.__name__}(name='{self.name}', "
+            f"{self.__class__.__name__}(name='{cast(Any, self).name}', "
             f"n_events={self.n_events}, event_type='{self.event_type}')"
         )
 
@@ -157,7 +157,7 @@ class BaseContrast(ABC):
 class BaseModel(ABC):
     """Abstract base class for models."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize model."""
         self._contrasts: Dict[str, ContrastProtocol] = {}
         self._design_matrix: Optional[Array] = None
@@ -273,11 +273,17 @@ class NamedMixin:
 class CacheMixin:
     """Mixin for caching computed values."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize cache."""
         self._cache: Dict[str, object] = {}
-    
-    def _get_cached(self, key: str, compute_func, *args: object, **kwargs: object) -> object:
+
+    def _get_cached(
+        self,
+        key: str,
+        compute_func: Callable[..., object],
+        *args: object,
+        **kwargs: object,
+    ) -> object:
         """Get cached value or compute it.
         
         Parameters
