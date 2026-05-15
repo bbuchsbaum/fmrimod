@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -44,7 +44,7 @@ def _normalize_indices(
     out = arr.astype(np.intp, copy=False)
     if np.any(out < 0) or np.any(out >= upper):
         raise ValueError(f"{name} indices must be within [0, {upper - 1}]")
-    return out
+    return cast("NDArray[np.intp]", out)
 
 
 class NiftiBackend(StorageBackend):
@@ -84,7 +84,7 @@ class NiftiBackend(StorageBackend):
                 operation="open",
             )
 
-        mask_img = nib.load(str(self._mask_source))
+        mask_img = cast(Any, nib).load(str(self._mask_source))
         mask_data = np.asarray(mask_img.dataobj)
         if mask_data.ndim < 3:
             raise BackendIOError(
@@ -105,7 +105,7 @@ class NiftiBackend(StorageBackend):
                     file=str(src),
                     operation="open",
                 )
-            img = nib.load(str(src))
+            img = cast(Any, nib).load(str(src))
             shape = tuple(int(v) for v in img.shape)
             if len(shape) < 3 or shape[:3] != spatial_shape:
                 raise BackendIOError(
@@ -194,7 +194,7 @@ class NiftiBackend(StorageBackend):
             if local_rows.size == 0:
                 continue
 
-            img = nib.load(str(src))
+            img = cast(Any, nib).load(str(src))
             source_rows: list[NDArray[np.float64]] = []
             for row in local_rows:
                 if len(img.shape) > 3:
