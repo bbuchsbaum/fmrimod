@@ -1063,7 +1063,7 @@ def lmm_unavailable(
     dataset: GroupDataset,
     *,
     method: Literal["lmm:ri", "lmm:ri_slope1"],
-    **options: Any,
+    **options: object,
 ) -> GroupDataset:
     """Explicit fallback guidance for unsupported native LMM configurations."""
     raise UnsupportedGroupFeatureError(

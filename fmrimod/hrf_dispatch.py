@@ -222,7 +222,7 @@ class ArrayHRF(HRFProtocol):
     """HRF constructed from a pre-sampled array of values."""
 
     def __init__(self, array: np.ndarray, sampling_rate: float = 1.0,
-                 name: Optional[str] = None, **kwargs):
+                 name: Optional[str] = None, **kwargs: object):
         self.array = np.asarray(array)
         self.sampling_rate = sampling_rate
         self._name = name or "array_hrf"
@@ -245,7 +245,7 @@ class ArrayHRF(HRFProtocol):
 class FunctionHRF(HRFProtocol):
     """HRF wrapping an arbitrary callable ``f(t) -> array``."""
 
-    def __init__(self, func: Callable, name: Optional[str] = None, **kwargs):
+    def __init__(self, func: Callable, name: Optional[str] = None, **kwargs: object):
         self.func = func
         self._name = name or getattr(func, '__name__', 'function_hrf')
         self._nbasis = kwargs.get('nbasis', 1)
@@ -268,7 +268,7 @@ class FunctionHRF(HRFProtocol):
 class DictHRF(HRFProtocol):
     """HRF constructed from a dictionary specification."""
 
-    def __init__(self, spec: Dict, **kwargs):
+    def __init__(self, spec: Dict, **kwargs: object):
         if 'evaluate' not in spec:
             raise ValueError("Dictionary must contain 'evaluate' key")
 
