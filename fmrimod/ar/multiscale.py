@@ -23,15 +23,15 @@ from .numhelpers import (
 # ---------------------------------------------------------------------------
 
 def parcel_means(
-    resid: NDArray, parcels: NDArray, na_rm: bool = False
-) -> Dict[str, NDArray]:
+    resid: NDArray[Any], parcels: NDArray[Any], na_rm: bool = False
+) -> Dict[str, NDArray[Any]]:
     """Compute parcel-averaged time series.
 
     Parameters
     ----------
-    resid : NDArray
+    resid : NDArray[Any]
         Residual matrix, shape ``(n, V)``.
-    parcels : NDArray
+    parcels : NDArray[Any]
         Parcel labels, shape ``(V,)``.
     na_rm : bool
         If ``True``, skip NaN values.
@@ -60,14 +60,14 @@ def parcel_means(
     return result
 
 
-def ms_dispersion(resid: NDArray, parcels: NDArray) -> Dict[str, float]:
+def ms_dispersion(resid: NDArray[Any], parcels: NDArray[Any]) -> Dict[str, float]:
     """Compute voxel-variance dispersion (MAD) within each parcel.
 
     Parameters
     ----------
-    resid : NDArray
+    resid : NDArray[Any]
         Residual matrix, shape ``(n, V)``.
-    parcels : NDArray
+    parcels : NDArray[Any]
         Parcel labels, shape ``(V,)``.
 
     Returns
@@ -93,11 +93,11 @@ def ms_dispersion(resid: NDArray, parcels: NDArray) -> Dict[str, float]:
 def ms_weights(
     n_t: int,
     n_runs: int,
-    sizes: NDArray,
-    disp: NDArray,
+    sizes: NDArray[Any],
+    disp: NDArray[Any],
     beta: float = 0.5,
     eps: float = 1e-8,
-) -> NDArray:
+) -> NDArray[Any]:
     """Compute multi-scale combination weights.
 
     Parameters
@@ -106,9 +106,9 @@ def ms_weights(
         Number of timepoints.
     n_runs : int
         Number of runs.
-    sizes : NDArray
+    sizes : NDArray[Any]
         Parcel sizes for each scale, shape ``(n_scales,)``.
-    disp : NDArray
+    disp : NDArray[Any]
         Dispersion values for each scale, shape ``(n_scales,)``.
     beta : float
         Size exponent.
@@ -117,7 +117,7 @@ def ms_weights(
 
     Returns
     -------
-    NDArray
+    NDArray[Any]
         Normalised weights, shape ``(n_scales,)``.
     """
     sizes = np.asarray(sizes, dtype=np.float64)
@@ -129,7 +129,7 @@ def ms_weights(
     return w
 
 
-def _pad(x: NDArray, length: int) -> NDArray:
+def _pad(x: NDArray[Any], length: int) -> NDArray[Any]:
     """Zero-pad or truncate *x* to *length*."""
     x = np.asarray(x, dtype=np.float64).ravel()
     if len(x) >= length:
@@ -142,9 +142,9 @@ def _pad(x: NDArray, length: int) -> NDArray:
 # ---------------------------------------------------------------------------
 
 def ms_parent_maps(
-    parcels_fine: NDArray,
-    parcels_medium: NDArray,
-    parcels_coarse: NDArray,
+    parcels_fine: NDArray[Any],
+    parcels_medium: NDArray[Any],
+    parcels_coarse: NDArray[Any],
 ) -> Dict[str, Dict[int, int]]:
     """Build parent lookup tables mapping fine parcels to medium/coarse.
 
@@ -152,7 +152,7 @@ def ms_parent_maps(
 
     Parameters
     ----------
-    parcels_fine, parcels_medium, parcels_coarse : NDArray
+    parcels_fine, parcels_medium, parcels_coarse : NDArray[Any]
         Parcel labels, each shape ``(V,)``.
 
     Returns
@@ -188,7 +188,7 @@ def ms_estimate_scale(
     M: Dict[str, NDArray[np.float64]],
     estimator: Callable[..., Any],
     run_starts: Optional[NDArray[Any]] = None,
-) -> Dict[str, Dict[str, object]]:
+) -> Dict[str, Dict[str, Any]]:
     """Estimate AR at a single spatial scale.
 
     Parameters
@@ -196,14 +196,14 @@ def ms_estimate_scale(
     M : dict
         Parcel means: ``{parcel_id: time_series}``.
     estimator : callable
-        ``estimator(y) -> {"phi": NDArray, "order": (p, q)}``.
-    run_starts : NDArray, optional
+        ``estimator(y) -> {"phi": NDArray[Any], "order": (p, q)}``.
+    run_starts : NDArray[Any], optional
         0-based run start indices.
 
     Returns
     -------
     dict
-        ``{"phi": {pid: NDArray}, "acvf": {pid: NDArray}}``
+        ``{"phi": {pid: NDArray[Any]}, "acvf": {pid: NDArray[Any]}}``
     """
     if run_starts is None:
         run_starts = np.array([0], dtype=np.intp)
@@ -224,12 +224,12 @@ def ms_estimate_scale(
 # ---------------------------------------------------------------------------
 
 def ms_combine_to_fine(
-    phi_by_coarse: Dict[str, NDArray],
-    phi_by_medium: Dict[str, NDArray],
-    phi_by_fine: Dict[str, NDArray],
-    acvf_by_coarse: Optional[Dict[str, NDArray]] = None,
-    acvf_by_medium: Optional[Dict[str, NDArray]] = None,
-    acvf_by_fine: Optional[Dict[str, NDArray]] = None,
+    phi_by_coarse: Dict[str, NDArray[Any]],
+    phi_by_medium: Dict[str, NDArray[Any]],
+    phi_by_fine: Dict[str, NDArray[Any]],
+    acvf_by_coarse: Optional[Dict[str, NDArray[Any]]] = None,
+    acvf_by_medium: Optional[Dict[str, NDArray[Any]]] = None,
+    acvf_by_fine: Optional[Dict[str, NDArray[Any]]] = None,
     parents: Optional[Dict[str, Any]] = None,
     sizes: Optional[Dict[str, Any]] = None,
     disp_list: Optional[Dict[str, Any]] = None,
