@@ -181,8 +181,8 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
     def sampling_points(self) -> Array:
         """Sampling points for design matrix."""
         if hasattr(self.sampling_info, 'samples'):
-            return self.sampling_info.samples
-        return self.sampling_info.sampling_points
+            return cast(Array, self.sampling_info.samples)
+        return cast(Array, self.sampling_info.sampling_points)
 
     @property
     def tr(self) -> float:
@@ -258,9 +258,10 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         self.events['_trial_factor'] = trial_factor
 
         event_term = EventTerm([trial_factor], name=term.name or 'trial')
-        event_term._is_trialwise = True
-        event_term._add_sum = term._add_sum
-        event_term._trialwise_label = term._trialwise_label
+        et_any = cast(Any, event_term)
+        et_any._is_trialwise = True
+        et_any._add_sum = cast(Any, term)._add_sum
+        et_any._trialwise_label = cast(Any, term)._trialwise_label
         return event_term
 
     def _find_trial_info(self) -> tuple[int, Optional[Array]]:
@@ -300,7 +301,7 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
                 raise ValueError(f"Covariate event '{cov_name}' not found in model")
 
         event_term = EventTerm(term_events, name=term.name)
-        event_term._is_covariate = True
+        cast(Any, event_term)._is_covariate = True
         return event_term
 
     def _create_regular_event_term(self, term: Term) -> EventTerm:
@@ -599,8 +600,8 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
             # Handle trialwise add_sum
             if (
                 hasattr(event_term, '_is_trialwise')
-                and event_term._is_trialwise
-                and event_term._add_sum
+                and cast(Any, event_term)._is_trialwise
+                and cast(Any, event_term)._add_sum
             ):
                 mean_col = X_term.mean(axis=1, keepdims=True)
                 X_term = np.hstack([X_term, mean_col])
@@ -642,16 +643,16 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
             # Handle trialwise column names
             basis_name = None
             basis_total = None
-            if hasattr(event_term, '_is_trialwise') and event_term._is_trialwise:
+            if hasattr(event_term, '_is_trialwise') and cast(Any, event_term)._is_trialwise:
                 n_trials = X_term.shape[1]
-                if event_term._add_sum:
+                if cast(Any, event_term)._add_sum:
                     n_trials -= 1
 
-                label = event_term._trialwise_label or 'trial'
+                label = cast(Any, event_term)._trialwise_label or 'trial'
                 pad = len(str(n_trials))
                 term_col_names = [f"{label}_{i+1:0{pad}d}" for i in range(n_trials)]
 
-                if event_term._add_sum:
+                if cast(Any, event_term)._add_sum:
                     term_col_names.append(f"{label}_mean")
             else:
                 # Get HRF nbasis
@@ -1059,7 +1060,7 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         result = reg.evaluate(grid, precision=self.precision)
         if result.ndim == 1:
             result = result.reshape(-1, 1)
-        return result
+        return cast(Array, result)
 
     def _convolve_matrix_event(
         self,
@@ -1176,7 +1177,7 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
             result = reg.evaluate(grid, precision=self.precision)
             if result.ndim == 1:
                 result = result.reshape(-1, 1)
-            return result
+            return cast(Array, result)
 
     def _convolve_interaction_events(
         self, event_term: EventTerm, hrf_obj: Any, grid: Array,
@@ -1458,7 +1459,7 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         result = reg.evaluate(grid, precision=self.precision)
         if result.ndim == 1:
             result = result.reshape(-1, 1)
-        return result
+        return cast(Array, result)
 
     def _convolve_term_multiblock(
         self, event_term: EventTerm, hrf_obj: Any, summate: bool = True
