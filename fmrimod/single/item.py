@@ -10,7 +10,7 @@ import hashlib
 import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from typing import Any, Literal, Optional, Sequence, Union, cast
+from typing import Any, Literal, Optional, Union, cast
 
 import numpy as np
 from numpy.typing import NDArray

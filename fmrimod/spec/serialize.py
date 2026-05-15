@@ -45,7 +45,7 @@ they are silently incomplete.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any, Callable, Literal, Mapping, Optional, cast
+from typing import Any, Callable, Literal, Optional, cast
 
 from .terms import Confounds, Drift, HrfTerm, Intercept, Spec, Term
 
