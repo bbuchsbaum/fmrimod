@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Union
+from typing import Any, Optional, Union, cast
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -22,21 +22,25 @@ class SamplingFrame:
         start_time: Start time offset(s) in seconds (array or scalar, default TR/2)
         precision: Temporal precision for convolution in seconds
     """
-    blocklens: Union[ArrayLike, int]
-    tr: Union[ArrayLike, float]
-    start_time: Union[ArrayLike, float] = None
+    # Field types describe the post-__post_init__ invariant: every field is
+    # a normalized 1-D NDArray (or float for precision). The looser
+    # Union[ArrayLike, int | float] shape only applies to __init__'s
+    # parameters; mypy needs the tighter type so attribute access type-checks.
+    blocklens: NDArray[np.int64]
+    tr: NDArray[np.float64]
+    start_time: NDArray[np.float64]
     precision: float = 0.1
 
     def __init__(
         self,
-        blocklens=None,
-        tr=None,
-        start_time=None,
-        precision=0.1,
+        blocklens: Optional[Union[ArrayLike, int]] = None,
+        tr: Optional[Union[ArrayLike, float]] = None,
+        start_time: Optional[Union[ArrayLike, float]] = None,
+        precision: float = 0.1,
         *,
-        n_scans=None,
-        TR=None,
-    ):
+        n_scans: Optional[Union[ArrayLike, int]] = None,
+        TR: Optional[Union[ArrayLike, float]] = None,  # noqa: N803
+    ) -> None:
         # Support legacy pyfmridesign names: n_scans -> blocklens, TR -> tr
         if blocklens is None and n_scans is not None:
             blocklens = n_scans
@@ -55,17 +59,19 @@ class SamplingFrame:
             raise TypeError(
                 "SamplingFrame requires blocklens (or n_scans) and tr (or TR)"
             )
-        self.blocklens = blocklens
-        self.tr = tr
-        self.start_time = start_time
+        # Stage the loose user input on private slots; __post_init__ rewrites
+        # them into the typed NDArray fields the rest of the class reads from.
+        self.blocklens = cast(NDArray[np.int64], blocklens)
+        self.tr = cast(NDArray[np.float64], tr)
+        self.start_time = cast(NDArray[np.float64], start_time)
         self.precision = precision
         self.__post_init__()
 
     def __post_init__(self) -> None:
         """Validate and normalize inputs."""
         # Convert to numpy arrays
-        self.blocklens = np.atleast_1d(self.blocklens).astype(int)
-        self.tr = np.atleast_1d(self.tr).astype(float)
+        self.blocklens = np.atleast_1d(self.blocklens).astype(np.int64)
+        self.tr = np.atleast_1d(self.tr).astype(np.float64)
 
         # Validate inputs
         if np.any(self.blocklens <= 0):
@@ -93,9 +99,9 @@ class SamplingFrame:
 
         # Default start_time is TR/2 for each block.
         if self.start_time is None:
-            self.start_time = self.tr / 2.0
+            self.start_time = (self.tr / 2.0).astype(np.float64)
         else:
-            self.start_time = np.atleast_1d(self.start_time)
+            self.start_time = np.atleast_1d(self.start_time).astype(np.float64)
             if len(self.start_time) == 1 and n_blocks > 1:
                 self.start_time = np.repeat(self.start_time, n_blocks)
             elif len(self.start_time) != n_blocks:
@@ -305,7 +311,7 @@ class SamplingFrame:
             f"precision={self.precision})"
         )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, object]:
         """Convert to dictionary representation.
 
         Returns:
@@ -321,7 +327,7 @@ class SamplingFrame:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> SamplingFrame:
+    def from_dict(cls, data: dict[str, Any]) -> SamplingFrame:
         """Create SamplingFrame from dictionary.
 
         Args:
