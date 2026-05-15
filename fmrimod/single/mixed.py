@@ -7,7 +7,7 @@ amplitudes are random effects.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -121,7 +121,7 @@ def _blup_betas(
     except linalg.LinAlgError:
         betas = np.linalg.lstsq(G, XtY, rcond=None)[0]
 
-    return betas
+    return cast("NDArray[np.float64]", betas)
 
 
 def mixed_single_trial(
