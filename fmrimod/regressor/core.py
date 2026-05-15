@@ -401,6 +401,14 @@ class Regressor:
 
         return result
     
+    # Scoped/strict divergence (bd-01KRNN0H73CCYGFJSJ30JPVFTW): the
+    # cast("Axes", plot_regressor(...)) below is REQUIRED under scoped
+    # mypy (--follow-imports=skip) -- ..plotting is opaque Any there so
+    # plot_regressor returns Any and removing the cast raises
+    # no-any-return against the declared -> "Axes". Full-strict resolves
+    # ..plotting and flags the cast redundant-cast. Verified empirically
+    # (scoped goes red without it). Scoped is the epic gate so the cast
+    # stays; same divergence shape as events/basis.py:160.
     def plot(
         self,
         grid: ArrayLike | None = None,
@@ -414,7 +422,7 @@ class Regressor:
         return cast(
             "Axes",
             plot_regressor(
-                self, grid=grid, precision=precision, show_onsets=show_onsets, ax=ax, **kwargs
+                cast(Any, self), grid=grid, precision=precision, show_onsets=show_onsets, ax=ax, **kwargs
             ),
         )
 
