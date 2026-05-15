@@ -99,7 +99,7 @@ def validate_contrasts(
             # Try to get attached contrasts
             try:
                 from .contrast import contrast_weights as cw_func
-                cw = cw_func(x)
+                cw = cast(Any, cw_func(x))
                 if cw:
                     for name, obj in cw.items():
                         W = obj.get('offset_weights', obj.get('weights'))
