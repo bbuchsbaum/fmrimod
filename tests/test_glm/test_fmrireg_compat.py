@@ -165,6 +165,37 @@ def test_matrix_ols_and_small_helpers():
     np.testing.assert_allclose(signed["t"], [-3.0])
 
 
+def test_fmri_rlm_enables_robust_without_replace_typeerror(monkeypatch):
+    """Regression: fmri_rlm() must enable robust fitting.
+
+    fmri_rlm previously called replace(base.robust, enabled=True), but
+    RobustOptions.enabled is a read-only property (``type is not False``),
+    not a dataclass field, so dataclasses.replace raised
+    ``TypeError: __init__() got an unexpected keyword argument 'enabled'``
+    on every call — the public robust-GLM entry point was entirely broken
+    and had zero test coverage. Robust is turned on by selecting a
+    concrete estimator; "huber" is the documented default.
+    """
+    from fmrimod.glm import compat
+
+    captured = {}
+
+    def _spy_fmri_lm(model, cfg, **kwargs):
+        captured["cfg"] = cfg
+        return "sentinel-fit"
+
+    monkeypatch.setattr(compat, "fmri_lm", _spy_fmri_lm)
+
+    result = compat.fmri_rlm(_RawModel(_toy_xy()[0]))
+
+    assert result == "sentinel-fit"
+    cfg = captured["cfg"]
+    assert cfg.robust.enabled is True
+    assert cfg.robust.type == "huber"
+    # The base config must be left untouched (replace returns a new object).
+    assert FmriLmConfig().robust.enabled is False
+
+
 def test_hrf_smoothing_kernel_and_deprecated_estimate():
     kernel = fmrimod.hrf_smoothing_kernel(6, tr=1.0, buffer_scans=1)
     assert kernel.shape == (6, 6)

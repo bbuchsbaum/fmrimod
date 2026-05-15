@@ -32,6 +32,7 @@ Dispositions:
 | `parametric_contrast_sugar_v1.md` | `bd-01KRM5FRQP16S05T3DA57DQY31` | `tests/test_contrast/test_parametric_sugar_v1_contract.py`; `tests/test_benchmarks/test_tier_e_bids_parametric_group_followthrough.py` | `fmrimod.contrast.modulator` and `fmrimod.contrast.group_dataset_from_contrasts` v1 surface | keep |
 | `public_api_policy_v1.md` | `bd-01KRHTHY5309X3VZT515S9E3H3` | `tests/test_public_api/test_api_inventory.py`; `docs/contracts/api_inventory_v1.json` | top-level API promotion and inventory policy | keep |
 | `second_level_parity_v1.md` | `bd-01KRGWWFNX93Q2RX8PZH6RNBP4` | `tests/test_benchmarks/test_tier_c_second_level_workflow.py`; `benchmarks/parity/tier_c_second_level/workflow.py` | second-level Nilearn parity semantics | keep |
+| `scoped_vs_strict_gap_v1.md` | `bd-01KRNN0H73CCYGFJSJ30JPVFTW` | `docs/contracts/scoped_vs_strict_gap_v1.md`; `tests/test_glm/test_fmrireg_compat.py` | scoped-mypy epic gate vs full-strict `[tool.mypy]` reconciliation | keep |
 | `trio_api_inventory_v1.md` | `bd-01KRGFGW2JA7RQNV0RR950Z6VQ` | `tests/test_public_api/test_api_inventory.py`; `docs/contracts/api_inventory_v1.json` | fmrireg/fmridesign/fmrihrf top-level inventory | keep |
 
 ## Maintenance Rule

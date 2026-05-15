@@ -487,7 +487,11 @@ def fmri_ols_fit(
 def fmri_rlm(model: object, config: Optional[FmriLmConfig] = None, **kwargs: object) -> FmriLm:
     """Fit a robust GLM using the normal Python ``fmri_lm`` model contract."""
     base = config or FmriLmConfig()
-    cfg = replace(base, robust=replace(base.robust, enabled=True))
+    # RobustOptions.enabled is a read-only property (type is not False), not a
+    # dataclass field — replace(..., enabled=True) raises TypeError. Robust
+    # fitting is turned on by selecting a concrete estimator; "huber" is the
+    # documented default (k_huber / max_iter defaults are tuned for it).
+    cfg = replace(base, robust=replace(base.robust, type="huber"))
     return fmri_lm(model, cfg, **cast("dict[str, Any]", kwargs))
 
 
