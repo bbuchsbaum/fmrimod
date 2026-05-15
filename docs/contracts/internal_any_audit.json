@@ -1124,7 +1124,7 @@
     },
     {
       "coercion_exemption": null,
-      "endlineno": 262,
+      "endlineno": 263,
       "has_any_annotation": true,
       "has_var_args_any": false,
       "has_var_kwargs": false,
@@ -1137,7 +1137,7 @@
     },
     {
       "coercion_exemption": null,
-      "endlineno": 241,
+      "endlineno": 242,
       "has_any_annotation": true,
       "has_var_args_any": false,
       "has_var_kwargs": false,

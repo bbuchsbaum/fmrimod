@@ -108,7 +108,7 @@ def bin_ar1_coefficients(
     width = float(bin_width)
     if not np.isfinite(width) or width <= 0.0:
         raise ValueError("bin_width must be positive")
-    return np.trunc(phi_arr / width) * width
+    return cast("NDArray[np.float64]", np.trunc(phi_arr / width) * width)
 
 
 def _t_and_p(
@@ -233,6 +233,7 @@ def ar1_nilearn(
 
         out = {"betas": betas, "sigma2": sigma2, "phi": phi_bins}
         if con is not None:
+            assert effect is not None and variance is not None
             t_vals, p_vals = _t_and_p(effect, variance, dfres=float(n_p))  # dfres set below
             out["effect"] = effect
             out["variance"] = variance
