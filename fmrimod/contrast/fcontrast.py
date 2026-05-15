@@ -107,7 +107,7 @@ def _unit_vector(n: int) -> Array:
 
 
 @Fcontrasts.register(EventVariable)
-def _fcontrasts_event_variable(event: EventVariable, **kwargs) -> Dict[str, Array]:
+def _fcontrasts_event_variable(event: EventVariable, **kwargs: object) -> Dict[str, Array]:
     """Continuous events have no F-contrasts.
     
     Parameters
@@ -124,7 +124,7 @@ def _fcontrasts_event_variable(event: EventVariable, **kwargs) -> Dict[str, Arra
 
 
 @Fcontrasts.register(EventFactor)
-def _fcontrasts_event_factor(event: EventFactor, **kwargs) -> Dict[str, Array]:
+def _fcontrasts_event_factor(event: EventFactor, **kwargs: object) -> Dict[str, Array]:
     """Generate F-contrasts for categorical event.
     
     Parameters
@@ -152,7 +152,9 @@ def _fcontrasts_event_factor(event: EventFactor, **kwargs) -> Dict[str, Array]:
 
 
 @Fcontrasts.register(EventTerm)
-def _fcontrasts_event_term(term: EventTerm, max_inter: int = 4, **kwargs) -> Dict[str, Array]:
+def _fcontrasts_event_term(
+    term: EventTerm, max_inter: int = 4, **kwargs: object
+) -> Dict[str, Array]:
     """Generate F-contrasts for event term.
     
     Generates contrast matrices for main effects and interactions
@@ -228,7 +230,7 @@ def _fcontrasts_event_term(term: EventTerm, max_inter: int = 4, **kwargs) -> Dic
 
 
 @Fcontrasts.register(EventModel)
-def _fcontrasts_event_model(model: EventModel, **kwargs) -> Dict[str, Array]:
+def _fcontrasts_event_model(model: EventModel, **kwargs: object) -> Dict[str, Array]:
     """Generate F-contrasts for event model.
     
     Computes F-contrasts for each term and maps them to the
