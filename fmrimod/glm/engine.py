@@ -289,13 +289,13 @@ class EngineResult:
     sigma: NDArray[np.float64]
     dfres: float
     XtXinv: NDArray[np.float64]
-    projections: Optional[list[Any]] = None
-    run_results: Optional[list[Any]] = None
-    residuals: Optional[list[Any]] = None
-    run_X: Optional[list[Any]] = None
+    projections: Optional[list[object]] = None
+    run_results: Optional[list[object]] = None
+    residuals: Optional[list[NDArray[np.float64]]] = None
+    run_X: Optional[list[NDArray[np.float64]]] = None
     ar_params: Optional[NDArray[np.float64]] = None
     robust_weights: Optional[NDArray[np.float64]] = None
-    extra: Dict[str, Any] = field(default_factory=dict)
+    extra: Dict[str, object] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
