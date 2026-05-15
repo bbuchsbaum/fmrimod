@@ -6,7 +6,7 @@ import warnings
 from abc import ABC, abstractmethod
 
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 
 from .fmri_dataset import FmriDataset
 
@@ -109,7 +109,7 @@ class SphereSelector(SeriesSelector):
 
     def __init__(
         self,
-        center: np.ndarray | list[float] | tuple[float, ...],
+        center: ArrayLike,
         radius: float,
     ) -> None:
         c = np.asarray(center, dtype=np.float64)
@@ -193,7 +193,7 @@ def voxel_selector(coords: NDArray[np.intp] | list[list[int]]) -> VoxelSelector:
 
 
 def sphere_selector(
-    center: np.ndarray | list[float] | tuple[float, ...],
+    center: ArrayLike,
     radius: float,
 ) -> SphereSelector:
     """Create a spherical ROI selector."""
