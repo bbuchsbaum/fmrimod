@@ -25,6 +25,12 @@ from ..types import (
 from .variable import EventVariable
 
 
+# Scoped/strict divergence cluster (bd-01KRNN0H73CCYGFJSJ30JPVFTW):
+# under scoped mypy (--follow-imports=skip) BaseEvent is opaque Any, so
+# this subclass REQUIRES the ignore and `self.__post_init__()` is
+# untyped-call-clean; full-strict resolves BaseEvent and flags both.
+# Scoped is the epic gate so the ignore stays. Same cluster as
+# events/term.py, events/variable.py, events/basis.py.
 class EventMatrix(BaseEvent):  # type: ignore[misc]
     """Multi-column event representation.
     
@@ -290,7 +296,7 @@ class EventMatrix(BaseEvent):  # type: ignore[misc]
         
         return cls(
             name=name,
-            onsets=df[onset_col].values,
+            onsets=np.asarray(df[onset_col].values, dtype=np.float64),
             values=df[value_cols].values,
             durations=durations,
             column_names=value_cols,
@@ -309,6 +315,7 @@ class EventMatrix(BaseEvent):  # type: ignore[misc]
 
         result: Dict[str, EventVariable] = {}
         assert self.column_names is not None and self.values is not None
+        assert self.onsets is not None and self.durations is not None
         for i, col_name in enumerate(self.column_names):
             result[col_name] = EventVariable(
                 name=col_name,
@@ -334,6 +341,8 @@ class EventMatrix(BaseEvent):  # type: ignore[misc]
         EventMatrix
             New EventMatrix with transformed values
         """
+        assert self.values is not None
+        assert self.onsets is not None and self.durations is not None
         if callable(transform):
             new_values = transform(self.values)
         else:
