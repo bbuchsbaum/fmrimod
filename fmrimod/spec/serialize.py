@@ -45,7 +45,7 @@ they are silently incomplete.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Callable
+from typing import Any, Callable, Literal, Mapping, Optional, cast
 
 from .terms import Confounds, Drift, HrfTerm, Intercept, Spec, Term
 
@@ -194,8 +194,14 @@ def from_dict(payload: Mapping[str, object]) -> Spec:
             f"Spec payload has schema_version={version!r}; this build of "
             f"fmrimod reads {SCHEMA_VERSION!r}."
         )
-    events = tuple(_decode_term(p, slot="events") for p in payload.get("events", ()))
-    baseline = tuple(_decode_term(p, slot="baseline") for p in payload.get("baseline", ()))
+    events_payload = payload.get("events", ())
+    baseline_payload = payload.get("baseline", ())
+    if not isinstance(events_payload, (list, tuple)):
+        raise SpecSerializationError("Spec.events must be a sequence")
+    if not isinstance(baseline_payload, (list, tuple)):
+        raise SpecSerializationError("Spec.baseline must be a sequence")
+    events = tuple(_decode_term(p, slot="events") for p in events_payload)
+    baseline = tuple(_decode_term(p, slot="baseline") for p in baseline_payload)
     return Spec(events=events, baseline=baseline)
 
 
@@ -246,13 +252,16 @@ def _decode_hrf_term(payload: Mapping[str, object]) -> HrfTerm:
         hrf=hrf_value,
         contrasts=(),  # Spec/v1 never round-trips contrasts; load-time empty.
         modulators=modulators,
-        nbasis=payload.get("nbasis"),
-        durations=payload.get("durations"),
-        lag=float(payload.get("lag", 0.0)),
-        subset=_decode_subset(payload.get("subset")),
-        prefix=payload.get("prefix"),
-        id=payload.get("id"),
-        norm=payload.get("norm"),
+        nbasis=cast(Optional[int], payload.get("nbasis")),
+        durations=cast("str | float | None", payload.get("durations")),
+        lag=float(cast(Any, payload.get("lag", 0.0))),
+        subset=cast(
+            "str | Mapping[str, object] | Callable[..., object] | None",
+            _decode_subset(payload.get("subset")),
+        ),
+        prefix=cast(Optional[str], payload.get("prefix")),
+        id=cast(Optional[str], payload.get("id")),
+        norm=cast(Any, payload.get("norm")),
         normalize=bool(payload.get("normalize", False)),
         summate=bool(payload.get("summate", True)),
     )
@@ -290,15 +299,20 @@ def _decode_subset(value: object) -> object:
 @_register_decoder("Drift")
 def _decode_drift(payload: Mapping[str, object]) -> Drift:
     return Drift(
-        basis=payload.get("basis", "constant"),
-        degree=int(payload.get("degree", 1)),
-        cutoff=payload.get("cutoff"),
+        basis=cast(
+            "Literal['constant', 'poly', 'bs', 'ns', 'cosine']",
+            payload.get("basis", "constant"),
+        ),
+        degree=int(cast(Any, payload.get("degree", 1))),
+        cutoff=cast(Optional[float], payload.get("cutoff")),
     )
 
 
 @_register_decoder("Intercept")
 def _decode_intercept(payload: Mapping[str, object]) -> Intercept:
-    return Intercept(per=payload.get("per", "run"))
+    return Intercept(
+        per=cast("Literal['run', 'global', 'none']", payload.get("per", "run"))
+    )
 
 
 @_register_decoder("Confounds")

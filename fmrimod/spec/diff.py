@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, fields
-from typing import Hashable, List, Mapping, Tuple, Union
+from typing import Any, Callable, Hashable, List, Mapping, Tuple, Union, cast
 
 import pandas as pd
 
@@ -121,12 +121,12 @@ class SpecDiff:
                 lines.append(f"    {fname}: {fd.left!r} -> {fd.right!r}")
         if self.removed_baseline:
             lines.append("baseline removed:")
-            for t in self.removed_baseline:
-                lines.append(f"  - {_term_summary(t)}")
+            for bt in self.removed_baseline:
+                lines.append(f"  - {_term_summary(bt)}")
         if self.added_baseline:
             lines.append("baseline added:")
-            for t in self.added_baseline:
-                lines.append(f"  + {_term_summary(t)}")
+            for bt in self.added_baseline:
+                lines.append(f"  + {_term_summary(bt)}")
         for td in self.changed_baseline:
             lines.append(f"baseline changed: {_term_summary(td.left)}")
             for fname, fd in td.fields.items():
@@ -166,8 +166,8 @@ def spec_diff(left: Union[Spec, Term], right: Union[Spec, Term]) -> SpecDiff:
         left_spec.baseline, right_spec.baseline, _baseline_key
     )
     return SpecDiff(
-        added_events=added_e,
-        removed_events=removed_e,
+        added_events=cast("Tuple[HrfTerm, ...]", added_e),
+        removed_events=cast("Tuple[HrfTerm, ...]", removed_e),
         changed_events=changed_e,
         added_baseline=added_b,
         removed_baseline=removed_b,
@@ -183,8 +183,8 @@ def spec_diff(left: Union[Spec, Term], right: Union[Spec, Term]) -> SpecDiff:
 def _diff_slot(
     left_terms: Tuple[Term, ...],
     right_terms: Tuple[Term, ...],
-    key_fn,
-):
+    key_fn: Callable[[Term], Hashable],
+) -> tuple[Tuple[Term, ...], Tuple[Term, ...], Tuple["TermDiff", ...]]:
     """Pair terms by key, diff matched pairs, return the three buckets."""
     left_buckets: dict[Hashable, List[Term]] = defaultdict(list)
     for t in left_terms:
@@ -195,8 +195,8 @@ def _diff_slot(
 
     # Preserve a stable visit order: keys in declaration order from
     # ``left`` first, then keys that appear only on ``right``.
-    seen: set = set()
-    ordered_keys: list = []
+    seen: set[Hashable] = set()
+    ordered_keys: list[Hashable] = []
     for t in left_terms:
         k = key_fn(t)
         if k not in seen:
@@ -208,9 +208,9 @@ def _diff_slot(
             ordered_keys.append(k)
             seen.add(k)
 
-    added: list = []
-    removed: list = []
-    changed: list = []
+    added: list[Term] = []
+    removed: list[Term] = []
+    changed: list[TermDiff] = []
     for key in ordered_keys:
         ls = left_buckets.get(key, [])
         rs = right_buckets.get(key, [])
@@ -229,12 +229,12 @@ def _diff_term(left: Term, right: Term) -> TermDiff:
     differences: dict[str, FieldDiff] = {}
     if type(left) is not type(right):
         # Should not happen given the matching keys, but stay safe.
-        for f in fields(left):
+        for f in fields(cast(Any, left)):
             differences[f.name] = FieldDiff(
                 left=getattr(left, f.name), right=None
             )
         return TermDiff(left=left, right=right, fields=differences)
-    for f in fields(left):
+    for f in fields(cast(Any, left)):
         left_val = getattr(left, f.name)
         right_val = getattr(right, f.name)
         if not _values_equal(left_val, right_val):
