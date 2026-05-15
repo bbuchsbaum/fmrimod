@@ -9,7 +9,7 @@ the new acceptance points are:
 * ``baseline_regressors`` is whitened alongside ``Y / X / confounds``
   (the previous implementation silently skipped it).
 * The :class:`~fmrimod.ar.plan.WhiteningPlan` is propagated into
-  ``result.extra['whitening_plan']`` for diagnosability.
+  ``result.extra.whitening_plan`` for diagnosability.
 * Defaults preserved: when no ``prewhiten`` is given, the result is
   byte-equal to a call without the kwarg.
 """
@@ -59,8 +59,8 @@ class TestPrewhitenPropagation:
 
         result = estimate_single_trial(Y, X, method="lss", prewhiten=cfg)
 
-        assert "whitening_plan" in result.extra
-        plan = result.extra["whitening_plan"]
+        plan = result.extra.whitening_plan
+        assert plan is not None
         assert plan.order == (1, 0)
         assert plan.pooling == "global"
         assert plan.phi is not None
@@ -74,7 +74,7 @@ class TestPrewhitenPropagation:
 
         result = estimate_single_trial(Y, X, method="lss")
 
-        assert "whitening_plan" not in result.extra
+        assert result.extra.whitening_plan is None
 
     def test_method_none_is_byte_equal_to_omitted(
         self, rng: np.random.Generator
@@ -89,7 +89,7 @@ class TestPrewhitenPropagation:
         )
 
         assert_allclose(res_default.betas, res_none.betas, atol=0, rtol=0)
-        assert "whitening_plan" not in res_none.extra
+        assert res_none.extra.whitening_plan is None
 
 
 class TestBaselineRegressorsWhitened:
@@ -132,7 +132,8 @@ class TestBaselineRegressorsWhitened:
         # That manual upstream-whitening control must match the
         # dispatcher-whitened path within floating point.
         from fmrimod.ar.whitening import whiten_apply
-        plan = result_via_dispatcher.extra["whitening_plan"]
+        plan = result_via_dispatcher.extra.whitening_plan
+        assert plan is not None
         manual = whiten_apply(plan, np.hstack([baseline, X]), Y)
         assert manual.X is not None and manual.Y is not None
         baseline_w = manual.X[:, : baseline.shape[1]]
@@ -184,7 +185,8 @@ class TestAr1BiasRecovery:
             f"naive MSE={mse_naive:.4g}, whitened MSE={mse_whitened:.4g}"
         )
         # And the plan should have detected non-trivial positive AR.
-        plan = whitened.extra["whitening_plan"]
+        plan = whitened.extra.whitening_plan
+        assert plan is not None
         assert plan.phi is not None
         assert plan.phi[0].shape == (1,)
         assert plan.phi[0][0] > 0.3, (

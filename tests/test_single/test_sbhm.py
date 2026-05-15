@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from fmrimod.single._types import SbhmConfig, SingleTrialResult
+from fmrimod.single._types import SbhmConfig, SbhmExtras, SingleTrialResult
 from fmrimod.single.sbhm.amplitude import sbhm_amplitude
 from fmrimod.single.sbhm.library import SbhmLibrary, build_sbhm_library
 from fmrimod.single.sbhm.match import SbhmMatchResult, sbhm_match
@@ -171,8 +171,9 @@ class TestSbhmPipeline:
         assert isinstance(result, SingleTrialResult)
         assert result.method == "sbhm"
         assert result.betas.shape == (N, V)
-        assert "matched_idx" in result.extra
-        assert "library" in result.extra
+        assert isinstance(result.extra, SbhmExtras)
+        assert result.extra.matched_idx is not None
+        assert result.extra.library is not None
 
     def test_with_confounds(self, rng, library_data):
         T, N, V = 100, 10, 20

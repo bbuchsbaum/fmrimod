@@ -17,7 +17,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy import linalg
 
-from ._types import OasisConfig, SingleTrialMethod, SingleTrialResult
+from ._types import OasisConfig, OasisExtras, SingleTrialMethod, SingleTrialResult
 
 # =========================================================================
 # K = 1 path
@@ -465,13 +465,11 @@ def oasis_single_trial(
         nuis_rank = Q.shape[1]
         dof = max(1.0, float(n - nuis_rank - 2 * K))
 
-    extra = {"K": K}
-
     return SingleTrialResult(
         betas=betas,
         method=SingleTrialMethod.OASIS,
         trial_labels=list(trial_labels) if trial_labels is not None else None,
         residual_df=dof,
         se=se,
-        extra=extra,
+        extra=OasisExtras(K=K),
     )

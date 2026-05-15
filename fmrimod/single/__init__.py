@@ -23,8 +23,13 @@ from numpy.typing import NDArray
 from ._prewhiten import PrewhitenConfig
 from ._project import NuisanceProjector, build_nuisance_projector
 from ._types import (
+    LssExtras,
+    MixedExtras,
     OasisConfig,
+    OasisExtras,
     SbhmConfig,
+    SbhmExtras,
+    SingleTrialExtras,
     SingleTrialMethod,
     SingleTrialMethodLike,
     SingleTrialResult,
@@ -209,7 +214,7 @@ def estimate_single_trial(
         raise ValueError(f"Unknown method: {method!r}")
 
     if whitening_plan is not None:
-        result.extra["whitening_plan"] = whitening_plan
+        result.extra = replace(result.extra, whitening_plan=whitening_plan)
     return result
 
 
@@ -479,6 +484,11 @@ __all__ = [
     "estimate_voxel_hrf",
     "lss_with_voxel_hrf",
     "SingleTrialResult",
+    "SingleTrialExtras",
+    "LssExtras",
+    "OasisExtras",
+    "MixedExtras",
+    "SbhmExtras",
     "SingleTrialMethod",
     "SingleTrialMethodLike",
     "SpatialDescriptor",

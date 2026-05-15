@@ -20,7 +20,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ._project import NuisanceProjector, build_nuisance_projector
-from ._types import SingleTrialMethod, SingleTrialResult
+from ._types import LssExtras, SingleTrialMethod, SingleTrialResult
 
 
 def _auto_chunk_size(
@@ -418,8 +418,8 @@ def lss_single_trial(
         trial_labels=list(trial_labels) if trial_labels is not None else None,
         residual_df=dfres,
         se=se,
-        extra={
-            "adjustment_rank": adjustment_rank,
-            "include_intercept": include_intercept,
-        },
+        extra=LssExtras(
+            adjustment_rank=adjustment_rank,
+            include_intercept=include_intercept,
+        ),
     )

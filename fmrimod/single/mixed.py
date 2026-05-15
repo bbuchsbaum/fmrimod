@@ -14,7 +14,7 @@ from numpy.typing import NDArray
 from scipy import linalg
 
 from ._project import project_nuisance
-from ._types import SingleTrialMethod, SingleTrialResult
+from ._types import MixedExtras, SingleTrialMethod, SingleTrialResult
 
 
 def _estimate_variance_components_reml(
@@ -193,18 +193,15 @@ def mixed_single_trial(
     # For mixed models: n*V - rank(X) - nuis_rank (approx)
     dof = max(1.0, float(n * V - n_trials * V - nuis_rank))
 
-    # Store variance components in extra
-    extra = {
-        "sigma2_u": sigma2_u,
-        "sigma2_e": sigma2_e,
-        "lambda": sigma2_e / max(sigma2_u, 1e-12),
-    }
-
     return SingleTrialResult(
         betas=betas,
         method=SingleTrialMethod.MIXED,
         trial_labels=list(trial_labels) if trial_labels is not None else None,
         residual_df=dof,
         se=None,  # SE computation requires full covariance matrix
-        extra=extra,
+        extra=MixedExtras(
+            sigma2_u=sigma2_u,
+            sigma2_e=sigma2_e,
+            lambda_ratio=sigma2_e / max(sigma2_u, 1e-12),
+        ),
     )

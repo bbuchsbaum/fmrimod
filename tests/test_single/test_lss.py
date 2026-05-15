@@ -7,7 +7,7 @@ import pytest
 from numpy.testing import assert_allclose
 
 from fmrimod.single.lss import _lss_beta_vec, _lss_beta_vec_with_se, lss_single_trial
-from fmrimod.single._types import SingleTrialResult
+from fmrimod.single._types import LssExtras, SingleTrialResult
 
 
 @pytest.fixture
@@ -168,7 +168,8 @@ class TestLssSingleTrial:
         expected = _naive_lss(Y, X, adjustment=baseline)
 
         assert_allclose(result.betas, expected, atol=1e-10)
-        assert result.extra["adjustment_rank"] == 2
+        assert isinstance(result.extra, LssExtras)
+        assert result.extra.adjustment_rank == 2
         assert result.residual_df == n - 2 - 2
 
     def test_baseline_and_confounds_match_naive_glm(self, rng):
@@ -192,7 +193,8 @@ class TestLssSingleTrial:
         expected = _naive_lss(Y, X, adjustment=adjustment)
 
         assert_allclose(result.betas, expected, atol=1e-10)
-        assert result.extra["adjustment_rank"] == adjustment.shape[1]
+        assert isinstance(result.extra, LssExtras)
+        assert result.extra.adjustment_rank == adjustment.shape[1]
 
     def test_include_intercept_matches_explicit_intercept(self, rng):
         n, T, V = 60, 4, 2
@@ -203,7 +205,8 @@ class TestLssSingleTrial:
         explicit = lss_single_trial(Y, X, baseline_regressors=np.ones((n, 1)))
 
         assert_allclose(implicit.betas, explicit.betas, atol=1e-12)
-        assert implicit.extra["adjustment_rank"] == 1
+        assert isinstance(implicit.extra, LssExtras)
+        assert implicit.extra.adjustment_rank == 1
 
     def test_rank_deficient_adjustment_does_not_overproject(self, rng):
         n, T, V = 70, 5, 3
@@ -218,7 +221,8 @@ class TestLssSingleTrial:
         result_unique = lss_single_trial(Y, X, baseline_regressors=unique)
 
         assert_allclose(result_dup.betas, result_unique.betas, atol=1e-10)
-        assert result_dup.extra["adjustment_rank"] == 2
+        assert isinstance(result_dup.extra, LssExtras)
+        assert result_dup.extra.adjustment_rank == 2
 
     def test_zero_trial_regressor_warns_but_returns_finite(self, rng):
         n, T, V = 50, 3, 2

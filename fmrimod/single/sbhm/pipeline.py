@@ -7,7 +7,7 @@ from typing import Any, Optional
 import numpy as np
 from numpy.typing import NDArray
 
-from .._types import SbhmConfig, SingleTrialMethod, SingleTrialResult
+from .._types import SbhmConfig, SbhmExtras, SingleTrialMethod, SingleTrialResult
 from .amplitude import sbhm_amplitude
 from .library import SbhmLibrary
 from .match import sbhm_match
@@ -143,23 +143,19 @@ def sbhm_single_trial(
     nuis_rank = confounds.shape[1] if confounds is not None else 0
     dof = max(1.0, T - nuis_rank - 2.0)
 
-    # Extra info
-    extra = {
-        "matched_idx": match_result.matched_idx,
-        "margin": match_result.margin,
-        "alpha_coords": match_result.alpha_coords,
-        "similarity": match_result.similarity,
-        "K": K,
-        "library": library,
-    }
-    if match_result.weights is not None:
-        extra["weights"] = match_result.weights
-
     return SingleTrialResult(
         betas=betas,
         method=SingleTrialMethod.SBHM,
         trial_labels=list(trial_labels) if trial_labels is not None else None,
         residual_df=dof,
         se=None,
-        extra=extra,
+        extra=SbhmExtras(
+            matched_idx=match_result.matched_idx,
+            margin=match_result.margin,
+            alpha_coords=match_result.alpha_coords,
+            similarity=match_result.similarity,
+            K=K,
+            library=library,
+            weights=match_result.weights,
+        ),
     )

@@ -7,7 +7,7 @@ import pytest
 from numpy.testing import assert_allclose
 
 from fmrimod.single import estimate_single_trial
-from fmrimod.single._types import SingleTrialMethod
+from fmrimod.single._types import LssExtras, SingleTrialMethod
 
 
 @pytest.fixture
@@ -82,7 +82,8 @@ class TestDispatcher:
             baseline_regressors=baseline,
         )
 
-        assert result.extra["adjustment_rank"] == 2
+        assert isinstance(result.extra, LssExtras)
+        assert result.extra.adjustment_rank == 2
 
     def test_baseline_regressors_rejected_for_methods_without_adjustment_surface(self, rng):
         n, T, V = 70, 4, 3

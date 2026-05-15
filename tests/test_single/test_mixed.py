@@ -7,7 +7,7 @@ import pytest
 from numpy.testing import assert_allclose
 
 from fmrimod.single.mixed import mixed_single_trial
-from fmrimod.single._types import SingleTrialResult
+from fmrimod.single._types import MixedExtras, SingleTrialResult
 
 
 @pytest.fixture
@@ -30,10 +30,10 @@ class TestMixedSingleTrial:
         X = rng.standard_normal((n, T))
         Y = rng.standard_normal((n, V))
         result = mixed_single_trial(Y, X)
-        assert "sigma2_u" in result.extra
-        assert "sigma2_e" in result.extra
-        assert "lambda" in result.extra
-        assert result.extra["sigma2_e"] > 0
+        assert isinstance(result.extra, MixedExtras)
+        assert result.extra.sigma2_e > 0
+        assert result.extra.sigma2_u >= 0
+        assert result.extra.lambda_ratio >= 0
 
     def test_shrinkage_improves_mse(self, rng):
         """Mixed model shrinkage should have lower MSE than LSS."""

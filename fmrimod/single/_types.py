@@ -16,6 +16,9 @@ from numpy.typing import NDArray
 if TYPE_CHECKING:
     import pandas as pd
 
+    from ..ar.plan import WhiteningPlan
+    from .sbhm.library import SbhmLibrary
+
 
 class SingleTrialMethod(str, Enum):
     """Available single-trial estimation methods."""
@@ -90,6 +93,64 @@ class SpatialDescriptor:
         object.__setattr__(self, "mask_n_true", int(self.mask_n_true))
 
 
+@dataclass(frozen=True)
+class SingleTrialExtras:
+    """Method-specific single-trial diagnostics.
+
+    Base of a small frozen hierarchy: each estimation method returns its
+    own subclass so the diagnostics it produces carry static types instead
+    of being dumped into an untyped ``dict[str, Any]``. ``whitening_plan``
+    is the one cross-cutting field — it is set by the AR-whitening dispatch
+    path regardless of method, so it lives on the base and every subclass
+    inherits it. Methods with no own diagnostics (LSA, voxel-HRF LSS) use
+    this base directly.
+    """
+
+    whitening_plan: Optional["WhiteningPlan"] = None
+
+
+@dataclass(frozen=True)
+class LssExtras(SingleTrialExtras):
+    """LSS nuisance-adjustment diagnostics."""
+
+    adjustment_rank: int = 0
+    include_intercept: bool = False
+
+
+@dataclass(frozen=True)
+class OasisExtras(SingleTrialExtras):
+    """OASIS solver diagnostics (``K`` = HRF basis rank)."""
+
+    K: int = 1
+
+
+@dataclass(frozen=True)
+class MixedExtras(SingleTrialExtras):
+    """Mixed-model variance components.
+
+    ``lambda_ratio`` is the variance ratio ``sigma2_e / sigma2_u`` (named
+    ``lambda`` in the legacy dict; ``lambda`` is a Python keyword so it
+    cannot be a field name).
+    """
+
+    sigma2_u: float = 0.0
+    sigma2_e: float = 0.0
+    lambda_ratio: float = 0.0
+
+
+@dataclass(frozen=True)
+class SbhmExtras(SingleTrialExtras):
+    """SBHM library-match diagnostics (``K`` = library rank)."""
+
+    matched_idx: Optional[NDArray[np.int_]] = None
+    margin: Optional[NDArray[np.float64]] = None
+    alpha_coords: Optional[NDArray[np.float64]] = None
+    similarity: Optional[NDArray[np.float64]] = None
+    K: int = 1
+    library: Optional["SbhmLibrary"] = None
+    weights: Optional[NDArray[np.float64]] = None
+
+
 @dataclass
 class SingleTrialResult:
     """Result of single-trial beta estimation.
@@ -109,8 +170,10 @@ class SingleTrialResult:
     se : NDArray or None
         Standard errors, same shape as *betas*.  Only available when
         the method supports it and it was requested.
-    extra : dict
-        Method-specific extras (e.g. SBHM match info, OASIS diagnostics).
+    extra : SingleTrialExtras
+        Method-specific diagnostics as a typed frozen dataclass
+        (:class:`LssExtras`, :class:`OasisExtras`, :class:`MixedExtras`,
+        :class:`SbhmExtras`, or the bare base for LSA / voxel-HRF LSS).
     trial_table : pandas.DataFrame or None
         Per-trial event metadata aligned with ``betas`` rows. Populated
         only when the result was produced by
@@ -135,7 +198,7 @@ class SingleTrialResult:
     trial_labels: Optional[list[str]] = None
     residual_df: float = 0.0
     se: Optional[NDArray[np.float64]] = None
-    extra: dict[str, Any] = field(default_factory=dict)
+    extra: SingleTrialExtras = field(default_factory=SingleTrialExtras)
     trial_table: Optional["pd.DataFrame"] = None
     run_labels: Optional[Tuple[Any, ...]] = None
     subject_id: Optional[Any] = None
