@@ -107,7 +107,7 @@ class FmriDataset:
 
     @property
     def n_runs(self) -> int:
-        return self._source.n_runs
+        return int(self._source.n_runs)
 
     @property
     def n_timepoints(self) -> int:
@@ -126,7 +126,7 @@ class FmriDataset:
 
     @property
     def n_voxels(self) -> int:
-        return self._source.n_voxels
+        return int(self._source.n_voxels)
 
     # -- Event table --
 

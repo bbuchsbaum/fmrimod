@@ -230,7 +230,7 @@ def _full_indices_to_masked_columns(
     allow_empty: bool = False,
 ) -> NDArray[np.intp]:
     mask_indices = np.flatnonzero(mask)
-    positions = np.searchsorted(mask_indices, full_indices)
+    positions: NDArray[np.intp] = np.searchsorted(mask_indices, full_indices).astype(np.intp, copy=False)
     in_bounds = positions < mask_indices.size
     positions = positions[in_bounds]
     full_indices = full_indices[in_bounds]

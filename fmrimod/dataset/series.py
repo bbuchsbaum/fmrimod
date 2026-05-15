@@ -76,7 +76,7 @@ class FmriSeries:
         n_time, n_vox = self._data.shape
         time_idx = np.repeat(np.arange(n_time), n_vox)
         vox_idx = np.tile(np.arange(n_vox), n_time)
-        out = pd.concat(
+        out: pd.DataFrame = pd.concat(
             [
                 self._temporal_info.iloc[time_idx].reset_index(drop=True),
                 self._voxel_info.iloc[vox_idx].reset_index(drop=True),
