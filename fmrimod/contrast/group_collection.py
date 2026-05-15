@@ -53,7 +53,7 @@ def group_dataset_from_contrasts(
     spatial = _shared_spatial(subjects, results)
     if spatial is None:
         labels = tuple(f"feature{i:03d}" for i in range(n_samples))
-        space = SampleLabelSpace(labels)
+        space: SampleLabelSpace | VoxelSpace = SampleLabelSpace(labels)
         row_data = pd.DataFrame(index=pd.Index(labels, name="sample"))
     else:
         mask_idx = np.flatnonzero(np.asarray(spatial.mask, dtype=bool).reshape(-1))
