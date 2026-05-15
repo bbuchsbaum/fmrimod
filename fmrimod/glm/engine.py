@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     ClassVar,
     Dict,
     Literal,
@@ -311,7 +312,11 @@ _BUILTINS_LOADED = False
 _ENTRY_POINTS_LOADED = False
 
 
-def register_engine(name_or_cls: Any = None, *, name: Optional[str] = None) -> Any:
+def register_engine(
+    name_or_cls: Optional[type] = None,
+    *,
+    name: Optional[str] = None,
+) -> Union[type, Callable[[type], type]]:
     """Register a fitting engine class.
 
     Can be used as a decorator (with or without arguments) or called
