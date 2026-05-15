@@ -6,7 +6,7 @@ correlation matrices, and time series plots.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
 
 import numpy as np
 import pandas as pd
@@ -709,7 +709,7 @@ def plot_sampling_frame(
         fig, ax = plt.subplots(figsize=figsize)
 
         current_time: float = 0.0
-        colors = plt.cm.Set2(np.linspace(0, 1, max(n_blocks, 3)))
+        colors = cast(Any, plt.cm).Set2(np.linspace(0, 1, max(n_blocks, 3)))
 
         for i, blen in enumerate(blocklens):
             duration = float(blen) * float(tr_vals[i])
