@@ -19,7 +19,7 @@ class MatrixBackend(StorageBackend):
         data_matrix: NDArray[np.floating[Any]],
         mask: NDArray[np.bool_] | None = None,
         spatial_dims: tuple[int, int, int] | None = None,
-        metadata: dict[str, Any] | None = None,
+        metadata: dict[str, object] | None = None,
     ) -> None:
         data = np.asarray(data_matrix, dtype=np.float64)
         if data.ndim != 2:
@@ -86,6 +86,6 @@ class MatrixBackend(StorageBackend):
             data = data[:, np.asarray(cols, dtype=np.intp)]
         return data
 
-    def get_metadata(self) -> dict[str, Any]:
+    def get_metadata(self) -> dict[str, object]:
         """Return matrix metadata."""
         return {"format": "matrix", **self._metadata}

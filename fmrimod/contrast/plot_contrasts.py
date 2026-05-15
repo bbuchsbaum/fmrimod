@@ -16,7 +16,7 @@ def plot_contrasts(x,
                   scale_mode: str = "auto",
                   figsize: Optional[Tuple[float, float]] = None,
                   cmap: Optional[str] = None,
-                  **kwargs):
+                  **kwargs: object):
     """Plot contrast weights as a heatmap.
     
     This is a generic function that dispatches based on the type of x.
@@ -53,7 +53,7 @@ def _plot_contrasts_dict(contrast_dict: Dict[str, Array],
                         scale_mode: str = "auto",
                         figsize: Optional[Tuple[float, float]] = None,
                         cmap: Optional[str] = None,
-                        **kwargs):
+                        **kwargs: object):
     """Plot contrasts from a dictionary of contrast weights.
     
     Parameters
@@ -200,7 +200,7 @@ def plot_contrasts_event_model(model: ModelProtocol,
                              scale_mode: str = "auto",
                              figsize: Optional[Tuple[float, float]] = None,
                              cmap: Optional[str] = None,
-                             **kwargs):
+                             **kwargs: object):
     """Plot contrasts for an EventModel.
     
     Parameters
