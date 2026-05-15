@@ -46,7 +46,7 @@ MAX_VOXELS = 2048
 CONTRAST_NAME = "listening"
 HRF_MODEL = "spm + derivative"
 LISTENING_CONTRAST = SemanticContrast(
-    positive=condition(CONTRAST_NAME, term="trial_type", basis_ix=1),
+    positive=condition(CONTRAST_NAME, term="trial_type", basis="canonical"),
     name=CONTRAST_NAME,
 )
 

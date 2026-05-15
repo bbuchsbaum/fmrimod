@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from difflib import get_close_matches
 from numbers import Real
+from typing import Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -258,22 +259,46 @@ def condition(
     *,
     term: str | None = None,
     basis_ix: int | tuple[int, ...] | None = None,
+    basis: Literal["canonical", "derivative", "dispersion"] | None = None,
 ) -> ConditionRef:
     """Author a condition-level reference for semantic contrasts.
+
+    ``basis=`` names an SPM informed-set role ("canonical", "derivative",
+    "dispersion") so callers do not have to know the internal 1-based
+    ``basis_ix`` column convention. It is a closed :data:`typing.Literal`,
+    not a string-keyed registry, so a typo is a static type error rather than
+    a silent miss. ``basis=`` and ``basis_ix=`` are mutually exclusive.
 
     Examples
     --------
     ``condition("gain") - condition("loss")`` creates a contrast that resolves
     against declared design-column provenance rather than rendered column order.
+    ``condition("listening", basis="canonical")`` pins the canonical column of
+    an SPMG2/SPMG3 informed basis set without spelling out ``basis_ix=1``.
     """
-    basis: tuple[int, ...]
+    if basis is not None and basis_ix is not None:
+        raise ValueError(
+            "condition() received both basis= and basis_ix=; they are "
+            f"mutually exclusive (got basis={basis!r}, basis_ix={basis_ix!r}). "
+            "Pass basis= for the SPM informed-set role name or basis_ix= for "
+            "an explicit 1-based column index, not both."
+        )
+    if basis is not None:
+        try:
+            basis_ix = _SPM_BASIS_NAME_TO_IX[basis]
+        except KeyError:
+            raise ValueError(
+                f"basis={basis!r} is not a valid SPM informed-set role; "
+                f"expected one of {sorted(_SPM_BASIS_NAME_TO_IX)}"
+            ) from None
+    resolved: tuple[int, ...]
     if basis_ix is None:
-        basis = ()
+        resolved = ()
     elif isinstance(basis_ix, tuple):
-        basis = basis_ix
+        resolved = basis_ix
     else:
-        basis = (int(basis_ix),)
-    return ConditionRef(level=level, term=term, basis_ix=basis)
+        resolved = (int(basis_ix),)
+    return ConditionRef(level=level, term=term, basis_ix=resolved)
 
 
 def cell(
@@ -376,6 +401,14 @@ _SPM_INFORMED_BASIS_LABELS: dict[int, str] = {
     1: "canonical",
     2: "derivative",
     3: "dispersion",
+}
+
+# Inverse of the canonical label map: the single source of truth for the
+# SPM informed-set role <-> 1-based basis index correspondence. condition()
+# consumes this at call time so basis="canonical" can never drift from the
+# index _basis_role_label() reports.
+_SPM_BASIS_NAME_TO_IX: dict[str, int] = {
+    name: ix for ix, name in _SPM_INFORMED_BASIS_LABELS.items()
 }
 
 
