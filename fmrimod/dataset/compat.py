@@ -38,7 +38,7 @@ def fmri_mem_dataset(
     from .constructors import matrix_dataset
 
     return matrix_dataset(
-        data,
+        cast(Any, data),
         cast(Any, tr),
         run_length=cast(Any, run_length),
         event_table=event_table,
@@ -90,8 +90,14 @@ def fmri_latent_lm(
     structurally by callers)."""
     from ..glm import fit_glm_with_config
 
-    fit = fit_glm_with_config(model, dataset.scores, cfg=config, dataset=dataset, **kwargs)
-    fit.dataset = dataset
+    fit = fit_glm_with_config(
+        model,
+        dataset.scores,
+        cfg=cast(Any, config),
+        dataset=dataset,
+        **cast("dict[str, Any]", kwargs),
+    )
+    cast(Any, fit).dataset = dataset
     return fit
 
 
