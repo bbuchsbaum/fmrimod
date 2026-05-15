@@ -19,7 +19,7 @@ def matrix_backend(
     *,
     mask: NDArray[np.bool_] | None = None,
     spatial_dims: tuple[int, int, int] | None = None,
-    metadata: dict[str, Any] | None = None,
+    metadata: dict[str, object] | None = None,
 ) -> MatrixBackend:
     """Construct an in-memory matrix backend."""
     return MatrixBackend(
