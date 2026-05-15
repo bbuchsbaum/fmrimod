@@ -21,8 +21,8 @@ class GroupProbe:
     subjects: tuple[str, ...]
     contrasts: tuple[str, ...]
     space: GroupSpace
-    metadata: Mapping[str, Any] = field(default_factory=dict)
-    columns: Mapping[str, Any] = field(default_factory=dict)
+    metadata: Mapping[str, object] = field(default_factory=dict)
+    columns: Mapping[str, object] = field(default_factory=dict)
     col_data: pd.DataFrame | None = None
     row_data: pd.DataFrame | None = None
     contrast_data: pd.DataFrame | None = None
