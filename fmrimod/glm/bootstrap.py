@@ -352,6 +352,7 @@ def bootstrap_glm(
     proj = fast_preproject(X)
     orig = fast_lm_matrix(X, Y, proj, return_fitted=True)
     fitted = orig.fitted
+    assert fitted is not None  # fast_lm_matrix(..., return_fitted=True)
     residuals = Y - fitted
 
     if run_boundaries is not None and run_indices is not None:
