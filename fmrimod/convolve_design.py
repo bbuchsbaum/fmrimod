@@ -9,7 +9,7 @@ to apply (or re-apply) HRF convolution as a post-processing step.
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -152,12 +152,12 @@ def convolve_design(
         hrf_values = hrf_values[:, 0]
     
     # Normalize HRF to unit area (preserve total signal)
-    hrf_sum = np.sum(hrf_values)
+    hrf_sum: float = float(np.sum(hrf_values))
     if abs(hrf_sum) > 1e-10:
         hrf_values = hrf_values / hrf_sum
     else:
         # If sum is too close to zero, just use max normalization
-        hrf_max = np.max(np.abs(hrf_values))
+        hrf_max: float = float(np.max(np.abs(hrf_values)))
         if hrf_max > 0:
             hrf_values = hrf_values / hrf_max
     
@@ -182,7 +182,7 @@ def convolve_design(
     # Peak-normalize each column if requested
     if normalize:
         for i in range(n_cols):
-            mx = np.max(np.abs(X_convolved[:, i]))
+            mx: float = float(np.max(np.abs(X_convolved[:, i])))
             if mx > 0:
                 X_convolved[:, i] = X_convolved[:, i] / mx
 
@@ -233,20 +233,24 @@ def convolve_regressors(
     """
     convolved = {}
     
+    forwarded = cast("dict[str, Any]", hrf_kwargs)
     for name, regressor in regressors.items():
         # Ensure 2D for convolve_design
         reg_array = np.asarray(regressor)
         if reg_array.ndim == 1:
             reg_array = reg_array.reshape(-1, 1)
-        
+
         # Convolve
-        conv_array = convolve_design(
-            reg_array,
-            hrf=hrf,
-            sampling_rate=sampling_rate,
-            **hrf_kwargs
+        conv_array = cast(
+            "np.ndarray[Any, Any]",
+            convolve_design(
+                reg_array,
+                hrf=hrf,
+                sampling_rate=sampling_rate,
+                **forwarded,
+            ),
         )
-        
+
         # Store with original shape
         if regressor.ndim == 1:
             convolved[name] = conv_array.ravel()

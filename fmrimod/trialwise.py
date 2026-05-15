@@ -10,6 +10,7 @@ and multi-voxel pattern analysis (MVPA).
 from typing import Any, Optional, Union
 
 import numpy as np
+from numpy.typing import NDArray
 
 from .events import EventFactor
 from .formula import Term
@@ -110,7 +111,7 @@ def trialwise(
     return term
 
 
-def _create_trial_factor(n: int, onsets: Optional[np.ndarray] = None) -> EventFactor:
+def _create_trial_factor(n: int, onsets: Optional[NDArray[Any]] = None) -> EventFactor:
     """Create an EventFactor with a unique level per trial.
 
     This is an internal helper used by ``EventModel`` when expanding

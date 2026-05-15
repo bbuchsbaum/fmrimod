@@ -12,7 +12,7 @@ values are wrapped in :class:`CovariateEvent` objects.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Protocol, Union
 
 import numpy as np
 import pandas as pd
@@ -25,7 +25,17 @@ if TYPE_CHECKING:
     pass
 
 
-class CovariateTerm(Term):
+class _SamplingInfoLike(Protocol):
+    """Duck-typed view of SamplingInfo for covariate event construction.
+
+    Names the single attribute the covariate-event builder reads so the
+    typed seam does not have to import the concrete SamplingInfo class.
+    """
+
+    samples: Any
+
+
+class CovariateTerm(Term):  # type: ignore[misc]
     """A term representing covariates that bypass HRF convolution.
     
     Covariates are added directly to the design matrix without convolution.
@@ -64,7 +74,7 @@ class CovariateTerm(Term):
         self,
         covariates: Union[str, List[str]],
         prefix: Optional[str] = None,
-        subset: Optional[Union[Array, callable]] = None,
+        subset: Optional[Union[Array, Callable[..., Any]]] = None,
         name: Optional[str] = None
     ):
         """Initialize covariate term."""
@@ -106,7 +116,7 @@ class CovariateTerm(Term):
         return ", ".join(parts)
 
 
-class CovariateEvent(BaseEvent):
+class CovariateEvent(BaseEvent):  # type: ignore[misc]
     """Event representation for covariate data.
     
     This is a special event type that holds covariate data
@@ -233,7 +243,7 @@ def covariate(
     *variables: str,
     data: Optional[pd.DataFrame] = None,
     prefix: Optional[str] = None,
-    subset: Optional[Union[Array, callable]] = None,
+    subset: Optional[Union[Array, Callable[..., Any]]] = None,
     name: Optional[str] = None
 ) -> CovariateTerm:
     """Create a covariate term for non-convolved regressors.
@@ -301,7 +311,7 @@ def covariate(
 def create_covariate_events(
     data: pd.DataFrame,
     covariate_names: List[str],
-    sampling_info: object,
+    sampling_info: _SamplingInfoLike,
     prefix: Optional[str] = None
 ) -> Dict[str, CovariateEvent]:
     """Create covariate events from data.
