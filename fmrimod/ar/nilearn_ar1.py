@@ -19,16 +19,17 @@ as an explicit option rather than hidden as a caveat in parity reports.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional, cast
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy import special as sp_special
+from typing_extensions import TypeAlias
 
 from ..glm.solver import fast_lm_matrix, fast_preproject
 from .whitening import ar_whiten_matrix
 
-Array = NDArray[np.float64]
+Array: TypeAlias = NDArray[np.float64]
 
 # Nilearn's ``run_glm(..., noise_model='ar1', bins=100)`` corresponds to a
 # 0.01 bin width.
@@ -149,7 +150,7 @@ def ar1_nilearn(
     coefficient_bin_width: Optional[float] = DEFAULT_BIN_WIDTH,
     exact_first_ar1: bool = False,
     config: Optional[Ar1NilearnConfig] = None,
-) -> dict:
+) -> dict[str, Any]:
     """Nilearn-compatible AR(1) GLM fit with binned voxelwise coefficients.
 
     Parameters
@@ -197,15 +198,19 @@ def ar1_nilearn(
 
     con = None if contrast is None else np.asarray(contrast, dtype=np.float64).ravel()
 
-    def _grouped_fit(phi_vec: Array) -> dict:
+    def _grouped_fit(phi_vec: Array) -> dict[str, Any]:
         phi_bins = bin_ar1_coefficients(
             np.asarray(phi_vec, dtype=np.float64).reshape(-1),
             config.coefficient_bin_width,
         )
         betas = np.zeros((n_p, n_v), dtype=np.float64)
         sigma2 = np.zeros(n_v, dtype=np.float64)
-        effect = np.zeros(n_v, dtype=np.float64) if con is not None else None
-        variance = np.zeros(n_v, dtype=np.float64) if con is not None else None
+        effect: Optional[Array] = (
+            np.zeros(n_v, dtype=np.float64) if con is not None else None
+        )
+        variance: Optional[Array] = (
+            np.zeros(n_v, dtype=np.float64) if con is not None else None
+        )
 
         for ar1_bin in np.unique(phi_bins):
             cols = phi_bins == ar1_bin
@@ -220,6 +225,7 @@ def ar1_nilearn(
             betas[:, cols] = np.asarray(fit.betas, dtype=np.float64)
             sigma2[cols] = np.asarray(fit.sigma2, dtype=np.float64)
             if con is not None:
+                assert effect is not None and variance is not None
                 est = con @ np.asarray(fit.betas, dtype=np.float64)
                 var_factor = float(con @ np.asarray(proj.XtXinv, dtype=np.float64) @ con)
                 effect[cols] = est
@@ -240,7 +246,7 @@ def ar1_nilearn(
     beta_for_residual = np.asarray(fit_ols.betas, dtype=np.float64)
     dfres = float(proj_ols.dfres)
 
-    outputs: dict = {}
+    outputs: dict[str, Any] = {}
     for _ in range(config.iter_gls):
         residuals = Y_base - X_base @ beta_for_residual
         phi = _estimate_ar1_nilearn_yule_walker(residuals)

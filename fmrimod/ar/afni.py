@@ -6,7 +6,7 @@ via a real damping factor and complex conjugate pole pairs.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -122,7 +122,7 @@ def afni_restricted_plan(
         resid = resid[:, np.newaxis]
     n, v = resid.shape
 
-    def _as_phi(spec):
+    def _as_phi(spec: dict[str, Any]) -> NDArray[np.float64]:
         if p == 3:
             return afni_phi_ar3(spec["a"], spec["r1"], spec["t1"])
         else:
@@ -131,9 +131,9 @@ def afni_restricted_plan(
 
     if parcels is None:
         # Global plan
-        if roots is None or "a" not in roots:
+        if not isinstance(roots, dict) or "a" not in roots:
             raise ValueError("roots must contain 'a', 'r1', 't1' (and 'r2', 't2' for p=5)")
-        phi = _as_phi(roots)
+        phi = _as_phi(cast("dict[str, Any]", roots))
         theta = np.array([], dtype=np.float64)
 
         if estimate_ma1:
@@ -166,13 +166,14 @@ def afni_restricted_plan(
     # Determine if roots is a single spec or per-parcel
     is_single = isinstance(roots, dict) and "a" in roots
 
+    roots_dict = cast("dict[Any, Any]", roots)
     for pid in pids:
         key = str(pid)
-        spec = roots if is_single else roots.get(key, roots.get(pid))
+        spec = roots_dict if is_single else roots_dict.get(key, roots_dict.get(pid))
         if spec is None:
             # Fall back to first available
-            spec = roots if is_single else next(iter(roots.values()))
-        phi = _as_phi(spec)
+            spec = roots_dict if is_single else next(iter(roots_dict.values()))
+        phi = _as_phi(cast("dict[str, Any]", spec))
         phi_by[key] = phi
 
         if estimate_ma1:

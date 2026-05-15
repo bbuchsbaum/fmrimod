@@ -11,7 +11,7 @@ import sys
 import sysconfig
 import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -91,7 +91,7 @@ def _compile_shared(target: Path) -> bool:
             pass
 
 
-def _load_func():
+def _load_func() -> Any:
     global _LIB, _FUNC, _FAILED
     if _FUNC is not None:
         return _FUNC

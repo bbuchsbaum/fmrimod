@@ -10,7 +10,7 @@ Implements the standard two-stage (or multi-stage) approach:
 
 from __future__ import annotations
 
-from typing import Dict, Tuple
+from typing import Any, Dict, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -25,8 +25,8 @@ from .whitening import ar_whiten_matrix
 def iterative_gls(
     model: object,  # FmriModel
     config: FmriLmConfig,
-    initial_fit: Dict,
-) -> Tuple[Dict, NDArray[np.float64]]:
+    initial_fit: Dict[str, Any],
+) -> Tuple[Dict[str, Any], NDArray[np.float64]]:
     """Run iterative GLS with AR whitening.
 
     Parameters
@@ -63,8 +63,8 @@ def iterative_gls(
         for r in range(n_runs):
             resid_r = residuals_list[r]
             censor_r = None
-            if hasattr(model, "dataset") and hasattr(model.dataset, "get_censor"):  # type: ignore[attr-defined]
-                censor_r = model.dataset.get_censor(r)  # type: ignore[attr-defined]
+            if hasattr(model, "dataset") and hasattr(model.dataset, "get_censor"):
+                censor_r = model.dataset.get_censor(r)
 
             phi_r = estimate_ar(
                 resid_r,
@@ -146,8 +146,8 @@ def iterative_gls(
 def iterative_ar_gls(
     model: object,  # FmriModel
     config: FmriLmConfig,
-    initial_fit: Dict,
-) -> Tuple[Dict, object]:
+    initial_fit: Dict[str, Any],
+) -> Tuple[Dict[str, Any], object]:
     """Run iterative GLS using plan-based whitening.
 
     Enhanced version of :func:`iterative_gls` that uses
@@ -207,8 +207,8 @@ def iterative_ar_gls(
         Y_r = get_run_data(model.dataset, r)  # type: ignore[attr-defined]
         n_r = Y_r.shape[0]
         censor_r = None
-        if hasattr(model, "dataset") and hasattr(model.dataset, "get_censor"):  # type: ignore[attr-defined]
-            censor_r = model.dataset.get_censor(r)  # type: ignore[attr-defined]
+        if hasattr(model, "dataset") and hasattr(model.dataset, "get_censor"):
+            censor_r = model.dataset.get_censor(r)
         if censor_r is not None and np.any(censor_r):
             if censor_r.dtype == bool:
                 indices = np.where(censor_r)[0] + offset
@@ -272,11 +272,15 @@ def iterative_ar_gls(
                 if X_w is None and wr.X_by:
                     X_w = next(iter(wr.X_by.values()))
             else:
-                phi_idx = 0 if plan.pooling == "global" else min(r, len(plan.phi) - 1)
-                phi_r = plan.phi[phi_idx] if plan.phi else np.array([])
-                theta_r = (plan.theta[phi_idx]
-                           if plan.theta and phi_idx < len(plan.theta)
-                           else np.array([]))
+                if plan.phi is None:
+                    phi_r = np.array([])
+                    theta_r = np.array([])
+                else:
+                    phi_idx = 0 if plan.pooling == "global" else min(r, len(plan.phi) - 1)
+                    phi_r = plan.phi[phi_idx] if plan.phi else np.array([])
+                    theta_r = (plan.theta[phi_idx]
+                               if plan.theta and phi_idx < len(plan.theta)
+                               else np.array([]))
 
                 from .whitening import arma_whiten_segments
                 seg_starts = np.array([0], dtype=np.intp)
@@ -323,7 +327,7 @@ def iterative_ar_gls(
     return current_fit, plan
 
 
-def _check_convergence(prev_plan, new_plan, tol: float) -> bool:
+def _check_convergence(prev_plan: Any, new_plan: Any, tol: float) -> bool:
     """Check if AR parameters have converged between iterations."""
     try:
         if prev_plan.phi is not None and new_plan.phi is not None:

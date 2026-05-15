@@ -5,19 +5,19 @@ Ports ``acorr.R`` and ``sandwich.R``.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 from numpy.typing import NDArray
 
 
 def acorr_diagnostics(
-    resid: NDArray,
+    resid: NDArray[Any],
     *,
-    runs: Optional[NDArray] = None,
+    runs: Optional[NDArray[Any]] = None,
     max_lag: int = 20,
     aggregate: str = "mean",
-) -> dict:
+) -> dict[str, Any]:
     """Compute residual autocorrelation for whiteness checks.
 
     Parameters
@@ -42,9 +42,9 @@ def acorr_diagnostics(
     n = resid.shape[0]
     ci = 1.96 / np.sqrt(n)
 
-    def _acf_one(y):
+    def _acf_one(y: NDArray[Any]) -> NDArray[Any]:
         y = y - y.mean()
-        var = np.sum(y ** 2)
+        var: float = float(np.sum(y ** 2))
         if var < 1e-15:
             return np.zeros(max_lag)
         acf = np.zeros(max_lag)
@@ -68,14 +68,14 @@ def acorr_diagnostics(
 
 
 def sandwich_from_whitened_resid(
-    Xw: NDArray,
-    Yw: NDArray,
+    Xw: NDArray[Any],
+    Yw: NDArray[Any],
     *,
-    beta: Optional[NDArray] = None,
+    beta: Optional[NDArray[Any]] = None,
     type: str = "iid",
     df_mode: str = "rankX",
-    runs: Optional[NDArray] = None,
-) -> dict:
+    runs: Optional[NDArray[Any]] = None,
+) -> dict[str, Any]:
     """GLS standard errors from whitened residuals.
 
     Parameters

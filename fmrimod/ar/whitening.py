@@ -7,7 +7,7 @@ subsequent OLS is equivalent to GLS under the AR noise model.
 from __future__ import annotations
 
 import os
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -17,7 +17,7 @@ from scipy.signal import lfilter
 from ._arma_c_backend import arma_whiten_segments_c
 
 try:
-    from numba import njit
+    from numba import njit  # type: ignore[import-untyped]
     _HAS_NUMBA = True
 except Exception:  # pragma: no cover - optional accelerator
     njit = None
@@ -191,7 +191,7 @@ def _arma_whiten_segments_numba_core(
     raise RuntimeError("Numba ARMA backend unavailable")
 
 if _USE_NUMBA_ARMA:
-    @njit(cache=True)
+    @njit(cache=True)  # type: ignore[untyped-decorator]
     def _arma_whiten_segments_numba_core(
         y: NDArray,
         phi: NDArray,
@@ -474,7 +474,7 @@ def whiten_apply(
     run_labels = np.unique(runs)
     rsplits = [np.where(runs == rl)[0] for rl in run_labels]
 
-    def _row_selector(idx: NDArray):
+    def _row_selector(idx: NDArray[Any]) -> Any:
         """Prefer contiguous slice selectors to avoid fancy-index copies."""
         if len(idx) == 0:
             return idx
@@ -578,5 +578,5 @@ def whiten(
 
     coef, _, _, _ = np.linalg.lstsq(X, Y, rcond=None)
     res = Y - X @ coef
-    plan = fit_noise(resid=res, runs=runs, censor=censor, **fit_kwargs)
+    plan = fit_noise(resid=res, runs=runs, censor=censor, **cast("dict[str, Any]", fit_kwargs))
     return whiten_apply(plan, X, Y, runs=runs, censor=censor)

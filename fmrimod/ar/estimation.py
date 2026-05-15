@@ -6,7 +6,7 @@ Provides Yule-Walker estimation of AR coefficients, either globally
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -203,7 +203,7 @@ def _enforce_stationarity(phi: NDArray[np.float64]) -> NDArray[np.float64]:
 def estimate_ar_bic(
     y: NDArray[np.float64],
     p_max: int,
-) -> dict:
+) -> dict[str, Any]:
     """Select AR order via BIC and estimate coefficients.
 
     Parameters
@@ -274,7 +274,7 @@ def fit_noise(
     exact_first: str = "ar1",
     pooling: str = "global",
     parcels: Optional[NDArray] = None,
-    parcel_sets: Optional[dict] = None,
+    parcel_sets: Optional[dict[str, Any]] = None,
     multiscale: object = None,
     ms_mode: Optional[str] = None,
     p_target: Optional[int] = None,
@@ -441,7 +441,7 @@ def fit_noise(
 
         target = p_max if p_target is None else min(int(p_target), p_max)
 
-        def _estimator(y_col):
+        def _estimator(y_col: NDArray[np.float64]) -> dict[str, Any]:
             return estimate_ar_bic(y_col, p_max)
 
         M_fine = parcel_means(resid, parcels)
@@ -525,7 +525,9 @@ def fit_noise(
                 )
 
         theta_parcel = {k: np.array([], dtype=np.float64) for k in phi_parcel}
-        max_p = max((len(v) for v in phi_parcel.values()), default=0)
+        max_p = max(
+            (len(cast(Any, v)) for v in phi_parcel.values()), default=0
+        )
 
         return WhiteningPlan(
             phi=None,
@@ -543,7 +545,7 @@ def fit_noise(
         )
 
     # --- Per-run estimation ---
-    def _est_run(mat, censor_rel):
+    def _est_run(mat: NDArray[Any], censor_rel: NDArray[Any]) -> dict[str, Any]:
         n_run = mat.shape[0]
 
         if method == "arma":
@@ -557,7 +559,7 @@ def fit_noise(
                 y_mean = mat.mean(axis=1)
 
             from .hr_arma import hr_arma
-            pp = min(2, p_max) if p == "auto" else int(p)
+            pp = min(2, p_max) if p == "auto" else int(cast(Any, p))
             qq = int(q)
             return hr_arma(y_mean, p=pp, q=qq, n_iter=hr_iter, step1=step1)
 
@@ -632,11 +634,16 @@ def fit_noise(
             return {"phi": best_phi,
                     "theta": np.array([], dtype=np.float64),
                     "order": (best_p, 0)}
+
+        raise ValueError(f"Unknown estimation method: {method!r}")
+
     # If p is a fixed integer (not "auto"), override BIC
     if p != "auto":
-        p_fixed = int(p)
+        p_fixed = int(cast(Any, p))
         # For fixed p, just do Yule-Walker without BIC
-        def _est_run_fixed(mat, censor_rel):
+        def _est_run_fixed(
+            mat: NDArray[Any], censor_rel: NDArray[Any]
+        ) -> dict[str, Any]:
             n_run = mat.shape[0]
 
             if method == "arma":
@@ -671,6 +678,9 @@ def fit_noise(
                 return {"phi": phi_try,
                         "theta": np.array([], dtype=np.float64),
                         "order": (p_fixed, 0)}
+
+            raise ValueError(f"Unknown estimation method: {method!r}")
+
         estimates = [_est_run_fixed(m, c) for m, c in zip(run_mats, censor_by_run)]
     else:
         estimates = [_est_run(m, c) for m, c in zip(run_mats, censor_by_run)]

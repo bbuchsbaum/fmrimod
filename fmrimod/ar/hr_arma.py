@@ -5,7 +5,7 @@ Ports ``hr_arma.R`` and ``fmriAR_hr.cpp`` into pure NumPy/SciPy.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -92,7 +92,7 @@ def hr_arma(
     n_iter: int = 0,
     bound: float = 0.99,
     enforce: bool = True,
-) -> dict:
+) -> dict[str, Any]:
     """Hannan-Rissanen two-step ARMA estimation.
 
     Parameters

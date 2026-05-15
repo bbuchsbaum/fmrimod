@@ -5,7 +5,7 @@ Ports ``multiscale.R`` and ``multiscale_fast.R`` into pure NumPy.
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -185,9 +185,9 @@ def ms_parent_maps(
 # ---------------------------------------------------------------------------
 
 def ms_estimate_scale(
-    M: Dict[str, NDArray],
-    estimator: Callable,
-    run_starts: Optional[NDArray] = None,
+    M: Dict[str, NDArray[np.float64]],
+    estimator: Callable[..., Any],
+    run_starts: Optional[NDArray[Any]] = None,
 ) -> Dict[str, Dict[str, object]]:
     """Estimate AR at a single spatial scale.
 
@@ -230,13 +230,13 @@ def ms_combine_to_fine(
     acvf_by_coarse: Optional[Dict[str, NDArray]] = None,
     acvf_by_medium: Optional[Dict[str, NDArray]] = None,
     acvf_by_fine: Optional[Dict[str, NDArray]] = None,
-    parents: Optional[Dict] = None,
-    sizes: Optional[Dict] = None,
-    disp_list: Optional[Dict] = None,
+    parents: Optional[Dict[str, Any]] = None,
+    sizes: Optional[Dict[str, Any]] = None,
+    disp_list: Optional[Dict[str, Any]] = None,
     p_target: int = 6,
     mode: str = "pacf_weighted",
     kappa_clip: float = 0.99,
-) -> Dict[str, NDArray]:
+) -> Dict[str, NDArray[np.float64]]:
     """Combine AR estimates across spatial scales for each fine parcel.
 
     Parameters
@@ -265,9 +265,11 @@ def ms_combine_to_fine(
     """
     if mode not in ("pacf_weighted", "acvf_pooled"):
         raise ValueError(f"mode must be 'pacf_weighted' or 'acvf_pooled', got {mode!r}")
+    if parents is None or sizes is None or disp_list is None:
+        raise ValueError("parents, sizes, and disp_list are required")
 
     fine_ids = sorted(phi_by_fine.keys(), key=lambda x: int(x))
-    out_phi = {}
+    out_phi: Dict[str, NDArray[np.float64]] = {}
 
     for fid in fine_ids:
         fid_int = int(fid)
@@ -304,6 +306,12 @@ def ms_combine_to_fine(
             kap = np.clip(kap, -kappa_clip, kappa_clip)
             out_phi[key_f] = pacf_to_ar(kap)
         else:
+            if (
+                acvf_by_coarse is None
+                or acvf_by_medium is None
+                or acvf_by_fine is None
+            ):
+                raise ValueError("acvf_pooled mode requires all three acvf maps")
             g_c = _pad(acvf_by_coarse.get(key_c, np.array([0.0])), p_target + 1)
             g_m = _pad(acvf_by_medium.get(key_m, np.array([0.0])), p_target + 1)
             g_f = _pad(acvf_by_fine.get(key_f, np.array([0.0])), p_target + 1)
