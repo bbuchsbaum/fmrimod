@@ -311,11 +311,11 @@ def estimate_single_trial_from_dataset(
         resolved_durations = "duration"
 
     event_model = _build_event_model(
-        formula=spec,
+        formula=cast(Any, spec),
         data=events_df,
-        block=resolved_block,
+        block=cast(Any, resolved_block),
         sampling_frame=sampling_frame,
-        durations=resolved_durations,
+        durations=cast(Any, resolved_durations),
         precision=precision,
     )
 
