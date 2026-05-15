@@ -6,7 +6,7 @@ import json
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from types import MappingProxyType
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -34,7 +34,7 @@ def _as_list(value: str | Iterable[str] | None) -> list[str] | None:
     return [str(v) for v in value]
 
 
-def _read_dataset(handle: object, path: str) -> object:
+def _read_dataset(handle: Any, path: str) -> object:
     if path not in handle:
         raise BackendIOError(
             f"Required dataset '{path}' not found",
@@ -43,13 +43,13 @@ def _read_dataset(handle: object, path: str) -> object:
     return _decode_h5_value(handle[path][()])
 
 
-def _read_optional_scalar(handle: object, path: str) -> object | None:
+def _read_optional_scalar(handle: Any, path: str) -> object | None:
     if path not in handle:
         return None
     return _decode_h5_value(handle[path][()])
 
 
-def _read_scan_index(handle: object) -> pd.DataFrame:
+def _read_scan_index(handle: Any) -> pd.DataFrame:
     if "scan_index" not in handle:
         raise BackendIOError(
             "BIDS-HDF5 archive is missing /scan_index/",
@@ -120,7 +120,7 @@ def _read_scan_index(handle: object) -> pd.DataFrame:
     return manifest
 
 
-def _read_frame(group: object, subgroup_name: str) -> pd.DataFrame | None:
+def _read_frame(group: Any, subgroup_name: str) -> pd.DataFrame | None:
     if subgroup_name not in group:
         return None
     subgroup = group[subgroup_name]
@@ -132,7 +132,7 @@ def _read_frame(group: object, subgroup_name: str) -> pd.DataFrame | None:
     return pd.DataFrame(columns)
 
 
-def _read_confounds(scan_group: object) -> pd.DataFrame | None:
+def _read_confounds(scan_group: Any) -> pd.DataFrame | None:
     if "confounds" not in scan_group or "data" not in scan_group["confounds"]:
         return None
     dataset = scan_group["confounds/data"]
@@ -148,7 +148,7 @@ def _read_confounds(scan_group: object) -> pd.DataFrame | None:
     return pd.DataFrame(data, columns=col_names)
 
 
-def _read_censor(scan_group: object, n_time: int) -> NDArray[np.bool_]:
+def _read_censor(scan_group: Any, n_time: int) -> NDArray[np.bool_]:
     if "censor" not in scan_group:
         return np.zeros(n_time, dtype=np.bool_)
     return np.asarray(scan_group["censor"], dtype=np.bool_)
@@ -231,7 +231,7 @@ def _make_scan_backends(
 def _build_subject_dataset(
     scan_rows: pd.DataFrame,
     scan_backends: Mapping[str, BidsH5ScanBackend],
-    handle: object,
+    handle: Any,
     tr: float,
     subject_id: str,
 ) -> FmriDataset:
@@ -270,7 +270,7 @@ def _build_subject_dataset(
 def _compose_bids_h5_study_dataset(
     manifest: pd.DataFrame,
     scan_backends: dict[str, BidsH5ScanBackend],
-    handle: object,
+    handle: Any,
     connection: SharedH5Connection,
     tr: float,
     bids_metadata: dict[str, object],
@@ -502,7 +502,7 @@ class BidsH5StudyDataset:
                 "latent_meta/encoding_family",
             ),
             "encoding_params": decoded_params,
-            "n_components": int(_read_dataset(handle, "latent_meta/n_components")),
+            "n_components": int(cast(Any, _read_dataset(handle, "latent_meta/n_components"))),
             "has_shared_template": self._has_shared_template(),
             "template_meta": template_meta,
         }
@@ -581,17 +581,17 @@ def bids_h5_dataset(file: str | Path, preload: bool = False) -> BidsH5StudyDatas
             file=str(connection.file),
             operation="validate",
         )
-    compression_mode: CompressionMode = mode_value
+    compression_mode: CompressionMode = cast("CompressionMode", mode_value)
 
     manifest = _read_scan_index(handle)
     if compression_mode == "parcellated":
         cluster_ids = _read_dataset(handle, "parcellation/cluster_ids")
         n_features = int(np.asarray(cluster_ids).size)
     else:
-        n_features = int(_read_dataset(handle, "latent_meta/n_components"))
+        n_features = int(cast(Any, _read_dataset(handle, "latent_meta/n_components")))
 
     first_scan = str(manifest["scan_name"].iloc[0])
-    tr = float(_read_dataset(handle, f"scans/{first_scan}/metadata/tr"))
+    tr = float(cast(Any, _read_dataset(handle, f"scans/{first_scan}/metadata/tr")))
     bids_metadata = {
         key: _read_optional_scalar(handle, f"bids/{key}")
         for key in ("space", "pipeline", "name")
@@ -635,7 +635,7 @@ def subset_bids_h5(
     }
     for column, values in filters.items():
         if values is not None:
-            keep = keep & manifest[column].isin(values)
+            keep = cast("pd.Series[Any]", keep & manifest[column].isin(values))
     sub_manifest = manifest.loc[keep].reset_index(drop=True)
     if len(sub_manifest) == 0:
         raise ValueError("subset_bids_h5: no scans match the provided filters")

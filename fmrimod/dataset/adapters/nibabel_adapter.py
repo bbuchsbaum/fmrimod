@@ -9,7 +9,7 @@ Requires ``nibabel`` (optional dependency).
 
 from __future__ import annotations
 
-from typing import List, Optional, Sequence
+from typing import Any, List, Optional, Sequence, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -43,7 +43,7 @@ class NibabelAdapter:
 
     def __init__(
         self,
-        images: Sequence,
+        images: Sequence[Any],
         mask: Optional[object] = None,
         tr: float = 2.0,
         start_time: float = 0.0,
@@ -70,7 +70,7 @@ class NibabelAdapter:
             self._mask = mask.astype(bool)
         else:
             # Assume nibabel image
-            self._mask = np.asarray(mask.get_fdata(), dtype=bool)
+            self._mask = np.asarray(cast(Any, mask).get_fdata(), dtype=bool)
 
         self._tr = tr
         self._start_time = start_time

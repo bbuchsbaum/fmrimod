@@ -16,7 +16,7 @@ import re
 from dataclasses import dataclass, field
 from numbers import Integral
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence, cast
 
 import numpy as np
 import pandas as pd
@@ -83,7 +83,7 @@ def _validate_files(paths: Sequence[str], *, name: str, validate: bool) -> None:
 def _nifti_shape(path: str) -> tuple[int, int, int]:
     """Read the first three spatial dimensions from a NIfTI file."""
     try:
-        from neuroim import read_image
+        from neuroim import read_image  # type: ignore[import-untyped]
     except Exception as exc:  # pragma: no cover - optional dependency behavior
         raise ImportError(
             "nifti validation requires optional dependency 'neuroim'. "
@@ -169,7 +169,7 @@ def detect_group_data_format(data: object) -> str:
 
 
 def group_data_from_h5(
-    paths: Sequence[str] | os.PathLike | str,
+    paths: Sequence[str] | os.PathLike[Any] | str,
     subjects: Optional[Sequence[str]] = None,
     covariates: Optional[pd.DataFrame] = None,
     mask: Optional[str] = None,
@@ -241,6 +241,7 @@ def group_data_from_nifti(
         t_list = _coerce_path_list(t_paths, name="t_paths")
 
     primary = beta_list if beta_list is not None else t_list
+    assert primary is not None
     n_subjects = len(primary)
 
     if se_list is not None and len(se_list) != n_subjects:
@@ -288,7 +289,7 @@ def group_data_from_nifti(
     elif isinstance(df, Integral):
         df_values = [int(df)] * n_subjects
     else:
-        df_values = list(df)
+        df_values = list(cast("Sequence[int]", df))
         if len(df_values) != n_subjects:
             raise ValueError("Length of df must be 1 or equal to number of subjects")
 
@@ -309,7 +310,7 @@ def group_data_from_nifti(
 
 
 def group_data_from_csv(
-    data: str | pd.DataFrame | os.PathLike,
+    data: str | pd.DataFrame | os.PathLike[Any],
     effect_cols: Mapping[str, str] | Sequence[str],
     subject_col: str = "subject",
     roi_col: Optional[str] = None,
@@ -375,10 +376,10 @@ def group_data_from_csv(
     if covariate_cols is not None:
         subjects_sorted = pd.Index(subjects)
         uniq_rows = df.drop_duplicates(subject_col).set_index(subject_col)
-        missing = subjects_sorted.difference(uniq_rows.index)
-        if len(missing):
+        missing_subjects = subjects_sorted.difference(uniq_rows.index)
+        if len(missing_subjects):
             raise ValueError(
-                "Covariates are missing for subjects: " + ", ".join(missing.astype(str))
+                "Covariates are missing for subjects: " + ", ".join(cast(Any, missing_subjects).astype(str))
             )
         covariate_frame = uniq_rows.loc[subjects_sorted, covariate_cols]
     else:
@@ -452,7 +453,7 @@ def group_data(
         format = detect_group_data_format(data)
 
     if format == "h5":
-        return group_data_from_h5(data, **kwargs)
+        return group_data_from_h5(cast(Any, data), **cast("dict[str, Any]", kwargs))
     if format == "nifti":
         if isinstance(data, Mapping):
             args = {
@@ -464,11 +465,11 @@ def group_data(
             }
             args = {k: v for k, v in args.items() if v is not None}
             args.update(kwargs)
-            return group_data_from_nifti(**args)
-        return group_data_from_nifti(data, **kwargs)
+            return group_data_from_nifti(**cast("dict[str, Any]", args))
+        return group_data_from_nifti(cast(Any, data), **cast("dict[str, Any]", kwargs))
     if format == "csv":
-        return group_data_from_csv(data, **kwargs)
+        return group_data_from_csv(cast(Any, data), **cast("dict[str, Any]", kwargs))
     if format == "fmrilm":
-        return group_data_from_fmrilm(data, **kwargs)
+        return group_data_from_fmrilm(cast(Any, data), **cast("dict[str, Any]", kwargs))
 
     raise ValueError(f"Unsupported format '{format}'")

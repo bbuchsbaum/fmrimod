@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -55,7 +55,7 @@ class SharedH5Connection:
 
     def _open_handle(self) -> None:
         try:
-            import h5py
+            import h5py  # type: ignore[import-untyped]
         except ImportError as exc:
             raise ConfigError(
                 "h5py is required for BIDS-HDF5 support. "
@@ -80,8 +80,8 @@ class SharedH5Connection:
             ) from exc
 
     @property
-    def handle(self) -> object:
-        if self._handle is None or not bool(self._handle.id.valid):
+    def handle(self) -> Any:
+        if self._handle is None or not bool(cast(Any, self._handle).id.valid):
             raise BackendIOError(
                 f"HDF5 file handle for '{self.file}' is not open",
                 file=str(self.file),
@@ -91,7 +91,7 @@ class SharedH5Connection:
 
     @property
     def is_valid(self) -> bool:
-        return self._handle is not None and bool(self._handle.id.valid)
+        return self._handle is not None and bool(cast(Any, self._handle).id.valid)
 
     def acquire(self) -> None:
         if not self.is_valid:
@@ -101,12 +101,12 @@ class SharedH5Connection:
     def release(self) -> None:
         self.ref_count = max(0, self.ref_count - 1)
         if self.ref_count == 0 and self._handle is not None and self.is_valid:
-            self._handle.close()
+            cast(Any, self._handle).close()
 
     def close(self) -> None:
         self.ref_count = 0
         if self._handle is not None and self.is_valid:
-            self._handle.close()
+            cast(Any, self._handle).close()
 
     def __repr__(self) -> str:
         return (
@@ -188,7 +188,7 @@ class BidsH5ScanBackend(StorageBackend):
         if not self.is_open:
             self.open()
 
-        handle = self.h5_connection.handle
+        handle = cast(Any, self.h5_connection.handle)
         path = self._data_path
         if path not in handle:
             raise BackendIOError(

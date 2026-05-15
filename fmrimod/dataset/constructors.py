@@ -22,7 +22,7 @@ work for callers that already hold an adapter.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Sequence, cast
 
 import numpy as np
 import pandas as pd
@@ -181,7 +181,7 @@ def _is_dataset_protocol(obj: object) -> bool:
 
 def _is_nifti1image(obj: object) -> bool:
     try:
-        import nibabel  # type: ignore[import-not-found]
+        import nibabel
     except ImportError:
         return False
     return isinstance(obj, nibabel.Nifti1Image)
@@ -208,7 +208,7 @@ def _build_adapter(
 
     # DatasetProtocol-compatible: use as-is.
     if _is_dataset_protocol(img):
-        return img
+        return cast(DatasetProtocol, img)
 
     # Sequence dispatch
     if isinstance(img, (list, tuple)) and img:
@@ -284,7 +284,7 @@ def _make_paths_adapter(
     from .adapters.neuroim_adapter import NeuroVecAdapter
 
     return NeuroVecAdapter.from_paths(
-        paths,
+        cast(Any, paths),
         mask=mask,
         tr=_require_tr(tr, what="path"),
         start_time=start_time,
@@ -333,7 +333,9 @@ def _resolve_tr(
     if tr is not None and TR is not None:
         if not np.array_equal(np.asarray(tr), np.asarray(TR)):
             raise ValueError("tr and TR must agree when both are supplied")
-    return TR if tr is None else tr
+    resolved = TR if tr is None else tr
+    assert resolved is not None
+    return resolved
 
 
 def _normalize_run_lengths(

@@ -1,7 +1,7 @@
 {
   "counts": {
     "all_names": 205,
-    "any_in_signature": 27,
+    "any_in_signature": 29,
     "callable": 203,
     "classes": 22,
     "opaque_forwarder": 31
@@ -1960,7 +1960,7 @@
     },
     {
       "compatibility_status": "compat",
-      "has_any_in_signature": false,
+      "has_any_in_signature": true,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1968,7 +1968,7 @@
       "name": "group_data_from_csv",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.group_data",
-      "runtime_signature": "(data: 'str | pd.DataFrame | os.PathLike', effect_cols: 'Mapping[str, str] | Sequence[str]', subject_col: 'str' = 'subject', roi_col: 'Optional[str]' = None, contrast_col: 'Optional[str]' = None, covariate_cols: 'Optional[Sequence[str]]' = None, wide_format: 'bool' = False, subjects: 'Optional[Sequence[str]]' = None, covariates: 'Optional[pd.DataFrame]' = None) -> 'GroupData'",
+      "runtime_signature": "(data: 'str | pd.DataFrame | os.PathLike[Any]', effect_cols: 'Mapping[str, str] | Sequence[str]', subject_col: 'str' = 'subject', roi_col: 'Optional[str]' = None, contrast_col: 'Optional[str]' = None, covariate_cols: 'Optional[Sequence[str]]' = None, wide_format: 'bool' = False, subjects: 'Optional[Sequence[str]]' = None, covariates: 'Optional[pd.DataFrame]' = None) -> 'GroupData'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -1990,7 +1990,7 @@
     },
     {
       "compatibility_status": "compat",
-      "has_any_in_signature": false,
+      "has_any_in_signature": true,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -1998,7 +1998,7 @@
       "name": "group_data_from_h5",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.group_data",
-      "runtime_signature": "(paths: 'Sequence[str] | os.PathLike | str', subjects: 'Optional[Sequence[str]]' = None, covariates: 'Optional[pd.DataFrame]' = None, mask: 'Optional[str]' = None, contrast: 'Optional[str]' = None, stat: 'Sequence[str]' = ('beta', 'se'), validate: 'bool' = True) -> 'GroupData'",
+      "runtime_signature": "(paths: 'Sequence[str] | os.PathLike[Any] | str', subjects: 'Optional[Sequence[str]]' = None, covariates: 'Optional[pd.DataFrame]' = None, mask: 'Optional[str]' = None, contrast: 'Optional[str]' = None, stat: 'Sequence[str]' = ('beta', 'se'), validate: 'bool' = True) -> 'GroupData'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"

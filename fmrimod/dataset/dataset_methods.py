@@ -27,7 +27,7 @@ def is_sampling_frame(obj: object) -> bool:
 
 def get_TR(obj: FmriDataset | SamplingFrame) -> float:  # noqa: N802
     """Return the first repetition time in seconds."""
-    return _frame(obj).TR
+    return float(_frame(obj).TR)
 
 
 def get_run_lengths(obj: FmriDataset | SamplingFrame) -> tuple[int, ...]:

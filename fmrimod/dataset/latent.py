@@ -95,7 +95,7 @@ class LatentDataset(FmriDataset):
         backend = self.storage_backend
         if backend is None:  # pragma: no cover - impossible for _LatentAdapter
             raise ConfigError("latent dataset has no storage backend")
-        return backend
+        return cast(StorageBackend, backend)
 
     @property
     def TR(self) -> float:  # noqa: N802
@@ -148,7 +148,7 @@ class LatentDataset(FmriDataset):
 
     def get_component_info(self) -> dict[str, object]:
         """Return latent component metadata."""
-        return cast("dict[str, object]", self.backend.get_metadata())
+        return self.backend.get_metadata()
 
     def with_event_table(self, event_table: pd.DataFrame) -> LatentDataset:
         """Return this latent dataset with a replacement event table."""
@@ -198,6 +198,7 @@ def latent_dataset(
         source = scores
         scores = None
 
+    backend: StorageBackend
     if source is not None:
         if scores is not None:
             raise TypeError("pass either scores or source=, not both")

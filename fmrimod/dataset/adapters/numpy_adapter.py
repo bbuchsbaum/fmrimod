@@ -103,4 +103,4 @@ class NumpyAdapter:
 
     @property
     def n_voxels(self) -> int:
-        return self._data[0].shape[1]
+        return int(self._data[0].shape[1])

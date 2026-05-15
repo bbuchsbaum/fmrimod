@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal, cast
 
 import numpy as np
 import pandas as pd
@@ -64,14 +64,14 @@ def _as_string_array(values: Sequence[object]) -> NDArray[np.object_]:
     return np.asarray(["" if v is None else str(v) for v in values], dtype=object)
 
 
-def _write_string_array(group: object, name: str, values: Sequence[object]) -> None:
-    import h5py
+def _write_string_array(group: Any, name: str, values: Sequence[object]) -> None:
+    import h5py  # type: ignore[import-untyped]
 
     dtype = h5py.string_dtype("utf-8")
     group.create_dataset(name, data=_as_string_array(values), dtype=dtype)
 
 
-def _write_string_scalar(group: object, name: str, value: object) -> None:
+def _write_string_scalar(group: Any, name: str, value: object) -> None:
     import h5py
 
     dtype = h5py.string_dtype("utf-8")
@@ -84,7 +84,7 @@ def _compression_kwargs(compression: int) -> dict[str, object]:
     return {"compression": "gzip", "compression_opts": compression}
 
 
-def _write_events(group: object, events: pd.DataFrame, compression: int) -> None:
+def _write_events(group: Any, events: pd.DataFrame, compression: int) -> None:
     if len(events) == 0:
         return
     event_group = group.create_group("events")
@@ -101,7 +101,7 @@ def _write_events(group: object, events: pd.DataFrame, compression: int) -> None
 
 
 def _write_confounds(
-    group: object,
+    group: Any,
     confounds: pd.DataFrame | None,
     compression: int,
 ) -> bool:
@@ -259,11 +259,11 @@ def _normalise_bids_dir(
             run_length=n_time,
             event_table=events,
         )
-        dataset._bids_task = task
-        dataset._bids_session = "" if session is None else str(session)
-        dataset._bids_run = "1" if run is None else str(run)
+        cast(Any, dataset)._bids_task = task
+        cast(Any, dataset)._bids_session = "" if session is None else str(session)
+        cast(Any, dataset)._bids_run = "1" if run is None else str(run)
         if cluster_ids is not None:
-            dataset._bids_cluster_ids = cluster_ids
+            cast(Any, dataset)._bids_cluster_ids = cluster_ids
         out.append((subject_id, dataset))
     return out
 
@@ -272,7 +272,7 @@ def _load_optional_spatial_vector(
     value: object | None,
     *,
     name: str,
-    nib: object,
+    nib: Any,
 ) -> NDArray[np.object_] | None:
     if value is None:
         return None
@@ -291,7 +291,7 @@ def _summarise_bids_matrix(
     *,
     mask: NDArray[np.object_] | None,
     clusters: NDArray[np.object_] | None,
-    summary_fun: object | None,
+    summary_fun: Any = None,
     source: Path,
 ) -> tuple[NDArray[np.float64], NDArray[np.object_] | None]:
     n_voxels = matrix.shape[1]
@@ -325,7 +325,7 @@ def _summarise_bids_matrix(
     return np.column_stack(summaries), cluster_ids
 
 
-def _read_bids_events(layout: object, bold_path: Path) -> pd.DataFrame:
+def _read_bids_events(layout: Any, bold_path: Path) -> pd.DataFrame:
     events_getter = getattr(layout, "get_events", None)
     if events_getter is not None:
         try:
@@ -607,7 +607,7 @@ def compress_bids_study(
             parcel_group.create_dataset("cluster_ids", data=cluster_ids)
         else:
             latent_group = handle.create_group("latent_meta")
-            n_written_components = int(scan_rows[0]["n_features"])
+            n_written_components = int(cast(Any, scan_rows[0]["n_features"]))
             latent_group.create_dataset("n_components", data=n_written_components)
             _write_string_scalar(latent_group, "encoding_family", "pca")
             _write_string_scalar(

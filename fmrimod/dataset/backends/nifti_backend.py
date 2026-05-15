@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -117,7 +118,7 @@ class NiftiBackend(StorageBackend):
             self._file_time_dims.append(int(n_time))
             total_time += int(n_time)
 
-        self._dims = BackendDims(spatial=spatial_shape, time=total_time)
+        self._dims = BackendDims(spatial=cast("tuple[int, int, int]", spatial_shape), time=total_time)
         self._metadata = {
             "format": "nifti",
             "affine": np.asarray(mask_img.affine),
@@ -151,6 +152,7 @@ class NiftiBackend(StorageBackend):
             return self._read_data_subset(rows=rows, cols=cols)
 
         data = self._data
+        assert self._dims is not None and self._mask_vec is not None
         if rows is not None:
             row_idx = _normalize_indices(rows, self._dims.time, "rows")
             data = data[row_idx, :]

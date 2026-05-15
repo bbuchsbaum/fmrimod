@@ -6,7 +6,7 @@ metadata to provide a complete dataset for GLM analysis.
 
 from __future__ import annotations
 
-from typing import List, Optional, Union
+from typing import List, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -87,7 +87,7 @@ class FmriDataset:
         """Return backend dimensions when available."""
         backend = self.storage_backend
         if backend is not None and hasattr(backend, "get_dims"):
-            return backend.get_dims()
+            return cast(BackendDims, backend.get_dims())
         mask = self.get_mask().ravel()
         return BackendDims(spatial=(int(mask.size), 1, 1), time=self.n_timepoints)
 

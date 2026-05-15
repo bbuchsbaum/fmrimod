@@ -79,7 +79,7 @@ class LatentBackend(StorageBackend):
 
     def open(self) -> None:  # noqa: A003
         try:
-            import h5py
+            import h5py  # type: ignore[import-untyped]
         except ImportError as exc:  # pragma: no cover - environment dependent
             raise ConfigError(
                 "h5py is required for LatentBackend. Install with: pip install h5py"

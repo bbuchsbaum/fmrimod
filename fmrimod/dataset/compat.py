@@ -6,7 +6,7 @@ import json
 import os
 import warnings
 from pathlib import Path
-from typing import Callable, Dict, Mapping, Optional, Sequence, Union
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -39,8 +39,8 @@ def fmri_mem_dataset(
 
     return matrix_dataset(
         data,
-        tr,
-        run_length=run_length,
+        cast(Any, tr),
+        run_length=cast(Any, run_length),
         event_table=event_table,
         mask=mask,
     )
@@ -114,7 +114,7 @@ def extract_csv_data(
     """Extract effect-size arrays from CSV-backed group data."""
     if not isinstance(gd, GroupData) or gd.format != "csv":
         raise TypeError("Input must be CSV-backed GroupData")
-    df = gd.data["data"].copy()
+    df = cast(pd.DataFrame, gd.data["data"]).copy()
     roi_col = gd.data.get("roi_col")
     contrast_col = gd.data.get("contrast_col")
     if roi is not None:
@@ -130,7 +130,7 @@ def extract_csv_data(
         if df.empty:
             raise ValueError(f"No data found for contrast: {contrast}")
 
-    effect_cols = gd.data["effect_cols"]
+    effect_cols = cast("dict[str, Any]", gd.data["effect_cols"])
     out: Dict[str, Union[pd.DataFrame, NDArray[np.float64]]] = {
         "data": df.reset_index(drop=True),
     }
@@ -151,10 +151,10 @@ def read_h5_full(gd: GroupData, stat: Optional[Sequence[str]] = None) -> NDArray
     """Read full HDF5-backed group data into ``voxels x subjects x stats``."""
     if not isinstance(gd, GroupData) or gd.format != "h5":
         raise TypeError("Input must be H5-backed GroupData")
-    import h5py
+    import h5py  # type: ignore[import-untyped]
 
-    paths = gd.data["paths"]
-    stats = list(stat if stat is not None else gd.data.get("stat", ["beta", "se"]))
+    paths = cast("list[Any]", gd.data["paths"])
+    stats = list(stat if stat is not None else cast("list[str]", gd.data.get("stat", ["beta", "se"])))
     arrays: list[list[NDArray[np.float64]]] = []
     n_voxels: Optional[int] = None
     for path in paths:
@@ -184,7 +184,7 @@ def read_nifti_full(gd: GroupData, use_mask: Optional[bool] = None) -> Dict[str,
     """Read full NIfTI-backed group data into subject-by-voxel matrices."""
     if not isinstance(gd, GroupData) or gd.format != "nifti":
         raise TypeError("Input must be NIfTI-backed GroupData")
-    from neuroim import read_image
+    from neuroim import read_image  # type: ignore[import-untyped]
 
     mask = None
     if gd.data.get("mask") is not None:
@@ -194,7 +194,7 @@ def read_nifti_full(gd: GroupData, use_mask: Optional[bool] = None) -> Dict[str,
 
     out: Dict[str, NDArray[np.float64]] = {}
     for stat, key in (("beta", "beta_paths"), ("se", "se_paths"), ("var", "var_paths"), ("t", "t_paths")):
-        paths = gd.data.get(key)
+        paths = cast("list[Any]", gd.data.get(key))
         if not paths:
             continue
         rows = []
@@ -218,9 +218,9 @@ def read_fmri_config(path: Union[str, "os.PathLike[str]"]) -> Dict[str, object]:
     resolved = Path(path)
     text = resolved.read_text()
     if resolved.suffix.lower() == ".json":
-        return json.loads(text)
+        return cast("dict[str, object]", json.loads(text))
     try:
-        import yaml
+        import yaml  # type: ignore[import-untyped]
     except Exception as exc:  # pragma: no cover
         raise ImportError("YAML config reading requires PyYAML") from exc
     data = yaml.safe_load(text)
@@ -294,7 +294,7 @@ def list_benchmark_datasets() -> pd.DataFrame:
     return pd.DataFrame(
         {
             "Dataset": list(data),
-            "Description": [payload.get("description", "") for payload in data.values()],
+            "Description": [cast(Any, payload).get("description", "") for payload in data.values()],
         }
     )
 
@@ -335,7 +335,7 @@ def create_design_matrix_from_benchmark(
     import fmrimod
 
     n_time = int(np.asarray(dataset.get("Y_noisy", np.zeros((48, 1)))).shape[0])
-    time_grid = np.arange(n_time, dtype=np.float64) * float(dataset["TR"])
+    time_grid = np.arange(n_time, dtype=np.float64) * float(cast(Any, dataset["TR"]))
     labels = np.asarray(dataset["condition_labels"], dtype=object)
     columns: Dict[str, NDArray[np.float64]] = {}
     for condition in pd.unique(labels):

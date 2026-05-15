@@ -12,7 +12,7 @@ objects.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Union, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -21,13 +21,13 @@ from ...sampling import SamplingFrame
 from ..errors import ConfigError
 
 if TYPE_CHECKING:
-    import neuroim
+    import neuroim  # type: ignore[import-untyped]
 
 
 def _is_neurovec(obj: object) -> bool:
     """Return True iff ``obj`` is a ``neuroim.NeuroVec`` instance."""
     try:
-        import neuroim  # type: ignore[import-not-found]
+        import neuroim
     except ImportError:
         return False
     return isinstance(obj, neuroim.NeuroVec)
@@ -36,7 +36,7 @@ def _is_neurovec(obj: object) -> bool:
 def _is_neurovol(obj: object) -> bool:
     """Return True iff ``obj`` is a ``neuroim.NeuroVol`` (or subclass)."""
     try:
-        import neuroim  # type: ignore[import-not-found]
+        import neuroim
     except ImportError:
         return False
     return isinstance(obj, neuroim.NeuroVol)
@@ -45,10 +45,10 @@ def _is_neurovol(obj: object) -> bool:
 def _extract_4d(vec: object) -> NDArray:
     """Best-effort extraction of an ``(x, y, z, t)`` ndarray from a NeuroVec."""
     if hasattr(vec, "data"):
-        return np.asarray(vec.data)
+        return np.asarray(cast(Any, vec).data)
     if hasattr(vec, "__array__"):
         return np.asarray(vec)
-    return np.asarray(vec[:])
+    return np.asarray(cast(Any, vec)[:])
 
 
 class NeuroVecAdapter:
@@ -173,7 +173,7 @@ class NeuroVecAdapter:
         return self._n_voxels
 
     @property
-    def spatial_shape(self) -> tuple:
+    def spatial_shape(self) -> tuple[int, ...]:
         return self._spatial_shape
 
     # -- Construction helpers --
@@ -189,7 +189,7 @@ class NeuroVecAdapter:
     ) -> "NeuroVecAdapter":
         """Load NIfTI files via :func:`neuroim.read_vec` and wrap them."""
         try:
-            import neuroim  # type: ignore[import-not-found]
+            import neuroim
         except ImportError as exc:
             raise ConfigError(
                 "neuroim is required to load NIfTI paths. "
@@ -217,7 +217,7 @@ class NeuroVecAdapter:
     ) -> "NeuroVecAdapter":
         """Wrap a 4-D ndarray as a single-run NeuroVecAdapter."""
         try:
-            import neuroim  # type: ignore[import-not-found]
+            import neuroim
         except ImportError as exc:
             raise ConfigError(
                 "neuroim is required to wrap 4-D ndarray input. "
@@ -252,7 +252,7 @@ class NeuroVecAdapter:
             return np.asarray(data4d[..., 0] != 0, dtype=bool)
 
         if _is_neurovol(mask):
-            return np.asarray(mask.data, dtype=bool)
+            return np.asarray(cast(Any, mask).data, dtype=bool)
 
         if isinstance(mask, np.ndarray):
             arr = np.asarray(mask, dtype=bool)
