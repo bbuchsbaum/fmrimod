@@ -19,7 +19,7 @@ downstream LSS solve operates on a fully whitened system.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -66,8 +66,8 @@ class PrewhitenConfig:
     q: int = 0
     p_max: int = 6
     pooling: PoolingMode = "global"
-    runs: Optional[NDArray] = None
-    parcels: Optional[NDArray] = None
+    runs: Optional[NDArray[Any]] = None
+    parcels: Optional[NDArray[Any]] = None
     exact_first: ExactFirstMode = "ar1"
 
     def __post_init__(self) -> None:
@@ -103,7 +103,7 @@ class PrewhitenResult:
 def _resolve_pooling_and_parcels(
     config: PrewhitenConfig,
     n_voxels: int,
-) -> Tuple[str, Optional[NDArray]]:
+) -> Tuple[str, Optional[NDArray[Any]]]:
     """Mirror R's ``pooling='voxel'`` → ``pooling='parcel', parcels=1..V``.
 
     ``"voxel"`` is the user-facing label; the plan engine speaks
