@@ -70,31 +70,31 @@ def _read_scan_index(handle: Any) -> pd.DataFrame:
             "BIDS-HDF5 archive is missing /scan_index/scan_name",
             operation="read",
         )
-    scan_names = [str(v) for v in np.atleast_1d(scan_name)]
+    scan_names = [str(v) for v in np.atleast_1d(cast(Any, scan_name))]
     n_scans = len(scan_names)
 
     def strings(name: str, default: str = "") -> list[str]:
         value = read_field(name)
         if value is None:
             return [default] * n_scans
-        return [str(v) for v in np.atleast_1d(value)]
+        return [str(v) for v in np.atleast_1d(cast(Any, value))]
 
     def ints(name: str, default: int = 0) -> list[int]:
         value = read_field(name)
         if value is None:
             return [default] * n_scans
-        return [int(v) for v in np.atleast_1d(value)]
+        return [int(v) for v in np.atleast_1d(cast(Any, value))]
 
     def bools(name: str, default: bool = False) -> list[bool]:
         value = read_field(name)
         if value is None:
             return [default] * n_scans
-        return [bool(v) for v in np.atleast_1d(value)]
+        return [bool(v) for v in np.atleast_1d(cast(Any, value))]
 
     n_time = ints("n_time")
     time_offset = read_field("time_offset")
     offsets = (
-        [int(v) for v in np.atleast_1d(time_offset)]
+        [int(v) for v in np.atleast_1d(cast(Any, time_offset))]
         if time_offset is not None
         else [0] + list(np.cumsum(n_time)[:-1])
     )
@@ -144,7 +144,7 @@ def _read_confounds(scan_group: Any) -> pd.DataFrame | None:
         col_names = [f"confound_{i + 1}" for i in range(data.shape[1])]
     else:
         decoded = _decode_h5_value(np.asarray(names))
-        col_names = [str(v) for v in np.atleast_1d(decoded)]
+        col_names = [str(v) for v in np.atleast_1d(cast(Any, decoded))]
     return pd.DataFrame(data, columns=col_names)
 
 
