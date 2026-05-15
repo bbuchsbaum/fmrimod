@@ -89,7 +89,7 @@ def _ar_options_to_dict(ar_config: AROptions) -> Dict[str, object]:
 
 def _snapshot_ar_options(ar_config: AROptions) -> AROptions:
     """Copy AR options into an immutable provenance-friendly shape."""
-    return AROptions(**_ar_options_to_dict(ar_config))
+    return AROptions(**cast("dict[str, Any]", _ar_options_to_dict(ar_config)))
 
 
 @dataclass(frozen=True)
@@ -421,6 +421,10 @@ class _RealizedDesignModel:
         import pandas as pd
 
         if run is None:
+            # Scoped/strict divergence (bd-01KRNN0H73CCYGFJSJ30JPVFTW):
+            # scoped mypy sees RealizedDesign opaque so as_dataframe() is
+            # Any and this cast is required; full-strict resolves it and
+            # flags the cast redundant. Scoped is the epic gate -> keep.
             return cast(pd.DataFrame, self._design.as_dataframe())
         start, stop = self._run_slice(run)
         return pd.DataFrame(
@@ -778,10 +782,13 @@ class FmriLm:
                 return self.contrasts[spec]
             # Look up from model's contrast weights
             if self._named_weights_cache is None:
-                contrast_weights = getattr(self.model, "contrast_weights", None)
+                # Local name must not shadow the module-level
+                # `contrast_weights` singledispatch generic (mypy then
+                # mis-resolves the call below against the generic).
+                model_cw = getattr(self.model, "contrast_weights", None)
                 self._named_weights_cache = (
-                    cast(Dict[str, NDArray[np.float64]], contrast_weights())
-                    if callable(contrast_weights)
+                    cast(Dict[str, NDArray[np.float64]], model_cw())
+                    if callable(model_cw)
                     else {}
                 )
             cw = self._named_weights_cache
@@ -1149,14 +1156,14 @@ def fmri_lm(
                 "fmri_lm(RealizedDesign, dataset) requires a dataset as the "
                 "second argument"
             )
-        model = _RealizedDesignModel(spec_or_model, dataset)
+        model: FmriModelLike = _RealizedDesignModel(spec_or_model, dataset)
     elif _is_fmri_model_like(spec_or_model):
         if dataset is not None:
             raise ValueError(
                 "fmri_lm: got a pre-built model and a dataset. "
                 "Pass either (spec, dataset, ...) or (model, ...), not both."
             )
-        model = cast(FmriModelLike, spec_or_model)  # type: ignore[assignment]
+        model = cast(FmriModelLike, spec_or_model)
     else:
         if dataset is None:
             raise ValueError(
@@ -1348,7 +1355,7 @@ def _build_model_from_spec(
         return FmriModel(em, bm, cast("DatasetProtocol", dataset))
 
     # -- Legacy string / list path --------------------------------------
-    em_kwargs: Dict[str, object] = dict(
+    em_kwargs: Dict[str, Any] = dict(
         data=events_df,
         block=resolved_block,
         sampling_frame=sf,
