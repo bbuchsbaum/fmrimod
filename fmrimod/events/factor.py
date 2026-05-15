@@ -24,6 +24,12 @@ from ..types import (
 )
 
 
+# Scoped/strict divergence cluster (bd-01KRNN0H73CCYGFJSJ30JPVFTW):
+# under scoped mypy (--follow-imports=skip) BaseEvent is opaque Any, so
+# this subclass REQUIRES the ignore and `self.__post_init__()` is
+# untyped-call-clean; full-strict resolves BaseEvent and flags both.
+# Scoped is the epic gate so the ignore stays. Completes the events/
+# cluster (term/variable/basis/matrix/factor).
 class EventFactor(BaseEvent):  # type: ignore[misc]
     """Categorical event with discrete levels.
     
@@ -174,7 +180,7 @@ class EventFactor(BaseEvent):  # type: ignore[misc]
         Array
             Boolean array indicating where level occurs
         """
-        return self.values == level
+        return cast(Array, self.values == level)
     
     def get_level_onsets(self, level: str) -> Array:
         """Get onset times for a specific level.
@@ -191,7 +197,7 @@ class EventFactor(BaseEvent):  # type: ignore[misc]
         """
         indices = self.get_level_indices(level)
         assert self.onsets is not None
-        return self.onsets[indices]
+        return cast(Array, self.onsets[indices])
 
     def get_level_durations(self, level: str) -> Array:
         """Get durations for a specific level.
@@ -208,7 +214,7 @@ class EventFactor(BaseEvent):  # type: ignore[misc]
         """
         indices = self.get_level_indices(level)
         assert self.durations is not None
-        return self.durations[indices]
+        return cast(Array, self.durations[indices])
     
     def split_by_level(self) -> Dict[str, EventFactor]:
         """Split into separate EventFactor objects by level.
@@ -226,7 +232,7 @@ class EventFactor(BaseEvent):  # type: ignore[misc]
                 result[level] = EventFactor(
                     name=f"{self.name}_{level}",
                     onsets=self.onsets[indices],
-                    values=[level] * np.sum(indices),
+                    values=[level] * int(np.sum(indices)),
                     durations=self.durations[indices],
                     levels=[level]
                 )
@@ -327,8 +333,8 @@ class EventFactor(BaseEvent):  # type: ignore[misc]
         
         return cls(
             name=name,
-            onsets=df[onset_col].values,
-            values=df[value_col].values,
+            onsets=np.asarray(df[onset_col].values, dtype=np.float64),
+            values=np.asarray(df[value_col].values),
             durations=durations,
             **cast("dict[str, Any]", kwargs),
         )
