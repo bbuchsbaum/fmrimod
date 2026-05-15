@@ -149,6 +149,10 @@ def _(obj: ModelProtocol) -> List[str]:
     """Get column names from model."""
     col_attr = obj.column_names
     if callable(col_attr):
+        # Scoped mypy (--follow-imports=skip) sees ModelProtocol opaque ->
+        # col_attr() is Any and this needs the cast; full-strict resolves
+        # the Protocol and flags the cast redundant. Scoped is the epic
+        # gate, so the cast stays. Tracked: bd-01KRNN0H73CCYGFJSJ30JPVFTW.
         return cast(List[str], col_attr())
     return list(col_attr)
 
@@ -169,7 +173,7 @@ def _(obj: NDArray[Any]) -> List[str]:
 
 
 @columns.register(BaseEvent)
-def _(obj: BaseEvent) -> List[str]:
+def _(obj: Any) -> List[str]:
     """Get column names from concrete event classes."""
     if hasattr(obj.values, "categories"):
         return [f"{obj.name}.{level}" for level in list(obj.values.categories)]
@@ -217,7 +221,7 @@ def _(obj: EventProtocol) -> List[str]:
 
 
 @conditions.register(BaseEvent)
-def _(obj: BaseEvent) -> List[str]:
+def _(obj: Any) -> List[str]:
     """Get conditions from concrete event classes."""
     if hasattr(obj.values, "categories"):
         return list(obj.values.categories)
@@ -257,7 +261,7 @@ def _(obj: EventProtocol) -> int:
 
 
 @cells.register(BaseEvent)
-def _(obj: BaseEvent) -> int:
+def _(obj: Any) -> int:
     """Count cells in concrete event classes."""
     if hasattr(obj.values, "categories"):
         return len(obj.values.categories)
@@ -297,7 +301,7 @@ def _(obj: EventProtocol) -> Union[List[str], Array]:
 
 
 @elements.register(BaseEvent)
-def _(obj: BaseEvent) -> Union[List[str], Array]:
+def _(obj: Any) -> Union[List[str], Array]:
     """Get elements from concrete event classes."""
     if hasattr(obj.values, "categories"):
         return list(obj.values.categories)
@@ -305,7 +309,7 @@ def _(obj: BaseEvent) -> Union[List[str], Array]:
         return np.asarray(obj.values)
     if hasattr(obj, "expanded_values"):
         return np.asarray(obj.expanded_values)
-    return np.unique(obj.values)
+    return cast(Array, np.unique(obj.values))
 
 
 @elements.register(pd.DataFrame)
@@ -324,16 +328,16 @@ def _(obj: EventProtocol) -> Array:
 
 
 @onsets.register(BaseEvent)
-def _(obj: BaseEvent) -> Array:
+def _(obj: Any) -> Array:
     """Get onsets from concrete event classes."""
-    return obj.onsets
+    return cast(Array, obj.onsets)
 
 @onsets.register(pd.DataFrame)
 def _(obj: pd.DataFrame, column: str = "onset") -> Array:
     """Get onsets from DataFrame."""
     if column not in obj.columns:
         raise KeyError(f"Column '{column}' not found in DataFrame")
-    return obj[column].values
+    return np.asarray(obj[column].values, dtype=np.float64)
 
 
 # Duration extraction
@@ -346,9 +350,9 @@ def _(obj: EventProtocol) -> Array:
 
 
 @durations.register(BaseEvent)
-def _(obj: BaseEvent) -> Array:
+def _(obj: Any) -> Array:
     """Get durations from concrete event classes."""
-    return obj.durations
+    return cast(Array, obj.durations)
 
 @durations.register(pd.DataFrame)
 def _(obj: pd.DataFrame, column: str = "duration") -> Array:
@@ -356,7 +360,7 @@ def _(obj: pd.DataFrame, column: str = "duration") -> Array:
     if column not in obj.columns:
         # Default to 0 duration (impulse)
         return np.zeros(len(obj))
-    return obj[column].values
+    return np.asarray(obj[column].values, dtype=np.float64)
 
 
 # Contrast weights computation
@@ -393,7 +397,7 @@ def _(obj: BasisProtocol, x: Array) -> Array:
     elif hasattr(obj, 'predict'):
         return obj.predict(x)
     elif callable(obj):
-        return obj(x)
+        return cast(Array, obj(x))
     else:
         raise AttributeError(f"Object {type(obj)} has no evaluate method")
 
@@ -481,20 +485,20 @@ def get_hrf(hrf: Union[str, Dict[str, object], "HRFProtocol"], **kwargs: object)
         # Try canonical fmrimod HRFs first.
         from .hrf.registry import get_hrf as _get_hrf
         try:
-            return _get_hrf(hrf, **kwargs)
+            return _get_hrf(hrf, **cast("dict[str, Any]", kwargs))
         except ValueError:
             # If not found, try fmrimod
             try:
                 from .hrf_integration import get_fmrimod
-                return get_fmrimod(hrf, **kwargs)
+                return get_fmrimod(hrf, **cast("dict[str, Any]", kwargs))
             except (ImportError, ValueError) as err:
                 raise ValueError(f"Unknown HRF '{hrf}'") from err
     elif isinstance(hrf, dict):
         # Dictionary specification - make a copy to avoid modifying original
         hrf_dict = hrf.copy()
-        hrf_name = hrf_dict.pop('name', 'spm')
+        hrf_name = cast(str, hrf_dict.pop('name', 'spm'))
         params = {**hrf_dict, **kwargs}
-        return get_hrf(hrf_name, **params)
+        return get_hrf(hrf_name, **cast("dict[str, Any]", params))
     else:
         # Already an HRF object
         return hrf
