@@ -123,7 +123,7 @@ def _write_json_sidecar(
 
 
 def _make_nifti_image(
-    data_3d: NDArray,
+    data_3d: NDArray[np.float64],
     mask: NDArray[np.bool_],
     affine: NDArray[np.float64],
 ) -> neuroim.DenseNeuroVol:
