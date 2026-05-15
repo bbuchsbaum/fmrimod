@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Iterator, Literal, Mapping
+from typing import Any, Iterable, Iterator, Literal, Mapping, cast
 
 import pandas as pd
 
@@ -186,7 +186,7 @@ def _baseline_columns(
 
 
 def _column_from_fact(fact: Mapping[str, object], *, offset: int) -> DesignColumn:
-    index = int(fact["index"]) + offset
+    index = int(cast(Any, fact["index"])) + offset
     provenance = fact.get("provenance")
     if not isinstance(provenance, Mapping):
         provenance = {}
@@ -249,7 +249,7 @@ def _grade(value: object, present: ProvenanceGrade) -> ProvenanceGrade:
 def _str_or_none(value: object) -> str | None:
     if value is None:
         return None
-    if pd.isna(value):
+    if pd.isna(cast(Any, value)):
         return None
     return str(value)
 
@@ -257,6 +257,6 @@ def _str_or_none(value: object) -> str | None:
 def _int_or_none(value: object) -> int | None:
     if value is None:
         return None
-    if pd.isna(value):
+    if pd.isna(cast(Any, value)):
         return None
-    return int(value)
+    return int(cast(Any, value))

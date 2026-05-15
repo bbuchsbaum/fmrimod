@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import warnings
 from itertools import product as iter_product
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -43,7 +43,7 @@ from ..types import (
 )
 
 
-def _import_fmrimod():
+def _import_fmrimod() -> Any:
     """Import fmrimod HRF subpackage with warning suppression.
 
     fmrimod raises noisy warnings during import that we don't want to surface
@@ -66,7 +66,7 @@ def _import_fmrimod():
     return _FmrimodShim
 
 
-class EventModel(ModelProtocol):
+class EventModel(ModelProtocol):  # type: ignore[misc]
     """Event model for fMRI design matrix construction.
 
     ``EventModel`` is the central object in fmrimod. It combines event
@@ -156,11 +156,11 @@ class EventModel(ModelProtocol):
         self._blockids = np.asarray(blockids) if blockids is not None else None
 
         # Cached values
-        self._design_matrix = None
-        self._column_names = None
-        self._event_terms = None
-        self._column_indices = None
-        self._column_facts = None
+        self._design_matrix: Optional[Array] = None
+        self._column_names: Optional[List[str]] = None
+        self._event_terms: Optional[List[EventTerm]] = None
+        self._column_indices: Optional[Dict[str, List[int]]] = None
+        self._column_facts: Optional[List[Dict[str, Any]]] = None
 
     @property
     def n_events(self) -> int:
@@ -263,7 +263,7 @@ class EventModel(ModelProtocol):
         event_term._trialwise_label = term._trialwise_label
         return event_term
 
-    def _find_trial_info(self):
+    def _find_trial_info(self) -> tuple[int, Optional[Array]]:
         """Find trial count and onsets from events.
 
         Returns
@@ -375,7 +375,7 @@ class EventModel(ModelProtocol):
         else:
             return self._resolve_hrf_from_object(hrf, fmrimod)
 
-    def _resolve_hrf_from_string(self, hrf: str, fmrimod: object) -> HRF:
+    def _resolve_hrf_from_string(self, hrf: str, fmrimod: Any) -> HRF:
         """Resolve HRF from string specification.
 
         Parameters
@@ -405,7 +405,7 @@ class EventModel(ModelProtocol):
         # Try local registry
         return self._resolve_local_hrf(hrf, fmrimod)
 
-    def _get_spm_hrf(self, hrf_lower: str, fmrimod: object) -> HRF | None:
+    def _get_spm_hrf(self, hrf_lower: str, fmrimod: Any) -> HRF | None:
         """Get SPM HRF by name.
 
         Parameters
@@ -430,7 +430,7 @@ class EventModel(ModelProtocol):
         }
         return spm_map.get(hrf_lower)
 
-    def _resolve_local_hrf(self, hrf: str, fmrimod: object) -> HRF:
+    def _resolve_local_hrf(self, hrf: str, fmrimod: Any) -> HRF:
         """Resolve HRF from local registry.
 
         Parameters
@@ -451,7 +451,7 @@ class EventModel(ModelProtocol):
             return fmrimod.SPM_CANONICAL
         return hrf_obj
 
-    def _resolve_hrf_from_object(self, hrf: object, fmrimod: object) -> HRF:
+    def _resolve_hrf_from_object(self, hrf: Any, fmrimod: Any) -> HRF:
         """Resolve HRF from object.
 
         Parameters
@@ -470,7 +470,7 @@ class EventModel(ModelProtocol):
                 return hrf
         return fmrimod.SPM_CANONICAL
 
-    def _resolve_hrf_for_term(self, term: Term) -> object:
+    def _resolve_hrf_for_term(self, term: Term) -> Any:
         """Resolve a term HRF while honoring term-local HRF options."""
 
         extra = getattr(term, "_kwargs", None) or {}
@@ -505,7 +505,7 @@ class EventModel(ModelProtocol):
             hrf_obj = lag_hrf(hrf_obj, lag=lag)
         return hrf_obj
 
-    def _hrf_for_event_data(self, hrf_obj, hrf_fun, event, mask=None):
+    def _hrf_for_event_data(self, hrf_obj: Any, hrf_fun: Any, event: Any, mask: Any = None) -> Any:
         """Return a term HRF, allowing event-data-driven HRF generators."""
 
         if hrf_fun is None:
@@ -523,15 +523,15 @@ class EventModel(ModelProtocol):
             return hrf_obj
         return generated
 
-    def _convolution_span_for_hrf(self, hrf_obj) -> float | None:
+    def _convolution_span_for_hrf(self, hrf_obj: Any) -> float | None:
         """Use the pre-lag span for convolution alignment when needed."""
 
         if isinstance(hrf_obj, list):
             spans = [
                 self._convolution_span_for_hrf(item) for item in hrf_obj
             ]
-            spans = [span for span in spans if span is not None]
-            return max(spans) if spans else None
+            finite_spans: List[float] = [span for span in spans if span is not None]
+            return max(finite_spans) if finite_spans else None
 
         base = getattr(hrf_obj, "base", None)
         raw_lag = getattr(hrf_obj, "lag", 0.0)
@@ -541,7 +541,7 @@ class EventModel(ModelProtocol):
         span = getattr(hrf_obj, "span", None)
         return None if span is None else float(span)
 
-    def _is_valid_fmrimod_hrf(self, hrf, fmrimod) -> bool:
+    def _is_valid_fmrimod_hrf(self, hrf: Any, fmrimod: Any) -> bool:
         """Check if an HRF object is valid for fmrimod.
 
         Parameters
@@ -576,11 +576,11 @@ class EventModel(ModelProtocol):
 
         event_terms = self._create_event_terms()
 
-        columns = []
-        column_names = []
-        column_facts = []
-        existing_tags = []
-        column_indices = {}
+        columns: List[Array] = []
+        column_names: List[str] = []
+        column_facts: List[Dict[str, Any]] = []
+        existing_tags: List[str] = []
+        column_indices: Dict[str, List[int]] = {}
         current_col = 0
 
         for i, (term, event_term) in enumerate(zip(self.terms, event_terms)):
@@ -705,11 +705,12 @@ class EventModel(ModelProtocol):
         column_names: List[str],
         basis_name: str | None,
         basis_total: int | None,
-    ) -> List[dict]:
+    ) -> List[Dict[str, Any]]:
         """Create construction-time facts for realized event columns."""
         levels = self._condition_levels(event_term, condition_tags)
         nb = max(int(basis_total or 1), 1)
-        facts = []
+        facts: List[Dict[str, Any]] = []
+        expanded: List[tuple[str, str, Optional[int]]]
         if nb > 1 and len(column_names) == len(condition_tags) * nb:
             # Condition-major to match the convolver's per-level hstack:
             # outer loop over conditions, inner loop over basis functions.
@@ -868,7 +869,7 @@ class EventModel(ModelProtocol):
         if normalize:
             if result.ndim > 1:
                 for i in range(result.shape[1]):
-                    mx = np.max(np.abs(result[:, i]))
+                    mx: Any = np.max(np.abs(result[:, i]))
                     if mx > 0:
                         result[:, i] = result[:, i] / mx
             else:
@@ -881,9 +882,9 @@ class EventModel(ModelProtocol):
     def _convolve_term_single(
         self,
         event_term: EventTerm,
-        hrf_obj,
+        hrf_obj: Any,
         summate: bool = True,
-        hrf_fun=None,
+        hrf_fun: Any = None,
     ) -> Array:
         """Convolve event term for single block design.
 
@@ -914,7 +915,7 @@ class EventModel(ModelProtocol):
             )
 
     def _convolve_single_event(
-        self, event, hrf_obj, grid: Array, summate: bool = True, hrf_fun=None
+        self, event: Any, hrf_obj: Any, grid: Array, summate: bool = True, hrf_fun: Any = None
     ) -> Array:
         """Convolve a single event with HRF.
 
@@ -954,13 +955,13 @@ class EventModel(ModelProtocol):
 
     def _convolve_categorical_event(
         self,
-        event,
-        hrf_obj,
+        event: Any,
+        hrf_obj: Any,
         grid: Array,
         nb: int,
         n_samples: int,
         summate: bool,
-        hrf_fun=None,
+        hrf_fun: Any = None,
     ) -> Array:
         """Convolve categorical event with HRF.
 
@@ -1014,13 +1015,13 @@ class EventModel(ModelProtocol):
 
     def _convolve_continuous_event(
         self,
-        event,
-        hrf_obj,
+        event: Any,
+        hrf_obj: Any,
         grid: Array,
         nb: int,
         n_samples: int,
         summate: bool,
-        hrf_fun=None,
+        hrf_fun: Any = None,
     ) -> Array:
         """Convolve continuous event with HRF.
 
@@ -1062,13 +1063,13 @@ class EventModel(ModelProtocol):
 
     def _convolve_matrix_event(
         self,
-        event,
-        hrf_obj,
+        event: Any,
+        hrf_obj: Any,
         grid: Array,
         nb: int,
         n_samples: int,
         summate: bool,
-        hrf_fun=None,
+        hrf_fun: Any = None,
     ) -> Array:
         """Convolve matrix event with HRF.
 
@@ -1113,13 +1114,13 @@ class EventModel(ModelProtocol):
 
     def _convolve_basis_event(
         self,
-        event,
-        hrf_obj,
+        event: Any,
+        hrf_obj: Any,
         grid: Array,
         nb: int,
         n_samples: int,
         summate: bool,
-        hrf_fun=None,
+        hrf_fun: Any = None,
     ) -> Array:
         """Convolve basis event with HRF.
 
@@ -1178,7 +1179,7 @@ class EventModel(ModelProtocol):
             return result
 
     def _convolve_interaction_events(
-        self, event_term: EventTerm, hrf_obj, grid: Array,
+        self, event_term: EventTerm, hrf_obj: Any, grid: Array,
         summate: bool = True
     ) -> Array:
         """Convolve interaction term with HRF.
@@ -1223,7 +1224,7 @@ class EventModel(ModelProtocol):
 
         return np.hstack(cols)
 
-    def _get_level_combinations(self, cat_events):
+    def _get_level_combinations(self, cat_events: Any) -> List[tuple[Any, ...]]:
         """Get all level combinations from categorical events.
 
         Parameters
@@ -1243,8 +1244,8 @@ class EventModel(ModelProtocol):
             return [()]
 
     def _convolve_interaction_combo(
-        self, combo, cat_events, cont_events, events, hrf_obj, grid, nb, n_samples, summate
-    ):
+        self, combo: Any, cat_events: Any, cont_events: Any, events: Any, hrf_obj: Any, grid: Any, nb: Any, n_samples: Any, summate: Any
+    ) -> Any:
         """Convolve one combination from interaction term.
 
         Parameters
@@ -1294,7 +1295,7 @@ class EventModel(ModelProtocol):
                 onsets, durations, hrf_obj, grid, summate
             )
 
-    def _build_combination_mask(self, combo, cat_events, events):
+    def _build_combination_mask(self, combo: Any, cat_events: Any, events: Any) -> Array:
         """Build boolean mask for a level combination.
 
         Parameters
@@ -1316,7 +1317,7 @@ class EventModel(ModelProtocol):
             mask &= (event.values == level)
         return mask
 
-    def _count_continuous_columns(self, cont_events):
+    def _count_continuous_columns(self, cont_events: Any) -> int:
         """Count total columns from continuous events.
 
         Parameters
@@ -1341,8 +1342,8 @@ class EventModel(ModelProtocol):
             return 1
 
     def _convolve_continuous_in_combo(
-        self, cont_events, mask, onsets, durations, hrf_obj, grid, summate
-    ):
+        self, cont_events: Any, mask: Any, onsets: Any, durations: Any, hrf_obj: Any, grid: Any, summate: Any
+    ) -> List[Array]:
         """Convolve continuous events within an interaction combination.
 
         Parameters
@@ -1394,8 +1395,8 @@ class EventModel(ModelProtocol):
         return cols
 
     def _convolve_pure_categorical_combo(
-        self, onsets, durations, hrf_obj, grid, summate
-    ):
+        self, onsets: Any, durations: Any, hrf_obj: Any, grid: Any, summate: Any
+    ) -> List[Array]:
         """Convolve pure categorical interaction combination.
 
         Parameters
@@ -1421,7 +1422,7 @@ class EventModel(ModelProtocol):
         )
         return [result]
 
-    def _evaluate_regressor(self, onsets, durations, amplitude, hrf_obj, grid, summate):
+    def _evaluate_regressor(self, onsets: Any, durations: Any, amplitude: Any, hrf_obj: Any, grid: Any, summate: Any) -> Array:
         """Evaluate a regressor with given parameters.
 
         Parameters
@@ -1460,7 +1461,7 @@ class EventModel(ModelProtocol):
         return result
 
     def _convolve_term_multiblock(
-        self, event_term: EventTerm, hrf_obj, summate: bool = True
+        self, event_term: EventTerm, hrf_obj: Any, summate: bool = True
     ) -> Array:
         """Per-block convolution for multi-run designs.
 
@@ -1606,7 +1607,7 @@ class EventModel(ModelProtocol):
             interaction=event_term.interaction,
         )
 
-    def _count_term_columns(self, event_term: EventTerm, hrf_obj) -> int:
+    def _count_term_columns(self, event_term: EventTerm, hrf_obj: Any) -> int:
         """Count the number of columns a term will produce.
 
         Parameters
@@ -1621,8 +1622,8 @@ class EventModel(ModelProtocol):
         int
             Number of design matrix columns
         """
-        nb = hrf_obj.nbasis
-        n_cond = event_term._get_n_columns()
+        nb: int = hrf_obj.nbasis
+        n_cond: int = event_term._get_n_columns()
         return n_cond * nb
 
     def _get_condition_tags(self, event_term: EventTerm) -> List[str]:
@@ -1671,6 +1672,7 @@ class EventModel(ModelProtocol):
         """Names of design matrix columns."""
         if self._column_names is None:
             _ = self.design_matrix
+        assert self._column_names is not None
         return self._column_names
 
     @property
@@ -1678,17 +1680,19 @@ class EventModel(ModelProtocol):
         """Column indices for each term."""
         if self._column_indices is None:
             _ = self.design_matrix
+        assert self._column_indices is not None
         return self._column_indices
 
     @property
-    def column_facts(self) -> List[dict]:
+    def column_facts(self) -> List[Dict[str, Any]]:
         """Construction-time facts for each realized design column."""
         if self._column_facts is None:
             _ = self.design_matrix
+        assert self._column_facts is not None
         return self._column_facts
 
     # Keep backward compat alias
-    def _convolve_hrf(self, X: Array, hrf) -> Array:
+    def _convolve_hrf(self, X: Array, hrf: Any) -> Array:
         """Legacy convolution method - delegates to _convolve_term.
 
         This method is kept for backward compatibility but should not
@@ -1873,7 +1877,7 @@ class EventModel(ModelProtocol):
         --------
         conditions : Extract condition name strings instead.
         """
-        return cells_event_model(self, drop_empty)
+        return cast("List[pd.DataFrame]", cells_event_model(self, drop_empty))
 
     def conditions(
         self,
@@ -1900,7 +1904,7 @@ class EventModel(ModelProtocol):
         --------
         cells : Extract full factor-level DataFrames.
         """
-        return conditions_event_model(self, drop_empty, expand_basis)
+        return cast("List[List[str]]", conditions_event_model(self, drop_empty, expand_basis))
 
     def shortnames(self, acronym: Optional[str] = None) -> List[str]:
         """Get abbreviated column names.
@@ -1917,7 +1921,7 @@ class EventModel(ModelProtocol):
             Shortened column names, one per design-matrix column.
         """
         from ..naming import shortnames as make_shortnames
-        return make_shortnames(self.column_names, acronym)
+        return cast("List[str]", make_shortnames(self.column_names, acronym))
 
     def longnames(self) -> List[str]:
         """Get full-length column names.
@@ -1937,13 +1941,13 @@ def event_model(
     formula: Union[str, List[Term], EventModelBuilder],
     data: Optional[pd.DataFrame] = None,
     block: Optional[Union[str, Array]] = None,
-    sampling_frame=None,
+    sampling_frame: Any = None,
     durations: Optional[Union[str, float, Array]] = None,
     drop_empty: bool = True,
     precision: Optional[float] = None,
     # Backward compat
     events: Optional[Dict[str, EventProtocol]] = None,
-    sampling_info=None,
+    sampling_info: Any = None,
     tr: Optional[float] = None,
     n_scans: Optional[int] = None,
     sampling_rate: Optional[float] = None,
@@ -2060,7 +2064,7 @@ def event_model(
     )
 
 
-def _parse_formula_to_terms(formula):
+def _parse_formula_to_terms(formula: Any) -> List[Term]:
     """Parse formula specification to list of Terms.
 
     Parameters
@@ -2078,11 +2082,11 @@ def _parse_formula_to_terms(formula):
         # Parse in event-model mode so R-style formulas with an LHS
         # (e.g., "onset ~ hrf(condition)") are converted to Term objects
         # without requiring formula-context variable evaluation.
-        return parse_formula(formula, for_event_model=True)
+        return cast("List[Term]", parse_formula(formula, for_event_model=True))
     elif isinstance(formula, list):
         return _convert_formula_list_to_terms(formula)
     elif hasattr(formula, 'terms'):
-        return formula.terms
+        return cast("List[Term]", formula.terms)
     else:
         raise TypeError(
             f"formula must be str, list of Terms, or builder, "
@@ -2090,7 +2094,7 @@ def _parse_formula_to_terms(formula):
         )
 
 
-def _apply_formula_onset_default(formula, kwargs):
+def _apply_formula_onset_default(formula: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
     """Use a formula LHS as the default onset column for string formulas."""
     if not isinstance(formula, str):
         return kwargs
@@ -2105,7 +2109,7 @@ def _apply_formula_onset_default(formula, kwargs):
     return kwargs
 
 
-def _normalize_term_options(terms):
+def _normalize_term_options(terms: List[Term]) -> List[Term]:
     """Hoist legacy private term kwargs onto the fields EventModel reads."""
     for term in terms:
         extra = getattr(term, '_kwargs', None)
@@ -2118,7 +2122,7 @@ def _normalize_term_options(terms):
     return terms
 
 
-def _convert_formula_list_to_terms(formula_list):
+def _convert_formula_list_to_terms(formula_list: List[Any]) -> List[Term]:
     """Convert list of formula items to Terms.
 
     Parameters
@@ -2141,7 +2145,7 @@ def _convert_formula_list_to_terms(formula_list):
     return terms
 
 
-def _resolve_sampling_frame(sampling_frame, sampling_info, tr, n_scans, sampling_rate):
+def _resolve_sampling_frame(sampling_frame: Any, sampling_info: Any, tr: Optional[float], n_scans: Optional[int], sampling_rate: Optional[float]) -> Any:
     """Resolve sampling frame from various inputs.
 
     Parameters
@@ -2177,7 +2181,7 @@ def _resolve_sampling_frame(sampling_frame, sampling_info, tr, n_scans, sampling
     return sf
 
 
-def _parse_block_ids(block, data):
+def _parse_block_ids(block: Any, data: Any) -> Optional[Array]:
     """Parse block IDs from block specification.
 
     Parameters
@@ -2215,8 +2219,8 @@ def _parse_block_ids(block, data):
 
     # Canonicalize to 1-indexed sequential integers in first-appearance
     # order, matching R factor construction rather than sorted np.unique().
-    block_map = {}
-    blockids = []
+    block_map: Dict[Any, int] = {}
+    blockids: List[int] = []
     for value in blockids_raw:
         if value not in block_map:
             block_map[value] = len(block_map) + 1
@@ -2224,7 +2228,7 @@ def _parse_block_ids(block, data):
     return np.asarray(blockids, dtype=int)
 
 
-def _term_specific_event_options(term):
+def _term_specific_event_options(term: Any) -> Dict[str, Any]:
     """Return term-local subset/timing options carried by parser/DSL terms."""
     extra = getattr(term, '_kwargs', None) or {}
     options = {}
@@ -2244,7 +2248,7 @@ def _term_specific_event_options(term):
     return options
 
 
-def _resolve_subset_mask(data, subset):
+def _resolve_subset_mask(data: Any, subset: Any) -> Array:
     """Resolve a term-local subset expression to a row mask."""
     if subset is None:
         return np.ones(len(data), dtype=bool)
@@ -2282,7 +2286,7 @@ def _resolve_subset_mask(data, subset):
     return mask
 
 
-def _resolve_term_vector(spec, data, mask, role, *, allow_scalar):
+def _resolve_term_vector(spec: Any, data: Any, mask: Any, role: str, *, allow_scalar: bool) -> Any:
     """Resolve a term-local onset/duration override after subsetting."""
     if spec is None:
         return None
@@ -2292,7 +2296,7 @@ def _resolve_term_vector(spec, data, mask, role, *, allow_scalar):
         return data[spec].to_numpy()[mask]
     if np.isscalar(spec):
         if allow_scalar:
-            return float(spec)
+            return float(cast(Any, spec))
         raise ValueError(f"{role.title()} override must be a column or vector")
 
     values = np.asarray(spec)
@@ -2309,7 +2313,7 @@ def _resolve_term_vector(spec, data, mask, role, *, allow_scalar):
     )
 
 
-def _clone_event_with_timing(event, mask, onsets=None, durations=None):
+def _clone_event_with_timing(event: Any, mask: Any, onsets: Any = None, durations: Any = None) -> Any:
     """Clone an event with optional row subset and timing overrides."""
     event_onsets = event.onsets[mask] if onsets is None else onsets
     event_durations = event.durations[mask] if durations is None else durations
@@ -2352,7 +2356,7 @@ def _clone_event_with_timing(event, mask, onsets=None, durations=None):
     return event
 
 
-def _apply_term_specific_event_options(events, terms, data):
+def _apply_term_specific_event_options(events: Dict[str, Any], terms: List[Term], data: Any) -> Dict[str, Any]:
     """Create private event clones for terms with local subset/timing options."""
     for term_index, term in enumerate(terms, start=1):
         options = _term_specific_event_options(term)
@@ -2385,7 +2389,7 @@ def _apply_term_specific_event_options(events, terms, data):
     return events
 
 
-def _parse_durations(durations, data, kwargs):
+def _parse_durations(durations: Any, data: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
     """Parse durations specification and update kwargs.
 
     Parameters
@@ -2425,7 +2429,7 @@ def _parse_durations(durations, data, kwargs):
     return kwargs
 
 
-def _create_events_from_data(data, terms, sf, kwargs):
+def _create_events_from_data(data: Any, terms: List[Term], sf: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
     """Create events from data and terms.
 
     Parameters
@@ -2463,7 +2467,7 @@ def _create_events_from_data(data, terms, sf, kwargs):
         data = data.copy()
         duration_col = "__duration__"
         if np.isscalar(duration_values):
-            data[duration_col] = float(duration_values)
+            data[duration_col] = float(cast(Any, duration_values))
         else:
             data[duration_col] = np.asarray(duration_values, dtype=float)
 
@@ -2502,10 +2506,10 @@ def _create_events_from_data(data, terms, sf, kwargs):
         )
         events.update(cov_events)
 
-    return events
+    return cast("Dict[str, Any]", events)
 
 
-def _separate_term_types(terms):
+def _separate_term_types(terms: List[Term]) -> tuple[List[Any], List[Any], List[Any]]:
     """Separate terms into covariate, trialwise, and regular.
 
     Parameters
@@ -2528,7 +2532,7 @@ def _separate_term_types(terms):
     return covariate_terms, trialwise_terms, regular_terms
 
 
-def _extract_event_specs(regular_terms, data):
+def _extract_event_specs(regular_terms: List[Any], data: Any) -> Dict[str, Dict[str, Any]]:
     """Extract event specifications from regular terms.
 
     Parameters

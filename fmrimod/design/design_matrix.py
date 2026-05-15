@@ -62,7 +62,7 @@ def design_matrix(x: Any, **kwargs: Any) -> Array:
 @design_matrix.register(EventModel)
 def _(
     x: EventModel,
-    blockid: Optional[Union[int, list]] = None,
+    blockid: Optional[Union[int, "list[int]"]] = None,
     **kwargs: object
 ) -> Array:
     """Extract design matrix from EventModel.
@@ -124,14 +124,14 @@ def _(
 
 
 # Register baseline model
-def _register_baseline_model():
+def _register_baseline_model() -> None:
     """Register design_matrix method for baseline_model."""
     from ..baseline import BaselineModel
     
     @design_matrix.register(BaselineModel)
     def _(
         x: BaselineModel,
-        blockid: Optional[Union[int, list]] = None,
+        blockid: Optional[Union[int, "list[int]"]] = None,
         allrows: bool = False,
         **kwargs: object
     ) -> Array:
@@ -182,12 +182,12 @@ def _register_baseline_model():
 _register_baseline_model()
 
 
-def _register_baseline_term():
+def _register_baseline_term() -> None:
     """Register design_matrix method for BaselineTerm."""
     from ..baseline.baseline_term import BaselineTerm
 
     @design_matrix.register(BaselineTerm)
-    def _(x: BaselineTerm, **kwargs: object):
+    def _(x: BaselineTerm, **kwargs: object) -> Array:
         """Extract design matrix from BaselineTerm.
 
         Parameters
@@ -210,12 +210,12 @@ def _register_baseline_term():
 _register_baseline_term()
 
 
-def _register_event_term():
+def _register_event_term() -> None:
     """Register design_matrix method for EventTerm."""
     from ..events.term import EventTerm
 
     @design_matrix.register(EventTerm)
-    def _(x: EventTerm, **kwargs: object):
+    def _(x: EventTerm, **kwargs: object) -> Array:
         """Extract design matrix from EventTerm.
 
         For EventTerm, returns the unconvolved indicator/design matrix.

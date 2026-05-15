@@ -130,7 +130,7 @@ def _design_columns_from_names(
         provenance_grade = "declared"
     if len(column_kinds) != len(column_names):
         raise ValueError("RealizedDesign kinds length must match columns")
-    invalid_kinds = sorted(set(column_kinds) - _VALID_COLUMN_KINDS)
+    invalid_kinds = sorted(cast("set[str]", set(column_kinds)) - _VALID_COLUMN_KINDS)
     if invalid_kinds:
         raise ValueError(
             "RealizedDesign kinds entries must be one of "

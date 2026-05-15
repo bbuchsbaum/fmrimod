@@ -17,7 +17,7 @@ rather than ornamental decoration.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Any, Union
 
 import numpy as np
 
@@ -260,7 +260,7 @@ def _diff_hrfs(
     )
 
 
-def _diff_terms(a_terms: list, b_terms: list) -> tuple[EventDiff, HRFDiff]:
+def _diff_terms(a_terms: list[Any], b_terms: list[Any]) -> tuple[EventDiff, HRFDiff]:
     """Split event-model term differences into EventDiff + HRFDiff parts."""
 
     a_by_name = {_term_name(t): t for t in a_terms}
