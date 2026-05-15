@@ -1,6 +1,6 @@
 """Utility functions for working with events and onsets."""
 
-from typing import Callable, Dict, Hashable, Optional, Union
+from typing import Any, Callable, Dict, Hashable, Optional, Union, cast
 
 import numpy as np
 
@@ -51,14 +51,14 @@ def split_onsets(event: EventProtocol,
     >>> block_onsets = split_onsets(event, by=lambda x: blocks, values=blocks)
     """
     # Get onsets
-    onsets = np.asarray(event.onsets)
+    onsets = cast(Array, np.asarray(event.onsets))
     
     # Determine grouping values
     if isinstance(by, str):
         if by == 'values':
             if values is None:
                 if hasattr(event, 'values'):
-                    values = event.values
+                    values = cast(Array, event.values)
                 else:
                     raise ValueError("Event has no 'values' attribute")
             group_labels = values
@@ -72,10 +72,10 @@ def split_onsets(event: EventProtocol,
         # Apply function to get grouping
         if values is None:
             if hasattr(event, 'values'):
-                values = event.values
+                values = cast(Array, event.values)
             else:
                 values = onsets
-        group_labels = by(values)
+        group_labels = cast(Array, by(values))
     else:
         raise TypeError("'by' must be a string or callable")
     
@@ -254,7 +254,7 @@ def split_by_block(event: EventProtocol,
             )
         else:
             # Generic event copy
-            block_event = type(event)(
+            block_event = cast(Any, type(event))(
                 name=f"{event.name}_{block}",
                 onsets=block_onsets
             )

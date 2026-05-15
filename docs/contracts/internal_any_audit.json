@@ -17868,7 +17868,7 @@
     },
     {
       "coercion_exemption": null,
-      "endlineno": 147,
+      "endlineno": 156,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
@@ -17881,12 +17881,12 @@
     },
     {
       "coercion_exemption": null,
-      "endlineno": 151,
+      "endlineno": 160,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 149,
+      "lineno": 158,
       "module": "fmrimod.glm.engines.sketch",
       "owner_bead": null,
       "qualname": "SketchEngine.preflight",
