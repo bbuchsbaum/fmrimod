@@ -16,7 +16,7 @@ Example::
 
 from __future__ import annotations
 
-from typing import Callable, Optional, Union
+from typing import Any, Callable, Optional, Union, cast
 
 from ..types import BasisProtocol, HRFProtocol
 from .base import Term
@@ -103,10 +103,11 @@ def term(*events: str, **kwargs: object) -> PipeTerm:
     >>> # With parameters
     >>> t = term('condition', amplitude='high')
     """
+    forwarded = cast("dict[str, Any]", kwargs)
     if len(events) == 1:
-        return PipeTerm(events[0], **kwargs)
+        return PipeTerm(events[0], **forwarded)
     else:
-        return PipeTerm(list(events), **kwargs)
+        return PipeTerm(list(events), **forwarded)
 
 
 def hrf(
@@ -116,7 +117,7 @@ def hrf(
     contrasts: Optional[object] = None,
     normalize: bool = False,
     summate: bool = True,
-    hrf_fun: Optional[Callable] = None,
+    hrf_fun: Optional[Callable[..., Any]] = None,
     id: Optional[str] = None,
     prefix: Optional[str] = None,
     lag: float = 0.0,

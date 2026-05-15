@@ -10,7 +10,7 @@ programmatically.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 import pandas as pd
 
@@ -66,7 +66,7 @@ class Term:
     summate: bool = True
     _kwargs: Dict[str, object] = field(default_factory=dict)
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Normalize events to list."""
         if isinstance(self.events, str):
             self.events = [self.events]
@@ -159,7 +159,7 @@ class Term:
         params['summate'] = self.summate
         return params
     
-    def __matmul__(self, transform):
+    def __matmul__(self, transform: Any) -> Term:
         """Apply transformation using @ operator.
 
         Supports chaining like: ``term @ basis @ hrf``.
@@ -229,7 +229,7 @@ class EventModelBuilder:
     Term : Individual term specification.
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize builder."""
         self._data: Optional[pd.DataFrame] = None
         self._sampling: object = None  # Will be SamplingFrame
@@ -407,7 +407,7 @@ class EventModelBuilder:
         """Context manager entry."""
         return self
     
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Context manager exit."""
         # Could auto-build here if desired
         pass
@@ -440,10 +440,11 @@ def term(*events: str, **kwargs: object) -> Term:
     >>> # With parameters
     >>> t = term('condition', hrf='gamma')
     """
+    forwarded = cast("dict[str, Any]", kwargs)
     if len(events) == 1:
-        return Term(events[0], **kwargs)
+        return Term(events[0], **forwarded)
     else:
-        return Term(list(events), **kwargs)
+        return Term(list(events), **forwarded)
 
 
 def interaction(*events: str, **kwargs: object) -> Term:
@@ -467,4 +468,4 @@ def interaction(*events: str, **kwargs: object) -> Term:
     """
     if len(events) < 2:
         raise ValueError("Interaction requires at least 2 events")
-    return Term(list(events), **kwargs)
+    return Term(list(events), **cast("dict[str, Any]", kwargs))

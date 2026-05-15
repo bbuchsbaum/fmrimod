@@ -19,7 +19,7 @@ from __future__ import annotations
 import ast
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 from ..formula.base import Term
 from ..types import FormulaContext
@@ -153,8 +153,8 @@ class FormulaParser:
             Parsed terms
         """
         # Split by + (but not inside parentheses)
-        terms = []
-        current_term = []
+        terms: list[FormulaTerm] = []
+        current_term: list[str] = []
         paren_depth = 0
         
         for char in rhs:
@@ -228,9 +228,15 @@ class FormulaParser:
             
             # Keyword arguments
             for keyword in tree.body.keywords:
+                if keyword.arg is None:
+                    raise ValueError("Keyword **kwargs are not supported in formula terms")
                 kwargs[keyword.arg] = self._ast_to_value(keyword.value)
-            
-            return FormulaTerm(function=func_name, arguments=args, kwargs=kwargs)
+
+            return FormulaTerm(
+                function=func_name,
+                arguments=cast("list[Union[str, FormulaTerm]]", args),
+                kwargs=kwargs,
+            )
             
         except (SyntaxError, ValueError) as err:
             raise ValueError(f"Invalid term syntax '{term_str}': {err}") from err
@@ -261,8 +267,9 @@ class FormulaParser:
             return [self._ast_to_value(elt) for elt in node.elts]
         elif isinstance(node, ast.Dict):
             return {
-                self._ast_to_value(k): self._ast_to_value(v)
+                self._ast_to_value(cast(ast.AST, k)): self._ast_to_value(v)
                 for k, v in zip(node.keys, node.values)
+                if k is not None
             }
         else:
             raise ValueError(f"Unsupported AST node type: {type(node)}")
@@ -336,7 +343,7 @@ class FormulaEvaluator:
             return {
                 'type': 'variable',
                 'name': var_name,
-                'values': self._resolve_variable(var_name)
+                'values': self._resolve_variable(cast(str, var_name)),
             }
         else:
             raise ValueError(f"Unknown function: {term.function}")
@@ -369,11 +376,14 @@ class FormulaEvaluator:
             }
         else:
             # Single variable
-            event_spec = {
-                'type': 'event',
-                'name': str(event_arg),
-                'values': self._resolve_variable(str(event_arg))
-            }
+            event_spec = cast(
+                "Dict[str, Any]",
+                {
+                    'type': 'event',
+                    'name': str(event_arg),
+                    'values': self._resolve_variable(str(event_arg)),
+                },
+            )
         
         # Add HRF parameters
         hrf_spec = {
@@ -454,14 +464,15 @@ def parse_formula(
             # Handle different term types
             if ft.function == 'var':
                 # Simple variable like 'condition'
-                term = Term(ft.arguments[0])
+                term = Term(cast(str, ft.arguments[0]))
             elif ft.function == 'hrf' and ft.arguments:
                 # HRF function like hrf(condition)
                 event_name = ft.arguments[0]
+                event_arg: Union[str, list[str]]
                 if isinstance(event_name, str) and ':' in event_name:
                     event_arg = [part.strip() for part in event_name.split(':')]
                 else:
-                    event_arg = event_name
+                    event_arg = cast(str, event_name)
                 # Accept both hrf=... and basis=... for compatibility.
                 hrf = ft.kwargs.get('hrf', ft.kwargs.get('basis', 'simple'))
                 extra = {
@@ -472,7 +483,7 @@ def parse_formula(
                 term = Term(
                     event_arg,
                     hrf=hrf,
-                    name=ft.kwargs.get('id'),
+                    name=cast("Optional[str]", ft.kwargs.get('id')),
                     normalize=bool(ft.kwargs.get('normalize', False)),
                     summate=bool(ft.kwargs.get('summate', True)),
                 )
@@ -488,13 +499,13 @@ def parse_formula(
                 )
             elif ft.function and ft.arguments:
                 # Other function with args - treat first arg as event
-                term = Term(ft.arguments[0])
+                term = Term(cast(str, ft.arguments[0]))
                 # Add function as transformation
                 if ft.function == 'poly':
                     # Handle polynomial basis
                     degree = ft.arguments[1] if len(ft.arguments) > 1 else 2
                     from ..basis import Poly
-                    term.basis = Poly(degree=int(degree))
+                    term.basis = Poly(degree=int(cast(Any, degree)))
             else:
                 # Just a function name with no args
                 term = Term(ft.function)
