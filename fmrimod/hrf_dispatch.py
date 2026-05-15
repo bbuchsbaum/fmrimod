@@ -7,6 +7,16 @@ factories (``boxcar_hrf_gen``, ``duration_hrf_gen``, ``weighted_hrf_gen``).
 
 For the full HRF basis library (SPM, Gamma, B-spline, FIR, etc.), see
 :mod:`fmrimod.hrf`.
+
+Scoped/strict divergence cluster (bd-01KRNN0H73CCYGFJSJ30JPVFTW):
+under scoped mypy (--follow-imports=skip) HRFProtocol is opaque Any,
+so the ``# type: ignore`` comments and ndarray casts below are
+REQUIRED and the ``evaluate`` argument-type overrides are clean;
+full-strict resolves HRFProtocol and flags those same lines unused /
+redundant / [override]. No annotation satisfies both gates — a true
+gate-choice either/or, not code quality. Scoped is the epic gate so
+the ignores/casts stay; the [override] residue is the HRFProtocol
+seam-shape question reserved for the steward decision.
 """
 
 from typing import Any, Callable, Dict, Literal, Optional, Type, Union, cast
@@ -149,7 +159,7 @@ def get_hrf(name: str, **kwargs: object) -> HRFProtocol:
     """
     from .hrf.registry import get_hrf as _get_hrf
 
-    return cast(HRFProtocol, _get_hrf(name, **kwargs))
+    return cast(HRFProtocol, _get_hrf(name, **cast("dict[str, Any]", kwargs)))
 
 
 def register_hrf(
@@ -194,7 +204,7 @@ def as_hrf(x: Any, **kwargs: Any) -> HRFProtocol:
         HRF instance
     """
     if hasattr(x, 'evaluate') and hasattr(x, 'name') and hasattr(x, 'nbasis'):
-        return x
+        return cast(HRFProtocol, x)
 
     if isinstance(x, str):
         return get_hrf(x, **kwargs)
