@@ -32,7 +32,7 @@ bids : BIDS-Stats-Model export
 __version__ = "0.1.0"
 
 import inspect as _inspect
-from typing import Callable, Optional, Sequence, Union
+from typing import Any, Callable, Optional, Sequence, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -282,7 +282,7 @@ def hrf_formula(
 
 
 hrf_spmg1 = _partial(hrf_formula, spec="spmg1")
-hrf_spmg1.__signature__ = _inspect.signature(hrf_formula).replace(
+cast(Any, hrf_spmg1).__signature__ = _inspect.signature(hrf_formula).replace(
     parameters=[
         param
         for param in _inspect.signature(hrf_formula).parameters.values()
@@ -530,7 +530,14 @@ _LAZY_ATTRS: dict[str, tuple[str, str]] = {
 }
 
 
-def __getattr__(name: str):  # PEP 562
+# NOTE: intentionally left unannotated. A PEP 562 module __getattr__ is
+# what mypy uses to type every unresolved `fmrimod.X` / `from fmrimod
+# import X` access. Annotating it `-> Any` propagates Any? into importers
+# under the strict config and reintroduces "Any? not callable" errors in
+# otherwise-clean modules (verified: glm/compat.py, dataset/compat.py).
+# `-> object` is worse (breaks callable re-exports). The lone
+# no-untyped-def here is cheaper than that cascade. (bd-01KRNQDEH9TXKKH9JVDVR71RFD)
+def __getattr__(name: str):  # PEP 562  # noqa: ANN201
     """Resolve lazy top-level re-exports on first access."""
     entry = _LAZY_ATTRS.get(name)
     if entry is None:
