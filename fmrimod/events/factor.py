@@ -24,12 +24,12 @@ from ..types import (
 )
 
 
-# Scoped/strict divergence cluster (bd-01KRNN0H73CCYGFJSJ30JPVFTW):
-# under scoped mypy (--follow-imports=skip) BaseEvent is opaque Any, so
-# this subclass REQUIRES the ignore and `self.__post_init__()` is
-# untyped-call-clean; full-strict resolves BaseEvent and flags both.
-# Scoped is the epic gate so the ignore stays. Completes the events/
-# cluster (term/variable/basis/matrix/factor).
+# Scoped/strict divergence (bd-01KRNN0H73CCYGFJSJ30JPVFTW): under scoped
+# mypy (--follow-imports=skip) BaseEvent is opaque Any so this subclass
+# REQUIRES the [misc] ignore; full-strict resolves BaseEvent and flags it
+# unused. The __post_init__ no-untyped-call leg was resolved by typing
+# BaseEvent.__post_init__ in base.py, so the [misc] ignore is now the
+# sole residue. Scoped is the epic gate so the ignore stays.
 class EventFactor(BaseEvent):  # type: ignore[misc]
     """Categorical event with discrete levels.
     

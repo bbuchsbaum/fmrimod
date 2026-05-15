@@ -132,12 +132,16 @@ class CovariateTerm(Term):  # type: ignore[misc]
         return ", ".join(parts)
 
 
-# Scoped/strict divergence cluster (bd-01KRNN0H73CCYGFJSJ30JPVFTW):
-# under scoped mypy (--follow-imports=skip) BaseEvent is opaque Any, so
-# this subclass REQUIRES the ignore and __post_init__ / event_type are
-# clean; full-strict resolves BaseEvent and flags the unused ignore, the
-# __post_init__ untyped-call, and the event_type override. Scoped is the
-# epic gate so the form stays. Same cluster as the events/ subclasses.
+# Scoped/strict divergence (bd-01KRNN0H73CCYGFJSJ30JPVFTW): under scoped
+# mypy (--follow-imports=skip) BaseEvent is opaque Any so this subclass
+# REQUIRES the [misc] ignore; full-strict resolves BaseEvent and flags
+# the unused ignore plus the event_type override. The override is a
+# genuine taxonomy divergence -- CovariateEvent.event_type returns
+# "covariate", outside EventType = Literal["categorical","continuous",
+# "basis","matrix"] -- steward-reserved, not a typing artifact. The
+# __post_init__ no-untyped-call leg was resolved by typing
+# BaseEvent.__post_init__ in base.py. Scoped is the epic gate so the
+# form stays.
 class CovariateEvent(BaseEvent):  # type: ignore[misc]
     """Event representation for covariate data.
     

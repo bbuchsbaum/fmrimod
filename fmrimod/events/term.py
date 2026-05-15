@@ -19,12 +19,12 @@ from ..base import BaseEvent, CacheMixin
 from ..types import Array
 
 
-# Scoped/strict divergence cluster (bd-01KRNN0H73CCYGFJSJ30JPVFTW): under
-# scoped mypy (--follow-imports=skip) CacheMixin is opaque Any, so this
-# subclass and the `super().__init__()` below REQUIRE the ignore / are
-# untyped-call-clean; full-strict resolves CacheMixin and flags the ignore
-# unused + the super().__init__() as a no-untyped-call. No annotation
-# satisfies both gates; scoped is the epic gate so the ignore stays.
+# Scoped/strict divergence (bd-01KRNN0H73CCYGFJSJ30JPVFTW): under scoped
+# mypy (--follow-imports=skip) CacheMixin is opaque Any so this subclass
+# REQUIRES the [misc] ignore; full-strict resolves CacheMixin and flags
+# it unused. The super().__init__() no-untyped-call leg was resolved by
+# typing CacheMixin.__init__ in base.py, so the [misc] ignore is now the
+# sole residue. Scoped is the epic gate so the ignore stays.
 class EventTerm(CacheMixin):  # type: ignore[misc]
     """A model term combining one or more event objects.
 

@@ -26,12 +26,14 @@ from ..types import (
 from .matrix import EventMatrix
 
 
-# Scoped/strict divergence cluster (bd-01KRNN0H73CCYGFJSJ30JPVFTW):
-# under scoped mypy (--follow-imports=skip) BaseEvent/BasisProtocol are
-# opaque Any, so this subclass REQUIRES the ignore, `__post_init__()`
-# is untyped-call-clean, and the basis.evaluate() cast is needed;
-# full-strict resolves them and flags all three. Scoped is the epic
-# gate so they stay. Same cluster as events/term.py, events/variable.py.
+# Scoped/strict divergence (bd-01KRNN0H73CCYGFJSJ30JPVFTW): under scoped
+# mypy (--follow-imports=skip) BaseEvent/BasisProtocol are opaque Any so
+# this subclass REQUIRES the [misc] ignore AND the basis.evaluate() cast
+# (~line 160); full-strict resolves them and flags the ignore unused +
+# the cast redundant. The __post_init__ no-untyped-call leg was resolved
+# by typing BaseEvent.__post_init__ in base.py; the [misc] ignore and the
+# evaluate() cast are the remaining residue. Scoped is the epic gate so
+# both forms stay.
 class EventBasis(BaseEvent):  # type: ignore[misc]
     """Event with basis function expansion.
     
