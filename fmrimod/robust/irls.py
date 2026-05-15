@@ -89,17 +89,14 @@ def robust_refit(
             w = weight_fn(resid_r, scale)
             iter_weights.append(w)
 
-            # Apply weights and re-fit
+            # Apply weights and re-fit. Robust weights ``w`` are voxelwise
+            # (n, V); a single shared design solve cannot carry a different
+            # weight per voxel, so reduce to a per-row weight (mean across
+            # voxels) and apply the same row weighting to X and Y — the
+            # standard row-WLS approximation for pooled robust refit.
             w_sqrt = np.sqrt(np.maximum(w, 0.0))
-            X_w = X_r * w_sqrt  # broadcast: (n,1)*(n,p) won't work
-            # w_sqrt shape is (n, V) but X is (n, p) — we need row weights
-            # For robust fitting, use row-wise mean weight
             w_row = np.mean(w_sqrt, axis=1)
             X_w = X_r * w_row[:, np.newaxis]
-            Y_w = Y_r * w_sqrt  # voxelwise weights on Y
-
-            # But X needs the same treatment per-voxel — this is WLS
-            # Standard approach: use row weights (mean across voxels)
             Y_w = Y_r * w_row[:, np.newaxis]
 
             proj = fast_preproject(X_w)

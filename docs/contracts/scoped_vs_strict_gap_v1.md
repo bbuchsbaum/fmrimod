@@ -98,14 +98,33 @@ Top files: `glm/strategies.py` 165, `design/event_model.py` 93,
    runtime. Strict flags the `set.add()`-in-boolean idiom; the fix
    is cosmetic (rewrite the idiom), not a behavior change.
 
-7. **Separate observation (not a strict error):** with the
-   `fmri_rlm` config bug fixed, a minimal dummy model driven through
-   the *runwise* robust IRLS path hits
-   `ValueError: operands could not be broadcast together with
-   shapes (n,p) (n,v)` at `X_w = X_r * w_sqrt` in
-   `glm/strategies.py`. This is reached only now that robust is
-   actually enabled. Either a real runwise-robust weighting bug or a
-   model-contract gap; tracked as a follow-up, NOT fixed here.
+7. **Second real bug [FIXED, bd-01KRNPWCVX59Q4QW027XGW7SGT].**
+   Surfaced *because* #1's fix unblocked the path: `robust/irls.py`
+   had a half-applied fix — a broken `X_w = X_r * w_sqrt`
+   `(n,p)*(n,V)` line (with its own "won't work" comment) executed
+   *before* the correct row-weight path that was already written
+   below it, so the runwise robust IRLS refit raised
+   `ValueError: operands could not be broadcast together`. fmri_rlm
+   (and any runwise `RobustOptions(type=…)` fit) crashed the moment
+   it reached the refit — masked only because #1 prevented
+   fmri_rlm from getting that far, and direct runwise-robust paths
+   were untested. Fix: removed the dead broken line and the
+   redundant overwritten `Y_w` assignment, leaving the intended
+   row-mean-WLS approximation (`w_row = mean(w_sqrt, axis=1)`
+   applied to both X and Y). Regression test
+   `test_fmri_rlm_completes_runwise_robust_irls_fit` (parametrized
+   1- and 2-run) added; proven to FAIL on the pre-fix `irls.py`
+   (git-stash check) and pass after, asserting correct-shape finite
+   betas — not cheap-passable by xfail/skip/stub.
+
+   **Revised yield:** the full-strict pass directly found **one**
+   real bug (#1); fixing it then *unblocked* a **second** real bug
+   (#7) that no static check could have surfaced while #1 masked
+   the path. Two real bugs total, both in the robust-GLM compat
+   surface, both now fixed + regression-tested. This strengthens
+   the steward input: the robust-fitting compat path was
+   end-to-end broken and wholly untested; the gate question aside,
+   that surface now has its first real coverage.
 
 ## Recommendation (for the steward decision, not enacted here)
 
@@ -125,29 +144,34 @@ path:
 
 ## Verified real-bug yield (the number that matters for the decision)
 
-Triage of the judgment/likely-real items found exactly **one
-confirmed runtime bug** in 746 strict errors: finding #1
-(`fmri_rlm`, now fixed + regression-tested). Findings #2, #3 and
-#4 were runtime-verified as **singledispatch/Protocol typing
-artifacts, not bugs** (`EventModel` is instantiable;
-`type(event)(...)` on a Protocol-typed var hits the concrete
-class at runtime; `convolve(list, total_duration=...)` works
-with real events). #5 is the same artifact family (low-suspicion,
-not separately verified — the pattern is now well-established).
-#6 is a correct idiom flagged cosmetically. #7 is a separate,
-real observation (runwise-robust IRLS broadcast with minimal
-models), surfaced *because* #1's fix unblocked that path —
-tracked as its own bead, not a strict-mypy finding. Judgment
-triage is now complete: no unverified judgment items remain.
+Triage of the judgment/likely-real items found **two real
+runtime bugs**, both now fixed + regression-tested, both in the
+robust-GLM compat surface: #1 (`fmri_rlm` config TypeError) which
+the full-strict pass found directly, and #7 (runwise robust IRLS
+broadcast) which fixing #1 then *unblocked* — #7 could not have
+been surfaced by any static check while #1 masked the path.
+Findings #2, #3 and #4 were runtime-verified as
+**singledispatch/Protocol typing artifacts, not bugs**
+(`EventModel` is instantiable; `type(event)(...)` on a
+Protocol-typed var hits the concrete class at runtime;
+`convolve(list, total_duration=...)` works with real events). #5
+is the same artifact family (low-suspicion, not separately
+verified — the pattern is well-established). #6 is a correct
+idiom flagged cosmetically. Judgment triage is complete: no
+unverified judgment items remain and no open follow-up bead
+remains (#7 closed).
 
 Implication for the gate decision: full-strict's incremental
-bug-finding value over the scoped gate, on this codebase, was ~1
-real bug per ~750 errors — the rest is mechanical hygiene plus
-singledispatch/Protocol artifacts that `--follow-imports=skip`
-structurally cannot surface anyway. That ratio is the decision
-input: full-strict is not a large hidden-bug reservoir here, but
-the one bug it found was a 100%-broken untested public API. The
-steward call is whether that yield justifies adopting full-strict
-as the gate vs. documenting the scoped/strict divergence as a
-caveat. The only item to bead independently of the gate decision
-is **#7** (runwise-robust IRLS broadcast) — filed separately.
+*direct* bug-finding value over the scoped gate was ~1 real bug
+per ~750 errors — the rest mechanical hygiene plus
+dispatch/Protocol artifacts `--follow-imports=skip` structurally
+cannot surface. But the decision input is stronger than that
+ratio suggests: the one bug full-strict found gated a *second*
+real bug behind it, and both sat in an end-to-end-broken,
+wholly-untested public robust-fitting path. Full-strict is not a
+large hidden-bug reservoir here, yet the cluster it did expose
+was a complete dead public surface. The steward call is whether
+that justifies adopting full-strict as the gate vs. documenting
+the scoped/strict divergence as a caveat; either way the
+robust-GLM compat surface now has its first real coverage and no
+work is left dangling outside the gate decision itself.

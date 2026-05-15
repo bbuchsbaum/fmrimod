@@ -196,6 +196,62 @@ def test_fmri_rlm_enables_robust_without_replace_typeerror(monkeypatch):
     assert FmriLmConfig().robust.enabled is False
 
 
+class _RobustDataset:
+    def __init__(self, ys):
+        self._ys = [np.asarray(y, dtype=np.float64) for y in ys]
+        self.n_timepoints = [y.shape[0] for y in self._ys]
+
+    def get_data(self, run):
+        return self._ys[run]
+
+    def get_censor(self, run):
+        return None
+
+
+class _RobustModel:
+    def __init__(self, xs, ys):
+        self._xs = [np.asarray(x, dtype=np.float64) for x in xs]
+        self.dataset = _RobustDataset(ys)
+        self.n_runs = len(self._xs)
+
+    def design_matrix_array(self, run):
+        return self._xs[run]
+
+
+@pytest.mark.parametrize("n_runs", [1, 2])
+def test_fmri_rlm_completes_runwise_robust_irls_fit(n_runs):
+    """Regression: fmri_rlm() must complete a runwise robust IRLS fit.
+
+    Once the replace(enabled=True) bug was fixed and robust fitting was
+    actually reached, the runwise robust IRLS refit raised
+    ``ValueError: operands could not be broadcast together with shapes
+    (n,p) (n,v)`` at ``X_w = X_r * w_sqrt`` in robust/irls.py — a
+    half-applied fix left a broken (n,p)*(n,V) line ahead of the correct
+    row-weight path. This drives a minimal multi-shape model all the way
+    through and asserts correct-shape betas with robust enabled.
+    """
+    rng = np.random.default_rng(7)
+    n, p, v = 50, 3, 8
+    xs, ys = [], []
+    for k in range(n_runs):
+        X = np.column_stack(
+            [np.ones(n), rng.standard_normal((n, p - 1))]
+        ).astype(np.float64)
+        Y = (
+            X @ rng.standard_normal((p, v)).astype(np.float64)
+            + 0.25 * rng.standard_normal((n, v))
+        )
+        xs.append(X)
+        ys.append(Y)
+
+    fit = fmrimod.fmri_rlm(_RobustModel(xs, ys))
+
+    assert fit.betas.shape == (p, v)
+    assert fit.config.robust.enabled is True
+    assert fit.config.robust.type == "huber"
+    assert np.all(np.isfinite(fit.betas))
+
+
 def test_hrf_smoothing_kernel_and_deprecated_estimate():
     kernel = fmrimod.hrf_smoothing_kernel(6, tr=1.0, buffer_scans=1)
     assert kernel.shape == (6, 6)
