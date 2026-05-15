@@ -7,7 +7,7 @@ import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any, cast
+from typing import Any, Optional, Protocol, cast
 
 import numpy as np
 import pandas as pd
@@ -25,6 +25,31 @@ from .registry import adapter_registry
 from .space import GroupSpace, SampleLabelSpace, VoxelSpace
 
 CONTRAST_INTENT_COLUMN = "contrast_intent"
+
+
+class _GroupDataLike(Protocol):
+    """Duck-typed view of fmrimod.group.GroupData for adapter dispatch.
+
+    Names the attributes the registered adapters read off a GroupData
+    instance. Kept local so the typed seam doesn't have to import the
+    concrete GroupData class at the top of the module.
+    """
+
+    data: Any
+    subjects: Any
+    covariates: Any
+
+
+class _LmLike(Protocol):
+    """Duck-typed view of fmrimod.glm.FmriLm for stat-matrix dispatch.
+
+    Names the per-stat fields the fmrilm adapter reads. Optional fields
+    (.p) are guarded with hasattr at call sites.
+    """
+
+    betas: Any
+    se: Any
+    tstat: Any
 
 
 def _coerce_axis(values: Sequence[object], *, name: str) -> tuple[str, ...]:
@@ -186,7 +211,7 @@ class GroupDataset:
     @property
     def shape(self) -> tuple[int, int, int]:
         """Return ``sample x subject x contrast`` shape."""
-        first = next(iter(self.assays.values()))
+        first = cast(NDArray[Any], next(iter(self.assays.values())))
         return tuple(int(x) for x in first.shape)  # type: ignore[return-value]
 
     @property
@@ -261,7 +286,7 @@ def group_dataset(
     )
 
 
-def group_dataset_from_group_data(data: object) -> GroupDataset:
+def group_dataset_from_group_data(data: _GroupDataLike) -> GroupDataset:
     """Convert existing ``fmrimod.dataset.GroupData`` into ``GroupDataset``.
 
     This adapter reuses the existing ``fmrimod.dataset.group_data`` loaders and
@@ -279,7 +304,7 @@ def group_dataset_from_group_data(data: object) -> GroupDataset:
     return cast(GroupDataset, adapter(data))
 
 
-def _group_dataset_from_csv_group_data(data: object) -> GroupDataset:
+def _group_dataset_from_csv_group_data(data: _GroupDataLike) -> GroupDataset:
     payload = data.data
     frame = payload["data"].copy()
     effect_cols = dict(payload["effect_cols"])
@@ -337,7 +362,7 @@ def _group_dataset_from_csv_group_data(data: object) -> GroupDataset:
     )
 
 
-def _single_contrast(data: object) -> tuple[str, ...]:
+def _single_contrast(data: _GroupDataLike) -> tuple[str, ...]:
     contrast = data.data.get("contrast")
     return ("c1",) if contrast is None else (str(contrast),)
 
@@ -346,7 +371,7 @@ def _sample_labels(n_samples: int) -> tuple[str, ...]:
     return tuple(f"sample{i + 1}" for i in range(n_samples))
 
 
-def _group_dataset_from_h5_group_data(data: object) -> GroupDataset:
+def _group_dataset_from_h5_group_data(data: _GroupDataLike) -> GroupDataset:
     from fmrimod.dataset.compat import read_h5_full
 
     stats = tuple(str(stat) for stat in data.data.get("stat", ("beta", "se")))
@@ -378,7 +403,7 @@ def _group_dataset_from_h5_group_data(data: object) -> GroupDataset:
     )
 
 
-def _first_nifti_path(data: object) -> str | None:
+def _first_nifti_path(data: _GroupDataLike) -> str | None:
     for key in ("beta_paths", "se_paths", "var_paths", "t_paths"):
         paths = data.data.get(key)
         if paths:
@@ -386,7 +411,7 @@ def _first_nifti_path(data: object) -> str | None:
     return None
 
 
-def _nifti_space(data: object, *, n_samples: int) -> GroupSpace:
+def _nifti_space(data: _GroupDataLike, *, n_samples: int) -> GroupSpace:
     try:
         nib = cast(Any, importlib.import_module("nibabel"))
     except Exception as exc:  # pragma: no cover - optional dependency behavior
@@ -426,7 +451,7 @@ def _nifti_space(data: object, *, n_samples: int) -> GroupSpace:
     return VoxelSpace(shape=shape, affine=affine, template_id=template_id)
 
 
-def _group_dataset_from_nifti_group_data(data: object) -> GroupDataset:
+def _group_dataset_from_nifti_group_data(data: _GroupDataLike) -> GroupDataset:
     from fmrimod.dataset.compat import read_nifti_full
 
     try:
@@ -580,7 +605,7 @@ def _fmrilm_contrast_data(
 
 
 def _lm_stat_matrix(
-    lm: object,
+    lm: _LmLike,
     stat: str,
     contrast_name: str | None,
 ) -> NDArray[np.float64]:
@@ -595,7 +620,7 @@ def _lm_stat_matrix(
     if stat in ("t", "z"):
         return _as_lm_stat_matrix(lm.tstat, stat=stat)
     if stat == "p" and hasattr(lm, "p"):
-        return _as_lm_stat_matrix(lm.p, stat=stat)
+        return _as_lm_stat_matrix(cast(Any, lm).p, stat=stat)
     raise AdapterContractError(f"fmrilm statistic '{stat}' is not supported")
 
 
@@ -604,13 +629,13 @@ def _lm_contrast_labels(lm: object, *, n_contrasts: int) -> tuple[str, ...]:
     if raw is None:
         raw = getattr(lm, "coefficient_names", None)
     if raw is not None:
-        labels = tuple(str(x) for x in _maybe_call(raw))
+        labels = tuple(str(x) for x in cast(Any, _maybe_call(raw)))
         if len(labels) == n_contrasts:
             return labels
     return tuple(f"c{i + 1}" for i in range(n_contrasts))
 
 
-def _group_dataset_from_fmrilm_group_data(data: object) -> GroupDataset:
+def _group_dataset_from_fmrilm_group_data(data: _GroupDataLike) -> GroupDataset:
     lm_list = list(data.data["lm_list"])
     if not lm_list:
         raise AdapterContractError("fmrilm GroupData requires at least one model")

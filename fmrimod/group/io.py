@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
-    import h5py
+    import h5py  # type: ignore[import-untyped]
 
 import numpy as np
 import pandas as pd
@@ -38,7 +38,7 @@ ALIGNMENT_MANIFEST_VERSION = "gds-h5/1.0-alignment"
 
 def _import_h5py() -> Any:
     try:
-        import h5py  # type: ignore[import-untyped]
+        import h5py
     except Exception as exc:  # pragma: no cover - optional dependency behavior
         raise UnsupportedGroupFeatureError(
             "native group HDF5 I/O requires optional dependency 'h5py'"
@@ -355,10 +355,10 @@ def _write_space(group: h5py.Group, space: GroupSpace) -> None:
             voxel.create_dataset("mask_idx", data=np.asarray(space.mask_idx, dtype=np.int64))
     elif isinstance(space, ParcelSpace):
         parcels = group.create_group("parcels")
-        _write_strings(parcels, "labels", list(space.labels))
+        _write_strings(parcels, "labels", [str(label) for label in space.labels])
     elif isinstance(space, SampleLabelSpace):
         sample_labels = group.create_group("sample_labels")
-        _write_strings(sample_labels, "labels", list(space.labels))
+        _write_strings(sample_labels, "labels", [str(label) for label in space.labels])
     elif isinstance(space, BasisSpace):
         basis = group.create_group("basis")
         basis.attrs["k"] = int(space.n_components)
@@ -440,8 +440,8 @@ def write_hdf5(dataset: GroupDataset, path: str | Path) -> Path:
         gds = h5.create_group("gds")
         gds.create_dataset("version", data=GDS_H5_VERSION, dtype=_string_dtype())
         axes = gds.create_group("axes")
-        _write_strings(axes, "subjects", list(dataset.subjects))
-        _write_strings(axes, "contrasts", list(dataset.contrasts))
+        _write_strings(axes, "subjects", [str(s) for s in dataset.subjects])
+        _write_strings(axes, "contrasts", [str(c) for c in dataset.contrasts])
 
         axis_data = gds.create_group("axis_data")
         _write_axis_frame(axis_data, "subjects", dataset.col_data)

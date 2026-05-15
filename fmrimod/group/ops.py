@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Any, Callable, Literal, cast
+from typing import Any, Callable, Literal, Optional, cast
 
 import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
 
 from fmrimod.stats.inference import fdr_correction, p_to_z, z_to_p
@@ -42,10 +43,12 @@ def _normalize_axis_index(
     return idx
 
 
-def _subset_frame(frame: object, idx: NDArray[np.intp]) -> object:
+def _subset_frame(
+    frame: Optional[pd.DataFrame], idx: NDArray[np.intp]
+) -> Optional[pd.DataFrame]:
     if frame is None:
         return None
-    return frame.iloc[idx].copy()
+    return cast(pd.DataFrame, frame.iloc[idx].copy())
 
 
 def subset(
@@ -61,7 +64,9 @@ def subset(
     contrast_idx = _normalize_axis_index(contrast, length=dataset.n_contrasts)
 
     assays = {
-        name: arr[np.ix_(sample_idx, subject_idx, contrast_idx)]
+        name: cast(NDArray[np.float64], arr)[
+            np.ix_(sample_idx, subject_idx, contrast_idx)
+        ]
         for name, arr in dataset.assays.items()
     }
     return GroupDataset(

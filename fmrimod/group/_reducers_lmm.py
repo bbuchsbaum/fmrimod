@@ -131,7 +131,7 @@ def _fit_mixedlm_feature(
     *,
     reml: bool,
     covariance: Literal["diag", "full"] = "full",
-) -> object:
+) -> Any:
     try:
         from statsmodels.regression.mixed_linear_model import MixedLM, MixedLMParams
     except Exception as exc:  # pragma: no cover - dependency declared by package
