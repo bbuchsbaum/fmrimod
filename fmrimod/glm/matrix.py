@@ -47,7 +47,7 @@ class _MatrixModel:
         self,
         X: NDArray[np.float64],
         Y: NDArray[np.float64],
-        source: Any = None,
+        source: object = None,
     ) -> None:
         self._X = X
         self.dataset = _MatrixDataset(Y)
@@ -101,7 +101,7 @@ class _MatrixModel:
         return {}
 
 
-def _source_design_matrix(source: Any) -> Any:
+def _source_design_matrix(source: object) -> object:
     if isinstance(source, pd.DataFrame):
         return source
     design_matrix = getattr(source, "design_matrix", None)
