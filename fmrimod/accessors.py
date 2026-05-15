@@ -155,7 +155,7 @@ def ar_parameters(
     if ar is None:
         return None
     if scope == "raw":
-        return ar
+        return cast("object", ar)
     arr = _as_array(ar)
     if arr.size == 0:
         return None
@@ -165,7 +165,7 @@ def ar_parameters(
         return [np.asarray(arr[..., i]).squeeze() for i in range(arr.shape[-1])]
     if arr.ndim == 1:
         return arr
-    return np.nanmean(arr, axis=-1)
+    return cast("NDArray[np.float64]", np.nanmean(arr, axis=-1))
 
 
 def standard_error(
@@ -176,10 +176,10 @@ def standard_error(
     if type == "estimates":
         method = getattr(x, "se", None)
         if callable(method):
-            return method()
+            return cast("EstimateOrContrastMap", method())
         se_val = getattr(x, "se", None)
         if se_val is not None:
-            return se_val
+            return cast("EstimateOrContrastMap", se_val)
     return {
         name: result.se
         for name, result in getattr(x, "contrasts", {}).items()
@@ -202,7 +202,7 @@ def stats(
     if type == "estimates":
         method = getattr(x, "tstat", None)
         if callable(method):
-            return method()
+            return cast("EstimateOrContrastMap", method())
     wanted = "F" if type == "F" else "t"
     return {
         name: result.stat
@@ -217,9 +217,12 @@ def p_values(
     """Return two-sided p-values for coefficient estimates or contrasts."""
     type = _normalize_target(type)
     if type == "estimates":
-        t = stats(x, type="estimates")
+        t = cast("NDArray[np.float64]", stats(x, type="estimates"))
         df = float(getattr(x, "residual_df"))
-        return 2.0 * sp_stats.t.sf(np.abs(t), df=df)
+        return cast(
+            "EstimateOrContrastMap",
+            2.0 * sp_stats.t.sf(np.abs(t), df=df),
+        )
     wanted = "F" if type == "F" else "t"
     return {
         name: result.p_value
@@ -241,11 +244,14 @@ def zscores(
     """Convert two-sided p-values and statistic signs to z scores."""
     type = _normalize_target(type)
     if type == "estimates":
-        t = stats(x, type="estimates")
-        p = p_values(x, type="estimates")
-        return sp_stats.norm.isf(np.clip(p, 1e-300, 1.0) / 2.0) * np.sign(t)
-    stat_map = stats(x, type=type)
-    p_map = p_values(x, type=type)
+        t = cast("NDArray[np.float64]", stats(x, type="estimates"))
+        p = cast("NDArray[np.float64]", p_values(x, type="estimates"))
+        return cast(
+            "EstimateOrContrastMap",
+            sp_stats.norm.isf(np.clip(p, 1e-300, 1.0) / 2.0) * np.sign(t),
+        )
+    stat_map = cast("Dict[str, NDArray[np.float64]]", stats(x, type=type))
+    p_map = cast("Dict[str, NDArray[np.float64]]", p_values(x, type=type))
     return {
         name: sp_stats.norm.isf(np.clip(p_map[name], 1e-300, 1.0) / 2.0)
         * np.sign(stat)
@@ -276,6 +282,7 @@ def coef_image(
 ) -> NDArray[np.float64]:
     """Return a coefficient/statistic vector or reconstruct it into a mask."""
     statistic = _normalize_statistic(statistic)
+    values: EstimateOrContrastMap
     if statistic == "estimate":
         values = _coef_matrix(x, include_baseline=True)
     elif statistic == "se":
@@ -297,7 +304,7 @@ def coef_image(
             except Exception:
                 mask = None
     if mask is None:
-        return vec
+        return cast("NDArray[np.float64]", vec)
     mask_arr = np.asarray(mask, dtype=bool)
     out = np.full(mask_arr.shape, np.nan, dtype=np.float64)
     out[mask_arr] = vec
@@ -507,8 +514,9 @@ def tidy_fitted_hrf(x: object, sample_at: Sequence[float]) -> pd.DataFrame:
     rows = []
     for term, payload in fitted_hrf(x, sample_at=sample_at).items():
         pred = _as_array(payload["pred"])
-        design = payload["design"].reset_index(drop=True)
+        design = cast(pd.DataFrame, payload["design"]).reset_index(drop=True)
         for row_idx, meta in design.iterrows():
+            ridx = int(cast(int, row_idx))
             for voxel in range(pred.shape[1]):
                 rows.append(
                     {
@@ -516,8 +524,8 @@ def tidy_fitted_hrf(x: object, sample_at: Sequence[float]) -> pd.DataFrame:
                         "condition": meta["condition"],
                         "time": meta["time"],
                         "voxel": voxel,
-                        "estimate": pred[row_idx, voxel],
-                        "value": pred[row_idx, voxel],
+                        "estimate": pred[ridx, voxel],
+                        "value": pred[ridx, voxel],
                     }
                 )
     return pd.DataFrame(rows)
