@@ -126,10 +126,15 @@ def test_pyproject_declares_dataset_io_extras():
     assert "h5py>=3.8.0" in extras["full"]
     assert "nibabel>=4.0.0" in extras["nibabel"]
     assert "nibabel>=4.0.0" in extras["nifti"]
-    assert "zarr>=2.16.0" in extras["zarr"]
-    assert "dask[array]>=2023.1.0" in extras["dask"]
-    assert "cachetools>=5.0.0" in extras["cache"]
     assert {"pybids>=0.16.0", "nibabel>=4.0.0"}.issubset(extras["bids"])
+    # zarr/dask/cache extras were dropped: the consolidation PRD listed
+    # them as `adopt` but no backend ever shipped, so declaring the
+    # dependency promised a feature the package never imported. See
+    # docs/contracts/fmridataset_consolidation_plan_v1.md (status
+    # adopt -> deferred) and bd-01KRMR4B2Z4ZPTYHZC7J69CY77.
+    assert "zarr" not in extras
+    assert "dask" not in extras
+    assert "cache" not in extras
 
 
 def test_basis_registry_and_benchmark_helpers():

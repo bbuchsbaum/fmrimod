@@ -90,15 +90,6 @@ nibabel = [
 nifti = [
     "nibabel>=4.0.0",
 ]
-zarr = [
-    "zarr>=2.16.0",
-]
-dask = [
-    "dask[array]>=2023.1.0",
-]
-cache = [
-    "cachetools>=5.0.0",
-]
 bids = [
     "pybids>=0.16.0",
     "nibabel>=4.0.0",
@@ -106,9 +97,6 @@ bids = [
 full = [
     "h5py>=3.8.0",
     "nibabel>=4.0.0",
-    "zarr>=2.16.0",
-    "dask[array]>=2023.1.0",
-    "cachetools>=5.0.0",
     "pybids>=0.16.0",
 ]
 docs = [

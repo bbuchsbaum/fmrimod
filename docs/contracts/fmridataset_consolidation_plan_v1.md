@@ -243,7 +243,7 @@ Required schema:
 | `matrix_backend` | matrix backend constructor | none | `adopt` | `fmrimod.dataset.backend_constructors` | `tests/test_dataset/test_matrix_backend.py` | Constructor for canonical MatrixBackend. |
 | `nifti_backend` | NIfTI backend constructor | fmrimod.dataset.adapters.NibabelAdapter (different) | `merge` | `fmrimod.dataset.backend_constructors` | `tests/test_dataset/test_nifti_backend.py` | Requires nifti extra; reconcile with existing NibabelAdapter. |
 | `h5_backend` | HDF5 backend constructor | none | `adopt` | `fmrimod.dataset.backend_constructors` | `tests/test_dataset/test_h5_backend.py` | Requires hdf5 extra. |
-| `zarr_backend` | Zarr backend constructor | none | `adopt` | `fmrimod.dataset.backend_constructors` | `tests/test_dataset/test_zarr_backend.py` | Requires zarr extra. |
+| `zarr_backend` | Zarr backend constructor | none | `scoped_out` | n/a | n/a | Deferred: no zarr backend ever shipped; the `zarr` extra was dropped rather than promise an unbuilt feature (bd-01KRMR4B2Z4ZPTYHZC7J69CY77, umbrella bd-01KRFD264CZ250Q5388MJ6FWTQ). Re-adopt only behind a MISSION-justified zarr-backend work request. |
 | `latent_backend` | latent backend constructor | none | `adopt` | `fmrimod.dataset.backend_constructors` | `tests/test_dataset/test_latent_backend.py` | Requires hdf5 extra for file-backed latent data. |
 | `study_backend` | study backend constructor | none | `adopt` | `fmrimod.dataset.backend_constructors` | `tests/test_dataset/test_study_backend.py` | Composite backend over canonical datasets. |
 | `backend_open` | backend functional methods | none | `compat_alias` | `fmrimod.dataset.backend_methods` | `tests/test_dataset/test_backend_methods.py` | Function facade over backend methods; no separate behavior. |
@@ -267,10 +267,10 @@ Required schema:
 | `fmri_latent_dataset` | legacy latent constructor | none | `compat_alias` | `fmrimod.dataset.latent_dataset` | `tests/test_dataset/test_latent_dataset.py` | Compatibility alias only. |
 | `fmri_dataset_legacy` | path-oriented legacy constructor | none | `compat_alias` | `fmrimod.dataset.fmri_dataset` | `tests/test_dataset/test_legacy_constructors.py` | Compatibility wrapper; not a second constructor contract. |
 | `fmri_study_dataset` | legacy study constructor | none | `compat_alias` | `fmrimod.dataset.study_dataset` | `tests/test_dataset/test_study_dataset.py` | Compatibility alias only. |
-| `fmri_zarr_dataset` | legacy zarr constructor | none | `compat_alias` | `fmrimod.dataset.zarr_dataset` | `tests/test_dataset/test_zarr_backend.py` | Compatibility alias only. |
+| `fmri_zarr_dataset` | legacy zarr constructor | none | `scoped_out` | n/a | n/a | Deferred with `zarr_backend`; no zarr surface shipped, `zarr` extra dropped (bd-01KRMR4B2Z4ZPTYHZC7J69CY77). |
 | `latent_dataset` | latent dataset constructor | fmrimod.dataset.latent_dataset (temporary helper) | `merge` | `fmrimod.dataset.latent_dataset` | `tests/test_dataset/test_latent_dataset.py` | Must construct canonical storage-backed LatentDataset. |
 | `study_dataset` | study dataset constructor | none | `adopt` | `fmrimod.dataset.study_dataset` | `tests/test_dataset/test_study_dataset.py` | Constructor for canonical StudyDataset. |
-| `zarr_dataset` | Zarr dataset constructor | none | `adopt` | `fmrimod.dataset.zarr_dataset` | `tests/test_dataset/test_zarr_backend.py` | Requires zarr extra. |
+| `zarr_dataset` | Zarr dataset constructor | none | `scoped_out` | n/a | n/a | Deferred with `zarr_backend`; no zarr surface shipped, `zarr` extra dropped (bd-01KRMR4B2Z4ZPTYHZC7J69CY77). |
 | `bids_h5_dataset` | BIDS-HDF5 study helpers | none | `adopt` | `fmrimod.dataset.bids_h5` | `tests/test_dataset/test_bids_h5_dataset.py` | Requires hdf5 extra; BIDS directory ingestion may require bids extra. |
 | `compress_bids_study` | BIDS-HDF5 study helpers | none | `adopt` | `fmrimod.dataset.bids_h5_write` | `tests/test_dataset/test_bids_h5_dataset.py` | Requires hdf5 extra; BIDS directory ingestion may require bids extra. |
 | `bids_h5_scan_backend` | BIDS-HDF5 scan backend | none | `adopt` | `fmrimod.dataset.backends.bids_h5` | `tests/test_dataset/test_bids_h5_dataset.py` | Requires hdf5 extra; port after core registry. |
@@ -316,10 +316,10 @@ Required schema:
 | `resolve_selector` | series objects and constructors | none | `adopt` | `fmrimod.dataset.series` | `tests/test_dataset/test_fmri_series.py` | Use canonical selectors and dataset access. |
 | `resolve_timepoints` | series objects and constructors | none | `adopt` | `fmrimod.dataset.series` | `tests/test_dataset/test_fmri_series.py` | Use canonical selectors and dataset access. |
 | `series` | series objects and constructors | none | `adopt` | `fmrimod.dataset.series` | `tests/test_dataset/test_fmri_series.py` | Use canonical selectors and dataset access. |
-| `as_dask_array` | lazy/dask conversion helpers | none | `adopt` | `fmrimod.dataset.lazy_array` | `tests/test_dataset/test_lazy_array.py` | Requires dask extra where applicable. |
-| `as_dask_array_dataset` | lazy/dask conversion helpers | none | `adopt` | `fmrimod.dataset.lazy_array` | `tests/test_dataset/test_lazy_array.py` | Requires dask extra where applicable. |
-| `as_delayed_array` | lazy/dask conversion helpers | none | `adopt` | `fmrimod.dataset.lazy_array` | `tests/test_dataset/test_lazy_array.py` | Requires dask extra where applicable. |
-| `as_delarr` | lazy/dask conversion helpers | none | `adopt` | `fmrimod.dataset.lazy_array` | `tests/test_dataset/test_lazy_array.py` | Requires dask extra where applicable. |
+| `as_dask_array` | lazy/dask conversion helpers | none | `scoped_out` | n/a | n/a | Deferred: donor inventory is a control surface, not the priority engine (umbrella bd-01KRFD264CZ250Q5388MJ6FWTQ). No dask consumer ever landed in `fmrimod/`; the `dask` extra was dropped rather than promise a feature the package never imports (bd-01KRMR4B2Z4ZPTYHZC7J69CY77). Re-adopt only behind a MISSION-justified lazy-array work request. |
+| `as_dask_array_dataset` | lazy/dask conversion helpers | none | `scoped_out` | n/a | n/a | Deferred with `as_dask_array`; see that row. |
+| `as_delayed_array` | lazy/dask conversion helpers | none | `scoped_out` | n/a | n/a | Deferred with `as_dask_array`; see that row. |
+| `as_delarr` | lazy/dask conversion helpers | none | `scoped_out` | n/a | n/a | Deferred with `as_dask_array`; see that row. |
 | `FmriGroup` | group dataset surface | fmrimod.dataset.GroupData family (different) | `merge` | `fmrimod.dataset.group` | `tests/test_dataset/test_fmri_group.py` | Reconcile with existing GroupData ingestion helpers; no parallel group abstractions. |
 | `fmri_group` | group dataset surface | fmrimod.dataset.GroupData family (different) | `merge` | `fmrimod.dataset.group` | `tests/test_dataset/test_fmri_group.py` | Reconcile with existing GroupData ingestion helpers; no parallel group abstractions. |
 | `as_fmri_group` | group dataset surface | fmrimod.dataset.GroupData family (different) | `merge` | `fmrimod.dataset.group` | `tests/test_dataset/test_fmri_group.py` | Reconcile with existing GroupData ingestion helpers; no parallel group abstractions. |
@@ -358,10 +358,10 @@ Required schema:
 | `as_matrix_dataset` | dataset conversion helpers | none | `adopt` | `fmrimod.dataset.conversions` | `tests/test_dataset/test_conversions.py` | Materialize canonical datasets as matrix datasets. |
 | `read_fmri_config` | dataset config reader | fmrimod.dataset.read_fmri_config | `merge` | `fmrimod.dataset.config` | `tests/test_dataset/test_config.py` | Merge with current fmrimod config helper. |
 | `write_fmri_config` | dataset config writer | none | `adopt` | `fmrimod.dataset.config` | `tests/test_dataset/test_config.py` | YAML/JSON config writer. |
-| `lru_cache` | dataset cache helpers | none | `adopt` | `fmrimod.dataset.cache` | `tests/test_dataset/test_cache.py` | Requires cache extra if cachetools is used. |
-| `fmri_clear_cache` | dataset cache helpers | none | `adopt` | `fmrimod.dataset.cache` | `tests/test_dataset/test_cache.py` | Requires cache extra if cachetools is used. |
-| `fmri_cache_info` | dataset cache helpers | none | `adopt` | `fmrimod.dataset.cache` | `tests/test_dataset/test_cache.py` | Requires cache extra if cachetools is used. |
-| `fmri_cache_resize` | dataset cache helpers | none | `adopt` | `fmrimod.dataset.cache` | `tests/test_dataset/test_cache.py` | Requires cache extra if cachetools is used. |
+| `lru_cache` | dataset cache helpers | none | `scoped_out` | n/a | n/a | Deferred: no `fmrimod.dataset.cache` module shipped; the `cache` extra (cachetools) was dropped rather than promise an unbuilt feature (bd-01KRMR4B2Z4ZPTYHZC7J69CY77, umbrella bd-01KRFD264CZ250Q5388MJ6FWTQ). Re-adopt only behind a MISSION-justified caching work request. |
+| `fmri_clear_cache` | dataset cache helpers | none | `scoped_out` | n/a | n/a | Deferred with `lru_cache`; see that row. |
+| `fmri_cache_info` | dataset cache helpers | none | `scoped_out` | n/a | n/a | Deferred with `lru_cache`; see that row. |
+| `fmri_cache_resize` | dataset cache helpers | none | `scoped_out` | n/a | n/a | Deferred with `lru_cache`; see that row. |
 | `generate_example_fmri_data` | example data helpers | fmrimod.simulate helpers (partial) | `merge` | `fmrimod.simulate / fmrimod.dataset.example_helpers` | `tests/test_dataset/test_example_helpers.py` | Keep only if they support docs/tests; avoid duplicating simulation API. |
 | `generate_example_events` | example data helpers | fmrimod.simulate helpers (partial) | `merge` | `fmrimod.simulate / fmrimod.dataset.example_helpers` | `tests/test_dataset/test_example_helpers.py` | Keep only if they support docs/tests; avoid duplicating simulation API. |
 | `generate_example_paths` | example data helpers | fmrimod.simulate helpers (partial) | `merge` | `fmrimod.simulate / fmrimod.dataset.example_helpers` | `tests/test_dataset/test_example_helpers.py` | Keep only if they support docs/tests; avoid duplicating simulation API. |
@@ -839,11 +839,19 @@ Use these extras in `pyproject.toml`:
 | --- | --- | --- |
 | `hdf5` | `h5py` | HDF5 backend, latent HDF5, BIDS-HDF5 read/write |
 | `nifti` | `nibabel` | NIfTI backend and image metadata |
-| `zarr` | `zarr` | Zarr backend |
-| `dask` | `dask[array]` | delayed/lazy array conversion |
-| `cache` | `cachetools` | optional LRU cache helpers |
 | `bids` | `pybids`, `nibabel` | raw BIDS directory ingestion |
 | `full` | all of the above | complete dataset IO stack |
+
+The originally-planned `zarr` (`zarr`), `dask` (`dask[array]`), and
+`cache` (`cachetools`) extras were **dropped**: no zarr/dask/cache
+surface ever shipped (`fmrimod.dataset.lazy_array`,
+`fmrimod.dataset.zarr_dataset`, and `fmrimod.dataset.cache` were never
+written), so declaring the dependencies promised features the package
+never imports. The matching inventory rows are now `scoped_out` with a
+rationale. Re-introduce an extra only in the same change that lands its
+backend and a backend-protocol-conformant test — never ahead of it.
+See bd-01KRMR4B2Z4ZPTYHZC7J69CY77 and umbrella
+bd-01KRFD264CZ250Q5388MJ6FWTQ.
 
 The base install should remain NumPy/Pandas/SciPy-oriented and must support
 matrix datasets and modeling workflows without heavy IO dependencies.
@@ -851,7 +859,7 @@ matrix datasets and modeling workflows without heavy IO dependencies.
 Optional IO extras are implementation details of dataset ingestion and storage,
 not alternate modeling pathways. Once data are loaded, downstream modeling
 should see the same canonical dataset/series/chunk contracts regardless of
-whether the source was matrix, HDF5, NIfTI, Zarr, BIDS-HDF5, or neuroim.
+whether the source was matrix, HDF5, NIfTI, BIDS-HDF5, or neuroim.
 
 ## Reviewable Work Packages
 
