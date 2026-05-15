@@ -29230,7 +29230,7 @@
     },
     {
       "coercion_exemption": null,
-      "endlineno": 111,
+      "endlineno": 114,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
@@ -29243,12 +29243,12 @@
     },
     {
       "coercion_exemption": null,
-      "endlineno": 154,
+      "endlineno": 157,
       "has_any_annotation": true,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 114,
+      "lineno": 117,
       "module": "fmrimod.trialwise",
       "owner_bead": null,
       "qualname": "_create_trial_factor",

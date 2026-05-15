@@ -7,7 +7,7 @@ single-trial estimation used in representational similarity analysis (RSA)
 and multi-voxel pattern analysis (MVPA).
 """
 
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -89,16 +89,19 @@ def trialwise(
     # We use a placeholder event that will be replaced with trial indices
     term = Term(
         events="_trialwise_placeholder_",
-        hrf=basis,
+        hrf=cast(Any, basis),
         name=label
     )
 
-    # Add special attributes for trialwise processing
-    term._is_trialwise = True
-    term._add_sum = add_sum
-    term._trialwise_label = label
-    term._lag = lag
-    term._nbasis = nbasis
+    # Add special attributes for trialwise processing. These are dynamic
+    # markers consumed by EventModel expansion, not part of the static
+    # Term API, so they are set through an Any view of the instance.
+    term_dyn = cast(Any, term)
+    term_dyn._is_trialwise = True
+    term_dyn._add_sum = add_sum
+    term_dyn._trialwise_label = label
+    term_dyn._lag = lag
+    term_dyn._nbasis = nbasis
 
     # New parameters - store in _kwargs
     if not hasattr(term, '_kwargs') or term._kwargs is None:
@@ -148,7 +151,7 @@ def _create_trial_factor(n: int, onsets: Optional[NDArray[Any]] = None) -> Event
     
     return EventFactor(
         name="trial",
-        onsets=onsets,
+        onsets=cast(Any, onsets),
         values=trial_labels,  # Each trial gets its own value
         levels=levels
     )
