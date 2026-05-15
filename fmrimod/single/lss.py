@@ -14,7 +14,7 @@ pattern classification analyses. *NeuroImage*, 59(3), 2636-2643.
 from __future__ import annotations
 
 import warnings
-from typing import Optional
+from typing import Optional, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -110,7 +110,7 @@ def _lss_beta_vec(
     num = CtY - ctb_bt2[:, np.newaxis] * BtY   # (T, V)
     den = CtC - ctb ** 2 / bt2_safe      # (T,)
 
-    return num / np.maximum(den, eps)[:, np.newaxis]  # (T, V)
+    return cast("NDArray[np.float64]", num / np.maximum(den, eps)[:, np.newaxis])  # (T, V)
 
 
 def _lss_beta_vec_chunked(
