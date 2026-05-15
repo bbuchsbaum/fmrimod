@@ -139,10 +139,10 @@ class HRF(ABC):
             basis_values = self(t)
             
             if self.nbasis == 1:
-                return coefficients[0] * basis_values
+                return cast("NDArray[np.float64]", coefficients[0] * basis_values)
             else:
                 # Matrix multiplication for multi-basis case
-                return basis_values @ coefficients
+                return cast("NDArray[np.float64]", basis_values @ coefficients)
         
         return weighted_hrf
     
@@ -426,7 +426,7 @@ class CoefficientHRF(HRF):
         basis_values = self.base(t)
         coefs = np.asarray(self.coefficients, dtype=np.float64)
         if self.base.nbasis == 1:
-            return coefs[0] * basis_values
+            return cast("NDArray[np.float64]", coefs[0] * basis_values)
         if basis_values.ndim == 1:
             basis_values = basis_values.reshape(-1, 1)
         return basis_values @ coefs
