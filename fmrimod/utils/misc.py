@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, List, Optional, Union, cast
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -56,7 +56,10 @@ def list_available_hrfs(details: bool = False) -> Union[List[str], List[dict[str
         List of HRF names or metadata dictionaries
     """
     from ..hrf.registry import list_available_hrfs as registry_list_available_hrfs
-    return registry_list_available_hrfs(details=details)
+    return cast(
+        "Union[list[str], list[dict[str, object]]]",
+        registry_list_available_hrfs(details=details),
+    )
 
 
 def single_trial_regressor(
@@ -108,7 +111,7 @@ def single_trial_regressor(
 
 
 def hrf_toeplitz(
-    hrf: Union[Callable, "HRF"],
+    hrf: Union[Callable[..., Any], "HRF"],
     time: ArrayLike,
     length: int,
     sparse: bool = False

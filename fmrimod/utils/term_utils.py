@@ -1,6 +1,6 @@
 """Utility functions for working with model terms and design matrices."""
 
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, cast
 
 
 from ..types import Array, ModelProtocol
@@ -37,7 +37,7 @@ def term_indices(model: ModelProtocol) -> Dict[str, List[int]]:
     """
     # First check if model has pre-computed column indices (like R implementation)
     if hasattr(model, 'column_indices') and model.column_indices is not None:
-        return model.column_indices
+        return cast("dict[str, list[int]]", model.column_indices)
     
     # Fallback to pattern matching if column_indices not available
     if not hasattr(model, 'terms') or not hasattr(model, 'column_names'):

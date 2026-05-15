@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Mapping
-from typing import Tuple
+from typing import Any, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -12,12 +12,12 @@ from numpy.typing import NDArray
 # Simple LRU cache for HRF evaluations
 # TODO: Consider implementing bounded cache using cachetools or custom LRU cache
 # to prevent unbounded memory growth in long sessions
-_hrf_cache = {}
+_hrf_cache: dict[Any, NDArray[np.float64]] = {}
 _cache_size = 0
 _max_cache_size = 128
 
 
-def _to_cache_value(value):
+def _to_cache_value(value: object) -> Any:
     """Convert arbitrary values into hashable, cache-safe representations."""
     if isinstance(value, np.ndarray):
         array = np.asarray(value)
@@ -47,7 +47,7 @@ def _to_cache_value(value):
     return ("object", repr(value))
 
 
-def _extract_hrf_cache_signature(hrf) -> Tuple:
+def _extract_hrf_cache_signature(hrf: Any) -> Tuple[Any, ...]:
     """Build a cache key fragment that works across HRF protocol implementations."""
     if isinstance(getattr(hrf, "params", None), Mapping):
         return (
@@ -81,7 +81,7 @@ def _extract_hrf_cache_signature(hrf) -> Tuple:
     return ("protocol", tuple(fragments))
 
 
-def cached_hrf_eval(hrf, span: float, dt: float) -> NDArray[np.float64]:
+def cached_hrf_eval(hrf: Any, span: float, dt: float) -> NDArray[np.float64]:
     """Evaluate HRF with caching to avoid recomputation.
     
     Args:
@@ -157,7 +157,7 @@ def cached_hrf_eval(hrf, span: float, dt: float) -> NDArray[np.float64]:
     return values
 
 
-def clear_hrf_cache():
+def clear_hrf_cache() -> None:
     """Clear the HRF evaluation cache."""
     global _cache_size
     _hrf_cache.clear()
