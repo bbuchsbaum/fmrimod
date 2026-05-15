@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import warnings
 from abc import ABC, abstractmethod
+from typing import cast
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -217,7 +218,7 @@ def resolve_indices(
 
     arr = np.asarray(selector)
     if np.issubdtype(arr.dtype, np.bool_):
-        return MaskSelector(arr).resolve_indices(dataset)
+        return MaskSelector(cast("NDArray[np.bool_]", arr)).resolve_indices(dataset)
     if np.issubdtype(arr.dtype, np.integer):
         return IndexSelector(arr.astype(np.intp, copy=False)).resolve_indices(dataset)
     raise ValueError(f"Unsupported selector type: {type(selector)}")
@@ -244,4 +245,4 @@ def _full_indices_to_masked_columns(
         )
     if selected.size == 0 and not allow_empty:
         raise ValueError("No requested voxels are within the dataset mask")
-    return selected
+    return cast("NDArray[np.intp]", selected)
