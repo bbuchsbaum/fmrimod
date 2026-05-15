@@ -7,7 +7,10 @@ spatial reduction.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from ..fmri_lm import FmriModelLike
 
 import numpy as np
 from numpy.typing import NDArray
@@ -35,7 +38,7 @@ class SketchEngine:
 
     def fit(
         self,
-        model: Any,
+        model: "FmriModelLike",
         config: FmriLmConfig,
         *,
         sketch_kind: str = "gaussian",
@@ -68,7 +71,7 @@ class SketchEngine:
 
     def _fit_single(
         self,
-        model: Any,
+        model: "FmriModelLike",
         config: FmriLmConfig,
         lr_config: LowRankConfig,
         coords: Optional[NDArray[np.float64]],
@@ -88,7 +91,7 @@ class SketchEngine:
 
     def _fit_multirun(
         self,
-        model: Any,
+        model: "FmriModelLike",
         config: FmriLmConfig,
         lr_config: LowRankConfig,
         coords: Optional[NDArray[np.float64]],
@@ -142,6 +145,6 @@ class SketchEngine:
             extra={"lowrank_config": lr_config},
         )
 
-    def preflight(self, model: Any, config: FmriLmConfig) -> None:
+    def preflight(self, model: "FmriModelLike", config: FmriLmConfig) -> None:
         if not hasattr(model, "dataset"):
             raise ValueError("Model must have a 'dataset' attribute")

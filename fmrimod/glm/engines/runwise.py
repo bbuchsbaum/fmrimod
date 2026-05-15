@@ -6,7 +6,10 @@ via fixed-effects meta-analysis.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ..fmri_lm import FmriModelLike
 
 from ...model.config import FmriLmConfig
 from ..engine import EngineResult, register_engine
@@ -25,7 +28,7 @@ class RunwiseEngine:
 
     def fit(
         self,
-        model: Any,
+        model: "FmriModelLike",
         config: FmriLmConfig,
         **kwargs: Any,
     ) -> EngineResult:
@@ -41,7 +44,7 @@ class RunwiseEngine:
             run_X=raw.get("run_X"),
         )
 
-    def preflight(self, model: Any, config: FmriLmConfig) -> None:
+    def preflight(self, model: "FmriModelLike", config: FmriLmConfig) -> None:
         """Validate that the model has data and a design matrix."""
         if not hasattr(model, "dataset"):
             raise ValueError("Model must have a 'dataset' attribute")

@@ -26,6 +26,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from typing import (
+    TYPE_CHECKING,
     Any,
     ClassVar,
     Dict,
@@ -42,6 +43,9 @@ import numpy as np
 from numpy.typing import DTypeLike, NDArray
 
 from ..model.config import FmriLmConfig
+
+if TYPE_CHECKING:
+    from .fmri_lm import FmriModelLike
 
 logger = logging.getLogger(__name__)
 
@@ -212,7 +216,7 @@ class FittingEngine(Protocol):
 
     def fit(
         self,
-        model: Any,
+        model: "FmriModelLike",
         config: FmriLmConfig,
         **kwargs: Any,
     ) -> "EngineResult":
@@ -235,7 +239,7 @@ class FittingEngine(Protocol):
 
     def preflight(
         self,
-        model: Any,
+        model: "FmriModelLike",
         config: FmriLmConfig,
     ) -> None:
         """Optional validation before fitting.
