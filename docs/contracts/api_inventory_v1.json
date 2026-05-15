@@ -1,7 +1,7 @@
 {
   "counts": {
     "all_names": 205,
-    "any_in_signature": 29,
+    "any_in_signature": 30,
     "callable": 203,
     "classes": 22,
     "opaque_forwarder": 31
@@ -625,7 +625,7 @@
     },
     {
       "compatibility_status": "compat",
-      "has_any_in_signature": false,
+      "has_any_in_signature": true,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
@@ -633,7 +633,7 @@
       "name": "afni_restricted_plan",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.ar.afni",
-      "runtime_signature": "(resid: 'NDArray', *, p: 'int' = 3, roots: 'object' = None, runs: 'Optional[NDArray]' = None, parcels: 'Optional[NDArray]' = None, estimate_ma1: 'bool' = True, exact_first: 'bool' = True) -> 'WhiteningPlan'",
+      "runtime_signature": "(resid: 'NDArray[np.float64]', *, p: 'int' = 3, roots: 'object' = None, runs: 'Optional[NDArray[Any]]' = None, parcels: 'Optional[NDArray[Any]]' = None, estimate_ma1: 'bool' = True, exact_first: 'bool' = True) -> 'WhiteningPlan'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -1413,7 +1413,7 @@
       "name": "fit_noise",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.ar.estimation",
-      "runtime_signature": "(resid: 'Optional[NDArray[np.float64]]' = None, Y: 'Optional[NDArray[np.float64]]' = None, X: 'Optional[NDArray[np.float64]]' = None, runs: 'Optional[NDArray]' = None, censor: 'Optional[NDArray]' = None, method: 'str' = 'ar', p: 'object' = 'auto', q: 'int' = 0, p_max: 'int' = 6, exact_first: 'str' = 'ar1', pooling: 'str' = 'global', parcels: 'Optional[NDArray]' = None, parcel_sets: 'Optional[dict[str, Any]]' = None, multiscale: 'object' = None, ms_mode: 'Optional[str]' = None, p_target: 'Optional[int]' = None, beta: 'float' = 0.5, hr_iter: 'int' = 0, step1: 'str' = 'yw') -> \"'WhiteningPlan'\"",
+      "runtime_signature": "(resid: 'Optional[NDArray[np.float64]]' = None, Y: 'Optional[NDArray[np.float64]]' = None, X: 'Optional[NDArray[np.float64]]' = None, runs: 'Optional[NDArray[Any]]' = None, censor: 'Optional[NDArray[Any]]' = None, method: 'str' = 'ar', p: 'object' = 'auto', q: 'int' = 0, p_max: 'int' = 6, exact_first: 'str' = 'ar1', pooling: 'str' = 'global', parcels: 'Optional[NDArray[Any]]' = None, parcel_sets: 'Optional[dict[str, Any]]' = None, multiscale: 'object' = None, ms_mode: 'Optional[str]' = None, p_target: 'Optional[int]' = None, beta: 'float' = 0.5, hr_iter: 'int' = 0, step1: 'str' = 'yw') -> \"'WhiteningPlan'\"",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -2838,7 +2838,7 @@
       "name": "soft_subspace_options",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.model.config",
-      "runtime_signature": "(*, enabled: 'bool' = False, nuisance_matrix: 'Optional[NDArray]' = None, nuisance_mask: 'Optional[object]' = None, lam: \"Union[float, Literal['auto', 'gcv'], object]\" = <object object at 0x_SANITIZED_>, warn_redundant: 'bool' = True, **kwargs: 'object') -> 'SoftSubspaceOptions'",
+      "runtime_signature": "(*, enabled: 'bool' = False, nuisance_matrix: 'Optional[NDArray[np.float64]]' = None, nuisance_mask: 'Optional[object]' = None, lam: \"Union[float, Literal['auto', 'gcv'], object]\" = <object object at 0x_SANITIZED_>, warn_redundant: 'bool' = True, **kwargs: 'object') -> 'SoftSubspaceOptions'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -3018,7 +3018,7 @@
       "name": "whiten",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.ar.whitening",
-      "runtime_signature": "(X: 'NDArray', Y: 'NDArray', *, runs: 'Optional[NDArray]' = None, censor: 'Optional[NDArray]' = None, **fit_kwargs: 'object') -> \"'WhitenResult'\"",
+      "runtime_signature": "(X: 'NDArray[np.float64]', Y: 'NDArray[np.float64]', *, runs: 'Optional[NDArray[np.float64]]' = None, censor: 'Optional[NDArray[np.float64]]' = None, **fit_kwargs: 'object') -> \"'WhitenResult'\"",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -3033,7 +3033,7 @@
       "name": "whiten_apply",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.ar.whitening",
-      "runtime_signature": "(plan: \"'WhiteningPlan'\", X: 'NDArray', Y: 'NDArray', *, runs: 'Optional[NDArray]' = None, censor: 'Optional[NDArray]' = None, parcels: 'Optional[NDArray]' = None) -> \"'WhitenResult'\"",
+      "runtime_signature": "(plan: \"'WhiteningPlan'\", X: 'NDArray[np.float64]', Y: 'NDArray[np.float64]', *, runs: 'Optional[NDArray[np.float64]]' = None, censor: 'Optional[NDArray[np.float64]]' = None, parcels: 'Optional[NDArray[np.float64]]' = None) -> \"'WhitenResult'\"",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
