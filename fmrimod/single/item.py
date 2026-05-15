@@ -38,7 +38,7 @@ CovarianceLike = Union[
 class ItemCovarianceBaseResult:
     """Base diagnostics for trial covariance output from :func:`item_compute_u`."""
 
-    diagnostics: dict[str, Any] = field(default_factory=dict)
+    diagnostics: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -65,7 +65,7 @@ class ItemWeightsResult:
     """Fitted ITEM decoder weights."""
 
     W_hat: NDArray[np.float64]
-    diagnostics: dict[str, Any] = field(default_factory=dict)
+    diagnostics: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -82,8 +82,8 @@ class ItemBundle:
     trial_id: NDArray[np.str_]
     trial_hash: str | None
     trial_info: dict[str, NDArray[Any]]
-    meta: dict[str, Any] = field(default_factory=dict)
-    diagnostics: dict[str, Any] = field(default_factory=dict)
+    meta: dict[str, object] = field(default_factory=dict)
+    diagnostics: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass
@@ -99,7 +99,7 @@ class ItemFoldSplit:
     train_idx: NDArray[np.int_]
     test_idx: NDArray[np.int_]
     train_runs: NDArray[Any]
-    test_run: Any
+    test_run: object
     trial_id_train: NDArray[np.str_]
     trial_id_test: NDArray[np.str_]
 
@@ -145,7 +145,7 @@ class ItemCvResult:
     folds: list[ItemFoldMetrics]
     aggregate: ItemCvAggregate
     predictions: ItemPredictions
-    diagnostics: dict[str, Any] = field(default_factory=dict)
+    diagnostics: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass
@@ -164,12 +164,12 @@ class _FoldScore:
 def item_build_design(
     X_t: NDArray[np.float64],
     T_target: TargetLike | None = None,
-    run_id: Sequence[Any] | None = None,
+    run_id: Sequence[object] | None = None,
     C_transform: NDArray[np.float64] | None = None,
-    trial_id: Sequence[Any] | None = None,
+    trial_id: Sequence[object] | None = None,
     trial_hash: str | None = None,
-    meta: dict[str, Any] | None = None,
-    diagnostics: dict[str, Any] | None = None,
+    meta: dict[str, object] | None = None,
+    diagnostics: dict[str, object] | None = None,
     validate: bool = True,
 ) -> ItemBundle:
     """Build and validate trial-wise ITEM metadata."""
@@ -225,7 +225,7 @@ def item_compute_u(
     v_type: VType = "cov",
     ridge: float = 0.0,
     method: SolverMethod = "chol",
-    run_id: Sequence[Any] | None = None,
+    run_id: Sequence[object] | None = None,
     output: UOutputMode = "matrix",
     tol: float = np.sqrt(np.finfo(np.float64).eps),
 ) -> ItemCovarianceResult:
@@ -253,7 +253,7 @@ def item_compute_u(
     )
     U = 0.5 * (inv_fit.value + inv_fit.value.T)
 
-    diagnostics: dict[str, Any] = {
+    diagnostics: dict[str, object] = {
         "rank": int(np.linalg.matrix_rank(xt_vinv_x, tol=tol)),
         "condition_number": _condition_number(xt_vinv_x),
         "solver_path": inv_fit.method,
@@ -332,7 +332,7 @@ def item_fit(
         context="item_fit(W solve)",
     )
 
-    diagnostics: dict[str, Any] = {
+    diagnostics: dict[str, object] = {
         "rank": int(np.linalg.matrix_rank(lhs, tol=tol)),
         "condition_number": _condition_number(lhs),
         "solver_path": fit.method,
@@ -378,7 +378,7 @@ def item_predict(
 
 def item_slice_fold(
     bundle: ItemBundle,
-    test_run: Any,
+    test_run: object,
     check_hash: bool = False,
 ) -> ItemFoldSplit:
     """Slice an ITEM bundle into deterministic LOSO train/test components."""
@@ -433,13 +433,13 @@ def item_cv(
     Gamma: ItemBundle | NDArray[np.float64],
     T_target: TargetLike | None = None,
     U: CovarianceLike | ItemCovarianceResult | None = None,
-    run_id: Sequence[Any] | None = None,
+    run_id: Sequence[object] | None = None,
     mode: CvMode = "classification",
     metric: MetricName | None = None,
     ridge: float = 0.0,
     method: SolverMethod = "chol",
     class_levels: Sequence[str] | None = None,
-    trial_id: Sequence[Any] | None = None,
+    trial_id: Sequence[object] | None = None,
     trial_hash: str | None = None,
     check_hash: bool = False,
 ) -> ItemCvResult:
@@ -548,7 +548,7 @@ def item_from_lsa(
     Y: NDArray[np.float64],
     X_t: NDArray[np.float64],
     T_target: TargetLike,
-    run_id: Sequence[Any],
+    run_id: Sequence[object],
     confounds: NDArray[np.float64] | None = None,
     *,
     nuisance: NDArray[np.float64] | None = None,
@@ -558,9 +558,9 @@ def item_from_lsa(
     solver: SolverMethod = "chol",
     u_output: UOutputMode = "matrix",
     C_transform: NDArray[np.float64] | None = None,
-    trial_id: Sequence[Any] | None = None,
+    trial_id: Sequence[object] | None = None,
     trial_hash: str | None = None,
-    meta: dict[str, Any] | None = None,
+    meta: dict[str, object] | None = None,
     validate: bool = True,
 ) -> ItemBundle:
     """Build an ITEM bundle from LS-A estimates."""
@@ -635,10 +635,10 @@ def _prepare_cv_bundle(
     Gamma: ItemBundle | NDArray[np.float64],
     T_target: TargetLike | None,
     U: CovarianceLike | ItemCovarianceResult | None,
-    run_id: Sequence[Any] | None,
+    run_id: Sequence[object] | None,
     mode: CvMode,
     class_levels: list[str] | None,
-    trial_id: Sequence[Any] | None,
+    trial_id: Sequence[object] | None,
     trial_hash: str | None,
 ) -> ItemBundle:
     if isinstance(Gamma, ItemBundle):
@@ -768,7 +768,7 @@ def _validate_bundle(
     return bundle
 
 
-def _prepare_targets(T_target: TargetLike | None, n_trials: int) -> dict[str, Any]:
+def _prepare_targets(T_target: TargetLike | None, n_trials: int) -> dict[str, object]:
     if T_target is None:
         return {
             "T_target": np.empty((n_trials, 0), dtype=np.float64),
@@ -841,7 +841,7 @@ def _as_matrix_optional(x: Any | None, name: str) -> NDArray[np.float64] | None:
     return _as_numeric_matrix(x, name)
 
 
-def _as_run_id(run_id: Sequence[Any] | None, n_trials: int) -> NDArray[Any]:
+def _as_run_id(run_id: Sequence[object] | None, n_trials: int) -> NDArray[Any]:
     if run_id is None:
         return np.ones(n_trials, dtype=np.int64)
     arr = np.asarray(run_id).reshape(-1)
@@ -852,7 +852,7 @@ def _as_run_id(run_id: Sequence[Any] | None, n_trials: int) -> NDArray[Any]:
     return arr
 
 
-def _as_trial_id(trial_id: Sequence[Any] | None, n_trials: int) -> NDArray[np.str_]:
+def _as_trial_id(trial_id: Sequence[object] | None, n_trials: int) -> NDArray[np.str_]:
     if trial_id is None:
         out = [f"Trial_{i + 1}" for i in range(n_trials)]
         return np.asarray(out, dtype=str)
@@ -873,7 +873,7 @@ def _check_trial_hash(trial_id: NDArray[np.str_], trial_hash: str) -> None:
         )
 
 
-def _item_simple_hash(x: Sequence[Any]) -> str:
+def _item_simple_hash(x: Sequence[object]) -> str:
     payload = "\x1f".join(np.asarray(x, dtype=str).tolist())
     return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:12]
 
@@ -955,7 +955,7 @@ def _apply_vinv(
 
 
 def _apply_vinv_blocks(
-    V_blocks: Sequence[Any],
+    V_blocks: Sequence[object],
     X: NDArray[np.float64],
     v_type: VType,
     method: SolverMethod,
