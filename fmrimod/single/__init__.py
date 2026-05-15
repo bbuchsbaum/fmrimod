@@ -15,7 +15,7 @@ The primary entry point is :func:`estimate_single_trial`.
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -290,7 +290,7 @@ def estimate_single_trial_from_dataset(
             "fmri_dataset(...) so the trialwise spec can be compiled."
         )
 
-    sampling_frame = dataset.get_sampling_frame()
+    sampling_frame = cast(Any, dataset).get_sampling_frame()
 
     resolved_block = block
     if resolved_block is None:
@@ -327,7 +327,7 @@ def estimate_single_trial_from_dataset(
     )
     baseline_regressors: NDArray[np.float64] | None = None
 
-    Y = np.asarray(dataset.get_data(), dtype=np.float64)
+    Y = np.asarray(cast(Any, dataset).get_data(), dtype=np.float64)
 
     result = estimate_single_trial(
         Y, X,
@@ -366,7 +366,7 @@ def _resolve_subject_id(dataset: object) -> object | None:
     """
     direct = getattr(dataset, "subject_id", None)
     if direct is not None:
-        return direct
+        return cast(object, direct)
     ids = getattr(dataset, "subject_ids", None)
     if ids is None:
         return None
@@ -375,7 +375,7 @@ def _resolve_subject_id(dataset: object) -> object | None:
     except TypeError:
         return None
     if len(seq) == 1:
-        return seq[0]
+        return cast(object, seq[0])
     return None
 
 
@@ -417,17 +417,18 @@ def _attach_dataset_metadata(
     # Trial table is meaningful only when events rows map 1:1 to trials.
     # Multi-basis trialwise (n_trials * K rows of betas) leaves the table
     # field None rather than risk a misaligned slice.
+    events_any = cast(Any, events_df)
     try:
-        n_rows = int(len(events_df))
+        n_rows = int(len(events_any))
     except TypeError:
         n_rows = -1
     if n_rows == n_trials:
         try:
-            result.trial_table = events_df.reset_index(drop=True).copy()
+            result.trial_table = events_any.reset_index(drop=True).copy()
         except Exception:
             result.trial_table = None
-        if block_column is not None and block_column in events_df.columns:
-            result.run_labels = tuple(events_df[block_column].tolist())
+        if block_column is not None and block_column in events_any.columns:
+            result.run_labels = tuple(events_any[block_column].tolist())
 
     result.subject_id = _resolve_subject_id(dataset)
     result.spatial_descriptor = _build_spatial_descriptor(dataset, n_voxels)

@@ -11,7 +11,7 @@ per-trial design matrices.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, List, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -26,7 +26,7 @@ from ._types import OasisConfig, SingleTrialMethod, SingleTrialResult
 def _oasis_precompute_design_k1(
     X_trials: NDArray[np.float64],
     Q: NDArray[np.float64],
-) -> dict:
+) -> dict[str, Any]:
     """Precompute residualised design terms for single-basis OASIS.
 
     Parameters
@@ -65,7 +65,7 @@ def _oasis_products_blocked_k1(
     Q: NDArray[np.float64],
     Y: NDArray[np.float64],
     block_cols: int = 4096,
-) -> dict:
+) -> dict[str, Any]:
     """Compute blocked A'(RY) and s_all'(RY) products.
 
     Returns
@@ -207,7 +207,7 @@ def _oasis_precompute_design_kn(
     X_trials: NDArray[np.float64],
     Q: NDArray[np.float64],
     K: int,
-) -> dict:
+) -> dict[str, Any]:
     """Precompute residualised design terms for multi-basis OASIS.
 
     X_trials columns are interleaved: [t1_b1, t1_b2, ..., t1_bK, t2_b1, ...].
@@ -250,7 +250,7 @@ def _oasis_products_blocked_kn(
     Y: NDArray[np.float64],
     K: int,
     block_cols: int = 4096,
-) -> dict:
+) -> dict[str, Any]:
     """Blocked products for multi-basis OASIS."""
     NK = A.shape[1]
     V = Y.shape[1]
@@ -320,7 +320,7 @@ def _oasis_betas_kn(
 # =========================================================================
 
 def _resolve_ridge(
-    pre: dict,
+    pre: dict[str, Any],
     config: OasisConfig,
 ) -> tuple[float, float]:
     """Convert fractional ridge to absolute values."""
@@ -352,7 +352,7 @@ def oasis_single_trial(
     X: NDArray[np.float64],
     confounds: Optional[NDArray[np.float64]] = None,
     config: Optional[OasisConfig] = None,
-    trial_labels: Optional[list] = None,
+    trial_labels: Optional[List[str]] = None,
 ) -> SingleTrialResult:
     """OASIS closed-form single-trial estimation.
 

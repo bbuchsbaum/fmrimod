@@ -268,7 +268,7 @@ def _build_adjustment_matrix(
 
 def _warn_if_degenerate_trials(
     X: NDArray[np.float64],
-    trial_labels: Optional[list],
+    trial_labels: Optional[list[str]],
     eps: float = 1e-12,
 ) -> None:
     """Warn about trial columns that mirror fmrilss critical-guard checks."""
@@ -300,7 +300,7 @@ def lss_single_trial(
     nuisance_projector: Optional[NuisanceProjector] = None,
     chunk_size: Optional[int] = None,
     return_se: bool = False,
-    trial_labels: Optional[list] = None,
+    trial_labels: Optional[list[str]] = None,
     baseline_regressors: Optional[NDArray[np.float64]] = None,
     include_intercept: bool = False,
 ) -> SingleTrialResult:

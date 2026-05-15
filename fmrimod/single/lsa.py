@@ -21,7 +21,7 @@ def lsa_single_trial(
     X: NDArray[np.float64],
     confounds: Optional[NDArray[np.float64]] = None,
     return_se: bool = False,
-    trial_labels: Optional[list] = None,
+    trial_labels: Optional[list[str]] = None,
     baseline_regressors: Optional[NDArray[np.float64]] = None,
     include_intercept: bool = False,
 ) -> SingleTrialResult:

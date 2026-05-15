@@ -10,7 +10,7 @@ import hashlib
 import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from typing import Any, Literal, Union
+from typing import Any, Literal, Optional, Sequence, Union, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -351,9 +351,9 @@ def item_fit(
         ),
         _solver_warning("item_fit(W solve)", method, fit.method, fit.warnings),
     ]
-    warn_msgs = [msg for msg in warn_msgs if msg is not None]
-    if warn_msgs:
-        warnings.warn(" ".join(dict.fromkeys(warn_msgs)), stacklevel=2)
+    warn_msgs_filtered: list[str] = [msg for msg in warn_msgs if msg is not None]
+    if warn_msgs_filtered:
+        warnings.warn(" ".join(dict.fromkeys(warn_msgs_filtered)), stacklevel=2)
 
     return ItemWeightsResult(W_hat=fit.value, diagnostics=diagnostics)
 
@@ -467,7 +467,10 @@ def item_cv(
     assert bundle.T_target is not None
 
     class_levels_list = (
-        _class_levels(bundle.T_target, bundle.meta.get("class_levels"))
+        _class_levels(
+            bundle.T_target,
+            cast("Optional[Sequence[str]]", bundle.meta.get("class_levels")),
+        )
         if mode == "classification"
         else None
     )
@@ -529,7 +532,7 @@ def item_cv(
         predictions.true_class = _true_class(bundle.T_target, class_levels_list)
         predictions.class_levels = class_levels_list
 
-    diagnostics = {
+    diagnostics: dict[str, object] = {
         "fold_order": [str(x) for x in folds.tolist()],
         "solver": method,
         "ridge": float(ridge),
@@ -649,7 +652,12 @@ def _prepare_cv_bundle(
             )
         bundle = Gamma
         if mode == "classification" and bundle.T_target is not None:
-            lvl = _class_levels(bundle.T_target, class_levels or bundle.meta.get("class_levels"))
+            lvl = _class_levels(
+                bundle.T_target,
+                class_levels or cast(
+                    "Optional[Sequence[str]]", bundle.meta.get("class_levels")
+                ),
+            )
             bundle = replace(bundle, meta={**bundle.meta, "class_levels": lvl})
         return bundle
 
@@ -663,14 +671,20 @@ def _prepare_cv_bundle(
     target_type: str
     class_meta: list[str] | None
 
+    tmat_arr = cast(NDArray[Any], tmat)
     if mode == "classification":
-        if tmat.shape[1] < 2:
+        if tmat_arr.shape[1] < 2:
             raise ValueError("Classification mode requires at least 2 target columns/classes.")
-        lvl = _class_levels(tmat, class_levels or target_info["class_levels"])
+        lvl = _class_levels(
+            tmat_arr,
+            class_levels or cast(
+                "Optional[Sequence[str]]", target_info["class_levels"]
+            ),
+        )
         target_type = "classification"
         class_meta = lvl
     else:
-        if tmat.shape[1] < 1:
+        if tmat_arr.shape[1] < 1:
             raise ValueError("Regression mode requires at least one target column.")
         target_type = "regression"
         class_meta = None
@@ -777,7 +791,7 @@ def _prepare_targets(T_target: TargetLike | None, n_trials: int) -> dict[str, ob
         }
 
     if sparse.issparse(T_target):
-        T_target = T_target.toarray()
+        T_target = cast(Any, T_target).toarray()
 
     arr = np.asarray(T_target)
     if arr.ndim == 2:
@@ -826,7 +840,7 @@ def _prepare_targets(T_target: TargetLike | None, n_trials: int) -> dict[str, ob
 
 def _as_numeric_matrix(x: object, name: str) -> NDArray[np.float64]:
     if sparse.issparse(x):
-        x = x.toarray()
+        x = cast(Any, x).toarray()
     arr = np.asarray(x)
     if arr.ndim != 2:
         raise ValueError(f"{name} must be a 2-D numeric matrix.")
@@ -930,12 +944,14 @@ def _apply_vinv(
     if V is None:
         return X
     if _is_block_list(V):
-        return _apply_vinv_blocks(V, X, v_type, method, tol)
+        return _apply_vinv_blocks(
+            cast("Sequence[object]", V), X, v_type, method, tol
+        )
 
     if sparse.issparse(V):
         if v_type == "precision":
             return np.asarray(V @ X, dtype=np.float64)
-        V = V.toarray()
+        V = cast(Any, V).toarray()
 
     V_m = _as_numeric_matrix(V, "V")
     n_time = X.shape[0]
@@ -970,7 +986,7 @@ def _apply_vinv_blocks(
     offset = 0
     for i, block_in in enumerate(V_blocks):
         if sparse.issparse(block_in):
-            block_in = block_in.toarray()
+            block_in = cast(Any, block_in).toarray()
         block = _as_numeric_matrix(block_in, f"V[{i}]")
         if block.shape[0] != block.shape[1]:
             raise ValueError(f"V[{i}] must be square.")
@@ -1009,15 +1025,17 @@ def _safe_solve(
     context: str,
 ) -> _SolveResult:
     methods: list[str] = []
-    for candidate in [method, "chol", "svd", "pinv"]:
+    for candidate_lit in (method, "chol", "svd", "pinv"):
+        candidate = cast(str, candidate_lit)
         if candidate not in methods:
             methods.append(candidate)
 
     warnings_seen: list[str] = []
     for candidate in methods:
+        candidate_typed = cast("Literal['chol', 'svd', 'pinv']", candidate)
         try:
-            value = _solve_once(A=A, B=B, method=candidate, tol=tol)
-            return _SolveResult(value=value, method=candidate, warnings=warnings_seen)
+            value = _solve_once(A=A, B=B, method=candidate_typed, tol=tol)
+            return _SolveResult(value=value, method=candidate_typed, warnings=warnings_seen)
         except Exception:
             warnings_seen.append(f"{context} failed with method '{candidate}'.")
     raise RuntimeError(f"All solver paths failed in {context}.")
@@ -1208,7 +1226,7 @@ def _contains_missing(arr: NDArray[Any]) -> bool:
 
 def _sorted_unique_runs(run_id: NDArray[Any]) -> NDArray[Any]:
     unique_vals: list[Any] = []
-    seen: set = set()
+    seen: set[Any] = set()
     for value in run_id.reshape(-1).tolist():
         if value in seen:
             continue

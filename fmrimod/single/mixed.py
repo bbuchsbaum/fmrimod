@@ -128,7 +128,7 @@ def mixed_single_trial(
     Y: NDArray[np.float64],
     X: NDArray[np.float64],
     confounds: Optional[NDArray[np.float64]] = None,
-    trial_labels: Optional[list] = None,
+    trial_labels: Optional[list[str]] = None,
 ) -> SingleTrialResult:
     """Estimate trial-wise betas via linear mixed model.
 
