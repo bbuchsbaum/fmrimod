@@ -9,24 +9,24 @@ to apply (or re-apply) HRF convolution as a post-processing step.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 
 from .design.event_model import EventModel
 from .dispatch import get_hrf
-from .types import Array
+from .types import Array, HRFProtocol
 
 
 def convolve_design(
     design_matrix: Union[Array, pd.DataFrame, EventModel],
-    hrf: Union[str, Dict[str, Any], Any] = "spmg1",
+    hrf: Union[str, Dict[str, object], HRFProtocol] = "spmg1",
     sampling_rate: Optional[float] = None,
     time_points: Optional[Array] = None,
     column_names: Optional[List[str]] = None,
     normalize: bool = False,
-    **hrf_kwargs
+    **hrf_kwargs: object
 ) -> Union[Array, pd.DataFrame]:
     """Convolve a design matrix with a hemodynamic response function.
 
@@ -198,9 +198,9 @@ def convolve_design(
 
 def convolve_regressors(
     regressors: Dict[str, Array],
-    hrf: Union[str, Dict[str, Any], Any] = "spmg1",
+    hrf: Union[str, Dict[str, object], HRFProtocol] = "spmg1",
     sampling_rate: float = 1.0,
-    **hrf_kwargs
+    **hrf_kwargs: object
 ) -> Dict[str, Array]:
     """Convolve a dictionary of regressors with an HRF.
     
