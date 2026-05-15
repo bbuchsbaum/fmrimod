@@ -73,11 +73,11 @@ class SpatialContext:
 
     def reconstruct(
         self,
-        vec: NDArray,
+        vec: NDArray[np.float64],
         *,
         fill: float = np.nan,
         dtype: DTypeLike = np.float64,
-    ) -> NDArray:
+    ) -> NDArray[np.float64]:
         """Inverse-mask a flat ``(n_voxels,)`` vector into a 3-D volume.
 
         Out-of-mask voxels are filled with ``fill`` (defaults to NaN).
@@ -117,7 +117,7 @@ class SpatialContext:
 
     def to_neurovol(
         self,
-        vec: NDArray,
+        vec: NDArray[np.float64],
         *,
         label: str = "",
         fill: float = 0.0,
@@ -134,7 +134,7 @@ class SpatialContext:
 
     def write_nifti(
         self,
-        vec: NDArray,
+        vec: NDArray[np.float64],
         path: str | Path,
         *,
         label: str = "",
