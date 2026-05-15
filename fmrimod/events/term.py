@@ -19,6 +19,12 @@ from ..base import BaseEvent, CacheMixin
 from ..types import Array
 
 
+# Scoped/strict divergence cluster (bd-01KRNN0H73CCYGFJSJ30JPVFTW): under
+# scoped mypy (--follow-imports=skip) CacheMixin is opaque Any, so this
+# subclass and the `super().__init__()` below REQUIRE the ignore / are
+# untyped-call-clean; full-strict resolves CacheMixin and flags the ignore
+# unused + the super().__init__() as a no-untyped-call. No annotation
+# satisfies both gates; scoped is the epic gate so the ignore stays.
 class EventTerm(CacheMixin):  # type: ignore[misc]
     """A model term combining one or more event objects.
 
@@ -85,9 +91,9 @@ class EventTerm(CacheMixin):  # type: ignore[misc]
         # Generate name if not provided
         if self.name is None:
             if self.interaction and len(self.events) > 1:
-                self.name = ":".join(e.name for e in self.events)
+                self.name = ":".join(cast(Any, e).name for e in self.events)
             else:
-                self.name = self.events[0].name
+                self.name = cast(Any, self.events[0]).name
         
         # Set interaction flag if multiple events
         if len(self.events) > 1:
@@ -101,7 +107,7 @@ class EventTerm(CacheMixin):  # type: ignore[misc]
     @property
     def event_names(self) -> List[str]:
         """Names of component events."""
-        return [e.name for e in self.events]
+        return [cast(Any, e).name for e in self.events]
     
     @property
     def is_categorical(self) -> bool:
@@ -162,7 +168,7 @@ class EventTerm(CacheMixin):  # type: ignore[misc]
         
         elif len(self.events) == 1:
             # Single non-categorical event
-            event = self.events[0]
+            event = cast(Any, self.events[0])
             if event.event_type == "matrix":
                 return cast("List[str]", event.column_names)
             elif event.event_type == "basis":
@@ -184,7 +190,7 @@ class EventTerm(CacheMixin):  # type: ignore[misc]
         if self.is_categorical:
             return len(self.get_levels())
         elif len(self.events) == 1:
-            event = self.events[0]
+            event = cast(Any, self.events[0])
             if event.event_type == "matrix":
                 return int(event.n_columns)
             elif event.event_type == "basis":
@@ -194,7 +200,8 @@ class EventTerm(CacheMixin):  # type: ignore[misc]
         else:
             # Interaction - multiply column counts
             n_cols = 1
-            for event in self.events:
+            for event_raw in self.events:
+                event = cast(Any, event_raw)
                 if event.event_type == "categorical":
                     n_cols *= len(event.levels)
                 elif event.event_type == "matrix":
@@ -217,11 +224,11 @@ class EventTerm(CacheMixin):  # type: ignore[misc]
         Array
             Design matrix columns
         """
-        return self._get_cached(
+        return cast(Array, self._get_cached(
             'design_matrix',
             self._compute_design_matrix,
             sampling_points
-        )
+        ))
     
     def _compute_design_matrix(self, sampling_points: Array) -> Array:
         """Compute design matrix (internal)."""
@@ -261,7 +268,7 @@ class EventTerm(CacheMixin):  # type: ignore[misc]
         for i, level_combo in enumerate(levels):
             col = np.ones(n_points)
             for j, level in enumerate(level_combo):
-                event = self.events[j]
+                event = cast(Any, self.events[j])
                 level_idx = event.levels.index(level)
                 col *= matrices[j][:, level_idx]
             X[:, i] = col
@@ -316,7 +323,7 @@ class EventTerm(CacheMixin):  # type: ignore[misc]
 
         # Get all level combinations from categorical events
         if cat_events:
-            all_levels = [e.levels for e in cat_events]
+            all_levels = [cast(Any, e).levels for e in cat_events]
             level_combos = list(iter_product(*all_levels))
         else:
             level_combos = [()]
@@ -348,7 +355,7 @@ class EventTerm(CacheMixin):  # type: ignore[misc]
             # Build categorical indicator by multiplying level-specific columns
             cat_indicator = np.ones(n_points)
             for j, (event, level) in enumerate(zip(cat_events, combo)):
-                level_idx = event.levels.index(level)
+                level_idx = cast(Any, event).levels.index(level)
                 cat_indicator *= cat_mats[j][:, level_idx]
 
             if cont_part is not None:
@@ -364,12 +371,13 @@ class EventTerm(CacheMixin):  # type: ignore[misc]
     
     def __repr__(self) -> str:
         """Rich string representation."""
-        event_names = [e.name for e in self.events]
-        n_events = len(self.events[0].onsets) if self.events and hasattr(self.events[0], 'onsets') else 0
+        event_names = [cast(Any, e).name for e in self.events]
+        n_events = len(cast(Any, self.events[0]).onsets) if self.events and hasattr(self.events[0], 'onsets') else 0
 
         # Collect variable info
         var_types = []
-        for e in self.events:
+        for e_raw in self.events:
+            e = cast(Any, e_raw)
             if e.event_type == "categorical":
                 n_levels = len(e.levels) if hasattr(e, 'levels') else 0
                 var_types.append(f"{e.name}[{n_levels} levels]")
