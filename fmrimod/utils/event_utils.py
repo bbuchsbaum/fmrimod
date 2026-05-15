@@ -1,6 +1,6 @@
 """Utility functions for working with events and onsets."""
 
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Callable, Dict, Hashable, Optional, Union
 
 import numpy as np
 
@@ -8,8 +8,8 @@ from ..types import Array, EventProtocol
 
 
 def split_onsets(event: EventProtocol, 
-                 by: Union[str, Callable[[Any], Any]],
-                 values: Optional[Array] = None) -> Dict[Any, Array]:
+                 by: Union[str, Callable[[object], object]],
+                 values: Optional[Array] = None) -> Dict[Hashable, Array]:
     """Split event onsets by a grouping criterion.
     
     Splits the onsets of an event into groups based on a
@@ -28,7 +28,7 @@ def split_onsets(event: EventProtocol,
     
     Returns
     -------
-    Dict[Any, Array]
+    Dict[Hashable, Array]
         Dictionary mapping group labels to onset arrays
     
     Examples
@@ -99,7 +99,7 @@ def split_onsets(event: EventProtocol,
 def split_by_block(event: EventProtocol,
                    block_var: Union[str, Array],
                    block_onsets: Optional[Array] = None,
-                   block_durations: Optional[Array] = None) -> Dict[Any, EventProtocol]:
+                   block_durations: Optional[Array] = None) -> Dict[Hashable, EventProtocol]:
     """Split an event by experimental blocks.
     
     Divides an event into separate events for each block,
@@ -121,7 +121,7 @@ def split_by_block(event: EventProtocol,
     
     Returns
     -------
-    Dict[Any, EventProtocol]
+    Dict[Hashable, EventProtocol]
         Dictionary mapping block labels to event objects
     
     Examples
