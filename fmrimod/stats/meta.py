@@ -98,7 +98,7 @@ def _extract_feature_frames(data: GroupData) -> tuple[list[str], list[tuple[NDAr
             se = np.asarray(aligned[se_col], dtype=np.float64)
             v = se ** 2
         else:
-            v = np.asarray(aligned[var_col], dtype=np.float64)  # type: ignore[index]
+            v = np.asarray(aligned[var_col], dtype=np.float64)
 
         if not np.all(np.isfinite(y)):
             raise ValueError("Effect-size values must be finite")
@@ -171,7 +171,7 @@ def _pm_tau2_intercept(y: NDArray[np.float64], v: NDArray[np.float64]) -> float:
     def f(tau: float) -> float:
         return _q_stat_intercept(y, v, tau2=float(tau)) - df
 
-    hi = max(np.var(y), np.mean(v), 1e-6)
+    hi: float = max(float(np.var(y)), float(np.mean(v)), 1e-6)
     while f(hi) > 0 and hi < 1e8:
         hi *= 2.0
     if f(hi) > 0:
@@ -199,7 +199,12 @@ def _reml_criterion_intercept(tau2: float, y: NDArray[np.float64], v: NDArray[np
 
 def _reml_tau2_intercept(y: NDArray[np.float64], v: NDArray[np.float64]) -> float:
     """REML tau2 estimator for intercept-only random-effects meta."""
-    hi = max(_dl_tau2_intercept(y, v) * 2.0, np.var(y), np.mean(v), 1e-6)
+    hi: float = max(
+        _dl_tau2_intercept(y, v) * 2.0,
+        float(np.var(y)),
+        float(np.mean(v)),
+        1e-6,
+    )
     for _ in range(8):
         res = sp_opt.minimize_scalar(
             _reml_criterion_intercept,
@@ -215,13 +220,13 @@ def _reml_tau2_intercept(y: NDArray[np.float64], v: NDArray[np.float64]) -> floa
             )
             return _dl_tau2_intercept(y, v)
         # If the optimum is at the boundary, expand search interval.
-        if res.x >= 0.98 * hi:
-            hi *= 2.0
+        if float(res.x) >= 0.98 * hi:
+            hi = float(hi) * 2.0
             continue
-        tau = float(max(res.x, 0.0))
+        tau = max(float(res.x), 0.0)
         return 0.0 if tau < 1e-10 else tau
 
-    tau = float(max(res.x, 0.0))
+    tau = max(float(res.x), 0.0)
     return 0.0 if tau < 1e-10 else tau
 
 

@@ -154,7 +154,7 @@ def estimate_pi0(
     m = len(p_values)
     if m == 0:
         return 1.0
-    n_above = np.sum(p_values > tau)
+    n_above: float = float(np.sum(p_values > tau))
     pi0 = n_above / (m * (1.0 - tau))
     return float(np.clip(pi0, min_pi0, 1.0))
 

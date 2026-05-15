@@ -114,7 +114,7 @@ def fdr_correction(
     p_values: NDArray[np.float64],
     alpha: float = 0.05,
     method: str = "bh",
-) -> tuple:
+) -> tuple[NDArray[np.bool_], NDArray[np.float64]]:
     """Benjamini-Hochberg FDR correction.
 
     Parameters
@@ -149,7 +149,7 @@ def fdr_correction(
         adjusted = sorted_p * n / ranks
     elif method == "by":
         # BY: p_adj = min(p * n * c_n / rank, 1) where c_n = sum(1/k)
-        c_n = np.sum(1.0 / ranks)
+        c_n: float = float(np.sum(1.0 / ranks))
         adjusted = sorted_p * n * c_n / ranks
     else:
         raise ValueError(f"Unknown method: {method}")

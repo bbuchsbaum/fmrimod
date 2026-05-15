@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal, Optional, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -90,7 +90,9 @@ def _extract_csv_feature_effects(
     return feature_names, vectors
 
 
-def _classic_one_sample(y: NDArray[np.float64]) -> tuple[float, float, float]:
+def _classic_one_sample(
+    y: NDArray[np.float64],
+) -> tuple[float, float, float, float]:
     n = y.shape[0]
     if n < 2:
         raise ValueError("Classic t-test requires at least 2 subjects")
@@ -136,11 +138,19 @@ def fmri_ttest(
         resolved_engine = engine
 
     if resolved_engine == "meta":
+        if method not in ("fe", "pm", "dl", "reml"):
+            raise ValueError(
+                f"method must be one of fe/pm/dl/reml, got {method!r}"
+            )
+        if weights not in ("ivw", "equal", "custom"):
+            raise ValueError(
+                f"weights must be one of ivw/equal/custom, got {weights!r}"
+            )
         meta_result = fmri_meta(
             data,
             formula=formula,
-            method=method,
-            weights=weights,
+            method=cast('Literal["fe", "pm", "dl", "reml"]', method),
+            weights=cast('Literal["ivw", "equal", "custom"]', weights),
             weights_custom=weights_custom,
         )
         if meta_result.coefficients.shape[1] != 1:
