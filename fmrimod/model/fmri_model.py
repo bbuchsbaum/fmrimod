@@ -186,7 +186,7 @@ class FmriModel:
 
     # -- Contrast weights --
 
-    def contrast_weights(self, **kwargs) -> dict:
+    def contrast_weights(self, **kwargs: object) -> dict:
         """Extract contrast weight specifications from the event model.
 
         Returns

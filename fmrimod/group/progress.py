@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any, Protocol
+from typing import Protocol
 
 
 @dataclass(frozen=True)
@@ -17,7 +17,7 @@ class GroupProgressEvent:
     message: str = ""
     completed: int | None = None
     total: int | None = None
-    metadata: Mapping[str, Any] = field(default_factory=dict)
+    metadata: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
@@ -41,13 +41,13 @@ def emit_progress(
     message: str = "",
     completed: int | None = None,
     total: int | None = None,
-    metadata: Mapping[str, Any] | None = None,
-    **extra: Any,
+    metadata: Mapping[str, object] | None = None,
+    **extra: object,
 ) -> None:
     """Emit a progress event when a callback is configured."""
     if progress is None:
         return
-    payload: dict[str, Any] = {}
+    payload: dict[str, object] = {}
     if metadata is not None:
         payload.update(dict(metadata))
     payload.update(extra)

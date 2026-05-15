@@ -124,7 +124,7 @@ class AROptions:
         pooling: Literal["global", "run", "parcel"] = "global",
         convergence_tol: float = 5e-3,
         parcels: Optional[NDArray] = None,
-        **kwargs,
+        **kwargs: object,
     ) -> None:
         # R-compat alias: ar_options$global -> global_ar
         if "global" in kwargs:

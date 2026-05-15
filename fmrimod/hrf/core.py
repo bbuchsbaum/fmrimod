@@ -146,7 +146,7 @@ class HRF(ABC):
         
         return weighted_hrf
     
-    def plot(self, time=None, normalize: bool = False, show_peak: bool = True, ax=None, **kwargs):
+    def plot(self, time=None, normalize: bool = False, show_peak: bool = True, ax=None, **kwargs: object):
         """Plot this HRF.  See :func:`fmrimod.plotting.plot_hrf`."""
         from ..plotting import plot_hrf
         return plot_hrf(self, time=time, normalize=normalize, show_peak=show_peak, ax=ax, **kwargs)

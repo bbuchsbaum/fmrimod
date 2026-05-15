@@ -12,7 +12,7 @@ from .core import HRF, bind_basis
 def hrf_library(
     fun: Callable[..., HRF],
     pgrid: Union[pd.DataFrame, Dict[str, list]],
-    **kwargs
+    **kwargs: object
 ) -> HRF:
     """Generate an HRF library from a parameter grid.
     

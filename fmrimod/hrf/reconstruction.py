@@ -14,7 +14,7 @@ from .core import HRF
 def reconstruction_matrix(
     hrf: HRF,
     sframe: Union[SamplingFrame, ArrayLike],
-    **kwargs
+    **kwargs: object
 ) -> NDArray[np.float64]:
     """Generate reconstruction matrix for HRF basis.
     
