@@ -185,7 +185,7 @@ class SamplingFrame:
         if len(block_indices) == 0:
             return np.array([], dtype=np.float64)
 
-        times = []
+        times: list[float] = []
         block_durations = self.blocklens * self.tr
         cumulative_time = np.concatenate([[0.0], np.cumsum(block_durations)])
 
@@ -257,7 +257,7 @@ class SamplingFrame:
         block_durations = self.blocklens * self.tr
         cumulative_time = np.concatenate([[0.0], np.cumsum(block_durations)])
 
-        return onsets + cumulative_time[blockids]
+        return cast("NDArray[np.float64]", onsets + cumulative_time[blockids])
 
     @property
     def global_scan_times(self) -> NDArray[np.float64]:
@@ -284,7 +284,7 @@ class SamplingFrame:
         tr = self.tr[block_idx]
         start = self.start_time[block_idx]
 
-        return start + np.arange(block_len) * tr
+        return cast("NDArray[np.float64]", start + np.arange(block_len) * tr)
 
     def __str__(self) -> str:
         """String representation of SamplingFrame."""
