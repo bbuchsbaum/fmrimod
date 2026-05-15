@@ -1,6 +1,6 @@
 """Polynomial basis functions."""
 
-from typing import List, Optional
+from typing import List, Optional, cast
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -178,8 +178,8 @@ class Poly(ParametricBasis):
         signs = np.sign(np.diag(R))
         signs[signs == 0] = 1
         Q = Q * signs
-        
-        return Q
+
+        return cast(Array, Q)
 
 
 class NaturalPoly(Poly):
