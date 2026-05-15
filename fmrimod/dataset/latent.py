@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -99,7 +100,7 @@ class LatentDataset(FmriDataset):
     @property
     def TR(self) -> float:  # noqa: N802
         """First repetition time in seconds."""
-        return self.sampling_frame.TR
+        return float(self.sampling_frame.TR)
 
     @property
     def scores(self) -> NDArray[np.float64]:
@@ -121,7 +122,7 @@ class LatentDataset(FmriDataset):
 
     def get_scores(self, run: int = 0) -> NDArray[np.float64]:
         """Return latent scores for one run."""
-        rows = self._source._run_rows(run)
+        rows = cast(_LatentAdapter, self._source)._run_rows(run)
         return self.get_latent_scores(rows=rows)
 
     def get_spatial_loadings(
@@ -147,7 +148,7 @@ class LatentDataset(FmriDataset):
 
     def get_component_info(self) -> dict[str, object]:
         """Return latent component metadata."""
-        return self.backend.get_metadata()
+        return cast("dict[str, object]", self.backend.get_metadata())
 
     def with_event_table(self, event_table: pd.DataFrame) -> LatentDataset:
         """Return this latent dataset with a replacement event table."""
@@ -194,7 +195,7 @@ def latent_dataset(
     event_table = _validate_event_table(event_table)
 
     if source is None and _looks_like_source(scores) and loadings is None:
-        source = scores  # type: ignore[assignment]
+        source = scores
         scores = None
 
     if source is not None:

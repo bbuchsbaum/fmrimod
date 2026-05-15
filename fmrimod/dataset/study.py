@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, Protocol, cast
 
 import numpy as np
 import pandas as pd
@@ -54,6 +54,21 @@ def _as_1d_float_array(
     return arr
 
 
+class _ContrastResultLike(Protocol):
+    """Duck-typed view of fmrimod.glm.ContrastResult for study lowering.
+
+    Only the attributes the study-to-group lowering reads are declared; this
+    keeps the typed seam decoupled from the concrete result class while still
+    rejecting object-typed lookups in mypy.
+    """
+
+    @property
+    def estimate(self) -> object: ...
+
+    @property
+    def stat_type(self) -> str: ...
+
+
 def _normalise_contrast_results(
     contrast_results: Mapping[str, object],
     *,
@@ -70,6 +85,7 @@ def _normalise_contrast_results(
     lookup: dict[tuple[str, str], object] = {}
     for subject in subjects:
         value = contrast_results[subject]
+        nested: Mapping[object, object]
         if hasattr(value, "estimate"):
             contrast_name = str(getattr(value, "name", "c1") or "c1")
             nested = {contrast_name: value}
@@ -174,7 +190,7 @@ class StudyDataset:
         matches = self.subjects[self.subjects[self.id] == subject]
         if matches.empty:
             raise FmriDatasetError(f"unknown subject id: {subject}")
-        return matches.iloc[0][self.dataset_col]
+        return cast(FmriDataset, matches.iloc[0][self.dataset_col])
 
     def to_group_dataset(
         self,
@@ -207,7 +223,7 @@ class StudyDataset:
             for contrast_index, contrast in enumerate(contrasts):
                 result = lookup[(subject, contrast)]
                 estimate = _as_1d_float_array(
-                    result.estimate,
+                    cast(_ContrastResultLike, result).estimate,
                     assay="estimate",
                     subject=subject,
                     contrast=contrast,
@@ -289,7 +305,8 @@ class StudyDataset:
             for contrast in contrasts
         ):
             contrast_data["stat_type"] = [
-                str(lookup[(subjects[0], contrast)].stat_type) for contrast in contrasts
+                str(cast(_ContrastResultLike, lookup[(subjects[0], contrast)]).stat_type)
+                for contrast in contrasts
             ]
 
         group_metadata = {
