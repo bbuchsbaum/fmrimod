@@ -58,7 +58,10 @@ class SoftProjection:
         d2 = self.singular_values ** 2
         shrink = d2 / (d2 + self.lam)
         ux = self.U.T @ x_arr
-        return x_arr - self.U @ (shrink[:, np.newaxis] * ux)
+        return cast(
+            "NDArray[np.float64]",
+            x_arr - self.U @ (shrink[:, np.newaxis] * ux),
+        )
 
 
 def _select_lambda_gcv(
@@ -121,7 +124,7 @@ def soft_projection(
         raise ValueError("N must have at least one row")
 
     U, s, _ = np.linalg.svd(N_arr, full_matrices=False)
-    d2 = s ** 2
+    d2 = cast("NDArray[np.float64]", s ** 2)
 
     if isinstance(lam, str):
         if lam not in {"auto", "gcv"}:
@@ -452,8 +455,8 @@ def fmri_ols_fit(
         sigma = np.sqrt(lm.sigma2)
         se = sigma[np.newaxis, :] * np.sqrt(np.maximum(np.diag(proj.XtXinv), 0.0))[:, np.newaxis]
         with np.errstate(divide="ignore", invalid="ignore"):
-            t = np.where(se > 1e-15, lm.betas / se, 0.0)
-        return {"beta": lm.betas, "se": se, "t": t, "df": lm.dfres, "XtXinv": proj.XtXinv}
+            t_full = np.where(se > 1e-15, lm.betas / se, 0.0)
+        return {"beta": lm.betas, "se": se, "t": t_full, "df": lm.dfres, "XtXinv": proj.XtXinv}
 
     C = np.asarray(voxelwise, dtype=np.float64)
     if C.shape != Y_arr.shape:
@@ -492,7 +495,7 @@ def fmri_rlm(model: object, config: Optional[FmriLmConfig] = None, **kwargs: obj
     # fitting is turned on by selecting a concrete estimator; "huber" is the
     # documented default (k_huber / max_iter defaults are tuned for it).
     cfg = replace(base, robust=replace(base.robust, type="huber"))
-    return fmri_lm(model, cfg, **cast("dict[str, Any]", kwargs))
+    return fmri_lm(cast(Any, model), cfg, **cast("dict[str, Any]", kwargs))
 
 
 @dataclass
