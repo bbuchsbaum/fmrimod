@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from typing import Any, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -58,7 +59,7 @@ class CombinedFmriLm:
         name: str | None = None,
     ) -> ContrastResult:
         """Compute a contrast across all runs and pool by ``self.method``."""
-        per_run = [f.contrast(spec, name=name) for f in self.fits]
+        per_run = [f.contrast(cast(Any, spec), name=name) for f in self.fits]
         pooled = combine_contrasts(per_run, method=self.method, name=name)
         # Propagate spatial context (combine_runs enforced matching n_voxels,
         # so per-run masks coincide).
