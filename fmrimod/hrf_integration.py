@@ -71,7 +71,7 @@ class PyFMRIHRF(HRFProtocol):
         self,
         hrf_spec: Union[str, HRFProtocol, Dict[str, object]],
         tr: Optional[float] = None,
-        **kwargs
+        **kwargs: object
     ):
         """Initialize PyFMRIHRF wrapper."""
         if isinstance(hrf_spec, str):
@@ -229,7 +229,7 @@ class PyFMRIHRF(HRFProtocol):
 def get_fmrimod(
     hrf_spec: Union[str, HRFProtocol, Dict[str, object]],
     tr: Optional[float] = None,
-    **kwargs
+    **kwargs: object
 ) -> PyFMRIHRF:
     """Get PyFMRIHRF wrapper for HRF specification.
     
@@ -280,7 +280,7 @@ def create_hrf_basis(
     n_basis: Optional[int] = None,
     length: Optional[float] = None,
     tr: Optional[float] = None,
-    **kwargs
+    **kwargs: object
 ) -> PyFMRIHRF:
     """Create HRF basis set.
     
@@ -366,7 +366,7 @@ def register_fmrimod_hrfs():
     for hrf_name in available:
         # Create a factory function for this HRF
         def make_hrf_factory(name):
-            def factory(**kwargs):
+            def factory(**kwargs: object):
                 return PyFMRIHRF(name, **kwargs)
             return factory
         
