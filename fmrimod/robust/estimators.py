@@ -6,6 +6,8 @@ IRLS algorithm.
 
 from __future__ import annotations
 
+from typing import cast
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -27,7 +29,7 @@ def mad_scale(residuals: NDArray[np.float64], axis: int = 0) -> NDArray[np.float
     """
     med = np.median(residuals, axis=axis, keepdims=True)
     mad = np.median(np.abs(residuals - med), axis=axis)
-    return mad * 1.4826
+    return cast("NDArray[np.float64]", mad * 1.4826)
 
 
 def huber_weights(
