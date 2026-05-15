@@ -196,7 +196,7 @@ def make_unique_tags(tags: List[str]) -> List[str]:
     >>> make_unique_tags(['a', 'b', 'a'])
     ['a', 'b', 'a#1']
     """
-    seen = {}
+    seen: dict[str, int] = {}
     result = []
     
     for tag in tags:
@@ -481,7 +481,7 @@ def make_unique_colnames(colnames: List[str]) -> List[str]:
     >>> make_unique_colnames(['a', 'b', 'a', 'a'])
     ['a', 'b', 'a.1', 'a.2']
     """
-    seen = {}
+    seen: dict[str, int] = {}
     result = []
     
     for name in colnames:
