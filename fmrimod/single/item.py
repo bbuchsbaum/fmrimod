@@ -203,7 +203,7 @@ def item_build_design(
         Gamma=None,
         X_t=X_t_m,
         C_transform=C_transform_m,
-        T_target=target_info["T_target"],
+        T_target=cast(Any, target_info["T_target"]),
         U=None,
         U_by_run=None,
         run_id=run_id_arr,
@@ -605,7 +605,7 @@ def item_from_lsa(
         v_type=v_type,
         ridge=ridge,
         method=solver,
-        run_id=design_bundle.run_id,
+        run_id=cast(Any, design_bundle.run_id),
         output=u_output,
     )
 
@@ -705,7 +705,7 @@ def _prepare_cv_bundle(
         U_by_run = U.U_by_run
     elif _is_u_blocks(U):
         U_matrix = None
-        U_by_run = _coerce_u_by_run(U, run_id_arr)
+        U_by_run = _coerce_u_by_run(cast(Any, U), run_id_arr)
     else:
         U_matrix = _as_numeric_matrix(U, "U")
         U_by_run = None
@@ -720,7 +720,7 @@ def _prepare_cv_bundle(
         Gamma=Gamma_m,
         X_t=None,
         C_transform=None,
-        T_target=tmat,
+        T_target=cast(Any, tmat),
         U=U_matrix,
         U_by_run=U_by_run,
         run_id=run_id_arr,
@@ -880,7 +880,7 @@ def _as_trial_id(trial_id: Sequence[object] | None, n_trials: int) -> NDArray[np
 
 def _check_trial_hash(trial_id: NDArray[np.str_], trial_hash: str) -> None:
     expected = str(trial_hash)
-    actual = _item_simple_hash(trial_id)
+    actual = _item_simple_hash(cast(Any, trial_id))
     if expected != actual:
         raise ValueError(
             f"Trial hash mismatch: expected '{expected}' but computed '{actual}'."
@@ -950,7 +950,7 @@ def _apply_vinv(
 
     if sparse.issparse(V):
         if v_type == "precision":
-            return np.asarray(V @ X, dtype=np.float64)
+            return np.asarray(cast(Any, V) @ X, dtype=np.float64)
         V = cast(Any, V).toarray()
 
     V_m = _as_numeric_matrix(V, "V")
@@ -1071,8 +1071,8 @@ def _solve_once(
         vt_k = vt[keep, :]
         inv_s = 1.0 / s[keep]
         if B is None:
-            return (vt_k.T * inv_s[np.newaxis, :]) @ u_k.T
-        return (vt_k.T * inv_s[np.newaxis, :]) @ (u_k.T @ B)
+            return cast("NDArray[np.float64]", (vt_k.T * inv_s[np.newaxis, :]) @ u_k.T)
+        return cast("NDArray[np.float64]", (vt_k.T * inv_s[np.newaxis, :]) @ (u_k.T @ B))
 
     if method == "pinv":
         pinv = np.linalg.pinv(A, rcond=tol)
