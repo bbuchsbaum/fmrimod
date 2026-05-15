@@ -30,7 +30,7 @@ class RunwiseEngine:
         self,
         model: "FmriModelLike",
         config: FmriLmConfig,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> EngineResult:
         raw = fit_runwise(model, config, **kwargs)
         return EngineResult(

@@ -26,7 +26,7 @@ class ChunkwiseEngine:
         self,
         model: "FmriModelLike",
         config: FmriLmConfig,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> EngineResult:
         raw = fit_chunkwise(model, config, **kwargs)
         return EngineResult(

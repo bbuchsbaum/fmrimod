@@ -50,7 +50,7 @@ class SketchEngine:
         ridge: float = 0.0,
         seed: Optional[int] = None,
         coords: Optional[NDArray[np.float64]] = None,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> EngineResult:
         lr_config = LowRankConfig(
             sketch_kind=sketch_kind,

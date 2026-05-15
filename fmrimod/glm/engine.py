@@ -218,7 +218,7 @@ class FittingEngine(Protocol):
         self,
         model: "FmriModelLike",
         config: FmriLmConfig,
-        **kwargs: Any,
+        **kwargs: object,
     ) -> "EngineResult":
         """Run the fitting strategy and return standardised results.
 
