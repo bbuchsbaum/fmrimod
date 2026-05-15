@@ -13,7 +13,7 @@ All sketches implement the same interface::
 from __future__ import annotations
 
 from enum import Enum
-from typing import Optional, Union
+from typing import Optional, Union, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -67,7 +67,7 @@ def make_sketch(
 
 def _gaussian_sketch(n: int, k: int, rng: np.random.Generator) -> NDArray[np.float64]:
     """Dense Gaussian sketch: ``S ~ N(0, 1/k)``."""
-    return rng.standard_normal((k, n)) / np.sqrt(k)
+    return cast("NDArray[np.float64]", rng.standard_normal((k, n)) / np.sqrt(k))
 
 
 # -- SRHT ---------------------------------------------------------------------
@@ -96,7 +96,7 @@ def _srht_sketch(n: int, k: int, rng: np.random.Generator) -> NDArray[np.float64
     S_full = H[rows] @ D  # (k, n_pad)
 
     # Trim padding columns
-    return S_full[:, :n] * np.sqrt(n_pad / k)
+    return cast("NDArray[np.float64]", S_full[:, :n] * np.sqrt(n_pad / k))
 
 
 # -- CountSketch --------------------------------------------------------------
