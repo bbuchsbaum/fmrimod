@@ -1,14 +1,19 @@
 """Generic utility functions for extracting information from model objects."""
 
+from __future__ import annotations
+
 from functools import singledispatch
-from typing import Any, List, Optional, Union
+from typing import TYPE_CHECKING, Any, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 
+if TYPE_CHECKING:
+    from ..events.term import EventTerm
+
 
 @singledispatch
-def blockids(x, **kwargs: object) -> Union[List[Any], np.ndarray]:
+def blockids(x, **kwargs: object) -> Union[list, np.ndarray]:
     """Extract block IDs from an object.
     
     This is a generic function that extracts block/run identifiers from
@@ -615,7 +620,7 @@ def is_continuous(x, **kwargs: object) -> bool:
 
 
 @singledispatch
-def event_terms(x, **kwargs: object) -> List[Any]:
+def event_terms(x, **kwargs: object) -> list[EventTerm]:
     """Extract event terms from a model.
 
     Returns the list of ``EventTerm`` objects that define the
