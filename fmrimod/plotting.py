@@ -195,7 +195,7 @@ def plot_regressor(
 
     if grid is None:
         if len(reg.onsets) > 0:
-            end = np.max(reg.onsets) + reg.span + 5
+            end = float(np.max(reg.onsets) + reg.span + 5)
         else:
             end = reg.span + 5
         grid = np.arange(0, end, precision)
