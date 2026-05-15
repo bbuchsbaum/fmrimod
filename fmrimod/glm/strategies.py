@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -55,9 +55,9 @@ def _projection_cache_key(
     method: str,
 ) -> Tuple[Any, ...]:
     """Build a stable cache key for a design matrix projection."""
-    Xc = np.ascontiguousarray(X, dtype=np.dtype(compute_dtype))
+    Xc = np.ascontiguousarray(X, dtype=np.dtype(cast(Any, compute_dtype)))
     h = hashlib.blake2b(digest_size=16)
-    h.update(memoryview(Xc).cast("B"))
+    h.update(memoryview(cast(Any, Xc)).cast("B"))
     return (Xc.shape, Xc.dtype.str, method, h.digest())
 
 
@@ -349,10 +349,10 @@ def fit_runwise(
 
     run_results: List[Optional[LmResult]] = [None] * n_runs
     run_projections: List[Optional[Projection]] = [None] * n_runs
-    run_residuals: Optional[List[Optional[NDArray]]] = (
+    run_residuals: Optional[List[Optional[NDArray[np.float64]]]] = (
         [None] * n_runs if needs_residuals else None
     )
-    run_X: Optional[List[Optional[NDArray]]] = (
+    run_X: Optional[List[Optional[NDArray[np.float64]]]] = (
         [None] * n_runs if needs_residuals else None
     )
 
@@ -361,7 +361,7 @@ def fit_runwise(
         n_runs == 1
         and n_jobs > 1
         and not needs_residuals
-        and np.dtype(compute_dtype) == np.dtype(np.float64)
+        and np.dtype(cast(Any, compute_dtype)) == np.dtype(np.float64)
     ):
         dataset = model.dataset  # type: ignore[attr-defined]
         Y_r = get_run_data(dataset, 0)
@@ -457,22 +457,22 @@ def fit_runwise(
                     for r in range(n_runs)
                 ]
                 for fut in futures:
-                    run_idx, result, proj, residual, X_used = fut.result()
-                    run_results[run_idx] = result
-                    run_projections[run_idx] = proj
+                    t_run_idx, t_result, t_proj, t_residual, t_X_used = fut.result()
+                    run_results[t_run_idx] = t_result
+                    run_projections[t_run_idx] = t_proj
                     if needs_residuals:
                         assert run_X is not None
                         assert run_residuals is not None
-                        assert residual is not None
-                        assert X_used is not None
-                        run_X[run_idx] = X_used
-                        run_residuals[run_idx] = residual
+                        assert t_residual is not None
+                        assert t_X_used is not None
+                        run_X[t_run_idx] = t_X_used
+                        run_residuals[t_run_idx] = t_residual
 
     # Narrow optional element types after fill.
     run_results_typed = [r for r in run_results if r is not None]
     run_proj_typed = [p for p in run_projections if p is not None]
-    run_residuals_typed: Optional[List[NDArray]] = None
-    run_x_typed: Optional[List[NDArray]] = None
+    run_residuals_typed: Optional[List[NDArray[np.float64]]] = None
+    run_x_typed: Optional[List[NDArray[np.float64]]] = None
     if needs_residuals:
         assert run_residuals is not None
         assert run_X is not None
@@ -510,7 +510,7 @@ def _fit_chunked_lm(
     n_voxels = int(Y_fit.shape[1])
     p_dim = int(X_fit.shape[1])
     n_workers = max(1, int(n_jobs))
-    out_dtype = np.dtype(compute_dtype)
+    out_dtype = np.dtype(cast(Any, compute_dtype))
 
     betas = np.empty((p_dim, n_voxels), dtype=out_dtype)
     sigma2 = np.empty(n_voxels, dtype=np.float64)
