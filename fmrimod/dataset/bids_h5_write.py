@@ -233,7 +233,7 @@ def _normalise_bids_dir(
         if tr is None:
             raise ValueError(f"BIDS file '{bold_path}' has no RepetitionTime metadata")
 
-        img = nib.load(str(bold_path))
+        img = cast(Any, nib).load(str(bold_path))
         data = np.asarray(img.dataobj, dtype=np.float64)
         if data.ndim == 3:
             data = data[..., np.newaxis]
