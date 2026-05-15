@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, Literal, Union
+from typing import TYPE_CHECKING, Any, Dict, Literal, Union, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -54,18 +54,23 @@ def condition_basis_list(
     conds = event_term.conditions(drop_empty=False)
 
     # Create a temporary EventModel for convolution
-    events = {e.name: e for e in event_term.events}
-    term = Term(events=[e.name for e in event_term.events])
+    events = {cast(Any, e).name: e for e in event_term.events}
+    term = Term(events=[cast(Any, e).name for e in event_term.events])
     term.hrf = hrf
 
-    model = EventModel(
+    # EventModel is abstract to mypy under full-strict (add_contrast is an
+    # abstract attr resolved at runtime via the dispatch/Protocol seam) and
+    # events is dict[Any, BaseEvent] vs the declared dict[str,
+    # EventProtocol]; the Any view defeats both at this one construction
+    # boundary (same EventModel typing artifact as event_model.py).
+    model = cast(Any, EventModel)(
         terms=[term],
         events=events,
         sampling_info=sampling_frame,
     )
 
     # Get the design matrix
-    dm = model._convolve_term(
+    dm: NDArray[np.float64] = model._convolve_term(
         event_term, term
     )
 
