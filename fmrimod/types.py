@@ -18,20 +18,24 @@ from typing import (
 import numpy as np
 import pandas as pd
 from numpy.typing import ArrayLike, NDArray
+from typing_extensions import TypeAlias
 
-# Type aliases
-Array = NDArray[np.float64]
-IntArray = NDArray[np.int_]
-BoolArray = NDArray[np.bool_]
-DataFrame = pd.DataFrame
-Series = pd.Series
-Categorical = pd.Categorical
+# Type aliases — explicit TypeAlias declarations so mypy treats these as type
+# names rather than module-level variables. Required for Python 3.9 / strict
+# mypy under --follow-imports=skip; on 3.10+ the bare `=` form would work but
+# the explicit form is still clearer to readers.
+Array: TypeAlias = NDArray[np.float64]
+IntArray: TypeAlias = NDArray[np.int_]
+BoolArray: TypeAlias = NDArray[np.bool_]
+DataFrame: TypeAlias = pd.DataFrame
+Series: TypeAlias = "pd.Series[Any]"
+Categorical: TypeAlias = pd.Categorical
 
 # Time-related types
-TimeType = Union[float, int, np.number]
-OnsetType = Union[Sequence[TimeType], Array, Series]
-DurationType = Union[TimeType, Sequence[TimeType], Array, Series]
-AmplitudeType = Union[float, Sequence[float], Array, Series]
+TimeType: TypeAlias = Union[float, int, np.number[Any]]
+OnsetType: TypeAlias = Union[Sequence[TimeType], Array, Series]
+DurationType: TypeAlias = Union[TimeType, Sequence[TimeType], Array, Series]
+AmplitudeType: TypeAlias = Union[float, Sequence[float], Array, Series]
 
 # Event types
 EventType = Literal["categorical", "continuous", "basis", "matrix"]
@@ -210,40 +214,40 @@ class ValidationError(Exception):
 
 def validate_onsets(onsets: object) -> Array:
     """Validate and convert onsets to array.
-    
+
     Parameters
     ----------
     onsets : array-like
         Event onset times
-    
+
     Returns
     -------
     Array
         Validated onset array
-    
+
     Raises
     ------
     ValidationError
         If onsets are invalid
     """
     try:
-        onsets = np.asarray(onsets, dtype=np.float64)
+        onsets_arr: Array = np.asarray(onsets, dtype=np.float64)
     except (ValueError, TypeError) as err:
         raise ValidationError(f"Cannot convert onsets to array: {err}") from err
-    
-    if onsets.ndim != 1:
-        raise ValidationError(f"Onsets must be 1-dimensional, got {onsets.ndim}D")
-    
-    if len(onsets) == 0:
+
+    if onsets_arr.ndim != 1:
+        raise ValidationError(f"Onsets must be 1-dimensional, got {onsets_arr.ndim}D")
+
+    if len(onsets_arr) == 0:
         raise ValidationError("Onsets cannot be empty")
-    
-    if np.any(onsets < 0):
+
+    if np.any(onsets_arr < 0):
         raise ValidationError("Onsets cannot be negative")
-    
-    if not np.all(np.isfinite(onsets)):
+
+    if not np.all(np.isfinite(onsets_arr)):
         raise ValidationError("Onsets must be finite")
-    
-    return onsets
+
+    return onsets_arr
 
 
 def validate_durations(durations: object, n_events: int) -> Array:
@@ -267,26 +271,29 @@ def validate_durations(durations: object, n_events: int) -> Array:
         If durations are invalid
     """
     # Handle scalar durations
+    durations_arr: Array
     if np.isscalar(durations):
-        durations = np.full(n_events, durations, dtype=np.float64)
+        durations_arr = np.full(n_events, durations, dtype=np.float64)
     else:
         try:
-            durations = np.asarray(durations, dtype=np.float64)
+            durations_arr = np.asarray(durations, dtype=np.float64)
         except (ValueError, TypeError) as err:
             raise ValidationError(f"Cannot convert durations to array: {err}") from err
-    
-    if durations.ndim != 1:
-        raise ValidationError(f"Durations must be 1-dimensional, got {durations.ndim}D")
-    
-    if len(durations) != n_events:
+
+    if durations_arr.ndim != 1:
         raise ValidationError(
-            f"Duration length ({len(durations)}) must match number of events ({n_events})"
+            f"Durations must be 1-dimensional, got {durations_arr.ndim}D"
         )
-    
-    if np.any(durations < 0):
+
+    if len(durations_arr) != n_events:
+        raise ValidationError(
+            f"Duration length ({len(durations_arr)}) must match number of events ({n_events})"
+        )
+
+    if np.any(durations_arr < 0):
         raise ValidationError("Durations cannot be negative")
-    
-    if not np.all(np.isfinite(durations)):
+
+    if not np.all(np.isfinite(durations_arr)):
         raise ValidationError("Durations must be finite")
-    
-    return durations
+
+    return durations_arr
