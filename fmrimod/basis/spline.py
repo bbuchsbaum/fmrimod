@@ -1,9 +1,9 @@
 """Spline basis functions."""
 
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import numpy as np
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 from scipy import interpolate
 
 from ..types import Array
@@ -62,7 +62,7 @@ class BSpline(ParametricBasis):
         knots: Optional[ArrayLike] = None,
         degree: int = 3,
         intercept: bool = True,
-        boundary_knots: Optional[tuple] = None,
+        boundary_knots: Optional[tuple[float, float]] = None,
         name: Optional[str] = None
     ):
         """Initialize B-spline basis.
@@ -99,20 +99,24 @@ class BSpline(ParametricBasis):
         self.degree = degree
         self.intercept = intercept
         self.boundary_knots = boundary_knots
-        
+
+        self.df: int
+        self.knots: Optional[NDArray[Any]]
         if knots is not None:
             self.knots = np.asarray(knots)
             self.df = len(self.knots) + self.degree + (1 if intercept else 0)
         else:
+            if df is None:
+                raise ValueError("Either df or knots must be specified")
             self.df = df
             self.knots = None
-        
+
         name = name or f"bs{self.df}"
         super().__init__(name)
-        
+
         # Will be set during first evaluation
-        self._computed_knots = None
-        self._boundary = None
+        self._computed_knots: Optional[NDArray[Any]] = None
+        self._boundary: Optional[tuple[float, float]] = None
     
     @property
     def n_basis(self) -> int:
@@ -165,6 +169,7 @@ class BSpline(ParametricBasis):
             basis[:, i] = spl(x)
         
         # Handle values outside boundaries
+        assert self._boundary is not None
         mask = (x < self._boundary[0]) | (x > self._boundary[1])
         if np.any(mask):
             basis[mask, :] = 0
@@ -186,7 +191,8 @@ class BSpline(ParametricBasis):
         """
         # Determine boundaries
         if self.boundary_knots is None:
-            x_min, x_max = np.min(x), np.max(x)
+            x_min: float = float(np.min(x))
+            x_max: float = float(np.max(x))
             # Add small buffer to ensure all data is included
             buffer = 0.01 * (x_max - x_min)
             self._boundary = (x_min - buffer, x_max + buffer)
@@ -207,6 +213,8 @@ class BSpline(ParametricBasis):
         
         # Create full knot sequence for scipy
         # Need degree+1 copies at each boundary
+        if self._boundary is None or self.knots is None:
+            raise RuntimeError("BSpline knot setup is incomplete")
         self._computed_knots = np.concatenate([
             np.repeat(self._boundary[0], self.degree + 1),
             self.knots,
@@ -246,7 +254,7 @@ class NaturalSpline(BSpline):
         df: Optional[int] = None,
         knots: Optional[ArrayLike] = None,
         intercept: bool = True,
-        boundary_knots: Optional[tuple] = None,
+        boundary_knots: Optional[tuple[float, float]] = None,
         name: Optional[str] = None
     ):
         """Initialize natural spline basis.

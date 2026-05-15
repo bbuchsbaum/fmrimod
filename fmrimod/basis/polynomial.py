@@ -226,7 +226,7 @@ class NaturalPoly(Poly):
         name = name or f"npoly{degree}"
         # Natural polynomials are always raw (not orthogonal)
         super().__init__(degree=degree, intercept=intercept, raw=True, name=name)
-        self._x_mean = None
+        self._x_mean: Optional[float] = None
     
     def evaluate(self, x: ArrayLike) -> Array:
         """Evaluate natural polynomial basis at x.
@@ -242,9 +242,9 @@ class NaturalPoly(Poly):
             Basis matrix, shape (len(x), n_basis)
         """
         x = np.asarray(x)
-        
+
         # Center x at its mean
-        self._x_mean = np.mean(x)
+        self._x_mean = float(np.mean(x))
         x_centered = x - self._x_mean
         
         # Use parent's raw polynomial evaluation

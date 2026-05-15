@@ -105,15 +105,15 @@ class Scale(ParametricBasis):
         result = x.copy().reshape(-1, 1)
         
         # Compute statistics
-        self._mean = np.mean(x)
+        self._mean = float(np.mean(x))
         ddof = 1 if self._compat_r_scale and len(x) > 1 else 0
-        self._std = np.std(x, ddof=ddof)
-        
+        self._std = float(np.std(x, ddof=ddof))
+
         # Apply transformations
         if self.center:
             result = result - self._mean
-        
-        if self.scale and self._std > 0:
+
+        if self.scale and self._std is not None and self._std > 0:
             result = result / self._std
         
         self.y = result
@@ -174,7 +174,7 @@ class ScaleWithin(ParametricBasis):
         super().__init__(name)
         
         # Group statistics
-        self._group_stats = {}
+        self._group_stats: dict[object, dict[str, object]] = {}
     
     @property
     def n_basis(self) -> int:
@@ -350,22 +350,24 @@ class RobustScale(ParametricBasis):
         result = x.copy().reshape(-1, 1)
         
         # Compute robust statistics
-        self._median = np.median(x)
-        
+        self._median = float(np.median(x))
+
         if self.scale == 'mad':
             # Median absolute deviation
-            mad = np.median(np.abs(x - self._median))
+            mad = float(np.median(np.abs(x - self._median)))
             self._scale_factor = mad * self.constant
         else:  # iqr
             # Interquartile range
-            q1, q3 = np.percentile(x, [25, 75])
+            quartiles = np.asarray(np.percentile(x, [25, 75]), dtype=np.float64)
+            q1 = float(quartiles[0])
+            q3 = float(quartiles[1])
             self._scale_factor = q3 - q1
-        
+
         # Apply transformations
         if self.center:
             result = result - self._median
-        
-        if self._scale_factor > 0:
+
+        if self._scale_factor is not None and self._scale_factor > 0:
             result = result / self._scale_factor
         
         self.y = result
@@ -481,8 +483,8 @@ class Standardized(ParametricBasis):
         """
         self.center = center
         self.scale = scale
-        self._mean = None
-        self._std = None
+        self._mean: Optional[float] = None
+        self._std: Optional[float] = None
         super().__init__(name or "standardized")
     
     @property
@@ -511,12 +513,12 @@ class Standardized(ParametricBasis):
         x = np.asarray(x)
         
         if self.center:
-            self._mean = np.mean(x)
+            self._mean = float(np.mean(x))
         else:
             self._mean = 0.0
-        
+
         if self.scale:
-            self._std = np.std(x)
+            self._std = float(np.std(x))
             if self._std == 0:
                 self._std = 1.0
         else:
