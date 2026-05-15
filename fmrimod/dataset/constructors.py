@@ -184,7 +184,7 @@ def _is_nifti1image(obj: object) -> bool:
         import nibabel
     except ImportError:
         return False
-    return isinstance(obj, nibabel.Nifti1Image)
+    return isinstance(obj, cast(Any, nibabel).Nifti1Image)
 
 
 def _build_adapter(
@@ -292,7 +292,7 @@ def _make_paths_adapter(
 
 
 def _make_array4d_adapter(
-    arr: NDArray, *, mask: object, tr: float | Sequence[float] | None, start_time: float
+    arr: NDArray[np.float64], *, mask: object, tr: float | Sequence[float] | None, start_time: float
 ) -> DatasetProtocol:
     from .adapters.neuroim_adapter import NeuroVecAdapter
 
@@ -305,7 +305,7 @@ def _make_array4d_adapter(
 
 
 def _make_matrix_adapter(
-    arr: NDArray,
+    arr: NDArray[np.float64],
     *,
     mask: object,
     tr: float | Sequence[float] | None,
