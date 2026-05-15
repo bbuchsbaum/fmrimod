@@ -7,7 +7,7 @@ reconstructed from the estimated shapes.
 
 from __future__ import annotations
 
-from typing import Any, Literal, Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Literal, Optional, Protocol, runtime_checkable
 
 import numpy as np
 from numpy.typing import NDArray
@@ -16,14 +16,19 @@ from ._project import project_nuisance
 from ._types import SingleTrialMethod, SingleTrialResult, VoxelHrfResult
 from .lss import _lss_beta_vec
 
+if TYPE_CHECKING:
+    import pandas as pd
+
+    from ..sampling import SamplingFrame
+
 
 @runtime_checkable
 class HrfEstimationDataset(Protocol):
     """Dataset surface required by formula-based HRF estimation."""
 
     n_runs: int
-    event_table: Any
-    sampling_frame: Any
+    event_table: pd.DataFrame
+    sampling_frame: SamplingFrame
 
     def get_all_data(self) -> NDArray[np.float64]: ...
 
@@ -31,7 +36,7 @@ class HrfEstimationDataset(Protocol):
 def estimate_voxel_hrf(
     Y: NDArray[np.float64],
     X_trials: NDArray[np.float64],
-    basis: Any,
+    basis: object,
     confounds: Optional[NDArray[np.float64]] = None,
     K: Optional[int] = None,
 ) -> VoxelHrfResult:
@@ -114,7 +119,7 @@ def estimate_voxel_hrf(
     return VoxelHrfResult(coefficients=W, basis=basis, conditions=[])
 
 
-def _parse_onset_column(form: Any) -> str:
+def _parse_onset_column(form: object) -> str:
     """Extract onset column name from a formula-like string."""
     if not isinstance(form, str):
         raise TypeError("form must be a string when using dataset-based estimate_hrf")
