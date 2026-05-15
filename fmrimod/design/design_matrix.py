@@ -7,7 +7,7 @@ design matrices from various objects in a consistent way.
 from __future__ import annotations
 
 from functools import singledispatch
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -99,10 +99,10 @@ def _(
             timepoint_blockids = timepoint_blockids + 1
     elif hasattr(sf, 'blocklens'):
         # Build from blocklens (1-based)
-        timepoint_blockids = []
+        blockids_list: list[int] = []
         for i, blen in enumerate(sf.blocklens):
-            timepoint_blockids.extend([i + 1] * int(blen))
-        timepoint_blockids = np.array(timepoint_blockids)
+            blockids_list.extend([i + 1] * int(blen))
+        timepoint_blockids = np.array(blockids_list)
     else:
         # Single block - all timepoints belong to block 1
         timepoint_blockids = np.ones(dm.shape[0], dtype=int)
@@ -160,9 +160,9 @@ def _register_baseline_model() -> None:
         # Get matrices from each term for specified blocks
         matrices = []
         
-        for term_name in ['drift', 'block', 'nuisance']:
-            if term_name in x.terms and x.terms[term_name] is not None:
-                term = x.terms[term_name]
+        for term_name in ('drift', 'block', 'nuisance'):
+            term = x.terms.get(cast(Any, term_name))
+            if term is not None:
                 term_matrix = term.get_block_matrix(blockid, allrows)
                 
                 if not term_matrix.empty:
@@ -239,7 +239,7 @@ def _register_event_term() -> None:
             raise ValueError(
                 "EventTerm.design_matrix() requires 'sampling_points' parameter"
             )
-        return x.design_matrix(kwargs['sampling_points'])
+        return x.design_matrix(cast(Any, kwargs['sampling_points']))
 
 _register_event_term()
 
