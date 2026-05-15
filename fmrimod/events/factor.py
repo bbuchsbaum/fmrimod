@@ -334,7 +334,13 @@ class EventFactor(BaseEvent):  # type: ignore[misc]
         return cls(
             name=name,
             onsets=np.asarray(df[onset_col].values, dtype=np.float64),
-            values=np.asarray(df[value_col].values),
+            # NOTE: pass .values through without np.asarray so a pandas
+            # Categorical column keeps its dtype and declared category
+            # ORDER (EventFactor.__init__ special-cases pd.Categorical).
+            # np.asarray() would flatten it to a plain object array and
+            # silently drop level ordering -- regressed semantic-contrast
+            # categorical-ordering parity (bd-01KRP0KHXHG2J8FTKWYXEKV5V2).
+            values=cast(Any, df[value_col].values),
             durations=durations,
             **cast("dict[str, Any]", kwargs),
         )
