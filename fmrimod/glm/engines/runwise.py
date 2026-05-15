@@ -6,7 +6,7 @@ via fixed-effects meta-analysis.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from ..fmri_lm import FmriModelLike
@@ -32,7 +32,7 @@ class RunwiseEngine:
         config: FmriLmConfig,
         **kwargs: object,
     ) -> EngineResult:
-        raw = fit_runwise(model, config, **kwargs)
+        raw = fit_runwise(model, config, **cast("dict[str, Any]", kwargs))
         return EngineResult(
             betas=raw["betas"],
             sigma=raw["sigma"],

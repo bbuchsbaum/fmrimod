@@ -11,7 +11,7 @@ import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -20,7 +20,7 @@ from scipy import special as sp_special
 from fmrimod.glm.spatial import SpatialContext
 
 if TYPE_CHECKING:
-    import neuroim
+    import neuroim  # type: ignore[import-untyped]
 
 
 def weights_payload(
@@ -183,7 +183,7 @@ class ContrastIntent:
             name=None if name_raw is None else str(name_raw),
             term=None if term_raw is None else str(term_raw),
             levels=tuple(str(level) for level in levels_raw),
-            rows=None if rows_raw is None else int(rows_raw),
+            rows=None if rows_raw is None else int(cast(Any, rows_raw)),
             basis_label=None if basis_raw is None else str(basis_raw),
             weights=weights,
             design_id=None if design_raw is None else str(design_raw),
@@ -371,19 +371,19 @@ class ContrastResult:
             "n_voxels": int(np.asarray(self.stat).size),
         }
         if self.stat_type == "F":
-            df_num, df_den = self.df
+            df_num, df_den = cast("tuple[object, ...]", self.df)
             statistic.update(
                 {
-                    "df": [float(df_num), float(df_den)],
-                    "df_num": float(df_num),
-                    "df_den": float(df_den),
+                    "df": [float(cast(Any, df_num)), float(cast(Any, df_den))],
+                    "df_num": float(cast(Any, df_num)),
+                    "df_den": float(cast(Any, df_den)),
                 }
             )
         else:
             statistic.update(
                 {
-                    "df": float(self.df),
-                    "df_resid": float(self.df),
+                    "df": float(cast(Any, self.df)),
+                    "df_resid": float(cast(Any, self.df)),
                 }
             )
         return ContrastExplanation(
@@ -406,7 +406,7 @@ class ContrastResult:
         if isinstance(self.intent, dict):
             out = dict(self.intent)
             if isinstance(out.get("levels"), tuple):
-                out["levels"] = list(out["levels"])
+                out["levels"] = list(cast("tuple[Any, ...]", out["levels"]))
             return out
         return {
             "kind": "unspecified",
@@ -493,7 +493,7 @@ class ContrastResult:
         fill : float
             Out-of-mask fill value (defaults to 0.0).
         """
-        import neuroim  # type: ignore[import-untyped]
+        import neuroim
 
         ctx = self._require_spatial()
         if kinds is None:

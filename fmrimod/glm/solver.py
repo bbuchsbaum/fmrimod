@@ -7,7 +7,7 @@ All operations work on ``(time, voxels)`` matrices for vectorised computation.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 import numpy as np
 from numpy.typing import NDArray
@@ -25,7 +25,7 @@ def _rss_needs_direct_residual(
     return rss <= threshold
 
 
-def _resolve_compute_dtype(dtype: object) -> np.dtype:
+def _resolve_compute_dtype(dtype: object) -> "np.dtype[Any]":
     """Normalize and validate solver compute dtype."""
     dt = np.dtype(dtype)
     if dt.kind != "f":
@@ -166,7 +166,7 @@ def fast_preproject(
         If *X* contains NaN or Inf values.
     """
     dtype = _resolve_compute_dtype(compute_dtype)
-    eps = np.finfo(dtype).eps
+    eps: float = float(np.finfo(dtype).eps)
 
     X = np.asarray(X, dtype=dtype)
     if X.ndim != 2:

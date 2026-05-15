@@ -6,7 +6,7 @@ projection to reduce peak memory and improve throughput on large datasets.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from ..fmri_lm import FmriModelLike
@@ -28,7 +28,7 @@ class ChunkwiseEngine:
         config: FmriLmConfig,
         **kwargs: object,
     ) -> EngineResult:
-        raw = fit_chunkwise(model, config, **kwargs)
+        raw = fit_chunkwise(model, config, **cast("dict[str, Any]", kwargs))
         return EngineResult(
             betas=raw["betas"],
             sigma=raw["sigma"],

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass, field, replace
-from typing import Any, Dict, Mapping, Optional, Sequence, Union
+from typing import Any, Dict, Mapping, Optional, Sequence, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -85,7 +85,7 @@ def _select_lambda_gcv(
         denom = (1.0 - df / n) ** 2
         if denom < 1e-10:
             return float("inf")
-        return rss / denom
+        return float(rss / denom)
 
     lo = float(np.log(np.min(positive) / 100.0))
     hi = float(np.log(np.max(positive) * 100.0))
@@ -107,7 +107,7 @@ def soft_projection(
     if "lambda" in kwargs:
         if lam != "auto":
             raise TypeError("Specify only one of 'lam' or 'lambda'")
-        lam = kwargs.pop("lambda")
+        lam = cast("Union[float, str]", kwargs.pop("lambda"))
     if kwargs:
         extras = ", ".join(sorted(kwargs))
         raise TypeError(f"Unexpected soft_projection argument(s): {extras}")
@@ -359,7 +359,7 @@ def compute_lm_contrasts_from_suffstats(
         df,
         sigma=sigma,
         sigma2=sigma2,
-        **kwargs,
+        **cast("dict[str, Any]", kwargs),
     )
 
 
@@ -381,7 +381,12 @@ def fit_contrasts(
         raise ValueError("output must be 'list' or 'stacked'")
 
     if isinstance(fit, Mapping):
-        return compute_lm_contrasts(contrasts=contrasts, output=output, **fit, **kwargs)
+        return compute_lm_contrasts(
+            contrasts=contrasts,
+            output=output,
+            **cast("dict[str, Any]", fit),
+            **cast("dict[str, Any]", kwargs),
+        )
     raise TypeError("fit must be an FmriLm result or a matrix payload mapping")
 
 
@@ -402,8 +407,8 @@ def fit_glm_on_transformed_series(
     if X.shape[0] != Y_arr.shape[0]:
         raise ValueError("Row mismatch between design matrix and response matrix")
     fit = fmri_lm(_MatrixModel(X, Y_arr, source=model), cfg or FmriLmConfig(), engine=engine)
-    fit.strategy = strategy
-    fit.engine = engine
+    cast(Any, fit).strategy = strategy
+    cast(Any, fit).engine = engine
     return fit
 
 
@@ -483,7 +488,7 @@ def fmri_rlm(model: object, config: Optional[FmriLmConfig] = None, **kwargs: obj
     """Fit a robust GLM using the normal Python ``fmri_lm`` model contract."""
     base = config or FmriLmConfig()
     cfg = replace(base, robust=replace(base.robust, enabled=True))
-    return fmri_lm(model, cfg, **kwargs)
+    return fmri_lm(model, cfg, **cast("dict[str, Any]", kwargs))
 
 
 @dataclass
@@ -532,8 +537,8 @@ def paired_diff_block(
     YB = np.asarray(blkB["Y"], dtype=np.float64)
     if YA.shape != YB.shape:
         raise ValueError("Blocks must have identical Y dimensions")
-    meta_a = dict(blkA.get("meta", {}))
-    meta_b = dict(blkB.get("meta", {}))
+    meta_a = dict(cast("Mapping[str, Any]", blkA.get("meta", {})))
+    meta_b = dict(cast("Mapping[str, Any]", blkB.get("meta", {})))
     if meta_a.get("subjects") is not None and meta_b.get("subjects") is not None:
         if list(meta_a["subjects"]) != list(meta_b["subjects"]):
             raise ValueError("paired_diff_block: subjects must match between blocks")

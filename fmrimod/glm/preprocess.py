@@ -296,7 +296,7 @@ def extract_nuisance_timeseries(
     mask_obj = nuisance_mask
     if isinstance(mask_obj, (str, bytes, os.PathLike)):
         try:
-            from neuroim import read_image
+            from neuroim import read_image  # type: ignore[import-untyped]
         except Exception as exc:  # pragma: no cover - import guard
             raise ImportError(
                 "nuisance_mask path support requires neuroim to be installed"

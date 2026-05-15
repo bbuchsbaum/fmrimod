@@ -49,8 +49,8 @@ def effective_df(
 def satterthwaite_df(
     XtXinv: NDArray[np.float64],
     con_vec: NDArray[np.float64],
-    run_dfres: list,
-    run_XtXinv: list,
+    run_dfres: list[float],
+    run_XtXinv: list[NDArray[np.float64]],
 ) -> float:
     """Satterthwaite approximation for effective df in multi-run contrasts.
 
@@ -81,13 +81,13 @@ def satterthwaite_df(
         v_r = con_vec @ xtxi @ con_vec
         v_parts.append(v_r)
 
-    v_total = sum(v_parts)
+    v_total = float(sum(v_parts))
     if v_total < 1e-15:
-        return sum(run_dfres)
+        return float(sum(run_dfres))
 
     # Satterthwaite: df = v_total^2 / sum(v_r^2 / df_r)
-    denom = sum(v_r ** 2 / dfr for v_r, dfr in zip(v_parts, run_dfres) if dfr > 0)
+    denom = float(sum(v_r ** 2 / dfr for v_r, dfr in zip(v_parts, run_dfres) if dfr > 0))
     if denom < 1e-15:
-        return sum(run_dfres)
+        return float(sum(run_dfres))
 
     return v_total ** 2 / denom

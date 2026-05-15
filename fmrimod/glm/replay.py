@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, Sequence
+from typing import TYPE_CHECKING, Any, Literal, Sequence, cast
 
 import numpy as np
 
@@ -83,7 +83,7 @@ def _df_equal(a: object, b: object) -> bool:
             return False
         return all(_df_equal(x, y) for x, y in zip(a, b))
     try:
-        return bool(np.isclose(float(a), float(b), rtol=0.0, atol=1e-12))
+        return bool(np.isclose(float(cast(Any, a)), float(cast(Any, b)), rtol=0.0, atol=1e-12))
     except (TypeError, ValueError):
         return a == b
 
@@ -231,6 +231,6 @@ def replay(
 
     from fmrimod.glm.fmri_lm import fmri_lm
 
-    fit_a = fmri_lm(spec_a, dataset, config=config, **fit_kwargs)
-    fit_b = fmri_lm(spec_b, dataset, config=config, **fit_kwargs)
+    fit_a = fmri_lm(spec_a, dataset, config=config, **cast("dict[str, Any]", fit_kwargs))
+    fit_b = fmri_lm(spec_b, dataset, config=config, **cast("dict[str, Any]", fit_kwargs))
     return replay_fits(fit_a, fit_b, named_contrasts=named_contrasts)

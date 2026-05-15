@@ -14,6 +14,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Dict,
+    Iterable,
     List,
     Literal,
     Mapping,
@@ -25,6 +26,8 @@ from typing import (
     cast,
     runtime_checkable,
 )
+
+import pandas as pd
 
 import numpy as np
 from numpy.typing import NDArray
@@ -149,12 +152,12 @@ class FitProvenance:
         if payload.get("schema_version") != "FitProvenance/v1":
             raise ValueError("unsupported FitProvenance schema_version")
         ar_payload = payload.get("ar_config")
-        ar_config = None if ar_payload is None else AROptions(**dict(ar_payload))
+        ar_config = None if ar_payload is None else AROptions(**dict(cast("Mapping[str, Any]", ar_payload)))
         return cls(
             fmrimod_version=str(payload["fmrimod_version"]),
             solver_path=str(payload["solver_path"]),
-            hrf_norm_modes=tuple(payload["hrf_norm_modes"]),
-            seed=payload.get("seed"),
+            hrf_norm_modes=tuple(cast("Iterable[Any]", payload["hrf_norm_modes"])),
+            seed=cast("Optional[int]", payload.get("seed")),
             seed_status=cast(SeedStatus, payload["seed_status"]),
             ar_config=ar_config,
             ar_status=cast(CarryStatus, payload["ar_status"]),
@@ -281,7 +284,7 @@ def _seed_provenance(
     """Recover seed provenance from the resolved engine invocation."""
     seed = fit_kwargs.get("seed")
     if seed is not None:
-        return int(seed), "randomized"
+        return int(cast(Any, seed)), "randomized"
 
     if getattr(engine, "name", None) == "sketch":
         return None, "unknown"
@@ -358,6 +361,7 @@ if TYPE_CHECKING:
     from fmrimod.dataset import FmriDataset
     from fmrimod.dataset.protocols import DatasetProtocol
     from fmrimod.design import RealizedDesign
+    from fmrimod.glm.engine import FittingEngine
     from fmrimod.glm.spatial import SpatialContext
     from fmrimod.model.fmri_model import FmriModel
     from fmrimod.spec import Spec, Term
@@ -400,7 +404,7 @@ class _RealizedDesignModel:
     @property
     def design_source(self) -> str:
         """Source label carried into fit provenance."""
-        return self._design.source
+        return cast(str, self._design.source)
 
     @property
     def n_timepoints(self) -> list[int]:
@@ -412,19 +416,19 @@ class _RealizedDesignModel:
         start, stop = self._run_slice(run)
         return np.asarray(self._design.matrix[start:stop, :], dtype=np.float64)
 
-    def design_matrix(self, run: Optional[int] = None):
+    def design_matrix(self, run: Optional[int] = None) -> pd.DataFrame:
         """Return the realized design as a named DataFrame."""
         import pandas as pd
 
         if run is None:
-            return self._design.as_dataframe()
+            return cast(pd.DataFrame, self._design.as_dataframe())
         start, stop = self._run_slice(run)
         return pd.DataFrame(
             np.asarray(self._design.matrix[start:stop, :], dtype=np.float64),
             columns=list(self._design.column_names),
         )
 
-    def design_columns(self):
+    def design_columns(self) -> Any:
         """Return typed column provenance for the realized design."""
         return self._design.design_columns()
 
@@ -470,7 +474,7 @@ class _FitColumnTerm:
         names = getattr(self.columns, "names", None)
         if names is not None:
             return [str(name) for name in names]
-        return [str(name) for name in self.columns]  # type: ignore[union-attr]
+        return [str(name) for name in cast(Any, self.columns)]
 
 
 def _contrast_spec_weights_to_fit_weights(
@@ -570,14 +574,14 @@ class FmriLm:
     @property
     def n_voxels(self) -> int:
         """Number of voxels."""
-        return self.betas.shape[1]
+        return int(self.betas.shape[1])
 
     @property
     def n_coefficients(self) -> int:
         """Number of regression coefficients."""
-        return self.betas.shape[0]
+        return int(self.betas.shape[0])
 
-    def design_columns(self):
+    def design_columns(self) -> Any:
         """Return typed provenance for the fitted design columns."""
         design_columns = getattr(self.model, "design_columns", None)
         if not callable(design_columns):
@@ -587,7 +591,7 @@ class FmriLm:
     def _contrast_intent_payload_fields(
         self,
         weights: NDArray[np.float64],
-    ) -> dict[str, object]:
+    ) -> Dict[str, Any]:
         """Return production-derived payload fields for seam equality."""
         return {
             "basis_label": basis_label(self),
@@ -799,7 +803,7 @@ class FmriLm:
             if "weights" not in spec:
                 raise ValueError("Contrast dict spec must contain 'weights'")
             weights = np.asarray(spec["weights"], dtype=np.float64)
-            cname = name or spec.get("name", "contrast")
+            cname = str(name or spec.get("name", "contrast"))
             return self._compute_contrast(
                 weights,
                 name=cname,
@@ -1152,7 +1156,7 @@ def fmri_lm(
                 "fmri_lm: got a pre-built model and a dataset. "
                 "Pass either (spec, dataset, ...) or (model, ...), not both."
             )
-        model = cast(FmriModelLike, spec_or_model)
+        model = cast(FmriModelLike, spec_or_model)  # type: ignore[assignment]
     else:
         if dataset is None:
             raise ValueError(
@@ -1205,7 +1209,7 @@ def fmri_lm(
         ar_params=ar_params,
         robust_weights=robust_weights,
         run_results=fit_result.run_results,
-        projections=fit_result.projections,
+        projections=cast("Optional[List[Projection]]", fit_result.projections),
         provenance=_build_fit_provenance(model, config, eng, fit_kwargs),
     )
     _warn_if_ill_conditioned(fit)
@@ -1362,7 +1366,7 @@ def _build_model_from_spec(
     return FmriModel(em, bm, cast("DatasetProtocol", dataset))
 
 
-def _engine_result_to_dict(er: "EngineResult") -> Dict[str, object]:
+def _engine_result_to_dict(er: "EngineResult") -> Dict[str, Any]:
     """Convert an EngineResult to the legacy dict format."""
     return {
         "betas": er.betas,
@@ -1377,7 +1381,7 @@ def _engine_result_to_dict(er: "EngineResult") -> Dict[str, object]:
 
 
 def _dict_to_engine_result(
-    d: Dict[str, object],
+    d: Dict[str, Any],
     original: "EngineResult",
 ) -> "EngineResult":
     """Update an EngineResult from a legacy dict (after AR/robust)."""

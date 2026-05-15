@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -35,13 +35,13 @@ from .solver import (
 
 
 @contextmanager
-def _maybe_limit_blas_threads(blas_threads: Optional[int]):
+def _maybe_limit_blas_threads(blas_threads: Optional[int]) -> "Iterator[None]":
     """Limit BLAS threads within a context when threadpoolctl is available."""
     if blas_threads is None:
         yield
         return
     try:
-        from threadpoolctl import threadpool_limits  # type: ignore[import-not-found]
+        from threadpoolctl import threadpool_limits  # type: ignore[import-untyped]
     except Exception:
         yield
         return
@@ -53,7 +53,7 @@ def _projection_cache_key(
     X: NDArray[np.float64],
     compute_dtype: object,
     method: str,
-) -> tuple:
+) -> Tuple[Any, ...]:
     """Build a stable cache key for a design matrix projection."""
     Xc = np.ascontiguousarray(X, dtype=np.dtype(compute_dtype))
     h = hashlib.blake2b(digest_size=16)
@@ -120,7 +120,7 @@ def fit_run_ols(
     run: Optional[int] = None,
     return_fitted: bool = True,
     compute_dtype: object = np.float64,
-    projection_cache: Optional[Dict[tuple, Projection]] = None,
+    projection_cache: Optional[Dict[Tuple[Any, ...], Projection]] = None,
 ) -> Tuple[LmResult, Projection, NDArray[np.float64], NDArray[np.float64]]:
     """Fit a single run with OLS (possibly after preprocessing).
 
@@ -323,7 +323,7 @@ def fit_runwise(
     compute_dtype: object = np.float64,
     cache_projections: bool = False,
     chunk_size: int = 5000,
-) -> Dict:
+) -> Dict[str, Any]:
     """Fit the GLM run by run and pool results.
 
     This is the default strategy: each run is fitted independently,
@@ -404,7 +404,7 @@ def fit_runwise(
         }
 
     if n_workers == 1:
-        proj_cache: Optional[Dict[tuple, Projection]] = {} if cache_projections else None
+        proj_cache: Optional[Dict[Tuple[Any, ...], Projection]] = {} if cache_projections else None
         for r in range(n_runs):
             # Get per-run data and design
             Y_r = get_run_data(model.dataset, r)  # type: ignore[attr-defined]
@@ -586,7 +586,7 @@ def fit_chunkwise(
     blas_threads: Optional[int] = None,
     compute_dtype: object = np.float64,
     cache_projections: bool = False,
-) -> Dict:
+) -> Dict[str, Any]:
     """Fit GLM in voxel chunks (fmrireg-style chunkwise strategy).
 
     Notes
@@ -621,7 +621,7 @@ def fit_chunkwise(
     chunk_workers = max(1, total_workers // run_workers)
     run_results: List[Optional[LmResult]] = [None] * n_runs
     run_projections: List[Optional[Projection]] = [None] * n_runs
-    proj_cache: Optional[Dict[tuple, Projection]] = (
+    proj_cache: Optional[Dict[Tuple[Any, ...], Projection]] = (
         {} if (cache_projections and run_workers == 1) else None
     )
 
@@ -702,7 +702,7 @@ def fit_chunkwise(
 def _pool_run_results(
     results: List[LmResult],
     projections: List[Projection],
-) -> Dict:
+) -> Dict[str, Any]:
     """Pool per-run OLS results via fixed-effects meta-analysis.
 
     Uses inverse-variance weighting to combine betas across runs.
@@ -737,7 +737,7 @@ def _pool_run_results(
     wsum = np.zeros((p_dim, V), dtype=np.float64)
     wbeta = np.zeros((p_dim, V), dtype=np.float64)
     beta_mean = np.zeros((p_dim, V), dtype=np.float64)
-    eps = np.finfo(np.float64).eps
+    eps: float = float(np.finfo(np.float64).eps)
 
     for r, proj in zip(results, projections):
         beta_mean += r.betas

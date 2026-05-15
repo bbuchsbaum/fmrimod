@@ -15,7 +15,7 @@ import numpy as np
 from numpy.typing import DTypeLike, NDArray
 
 if TYPE_CHECKING:
-    import neuroim
+    import neuroim  # type: ignore[import-untyped]
 
 
 def _spacing_from_affine(
@@ -93,9 +93,9 @@ class SpatialContext:
         out[self.mask] = vec
         return out
 
-    def to_neuro_space(self) -> neuroim.NeuroSpace:
+    def to_neuro_space(self) -> "neuroim.NeuroSpace":
         """Build a 3-D ``neuroim.NeuroSpace`` for this context."""
-        import neuroim  # type: ignore[import-untyped]
+        import neuroim
 
         spacing = self.spacing
         origin = self.origin

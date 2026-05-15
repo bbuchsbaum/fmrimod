@@ -135,6 +135,7 @@ class SketchEngine:
             XtXinv_total = np.linalg.pinv(XtX_total)
 
         betas_pooled = XtXinv_total @ XtXB_total
+        assert rss_total is not None
         sigma_pooled = np.sqrt(rss_total / max(dfres_total, 1))
 
         return EngineResult(

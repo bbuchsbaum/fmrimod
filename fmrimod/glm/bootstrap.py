@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional, Sequence, Union
+from typing import Any, List, Optional, Sequence, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -50,7 +50,7 @@ class BootstrapResult:
     boot_betas: NDArray[np.float64]
     beta_ci: NDArray[np.float64]
     beta_se: NDArray[np.float64]
-    contrast_ci: dict = field(default_factory=dict)
+    contrast_ci: dict[str, Any] = field(default_factory=dict)
     observed_betas: Optional[NDArray[np.float64]] = None
     confidence: float = 0.95
     n_boot: int = 0
@@ -253,8 +253,8 @@ def _bca_ci(
         num = z0 + z_alpha
         denom = 1.0 - a_hat * num
         if abs(denom) < 1e-15:
-            return sp_stats.norm.cdf(z0 + z_alpha)
-        return sp_stats.norm.cdf(z0 + num / denom)
+            return float(sp_stats.norm.cdf(z0 + z_alpha))
+        return float(sp_stats.norm.cdf(z0 + num / denom))
 
     p_lo = _adjusted_pct(z_alpha_lo)
     p_hi = _adjusted_pct(z_alpha_hi)
@@ -396,7 +396,7 @@ def bootstrap_glm(
         ])
 
     # Contrast CIs
-    contrast_ci: dict = {}
+    contrast_ci: dict[str, Any] = {}
     if contrasts:
         for name, cvec in contrasts.items():
             cvec = np.asarray(cvec, dtype=np.float64)

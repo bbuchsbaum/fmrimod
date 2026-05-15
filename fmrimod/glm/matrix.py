@@ -16,7 +16,7 @@ claims them.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -97,7 +97,7 @@ class _MatrixModel:
 
     def contrast_weights(self) -> Dict[str, NDArray[np.float64]]:
         if self._source is not None and hasattr(self._source, "contrast_weights"):
-            return self._source.contrast_weights()
+            return cast(Dict[str, NDArray[np.float64]], self._source.contrast_weights())
         return {}
 
 
@@ -149,8 +149,8 @@ def fit_glm_from_matrix(
         cfg or FmriLmConfig(),
         engine=engine,
     )
-    fit.strategy = strategy
-    fit.engine = engine
+    cast(Any, fit).strategy = strategy
+    cast(Any, fit).engine = engine
     return fit
 
 
@@ -179,11 +179,11 @@ def fit_glm_from_suffstats(
         sigma=sigma,
         residual_df=float(df),
         XtXinv=XtXinv,
-        model=model,
+        model=cast(Any, model),
         config=cfg or FmriLmConfig(),
     )
-    fit.strategy = strategy
-    fit.engine = engine
+    cast(Any, fit).strategy = strategy
+    cast(Any, fit).engine = engine
     return fit
 
 
