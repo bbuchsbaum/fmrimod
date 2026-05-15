@@ -14,14 +14,14 @@ from typing import ClassVar
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from .core import HRF
+from .core import HRF, HrfParamValue
 from .derivatives import spmg1_derivative, spmg1_second_derivative
 from .functions import spm_canonical
 
 _SPM_PARAM_NAMES = ("p1", "p2", "a1")
 
 
-def _spm_params(p1: float, p2: float, a1: float) -> dict[str, float]:
+def _spm_params(p1: float, p2: float, a1: float) -> dict[str, HrfParamValue]:
     return {"p1": p1, "p2": p2, "a1": a1}
 
 

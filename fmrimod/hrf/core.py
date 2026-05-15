@@ -146,7 +146,14 @@ class HRF(ABC):
         
         return weighted_hrf
     
-    def plot(self, time=None, normalize: bool = False, show_peak: bool = True, ax=None, **kwargs: object):
+    def plot(
+        self,
+        time: Any = None,
+        normalize: bool = False,
+        show_peak: bool = True,
+        ax: Any = None,
+        **kwargs: object,
+    ) -> Any:
         """Plot this HRF.  See :func:`fmrimod.plotting.plot_hrf`."""
         from ..plotting import plot_hrf
         return plot_hrf(self, time=time, normalize=normalize, show_peak=show_peak, ax=ax, **kwargs)
@@ -278,7 +285,7 @@ def _with_metadata(
     next_span = hrf.span if span is None else span
 
     if is_dataclass(hrf) and not isinstance(hrf, FunctionHRF):
-        updated = cast(HRF, replace(hrf))
+        updated = replace(hrf)
         updated.name = next_name
         updated.span = next_span
         return updated
@@ -392,8 +399,8 @@ def bind_basis(*hrfs: HRF) -> HRF:
 class CoefficientHRF(HRF):
     """Single-basis HRF formed from coefficients over another HRF basis."""
 
-    base: HRF
-    coefficients: tuple[float, ...]
+    base: HRF  # type: ignore[misc]
+    coefficients: tuple[float, ...]  # type: ignore[misc]
 
     def __init__(
         self,

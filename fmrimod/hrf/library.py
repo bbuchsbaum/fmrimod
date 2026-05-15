@@ -101,7 +101,7 @@ class InvLogitHRF(HRF):
     s1: float = 1.0
     mu2: float = 16.0
     s2: float = 1.0
-    lag: float = 0.0
+    lag: float = 0.0  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
         self.params = {

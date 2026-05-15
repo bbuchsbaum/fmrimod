@@ -11,7 +11,7 @@ from .core import HRF, bind_basis
 
 def hrf_library(
     fun: Callable[..., HRF],
-    pgrid: Union[pd.DataFrame, Dict[str, list]],
+    pgrid: Union[pd.DataFrame, Dict[str, list[object]]],
     **kwargs: object
 ) -> HRF:
     """Generate an HRF library from a parameter grid.
@@ -84,7 +84,7 @@ def hrf_library(
 
 def gen_hrf_library(
     fun: Callable[..., HRF],
-    pgrid: Union[pd.DataFrame, Dict[str, list]],
+    pgrid: Union[pd.DataFrame, Dict[str, list[object]]],
     **kwargs: object,
 ) -> HRF:
     """R-compatible alias for :func:`hrf_library`."""

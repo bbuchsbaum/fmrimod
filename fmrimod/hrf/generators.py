@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Literal, Optional, Sequence, Union, cast
+from typing import Any, Callable, Dict, Literal, Optional, Sequence, Union, cast
 
 import numpy as np
 
@@ -11,7 +11,7 @@ from .decorators import block_hrf, lag_hrf
 
 
 def gen_hrf(
-    hrf: Union[HRF, Callable, str],
+    hrf: Union[HRF, Callable[..., Any], str],
     lag: float = 0.0,
     width: float = 0.0,
     precision: float = 0.1,
@@ -46,7 +46,7 @@ def gen_hrf(
     # Handle string input (registry lookup)
     if isinstance(hrf, str):
         from .registry import get_hrf
-        base_hrf = get_hrf(hrf, **kwargs)
+        base_hrf = get_hrf(hrf, **cast("dict[str, Any]", kwargs))
     # Handle callable input
     elif callable(hrf) and not isinstance(hrf, HRF):
         # Check if it's a generator function that needs parameters
@@ -98,7 +98,7 @@ def gen_hrf(
     return base_hrf
 
 
-def gen_hrf_set(*hrfs: Union[HRF, Callable], name: Optional[str] = None) -> HRF:
+def gen_hrf_set(*hrfs: Union[HRF, Callable[..., Any]], name: Optional[str] = None) -> HRF:
     """Combine multiple HRFs into a single multi-basis HRF.
     
     Args:
@@ -126,7 +126,7 @@ def gen_hrf_set(*hrfs: Union[HRF, Callable], name: Optional[str] = None) -> HRF:
     return combined
 
 
-def hrf_set(*hrfs: Union[HRF, Callable], name: str = "hrf_set") -> HRF:
+def hrf_set(*hrfs: Union[HRF, Callable[..., Any]], name: str = "hrf_set") -> HRF:
     """R-compatible alias for :func:`gen_hrf_set`.
 
     The original ``fmrihrf`` public API stabilized ``hrf_set()`` as the
@@ -290,7 +290,12 @@ def make_hrf(
     if isinstance(hrf_spec, dict):
         func_name = hrf_spec.get("type", "spmg1")
         params = {k: v for k, v in hrf_spec.items() if k != "type"}
-        return gen_hrf(func_name, lag=lag, normalize=normalize, **params)
+        return gen_hrf(
+            cast("Union[HRF, Callable[..., Any], str]", func_name),
+            lag=lag,
+            normalize=normalize,
+            **cast("dict[str, Any]", params),
+        )
 
     # HRF instance or callable.
     return gen_hrf(hrf_spec, lag=lag, normalize=normalize)

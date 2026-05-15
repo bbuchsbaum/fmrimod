@@ -216,7 +216,7 @@ def daguerre_basis(
 
     # Normalize each basis function to unit peak
     for i in range(n_basis):
-        max_abs_val = np.max(np.abs(basis[:, i]))
+        max_abs_val: float = float(np.max(np.abs(basis[:, i])))
         if max_abs_val > 1e-10:
             basis[:, i] = basis[:, i] / max_abs_val
 
@@ -549,7 +549,9 @@ def hrf_half_cosine(
     result = np.zeros_like(t)
 
     # Transition function matching R: smoothly transitions from a to b
-    def trans(tt, a, b, t0, w):
+    def trans(
+        tt: NDArray[np.float64], a: float, b: float, t0: float, w: float
+    ) -> NDArray[np.float64]:
         return a + 0.5 * (b - a) * (1 - np.cos(np.pi * (tt - t0) / w))
 
     t1 = h1

@@ -133,7 +133,7 @@ def get_hrf(
     try:
         canonical = _normalize_hrf_name(name)
     except ValueError:
-        canonical = str(name).strip().lower()
+        canonical = cast(Any, str(name).strip().lower())
 
     if canonical not in _HRF_REGISTRY:
         available = [str(x) for x in list_available_hrfs()]

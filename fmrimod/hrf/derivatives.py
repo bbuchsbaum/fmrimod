@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -39,7 +39,9 @@ class HasAnalyticSecondDerivative(Protocol):
         ...
 
 
-def _finite_difference_derivative(func, x0, dx=1e-4, n=1):
+def _finite_difference_derivative(
+    func: Any, x0: Any, dx: float = 1e-4, n: int = 1
+) -> Any:
     """Numerical derivative via Richardson extrapolation.
 
     Uses Richardson extrapolation (two step sizes) for improved accuracy,
@@ -63,7 +65,9 @@ def _finite_difference_derivative(func, x0, dx=1e-4, n=1):
     ) / (2 * dx)
 
 
-def derivative(func, x0, dx=1e-6, n=1, order=3):
+def derivative(
+    func: Any, x0: Any, dx: float = 1e-6, n: int = 1, order: int = 3
+) -> Any:
     """Compute the *n*-th derivative of *func* at *x0*.
 
     Uses an internal recursive central-difference implementation for all
@@ -118,12 +122,13 @@ def _numeric_derivative(hrf: HRF, t: ArrayLike, order: int = 1) -> NDArray[np.fl
     result = np.zeros((len(t), n_basis))
 
     for j in range(n_basis):
+        f: Any
         if n_basis > 1:
-            def f(time, _j=j):
+            def f(time: Any, _j: int = j) -> Any:
                 val = hrf(np.array([time]))
                 return val[0, _j]
         else:
-            def f(time):
+            def f(time: Any, _j: int = j) -> Any:  # noqa: F811
                 val = hrf(np.array([time]))
                 return val[0] if val.ndim == 1 else val[0, 0]
 

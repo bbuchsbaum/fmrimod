@@ -10,7 +10,7 @@ centralized in :func:`fmrimod.hrf.normalization.normalize`.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -18,7 +18,9 @@ from numpy.typing import ArrayLike, NDArray
 from .core import HRF, _with_metadata, as_hrf, bind_basis
 
 
-def _block_offsets_weights(width: float, precision: float):
+def _block_offsets_weights(
+    width: float, precision: float
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Compute trapezoidal quadrature offsets and weights for block evaluation.
 
     Matches the R helper ``.block_offsets_weights(width, precision)``.
@@ -62,7 +64,7 @@ class LaggedHRF(HRF):
     nbasis: int = 1
     span: float = 24.0
     base: Optional[HRF] = None
-    lag: float = 0.0
+    lag: float = 0.0  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
         if self.base is None:
@@ -220,7 +222,7 @@ def block_hrf(
 
 
 def gen_hrf_lagged(
-    hrf: Union[HRF, Callable],
+    hrf: Union[HRF, Callable[..., Any]],
     lags: ArrayLike,
     name: Optional[str] = None,
 ) -> HRF:
@@ -255,7 +257,7 @@ def gen_hrf_lagged(
 
 
 def hrf_lagged(
-    hrf: Union[HRF, Callable],
+    hrf: Union[HRF, Callable[..., Any]],
     lag: ArrayLike = 2.0,
     normalize: bool = False,
     name: Optional[str] = None,
@@ -270,7 +272,7 @@ def hrf_lagged(
 
 
 def gen_hrf_blocked(
-    hrf: Union[HRF, Callable],
+    hrf: Union[HRF, Callable[..., Any]],
     widths: ArrayLike,
     precision: float = 0.1,
     half_life: float = float("inf"),
@@ -321,7 +323,7 @@ def gen_hrf_blocked(
 
 
 def hrf_blocked(
-    hrf: Optional[Union[HRF, Callable]] = None,
+    hrf: Optional[Union[HRF, Callable[..., Any]]] = None,
     width: ArrayLike = 5.0,
     precision: float = 0.1,
     half_life: float = float("inf"),
