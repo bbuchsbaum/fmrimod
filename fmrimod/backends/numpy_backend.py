@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 import numpy as np
 from numpy.typing import NDArray
 from scipy import linalg
@@ -15,9 +17,9 @@ class NumpyBackend:
     """
 
     @staticmethod
-    def qr(X: NDArray[np.float64]) -> tuple:
+    def qr(X: NDArray[np.float64]) -> tuple[Any, ...]:
         """QR decomposition with column pivoting."""
-        return linalg.qr(X, pivoting=True, mode="economic")
+        return cast("tuple[Any, ...]", linalg.qr(X, pivoting=True, mode="economic"))
 
     @staticmethod
     def cholesky(A: NDArray[np.float64]) -> NDArray[np.float64]:
@@ -30,9 +32,9 @@ class NumpyBackend:
         return linalg.cho_solve((L, True), b)
 
     @staticmethod
-    def svd(X: NDArray[np.float64]) -> tuple:
+    def svd(X: NDArray[np.float64]) -> tuple[Any, ...]:
         """Thin SVD."""
-        return linalg.svd(X, full_matrices=False)
+        return cast("tuple[Any, ...]", linalg.svd(X, full_matrices=False))
 
     @staticmethod
     def solve(A: NDArray[np.float64], b: NDArray[np.float64]) -> NDArray[np.float64]:
