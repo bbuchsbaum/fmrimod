@@ -12,6 +12,7 @@ import warnings
 from typing import Any, List, Literal, Optional, Union, cast
 
 import numpy as np
+from numpy.typing import NDArray
 import pandas as pd
 
 from ..base import BaseEvent
@@ -26,6 +27,12 @@ from ..types import (
 from .factor import EventFactor
 
 
+# Scoped/strict divergence cluster (bd-01KRNN0H73CCYGFJSJ30JPVFTW):
+# under scoped mypy (--follow-imports=skip) BaseEvent is opaque Any, so
+# this subclass REQUIRES the ignore and `self.__post_init__()` is
+# untyped-call-clean; full-strict resolves BaseEvent and flags both.
+# No annotation satisfies both gates; scoped is the epic gate so the
+# ignore stays. Same cluster as events/term.py.
 class EventVariable(BaseEvent):  # type: ignore[misc]
     """Continuous event with numeric values.
     
@@ -113,7 +120,7 @@ class EventVariable(BaseEvent):  # type: ignore[misc]
         self.durations: Optional[Array] = None
         self.values: Optional[Array] = None
         self.raw_values: Optional[Array] = None
-        self.nan_mask: Optional[Array] = None
+        self.nan_mask: Optional[NDArray[np.bool_]] = None
 
         # Trigger validation and setup
         self.__post_init__()
@@ -220,21 +227,25 @@ class EventVariable(BaseEvent):  # type: ignore[misc]
     @property
     def mean(self) -> float:
         """Mean of raw values, computed over finite entries only."""
+        assert self.raw_values is not None
         return float(np.nanmean(self.raw_values))
 
     @property
     def std(self) -> float:
         """Standard deviation of raw values, computed over finite entries only."""
+        assert self.raw_values is not None
         return float(np.nanstd(self.raw_values))
-    
+
     @property
     def min(self) -> float:
         """Minimum of raw values."""
+        assert self.raw_values is not None
         return float(np.min(self.raw_values))
-    
+
     @property
     def max(self) -> float:
         """Maximum of raw values."""
+        assert self.raw_values is not None
         return float(np.max(self.raw_values))
     
     def design_matrix(self, sampling_points: Array) -> Array:
@@ -327,8 +338,8 @@ class EventVariable(BaseEvent):  # type: ignore[misc]
         
         return cls(
             name=name,
-            onsets=df[onset_col].values,
-            values=df[value_col].values,
+            onsets=np.asarray(df[onset_col].values, dtype=np.float64),
+            values=np.asarray(df[value_col].values, dtype=np.float64),
             durations=durations,
             **cast("dict[str, Any]", kwargs),
         )
@@ -351,6 +362,8 @@ class EventVariable(BaseEvent):  # type: ignore[misc]
         """
         from .factor import EventFactor
 
+        assert self.raw_values is not None
+        assert self.onsets is not None and self.durations is not None
         if isinstance(n_bins, bool) or not isinstance(n_bins, (int, np.integer)) or n_bins < 1:
             raise ValueError("n_bins must be an integer >= 1")
         if labels is not None and len(labels) != n_bins:
@@ -377,8 +390,10 @@ class EventVariable(BaseEvent):  # type: ignore[misc]
         if labels is not None and effective_n_bins < n_bins:
             cut_labels = labels[:effective_n_bins]
         
-        # Bin the values
-        binned = pd.cut(self.raw_values, bins=bins, labels=cut_labels)
+        # Bin the values. pandas-stubs overloads on `labels` reject the
+        # Optional[list[str]] + ndarray combo even though it is valid at
+        # runtime; call through an Any reference (behavior identical).
+        binned = cast(Any, pd.cut)(self.raw_values, bins=bins, labels=cut_labels)
         
         return EventFactor(
             name=f"{self.name}_binned",
