@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from functools import singledispatch
-from typing import Any, Optional, Protocol, Sequence, Union
+from typing import Any, Optional, Protocol, Sequence, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -105,7 +105,7 @@ def _residualize_with_matrix(X: object, Y: object) -> NDArray[Any]:
     Q, R = np.linalg.qr(X_arr, mode='reduced')
     # Residuals = Y - Q @ Q.T @ Y
     fitted = Q @ (Q.T @ Y_arr)
-    return Y_arr - fitted
+    return cast("NDArray[Any]", Y_arr - fitted)
 
 
 @residualize.register(np.ndarray)
@@ -119,7 +119,7 @@ def _residualize_matrix(
     if cols is not None:
         if isinstance(cols[0], str):
             raise ValueError("String column names not supported for numpy arrays")
-        X = X[:, list(cols)]
+        X = X[:, cast(Any, list(cols))]
     return _residualize_with_matrix(X, data)
 
 
@@ -177,7 +177,7 @@ def _register_model_residualize() -> None:
                     col_idx = [col_names.index(str(c)) for c in cols]
                     X = X[:, col_idx]
                 else:
-                    X = X[:, list(cols)]
+                    X = X[:, cast(Any, list(cols))]
             return _residualize_with_matrix(X, data)
     except ImportError:
         pass
