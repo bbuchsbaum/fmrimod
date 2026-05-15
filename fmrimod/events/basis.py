@@ -26,6 +26,12 @@ from ..types import (
 from .matrix import EventMatrix
 
 
+# Scoped/strict divergence cluster (bd-01KRNN0H73CCYGFJSJ30JPVFTW):
+# under scoped mypy (--follow-imports=skip) BaseEvent/BasisProtocol are
+# opaque Any, so this subclass REQUIRES the ignore, `__post_init__()`
+# is untyped-call-clean, and the basis.evaluate() cast is needed;
+# full-strict resolves them and flags all three. Scoped is the epic
+# gate so they stay. Same cluster as events/term.py, events/variable.py.
 class EventBasis(BaseEvent):  # type: ignore[misc]
     """Event with basis function expansion.
     
@@ -303,8 +309,8 @@ class EventBasis(BaseEvent):  # type: ignore[misc]
         
         return cls(
             name=name,
-            onsets=df[onset_col].values,
-            values=df[value_col].values,
+            onsets=np.asarray(df[onset_col].values, dtype=np.float64),
+            values=np.asarray(df[value_col].values, dtype=np.float64),
             basis=basis,
             durations=durations,
             **cast("dict[str, Any]", kwargs),
@@ -319,6 +325,12 @@ class EventBasis(BaseEvent):  # type: ignore[misc]
             Multi-column event with expanded values
         """
         from .matrix import EventMatrix
+
+        assert (
+            self.onsets is not None
+            and self.expanded_values is not None
+            and self.durations is not None
+        )
 
         column_names = list(self.basis_names)
         if len(column_names) != self.n_basis:
@@ -345,6 +357,11 @@ class EventBasis(BaseEvent):  # type: ignore[misc]
         EventBasis
             New EventBasis with changed basis
         """
+        assert (
+            self.onsets is not None
+            and self.values is not None
+            and self.durations is not None
+        )
         return EventBasis(
             name=self.name,
             onsets=self.onsets,
