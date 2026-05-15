@@ -8,13 +8,13 @@ from __future__ import annotations
 
 from functools import singledispatch
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Sequence, Union, cast
 
 import numpy as np
 
 
 @singledispatch
-def to_glt(x, **kwargs: object) -> Dict[str, object]:
+def to_glt(x: object, **kwargs: object) -> Dict[str, object]:
     """Convert a contrast to AFNI GLT format.
     
     This is a generic function that converts various contrast objects
@@ -71,17 +71,19 @@ def write_glt(glt: Dict[str, object], fname: Optional[Union[str, Path]] = None) 
     
     # Handle both single and multiple GLT strings
     if isinstance(glt['glt_str'], list):
+        glt_strs = cast(Sequence[str], glt['glt_str'])
+        names = cast(Sequence[str], glt['name'])
         # Multiple contrasts (e.g., from F-contrast)
         if fname is None:
             # Write each to separate file
-            for i, (glt_str, name) in enumerate(zip(glt['glt_str'], glt['name'])):
+            for i, (glt_str, name) in enumerate(zip(glt_strs, names)):
                 output_path = Path(f"{name}.txt")
                 output_path.write_text(glt_str + "\n")
         else:
             # Write all to single file with comments
             output_path = Path(fname)
             content = []
-            for glt_str, name in zip(glt['glt_str'], glt['name']):
+            for glt_str, name in zip(glt_strs, names):
                 content.append(f"# {name}")
                 content.append(glt_str)
             output_path.write_text("\n".join(content) + "\n")
@@ -91,8 +93,8 @@ def write_glt(glt: Dict[str, object], fname: Optional[Union[str, Path]] = None) 
             output_path = Path(f"{glt['name']}.txt")
         else:
             output_path = Path(fname)
-        
-        output_path.write_text(glt['glt_str'] + "\n")
+
+        output_path.write_text(cast(str, glt['glt_str']) + "\n")
 
 
 # Implementation for dict-based contrasts (from contrast_weights output)
@@ -114,10 +116,11 @@ def _to_glt_dict(x: Dict[str, object], **kwargs: object) -> Dict[str, object]:
                 glt_strs = []
                 names = []
                 
+                condnames_seq = cast(Sequence[str], condnames)
                 for i in range(weights.shape[1]):
                     # Format each weight with 4 significant figures
                     weight_strs = []
-                    for w, cond in zip(weights[:, i], condnames):
+                    for w, cond in zip(weights[:, i], condnames_seq):
                         if abs(w) > 1e-10:  # Skip near-zero weights
                             # AFNI format: weight*condname
                             weight_str = f"{w:.4g}*{cond}"
@@ -135,7 +138,7 @@ def _to_glt_dict(x: Dict[str, object], **kwargs: object) -> Dict[str, object]:
             else:
                 # Single contrast
                 weight_strs = []
-                for w, cond in zip(weights[:, 0], condnames):
+                for w, cond in zip(weights[:, 0], cast(Sequence[str], condnames)):
                     if abs(w) > 1e-10:  # Skip near-zero weights
                         weight_str = f"{w:.4g}*{cond}"
                         weight_strs.append(weight_str)
@@ -176,14 +179,16 @@ def format_afni_gltsym(glt: Dict[str, object], label: Optional[str] = None) -> s
     if isinstance(glt['glt_str'], list):
         # Multiple GLTs
         lines = []
-        for i, (glt_str, name) in enumerate(zip(glt['glt_str'], glt['name'])):
+        glt_strs_iter = cast(Sequence[str], glt['glt_str'])
+        names_iter = cast(Sequence[str], glt['name'])
+        for i, (glt_str, name) in enumerate(zip(glt_strs_iter, names_iter)):
             lbl = label if label else name
             lines.append(f"-gltsym 'SYM: {glt_str}' -glt_label {i+1} {lbl}")
         return "\n".join(lines)
     else:
         # Single GLT
-        lbl = label if label else glt['name']
-        return f"-gltsym 'SYM: {glt['glt_str']}' -glt_label 1 {lbl}"
+        single_lbl: str = label if label else cast(str, glt['name'])
+        return f"-gltsym 'SYM: {glt['glt_str']}' -glt_label 1 {single_lbl}"
 
 
 __all__ = [
