@@ -46,6 +46,14 @@ def recycle_or_error(
         )
 
 
+# Scoped/strict divergence (bd-01KRNN0H73CCYGFJSJ30JPVFTW): the cast on
+# the return below is REQUIRED under scoped mypy (--follow-imports=skip)
+# -- ..hrf.registry is opaque Any there so registry_list_available_hrfs
+# returns Any and removing the cast raises no-any-return against the
+# declared Union return. Full-strict resolves the registry and flags the
+# cast redundant-cast. Verified empirically (scoped goes red without it).
+# Scoped is the epic gate so the cast stays; same divergence shape as
+# events/basis.py:160 and group/dataset.py contrast_intent_payload.
 def list_available_hrfs(details: bool = False) -> Union[List[str], List[dict[str, object]]]:
     """List all available HRF types.
 
@@ -162,6 +170,6 @@ def hrf_toeplitz(
 
     if sparse:
         from scipy.sparse import csr_matrix
-        return csr_matrix(matrix)
+        return cast("NDArray[np.float64]", csr_matrix(matrix))
 
-    return matrix
+    return cast("NDArray[np.float64]", matrix)
