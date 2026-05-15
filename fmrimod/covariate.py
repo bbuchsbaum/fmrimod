@@ -12,9 +12,20 @@ values are wrapped in :class:`CovariateEvent` objects.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Protocol, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Union,
+    cast,
+)
 
 import numpy as np
+from numpy.typing import NDArray
 import pandas as pd
 
 from .base import BaseEvent
@@ -35,6 +46,11 @@ class _SamplingInfoLike(Protocol):
     samples: Any
 
 
+# Scoped/strict divergence cluster (bd-01KRNN0H73CCYGFJSJ30JPVFTW):
+# under scoped mypy (--follow-imports=skip) Term is opaque Any, so this
+# subclass REQUIRES the ignore; full-strict resolves Term and flags it
+# unused. Scoped is the epic gate so the ignore stays. Same cluster as
+# CovariateEvent below and the events/ BaseEvent subclasses.
 class CovariateTerm(Term):  # type: ignore[misc]
     """A term representing covariates that bypass HRF convolution.
     
@@ -116,6 +132,12 @@ class CovariateTerm(Term):  # type: ignore[misc]
         return ", ".join(parts)
 
 
+# Scoped/strict divergence cluster (bd-01KRNN0H73CCYGFJSJ30JPVFTW):
+# under scoped mypy (--follow-imports=skip) BaseEvent is opaque Any, so
+# this subclass REQUIRES the ignore and __post_init__ / event_type are
+# clean; full-strict resolves BaseEvent and flags the unused ignore, the
+# __post_init__ untyped-call, and the event_type override. Scoped is the
+# epic gate so the form stays. Same cluster as the events/ subclasses.
 class CovariateEvent(BaseEvent):  # type: ignore[misc]
     """Event representation for covariate data.
     
@@ -213,8 +235,8 @@ class CovariateEvent(BaseEvent):  # type: ignore[misc]
         # Ensure 2D
         if values.ndim == 1:
             values = values.reshape(-1, 1)
-        
-        return values
+
+        return cast("NDArray[np.float64]", values)
     
     def __repr__(self) -> str:
         """String representation."""
@@ -356,7 +378,7 @@ def create_covariate_events(
         # Create covariate event
         events[event_name] = CovariateEvent(
             name=event_name,
-            values=values,
+            values=cast("NDArray[np.float64]", values),
             sampling_points=sampling_info.samples
         )
     
