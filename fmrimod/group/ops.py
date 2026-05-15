@@ -43,6 +43,13 @@ def _normalize_axis_index(
     return idx
 
 
+# Scoped/strict divergence (bd-01KRNN0H73CCYGFJSJ30JPVFTW): the cast
+# below is REQUIRED under scoped mypy (--follow-imports=skip) -- the
+# frame source type is opaque Any there so frame.iloc[idx].copy() is Any
+# and removing the cast raises no-any-return against Optional[DataFrame].
+# Full-strict resolves it and flags the cast redundant-cast. Verified
+# empirically (scoped goes red without it). Scoped is the epic gate so
+# the cast stays; same divergence shape as events/basis.py:160.
 def _subset_frame(
     frame: Optional[pd.DataFrame], idx: NDArray[np.intp]
 ) -> Optional[pd.DataFrame]:
