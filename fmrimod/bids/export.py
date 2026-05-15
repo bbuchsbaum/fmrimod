@@ -11,13 +11,41 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Sequence
+from typing import TYPE_CHECKING, Optional, Protocol, Sequence, cast
 
 if TYPE_CHECKING:
-    import neuroim
+    import neuroim  # type: ignore[import-untyped]
 
 import numpy as np
 from numpy.typing import NDArray
+
+
+class _ContrastResultLike(Protocol):
+    """Duck-typed view of fmrimod.glm.ContrastResult for BIDS export.
+
+    Names the attributes the export writer reads off each contrast result.
+    Mirrors the protocols in fmrimod/io/results.py and fmrimod/dataset/
+    study.py; intentionally kept local so the typed seam stays decoupled
+    from the concrete result class.
+    """
+
+    @property
+    def estimate(self) -> object: ...
+
+    @property
+    def stat(self) -> object: ...
+
+    @property
+    def p_value(self) -> object: ...
+
+    @property
+    def se(self) -> object | None: ...
+
+    @property
+    def stat_type(self) -> str: ...
+
+    @property
+    def df(self) -> object: ...
 
 
 @dataclass
@@ -177,7 +205,7 @@ def write_betas(
         written.append(out_path)
 
     # JSON sidecar
-    meta = {
+    meta: dict[str, object] = {
         "Description": "GLM beta coefficients",
         "Software": "fmrimod",
         "GeneratedBy": {"Name": "fmrimod", "CodeURL": "https://github.com/bbuchsbaum/fmrimod"},
@@ -194,7 +222,7 @@ def write_betas(
 
 
 def write_contrasts(
-    contrasts: dict,
+    contrasts: dict[str, object],
     mask: NDArray[np.bool_],
     affine: NDArray[np.float64],
     output_dir: Path,
@@ -229,7 +257,8 @@ def write_contrasts(
         "se": lambda c: c.se if c.se is not None else np.zeros_like(c.stat),
     }
 
-    for con_name, cres in contrasts.items():
+    for con_name, raw_cres in contrasts.items():
+        cres = cast(_ContrastResultLike, raw_cres)
         for stat_name in stats:
             extractor = stat_extractors.get(stat_name)
             if extractor is None:
@@ -245,7 +274,7 @@ def write_contrasts(
             written.append(out_path)
 
         # JSON sidecar per contrast
-        meta = {
+        meta: dict[str, object] = {
             "Description": f"Contrast: {con_name}",
             "ContrastType": cres.stat_type,
             "DegreesOfFreedom": cres.df,

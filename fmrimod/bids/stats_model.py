@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, Mapping, Sequence
+from typing import Literal, Mapping, Sequence, cast
 
 import numpy as np
 import pandas as pd
@@ -46,7 +46,7 @@ class StatsModelContrast:
             ):
                 from fmrimod.contrast import OmnibusContrast
 
-                return OmnibusContrast(term=term, levels=levels, name=self.name)
+                return cast(object, OmnibusContrast(term=term, levels=levels, name=self.name))
             return None
 
         if weights.ndim != 1 or weights.shape[0] != len(levels):
@@ -62,7 +62,7 @@ class StatsModelContrast:
             semantic = term_spec if semantic is None else semantic + term_spec
         if semantic is None:
             return None
-        return semantic.named(self.name)
+        return cast(object, semantic.named(self.name))
 
     def resolve(self, column_names: Sequence[str]) -> NDArray[np.float64]:
         """Resolve this contrast against a realised design-column order."""
@@ -175,13 +175,18 @@ def load_stats_model(path: str | Path) -> dict[str, object]:
     """Load a BIDS Stats Model JSON document."""
 
     with open(path) as f:
-        return json.load(f)
+        return cast("dict[str, object]", json.load(f))
 
 
 def _run_node(model: Mapping[str, object], level: str = "run") -> Mapping[str, object]:
-    for node in model.get("Nodes", []):
+    nodes = model.get("Nodes", [])
+    if not isinstance(nodes, Sequence) or isinstance(nodes, (str, bytes)):
+        raise TypeError("BIDS Stats Model 'Nodes' must be a sequence")
+    for node in nodes:
+        if not isinstance(node, Mapping):
+            continue
         if str(node.get("Level", "")).lower() == level.lower():
-            return node
+            return cast("Mapping[str, object]", node)
     raise ValueError(f"No BIDS Stats Model node with Level={level!r}")
 
 
@@ -318,7 +323,13 @@ def _numeric_param(
 ) -> float:
     for name in names:
         if name in transform:
-            return float(transform[name])
+            value = transform[name]
+            if not isinstance(value, (int, float, str)):
+                raise TypeError(
+                    f"BIDS Stats Model parameter {name!r} must be numeric or "
+                    f"string-coercible; got {type(value).__name__}"
+                )
+            return float(value)
     return default
 
 
@@ -409,7 +420,11 @@ def _apply_event_table_transforms(
 
 def _baseline_terms(node: Mapping[str, object]) -> tuple[bool, list[str]]:
     model = node.get("Model", {})
+    if not isinstance(model, Mapping):
+        return False, []
     x_terms = model.get("X", [])
+    if not isinstance(x_terms, Sequence) or isinstance(x_terms, (str, bytes)):
+        return False, []
     intercept = any(item == 1 or str(item).lower() == "intercept" for item in x_terms)
     nuisance = [str(item) for item in x_terms if isinstance(item, str)]
     return intercept, nuisance
@@ -503,7 +518,12 @@ def _contrast_specs(
     column_names: Sequence[str],
 ) -> dict[str, StatsModelContrast]:
     specs: dict[str, StatsModelContrast] = {}
-    for contrast in node.get("Contrasts", []):
+    contrasts_node = node.get("Contrasts", [])
+    if not isinstance(contrasts_node, Sequence) or isinstance(contrasts_node, (str, bytes)):
+        return specs
+    for contrast in contrasts_node:
+        if not isinstance(contrast, Mapping):
+            continue
         raw_test = str(contrast.get("Test", "t")).lower()
         if raw_test == "t":
             test: Literal["t", "F"] = "t"
