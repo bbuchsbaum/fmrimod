@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, Mapping, Sequence, cast
+from typing import Any, Literal, Mapping, Sequence, cast
 
 import numpy as np
 import pandas as pd
@@ -640,7 +640,7 @@ def translate_run_node(
     event_model = compile_events(
         model_spec,
         transformed_events,
-        sampling_frame=sampling_frame,
+        sampling_frame=cast(Any, sampling_frame),
         block=block if block in transformed_events.columns else None,
         durations=duration_col,
         precision=None,
@@ -655,6 +655,7 @@ def translate_run_node(
         intercept="global" if intercept else "none",
         nuisance_list=nuisance_list,
     )
+    assert event_model is not None
     column_names = list(event_model.column_names) + list(baseline_model.column_names)
     contrast_specs = _contrast_specs(node, column_names)
     return StatsModelTranslation(
