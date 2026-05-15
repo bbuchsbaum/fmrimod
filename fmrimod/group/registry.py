@@ -65,7 +65,7 @@ class GroupRegistry(Generic[T]):
             validate_function=validate_function,
         )
 
-    def create(self, name: str, *, validate: bool = True, **kwargs: Any) -> T:
+    def create(self, name: str, *, validate: bool = True, **kwargs: object) -> T:
         """Create a registered component by name."""
         entry = self._get_entry(name)
         try:
@@ -106,7 +106,7 @@ class GroupRegistry(Generic[T]):
             raise GroupRegistryError("name must be a string", parameter="name")
         return self._entries.pop(name, None) is not None
 
-    def get_info(self, name: str) -> dict[str, Any]:
+    def get_info(self, name: str) -> dict[str, object]:
         """Return registration metadata."""
         entry = self._get_entry(name)
         return {

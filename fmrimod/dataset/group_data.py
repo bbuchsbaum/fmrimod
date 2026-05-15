@@ -30,7 +30,7 @@ class GroupData:
 
     format: str
     subjects: List[str]
-    data: Dict[str, Any] = field(default_factory=dict)
+    data: Dict[str, object] = field(default_factory=dict)
     covariates: Optional[pd.DataFrame] = None
 
     def __post_init__(self) -> None:
@@ -47,7 +47,7 @@ class GroupData:
         return len(self.subjects)
 
 
-def _coerce_path_list(values: Any, *, name: str) -> List[str]:
+def _coerce_path_list(values: object, *, name: str) -> List[str]:
     if isinstance(values, (str, os.PathLike)):
         paths = [Path(values)]
     elif isinstance(values, Sequence):
@@ -126,7 +126,7 @@ def _validate_covariates(
     return covariates
 
 
-def _looks_like_fmri_lm(obj: Any) -> bool:
+def _looks_like_fmri_lm(obj: object) -> bool:
     required_attrs = ("betas", "tstat", "se", "n_voxels")
     return all(hasattr(obj, attr) for attr in required_attrs)
 
