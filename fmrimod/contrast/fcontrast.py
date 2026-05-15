@@ -140,7 +140,7 @@ def _fcontrasts_event_factor(event: EventFactor, **kwargs: object) -> Dict[str, 
     if event.event_type != 'categorical':
         return {}
     
-    n_levels = len(event.levels)
+    n_levels = len(cast(Any, event).levels)
     if n_levels < 2:
         return {}
     
@@ -182,25 +182,27 @@ def _fcontrasts_event_term(
     C_matrices = {}
     D_matrices = {}
     
-    for ev in cat_events:
+    for ev_raw in cat_events:
+        ev = cast(Any, ev_raw)
         n_levels = len(ev.levels)
         C_matrices[ev.name] = _unit_vector(n_levels)
         D_matrices[ev.name] = _contrast_sum_matrix(n_levels)
-    
+
     # Get expected row names in Kronecker order
-    level_lists = [ev.levels for ev in cat_events]
+    level_lists = [cast(Any, ev).levels for ev in cat_events]
     level_grid = list(itertools.product(*level_lists))
     cat_cond_names = [':'.join(combo) for combo in level_grid]
     expected_rows = len(level_grid)
     
     # Compute main effects matrices
     main_effects = {}
-    for i, ev in enumerate(cat_events):
+    for i, ev_raw in enumerate(cat_events):
+        ev = cast(Any, ev_raw)
         # Start with C matrices for all events
-        mat_list = [C_matrices[e.name] for e in cat_events]
+        mat_list = [C_matrices[cast(Any, e).name] for e in cat_events]
         # Replace the i-th with D matrix
         mat_list[i] = D_matrices[ev.name]
-        
+
         # Kronecker product
         result = reduce(np.kron, mat_list)
         main_effects[ev.name] = result
@@ -214,16 +216,16 @@ def _fcontrasts_event_term(
         for k in range(2, min(len(cat_events) + 1, max_inter + 1)):
             for combo in itertools.combinations(range(len(cat_events)), k):
                 # Start with C matrices
-                mat_list = [C_matrices[e.name] for e in cat_events]
+                mat_list = [C_matrices[cast(Any, e).name] for e in cat_events]
                 # Replace selected indices with D matrices
                 for idx in combo:
-                    mat_list[idx] = D_matrices[cat_events[idx].name]
-                
+                    mat_list[idx] = D_matrices[cast(Any, cat_events[idx]).name]
+
                 # Kronecker product
                 result = reduce(np.kron, mat_list)
-                
+
                 # Create interaction name
-                inter_name = ':'.join(cat_events[idx].name for idx in combo)
+                inter_name = ':'.join(cast(Any, cat_events[idx]).name for idx in combo)
                 all_contrasts[inter_name] = result
     
     return all_contrasts
@@ -257,7 +259,7 @@ def _fcontrasts_event_model(model: EventModel, **kwargs: object) -> Dict[str, Ar
     # Process each term
     for i, term in enumerate(model.terms):
         term_name = term.name
-        term_indices_vec = tind.get(term_name, [])
+        term_indices_vec = tind.get(term_name or "", [])
         
         if not term_indices_vec:
             continue
