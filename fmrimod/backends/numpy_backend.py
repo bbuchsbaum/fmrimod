@@ -24,12 +24,12 @@ class NumpyBackend:
     @staticmethod
     def cholesky(A: NDArray[np.float64]) -> NDArray[np.float64]:
         """Cholesky decomposition (lower triangular)."""
-        return linalg.cholesky(A, lower=True)
+        return cast("NDArray[np.float64]", linalg.cholesky(A, lower=True))
 
     @staticmethod
     def cho_solve(L: NDArray[np.float64], b: NDArray[np.float64]) -> NDArray[np.float64]:
         """Solve ``A x = b`` given lower Cholesky factor ``L``."""
-        return linalg.cho_solve((L, True), b)
+        return cast("NDArray[np.float64]", linalg.cho_solve((L, True), b))
 
     @staticmethod
     def svd(X: NDArray[np.float64]) -> tuple[Any, ...]:
@@ -39,9 +39,9 @@ class NumpyBackend:
     @staticmethod
     def solve(A: NDArray[np.float64], b: NDArray[np.float64]) -> NDArray[np.float64]:
         """Solve ``A x = b``."""
-        return linalg.solve(A, b)
+        return cast("NDArray[np.float64]", linalg.solve(A, b))
 
     @staticmethod
-    def matmul(A: NDArray, B: NDArray) -> NDArray:
+    def matmul(A: NDArray[np.float64], B: NDArray[np.float64]) -> NDArray[np.float64]:
         """Matrix multiplication."""
-        return A @ B
+        return cast("NDArray[np.float64]", A @ B)
