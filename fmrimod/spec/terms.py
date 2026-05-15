@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from ..contrast.contrast_spec import ContrastSpec
     from .diff import SpecDiff
 
-Predicate = Union[str, Mapping[str, Any], Callable[[pd.DataFrame], Any]]
+Predicate = Union[str, Mapping[str, object], Callable[[pd.DataFrame], object]]
 
 
 # -- Base classes ------------------------------------------------------------
@@ -229,7 +229,7 @@ class Spec:
 
         return spec_diff(self, other)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> Dict[str, object]:
         """Serialize this :class:`Spec` to a JSON-safe dict.
 
         The inverse of :meth:`from_dict`. See
@@ -242,7 +242,7 @@ class Spec:
         return to_dict(self)
 
     @classmethod
-    def from_dict(cls, payload: Mapping[str, Any]) -> "Spec":
+    def from_dict(cls, payload: Mapping[str, object]) -> "Spec":
         """Reconstruct a :class:`Spec` from :meth:`to_dict` output."""
         from .serialize import from_dict
 
