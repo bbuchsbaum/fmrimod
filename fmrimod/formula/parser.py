@@ -482,7 +482,7 @@ def parse_formula(
                 }
                 term = Term(
                     event_arg,
-                    hrf=hrf,
+                    hrf=cast(Any, hrf),
                     name=cast("Optional[str]", ft.kwargs.get('id')),
                     normalize=bool(ft.kwargs.get('normalize', False)),
                     summate=bool(ft.kwargs.get('summate', True)),
@@ -492,10 +492,10 @@ def parse_formula(
                 # trialwise() function
                 term = trialwise(
                     basis=ft.kwargs.get('basis', 'spmg1'),
-                    lag=ft.kwargs.get('lag', 0.0),
-                    nbasis=ft.kwargs.get('nbasis', 1),
-                    add_sum=ft.kwargs.get('add_sum', False),
-                    label=ft.kwargs.get('label', 'trial')
+                    lag=cast(float, ft.kwargs.get('lag', 0.0)),
+                    nbasis=cast(int, ft.kwargs.get('nbasis', 1)),
+                    add_sum=cast(bool, ft.kwargs.get('add_sum', False)),
+                    label=cast(str, ft.kwargs.get('label', 'trial')),
                 )
             elif ft.function and ft.arguments:
                 # Other function with args - treat first arg as event
@@ -505,7 +505,7 @@ def parse_formula(
                     # Handle polynomial basis
                     degree = ft.arguments[1] if len(ft.arguments) > 1 else 2
                     from ..basis import Poly
-                    term.basis = Poly(degree=int(cast(Any, degree)))
+                    term.basis = cast(Any, Poly(degree=int(cast(Any, degree))))
             else:
                 # Just a function name with no args
                 term = Term(ft.function)
