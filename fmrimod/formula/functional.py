@@ -248,10 +248,10 @@ def poly(degree: int, **kwargs: object) -> Callable[[Term], Term]:
     # Import here to avoid circular dependency
     from ..basis import Poly
     
-    poly_basis = Poly(degree=degree, **kwargs)
-    
+    poly_basis = Poly(degree=degree, **cast("dict[str, Any]", kwargs))
+
     def transform(t: Term) -> Term:
-        return t.with_basis(poly_basis)
+        return t.with_basis(cast(BasisProtocol, poly_basis))
     
     transform.__name__ = f"poly({degree})"
     return transform
@@ -279,10 +279,10 @@ def spline(df: int, **kwargs: object) -> Callable[[Term], Term]:
     # Import here to avoid circular dependency
     from ..basis import BSpline
     
-    spline_basis = BSpline(df=df, **kwargs)
-    
+    spline_basis = BSpline(df=df, **cast("dict[str, Any]", kwargs))
+
     def transform(t: Term) -> Term:
-        return t.with_basis(spline_basis)
+        return t.with_basis(cast(BasisProtocol, spline_basis))
     
     transform.__name__ = f"spline(df={df})"
     return transform
@@ -308,10 +308,10 @@ def scale(**kwargs: object) -> Callable[[Term], Term]:
     # Import here to avoid circular dependency
     from ..basis import Scale
     
-    scale_transform = Scale(**kwargs)
-    
+    scale_transform = Scale(**cast("dict[str, Any]", kwargs))
+
     def transform(t: Term) -> Term:
-        return t.with_basis(scale_transform)
+        return t.with_basis(cast(BasisProtocol, scale_transform))
     
     transform.__name__ = "scale()"
     return transform
