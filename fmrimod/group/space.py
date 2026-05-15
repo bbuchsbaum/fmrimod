@@ -41,7 +41,7 @@ class GroupSpace(Protocol):
         """Return a descriptor restricted to sample-axis indices."""
 
 
-def _coerce_labels(labels: Sequence[Any], *, parameter: str) -> tuple[str, ...]:
+def _coerce_labels(labels: Sequence[object], *, parameter: str) -> tuple[str, ...]:
     out = tuple(str(label) for label in labels)
     if not out:
         raise GroupSpaceError(f"{parameter} must be non-empty")
@@ -85,7 +85,7 @@ def _validate_spatial_shape(shape: Sequence[int]) -> tuple[int, int, int]:
 class SampleLabelSpace:
     """Space descriptor for tabular samples such as ROIs or features."""
 
-    labels: Sequence[Any]
+    labels: Sequence[object]
     kind: str = "sample_labels"
 
     def __post_init__(self) -> None:
@@ -107,7 +107,7 @@ class SampleLabelSpace:
 class ParcelSpace:
     """Space descriptor for parcel or ROI summaries."""
 
-    labels: Sequence[Any]
+    labels: Sequence[object]
     lookup: Any = None
     membership: Any = None
     kind: str = "parcels"

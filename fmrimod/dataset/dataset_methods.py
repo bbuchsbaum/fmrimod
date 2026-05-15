@@ -87,7 +87,7 @@ def all_timepoints(dataset: FmriDataset) -> NDArray[np.intp]:
     return np.arange(dataset.n_timepoints, dtype=np.intp)
 
 
-def subject_ids(dataset: Any) -> list[Any]:
+def subject_ids(dataset: object) -> list[object]:
     """Return subject identifiers from a study-like dataset."""
     ids = getattr(dataset, "subject_ids", None)
     if ids is None:

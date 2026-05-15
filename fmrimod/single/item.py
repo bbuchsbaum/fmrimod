@@ -824,7 +824,7 @@ def _prepare_targets(T_target: TargetLike | None, n_trials: int) -> dict[str, ob
     }
 
 
-def _as_numeric_matrix(x: Any, name: str) -> NDArray[np.float64]:
+def _as_numeric_matrix(x: object, name: str) -> NDArray[np.float64]:
     if sparse.issparse(x):
         x = x.toarray()
     arr = np.asarray(x)
@@ -835,7 +835,7 @@ def _as_numeric_matrix(x: Any, name: str) -> NDArray[np.float64]:
     return np.asarray(arr, dtype=np.float64)
 
 
-def _as_matrix_optional(x: Any | None, name: str) -> NDArray[np.float64] | None:
+def _as_matrix_optional(x: object | None, name: str) -> NDArray[np.float64] | None:
     if x is None:
         return None
     return _as_numeric_matrix(x, name)
