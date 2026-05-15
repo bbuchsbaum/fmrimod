@@ -9,7 +9,7 @@ combinations from ``EventTerm``, ``EventFactor``, ``EventVariable``,
 from __future__ import annotations
 
 from functools import singledispatch
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -80,12 +80,12 @@ def _(x: EventTerm, **kwargs: object) -> pd.DataFrame:
     # For single events, return their unique values
     if len(x.events) == 1:
         event = x.events[0]
-        return _event_to_table(event)
+        return _event_to_table(cast(EventProtocol, event))
     
     # For interactions, get all combinations
     tables = []
     for event in x.events:
-        table = _event_to_table(event)
+        table = _event_to_table(cast(EventProtocol, event))
         tables.append(table)
     
     # Create full factorial combination
@@ -123,7 +123,7 @@ def _event_to_table(event: EventProtocol) -> pd.DataFrame:
     """
     if event.event_type == "categorical":
         # For categorical, return unique levels
-        levels = event.levels
+        levels = cast(Any, event).levels
         return pd.DataFrame({event.name: levels})
     
     elif event.event_type == "continuous":
@@ -144,7 +144,7 @@ def _event_to_table(event: EventProtocol) -> pd.DataFrame:
     elif event.event_type == "matrix":
         # For matrix events, return column information
         n_cols = event.values.shape[1] if len(event.values.shape) > 1 else 1
-        col_names = event.column_names or [f"{event.name}_{i+1}" for i in range(n_cols)]
+        col_names = cast(Any, event).column_names or [f"{event.name}_{i+1}" for i in range(n_cols)]
         # Return a summary row for each column
         data = {event.name: col_names}
         return pd.DataFrame(data)
@@ -154,7 +154,7 @@ def _event_to_table(event: EventProtocol) -> pd.DataFrame:
         n_basis = getattr(event, "n_basis", getattr(event, "nbasis", None))
         if n_basis is None:
             raise AttributeError("EventBasis has no n_basis/nbasis attribute")
-        basis_names = list(event.basis_names)
+        basis_names = list(cast(Any, event).basis_names)
         if len(basis_names) != n_basis:
             basis_names = [f"basis_{i+1}" for i in range(n_basis)]
         return pd.DataFrame({event.name: basis_names})
@@ -226,6 +226,7 @@ def _(x: EventFactor, **kwargs: object) -> pd.DataFrame:
 @event_table.register(EventVariable)
 def _(x: EventVariable, **kwargs: object) -> pd.DataFrame:
     """Extract event table from EventVariable."""
+    assert x.values is not None
     values = np.unique(x.values)
     if len(values) > 20:
         # Summary for many values
