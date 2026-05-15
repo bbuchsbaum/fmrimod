@@ -166,7 +166,7 @@ def _cli_help(command: str | None = None) -> int:
 def _cli_list(args: list[str]) -> int:
     opts = _parse_cli_args(args, flags={"details", "json"}, values={"output"})
     rows = list_available_hrfs(details=True)
-    _write_cli_table(rows, json_output=bool(opts.get("json")), output=opts.get("output"))
+    _write_cli_table(cast(Any, rows), json_output=bool(opts.get("json")), output=opts.get("output"))
     return 0
 
 
@@ -267,13 +267,13 @@ def _cli_regressor(args: list[str]) -> int:
     hrf = _get_cli_hrf(opts, allow_decorators=False)
     reg = regressor(
         onsets=events["onset"].to_numpy(float),
-        hrf=hrf,
+        hrf=cast(Any, hrf),
         duration=events["duration"].to_numpy(float),
         amplitude=events["amplitude"].to_numpy(float),
         span=_as_scalar_numeric(opts["span"], "span"),
     )
     grid = _regressor_grid(opts, events["onset"].to_numpy(float))
-    values = reg.evaluate(
+    values = cast(Any, reg).evaluate(
         grid,
         precision=_as_scalar_numeric(opts["precision"], "precision"),
         method=_match_choice(opts["method"], {"conv", "fft", "direct", "loop", "Rconv"}, "method"),
@@ -352,13 +352,13 @@ def _cli_design(args: list[str]) -> int:
     rset = regressor_set(
         onsets=global_event_onsets,
         fac=events[str(opts["condition"])].to_numpy(),
-        hrf=hrf,
+        hrf=cast(Any, hrf),
         duration=duration,
         amplitude=amplitude,
         span=_as_scalar_numeric(opts["span"], "span"),
     )
     grid = sf.sample_times(global_time=True)
-    design = regressor_design(
+    design = cast(Any, regressor_design)(
         rset,
         grid,
         precision=_as_scalar_numeric(opts["precision"], "precision"),
@@ -547,7 +547,7 @@ def _get_cli_hrf(opts: Mapping[str, object], *, allow_decorators: bool = True) -
         width=width,
         summate=bool(opts.get("summate", True)),
         normalize=bool(opts.get("normalize")),
-        **kwargs,
+        **cast("dict[str, Any]", kwargs),
     )
 
 
