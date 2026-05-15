@@ -1,11 +1,15 @@
 """Design matrix column metadata."""
+
+from __future__ import annotations
+
 import re
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
 
 
-def design_colmap(x):
+def design_colmap(x: object) -> pd.DataFrame:
     """Get structured column metadata for a design matrix.
 
     Returns a DataFrame with one row per regressor column, providing
@@ -71,7 +75,7 @@ def design_colmap(x):
     raise TypeError(f"design_colmap not implemented for {type(x)}")
 
 
-def design_meta(x):
+def design_meta(x: object) -> pd.DataFrame:
     """Return first-class design column metadata.
 
     For :class:`~fmrimod.design.event_model.EventModel`, metadata is read from
@@ -95,7 +99,7 @@ def design_meta(x):
     raise TypeError(f"design_meta not implemented for {type(x)}")
 
 
-def _colmap_event_model(model):
+def _colmap_event_model(model: Any) -> pd.DataFrame:
     """Build column metadata DataFrame for an EventModel.
 
     Parameters
@@ -111,11 +115,12 @@ def _colmap_event_model(model):
     meta = design_meta(model)
     if not meta.empty:
         colmap = meta.copy()
-        colmap.insert(
-            colmap.columns.get_loc("is_block_diagonal"),
-            "pretty_name",
-            colmap["name"],
-        )
+        loc = colmap.columns.get_loc("is_block_diagonal")
+        if not isinstance(loc, int):
+            raise TypeError(
+                "is_block_diagonal must be a single column in the meta frame"
+            )
+        colmap.insert(loc, "pretty_name", colmap["name"])
         return colmap
 
     dm = model.design_matrix
@@ -128,8 +133,8 @@ def _colmap_event_model(model):
     col_inds = model.column_indices
 
     # Map each column to its term
-    term_index_by_col = [None] * n_cols
-    term_tag_by_col = [None] * n_cols
+    term_index_by_col: list[Optional[int]] = [None] * n_cols
+    term_tag_by_col: list[Optional[str]] = [None] * n_cols
 
     if col_inds:
         for i, (tag, indices) in enumerate(col_inds.items()):
@@ -139,7 +144,7 @@ def _colmap_event_model(model):
                     term_tag_by_col[idx] = tag
 
     # Parse basis index from column names (pattern: _b1, _b2, etc.)
-    basis_ix = [None] * n_cols
+    basis_ix: list[Optional[int]] = [None] * n_cols
     for i, name in enumerate(cn):
         m = re.search(r'_b(\d+)$', name)
         if m:
@@ -155,8 +160,8 @@ def _colmap_event_model(model):
         condition.append(c)
 
     # Basis info from HRF
-    basis_name = [None] * n_cols
-    basis_total = [None] * n_cols
+    basis_name: list[Optional[str]] = [None] * n_cols
+    basis_total: list[Optional[int]] = [None] * n_cols
     for i, term in enumerate(model.terms):
         if term.hrf is not None:
             try:
@@ -193,7 +198,7 @@ def _colmap_event_model(model):
                         basis_total[idx] = nb
 
     # Basis labels
-    basis_label = [None] * n_cols
+    basis_label: list[Optional[str]] = [None] * n_cols
     for i in range(n_cols):
         bix = basis_ix[i]
         bn = basis_name[i]
@@ -230,7 +235,7 @@ def _colmap_event_model(model):
     })
 
 
-def _meta_event_model(model):
+def _meta_event_model(model: Any) -> pd.DataFrame:
     """Build first-class event-model column metadata from column facts."""
     dm = model.design_matrix
     n_cols = dm.shape[1]
@@ -290,7 +295,7 @@ _META_COLUMNS = [
 ]
 
 
-def _basis_label(basis_name, basis_ix):
+def _basis_label(basis_name: Optional[str], basis_ix: Optional[int]) -> Optional[str]:
     if basis_name is None or basis_ix is None:
         return None
     label = str(basis_name)
@@ -305,7 +310,7 @@ def _basis_label(basis_name, basis_ix):
     return f"component_{int(basis_ix):02d}"
 
 
-def _str_or_none(value):
+def _str_or_none(value: Any) -> Optional[str]:
     if value is None:
         return None
     if pd.isna(value):
@@ -313,7 +318,7 @@ def _str_or_none(value):
     return str(value)
 
 
-def _int_or_none(value):
+def _int_or_none(value: Any) -> Optional[int]:
     if value is None:
         return None
     if pd.isna(value):
@@ -321,7 +326,7 @@ def _int_or_none(value):
     return int(value)
 
 
-def _colmap_baseline_model(model):
+def _colmap_baseline_model(model: Any) -> pd.DataFrame:
     """Build column metadata DataFrame for a BaselineModel.
 
     Parameters
@@ -383,7 +388,7 @@ def _colmap_baseline_model(model):
     })
 
 
-def _empty_colmap():
+def _empty_colmap() -> pd.DataFrame:
     """Return an empty column map DataFrame with the correct schema."""
     return pd.DataFrame({
         'col': pd.Series(dtype=int),
