@@ -1,6 +1,6 @@
 """Utility functions for working with model terms and design matrices."""
 
-from typing import Dict, List, Optional, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 
 from ..types import Array, ModelProtocol
@@ -43,8 +43,10 @@ def term_indices(model: ModelProtocol) -> Dict[str, List[int]]:
     if not hasattr(model, 'terms') or not hasattr(model, 'column_names'):
         raise AttributeError("Model must have 'terms' and 'column_names' attributes")
     
-    # Get column names from model
-    col_names = model.column_names
+    # Get column names from model. ModelProtocol types column_names as a
+    # method, but concrete models expose it as a property returning
+    # list[str] (used as such below); the Any view follows runtime.
+    col_names = cast(Any, model).column_names
     
     # Initialize mapping
     indices_map = {}
@@ -244,7 +246,7 @@ def split_by_term(model: ModelProtocol) -> List[Tuple[str, Array]]:
     
     # Order by term appearance in model
     ordered_terms = []
-    for term in model.terms:
+    for term in cast(Any, model).terms:
         if term.name in matrices:
             ordered_terms.append((term.name, matrices[term.name]))
     
