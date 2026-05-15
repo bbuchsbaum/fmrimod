@@ -1,10 +1,19 @@
 """Contrast validation and collinearity checking."""
 
+from __future__ import annotations
+
+from typing import Any, cast
+
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 
 
-def validate_contrasts(x, weights=None, tol=1e-8):
+def validate_contrasts(
+    x: object,
+    weights: object | None = None,
+    tol: float = 1e-8,
+) -> pd.DataFrame:
     """Validate contrast weights against a design matrix or event model.
 
     Performs several diagnostic checks on each contrast vector:
@@ -139,12 +148,12 @@ def validate_contrasts(x, weights=None, tol=1e-8):
         raise TypeError("weights must be array, dict, or list")
 
     # Helper: check estimability
-    def is_estimable(X, cvec):
+    def is_estimable(X: NDArray[Any], cvec: NDArray[Any]) -> bool:
         if len(cvec) != X.shape[1]:
             return False
         rX = np.linalg.matrix_rank(X)
         rXa = np.linalg.matrix_rank(np.vstack([X, cvec.reshape(1, -1)]))
-        return rXa == rX
+        return bool(rXa == rX)
 
     # Validate each contrast
     rows = []
@@ -190,7 +199,7 @@ def validate_contrasts(x, weights=None, tol=1e-8):
     return result
 
 
-def check_collinearity(X, threshold=0.9):
+def check_collinearity(X: object, threshold: float = 0.9) -> dict[str, object]:
     """Check a design matrix for multicollinearity.
 
     Computes the pairwise Pearson correlation between all non-intercept,
@@ -250,6 +259,7 @@ def check_collinearity(X, threshold=0.9):
 
     if np.ndim(X) != 2:
         raise ValueError("X must be 2-dimensional design matrix")
+    X_arr = cast(NDArray[Any], X)
 
     # Drop intercept-like columns
     intercept_names = {'(Intercept)', 'Intercept', 'constant', 'const'}
@@ -258,7 +268,7 @@ def check_collinearity(X, threshold=0.9):
     if len(keep) == 0:
         return {'ok': True, 'pairs': pd.DataFrame()}
 
-    Xk = X[:, keep]
+    Xk = X_arr[:, keep]
     keep_names = [col_names[i] for i in keep]
 
     # Drop zero-variance columns
