@@ -285,7 +285,7 @@ def _t_two_sided_pvalue(
     dfres: float,
 ) -> NDArray[np.float64]:
     """Compute two-sided p-values for t-statistics."""
-    return 2.0 * sp_special.stdtr(dfres, -np.abs(tstat))
+    return cast("NDArray[np.float64]", 2.0 * sp_special.stdtr(dfres, -np.abs(tstat)))
 
 
 def _t_statistic(
@@ -322,7 +322,7 @@ def _f_upper_tail_pvalue(
     df2: float,
 ) -> NDArray[np.float64]:
     """Compute upper-tail p-values for F-statistics."""
-    return sp_special.fdtrc(df1, df2, fstat)
+    return cast("NDArray[np.float64]", sp_special.fdtrc(df1, df2, fstat))
 
 
 @dataclass
