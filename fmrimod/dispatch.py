@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union
+from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union, cast
 
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 
 from .base import BaseEvent
 from .events import EventBasis
@@ -29,7 +30,9 @@ class GenericFunction:
     This mimics R's S3 generic functions but uses Python's type system.
     """
     
-    def __init__(self, name: str, default: Optional[Callable] = None):
+    def __init__(
+        self, name: str, default: Optional[Callable[..., Any]] = None
+    ) -> None:
         """Initialize generic function.
         
         Parameters
@@ -40,17 +43,17 @@ class GenericFunction:
             Default implementation if no method found
         """
         self.name = name
-        self._methods: Dict[Type, Callable] = {}
+        self._methods: Dict[Type[Any], Callable[..., Any]] = {}
         self._default = default or self._no_method
     
-    def _no_method(self, obj, *args: object, **kwargs: object):
+    def _no_method(self, obj: object, *args: object, **kwargs: object) -> Any:
         """Default when no method is found."""
         type_name = type(obj).__name__
         raise NotImplementedError(
             f"No method for {self.name}() for type '{type_name}'"
         )
     
-    def register(self, cls: Type) -> Callable[[F], F]:
+    def register(self, cls: Type[Any]) -> Callable[[F], F]:
         """Register a method for a specific type.
         
         Parameters
@@ -72,7 +75,7 @@ class GenericFunction:
             return func
         return decorator
     
-    def __call__(self, obj, *args: object, **kwargs: object):
+    def __call__(self, obj: object, *args: object, **kwargs: object) -> Any:
         """Call the appropriate method based on object type."""
         # Look for exact type match first
         obj_type = type(obj)
@@ -127,9 +130,9 @@ def _(obj: ModelProtocol) -> Array:
 
 
 @design_matrix.register(np.ndarray)
-def _(obj: np.ndarray) -> Array:
+def _(obj: NDArray[Any]) -> Array:
     """Raw ndarray is already a design matrix."""
-    return obj
+    return cast(Array, obj)
 
 
 @design_matrix.register(pd.DataFrame)
@@ -146,7 +149,7 @@ def _(obj: ModelProtocol) -> List[str]:
     """Get column names from model."""
     col_attr = obj.column_names
     if callable(col_attr):
-        return col_attr()
+        return cast(List[str], col_attr())
     return list(col_attr)
 
 @columns.register(pd.DataFrame)
@@ -155,7 +158,7 @@ def _(obj: pd.DataFrame) -> List[str]:
     return list(obj.columns)
 
 @columns.register(np.ndarray)
-def _(obj: np.ndarray) -> List[str]:
+def _(obj: NDArray[Any]) -> List[str]:
     """Generate column names for array."""
     if obj.ndim == 1:
         return ["V1"]
@@ -191,7 +194,7 @@ def _(obj: object) -> List[str]:
 
     col_attr = getattr(obj, "column_names")
     if callable(col_attr):
-        return col_attr()
+        return cast(List[str], col_attr())
     return list(col_attr)
 
 
@@ -274,7 +277,7 @@ def _(obj: pd.DataFrame) -> int:
 @cells.register(EventBasis)
 def _(obj: EventBasis) -> int:
     """Count basis function columns for EventBasis."""
-    return obj.n_basis
+    return int(obj.n_basis)
 
 
 # Element extraction
@@ -372,9 +375,9 @@ nbasis = GenericFunction("nbasis")
 def _(obj: BasisProtocol) -> int:
     """Get number of basis functions."""
     if hasattr(obj, 'nbasis'):
-        return obj.nbasis
+        return int(obj.nbasis)
     elif hasattr(obj, 'n_basis'):
-        return obj.n_basis
+        return int(obj.n_basis)
     else:
         raise AttributeError(f"Object {type(obj)} has no nbasis or n_basis attribute")
 
@@ -401,17 +404,17 @@ try:
     from .basis.base import ParametricBasis as _ParametricBasis
 
     @nbasis.register(_ParametricBasis)
-    def _(obj) -> int:
+    def _(obj: Any) -> int:
         if hasattr(obj, 'nbasis'):
-            return obj.nbasis
+            return int(obj.nbasis)
         elif hasattr(obj, 'n_basis'):
-            return obj.n_basis
+            return int(obj.n_basis)
         else:
             raise AttributeError(f"Object {type(obj)} has no nbasis or n_basis attribute")
 
     @construct.register(_ParametricBasis)
-    def _(obj, x: Array) -> Array:
-        return obj.evaluate(x)
+    def _(obj: Any, x: Array) -> Array:
+        return cast(Array, obj.evaluate(x))
 except ImportError:
     pass
 
@@ -423,22 +426,22 @@ is_continuous = GenericFunction("is_continuous", default=lambda x: False)
 @is_categorical.register(EventProtocol)
 def _(obj: EventProtocol) -> bool:
     """Check if event is categorical."""
-    return obj.event_type == "categorical"
+    return bool(obj.event_type == "categorical")
 
 @is_continuous.register(EventProtocol)
 def _(obj: EventProtocol) -> bool:
     """Check if event is continuous."""
-    return obj.event_type == "continuous"
+    return bool(obj.event_type == "continuous")
 
 @is_categorical.register(pd.Series)
-def _(obj: pd.Series) -> bool:
+def _(obj: "pd.Series[Any]") -> bool:
     """Check if Series is categorical."""
-    return isinstance(obj.dtype, pd.CategoricalDtype) or obj.dtype == object
+    return bool(isinstance(obj.dtype, pd.CategoricalDtype) or obj.dtype == object)
 
 @is_continuous.register(pd.Series)
-def _(obj: pd.Series) -> bool:
+def _(obj: "pd.Series[Any]") -> bool:
     """Check if Series is continuous."""
-    return pd.api.types.is_numeric_dtype(obj)
+    return bool(pd.api.types.is_numeric_dtype(obj))
 
 
 # Utility function for method dispatch debugging
