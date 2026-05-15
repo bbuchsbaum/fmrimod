@@ -6,7 +6,7 @@ correlation matrices, and time series plots.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -33,7 +33,7 @@ from ..design.event_model import EventModel
 
 
 def design_map(
-    model,
+    model: Any,
     block_separators: bool = True,
     rotate_x_text: bool = True,
     fill_midpoint: Optional[float] = None,
@@ -95,11 +95,11 @@ def design_map(
     if isinstance(model, BaselineModel):
         # Create a simple wrapper
         class _BaselineWrapper:
-            def __init__(self, bm):
+            def __init__(self, bm: Any) -> None:
                 self.design_matrix = bm.design_matrix
                 dm = bm.design_matrix
                 # Get column names from terms
-                cols = []
+                cols: list[str] = []
                 for tn in ['drift', 'block', 'nuisance']:
                     if tn in bm.terms and bm.terms[tn] is not None:
                         mat = bm.terms[tn].design_matrix
@@ -209,7 +209,7 @@ def design_map(
 
 
 def correlation_map(
-    model,
+    model: Any,
     rotate_x_text: bool = True,
     figsize: Optional[Tuple[float, float]] = None,
     cmap: Optional[str] = 'RdBu_r',
@@ -265,11 +265,11 @@ def correlation_map(
     if isinstance(model, BaselineModel):
         # Create a simple wrapper
         class _BaselineWrapper:
-            def __init__(self, bm):
+            def __init__(self, bm: Any) -> None:
                 self.design_matrix = bm.design_matrix
                 dm = bm.design_matrix
                 # Get column names from terms
-                cols = []
+                cols: list[str] = []
                 for tn in ['drift', 'block', 'nuisance']:
                     if tn in bm.terms and bm.terms[tn] is not None:
                         mat = bm.terms[tn].design_matrix
@@ -545,7 +545,7 @@ def plot_model_summary(
 
 
 def plot_baseline_model(
-    model,
+    model: Any,
     term_name: Optional[str] = None,
     title: Optional[str] = None,
     figsize: Optional[Tuple[float, float]] = None,
@@ -629,7 +629,7 @@ def plot_baseline_model(
 
 
 def plot_sampling_frame(
-    sframe,
+    sframe: Any,
     style: str = "timeline",
     show_ticks: bool = True,
     tick_every: Optional[float] = None,
@@ -708,7 +708,7 @@ def plot_sampling_frame(
             figsize = (12, max(2, n_blocks * 0.8))
         fig, ax = plt.subplots(figsize=figsize)
 
-        current_time = 0
+        current_time: float = 0.0
         colors = plt.cm.Set2(np.linspace(0, 1, max(n_blocks, 3)))
 
         for i, blen in enumerate(blocklens):

@@ -119,8 +119,8 @@ class Regressor:
         """Number of HRF basis functions (must be consistent across list)."""
         hrf = self.hrf
         if isinstance(hrf, list):
-            return hrf[0].nbasis if len(hrf) > 0 else 1
-        return hrf.nbasis
+            return int(hrf[0].nbasis) if len(hrf) > 0 else 1
+        return int(hrf.nbasis)
 
     def __post_init__(self) -> None:
         """Validate and process inputs after initialization."""
@@ -385,13 +385,13 @@ class Regressor:
         if normalize:
             if result.ndim == 2:
                 for i in range(result.shape[1]):
-                    peak = np.max(np.abs(result[:, i]))
+                    peak: float = float(np.max(np.abs(result[:, i])))
                     if peak > 0:
                         result[:, i] /= peak
             else:
-                peak = np.max(np.abs(result))
-                if peak > 0:
-                    result /= peak
+                peak2: float = float(np.max(np.abs(result)))
+                if peak2 > 0:
+                    result /= peak2
 
         # Convert to sparse if requested
         if sparse:
@@ -411,7 +411,12 @@ class Regressor:
     ) -> "Axes":
         """Plot this regressor.  See :func:`fmrimod.plotting.plot_regressor`."""
         from ..plotting import plot_regressor
-        return plot_regressor(self, grid=grid, precision=precision, show_onsets=show_onsets, ax=ax, **kwargs)
+        return cast(
+            "Axes",
+            plot_regressor(
+                self, grid=grid, precision=precision, show_onsets=show_onsets, ax=ax, **kwargs
+            ),
+        )
 
     def shift(self, shift_amount: float) -> "Regressor":
         """Shift all event onsets by a temporal offset.

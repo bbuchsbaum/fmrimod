@@ -59,8 +59,8 @@ def convolve_hrf(
         Shape is (n_grid, n_basis) where n_basis is hrf.nbasis
     """
     # Determine fine grid bounds (match R prep_reg_inputs / C++ wrappers)
-    grid_min = np.min(grid)
-    grid_max = np.max(grid)
+    grid_min: float = float(np.min(grid))
+    grid_max: float = float(np.max(grid))
     max_onset_plus_dur = np.max(onsets + durations) if len(onsets) > 0 else grid_max
     fine_start = grid_min - span
     fine_end = max(grid_max, max_onset_plus_dur) + span
