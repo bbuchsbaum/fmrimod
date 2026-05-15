@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional, Sequence
+from typing import Literal, Optional, Sequence, cast
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -101,7 +101,7 @@ def gaussian_hrf(
         HRF values at time points t
     """
     t = np.asarray(t, dtype=np.float64)
-    return stats.norm.pdf(t, loc=mean, scale=sd)
+    return cast("NDArray[np.float64]", stats.norm.pdf(t, loc=mean, scale=sd))
 
 
 def bspline_hrf(
@@ -322,7 +322,7 @@ def mexhat_hrf(
     
     # Mexican hat formula
     normalization = 2.0 / (np.sqrt(3 * sigma) * np.pi**0.25)
-    return normalization * (1.0 - z**2) * np.exp(-z**2 / 2.0)
+    return cast("NDArray[np.float64]", normalization * (1.0 - z**2) * np.exp(-z**2 / 2.0))
 
 
 def sine_hrf(
@@ -341,7 +341,7 @@ def sine_hrf(
         HRF values at time points t
     """
     t = np.asarray(t, dtype=np.float64)
-    return np.sin(2 * np.pi * frequency * t + phase)
+    return cast("NDArray[np.float64]", np.sin(2 * np.pi * frequency * t + phase))
 
 
 def half_cosine_hrf(
@@ -393,7 +393,7 @@ def inv_logit_hrf(
         HRF values at time points t
     """
     t = np.asarray(t, dtype=np.float64)
-    return special.expit((t - center) / scale)
+    return cast("NDArray[np.float64]", special.expit((t - center) / scale))
 
 
 def lwu_hrf(
@@ -485,7 +485,7 @@ def hrf_mexhat(
     t0 = t - mean
     a = (1 - (t0 / sd)**2) * np.exp(-t0**2 / (2 * sd**2))
     scale = np.sqrt(2 / (3 * sd * np.pi**(1/4)))
-    return scale * a
+    return cast("NDArray[np.float64]", scale * a)
 
 
 def hrf_inv_logit(
@@ -514,7 +514,7 @@ def hrf_inv_logit(
     t = np.asarray(t, dtype=np.float64)
     inv_logit1 = 1 / (1 + np.exp(-(t - lag - mu1) / s1))
     inv_logit2 = 1 / (1 + np.exp(-(t - lag - mu2) / s2))
-    return inv_logit1 - inv_logit2
+    return cast("NDArray[np.float64]", inv_logit1 - inv_logit2)
 
 
 def hrf_half_cosine(
@@ -552,7 +552,7 @@ def hrf_half_cosine(
     def trans(
         tt: NDArray[np.float64], a: float, b: float, t0: float, w: float
     ) -> NDArray[np.float64]:
-        return a + 0.5 * (b - a) * (1 - np.cos(np.pi * (tt - t0) / w))
+        return cast("NDArray[np.float64]", a + 0.5 * (b - a) * (1 - np.cos(np.pi * (tt - t0) / w)))
 
     t1 = h1
     t2 = h1 + h2
@@ -664,7 +664,7 @@ def hrf_lwu(
 
     response = term1 - term2
 
-    return response
+    return cast("NDArray[np.float64]", response)
 
 
 def hrf_basis_lwu(
