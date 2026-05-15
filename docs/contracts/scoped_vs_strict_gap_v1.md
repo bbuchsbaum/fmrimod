@@ -51,28 +51,42 @@ Top files: `glm/strategies.py` 165, `design/event_model.py` 93,
    proven to fail on the pre-fix code).
 
 2. **`condition_basis.py:61`, `design/event_model.py:2058` —
-   `Cannot instantiate abstract class "EventModel" with abstract
-   attribute "add_contrast"` [needs decision].** Either `EventModel`
-   should concretely implement `add_contrast`, or the
-   protocol/ABC declaring it abstract is mis-shaped. This is a
-   four-stage-seam / protocol-shape question (§7/§9 steward
-   territory), not a mechanical cast.
+   `Cannot instantiate abstract class "EventModel"` [VERIFIED
+   ARTIFACT, not a bug].** Runtime check:
+   `EventModel.__abstractmethods__` is empty and `add_contrast`
+   is present — `EventModel` is fully instantiable. mypy sees an
+   abstract `add_contrast` via a Protocol/base it declares
+   conformance to while the concrete class provides it. A
+   type-declaration/Protocol-shape question for the gate
+   decision, not a latent bug.
 
 3. **`utils/event_utils.py:257` — `Unexpected keyword argument
    "name"/"onsets" for "EventProtocol"` [needs check].**
    `EventProtocol(...)` constructed with kwargs the protocol does
    not declare; either the protocol is under-specified or the call
-   site targets the wrong type.
+   site targets the wrong type. Not yet runtime-verified.
 
 4. **`convolve.py:815` — `Too many arguments for "convolve"`
-   [needs check].** Possible real arity bug or a singledispatch
-   resolution artifact; not yet root-caused.
+   [VERIFIED ARTIFACT, not a bug].** `convolve` is a
+   `@singledispatch` generic; `_convolve_list` is its
+   `@convolve.register(list)` handler and recurses
+   `convolve(event, ...)` per element. mypy type-checks that
+   inner call against the *base* generic signature
+   (4 positional + `**kwargs`), not knowing singledispatch routes
+   real event instances to registered handlers with compatible
+   signatures. Runtime check:
+   `convolve([EventVariable, EventVariable], sampling_rate=1.0,
+   total_duration=20.0)` returns correctly. An earlier provisional
+   "possible arity bug" note here was wrong — it came from a repro
+   that used a fake event type, which singledispatch could not
+   route, falling to the base signature. Corrected in place per
+   board rule (wrong claims fixed as part of the work).
 
 5. **`glm/fmri_lm.py:783` — `Missing positional argument "x" in
    call to "contrast_weights"` [likely dispatch artifact].**
    `contrast_weights` is a singledispatch generic; the bound-method
-   call shape confuses strict resolution. Probably not a runtime
-   bug but needs confirmation.
+   call shape confuses strict resolution. Same family as #2/#4 —
+   probably not a runtime bug but not yet runtime-verified.
 
 6. **`regressors.py:150` — `"add" of "set" does not return a value`
    [NOT a bug].** `[i for i in xs if not (i in seen or seen.add(i))]`
@@ -102,9 +116,33 @@ path:
   epic does not over-claim "typed".
 - **If full-strict becomes the gate:** the ~715 mechanical +
   boundary-cast errors are tractable in the established per-file
-  rhythm; the ~31 judgment items (findings 2–5 above) must be
-  triaged as their own beads first (regression/test/doc, or a
-  protocol-shape decision note per §8), per the board-to-bead rule.
+  rhythm; the ~41 judgment items must still be triaged per-item
+  rather than cast away.
 
-Either way, findings 2–5 and the runwise-robust broadcast (7) are
-real and should be beaded independently of the gate decision.
+## Verified real-bug yield (the number that matters for the decision)
+
+Triage of the judgment/likely-real items found exactly **one
+confirmed runtime bug** in 746 strict errors: finding #1
+(`fmri_rlm`, now fixed + regression-tested). Findings #2 and #4
+were runtime-verified as **singledispatch/Protocol typing
+artifacts, not bugs** (`EventModel` is instantiable;
+`convolve(list, total_duration=...)` works with real events). #5
+is the same artifact family (unverified but low-suspicion). #6 is
+a correct idiom flagged cosmetically. #3 remains the only
+unverified judgment item. #7 is a separate, real observation
+(runwise-robust IRLS broadcast with minimal models), surfaced
+*because* #1's fix unblocked that path — tracked as a follow-up,
+not a strict-mypy finding.
+
+Implication for the gate decision: full-strict's incremental
+bug-finding value over the scoped gate, on this codebase, was ~1
+real bug per ~750 errors — the rest is mechanical hygiene plus
+singledispatch/Protocol artifacts that `--follow-imports=skip`
+structurally cannot surface anyway. That ratio is the decision
+input: full-strict is not a large hidden-bug reservoir here, but
+the one bug it found was a 100%-broken untested public API. The
+steward call is whether that yield justifies adopting full-strict
+as the gate vs. documenting the scoped/strict divergence as a
+caveat. Open items to bead independently of the gate decision:
+**#3** (verify EventProtocol kwargs call site) and **#7**
+(runwise-robust broadcast).
