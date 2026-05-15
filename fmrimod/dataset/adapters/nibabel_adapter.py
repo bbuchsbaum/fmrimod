@@ -91,11 +91,11 @@ class NibabelAdapter:
 
     def get_mask(self) -> NDArray[np.bool_]:
         """Return the 3-D boolean brain mask."""
-        return self._mask
+        return cast("NDArray[np.bool_]", self._mask)
 
     def get_affine(self) -> NDArray[np.float64]:
         """Return the NIfTI affine matrix."""
-        return self._affine
+        return cast("NDArray[np.float64]", self._affine)
 
     def get_sampling_frame(self) -> SamplingFrame:
         """Return the sampling frame for this dataset."""
