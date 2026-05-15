@@ -18,7 +18,7 @@ from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from math import ceil
-from typing import Any, TypeVar
+from typing import TypeVar
 
 import numpy as np
 import pandas as pd
@@ -116,7 +116,7 @@ def _reduced_dataset(
     assays: dict[str, NDArray[np.float64]],
     *,
     method: str,
-    metadata: dict[str, Any] | None = None,
+    metadata: dict[str, object] | None = None,
 ) -> GroupDataset:
     return GroupDataset(
         assays=assays,

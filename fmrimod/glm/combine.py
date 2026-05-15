@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -55,7 +54,7 @@ class CombinedFmriLm:
 
     def contrast(
         self,
-        spec: NDArray[np.float64] | str | Mapping[str, Any],
+        spec: NDArray[np.float64] | str | Mapping[str, object],
         name: str | None = None,
     ) -> ContrastResult:
         """Compute a contrast across all runs and pool by ``self.method``."""
