@@ -380,7 +380,7 @@ def _get_conditions(term, expand_basis: bool = True) -> List[str]:
     return []
 
 
-def _get_cells(term) -> Any:
+def _get_cells(term: object) -> object:
     """Get cells (categorical combinations) from a term.
 
     Parameters

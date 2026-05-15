@@ -1221,7 +1221,7 @@ def _sorted_unique_runs(run_id: NDArray[Any]) -> NDArray[Any]:
     return np.asarray(sorted_vals, dtype=object)
 
 
-def _is_block_list(value: Any) -> bool:
+def _is_block_list(value: object) -> bool:
     if isinstance(value, (str, bytes, np.ndarray)):
         return False
     if isinstance(value, Mapping):
@@ -1229,7 +1229,7 @@ def _is_block_list(value: Any) -> bool:
     return isinstance(value, Sequence)
 
 
-def _is_u_blocks(value: Any) -> bool:
+def _is_u_blocks(value: object) -> bool:
     if isinstance(value, (ItemCovarianceMatrixResult, ItemCovarianceBlockResult)):
         return False
     if isinstance(value, (str, bytes, np.ndarray)):
