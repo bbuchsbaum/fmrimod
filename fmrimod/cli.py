@@ -12,7 +12,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Iterable, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -377,11 +377,11 @@ def _parse_cli_args(
     flags: set[str] | None = None,
     values: set[str] | None = None,
     false_flags: set[str] | None = None,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     flags = flags or set()
     values = values or set()
     false_flags = false_flags or set()
-    out: dict[str, Any] = {}
+    out: dict[str, object] = {}
     i = 0
     while i < len(args):
         token = args[i]
@@ -427,13 +427,13 @@ def _parse_cli_args(
     return out
 
 
-def _defaults(opts: dict[str, Any], defaults: Mapping[str, Any]) -> dict[str, Any]:
+def _defaults(opts: dict[str, object], defaults: Mapping[str, object]) -> dict[str, object]:
     for key, value in defaults.items():
         opts.setdefault(key, value)
     return opts
 
 
-def _require_options(opts: Mapping[str, Any], names: Iterable[str]) -> None:
+def _require_options(opts: Mapping[str, object], names: Iterable[str]) -> None:
     missing = [name for name in names if opts.get(name) is None]
     if missing:
         raise CliUsageError(
@@ -448,7 +448,7 @@ def _require_columns(data: pd.DataFrame, columns: Iterable[str]) -> None:
         raise CliDomainError("Missing required column(s): " + ", ".join(missing))
 
 
-def _grid_from_options(opts: Mapping[str, Any]) -> np.ndarray:
+def _grid_from_options(opts: Mapping[str, object]) -> np.ndarray:
     if opts.get("times") is not None:
         values = _parse_numeric_list(opts["times"], "times")
         if len(values) == 0:
@@ -465,7 +465,7 @@ def _grid_from_options(opts: Mapping[str, Any]) -> np.ndarray:
     return np.arange(start, stop + step / 2.0, step, dtype=np.float64)
 
 
-def _regressor_grid(opts: dict[str, Any], onsets: np.ndarray) -> np.ndarray:
+def _regressor_grid(opts: dict[str, object], onsets: np.ndarray) -> np.ndarray:
     if opts.get("blocklens") is not None or opts.get("tr") is not None:
         _require_options(opts, ("blocklens", "tr"))
         return _sampling_frame_from_options(opts).sample_times(global_time=True)
@@ -476,7 +476,7 @@ def _regressor_grid(opts: dict[str, Any], onsets: np.ndarray) -> np.ndarray:
     return _grid_from_options(opts)
 
 
-def _sampling_frame_from_options(opts: Mapping[str, Any]) -> SamplingFrame:
+def _sampling_frame_from_options(opts: Mapping[str, object]) -> SamplingFrame:
     blocklens = _parse_numeric_list(opts["blocklens"], "blocklens")
     tr = _parse_numeric_list(opts["tr"], "tr")
     start_time = (
@@ -492,7 +492,7 @@ def _sampling_frame_from_options(opts: Mapping[str, Any]) -> SamplingFrame:
     )
 
 
-def _events_for_regressor(opts: Mapping[str, Any]) -> pd.DataFrame:
+def _events_for_regressor(opts: Mapping[str, object]) -> pd.DataFrame:
     if opts.get("events") is not None:
         events = _read_events_table(str(opts["events"]))
         _require_columns(events, ("onset",))
@@ -534,7 +534,7 @@ def _read_events_table(path: str) -> pd.DataFrame:
     return pd.read_csv(path, sep=sep)
 
 
-def _get_cli_hrf(opts: Mapping[str, Any], *, allow_decorators: bool = True):
+def _get_cli_hrf(opts: Mapping[str, object], *, allow_decorators: bool = True):
     kwargs = _cli_hrf_constructor_kwargs(opts)
     lag = _as_scalar_numeric(opts.get("lag", "0"), "lag") if allow_decorators else 0.0
     width = _as_scalar_numeric(opts.get("width", "0"), "width") if allow_decorators else 0.0
@@ -548,7 +548,7 @@ def _get_cli_hrf(opts: Mapping[str, Any], *, allow_decorators: bool = True):
     )
 
 
-def _cli_hrf_constructor_kwargs(opts: Mapping[str, Any]) -> dict[str, object]:
+def _cli_hrf_constructor_kwargs(opts: Mapping[str, object]) -> dict[str, object]:
     name = str(opts["hrf"]).strip().lower()
     nbasis = _as_scalar_integer(opts["nbasis"], "nbasis")
     span = _as_scalar_numeric(opts["span"], "span")
@@ -560,7 +560,7 @@ def _cli_hrf_constructor_kwargs(opts: Mapping[str, Any]) -> dict[str, object]:
     return {}
 
 
-def _parse_numeric_list(value: Any, name: str) -> np.ndarray:
+def _parse_numeric_list(value: object, name: str) -> np.ndarray:
     if isinstance(value, np.ndarray):
         return value.astype(np.float64)
     if isinstance(value, (int, float, np.integer, np.floating)):
@@ -576,14 +576,14 @@ def _parse_numeric_list(value: Any, name: str) -> np.ndarray:
         raise CliUsageError(f"--{name} must contain only numeric values") from exc
 
 
-def _as_scalar_numeric(value: Any, name: str) -> float:
+def _as_scalar_numeric(value: object, name: str) -> float:
     values = _parse_numeric_list(value, name)
     if len(values) != 1:
         raise CliUsageError(f"--{name} must be a single number")
     return float(values[0])
 
 
-def _as_scalar_integer(value: Any, name: str) -> int:
+def _as_scalar_integer(value: object, name: str) -> int:
     number = _as_scalar_numeric(value, name)
     if not np.isfinite(number) or number % 1 != 0:
         raise CliUsageError(f"--{name} must be a whole number")
@@ -611,7 +611,7 @@ def _values_to_rows(
     values: np.ndarray,
     *,
     column_names: Sequence[str] | None = None,
-) -> list[dict[str, Any]]:
+) -> list[dict[str, object]]:
     values = np.asarray(values)
     if values.ndim == 1:
         names = ["value"]
@@ -622,7 +622,7 @@ def _values_to_rows(
         ]
         matrix = values
 
-    rows: list[dict[str, Any]] = []
+    rows: list[dict[str, object]] = []
     for i, time in enumerate(grid):
         row = {"time": _json_scalar(time)}
         for name, value in zip(names, matrix[i]):
@@ -642,7 +642,7 @@ def _design_column_names(rset) -> list[str]:
 
 
 def _write_cli_table(
-    data: Sequence[Mapping[str, Any]],
+    data: Sequence[Mapping[str, object]],
     *,
     json_output: bool,
     output: str | None,
@@ -671,7 +671,7 @@ def _write_cli_table(
         Path(output).write_text(text + "\n", encoding="utf-8")
 
 
-def _json_scalar(value: Any) -> Any:
+def _json_scalar(value: object) -> object:
     if isinstance(value, (np.integer,)):
         return int(value)
     if isinstance(value, (np.floating,)):
