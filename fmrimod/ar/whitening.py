@@ -242,7 +242,7 @@ def arma_whiten_segments(
     y: NDArray[np.float64],
     phi: NDArray[np.float64],
     theta: NDArray[np.float64],
-    seg_starts: NDArray[np.float64],
+    seg_starts: NDArray[Any],
     exact_first_ar1: bool = False,
 ) -> NDArray[np.float64]:
     """Apply ARMA whitening filter with segment resets.
