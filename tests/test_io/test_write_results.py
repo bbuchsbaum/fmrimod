@@ -143,6 +143,7 @@ def test_write_results_can_bundle_nuisance_betas_on_request(tmp_path):
 
 
 def test_write_results_writes_contrast_statmaps_with_manifest(tmp_path):
+    pytest.importorskip("neuroim")
     manifest = write_results(
         _DummyResult(),
         tmp_path / "out",
