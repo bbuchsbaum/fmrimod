@@ -174,7 +174,7 @@ def _colmap_event_model(model: Any) -> pd.DataFrame:
                 if isinstance(term.hrf, str):
                     hrf_lower = term.hrf.lower()
                     if hrf_lower in ('spm', 'spm_canonical', 'canonical', 'spmg1'):
-                        hrf_obj = _hrf_library.SPM_CANONICAL
+                        hrf_obj: Any = _hrf_library.SPM_CANONICAL
                     elif hrf_lower == 'spmg2':
                         hrf_obj = _hrf_library.SPM_WITH_DERIVATIVE
                     elif hrf_lower == 'spmg3':
