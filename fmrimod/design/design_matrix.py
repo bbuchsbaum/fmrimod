@@ -63,7 +63,7 @@ def design_matrix(x: Any, **kwargs: Any) -> Array:
 def _(
     x: EventModel,
     blockid: Optional[Union[int, list]] = None,
-    **kwargs
+    **kwargs: object
 ) -> Array:
     """Extract design matrix from EventModel.
 
@@ -133,7 +133,7 @@ def _register_baseline_model():
         x: BaselineModel,
         blockid: Optional[Union[int, list]] = None,
         allrows: bool = False,
-        **kwargs
+        **kwargs: object
     ) -> Array:
         """Extract design matrix from BaselineModel.
         
@@ -187,7 +187,7 @@ def _register_baseline_term():
     from ..baseline.baseline_term import BaselineTerm
 
     @design_matrix.register(BaselineTerm)
-    def _(x: BaselineTerm, **kwargs):
+    def _(x: BaselineTerm, **kwargs: object):
         """Extract design matrix from BaselineTerm.
 
         Parameters
@@ -215,7 +215,7 @@ def _register_event_term():
     from ..events.term import EventTerm
 
     @design_matrix.register(EventTerm)
-    def _(x: EventTerm, **kwargs):
+    def _(x: EventTerm, **kwargs: object):
         """Extract design matrix from EventTerm.
 
         For EventTerm, returns the unconvolved indicator/design matrix.

@@ -32,7 +32,7 @@ def suppress_fmrimod_warnings():
         yield
 
 
-def call_safely(func, *args, **kwargs):
+def call_safely(func, *args: object, **kwargs: object):
     """Call a callable while suppressing noisy fmrimod warnings."""
     with suppress_fmrimod_warnings():
         return func(*args, **kwargs)

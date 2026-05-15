@@ -86,7 +86,7 @@ class ContrastSpec:
         A: Optional[Formula] = None,
         B: Optional[Formula] = None,
         where: Optional[Formula] = None,
-        **kwargs
+        **kwargs: object
     ):
         """Initialize contrast specification.
         

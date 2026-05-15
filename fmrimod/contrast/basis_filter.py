@@ -76,7 +76,7 @@ def apply_basis_filter(
     nbasis: int = 1,
     contrast_name: str = "",
     basis_weights: Optional[np.ndarray] = None,
-) -> Dict[str, Any]:
+) -> Dict[str, object]:
     """Apply basis filtering to contrast weight matrix.
 
     Parameters
