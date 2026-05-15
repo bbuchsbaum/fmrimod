@@ -9,7 +9,6 @@ import subprocess
 import tempfile
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 
@@ -19,7 +18,7 @@ _DEFAULT_RSCRIPT = "Rscript"
 _BRIDGE_SCRIPT = Path(__file__).with_name("fmrigds_bridge.R")
 
 
-def _as_2d_float(x: Any) -> np.ndarray:
+def _as_2d_float(x: object) -> np.ndarray:
     arr = np.asarray(x, dtype=np.float64)
     if arr.ndim == 1:
         return arr[:, np.newaxis]
@@ -79,7 +78,7 @@ cat(if (ok) "ok" else "missing_fmrigds")
 def _write_csv_payload_inputs(
     request: GroupFitRequest,
     workdir: Path,
-) -> Mapping[str, Any]:
+) -> Mapping[str, object]:
     data = request.data.data
     csv_path = workdir / "group_data.csv"
     df = data["data"].copy()
@@ -93,7 +92,7 @@ def _write_csv_payload_inputs(
 
     df.to_csv(csv_path, index=False)
 
-    payload: dict[str, Any] = {
+    payload: dict[str, object] = {
         "format": "csv",
         "path": str(csv_path),
         "effect_cols": dict(data["effect_cols"]),
@@ -118,8 +117,8 @@ def _build_bridge_payload(
     request: GroupFitRequest,
     workdir: Path,
     *,
-    backend_options: Mapping[str, Any],
-) -> dict[str, Any]:
+    backend_options: Mapping[str, object],
+) -> dict[str, object]:
     """Build JSON-serializable payload for the R bridge."""
     gd = request.data
     if gd.format == "csv":
@@ -162,7 +161,7 @@ def _build_bridge_payload(
     }
 
 
-def _decode_bridge_result(result: Mapping[str, Any], request: GroupFitRequest) -> GroupFitResult:
+def _decode_bridge_result(result: Mapping[str, object], request: GroupFitRequest) -> GroupFitResult:
     estimate = _as_2d_float(result["estimate"])
     se = _as_2d_float(result["se"])
     statistic = _as_2d_float(result["statistic"])
