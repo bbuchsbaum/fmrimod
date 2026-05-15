@@ -1,7 +1,7 @@
 """Base classes for basis functions."""
 
 from abc import ABC, abstractmethod
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, cast
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -154,7 +154,7 @@ class ParametricBasis(ABC):
                     f"number of basis functions ({self.n_basis})"
                 )
             # Matrix multiplication for predictions
-            return basis_matrix @ coef
+            return cast(Array, basis_matrix @ coef)
         elif coef.ndim == 2:
             if coef.shape[0] != self.n_basis:
                 raise ValueError(
@@ -162,7 +162,7 @@ class ParametricBasis(ABC):
                     f"number of basis functions ({self.n_basis})"
                 )
             # Matrix multiplication for multiple sets of predictions
-            return basis_matrix @ coef
+            return cast(Array, basis_matrix @ coef)
         else:
             raise ValueError(
                 f"Coefficients must be 1D or 2D array, got {coef.ndim}D"
