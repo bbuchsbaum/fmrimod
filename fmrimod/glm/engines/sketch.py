@@ -7,7 +7,7 @@ spatial reduction.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 if TYPE_CHECKING:
     from ..fmri_lm import FmriModelLike
@@ -77,7 +77,7 @@ class SketchEngine:
         coords: Optional[NDArray[np.float64]],
     ) -> EngineResult:
         X = model.design_matrix_array(run=0)
-        Y = get_run_data(model.dataset, 0)
+        Y = get_run_data(cast(Any, model.dataset), 0)
         result = fit_sketched(X, Y, lr_config, coords=coords)
 
         proj = fast_preproject(X)
@@ -101,14 +101,14 @@ class SketchEngine:
         p = None
         V = None
 
-        XtX_total = None
-        XtXB_total = None
-        rss_total = None
+        XtX_total: Optional[NDArray[np.float64]] = None
+        XtXB_total: Optional[NDArray[np.float64]] = None
+        rss_total: Optional[NDArray[np.float64]] = None
         dfres_total = 0.0
 
         for r in range(n_runs):
             X_r = model.design_matrix_array(run=r)
-            Y_r = get_run_data(model.dataset, r)
+            Y_r = get_run_data(cast(Any, model.dataset), r)
             result_r = fit_sketched(X_r, Y_r, lr_config, coords=coords)
 
             if p is None:
@@ -118,6 +118,11 @@ class SketchEngine:
                 XtXB_total = np.zeros((p, V))
                 rss_total = np.zeros(V)
 
+            assert (
+                XtX_total is not None
+                and XtXB_total is not None
+                and rss_total is not None
+            )
             proj_r = fast_preproject(X_r)
             try:
                 XtX_r = np.linalg.inv(proj_r.XtXinv)
@@ -129,13 +134,17 @@ class SketchEngine:
             rss_total += result_r.rss
             dfres_total += result_r.dfres
 
+        assert (
+            XtX_total is not None
+            and XtXB_total is not None
+            and rss_total is not None
+        )
         try:
             XtXinv_total = np.linalg.inv(XtX_total)
         except np.linalg.LinAlgError:
             XtXinv_total = np.linalg.pinv(XtX_total)
 
         betas_pooled = XtXinv_total @ XtXB_total
-        assert rss_total is not None
         sigma_pooled = np.sqrt(rss_total / max(dfres_total, 1))
 
         return EngineResult(
