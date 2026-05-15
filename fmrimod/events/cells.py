@@ -239,7 +239,7 @@ def conditions_event_term(
     else:
         # Multiple components - create all combinations
         all_combinations = list(product(*comp_tokens_list))
-        base_cond_tags = [make_cond_tag(combo) for combo in all_combinations]
+        base_cond_tags = [make_cond_tag(list(combo)) for combo in all_combinations]
     
     # Handle basis expansion
     if expand_basis and hasattr(event_term, 'nbasis') and event_term.nbasis > 1:
