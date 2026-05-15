@@ -43,7 +43,7 @@ class GenericFunction:
         self._methods: Dict[Type, Callable] = {}
         self._default = default or self._no_method
     
-    def _no_method(self, obj, *args, **kwargs):
+    def _no_method(self, obj, *args: object, **kwargs: object):
         """Default when no method is found."""
         type_name = type(obj).__name__
         raise NotImplementedError(
@@ -72,7 +72,7 @@ class GenericFunction:
             return func
         return decorator
     
-    def __call__(self, obj, *args, **kwargs):
+    def __call__(self, obj, *args: object, **kwargs: object):
         """Call the appropriate method based on object type."""
         # Look for exact type match first
         obj_type = type(obj)
