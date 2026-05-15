@@ -49,7 +49,46 @@ class SPMG1_HRF(HRF):
 
 @dataclass
 class SPMG2_HRF(HRF):
-    """SPM HRF with temporal derivative basis."""
+    """SPM HRF with canonical + temporal derivative basis (informed basis set).
+
+    Two-column basis: column 0 is the SPM canonical HRF; column 1 is its
+    **closed-form** first temporal derivative ``spmg1_derivative``.
+
+    Divergence from Nilearn / SPM12
+    -------------------------------
+    SPM12 and Nilearn (``hrf_model="spm + derivative"``) compute the
+    derivative column as a finite difference of the canonical HRF
+    evaluated at the sampling grid: ``(h(t + dt) - h(t)) / dt`` with
+    ``dt`` tied to the microtime resolution. We use the closed-form
+    analytic derivative instead. The two agree on peak shape (Pearson
+    ~0.98 in the ``tier_a_spm_derivative_basis`` parity workflow) but
+    disagree on the rank-order of near-zero tail values because finite
+    differences inject discretisation noise that the analytic form does
+    not.
+
+    The trade-off is intentional:
+
+    - Closed-form is numerically cleaner and grid-independent; Nilearn /
+      SPM12 finite-difference output depends on the chosen ``dt``.
+    - Friston et al.'s Taylor-expansion justification for the informed
+      basis set (``h(t - Δt) ≈ h(t) - Δt · h'(t)``) uses the analytic
+      derivative; we implement what the theory says, while SPM12
+      implements a finite-difference approximation to it.
+
+    **Downstream calibration caveat.** Latency-shift estimates derived
+    from ``β_derivative / β_canonical`` (Henson 2002, Liao 2002) carry a
+    proportionality constant that depends on the derivative
+    implementation. The constants published in the SPM12-anchored
+    literature are calibrated to the finite-difference column; they do
+    not transfer to ``β`` ratios from this HRF without re-derivation.
+    Bit-compatibility with SPM12-published latency calibration is an
+    explicit non-goal here.
+
+    See ``benchmarks/parity/tier_a_spm_derivative_basis/workflow.py`` for
+    the parity case that exercises this divergence and the tolerance
+    posture it forces (Pearson + max_abs as the gate; Spearman dropped
+    because near-zero tail rank-order is implementation-dependent).
+    """
 
     name: str = "SPMG2"
     nbasis: int = 2
@@ -83,7 +122,26 @@ class SPMG2_HRF(HRF):
 
 @dataclass
 class SPMG3_HRF(HRF):
-    """SPM HRF with temporal and dispersion derivatives."""
+    """SPM HRF with canonical + temporal + dispersion derivatives.
+
+    Three-column basis: column 0 is the SPM canonical HRF; column 1 is
+    its **closed-form** first temporal derivative; column 2 is the
+    closed-form second temporal derivative (used as the dispersion
+    derivative, matching R's ``HRF_SPMG3`` via
+    ``hrf_spmg1_second_deriv``).
+
+    The same closed-form-vs-finite-difference divergence from Nilearn
+    and SPM12 documented on :class:`SPMG2_HRF` applies to columns 1 and
+    2 here. SPM12 and Nilearn (``hrf_model="spm + derivative +
+    dispersion"``) finite-difference the canonical for the temporal
+    derivative and finite-difference the canonical with a perturbed
+    dispersion parameter for the dispersion derivative; we evaluate the
+    closed-form first and second temporal derivatives directly.
+
+    Latency-shift / dispersion-shift estimates derived from
+    ``β_d / β_canonical`` ratios are not bit-compatible with
+    SPM12-published calibrations — see the SPMG2_HRF docstring.
+    """
 
     name: str = "SPMG3"
     nbasis: int = 3

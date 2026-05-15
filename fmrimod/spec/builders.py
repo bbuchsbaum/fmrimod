@@ -70,6 +70,16 @@ def hrf(
         gives a continuous-integral of 1. Leave as ``None`` for the raw
         canonical scale.
 
+    Notes
+    -----
+    Informed basis sets (``basis="spmg2"`` / ``"spmg3"``) use **closed-form**
+    temporal derivatives, not the finite-difference derivatives that
+    Nilearn (``hrf_model="spm + derivative"``) and SPM12 produce. This is
+    a deliberate divergence — see :class:`fmrimod.hrf.SPMG2_HRF` for the
+    full rationale and the downstream latency-calibration caveat
+    (``β_derivative / β_canonical`` ratios do **not** transfer from
+    SPM12-published constants without re-derivation).
+
     Examples
     --------
     >>> hrf("trial_type")
