@@ -9,14 +9,15 @@ For the full HRF basis library (SPM, Gamma, B-spline, FIR, etc.), see
 :mod:`fmrimod.hrf`.
 """
 
-from typing import Any, Callable, Dict, Literal, Optional, Union, cast
+from typing import Any, Callable, Dict, Literal, Optional, Type, Union, cast
 
 import numpy as np
+from numpy.typing import NDArray
 
 from .types import HRFProtocol
 
 
-class SimpleHRF(HRFProtocol):
+class SimpleHRF(HRFProtocol):  # type: ignore[misc]
     """Minimal gamma-shaped HRF for testing and prototyping.
 
     Implements ``h(t) = t * exp(-t/2)`` normalised to a peak of 1.
@@ -39,7 +40,7 @@ class SimpleHRF(HRFProtocol):
     (200,)
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._name = "simple"
         self._nbasis = 1
 
@@ -53,7 +54,7 @@ class SimpleHRF(HRFProtocol):
         """Number of basis functions."""
         return self._nbasis
 
-    def evaluate(self, t: np.ndarray) -> np.ndarray:
+    def evaluate(self, t: NDArray[Any]) -> NDArray[Any]:
         """Evaluate HRF at the given time points.
 
         Parameters
@@ -70,10 +71,10 @@ class SimpleHRF(HRFProtocol):
         result = np.where(t > 0, t * np.exp(-t / 2), 0)
         if np.max(result) > 0:
             result = result / np.max(result)
-        return result
+        return cast(NDArray[Any], result)
 
 
-class SPMCanonicalHRF(HRFProtocol):
+class SPMCanonicalHRF(HRFProtocol):  # type: ignore[misc]
     """Simplified SPM canonical (double-gamma) HRF.
 
     Implements a lightweight approximation of the SPM canonical HRF
@@ -99,7 +100,7 @@ class SPMCanonicalHRF(HRFProtocol):
     with ``a1=6``, ``a2=16``, ``c=1/6``.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._name = "spm_canonical"
         self._nbasis = 1
 
@@ -113,7 +114,7 @@ class SPMCanonicalHRF(HRFProtocol):
         """Number of basis functions."""
         return self._nbasis
 
-    def evaluate(self, t: np.ndarray) -> np.ndarray:
+    def evaluate(self, t: NDArray[Any]) -> NDArray[Any]:
         """Evaluate the SPM canonical HRF at given time points."""
         t = np.asarray(t)
         a1, a2 = 6.0, 16.0
@@ -125,10 +126,10 @@ class SPMCanonicalHRF(HRFProtocol):
             gamma2 = np.where(t > 0, (t / a2) ** (a2 * b2 - 1) * np.exp(-(t - a2) * b2), 0)
 
         hrf = gamma1 - c * gamma2
-        max_val = np.max(np.abs(hrf))
+        max_val: float = float(np.max(np.abs(hrf)))
         if max_val > 0:
             hrf = hrf / max_val
-        return hrf
+        return cast(NDArray[Any], hrf)
 
 
 def get_hrf(name: str, **kwargs: object) -> HRFProtocol:
@@ -151,7 +152,9 @@ def get_hrf(name: str, **kwargs: object) -> HRFProtocol:
     return cast(HRFProtocol, _get_hrf(name, **kwargs))
 
 
-def register_hrf(name: str, hrf_class_or_factory: Union[type, callable]) -> None:
+def register_hrf(
+    name: str, hrf_class_or_factory: Union[Type[Any], Callable[..., Any]]
+) -> None:
     """Register an HRF through the canonical registry.
 
     Parameters
@@ -218,11 +221,11 @@ def as_hrf(x: Any, **kwargs: Any) -> HRFProtocol:
     )
 
 
-class ArrayHRF(HRFProtocol):
+class ArrayHRF(HRFProtocol):  # type: ignore[misc]
     """HRF constructed from a pre-sampled array of values."""
 
-    def __init__(self, array: np.ndarray, sampling_rate: float = 1.0,
-                 name: Optional[str] = None, **kwargs: object):
+    def __init__(self, array: NDArray[Any], sampling_rate: float = 1.0,
+                 name: Optional[str] = None, **kwargs: object) -> None:
         self.array = np.asarray(array)
         self.sampling_rate = sampling_rate
         self._name = name or "array_hrf"
@@ -236,19 +239,25 @@ class ArrayHRF(HRFProtocol):
     def nbasis(self) -> int:
         return self._nbasis
 
-    def evaluate(self, t: np.ndarray) -> np.ndarray:
+    def evaluate(self, t: NDArray[Any]) -> NDArray[Any]:
         t = np.asarray(t)
         t_array = np.arange(len(self.array)) / self.sampling_rate
-        return np.interp(t, t_array, self.array, left=0, right=0)
+        return cast(NDArray[Any], np.interp(t, t_array, self.array, left=0, right=0))
 
 
-class FunctionHRF(HRFProtocol):
+class FunctionHRF(HRFProtocol):  # type: ignore[misc]
     """HRF wrapping an arbitrary callable ``f(t) -> array``."""
 
-    def __init__(self, func: Callable, name: Optional[str] = None, **kwargs: object):
+    def __init__(
+        self,
+        func: Callable[..., NDArray[Any]],
+        name: Optional[str] = None,
+        **kwargs: object,
+    ) -> None:
         self.func = func
-        self._name = name or getattr(func, '__name__', 'function_hrf')
-        self._nbasis = kwargs.get('nbasis', 1)
+        self._name: str = str(name or getattr(func, '__name__', 'function_hrf'))
+        nbasis_value = kwargs.get('nbasis', 1)
+        self._nbasis: int = int(cast(int, nbasis_value))
 
     @property
     def name(self) -> str:
@@ -258,23 +267,23 @@ class FunctionHRF(HRFProtocol):
     def nbasis(self) -> int:
         return self._nbasis
 
-    def evaluate(self, t: np.ndarray) -> np.ndarray:
-        return self.func(t)
+    def evaluate(self, t: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], self.func(t))
 
-    def __call__(self, t: np.ndarray) -> np.ndarray:
+    def __call__(self, t: NDArray[Any]) -> NDArray[Any]:
         return self.evaluate(t)
 
 
-class DictHRF(HRFProtocol):
+class DictHRF(HRFProtocol):  # type: ignore[misc]
     """HRF constructed from a dictionary specification."""
 
-    def __init__(self, spec: Dict, **kwargs: object):
+    def __init__(self, spec: Dict[str, Any], **kwargs: object) -> None:
         if 'evaluate' not in spec:
             raise ValueError("Dictionary must contain 'evaluate' key")
 
         self._evaluate = spec['evaluate']
-        self._name = spec.get('name', 'dict_hrf')
-        self._nbasis = spec.get('nbasis', 1)
+        self._name: str = str(spec.get('name', 'dict_hrf'))
+        self._nbasis: int = int(spec.get('nbasis', 1))
 
         for key, value in spec.items():
             if key not in ['evaluate', 'name', 'nbasis']:
@@ -288,8 +297,8 @@ class DictHRF(HRFProtocol):
     def nbasis(self) -> int:
         return self._nbasis
 
-    def evaluate(self, t: np.ndarray) -> np.ndarray:
-        return self._evaluate(t)
+    def evaluate(self, t: NDArray[Any]) -> NDArray[Any]:
+        return cast(NDArray[Any], self._evaluate(t))
 
 
 # HRF Generator Factory Functions
@@ -297,11 +306,11 @@ class DictHRF(HRFProtocol):
 def boxcar_hrf_gen(
     normalize: bool = True,
     min_duration: float = 0.1
-) -> Callable:
+) -> Callable[..., Any]:
     """Factory for duration-based boxcar HRF generation."""
     from .hrf.generators import boxcar_generator
 
-    def generator(event_data):
+    def generator(event_data: Any) -> Any:
         if hasattr(event_data, 'iloc'):
             durations = event_data['duration'].values
         elif isinstance(event_data, dict):
@@ -327,7 +336,7 @@ def boxcar_hrf_gen(
 def duration_hrf_gen(
     base: Optional[HRFProtocol] = None,
     min_duration: float = 0.0
-) -> Callable:
+) -> Callable[..., Any]:
     """Factory for duration-modulated HRF generation."""
     from .hrf.core import HRF
     from .hrf.decorators import block_hrf
@@ -337,7 +346,7 @@ def duration_hrf_gen(
         base = SPM_CANONICAL
     base_hrf = cast(HRF, base)
 
-    def generator(event_data):
+    def generator(event_data: Any) -> Any:
         if hasattr(event_data, 'iloc'):
             durations = event_data['duration'].values
         elif isinstance(event_data, dict):
@@ -373,14 +382,14 @@ def weighted_hrf_gen(
     relative: bool = False,
     method: str = "constant",
     normalize: bool = False
-) -> Callable:
+) -> Callable[..., Any]:
     """Factory for weighted HRF generation from list columns."""
     from .hrf.generators import weighted_generator
     if method not in ("constant", "linear"):
         raise ValueError("method must be 'constant' or 'linear'")
     method_lit = cast(Literal["constant", "linear"], method)
 
-    def generator(event_data):
+    def generator(event_data: Any) -> Any:
         if hasattr(event_data, 'iloc'):
             times_list = event_data[times_col].values
             weights_list = event_data[weights_col].values
