@@ -7,6 +7,7 @@ with library coordinates to find the best-matching HRF shape per voxel.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -47,7 +48,7 @@ def _stein_shrinkage(
     beta_var = np.mean(beta ** 2, axis=1, keepdims=True)  # (r, 1)
     S2 = S[:, np.newaxis] ** 2
     shrink_factor = S2 / (S2 + beta_var + 1e-8)
-    return beta * shrink_factor
+    return cast("NDArray[np.float64]", beta * shrink_factor)
 
 
 def sbhm_match(
