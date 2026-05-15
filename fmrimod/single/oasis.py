@@ -11,7 +11,7 @@ per-trial design matrices.
 
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, List, Optional, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -129,7 +129,7 @@ def _oasis_betas_k1(
     coeff_sy = cj / denom                       # (N,)
 
     B = coeff_n1[:, np.newaxis] * N_Y - coeff_sy[:, np.newaxis] * S_Y[np.newaxis, :]
-    return B
+    return cast("NDArray[np.float64]", B)
 
 
 def _oasis_betas_gammas_k1(
@@ -196,7 +196,7 @@ def _oasis_se_k1(
     denom = np.maximum(dj * ej - cj ** 2, eps)
     g11 = ej / denom                           # (N,)
 
-    return np.sqrt(sigma2 * g11[:, np.newaxis])
+    return cast("NDArray[np.float64]", np.sqrt(sigma2 * g11[:, np.newaxis]))
 
 
 # =========================================================================
