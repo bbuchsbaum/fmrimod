@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -32,8 +33,8 @@ def p_to_z(p: NDArray[np.float64], two_sided: bool = True) -> NDArray[np.float64
     p = np.asarray(p, dtype=np.float64)
     p = np.clip(p, 1e-300, 1.0 - 1e-15)
     if two_sided:
-        return sp_stats.norm.isf(p / 2.0)
-    return sp_stats.norm.isf(p)
+        return cast("NDArray[np.float64]", sp_stats.norm.isf(p / 2.0))
+    return cast("NDArray[np.float64]", sp_stats.norm.isf(p))
 
 
 def z_to_p(z: NDArray[np.float64], two_sided: bool = True) -> NDArray[np.float64]:
@@ -53,8 +54,8 @@ def z_to_p(z: NDArray[np.float64], two_sided: bool = True) -> NDArray[np.float64
     """
     z = np.asarray(z, dtype=np.float64)
     if two_sided:
-        return 2.0 * sp_stats.norm.sf(np.abs(z))
-    return sp_stats.norm.sf(z)
+        return cast("NDArray[np.float64]", 2.0 * sp_stats.norm.sf(np.abs(z)))
+    return cast("NDArray[np.float64]", sp_stats.norm.sf(z))
 
 
 def t_to_d(
@@ -107,7 +108,10 @@ def r_to_z(
 def z_to_r(z: NDArray[np.float64] | float) -> NDArray[np.float64]:
     """Back-transform Fisher Z to correlation."""
     z_arr = np.asarray(z, dtype=np.float64)
-    return (np.exp(2.0 * z_arr) - 1.0) / (np.exp(2.0 * z_arr) + 1.0)
+    return cast(
+        "NDArray[np.float64]",
+        (np.exp(2.0 * z_arr) - 1.0) / (np.exp(2.0 * z_arr) + 1.0),
+    )
 
 
 def fdr_correction(
