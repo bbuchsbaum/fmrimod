@@ -52,7 +52,7 @@ SeedStatus = Literal["not_randomized", "randomized", "unknown", "not_yet_carried
 CarryStatus = Literal["carried", "unknown", "not_yet_carried"]
 
 
-def _jsonable(value: Any) -> Any:
+def _jsonable(value: object) -> object:
     """Convert NumPy/list-like config leaves to stable JSON values."""
     if value is None or isinstance(value, (str, bool, int, float)):
         return value
@@ -65,7 +65,7 @@ def _jsonable(value: Any) -> Any:
     return value
 
 
-def _ar_options_to_dict(ar_config: AROptions) -> Dict[str, Any]:
+def _ar_options_to_dict(ar_config: AROptions) -> Dict[str, object]:
     """Serialize AR options without leaving NumPy arrays in the payload."""
     return {
         "struct": ar_config.struct,
@@ -124,7 +124,7 @@ class FitProvenance:
                 _snapshot_ar_options(self.ar_config),
             )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> Dict[str, object]:
         """Return a JSON-compatible provenance payload."""
         return {
             "schema_version": "FitProvenance/v1",
@@ -144,7 +144,7 @@ class FitProvenance:
         }
 
     @classmethod
-    def from_dict(cls, payload: Mapping[str, Any]) -> "FitProvenance":
+    def from_dict(cls, payload: Mapping[str, object]) -> "FitProvenance":
         """Reconstruct a provenance object from :meth:`to_dict` output."""
         if payload.get("schema_version") != "FitProvenance/v1":
             raise ValueError("unsupported FitProvenance schema_version")
@@ -252,7 +252,7 @@ class CompleteFitProvenance:
             )
         return cls(provenance=provenance)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> Dict[str, object]:
         """Return the wrapped complete provenance as a JSON-ready payload."""
 
         return self.provenance.to_dict()
@@ -263,7 +263,7 @@ class CompleteFitProvenance:
         return self.provenance.to_json()
 
 
-def _term_norm_mode(term: Any) -> Optional[NormMode]:
+def _term_norm_mode(term: object) -> Optional[NormMode]:
     """Recover the declared HRF normalization mode for a term, if any."""
     hrf = getattr(term, "hrf", None)
     if hrf is None:
@@ -533,7 +533,7 @@ class FmriLm:
     contrasts: Dict[str, ContrastResult] = field(default_factory=dict)
     ar_params: Optional[NDArray[np.float64]] = None
     robust_weights: Optional[NDArray[np.float64]] = None
-    run_results: Optional[List[Any]] = None
+    run_results: Optional[List[object]] = None
     projections: Optional[List[Projection]] = None
     provenance: Optional[FitProvenance] = None
     _named_weights_cache: Optional[Dict[str, NDArray[np.float64]]] = field(
@@ -666,7 +666,7 @@ class FmriLm:
         spec: Union[
             NDArray[np.float64],
             str,
-            dict[str, Any],
+            dict[str, object],
             "OmnibusContrast",
             "ContrastSpec",
             "LinearSemanticContrast",
@@ -828,7 +828,7 @@ class FmriLm:
         self,
         weights: NDArray[np.float64],
         name: str,
-        intent: ContrastIntent | dict[str, Any] | None = None,
+        intent: ContrastIntent | dict[str, object] | None = None,
     ) -> ContrastResult:
         """Dispatch to t or F contrast based on weight dimensions."""
         weights = np.atleast_1d(weights)
@@ -862,7 +862,7 @@ class FmriLm:
     def _touched_column_details(
         self,
         weights: NDArray[np.float64],
-    ) -> tuple[dict[str, Any], ...]:
+    ) -> tuple[dict[str, object], ...]:
         """Return realized design-column details touched by a contrast."""
         weights_2d = np.atleast_2d(np.asarray(weights, dtype=np.float64))
         active = np.flatnonzero(np.any(np.abs(weights_2d) > 0.0, axis=0))
@@ -1006,7 +1006,7 @@ def _design_column_detail(
     column: object,
     *,
     fallback_index: int | None = None,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """Return JSON-ready metadata for one realized design column."""
     if not hasattr(column, "name"):
         return {
@@ -1344,7 +1344,7 @@ def _build_model_from_spec(
         return FmriModel(em, bm, cast("DatasetProtocol", dataset))
 
     # -- Legacy string / list path --------------------------------------
-    em_kwargs: Dict[str, Any] = dict(
+    em_kwargs: Dict[str, object] = dict(
         data=events_df,
         block=resolved_block,
         sampling_frame=sf,
@@ -1362,7 +1362,7 @@ def _build_model_from_spec(
     return FmriModel(em, bm, cast("DatasetProtocol", dataset))
 
 
-def _engine_result_to_dict(er: "EngineResult") -> Dict[str, Any]:
+def _engine_result_to_dict(er: "EngineResult") -> Dict[str, object]:
     """Convert an EngineResult to the legacy dict format."""
     return {
         "betas": er.betas,
@@ -1377,7 +1377,7 @@ def _engine_result_to_dict(er: "EngineResult") -> Dict[str, Any]:
 
 
 def _dict_to_engine_result(
-    d: Dict[str, Any],
+    d: Dict[str, object],
     original: "EngineResult",
 ) -> "EngineResult":
     """Update an EngineResult from a legacy dict (after AR/robust)."""
