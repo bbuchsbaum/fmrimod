@@ -9,7 +9,7 @@ otherwise a fallback impulse-train convolution is used.
 """
 
 from functools import singledispatch
-from typing import List, Optional
+from typing import Any, List, Optional, cast
 
 import numpy as np
 
@@ -41,7 +41,7 @@ def _peak_normalize(result: Array) -> Array:
     """
     if result.ndim > 1:
         for i in range(result.shape[1]):
-            mx = np.max(np.abs(result[:, i]))
+            mx: Any = np.max(np.abs(result[:, i]))
             if mx > 0:
                 result[:, i] = result[:, i] / mx
     else:
@@ -113,7 +113,7 @@ def _get_fallback_timing(
 
 
 @singledispatch
-def convolve(x, hrf=None, sampling_rate: float = 1.0,
+def convolve(x: Any, hrf: Any = None, sampling_rate: float = 1.0,
              sampling_frame: Optional[Array] = None, **kwargs: object) -> Array:
     """Convolve event(s) with hemodynamic response function.
 
@@ -163,7 +163,7 @@ def convolve(x, hrf=None, sampling_rate: float = 1.0,
     raise NotImplementedError(f"convolve not implemented for {type(x)}")
 
 
-def _get_hrf_array(hrf, sampling_rate: float, duration: float = 32.0) -> Array:
+def _get_hrf_array(hrf: Any, sampling_rate: float, duration: float = 32.0) -> Array:
     """Get HRF as array for convolution (fallback for non-fmrimod path).
 
     Note: This is maintained for backward compatibility when fmrimod is not available.
@@ -177,7 +177,7 @@ def _get_hrf_array(hrf, sampling_rate: float, duration: float = 32.0) -> Array:
     elif callable(hrf):
         # Plain callable function - evaluate it
         t = np.arange(0, duration, 1/sampling_rate)
-        return hrf(t)
+        return cast(Array, hrf(t))
     else:
         hrf_obj = hrf
 
@@ -186,7 +186,7 @@ def _get_hrf_array(hrf, sampling_rate: float, duration: float = 32.0) -> Array:
     return hrf_obj.evaluate(t)
 
 
-def _get_hrf_object(hrf):
+def _get_hrf_object(hrf: Any) -> Any:
     """Get HRF object suitable for fmrimod.regressor().
 
     Returns a fmrimod HRF object that can be used with fmrimod.regressor(),
@@ -230,7 +230,7 @@ def _convolve_with_regressor(
     onsets: Array,
     amplitudes: Array,
     durations: Array,
-    hrf,
+    hrf: Any,
     sampling_grid: Array,
     precision: float = 0.1,
     summate: bool = True
@@ -391,7 +391,7 @@ def _effective_sampling_rate_from_grid(sampling_grid: Array, sampling_rate: floa
 
 
 @convolve.register(EventFactor)
-def _convolve_event_factor(event: EventFactor, hrf=None,
+def _convolve_event_factor(event: EventFactor, hrf: Any = None,
                           sampling_rate: float = 1.0,
                           sampling_frame: Optional[Array] = None,
                           total_duration: Optional[float] = None,
@@ -428,6 +428,11 @@ def _convolve_event_factor(event: EventFactor, hrf=None,
     Array
         Convolved array of shape ``(n_timepoints, n_levels)``.
     """
+    assert (
+        event.onsets is not None
+        and event.durations is not None
+        and event.levels is not None
+    )
     # Determine sampling grid
     if sampling_frame is not None:
         grid = _prepare_sampling_grid(sampling_frame)
@@ -499,7 +504,7 @@ def _convolve_event_factor(event: EventFactor, hrf=None,
 
 
 @convolve.register(EventVariable)
-def _convolve_event_variable(event: EventVariable, hrf=None,
+def _convolve_event_variable(event: EventVariable, hrf: Any = None,
                             sampling_rate: float = 1.0,
                             sampling_frame: Optional[Array] = None,
                             total_duration: Optional[float] = None,
@@ -536,6 +541,11 @@ def _convolve_event_variable(event: EventVariable, hrf=None,
     Array
         Convolved column of shape ``(n_timepoints, 1)``.
     """
+    assert (
+        event.onsets is not None
+        and event.durations is not None
+        and event.values is not None
+    )
     # Determine sampling grid
     if sampling_frame is not None:
         grid = _prepare_sampling_grid(sampling_frame)
@@ -589,7 +599,7 @@ def _convolve_event_variable(event: EventVariable, hrf=None,
 
 
 @convolve.register(EventMatrix)
-def _convolve_event_matrix(event: EventMatrix, hrf=None,
+def _convolve_event_matrix(event: EventMatrix, hrf: Any = None,
                           sampling_rate: float = 1.0,
                           sampling_frame: Optional[Array] = None,
                           total_duration: Optional[float] = None,
@@ -626,6 +636,11 @@ def _convolve_event_matrix(event: EventMatrix, hrf=None,
     Array
         Convolved array of shape ``(n_timepoints, n_columns)``.
     """
+    assert (
+        event.onsets is not None
+        and event.durations is not None
+        and event.values is not None
+    )
     # Determine sampling grid
     if sampling_frame is not None:
         grid = _prepare_sampling_grid(sampling_frame)
@@ -686,7 +701,7 @@ def _convolve_event_matrix(event: EventMatrix, hrf=None,
 
 
 @convolve.register(EventBasis)
-def _convolve_event_basis(event: EventBasis, hrf=None,
+def _convolve_event_basis(event: EventBasis, hrf: Any = None,
                          sampling_rate: float = 1.0,
                          sampling_frame: Optional[Array] = None,
                          total_duration: Optional[float] = None,
@@ -700,6 +715,11 @@ def _convolve_event_basis(event: EventBasis, hrf=None,
     functions themselves represent the HRF. This function evaluates the
     basis at the specified sampling times.
     """
+    assert (
+        event.onsets is not None
+        and event.durations is not None
+        and event.expanded_values is not None
+    )
     # Determine sampling grid
     if sampling_frame is not None:
         grid = _prepare_sampling_grid(sampling_frame)
@@ -779,7 +799,7 @@ def _convolve_event_basis(event: EventBasis, hrf=None,
 
 
 @convolve.register(list)
-def _convolve_list(events: List[EventProtocol], hrf=None,
+def _convolve_list(events: List[EventProtocol], hrf: Any = None,
                    sampling_rate: float = 1.0,
                    sampling_frame: Optional[Array] = None,
                    total_duration: Optional[float] = None,
@@ -812,14 +832,15 @@ def _convolve_list(events: List[EventProtocol], hrf=None,
     list of Array
         One convolved array per input event.
     """
-    return [convolve(event, hrf, sampling_rate, sampling_frame, total_duration,
+    return [convolve(event, hrf, sampling_rate=sampling_rate,
+                     sampling_frame=sampling_frame, total_duration=total_duration,
                      normalize=normalize, summate=summate, **kwargs)
             for event in events]
 
 
 # Register for numpy arrays (assume impulse times and values)
 @convolve.register(np.ndarray)
-def _convolve_array(arr: np.ndarray, hrf=None,
+def _convolve_array(arr: Array, hrf: Any = None,
                    sampling_rate: float = 1.0,
                    sampling_frame: Optional[Array] = None,
                    total_duration: Optional[float] = None,
