@@ -10,7 +10,7 @@ Implements the standard two-stage (or multi-stage) approach:
 
 from __future__ import annotations
 
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -265,7 +265,7 @@ def iterative_ar_gls(
             # Get run's phi/theta from the plan
             if plan.pooling == "parcel":
                 # For parcel plans, use whiten_apply directly
-                wr = whiten_apply(plan, X_r, Y_r, runs=run_runs, parcels=parcels)
+                wr = whiten_apply(plan, X_r, Y_r, runs=cast(Any, run_runs), parcels=parcels)
                 X_w = wr.X
                 Y_w = wr.Y
                 # For parcel plan, X_w is None; use first parcel's X
@@ -284,12 +284,13 @@ def iterative_ar_gls(
 
                 from .whitening import arma_whiten_segments
                 seg_starts = np.array([0], dtype=np.intp)
-                X_w = arma_whiten_segments(X_r, phi_r, theta_r, seg_starts,
+                X_w = arma_whiten_segments(X_r, phi_r, theta_r, cast(Any, seg_starts),
                                            exact_first_ar1=plan.exact_first)
-                Y_w = arma_whiten_segments(Y_r, phi_r, theta_r, seg_starts,
+                Y_w = arma_whiten_segments(Y_r, phi_r, theta_r, cast(Any, seg_starts),
                                            exact_first_ar1=plan.exact_first)
 
             # Re-fit
+            assert X_w is not None and Y_w is not None
             proj = fast_preproject(X_w)
             result = fast_lm_matrix(X_w, Y_w, proj, return_fitted=True)
 

@@ -955,7 +955,7 @@
     },
     {
       "coercion_exemption": null,
-      "endlineno": 327,
+      "endlineno": 328,
       "has_any_annotation": true,
       "has_var_args_any": false,
       "has_var_kwargs": false,
@@ -968,12 +968,12 @@
     },
     {
       "coercion_exemption": null,
-      "endlineno": 355,
+      "endlineno": 356,
       "has_any_annotation": true,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 330,
+      "lineno": 331,
       "module": "fmrimod.ar.integration",
       "owner_bead": null,
       "qualname": "_check_convergence",
