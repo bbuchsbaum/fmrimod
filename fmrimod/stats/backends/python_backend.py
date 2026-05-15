@@ -76,7 +76,7 @@ class PythonParityBackend:
             )
 
         combine_method = _normalize_combine_method(request.combine)
-        dataset = group_dataset_from_group_data(request.data)
+        dataset = group_dataset_from_group_data(cast(Any, request.data))
         options = _combine_options(request, dataset.n_subjects, combine_method)
         if combine_method == "combine:stouffer" and "z" not in dataset.assays:
             dataset = derive(dataset, "z")
@@ -86,7 +86,7 @@ class PythonParityBackend:
         ):
             dataset = derive(dataset, "p")
 
-        reduced = group_reduce(dataset, method=combine_method, **options)
+        reduced = group_reduce(dataset, method=combine_method, **cast("dict[str, Any]", options))
         stat_assay = "z_g" if "z_g" in reduced.assays else "chi2"
         statistic = _flatten_group_assay(reduced, stat_assay)
         p = _flatten_group_assay(reduced, "p_g")
@@ -137,11 +137,11 @@ class PythonParityBackend:
                 "methods 'fe' and 'dl'"
             )
 
-        dataset = group_dataset_from_group_data(request.data)
+        dataset = group_dataset_from_group_data(cast(Any, request.data))
         if request.formula.replace(" ", "") not in ("~1", "1"):
             reducer_method = {"fe": "meta:fe_reg", "dl": "meta:re_reg"}[method]
             reduced = group_reduce(dataset, method=reducer_method, formula=request.formula)
-            predictor_names = list(reduced.metadata["predictor_names"])
+            predictor_names = list(cast(Any, reduced.metadata["predictor_names"]))
             tau2 = None
             if "tau2" in reduced.assays:
                 tau2 = _flatten_group_assay(reduced, "tau2")
@@ -317,7 +317,7 @@ def _group_sample_names(dataset: Any) -> list[str]:
     from fmrimod.group import SampleLabelSpace, VoxelSpace
 
     if isinstance(dataset.space, SampleLabelSpace):
-        return list(dataset.space.labels)
+        return cast("list[str]", list(dataset.space.labels))
     if isinstance(dataset.space, VoxelSpace):
         if dataset.space.mask_idx is not None:
             return [f"voxel:{int(idx)}" for idx in dataset.space.mask_idx]
