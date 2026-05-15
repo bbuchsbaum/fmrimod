@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Any, Literal, Optional, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -54,11 +54,11 @@ def _extract_feature_frames(data: GroupData) -> tuple[list[str], list[tuple[NDAr
         )
 
     payload = data.data
-    df = payload.get("data")
+    df = cast(Any, payload.get("data"))
     if df is None:
         raise ValueError("CSV GroupData payload is missing 'data'")
 
-    effect_cols = payload.get("effect_cols") or {}
+    effect_cols = cast(Any, payload.get("effect_cols") or {})
     subject_col = payload.get("subject_col")
     roi_col = payload.get("roi_col")
     contrast_col = payload.get("contrast_col")
@@ -337,7 +337,7 @@ def fmri_meta(
     tau2 = np.zeros(n_features, dtype=np.float64)
     for idx, (y, v) in enumerate(feature_data):
         if custom_mat is not None:
-            custom_w = custom_mat[:, idx]
+            custom_w: Optional[NDArray[np.float64]] = custom_mat[:, idx]
         else:
             custom_w = custom_vec
         beta_i, se_i, tau2_i = _solve_meta_wls(
