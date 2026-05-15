@@ -340,7 +340,7 @@ class BaselineSpec:
         degree = 3
 
         # Mirroring `ns(x, df=..., intercept=False)` knot logic.
-        x_range = [np.min(x), np.max(x)]
+        x_range: list[float] = [float(np.min(x)), float(np.max(x))]
         x_no_na = x[~np.isnan(x)]
         if x_no_na.size == 0:
             return np.full((n, df), np.nan, dtype=float)

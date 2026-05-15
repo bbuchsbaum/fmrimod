@@ -13,7 +13,7 @@
       },
       "internal": {
         "total": 2101,
-        "with_any_annotation": 48,
+        "with_any_annotation": 49,
         "with_var_kwargs": 129
       },
       "public": {
@@ -25,7 +25,7 @@
     "files_scanned": 230,
     "parse_failures": 0,
     "total_functions": 2341,
-    "with_any_annotation": 53,
+    "with_any_annotation": 54,
     "with_var_args_any": 0,
     "with_var_kwargs": 162
   },
@@ -26045,8 +26045,8 @@
     },
     {
       "coercion_exemption": null,
-      "endlineno": 139,
-      "has_any_annotation": false,
+      "endlineno": 140,
+      "has_any_annotation": true,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,

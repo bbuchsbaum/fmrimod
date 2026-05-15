@@ -101,10 +101,10 @@ def simulate_noise_vector(
         raise ValueError("sd must be positive")
 
     rng = np.random.default_rng(seed)
-    ar = np.asarray(ar, dtype=np.float64).ravel()
-    ma = np.asarray(ma, dtype=np.float64).ravel()
-    p = int(ar.shape[0])
-    q = int(ma.shape[0])
+    ar_arr = np.asarray(ar, dtype=np.float64).ravel()
+    ma_arr = np.asarray(ma, dtype=np.float64).ravel()
+    p = int(ar_arr.shape[0])
+    q = int(ma_arr.shape[0])
 
     innovations = rng.normal(loc=0.0, scale=float(sd), size=n)
     noise = np.zeros(n, dtype=np.float64)
@@ -112,9 +112,9 @@ def simulate_noise_vector(
     for t in range(n):
         val = innovations[t]
         for i in range(min(p, t)):
-            val += ar[i] * noise[t - i - 1]
+            val += ar_arr[i] * noise[t - i - 1]
         for j in range(min(q, t)):
-            val += ma[j] * innovations[t - j - 1]
+            val += ma_arr[j] * innovations[t - j - 1]
         noise[t] = val
 
     time = np.arange(n, dtype=np.float64) * float(tr)

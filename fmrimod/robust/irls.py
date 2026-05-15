@@ -7,7 +7,7 @@ problem.
 
 from __future__ import annotations
 
-from typing import Dict, Tuple
+from typing import Any, Callable, Dict, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -21,8 +21,8 @@ from .estimators import bisquare_weights, huber_weights, mad_scale
 def robust_refit(
     model: object,  # FmriModel
     config: FmriLmConfig,
-    initial_fit: Dict,
-) -> Tuple[Dict, NDArray[np.float64]]:
+    initial_fit: Dict[str, Any],
+) -> Tuple[Dict[str, Any], NDArray[np.float64]]:
     """Re-fit the GLM using IRLS with robust weights.
 
     Parameters
@@ -46,6 +46,7 @@ def robust_refit(
     n_runs = model.n_runs  # type: ignore[attr-defined]
 
     # Weight function
+    weight_fn: Callable[[NDArray[np.float64], NDArray[np.float64]], NDArray[np.float64]]
     if robust_opts.type == "huber":
         weight_fn = lambda r, s: huber_weights(r, s, k=robust_opts.k_huber)
     elif robust_opts.type == "bisquare":
