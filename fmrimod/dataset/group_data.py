@@ -381,7 +381,7 @@ def group_data_from_csv(
             raise ValueError(
                 "Covariates are missing for subjects: " + ", ".join(cast(Any, missing_subjects).astype(str))
             )
-        covariate_frame = uniq_rows.loc[subjects_sorted, covariate_cols]
+        covariate_frame = cast(Any, uniq_rows).loc[subjects_sorted, covariate_cols]
     else:
         covariate_frame = None
     if covariates is not None:
