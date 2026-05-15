@@ -7,7 +7,10 @@ import json
 from collections.abc import Mapping, Sequence
 from io import StringIO
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    import h5py
 
 import numpy as np
 import pandas as pd
@@ -47,11 +50,11 @@ def _string_dtype() -> Any:
     return _import_h5py().string_dtype(encoding="utf-8")
 
 
-def _write_strings(group: Any, name: str, values: list[str]) -> None:
+def _write_strings(group: h5py.Group, name: str, values: list[str]) -> None:
     group.create_dataset(name, data=np.asarray(values, dtype=object), dtype=_string_dtype())
 
 
-def _read_strings(group: Any, name: str) -> tuple[str, ...]:
+def _read_strings(group: h5py.Group, name: str) -> tuple[str, ...]:
     raw = group[name][()]
     return tuple(
         item.decode("utf-8") if isinstance(item, bytes) else str(item)
@@ -59,12 +62,12 @@ def _read_strings(group: Any, name: str) -> tuple[str, ...]:
     )
 
 
-def _read_text_dataset(group: Any, name: str) -> str:
+def _read_text_dataset(group: h5py.Group, name: str) -> str:
     raw = group[name][()]
     return raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
 
 
-def _write_json_dataset(group: Any, name: str, value: Any) -> None:
+def _write_json_dataset(group: h5py.Group, name: str, value: object) -> None:
     group.create_dataset(
         name,
         data=json.dumps(value, sort_keys=True, default=str),
@@ -72,7 +75,7 @@ def _write_json_dataset(group: Any, name: str, value: Any) -> None:
     )
 
 
-def _write_axis_frame(parent: Any, name: str, frame: pd.DataFrame | None) -> None:
+def _write_axis_frame(parent: h5py.Group, name: str, frame: pd.DataFrame | None) -> None:
     if frame is None:
         return
     group = parent.create_group(name)
@@ -86,7 +89,7 @@ def _write_axis_frame(parent: Any, name: str, frame: pd.DataFrame | None) -> Non
     )
 
 
-def _read_axis_frame(parent: Any, name: str) -> pd.DataFrame | None:
+def _read_axis_frame(parent: h5py.Group, name: str) -> pd.DataFrame | None:
     if name not in parent:
         return None
     group = parent[name]
@@ -103,7 +106,7 @@ def _read_axis_frame(parent: Any, name: str) -> pd.DataFrame | None:
     return frame
 
 
-def _provenance_payload(dataset: GroupDataset) -> dict[str, Any]:
+def _provenance_payload(dataset: GroupDataset) -> dict[str, object]:
     return {
         "writer": "fmrimod.group",
         "schema_version": GDS_H5_VERSION,
@@ -115,7 +118,7 @@ def _provenance_payload(dataset: GroupDataset) -> dict[str, Any]:
     }
 
 
-def _read_schema_version(gds: Any) -> str:
+def _read_schema_version(gds: h5py.Group) -> str:
     if "version" not in gds:
         raise GroupSchemaError("HDF5 /gds is missing schema version")
     version = _read_text_dataset(gds, "version")
@@ -124,21 +127,21 @@ def _read_schema_version(gds: Any) -> str:
     return version
 
 
-def _metadata_payload(dataset: GroupDataset) -> dict[str, Any]:
+def _metadata_payload(dataset: GroupDataset) -> dict[str, object]:
     metadata = dict(dataset.metadata)
     metadata.pop(ALIGNMENT_FAMILIES_METADATA_KEY, None)
     metadata.pop(OPAQUE_ALIGNMENT_FAMILIES_METADATA_KEY, None)
     return metadata
 
 
-def _validate_hdf5_name(value: Any, *, kind: str) -> str:
+def _validate_hdf5_name(value: object, *, kind: str) -> str:
     name = str(value)
     if not name or "/" in name:
         raise GroupSchemaError(f"{kind} name must be non-empty and must not contain '/'")
     return name
 
 
-def _json_safe(value: Any, *, context: str) -> Any:
+def _json_safe(value: object, *, context: str) -> object:
     try:
         json.dumps(value)
     except TypeError as exc:
@@ -146,7 +149,7 @@ def _json_safe(value: Any, *, context: str) -> Any:
     return value
 
 
-def _write_alignment_families(group: Any, dataset: GroupDataset) -> None:
+def _write_alignment_families(group: h5py.Group, dataset: GroupDataset) -> None:
     raw = dataset.metadata.get(ALIGNMENT_FAMILIES_METADATA_KEY)
     if raw is None:
         return
@@ -171,7 +174,7 @@ def _write_alignment_families(group: Any, dataset: GroupDataset) -> None:
         family.attrs["format"] = ALIGNMENT_MANIFEST_FORMAT
         family.attrs["schema_version"] = ALIGNMENT_MANIFEST_VERSION
         matrices = family.create_group("matrices")
-        manifest: dict[str, Any] = {
+        manifest: dict[str, object] = {
             "schema_version": ALIGNMENT_MANIFEST_VERSION,
             "format": ALIGNMENT_MANIFEST_FORMAT,
             "family": family_name,
@@ -187,7 +190,7 @@ def _write_alignment_families(group: Any, dataset: GroupDataset) -> None:
             )
 
         seen_entries: set[str] = set()
-        manifest_entries = cast(list[dict[str, Any]], manifest["entries"])
+        manifest_entries = cast(list[dict[str, object]], manifest["entries"])
         for idx, entry_raw in enumerate(entries_raw):
             if not isinstance(entry_raw, Mapping):
                 raise GroupSchemaError(
@@ -215,7 +218,7 @@ def _write_alignment_families(group: Any, dataset: GroupDataset) -> None:
                 )
             matrices.create_dataset(entry_name, data=matrix)
 
-            manifest_entry: dict[str, Any] = {}
+            manifest_entry: dict[str, object] = {}
             for key, value in entry_raw.items():
                 key_str = str(key)
                 if key_str == "matrix":
@@ -236,7 +239,7 @@ def _write_alignment_families(group: Any, dataset: GroupDataset) -> None:
         _write_json_dataset(family, "manifest", manifest)
 
 
-def _read_opaque_dataset(dataset: Any) -> dict[str, Any]:
+def _read_opaque_dataset(dataset: h5py.Dataset) -> dict[str, object]:
     raw = dataset[()]
     if isinstance(raw, bytes):
         try:
@@ -259,15 +262,15 @@ def _read_opaque_dataset(dataset: Any) -> dict[str, Any]:
 
 
 def _read_alignment_families(
-    group: Any,
+    group: h5py.Group,
     *,
     allow_opaque_alignments: bool,
-) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+) -> tuple[dict[str, object] | None, dict[str, object] | None]:
     if "alignments" not in group or len(group["alignments"]) == 0:
         return None, None
 
-    alignment_families: dict[str, Any] = {}
-    opaque_families: dict[str, Any] = {}
+    alignment_families: dict[str, object] = {}
+    opaque_families: dict[str, object] = {}
     alignments = group["alignments"]
     for family_name in alignments:
         family = alignments[family_name]
@@ -290,7 +293,7 @@ def _read_alignment_families(
                     f"alignment manifest entries for family '{family_name}' "
                     "must be a sequence"
                 )
-            entries: list[dict[str, Any]] = []
+            entries: list[dict[str, object]] = []
             for idx, entry_raw in enumerate(entries_raw):
                 if not isinstance(entry_raw, Mapping):
                     raise GroupSchemaError(
@@ -338,7 +341,7 @@ def _read_alignment_families(
     return alignment_families or None, opaque_families or None
 
 
-def _write_space(group: Any, space: GroupSpace) -> None:
+def _write_space(group: h5py.Group, space: GroupSpace) -> None:
     group.attrs["type"] = space.kind
     if isinstance(space, VoxelSpace):
         voxel = group.create_group("voxel")
@@ -377,7 +380,7 @@ def _write_space(group: Any, space: GroupSpace) -> None:
         )
 
 
-def _read_space(group: Any) -> GroupSpace:
+def _read_space(group: h5py.Group) -> GroupSpace:
     kind_raw = group.attrs.get("type")
     kind = kind_raw.decode("utf-8") if isinstance(kind_raw, bytes) else str(kind_raw)
     if kind == "voxel":
@@ -486,7 +489,7 @@ def read_hdf5(path: str | Path, *, allow_opaque_alignments: bool = False) -> Gro
             name: np.asarray(gds["assays"][name][()], dtype=np.float64)
             for name in gds["assays"]
         }
-        metadata: dict[str, Any] = {}
+        metadata: dict[str, object] = {}
         if "metadata" in gds and "json" in gds["metadata"]:
             metadata = json.loads(_read_text_dataset(gds["metadata"], "json"))
         metadata["schema_version"] = version
