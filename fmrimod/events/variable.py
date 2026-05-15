@@ -291,7 +291,7 @@ class EventVariable(BaseEvent):
         onset_col: str = 'onset',
         value_col: Optional[str] = None,
         duration_col: str = 'duration',
-        **kwargs
+        **kwargs: object
     ) -> EventVariable:
         """Create EventVariable from DataFrame.
         

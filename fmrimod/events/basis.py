@@ -258,7 +258,7 @@ class EventBasis(BaseEvent):
         onset_col: str = 'onset',
         value_col: Optional[str] = None,
         duration_col: str = 'duration',
-        **kwargs
+        **kwargs: object
     ) -> EventBasis:
         """Create EventBasis from DataFrame.
         

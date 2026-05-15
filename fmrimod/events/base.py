@@ -18,7 +18,7 @@ EVENT_TYPES = {
 }
 
 
-def create_event(event_type: str, **kwargs) -> Union[EventFactor, EventVariable, EventMatrix, EventBasis]:
+def create_event(event_type: str, **kwargs: object) -> Union[EventFactor, EventVariable, EventMatrix, EventBasis]:
     """Create an event of the specified type.
     
     Parameters

@@ -243,7 +243,7 @@ class EventMatrix(BaseEvent):
         onset_col: str = 'onset',
         value_cols: Optional[List[str]] = None,
         duration_col: str = 'duration',
-        **kwargs
+        **kwargs: object
     ) -> EventMatrix:
         """Create EventMatrix from DataFrame.
         

@@ -289,7 +289,7 @@ class EventFactor(BaseEvent):
         onset_col: str = 'onset',
         value_col: Optional[str] = None,
         duration_col: str = 'duration',
-        **kwargs
+        **kwargs: object
     ) -> EventFactor:
         """Create EventFactor from DataFrame.
         
