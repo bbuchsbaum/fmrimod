@@ -11,7 +11,10 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import TYPE_CHECKING, Optional, Sequence
+
+if TYPE_CHECKING:
+    import neuroim
 
 import numpy as np
 from numpy.typing import NDArray
@@ -84,7 +87,7 @@ def _bids_filename(
 
 def _write_json_sidecar(
     path: Path,
-    content: dict[str, Any],
+    content: dict[str, object],
 ) -> None:
     """Write a BIDS JSON sidecar file."""
     with open(path, "w") as f:
@@ -95,7 +98,7 @@ def _make_nifti_image(
     data_3d: NDArray,
     mask: NDArray[np.bool_],
     affine: NDArray[np.float64],
-) -> Any:
+) -> neuroim.DenseNeuroVol:
     """Create a neuroim volume from a 1-D voxel vector and mask.
 
     Parameters
@@ -123,7 +126,7 @@ def _make_nifti_image(
     return DenseNeuroVol(vol.astype(np.float32), space)
 
 
-def _write_nifti_image(img: Any, out_path: Path) -> None:
+def _write_nifti_image(img: neuroim.DenseNeuroVol, out_path: Path) -> None:
     """Write a neuroim volume as NIfTI."""
     from neuroim import write_vol
 
