@@ -8,7 +8,7 @@ formula syntax and design matrix construction.
 from __future__ import annotations
 
 import inspect
-from typing import Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union, cast
 
 import numpy as np
 
@@ -27,7 +27,7 @@ except ImportError as err:
 from .types import Array, HRFProtocol
 
 
-class PyFMRIHRF(HRFProtocol):
+class PyFMRIHRF(HRFProtocol):  # type: ignore[misc]
     """Wrapper for fmrimod HRF functions.
     
     This class wraps fmrimod HRF objects to implement the HRFProtocol
@@ -168,9 +168,9 @@ class PyFMRIHRF(HRFProtocol):
     def nbasis(self) -> int:
         """Number of basis functions."""
         if hasattr(self._hrf, 'nbasis'):
-            return self._hrf.nbasis
+            return int(self._hrf.nbasis)
         elif hasattr(self._hrf, 'n_basis'):
-            return self._hrf.n_basis
+            return int(self._hrf.n_basis)
         else:
             # Default to 1 for simple HRFs
             return 1
@@ -272,7 +272,7 @@ def list_hrfs() -> List[str]:
     >>> print(hrfs[:5])
     ['SPMG1', 'SPMG2', 'SPMG3', 'bspline', 'fir']
     """
-    return _utils_misc.list_available_hrfs()
+    return cast(List[str], _utils_misc.list_available_hrfs())
 
 
 def create_hrf_basis(
@@ -311,7 +311,7 @@ def create_hrf_basis(
     >>> bspline = create_hrf_basis("bspline", n_basis=5, length=20)
     """
     # Build parameters for generic and special-cased basis creation.
-    params = {}
+    params: dict[str, object] = {}
     if n_basis is not None:
         params['N'] = n_basis
     if length is not None:
@@ -347,11 +347,11 @@ def create_hrf_basis(
             hrf_obj = generator(**gen_kwargs)
             return PyFMRIHRF(hrf_obj)
 
-    return PyFMRIHRF(name, **params)
+    return PyFMRIHRF(name, **cast("dict[str, Any]", params))
 
 
 # Register all fmrimod HRFs with fmrimod's registry
-def register_fmrimod_hrfs():
+def register_fmrimod_hrfs() -> None:
     """Register all fmrimod HRFs with fmrimod.
     
     This function is called on module import to make all fmrimod
@@ -365,9 +365,9 @@ def register_fmrimod_hrfs():
     # Register each one
     for hrf_name in available:
         # Create a factory function for this HRF
-        def make_hrf_factory(name):
-            def factory(**kwargs: object):
-                return PyFMRIHRF(name, **kwargs)
+        def make_hrf_factory(name: str) -> Callable[..., PyFMRIHRF]:
+            def factory(**kwargs: object) -> PyFMRIHRF:
+                return PyFMRIHRF(name, **cast("dict[str, Any]", kwargs))
             return factory
         
         # Register only names not already owned by the canonical registry.
