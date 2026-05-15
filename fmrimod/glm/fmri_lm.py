@@ -275,7 +275,7 @@ def _term_norm_mode(term: object) -> Optional[NormMode]:
 
 
 def _seed_provenance(
-    engine: Any,
+    engine: "FittingEngine",
     fit_kwargs: Mapping[str, object],
 ) -> tuple[Optional[int], SeedStatus]:
     """Recover seed provenance from the resolved engine invocation."""
@@ -289,7 +289,7 @@ def _seed_provenance(
     return None, "not_randomized"
 
 
-def _mask_mode_provenance(model: Any) -> tuple[Optional[MaskMode], CarryStatus]:
+def _mask_mode_provenance(model: "FmriModelLike") -> tuple[Optional[MaskMode], CarryStatus]:
     """Infer mask mode from the fitted dataset without adding new API."""
     dataset = getattr(model, "dataset", None)
     if dataset is None or not hasattr(dataset, "get_mask"):
@@ -319,9 +319,9 @@ def _design_source_provenance(model: object) -> tuple[str, CarryStatus]:
 
 
 def _build_fit_provenance(
-    model: Any,
+    model: "FmriModelLike",
     config: FmriLmConfig,
-    engine: Any,
+    engine: "FittingEngine",
     fit_kwargs: Mapping[str, object] | None = None,
 ) -> FitProvenance:
     """Construct the Slice A provenance object from a fitted model."""
