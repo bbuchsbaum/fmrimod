@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 import warnings
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple, Union, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -108,7 +108,7 @@ def compute_dvars(
         if med > 0:
             dvars = dvars / med
 
-    return dvars
+    return cast("NDArray[np.float64]", dvars)
 
 
 def dvars_weights(
@@ -433,7 +433,7 @@ def soft_subspace_projection(
 
     # SVD-based form mirrors fmrireg::soft_projection implementation.
     U, s, _ = np.linalg.svd(N, full_matrices=False)
-    d2 = s ** 2
+    d2 = cast("NDArray[np.float64]", s ** 2)
     lam_val = _resolve_soft_lambda(d2, lam, Y=Y, U=U)
     shrink = d2 / (d2 + lam_val)
 
