@@ -126,12 +126,12 @@ def _lmm_not_available(message: str) -> UnsupportedGroupFeatureError:
 def _fit_mixedlm_feature(
     y: NDArray[np.float64],
     X: NDArray[np.float64],
-    groups: Any,
+    groups: object,
     exog_re: NDArray[np.float64],
     *,
     reml: bool,
     covariance: Literal["diag", "full"] = "full",
-) -> Any:
+) -> object:
     try:
         from statsmodels.regression.mixed_linear_model import MixedLM, MixedLMParams
     except Exception as exc:  # pragma: no cover - dependency declared by package
@@ -140,7 +140,7 @@ def _fit_mixedlm_feature(
         ) from exc
 
     model = MixedLM(endog=y, exog=X, groups=groups, exog_re=exog_re)
-    fit_options: dict[str, Any] = {}
+    fit_options: dict[str, object] = {}
     if covariance == "diag" and exog_re.shape[1] > 1:
         fit_options["free"] = MixedLMParams.from_components(
             fe_params=np.ones(X.shape[1]),
@@ -162,7 +162,7 @@ def _lmm_failure_metadata(
     failures: list[tuple[int, BaseException]],
     *,
     attempted_features: int,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     return {
         "fit_attempted_features": int(attempted_features),
         "fit_failed_features": len(failures),
@@ -193,7 +193,7 @@ def _lmm_result_dataset(
     assays: dict[str, NDArray[np.float64]],
     *,
     method: str,
-    metadata: dict[str, Any],
+    metadata: dict[str, object],
 ) -> GroupDataset:
     return GroupDataset(
         assays=assays,

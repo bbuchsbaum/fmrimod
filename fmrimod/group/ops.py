@@ -42,7 +42,7 @@ def _normalize_axis_index(
     return idx
 
 
-def _subset_frame(frame: Any, idx: NDArray[np.intp]) -> Any:
+def _subset_frame(frame: object, idx: NDArray[np.intp]) -> object:
     if frame is None:
         return None
     return frame.iloc[idx].copy()
@@ -234,7 +234,7 @@ def reduce(
     method: str = "meta:fe",
     *,
     progress: ProgressCallback | ProgressReporter | None = None,
-    **options: Any,
+    **options: object,
 ) -> GroupDataset:
     """Run a native reducer from the reducer registry."""
     emit_progress(
@@ -279,7 +279,7 @@ def write_out(
     path: str | Path,
     *,
     output_format: str | None = None,
-    **kwargs: Any,
+    **kwargs: object,
 ) -> Path:
     """Write a native group dataset to disk."""
     resolved = output_format
