@@ -73,18 +73,48 @@ left-to-right across the modeling rows.
 `dataset/adapters/neuroim_adapter.py` (neuroim-python adapter). Treat
 these as moving targets until they land in a thematic commit.
 
+## Environment
+
+The supported floor is **Python ≥ 3.10** (`pyproject.toml`
+`requires-python`). Python 3.9 is EOL and cannot import `fmrimod`
+(runtime PEP-604 unions in `fmrimod/stats/__init__.py`); do not use it.
+
+The canonical dev/test environment is the in-repo virtualenv `.venv`
+(Python 3.11, `fmrimod` editable, `nilearn` present). It is
+**uv-managed** (`uv` 0.7+; `.venv` has no `pip` by design). Use
+`.venv/bin/python` to run, and `uv` to manage packages:
+
+```bash
+uv venv --python 3.11 .venv
+uv pip install --python .venv/bin/python -e ".[dev,test,cross-test]"
+```
+
+Do not run bare `.venv/bin/pip` (absent) or `python3.9` / Homebrew
+`python3.12` (3.9 can't import `fmrimod`; Homebrew 3.12 is PEP-668
+externally-managed and `pip install` into it silently no-ops).
+
 ## Build & Test
 
 ```bash
-python3.9 -m pip install -e .              # Editable install
-python3.9 -m pytest tests/ -k "not rpy2"   # Full Python suite (~1525 tests)
-python3.9 -m pytest tests/ -x              # Stop on first failure
-python3.9 -m pytest cross_testing/ -m parity      # Parity matrix
-python3.9 -m pytest cross_testing/ -m benchmark   # Perf trends
+.venv/bin/python -m pytest tests/ -k "not rpy2"   # Full Python suite
+.venv/bin/python -m pytest tests/ -x              # Stop on first failure
+.venv/bin/python -m pytest cross_testing/ -m parity      # Parity matrix
+.venv/bin/python -m pytest cross_testing/ -m benchmark   # Perf trends
+.venv/bin/python -m ruff check <files-you-changed>       # Floor/style on your diff
 ```
 
-Twenty-six rpy2 baseline-spline parity tests are pre-existing failures unrelated
-to current work; the `-k "not rpy2"` filter skips them.
+`ruff` is configured `target-version = "py310"` (the intended
+floor guard). Caveat: there is **no lint/test CI** (only
+benchmark/docs workflows), the `[tool.ruff]` config block is
+deprecated-format, and `fmrimod/__init__.py` carries pre-existing
+`ruff` debt under current `ruff` — so a repo-wide `ruff check` is
+*not* a clean gate. The reliable pre-land gate is the **test suite
+under `.venv`**; additionally `ruff check` the files you touched to
+catch new floor/style regressions in your own diff. (Closing the
+CI/ruff-debt gap is tracked separately — see the board.)
+
+Twenty-six rpy2 baseline-spline parity tests are pre-existing failures
+unrelated to current work; the `-k "not rpy2"` filter skips them.
 
 ## Issue Tracking — mote
 
@@ -352,8 +382,10 @@ When ending a work session:
    that did not originate on the board.
 2. **Update bead state** — `mote set <id> status=...` or `mote close <id>`
    for everything you progressed.
-3. **Run quality gates** — at minimum `python3.9 -m pytest tests/ -k "not rpy2"`
-   for code touches; add `cross_testing/` runs for parity/benchmark changes.
+3. **Run quality gates** — at minimum `.venv/bin/python -m pytest tests/
+   -k "not rpy2"` for code touches (no lint/test CI exists — the local
+   suite is the gate), plus `ruff check` on the files you changed; add
+   `cross_testing/` runs for parity/benchmark changes.
 4. **Commit and push** — `git add <files> && git commit && git push`. The
    `.mote/` store is local coordination state and remains ignored by git; the
    portable record is the bead id, relevant board post ids, and a concise
