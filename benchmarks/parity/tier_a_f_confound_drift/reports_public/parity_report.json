@@ -111,13 +111,13 @@
   "name": "tier_a_public_f_confound_drift",
   "status": "pass",
   "timings": {
-    "seconds": 0.092640791,
+    "seconds": 0.079582708,
     "stages": {
-      "fmrimod_contrast_seconds": 0.011425499999999866,
-      "fmrimod_dataset_seconds": 7.816699999985133e-05,
-      "fmrimod_fit_seconds": 0.00520133300000003,
-      "load_inputs_seconds": 0.05066041600000015,
-      "nilearn_pipeline_seconds": 0.0252753750000001
+      "fmrimod_contrast_seconds": 0.013004749999999898,
+      "fmrimod_dataset_seconds": 8.633400000013225e-05,
+      "fmrimod_fit_seconds": 0.004221915999999881,
+      "load_inputs_seconds": 0.056389749999999905,
+      "nilearn_pipeline_seconds": 0.005879958000000185
     },
     "status": "recorded"
   }
