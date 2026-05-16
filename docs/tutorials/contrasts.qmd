@@ -1,105 +1,111 @@
 ---
 title: "Contrasts"
-subtitle: "Create named hypotheses from design-matrix columns."
+subtitle: "Typed hypotheses over declared provenance — no column indexing."
 jupyter: python3
 execute:
   freeze: auto
 ---
 
-## A 2 x 2 Event Design
+A contrast in fmrimod is a **typed object that names conditions**, not a
+hand-built `np.zeros(len(columns))` vector keyed by substring matching on
+column names. You state the hypothesis in terms of the *term* and *levels*
+you declared in the design; fmrimod resolves it against the design's
+recorded provenance and returns a typed `ContrastResult`. The hypothesis
+survives column reordering, baseline changes, and basis expansion because it
+never depended on column positions in the first place.
 
-The original R vignette built contrasts for a factorial event model. In
-Python, start by making the factorial cells explicit in the event table.
+## A Typed Event Design
 
 ```{python}
 import numpy as np
 import pandas as pd
 import fmrimod as fm
-from fmrimod.design_colmap import design_colmap
+from fmrimod.spec import hrf
+from fmrimod.contrast import OmnibusContrast, condition
 
-design = pd.DataFrame({
-    "category": ["face", "face", "scene", "scene"] * 3,
-    "attention": ["attend", "ignore", "attend", "ignore"] * 3,
-    "onset": np.arange(0, 96, 8),
-})
-
-sf = fm.SamplingFrame(blocklens=120, TR=1.0)
-model = fm.event_model(
-    'onset ~ hrf(category, attention, basis="spmg1")',
-    data=design,
-    sampling_frame=sf,
-)
-
-design_colmap(model)[["col", "name", "condition"]]
-```
-
-## Pair and Unit Contrasts
-
-A pair contrast is just a named vector in design-column order. This explicit
-representation is often the clearest way to audit the hypothesis before
-fitting a model.
-
-```{python}
-columns = model.column_names
-
-face_cols = [i for i, name in enumerate(columns) if "face" in name]
-scene_cols = [i for i, name in enumerate(columns) if "scene" in name]
-
-face_vs_scene = np.zeros(len(columns))
-face_vs_scene[face_cols] = 1 / len(face_cols)
-face_vs_scene[scene_cols] = -1 / len(scene_cols)
-
-pd.DataFrame({"column": columns, "weight": face_vs_scene})
-```
-
-A unit-style contrast compares a group of columns to the implicit baseline.
-
-```{python}
-face_vs_baseline = np.zeros(len(columns))
-face_vs_baseline[face_cols] = 1 / len(face_cols)
-
-pd.DataFrame({"column": columns, "weight": face_vs_baseline})
-```
-
-## Main Effects and Interactions
-
-`fmrimod` also exposes fast factorial contrast generators for balanced cell
-layouts.
-
-```{python}
-cells = pd.DataFrame({
-    "category": pd.Categorical(["face", "scene"]),
-    "attention": pd.Categorical(["attend", "ignore"]),
-})
-
-category_main = fm.generate_main_effect_contrast(cells, "category")
-interaction = fm.generate_interaction_contrast(cells, ["category", "attention"])
-
-category_main.shape, interaction.shape
-```
-
-```{python}
-pd.DataFrame(
-    np.column_stack([category_main, interaction]),
-    columns=["category_main", "category_attention_interaction"],
-)
-```
-
-## Apply a Contrast After Fitting
-
-The GLM helper returns coefficient, standard error, and t-statistic matrices.
-A contrast estimate can be formed by multiplying the fitted beta matrix by the
-contrast vector.
-
-```{python}
 rng = np.random.default_rng(1)
-X = np.asarray(model.design_matrix)
-true_beta = np.linspace(0.4, 1.0, X.shape[1])[:, None]
-Y = X @ true_beta + rng.normal(scale=0.05, size=(X.shape[0], 4))
+events = pd.DataFrame({
+    "onset": np.arange(0, 120, 8),
+    "condition": ["face", "scene", "object"] * 5,
+    "duration": 2.0,
+})
 
-fit = fm.fmri_ols_fit(Y, X)
-contrast_estimate = face_vs_scene @ fit["beta"]
-contrast_estimate.round(3)
+dataset = fm.fmri_dataset(rng.normal(size=(150, 4)), tr=1.0, events=events)
+fit = fm.fmri_lm(hrf("condition", basis="spmg1"), dataset)
+fit.n_coefficients, fit.n_voxels
+```
+
+## A Pair Contrast
+
+The old way was to find `"face"` columns by substring, find `"scene"`
+columns by substring, and write a weight vector by index — fragile the
+moment a baseline column shifts. The typed way names the conditions:
+
+```{python}
+face_vs_scene = fit.contrast(
+    condition("face", term="condition") - condition("scene", term="condition"),
+    name="face_vs_scene",
+)
+
+pd.DataFrame({
+    "voxel": range(fit.n_voxels),
+    "estimate": face_vs_scene.estimate,
+    "t": face_vs_scene.stat,
+    "p": face_vs_scene.p_value,
+}).round(3)
+```
+
+`face_vs_scene` is a `ContrastResult`: `.estimate`, `.stat`, `.se`,
+`.p_value`, `.df`, and `.stat_type` (`"t"` here) are typed attributes, not
+dictionary keys.
+
+## A Unit Contrast vs Baseline
+
+A single named condition against the implicit baseline is just the
+condition reference on its own — no weight bookkeeping.
+
+```{python}
+face_vs_baseline = fit.contrast(
+    condition("face", term="condition"),
+    name="face_vs_baseline",
+)
+face_vs_baseline.stat_type, face_vs_baseline.estimate.round(3)
+```
+
+## An Omnibus F-Contrast
+
+"Does *any* condition differ?" is an F-contrast over the term's levels.
+`OmnibusContrast` takes the term and its declared levels — still no column
+math.
+
+```{python}
+omnibus = fit.contrast(
+    OmnibusContrast(
+        term="condition",
+        levels=("face", "scene", "object"),
+        name="any_condition",
+    )
+)
+omnibus.stat_type, omnibus.df, omnibus.stat.round(2)
+```
+
+## Factorial Designs
+
+For balanced factorial cell layouts, `generate_main_effect_contrast` and
+`generate_interaction_contrast` build the contrast matrices from a cells
+table. They are matrix builders, not typed specs — prefer the
+`condition(...)` / `OmnibusContrast` path above whenever the question is
+about declared factor levels, and reach for the generators only when you
+genuinely need a full balanced factorial decomposition.
+
+```{python}
+from fmrimod.contrast import generate_main_effect_contrast
+
+cells = pd.DataFrame({
+    "category": ["face", "face", "scene", "scene"],
+    "attention": ["attend", "ignore", "attend", "ignore"],
+})
+generate_main_effect_contrast(cells, "category").shape
 ```
 
 ## Next
