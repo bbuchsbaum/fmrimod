@@ -26,6 +26,7 @@ import pandas as pd
 import fmrimod as fm
 from fmrimod import baseline_model, design_matrix
 from fmrimod.residualize import residualize
+from fmrimod.spec import covariate
 from fmrimod.stats import seed_target_correlation, seed_target_lm
 
 rng = np.random.default_rng(13)
@@ -86,9 +87,28 @@ seed_target_correlation(
 ## Seed as a GLM Covariate
 
 The fmrireg-style inferential version treats the seed time series as a sampled
-BOLD covariate. That path is a thin wrapper over `fmri_lm`: it fits each target
-on `[intercept, confounds, seed]` and reports the seed coefficient, standard
-error, *t*, and *p*.
+BOLD covariate. In fmrimod that is not a separate connectivity language:
+`covariate(...)` is an identity-HRF term, so it enters the same `fmri_lm`
+path as an ordinary authored model term.
+
+```{python}
+seed_source = pd.DataFrame({"seed": clean[:, 0]})
+target_events = pd.DataFrame({
+    "onset": [0.0],
+    "duration": [0.0],
+    "trial_type": ["seed"],
+    "run": [1],
+})
+target_dataset = fm.fmri_dataset(clean[:, 1:2], tr=2.0, events=target_events)
+
+seed_fit = fm.fmri_lm(covariate("seed", source=seed_source), target_dataset)
+seed_index = seed_fit.design_columns().names.index("seed")
+round(float(seed_fit.coef()[seed_index, 0]), 3)
+```
+
+For the common many-target ROI table, `seed_target_lm` is the compact helper on
+that same idea: it fits each target on `[intercept, confounds, seed]` and
+reports the seed coefficient, standard error, *t*, and *p*.
 
 ```{python}
 seed_target_lm(

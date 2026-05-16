@@ -1,6 +1,7 @@
 # ROADMAP to 1.0
 
-Status: draft roadmap, codified from the `roadmap-to-1-0` board thread.
+Status: 1.0 release contract, codified from the `roadmap-to-1-0` board
+thread and revised after the 0.8 release-ladder decision.
 
 Primary discussion source:
 
@@ -17,6 +18,26 @@ done when every inherited R export has been mechanically ported.
 The 1.0 bar should be smaller than port-completeness and harder than a demo
 checklist: one public path, one regenerable proof bundle, strict caveat
 discipline, native group inference, and a classified API spine.
+
+## Release Ladder
+
+The immediate release target is 0.8, not 1.0.
+
+- **0.8** is the typed first-level seam preview. Its contract lives in
+  [`ROADMAP-0.8.md`](ROADMAP-0.8.md) and is owned by
+  `bd-01KRRVEP2RT4811CJCK9HQCCFW`. It claims
+  `fmri_dataset -> fmri_lm(spec, dataset) -> contrast`, typed
+  `hrf(...)`/`covariate(...)` semantics, and the narrow functional
+  connectivity story.
+- **0.9** is the proof-bundle candidate. It promotes the stable 0.8 seam into
+  flagship receipts, finishes the canonical group/BIDS/formula blockers, and
+  makes the release receipt a credible gate.
+- **1.0** is the artifact-as-argument release described by this file.
+
+This file is therefore a contract for 1.0 readiness, not the next sprint
+checklist. Current artifact status should be read from
+`benchmarks/parity/release_1_0_manifest.json` and the owning motes, not from
+stale prose.
 
 ## Release Blockers
 
@@ -55,11 +76,11 @@ The family-to-artifact mapping lives in
 
 | Family | `proof_artifacts.benchmark_id` | Required public path | Current status | Owner bead |
 | --- | --- | --- | --- | --- |
-| SPM auditory / first-level modeling | `tier_a_spm_auditory` | `fmri_dataset -> fmri_lm -> contrast` | `ready_missing_hardware_tag` | `bd-01KRFDHPVSJGCVZ967Y8TVCKJA` |
-| FIAC/localizer fixed effects | `tier_a_fiac` | `fmri_dataset -> fmri_lm -> contrast` | `blocked_public_seam_false` | `bd-01KRFMY8FNTZM60BKZ7MW5W2Q9` |
-| FitLins/BIDS Stats Model translation | `tier_b_fitlins_bids` | `fmri_dataset -> fmri_lm -> typed BIDS contrasts` | `blocked_public_seam_false` | `bd-01KRFKZ0J0Z0GJ9VK35ABCAGJW` |
-| Second-level/group inference | `tier_group_semantic_survival` | `fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise` | `ready_missing_hardware_tag` | `bd-01KRHTJ9WFSSBZSDGAN4V7PHGS` |
-| Single-trial/LSS or trialwise estimation | `tier_d_lss_trialwise` | `fmri_dataset -> estimate_single_trial -> typed trialwise result` | `blocked_numerical_canary` | `bd-01KRFMY8FNTZM60BKZ7MW5W2Q9` |
+| SPM auditory / first-level modeling | `tier_a_spm_auditory` | `fmri_dataset -> fmri_lm -> contrast` | `ready` | `bd-01KRFDHPVSJGCVZ967Y8TVCKJA` |
+| FIAC/localizer fixed effects | `tier_a_fiac` | `fmri_dataset -> RealizedDesign(source='nilearn') -> fmri_lm` | `ready` | `bd-01KRFMY8FNTZM60BKZ7MW5W2Q9` |
+| FitLins/BIDS Stats Model translation | `tier_b_fitlins_bids` | `fmri_dataset -> fmri_lm -> typed BIDS contrasts` | `ready` | `bd-01KRFKZ0J0Z0GJ9VK35ABCAGJW` |
+| Second-level/group inference | `tier_group_semantic_survival` | `fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> group_model -> ols_voxelwise` | `ready` | `bd-01KRHTJ9WFSSBZSDGAN4V7PHGS` |
+| Single-trial/LSS or trialwise estimation | `tier_d_lss_trialwise` | `fmri_dataset -> estimate_single_trial_from_dataset -> typed SingleTrialResult` | `ready` | `bd-01KRKAEDBE9BV5HZ5SY0A3ZAA5` |
 | Typed proof scorecard / underdog showcase | `tier_d_showcase` | `fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise` | `ready` | `bd-01KRJ0PM9ERPJH7GX0PYYVY2NK` |
 
 ### 2. The Four-Stage Seam Carries the Flagship Path
@@ -176,7 +197,9 @@ The named release-discipline gates are:
 
 ## Critical Path
 
-Current ordering from the board consensus:
+Historical ordering from the board consensus. Several of these items have
+since landed; use live motes and `benchmarks/parity/release_1_0_manifest.json`
+for current state.
 
 1. Finish the StudyDataset/group source-of-truth slice needed by the flagship
    proof path: `bd-01KRFMVAY8PGBR86YERMD6DK7N`.
@@ -191,6 +214,14 @@ Current ordering from the board consensus:
    `bd-01KRHY6EQW0K06KESGF6MGVZT3`.
 6. Decide or permanently record the rank-deficient dfres divergence:
    `bd-01KRHTASRWPA5ZQNGV55BS6XFE`.
+
+Current post-0.8-facing blockers are tracked by:
+
+- `bd-01KRRVFE3DJ5V0VR1527KWXHQF` for the 0.9 proof-bundle candidate;
+- `bd-01KRKAESC2GS1CVCBGBTJK3M9X` for the canonical group release path;
+- `bd-01KRFKZ0J0Z0GJ9VK35ABCAGJW` for BIDS Stats Model transform coverage;
+- `bd-01KRRTXWZT4VA9A5E30HM4284Q` for typed formula/group-stat routing;
+- `bd-01KRHTASRWPA5ZQNGV55BS6XFE` for the live dfres caveat policy.
 
 ## Proof Overcounting Rules
 
