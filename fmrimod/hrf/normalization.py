@@ -54,7 +54,6 @@ shape derivatives — e.g. an arbitrary multi-channel kernel wrapped via
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Literal, Union
 
 import numpy as np
@@ -144,7 +143,6 @@ def _guard_factor(hrf: HRF, mode: NormMode, z: float) -> float:
     return z
 
 
-@dataclass
 class _NormalizedHRF(HRF):
     """An HRF whose every evaluation is divided by a fixed factor.
 
@@ -154,26 +152,39 @@ class _NormalizedHRF(HRF):
 
     Built by :func:`normalize`. Use the factory rather than
     constructing this class directly.
+
+    Not a ``@dataclass`` (the :class:`FunctionHRF` precedent): ``base``
+    and ``norm_mode`` are genuinely required constructor arguments, so
+    an invalid instance is *unconstructible* rather than an
+    ``Optional[...] = None`` field validated after the fact in
+    ``__post_init__``. (A ``@dataclass`` cannot express a required
+    field after the base's defaulted ``nbasis``/``span`` on Python 3.9
+    without ``kw_only`` (3.10+); the typed custom ``__init__`` sidesteps
+    that while keeping both mypy gates green.)
     """
 
-    name: str = ""
-    nbasis: int = 1
-    span: float = 24.0
-    base: HRF | None = None
-    norm_mode: NormMode | None = None
-    norm_factor: Union[float, NDArray[np.float64]] = 1.0
+    base: HRF
+    norm_mode: NormMode
+    norm_factor: Union[float, NDArray[np.float64]]
 
-    def __post_init__(self) -> None:
-        if self.base is None or self.norm_mode is None:
-            raise ValueError("_NormalizedHRF requires `base` and `norm_mode`")
+    def __init__(
+        self,
+        base: HRF,
+        norm_mode: NormMode,
+        norm_factor: Union[float, NDArray[np.float64]] = 1.0,
+        name: str = "",
+    ) -> None:
         # Derive identity from the base; the factory sets a label on top.
-        if not self.name:
-            self.name = f"{self.base.name}[norm={self.norm_mode}]"
-        self.nbasis = self.base.nbasis
-        self.span = self.base.span
+        super().__init__(
+            name=name or f"{base.name}[norm={norm_mode}]",
+            nbasis=base.nbasis,
+            span=base.span,
+        )
+        self.base = base
+        self.norm_mode = norm_mode
+        self.norm_factor = norm_factor
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
-        assert self.base is not None
         values = np.asarray(self.base(t), dtype=np.float64)
         if np.ndim(self.norm_factor) == 0:
             return values / float(self.norm_factor)
