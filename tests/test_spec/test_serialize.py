@@ -39,12 +39,12 @@ from fmrimod.spec import (
     Spec,
     SpecSerializationError,
     confounds,
+    covariate,
     drift,
     hrf,
     intercept,
     spec_diff,
 )
-
 
 # ---------------------------------------------------------------------------
 # Round-trip identity
@@ -96,6 +96,18 @@ def test_full_event_and_baseline_spec_round_trips():
     assert rebuilt.baseline[0] == Drift(basis="cosine", cutoff=128)
     assert rebuilt.baseline[1] == Intercept(per="run")
     assert rebuilt.baseline[2] == Confounds(columns=("trans_x", "trans_y", "rot_z"))
+
+
+def test_covariate_identity_hrf_term_round_trips_without_source():
+    spec = Spec() + covariate("seed", prefix="roi", id="seed_term")
+    rebuilt = _round_trip(spec)
+    term = rebuilt.events[0]
+
+    assert spec_diff(spec, rebuilt).is_empty
+    assert term.hrf == "identity"
+    assert term.variables == ("seed",)
+    assert term.prefix == "roi"
+    assert term.id == "seed_term"
 
 
 def test_subset_string_predicate_round_trips():
@@ -195,6 +207,13 @@ def test_confounds_with_inline_dataframe_is_rejected():
     df = pd.DataFrame({"trans_x": [0.1, 0.2]})
     spec = Spec() + confounds("trans_x", source=df)
     with pytest.raises(SpecSerializationError, match="Confounds"):
+        spec.to_dict()
+
+
+def test_covariate_with_inline_dataframe_is_rejected():
+    df = pd.DataFrame({"seed": [0.1, 0.2]})
+    spec = Spec() + covariate("seed", source=df)
+    with pytest.raises(SpecSerializationError, match="CovariateTerm"):
         spec.to_dict()
 
 

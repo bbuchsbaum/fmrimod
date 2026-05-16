@@ -14,12 +14,14 @@ from fmrimod.glm.fmri_lm import FmriLm
 # submodules.  Import from ``fmrimod.spec`` directly.
 from fmrimod.spec import (  # noqa: F401
     Confounds,
+    CovariateTerm,
     Drift,
     HrfTerm,
     Intercept,
     Spec,
     Term,
     as_spec,
+    covariate,
     hrf,
     is_spec,
     legacy_formula_to_spec,
@@ -45,6 +47,19 @@ def test_hrf_builder_returns_frozen_hrfterm():
 def test_hrf_builder_carries_convolution_options():
     term = hrf("trial_type", basis="spmg1", normalize=True, summate=False)
     assert term.normalize is True
+    assert term.summate is False
+
+
+def test_covariate_builder_is_identity_hrf_term():
+    source = pd.DataFrame({"seed": np.linspace(-1.0, 1.0, 5)})
+    term = covariate("seed", source=source, prefix="roi", id="seed_term")
+    assert isinstance(term, CovariateTerm)
+    assert isinstance(term, HrfTerm)
+    assert term.variables == ("seed",)
+    assert term.hrf == "identity"
+    assert term.source is source
+    assert term.prefix == "roi"
+    assert term.id == "seed_term"
     assert term.summate is False
 
 
@@ -165,7 +180,13 @@ def test_compile_returns_event_and_baseline_models(synthetic_run):
     ds = fm.fmri_dataset(Y, tr=tr, events=events)
     sf = ds.sampling_frame
     spec = hrf("trial_type") + fm.intercept(per="run")
-    em, bm = compile_spec(spec, data=events, sampling_frame=sf, block="run", durations="duration")
+    em, bm = compile_spec(
+        spec,
+        data=events,
+        sampling_frame=sf,
+        block="run",
+        durations="duration",
+    )
     assert em is not None
     assert bm is not None
 
@@ -253,6 +274,27 @@ def test_legacy_formula_to_spec_preserves_hrf_options():
     assert term.subset == 'trial_type == "listening"'
 
 
+def test_compile_covariate_term_uses_sampled_source_without_convolution(synthetic_run):
+    events, _Y, tr = synthetic_run
+    n_scans = 60
+    seed = np.linspace(-1.0, 1.0, n_scans)
+    source = pd.DataFrame({"seed": seed})
+    ds = fm.fmri_dataset(np.zeros((n_scans, 2)), tr=tr, events=events)
+
+    spec = covariate("seed", source=source, prefix="roi") + fm.intercept(per="run")
+    em, _bm = compile_spec(
+        spec,
+        data=events,
+        sampling_frame=ds.sampling_frame,
+        block="run",
+        durations="duration",
+    )
+
+    assert em is not None
+    assert em.column_names == ["roi_seed"]
+    np.testing.assert_allclose(em.design_matrix[:, 0], seed, atol=1e-12)
+
+
 def test_legacy_functional_terms_to_spec_preserve_hrf_options():
     from fmrimod.formula import hrf as formula_hrf
     from fmrimod.formula import term as formula_term
@@ -299,9 +341,19 @@ def test_compile_baseline_only_spec_uses_default_constant_intercept(synthetic_ru
 def test_compile_rejects_multiple_drift_terms(synthetic_run):
     events, _Y, tr = synthetic_run
     sf = fm.SamplingFrame(blocklens=[60], tr=tr)
-    spec = hrf("trial_type") + fm.drift("cosine", cutoff=128) + fm.drift("poly", degree=2)
+    spec = (
+        hrf("trial_type")
+        + fm.drift("cosine", cutoff=128)
+        + fm.drift("poly", degree=2)
+    )
     with pytest.raises(ValueError, match="at most one Drift"):
-        compile_spec(spec, data=events, sampling_frame=sf, block="run", durations="duration")
+        compile_spec(
+            spec,
+            data=events,
+            sampling_frame=sf,
+            block="run",
+            durations="duration",
+        )
 
 
 # -- End-to-end: fmri_lm accepts Spec --------------------------------------

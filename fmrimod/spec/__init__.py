@@ -14,11 +14,12 @@ Spec tree.
 """
 
 from ._compile import compile, compile_baseline, compile_events, legacy_formula_to_spec
-from .builders import confounds, drift, hrf, intercept, trialwise
+from .builders import confounds, covariate, drift, hrf, intercept, trialwise
 from .diff import FieldDiff, SpecDiff, TermDiff, spec_diff
 from .serialize import SCHEMA_VERSION, SpecSerializationError
 from .terms import (
     Confounds,
+    CovariateTerm,
     Drift,
     HrfTerm,
     Intercept,
@@ -36,6 +37,7 @@ __all__ = [
     "Drift",
     "Intercept",
     "Confounds",
+    "CovariateTerm",
     "Spec",
     "Predicate",
     # Builders
@@ -43,6 +45,7 @@ __all__ = [
     "drift",
     "intercept",
     "confounds",
+    "covariate",
     "trialwise",
     # Helpers
     "as_spec",

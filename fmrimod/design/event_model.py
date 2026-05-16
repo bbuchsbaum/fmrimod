@@ -643,7 +643,9 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
             # Handle trialwise column names
             basis_name = None
             basis_total = None
-            if hasattr(event_term, '_is_trialwise') and cast(Any, event_term)._is_trialwise:
+            if isinstance(term, CovariateTerm):
+                term_col_names = cond_tags
+            elif hasattr(event_term, '_is_trialwise') and cast(Any, event_term)._is_trialwise:
                 n_trials = X_term.shape[1]
                 if cast(Any, event_term)._add_sum:
                     n_trials -= 1
@@ -2499,8 +2501,11 @@ def _create_events_from_data(data: Any, terms: List[Term], sf: Any, kwargs: Dict
 
     # Create covariate events
     for cov_term in covariate_terms:
+        cov_data = getattr(cov_term, "data", None)
+        if cov_data is None:
+            cov_data = data
         cov_events = create_covariate_events(
-            data=data,
+            data=cov_data,
             covariate_names=cov_term.covariates,
             sampling_info=sf,
             prefix=cov_term.prefix

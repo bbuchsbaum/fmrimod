@@ -12,13 +12,14 @@ detected at load time rather than silently producing a wrong shape.
 What v1 supports
 ----------------
 
-- All four Term subclasses (HrfTerm, Drift, Intercept, Confounds).
+- Supported Term subclasses (HrfTerm, CovariateTerm, Drift, Intercept,
+  Confounds).
 - HRF specifiers given as registry-key strings (``"spm"``,
   ``"spmg3"``, ``"gamma"``, ...).
 - Subset predicates expressed as strings (``"block <= 3"``) or
   Mappings (``{"block": 1}``).
-- Confounds whose values are resolved against the event table at
-  compile time (i.e. ``Confounds(columns=..., source=None)``).
+- Confounds / CovariateTerms whose values are attached outside the portable
+  spec (i.e. ``source=None``).
 
 What v1 deliberately rejects
 ----------------------------
@@ -29,7 +30,7 @@ What v1 deliberately rejects
 - Non-empty :attr:`HrfTerm.contrasts`. The contrast taxonomy is its
   own typed object tree; once the Spec is loaded, attach contrasts
   through the normal builder.
-- :class:`pandas.DataFrame` payloads on :attr:`Confounds.source`. A
+- :class:`pandas.DataFrame` payloads on ``source`` fields. A
   spec is the *shape* of an analysis, not its data; ship confound
   values separately and resolve them against the event table at
   compile time.
@@ -47,7 +48,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any, Callable, Literal, Optional, cast
 
-from .terms import Confounds, Drift, HrfTerm, Intercept, Spec, Term
+from .terms import Confounds, CovariateTerm, Drift, HrfTerm, Intercept, Spec, Term
 
 SCHEMA_VERSION = "Spec/v1"
 
@@ -76,6 +77,8 @@ def to_dict(spec: Spec) -> dict[str, object]:
 
 
 def _encode_term(term: Term) -> dict[str, object]:
+    if isinstance(term, CovariateTerm):
+        return _encode_covariate_term(term)
     if isinstance(term, HrfTerm):
         return _encode_hrf_term(term)
     if isinstance(term, Drift):
@@ -86,8 +89,25 @@ def _encode_term(term: Term) -> dict[str, object]:
         return _encode_confounds(term)
     raise SpecSerializationError(
         f"Unknown Term subclass: {type(term).__name__}. "
-        "Spec/v1 supports HrfTerm, Drift, Intercept, and Confounds."
+        "Spec/v1 supports HrfTerm, CovariateTerm, Drift, Intercept, "
+        "and Confounds."
     )
+
+
+def _encode_covariate_term(term: CovariateTerm) -> dict[str, object]:
+    if term.source is not None:
+        raise SpecSerializationError(
+            "CovariateTerm(source=<DataFrame>) cannot be serialized to a Spec "
+            "payload: a Spec describes the shape of an analysis, not its "
+            "sampled time-course data. Strip `source` before saving and "
+            "re-attach the DataFrame at load time."
+        )
+    return {
+        "kind": "CovariateTerm",
+        "variables": list(term.variables),
+        "prefix": term.prefix,
+        "id": term.id,
+    }
 
 
 def _encode_hrf_term(term: HrfTerm) -> dict[str, object]:
@@ -267,6 +287,22 @@ def _decode_hrf_term(payload: Mapping[str, object]) -> HrfTerm:
     )
 
 
+@_register_decoder("CovariateTerm")
+def _decode_covariate_term(payload: Mapping[str, object]) -> CovariateTerm:
+    variables = _coerce_str_tuple(payload.get("variables", ()), field="variables")
+    if not variables:
+        raise SpecSerializationError("CovariateTerm requires at least one variable.")
+    return CovariateTerm(
+        variables=variables,
+        hrf="identity",
+        source=None,
+        prefix=cast(Optional[str], payload.get("prefix")),
+        id=cast(Optional[str], payload.get("id")),
+        normalize=False,
+        summate=False,
+    )
+
+
 def _decode_subset(value: object) -> object:
     if value is None:
         return None
@@ -342,7 +378,7 @@ def _coerce_str_tuple(value: object, *, field: str) -> tuple[str, ...]:
 # about has a decoder wired. Adding a new Term subclass without
 # updating the serializer trips this immediately rather than at run
 # time on the first round-trip attempt.
-_KNOWN_TERMS = (HrfTerm, Drift, Intercept, Confounds)
+_KNOWN_TERMS = (HrfTerm, CovariateTerm, Drift, Intercept, Confounds)
 for _cls in _KNOWN_TERMS:
     assert _cls.__name__ in _DECODERS, (
         f"serialize.py: missing decoder for {_cls.__name__}"

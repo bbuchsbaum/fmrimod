@@ -133,6 +133,19 @@ class HrfTerm(Term):
 
 
 @dataclass(frozen=True)
+class CovariateTerm(HrfTerm):
+    """Sampled time-course term with identity HRF semantics.
+
+    This preserves the fmrireg/fmridesign ``covariate()`` contract: a
+    covariate is event-model signal with an identity/no-op convolution, not a
+    baseline confound.  ``source`` is sampled at scan time and must match the
+    sampling frame length when realised.
+    """
+
+    source: Optional[pd.DataFrame] = None
+
+
+@dataclass(frozen=True)
 class Drift(Term):
     """Polynomial / spline / cosine drift basis.
 

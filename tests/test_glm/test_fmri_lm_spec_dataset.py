@@ -16,6 +16,7 @@ from fmrimod.contrast import condition
 from fmrimod.glm.engine import ChunkwiseEngineOptions
 from fmrimod.glm.fmri_lm import FmriLm, _is_fmri_model_like, fmri_lm
 from fmrimod.model.config import FmriLmConfig
+from fmrimod.spec import covariate
 
 
 @pytest.fixture
@@ -186,6 +187,24 @@ def test_fmri_lm_functional_formula_routes_through_typed_spec(synthetic_run):
     term = fit.model.event_model.terms[0]
     assert term.normalize is True
     assert term.summate is False
+
+
+def test_fmri_lm_accepts_identity_hrf_covariate_term(synthetic_run) -> None:
+    """Sampled covariates lower as event-model identity-HRF regressors."""
+    events, _Y, tr = synthetic_run
+    n_scans = 60
+    seed = np.linspace(-1.0, 1.0, n_scans)
+    source = pd.DataFrame({"seed": seed})
+    y = (2.0 * seed[:, None] + 0.1).astype(np.float64)
+    dataset = fm.fmri_dataset(y, tr=tr, events=events)
+
+    fit = fmri_lm(covariate("seed", source=source), dataset)
+    names = fit.design_columns().names
+    seed_index = names.index("seed")
+
+    assert "seed" in names
+    assert fit.model.event_model.terms[0].hrf is None
+    np.testing.assert_allclose(fit.coef()[seed_index, 0], 2.0, atol=1e-10)
 
 
 def test_fmri_lm_spec_dataset_with_config_kwarg(synthetic_run):

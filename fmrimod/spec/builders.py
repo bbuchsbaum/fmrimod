@@ -21,6 +21,7 @@ from ..hrf.core import HRF
 from ..hrf.normalization import VALID_NORM_MODES, NormMode
 from .terms import (
     Confounds,
+    CovariateTerm,
     Drift,
     HrfTerm,
     Intercept,
@@ -132,6 +133,37 @@ def hrf(
         norm=_validate_norm(norm),
         normalize=bool(normalize),
         summate=bool(summate),
+    )
+
+
+def covariate(
+    *variables: str,
+    source: Optional[pd.DataFrame] = None,
+    prefix: Optional[str] = None,
+    id: Optional[str] = None,
+) -> CovariateTerm:
+    """Build an unconvolved sampled-covariate event term.
+
+    Mirrors R ``fmridesign::covariate()``: the variables are treated as
+    sampled time courses whose HRF is the identity/no-op function. Use this
+    for seed signals, motion traces, physiological traces, or any regressor
+    that already lives on the BOLD sampling grid and should remain in the
+    event-model design rather than the baseline block.
+    """
+    if not variables:
+        raise ValueError("covariate() requires at least one variable name")
+    if source is not None:
+        missing = [name for name in variables if name not in source.columns]
+        if missing:
+            raise ValueError(f"Covariate columns not found in source: {missing}")
+    return CovariateTerm(
+        variables=tuple(variables),
+        hrf="identity",
+        source=source,
+        prefix=prefix,
+        id=id,
+        normalize=False,
+        summate=False,
     )
 
 

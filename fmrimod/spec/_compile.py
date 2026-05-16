@@ -16,7 +16,7 @@ import pandas as pd
 
 from ..hrf.core import HRF
 from ..hrf.registry import get_hrf
-from .terms import Confounds, Drift, HrfTerm, Intercept, Spec, Term
+from .terms import Confounds, CovariateTerm, Drift, HrfTerm, Intercept, Spec, Term
 
 if TYPE_CHECKING:
     from ..baseline.baseline_model import BaselineModel
@@ -83,6 +83,22 @@ def _hrf_term_to_event_model_term(term: HrfTerm) -> EventModelTerm:
     return lowered
 
 
+def _covariate_term_to_event_model_term(term: CovariateTerm) -> EventModelTerm:
+    """Translate typed identity-HRF covariates to EventModel's covariate term."""
+    from ..covariate import CovariateTerm as EventModelCovariateTerm
+
+    lowered = EventModelCovariateTerm(
+        list(term.variables),
+        prefix=term.prefix,
+        name=term.id,
+    )
+    # EventModel's covariate helper historically reads from the same data
+    # frame as ordinary events. Typed covariates carry their own sampled
+    # source, matching fmridesign::covariate(data=...).
+    setattr(lowered, "data", term.source)
+    return cast("EventModelTerm", lowered)
+
+
 def _lower_hrf_term(term: HrfTerm) -> list[EventModelTerm]:
     """Lower one typed HrfTerm into one or more legacy EventModelTerms.
 
@@ -97,6 +113,9 @@ def _lower_hrf_term(term: HrfTerm) -> list[EventModelTerm]:
     categorical variables, not the modulator regressors).
     """
     from ..formula.base import Term as EventModelTerm
+
+    if isinstance(term, CovariateTerm):
+        return [_covariate_term_to_event_model_term(term)]
 
     main = _hrf_term_to_event_model_term(term)
     if not term.modulators:
@@ -257,7 +276,11 @@ def compile_baseline(
         raise ValueError("Spec.baseline may contain at most one Intercept term")
 
     if not drifts and not intercepts and not confounds:
-        return build_baseline(basis="constant", sframe=sampling_frame, intercept="runwise")
+        return build_baseline(
+            basis="constant",
+            sframe=sampling_frame,
+            intercept="runwise",
+        )
 
     drift_term = drifts[0] if drifts else None
     intercept_term = intercepts[0] if intercepts else None
