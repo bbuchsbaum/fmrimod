@@ -112,9 +112,14 @@ pd.DataFrame({
 ::: {.callout-note}
 The typed **random-effects** path is intercept-only today: a covariate
 formula with `method="pm"`/`"dl"`/`"reml"` raises `NotImplementedError`.
-Use `method="fe"` for covariate meta-regression, or the
-`fmri_meta_fit(Y, V, X, ...)` matrix compat helper if you need
-random-effects with covariates now.
+This is a tracked parity gap, not a statistical limitation — the R
+oracle implements it (`fmrigds` `meta:re_reg`, DerSimonian–Laird tau²),
+and porting it is the documented exit criterion
+(`typed-re-meta-regression-unimplemented` in
+[`docs/contracts/CAVEATS.md`](https://github.com/bbuchsbaum/fmrimod/blob/main/docs/contracts/CAVEATS.md)).
+Until then, use `method="fe"` for covariate meta-regression, or the
+`fmri_meta_fit(Y, V, X, ...)` matrix compat helper for random-effects
+with covariates.
 :::
 
 ## One-Sample Test, One Call
