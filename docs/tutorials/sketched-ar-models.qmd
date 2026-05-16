@@ -1,78 +1,87 @@
 ---
 title: "Sketched and AR-aware models"
-subtitle: "Use low-rank GLM sketches and residual autocorrelation diagnostics."
+subtitle: "Low-rank sketch and AR whitening through the typed engine seam."
 jupyter: python3
 execute:
   freeze: auto
 ---
 
+Sketching and AR whitening are *engine* choices, not separate APIs. You
+keep the same typed spec and dataset and select the engine or AR config
+on `fmri_lm` — the result is still a typed `FmriLm`.
+
 ## Why Sketch?
 
-For large fMRI matrices, randomized sketches can reduce the temporal or
-spatial problem size before solving the GLM.
+For large fMRI matrices, a randomized sketch reduces the problem size
+before solving the GLM. Pass `SketchEngineOptions` as the engine; compare
+its betas to the default fit on the same typed spec.
 
 ```{python}
 import numpy as np
 import pandas as pd
 import fmrimod as fm
-from fmrimod.lowrank import LowRankConfig, fit_sketched
+from fmrimod.spec import hrf
+from fmrimod.glm.engine import SketchEngineOptions
+from fmrimod.model.config import FmriLmConfig, AROptions
 
 rng = np.random.default_rng(14)
-n_time = 180
-n_voxels = 30
+events = pd.DataFrame({
+    "onset": np.arange(0, 21 * 8, 8),
+    "condition": ["face", "scene", "tool"] * 7,
+    "duration": 2.0,
+})
+spec = hrf("condition", basis="spmg1")
 
-time = np.linspace(-1, 1, n_time)
-X = np.column_stack([
-    np.ones(n_time),
-    time,
-    np.sin(np.linspace(0, 4 * np.pi, n_time)),
-])
-beta = rng.normal(size=(X.shape[1], n_voxels))
-Y = X @ beta + rng.normal(scale=0.2, size=(n_time, n_voxels))
+# Realize the design from the typed spec, then simulate signal on it.
+scaffold = fm.fmri_dataset(np.zeros((180, 40)), tr=2.0, events=events)
+X = fm.fmri_lm(spec, scaffold).model.design_matrix_array(run=0)
+beta = rng.normal(size=(X.shape[1], 40))
+Y = X @ beta + rng.normal(scale=0.3, size=(180, 40))
+dataset = fm.fmri_dataset(Y, tr=2.0, events=events)
 
-full = fm.fmri_ols_fit(Y, X)
-sketched = fit_sketched(X, Y, LowRankConfig(sketch_ratio=0.55, seed=1))
+full = fm.fmri_lm(spec, dataset)
+sketched = fm.fmri_lm(spec, dataset, engine=SketchEngineOptions(sketch_ratio=0.6, seed=1))
 
-full["beta"].shape, sketched.betas.shape
+full.betas.shape, sketched.betas.shape
 ```
 
 ## Compare Estimates
 
 ```{python}
-comparison = pd.DataFrame({
-    "full_beta": full["beta"].ravel(),
-    "sketched_beta": sketched.betas.ravel(),
-})
-
-comparison.corr().iloc[0, 1].round(4)
+np.corrcoef(full.betas.ravel(), sketched.betas.ravel())[0, 1].round(4)
 ```
 
-## Residual Autocorrelation
+The sketched solve recovers the full-rank estimates to within rounding on
+this design — the speed/accuracy trade is a single typed engine argument.
 
-Temporal correlation should be inspected on residuals, especially before
-leaning on standard errors.
+## AR-Aware Fitting
+
+Temporal autocorrelation is handled by the AR config, not by hand-rolling
+residual ACFs. Fit with `AROptions(struct="ar1")` and read the estimated
+AR coefficients straight off the typed result.
 
 ```{python}
-residuals = Y - X @ full["beta"]
-acf = fm.acorr_diagnostics(residuals, max_lag=8)
-
-pd.DataFrame({"lag": acf["lags"], "acf": acf["acf"]}).round(3)
+ar_fit = fm.fmri_lm(
+    spec, dataset, config=FmriLmConfig(ar=AROptions(struct="ar1"))
+)
+np.ravel(ar_fit.ar_params).round(3), ar_fit.residual_df
 ```
+
+`ar_params` is near zero here because the simulated noise is white;
+on real data it quantifies the autocorrelation the whitening removed.
 
 ## AR Noise Fixture
 
-```{python}
-ar_resid = fm.simulate_noise_vector(
-    n_time,
-    tr=2.0,
-    ar=[0.5],
-    ma=[],
-    drift_amplitude=0.0,
-    physio=False,
-    seed=9,
-)
+When you *do* want a raw autocorrelation read — e.g. validating a noise
+model — `simulate_noise_vector` and `acorr_diagnostics` operate on a
+plain signal. An AR(0.5) process shows the expected decaying ACF.
 
-fm.acorr_diagnostics(ar_resid, max_lag=3)["acf"].round(3)
+```{python}
+ar_noise = fm.simulate_noise_vector(
+    180, tr=2.0, ar=[0.5], ma=[],
+    drift_amplitude=0.0, physio=False, seed=9,
+)
+fm.acorr_diagnostics(ar_noise, max_lag=3)["acf"].round(3)
 ```
 
 ## Next
