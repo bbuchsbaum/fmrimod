@@ -69,6 +69,7 @@ test = [
     "hypothesis>=6.82.0",
     "pytest-benchmark>=4.0.0",
     "tomli>=2.0.0; python_version<'3.11'",
+    "neuroim @ git+https://github.com/bbuchsbaum/neuroim-python.git",
 ]
 cross-test = [
     "rpy2>=3.5.0",
@@ -152,6 +153,12 @@ artifacts = [
 
 [tool.hatch.build.hooks.custom]
 path = "hatch_build.py"
+
+[tool.hatch.metadata]
+# Permit the `neuroim @ git+...` direct reference in the [test] extra
+# (dog-fooding the sibling substrate until neuroim-python is on PyPI).
+# Scoped intent: keep direct refs out of core [project.dependencies].
+allow-direct-references = true
 
 [tool.pytest.ini_options]
 minversion = "7.0"
