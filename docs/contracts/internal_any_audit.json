@@ -12,7 +12,7 @@
         "with_var_kwargs": 8
       },
       "internal": {
-        "total": 2102,
+        "total": 2103,
         "with_any_annotation": 260,
         "with_var_kwargs": 129
       },
@@ -22,9 +22,9 @@
         "with_var_kwargs": 25
       }
     },
-    "files_scanned": 231,
+    "files_scanned": 232,
     "parse_failures": 0,
-    "total_functions": 2343,
+    "total_functions": 2344,
     "with_any_annotation": 291,
     "with_var_args_any": 4,
     "with_var_kwargs": 162
@@ -26250,6 +26250,19 @@
       "owner_bead": null,
       "qualname": "simulate_simple_dataset",
       "seam_class": "public"
+    },
+    {
+      "coercion_exemption": null,
+      "endlineno": 78,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 24,
+      "module": "fmrimod.simulate.demo",
+      "owner_bead": null,
+      "qualname": "dataset_with_effect",
+      "seam_class": "internal"
     },
     {
       "coercion_exemption": null,
