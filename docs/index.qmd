@@ -7,47 +7,45 @@ jupyter: python3
 ---
 
 ::: {.hero}
-# fmrimod
+::: {.hero-copy}
+[Python · fMRI modeling]{.eyebrow}
 
-[Typed, composable fMRI design and statistical modeling in Python.]{.lead}
+# Typed, composable fMRI modeling.
 
-[Get started](get-started.qmd){.btn .btn-primary}
-[Browse the API](reference/index.qmd){.btn .btn-outline-secondary}
+[From an event table to a first-level fit you can inspect at every step — HRFs, design matrices, contrasts, and group reductions as Python values, not opaque arrays.]{.lead}
+
+[Get started →](get-started.qmd){.btn .btn-primary}
+[API reference](reference/index.qmd){.btn .btn-outline-secondary}
+
+[HRFs]{.kicker} [design matrices]{.kicker} [first-level GLM]{.kicker} [contrasts]{.kicker}
+:::
+::: {.hero-code}
+::: {.code-card}
+[quickstart.py]{.code-card-title}
+```python
+import numpy as np, pandas as pd
+import fmrimod as fm
+
+events = pd.DataFrame({
+    "onset": [0, 12, 24, 36],
+    "condition": ["face", "scene", "face", "scene"],
+    "duration": [2, 2, 2, 2],
+})
+data = np.random.default_rng(42).normal(size=(40, 8))
+
+dataset = fm.fmri_dataset(data, tr=1.0, events=events)
+fit = fm.fmri_lm("hrf(condition)", dataset)
+fit.n_coefficients, fit.n_voxels
+```
+:::
+:::
 :::
 
-## What fmrimod Is
+## In 30 seconds {.promise-heading}
 
-::: {.grid}
-
-::: {.g-col-12 .g-col-md-4}
-::: {.card .h-100 .p-3}
-### Typed
-Express HRFs, baselines, contrasts, AR options, single-trial estimators, and group reductions as inspectable Python values.
-:::
-:::
-
-::: {.g-col-12 .g-col-md-4}
-::: {.card .h-100 .p-3}
-### Composable
-Use the load-bearing workflow `fmri_dataset -> fmri_lm -> contrast -> group_fit`; low-level matrix helpers stay secondary.
-:::
-:::
-
-::: {.g-col-12 .g-col-md-4}
-::: {.card .h-100 .p-3}
-### Parity-Validated
-Treat R behavior, Nilearn, and FitLins as references, then prove agreement through benchmark and cross-testing artifacts.
-:::
-:::
-
-:::
-
-`fmrimod` is the unified Python home for the `fmri*` R modeling ecosystem, but
-it is not a mechanical translation. The public API is redesigned around typed
-composition, reproducible analysis objects, and workflow parity that can be
-checked against concrete artifacts.
-
-## In 30 Seconds
+A formula compiles to a typed design surface that travels with the dataset
+into the canonical first-level seam. Nothing is implicit: the design matrix
+is inspectable before a single coefficient is solved.
 
 ```{python}
 import numpy as np
@@ -68,4 +66,36 @@ fit = fm.fmri_lm("hrf(condition)", dataset)
 fit.n_coefficients, fit.n_voxels
 ```
 
-[Read the full tutorial](get-started.qmd)
+## Three promises {.promise-heading}
+
+::: {.promise-grid}
+::: {.promise-card}
+#### Typed
+HRFs, baselines, contrasts, AR options, single-trial estimators, and group
+reductions are inspectable Python values — constructed once, validated at the
+boundary. [Get started](get-started.qmd)
+
+[`fm.fmri_lm`]{.promise-tag}
+:::
+::: {.promise-card}
+#### Composable
+One load-bearing spine — `fmri_dataset → fmri_lm → contrast → group_fit`.
+Low-level matrix helpers stay secondary to the workflow.
+[Design matrices](tutorials/design-matrices.qmd)
+
+[`fm.event_model`]{.promise-tag}
+:::
+::: {.promise-card}
+#### Parity-validated
+R behavior, Nilearn, and FitLins are treated as references; agreement is
+proven through checked-in benchmark and cross-testing artifacts.
+[Workflow overview](tutorials/overview-workflow.qmd)
+
+[`fm.design_matrix`]{.promise-tag}
+:::
+:::
+
+`fmrimod` is the unified Python home for the `fmri*` R modeling ecosystem —
+not a mechanical translation. The public API is redesigned around typed
+composition, reproducible analysis objects, and workflow parity checked
+against concrete artifacts.
