@@ -83,12 +83,17 @@ proof-bundle work credible.
 
 ## Blocking Motes
 
-These open motes block a credible 0.8 candidate:
+Resolved blockers (closed; no longer gating):
 
 | Mote | Role |
 | --- | --- |
-| `bd-01KRRT0ZNM8VQJA6T1E7FV5RRD` | Land connectivity code with the internal API audit regenerated. |
-| `bd-01KRRT0ZEM0K909QK4HZCHJ8XH` | Add enforcing CI for pytest and the ruff/Python-floor guard. |
+| `bd-01KRRT0ZNM8VQJA6T1E7FV5RRD` | Land connectivity code with the internal API audit regenerated. *(closed)* |
+
+Live blocker (open; gates a 0.8 *tag*, not the RC):
+
+| Mote | Role |
+| --- | --- |
+| `bd-01KRRT0ZEM0K909QK4HZCHJ8XH` | Enforcing CI for pytest + ruff/Python-floor guard. Workflow is committed (`.github/workflows/release-0-8.yml`) but the mote is `blocked`: GitHub Actions is billing-blocked, so the gate has **never executed**. Tracked alongside `bd-01KRS5FT6MPY191ADEV6XXPXNF`. |
 
 These motes are policy conditions or immediate follow-through:
 
@@ -103,7 +108,7 @@ These motes are policy conditions or immediate follow-through:
 The 0.8 candidate must pass the focused release-surface gates:
 
 ```bash
-python3.9 -m pytest \
+.venv/bin/python -m pytest \
   tests/test_stats/test_connectivity.py \
   tests/test_spec/test_spec.py \
   tests/test_spec/test_serialize.py \
@@ -115,7 +120,7 @@ python3.9 -m pytest \
 It must also pass caveat discipline checks:
 
 ```bash
-python3.9 -m pytest \
+.venv/bin/python -m pytest \
   cross_testing/test_caveats_index.py \
   tests/test_benchmarks/test_parity_proof_artifacts.py -q
 ```
@@ -123,12 +128,15 @@ python3.9 -m pytest \
 Before tagging, the broader documented suite should pass:
 
 ```bash
-python3.9 -m pytest tests/ -k "not rpy2"
+.venv/bin/python -m pytest tests/ -k "not rpy2"
 ```
 
-The CI mote defines the eventual automated gate. Until it lands, local focused
-checks are not enough to tag 0.8, but they are enough to advance the release
-candidate.
+The CI mote (`bd-01KRRT0ZEM0K909QK4HZCHJ8XH`) defines the automated gate. The
+workflow is committed but has **not executed** — GitHub Actions is
+billing-blocked (`bd-01KRS5FT6MPY191ADEV6XXPXNF`). Under the Path B release
+posture, a green `.venv` run of the documented suite is the **interim proof**
+that advances the release *candidate*; a 0.8 *tag* still requires one genuinely
+green run of `.github/workflows/release-0-8.yml` on the tip.
 
 ## Acceptance Checklist
 
@@ -141,7 +149,11 @@ candidate.
       and the GLM route through `fmri_lm(covariate(...), dataset)`.
 - [x] `docs/contracts/CAVEATS.md` names `dfres-n-minus-rank` with owner and
       exit criterion.
-- [x] CI runs the release-relevant pytest and ruff/Python-floor gates on PRs.
+- [x] CI gate for release-relevant pytest + ruff/Python-floor is defined and
+      committed (`.github/workflows/release-0-8.yml`).
+- [ ] CI gate has executed green on the tip — **blocked**: GitHub Actions
+      billing (`bd-01KRRT0ZEM0K909QK4HZCHJ8XH` / `bd-01KRS5FT6MPY191ADEV6XXPXNF`).
+      RC advances on interim green `.venv` local proof.
 - [x] `ROADMAP-1.0.md` no longer reads as the immediate next-release plan.
 - [x] Focused 0.8 gates pass locally.
 - [x] The broader `tests/ -k "not rpy2"` suite is either green or has a
