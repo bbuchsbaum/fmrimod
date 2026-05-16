@@ -12,8 +12,8 @@
         "with_var_kwargs": 8
       },
       "internal": {
-        "total": 2101,
-        "with_any_annotation": 259,
+        "total": 2102,
+        "with_any_annotation": 260,
         "with_var_kwargs": 129
       },
       "public": {
@@ -24,8 +24,8 @@
     },
     "files_scanned": 230,
     "parse_failures": 0,
-    "total_functions": 2341,
-    "with_any_annotation": 290,
+    "total_functions": 2342,
+    "with_any_annotation": 291,
     "with_var_args_any": 4,
     "with_var_kwargs": 162
   },
@@ -25772,12 +25772,25 @@
     },
     {
       "coercion_exemption": null,
-      "endlineno": 670,
-      "has_any_annotation": false,
+      "endlineno": 622,
+      "has_any_annotation": true,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
       "lineno": 590,
+      "module": "fmrimod.regressor.core",
+      "owner_bead": null,
+      "qualname": "_as_factor_levels",
+      "seam_class": "internal"
+    },
+    {
+      "coercion_exemption": null,
+      "endlineno": 699,
+      "has_any_annotation": false,
+      "has_var_args_any": false,
+      "has_var_kwargs": false,
+      "is_async": false,
+      "lineno": 625,
       "module": "fmrimod.regressor.core",
       "owner_bead": null,
       "qualname": "regressor_set",
@@ -25785,12 +25798,12 @@
     },
     {
       "coercion_exemption": null,
-      "endlineno": 696,
+      "endlineno": 725,
       "has_any_annotation": false,
       "has_var_args_any": false,
       "has_var_kwargs": false,
       "is_async": false,
-      "lineno": 673,
+      "lineno": 702,
       "module": "fmrimod.regressor.core",
       "owner_bead": null,
       "qualname": "null_regressor",

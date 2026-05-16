@@ -587,6 +587,41 @@ class RegressorSet:
         return f"RegressorSet(n_conditions={n_conditions}, levels={self.levels})"
 
 
+def _as_factor_levels(fac: NDArray[Any]) -> Tuple[NDArray[Any], List[str]]:
+    """Coerce a raw condition vector to R ``as.factor()`` levels.
+
+    This is the single boundary-layer coercion between a user-supplied
+    factor (numeric *or* string) and the string level labels that
+    :class:`RegressorSet` exposes. Centralizing it here keeps the
+    numeric/string polymorphism a named, testable, single-responsibility
+    seam instead of ad-hoc ``np.issubdtype`` branching inside the
+    :func:`regressor_set` factory (bd-01KRGF21S5TKWZ79XYFG32CDRS).
+
+    It mirrors R's ``as.factor()``: levels are the sorted unique values,
+    and integer-valued numerics collapse to integer labels
+    (``1.0 -> '1'``) while genuine floats use ``%g`` formatting.
+
+    Args:
+        fac: Factor array already normalized via :func:`numpy.asarray`.
+
+    Returns:
+        A ``(keys, labels)`` pair. ``keys`` are the ordered unique level
+        values in their native dtype, suitable for boolean masking
+        (``fac == key``); ``labels`` are the parallel R-style string
+        labels surfaced as :attr:`RegressorSet.levels`.
+    """
+    if np.issubdtype(fac.dtype, np.number):
+        keys: NDArray[Any] = np.unique(fac.astype(np.float64))
+        if np.all(np.isclose(keys, np.round(keys))):
+            labels = [str(int(round(lev))) for lev in keys]
+        else:
+            labels = [format(float(lev), "g") for lev in keys]
+    else:
+        keys = np.unique(fac.astype(str))
+        labels = [str(lev) for lev in keys]
+    return keys, labels
+
+
 def regressor_set(
     onsets: ArrayLike,
     fac: ArrayLike,
@@ -627,16 +662,10 @@ def regressor_set(
     fac = np.asarray(fac)
     hrf_typed = _coerce_hrf(hrf)
 
-    # Match R as.factor() level ordering: sorted unique values.
-    if np.issubdtype(fac.dtype, np.number):
-        levels = np.unique(fac.astype(np.float64))
-        if np.all(np.isclose(levels, np.round(levels))):
-            levels_list = [str(int(round(lev))) for lev in levels]
-        else:
-            levels_list = [format(float(lev), "g") for lev in levels]
-    else:
-        levels = np.unique(fac.astype(str))
-        levels_list = [str(lev) for lev in levels]
+    # Match R as.factor() level ordering: sorted unique values. The
+    # numeric/string coercion is a named boundary-layer seam, not inline
+    # dtype branching (bd-01KRGF21S5TKWZ79XYFG32CDRS).
+    levels, levels_list = _as_factor_levels(fac)
     
     # Recycle duration and amplitude
     duration = _recycle_or_error(duration, len(onsets), "duration")

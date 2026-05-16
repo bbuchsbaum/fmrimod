@@ -361,12 +361,62 @@ class TestRegressorSet:
         """Test string representation."""
         onsets = [10, 20, 30]
         conditions = ['A', 'B', 'C']
-        
+
         rset = regressor_set(onsets, conditions)
         repr_str = repr(rset)
-        
+
         assert "RegressorSet" in repr_str
         assert "n_conditions=3" in repr_str
+
+
+class TestAsFactorLevels:
+    """Test the _as_factor_levels boundary-layer coercion seam.
+
+    Regression coverage for bd-01KRGF21S5TKWZ79XYFG32CDRS: the
+    numeric/string factor->label coercion is now a single named helper
+    and must keep R as.factor() semantics.
+    """
+
+    def test_string_factor_sorted_unique(self):
+        from fmrimod.regressor.core import _as_factor_levels
+
+        keys, labels = _as_factor_levels(np.asarray(['B', 'A', 'B', 'C']))
+
+        assert labels == ['A', 'B', 'C']
+        assert list(keys) == ['A', 'B', 'C']
+
+    def test_integer_factor_collapses_to_int_labels(self):
+        from fmrimod.regressor.core import _as_factor_levels
+
+        keys, labels = _as_factor_levels(np.asarray([2, 1, 2, 0]))
+
+        assert labels == ['0', '1', '2']
+        assert list(keys) == [0.0, 1.0, 2.0]
+
+    def test_float_valued_integers_collapse(self):
+        """1.0 -> '1', mirroring R as.factor() on integral doubles."""
+        from fmrimod.regressor.core import _as_factor_levels
+
+        _, labels = _as_factor_levels(np.asarray([1.0, 2.0, 1.0]))
+
+        assert labels == ['1', '2']
+
+    def test_genuine_floats_use_g_formatting(self):
+        from fmrimod.regressor.core import _as_factor_levels
+
+        _, labels = _as_factor_levels(np.asarray([1.5, 0.25, 1.5]))
+
+        assert labels == ['0.25', '1.5']
+
+    def test_helper_matches_regressor_set_levels(self):
+        """The seam must agree with the factory it was extracted from."""
+        from fmrimod.regressor.core import _as_factor_levels
+
+        fac = np.asarray([0, 0, 2, 2])
+        _, labels = _as_factor_levels(fac)
+        rset = regressor_set([10, 20, 30, 40], fac, hrf="spmg1")
+
+        assert labels == rset.levels == ['0', '2']
 
 
 class TestNeuralInput:
