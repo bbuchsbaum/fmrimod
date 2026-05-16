@@ -397,8 +397,7 @@ class TestAsHRF:
         def my_func(t):
             return t ** 2
         
-        hrf_obj = as_hrf(my_func, name="test_sq", nbasis=1, span=10,
-                        params={"power": 2})
+        hrf_obj = as_hrf(my_func, name="test_sq", nbasis=1, span=10)
         
         assert isinstance(hrf_obj, HRF)
         assert hrf_obj.name == "test_sq"

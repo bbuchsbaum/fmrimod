@@ -261,8 +261,6 @@ class LWUHRF(HRF):
         name: str = "lwu",
         nbasis: int = 1,
         span: float = 30.0,
-        params: dict[str, HrfParamValue] | None = None,
-        param_names: list[str] | None = None,
         tau: float = 6.0,
         sigma: float = 2.5,
         rho: float = 0.35,
@@ -271,8 +269,6 @@ class LWUHRF(HRF):
         self.name = name
         self.nbasis = nbasis
         self.span = span
-        self.params = {} if params is None else dict(params)
-        self.param_names = param_names
         self.tau = tau
         self.sigma = sigma
         self.rho = rho
@@ -473,10 +469,7 @@ class EmpiricalHRF(HRF):
         name: str = "empirical_hrf",
         nbasis: int = 1,
         span: Optional[float] = None,
-        params: dict[str, HrfParamValue] | None = None,
-        param_names: list[str] | None = None,
     ) -> None:
-        del params, param_names
         t_arr = np.asarray(t_points, dtype=np.float64)
         y_arr = np.asarray(y_values, dtype=np.float64)
         if t_arr.shape != y_arr.shape:

@@ -257,28 +257,22 @@ class FunctionHRF(HRF):
         name: Optional[str] = None,
         nbasis: int = 1,
         span: float = 24.0,
-        params: Optional[Dict[str, HrfParamValue]] = None,
-        param_names: Optional[list[str]] = None,
     ):
         """Initialize FunctionHRF.
-        
+
         Args:
             func: Function that evaluates the HRF
             name: Name of the HRF (defaults to function name)
             nbasis: Number of basis functions
             span: Temporal span in seconds
-            params: Dictionary of HRF parameters
-            param_names: List of parameter names
         """
         if name is None:
             name = getattr(func, '__name__', 'custom_hrf')
-        
+
         super().__init__(
             name=name,
             nbasis=nbasis,
             span=span,
-            params=params or {},
-            param_names=param_names,
         )
         self.func = func
     
@@ -315,8 +309,6 @@ def _with_metadata(
         name=next_name,
         nbasis=hrf.nbasis,
         span=next_span,
-        params=hrf.params,
-        param_names=hrf.param_names,
     )
 
 
@@ -325,30 +317,23 @@ def as_hrf(
     name: Optional[str] = None,
     nbasis: int = 1,
     span: float = 24.0,
-    params: Optional[Dict[str, HrfParamValue]] = None,
 ) -> HRF:
     """Convert a function to an HRF object.
-    
+
     Args:
         func: Function that evaluates the HRF
         name: Name of the HRF (defaults to function name)
         nbasis: Number of basis functions
         span: Temporal span in seconds
-        params: Dictionary of HRF parameters
-        
+
     Returns:
         HRF object wrapping the function
     """
-    # Extract parameter names from params dict
-    param_names = list(params.keys()) if params else None
-    
     return FunctionHRF(
         func=func,
         name=name,
         nbasis=nbasis,
         span=span,
-        params=params,
-        param_names=param_names,
     )
 
 
