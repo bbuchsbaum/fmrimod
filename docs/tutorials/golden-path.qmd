@@ -16,19 +16,11 @@ and the agreement with Nilearn are on the page.
 ## The helper that moves results to the group level
 
 `group_dataset_from_contrasts` takes the per-subject contrast results
-and bundles them into one group dataset. Import it from
-`fmrimod.contrast`:
+and bundles them into one group dataset:
 
 ```{python}
-from fmrimod.contrast import group_dataset_from_contrasts
+from fmrimod import group_dataset_from_contrasts
 ```
-
-One thing worth knowing up front: `fmrimod.contrast` is *also* a
-function you can call directly (it builds contrasts). Because of that,
-`from fmrimod import group_dataset_from_contrasts` does **not** work —
-use the `from fmrimod.contrast import …` line above. (A test,
-`tests/test_namespace_import_story.py`, locks this so the tutorial
-can't drift out of sync with the code.)
 
 ## A dataset with a known effect
 

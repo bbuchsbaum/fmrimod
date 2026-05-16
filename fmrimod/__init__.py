@@ -88,6 +88,9 @@ from .contrast import (
 from .contrast import (
     unit_contrast as unit_contrast,
 )
+from .contrast import (
+    group_dataset_from_contrasts as group_dataset_from_contrasts,
+)
 from .contrast.contrast_spec import contrast as contrast
 from .dataset.fmri_dataset import FmriDataset
 from .events.term import EventTerm
@@ -610,6 +613,7 @@ __all__ = [
     "pairwise_contrasts",
     "one_against_all_contrast",
     "sliding_window_contrasts",
+    "group_dataset_from_contrasts",
     # HRF registry
     "get_hrf",
     "list_available_hrfs",

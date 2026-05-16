@@ -1,30 +1,21 @@
 """Pins the import contract the golden-path tutorial teaches.
 
-``docs/tutorials/golden-path.qmd`` walks the full typed spine
+``docs/tutorials/golden-path.qmd`` walks the full typed workflow
 ``fmri_dataset -> fmri_lm -> contrast -> group_dataset_from_contrasts
--> ols_voxelwise``. The first-level -> group seam helper
-``group_dataset_from_contrasts`` is reachable only as
-``from fmrimod.contrast import group_dataset_from_contrasts``.
+-> ols_voxelwise``. The first-level -> group helper
+``group_dataset_from_contrasts`` is part of the top-level public
+surface, so the tutorial teaches the obvious form:
 
-That is *not* obvious, because ``fmrimod.contrast`` is a ratified
-rebind: the top-level attribute is a callable, not the submodule
-(see ``tests/test_public_api/test_namespace_shadowing.py`` for the
-general policy). The consequence the tutorial must explain in prose:
+    from fmrimod import group_dataset_from_contrasts
 
-* ``from fmrimod.contrast import group_dataset_from_contrasts`` works
-  (Python's import machinery resolves the real submodule).
-* ``from fmrimod import group_dataset_from_contrasts`` does **not**
-  work (the helper is deliberately not top-level).
-* ``import fmrimod.contrast as c; c.group_dataset_from_contrasts``
-  does **not** work (``c`` is the callable, not the submodule).
+It also remains importable from the ``fmrimod.contrast`` submodule for
+back-compat. This test pins both so the tutorial cannot drift out of
+sync with the code. (Previously the helper was submodule-only and the
+tutorial had to warn readers about the ``fmrimod.contrast``
+callable/submodule shadow; that paragraph was deleted when the helper
+was promoted — bd-01KRRNT5PQCYKT61F6EVNWQ95G.)
 
-This test pins those three states so the tutorial's documented import
-cannot silently rot. If a future change promotes the helper to the
-top level (the recommended resolution in
-bd-01KRRM5CY3J08X8N4V809XWTB9), this test fails loudly and forces the
-tutorial prose to be updated in the same commit — which is the point.
-
-Refs: bd-01KRRM5CY3J08X8N4V809XWTB9 (this precondition),
+Refs: bd-01KRRNT5PQCYKT61F6EVNWQ95G (top-level promotion),
 bd-01KRRM5Y8B60G60KFBJ727FECS (the golden-path page that depends on
 it), board tutorials-win-or-lose/post-01KRRM2J2ZREJSTBQHQPP1HT2E.
 """
@@ -34,59 +25,46 @@ from __future__ import annotations
 import importlib
 from types import ModuleType
 
-import pytest
 
+def test_top_level_import_is_the_taught_form() -> None:
+    """``from fmrimod import group_dataset_from_contrasts`` must work.
 
-def test_taught_import_form_works_and_is_callable() -> None:
-    """The exact form the tutorial teaches must resolve to a callable."""
-    from fmrimod.contrast import group_dataset_from_contrasts
+    This is the exact line the golden-path tutorial teaches. If the
+    promotion is ever reverted, this fails loudly and forces the
+    tutorial to be revised in the same commit.
+    """
+    from fmrimod import group_dataset_from_contrasts
 
     assert callable(group_dataset_from_contrasts), (
-        "the golden-path tutorial teaches `from fmrimod.contrast import "
+        "the golden-path tutorial teaches `from fmrimod import "
         "group_dataset_from_contrasts`; it must resolve to a callable."
     )
 
 
-def test_helper_is_discoverable_via_submodule_all() -> None:
-    """``importlib.import_module`` yields the real submodule exposing
-    the helper in ``__all__`` — so it is discoverable from the
-    submodule even though the top-level attribute is shadowed."""
-    submodule = importlib.import_module("fmrimod.contrast")
-    assert isinstance(submodule, ModuleType), (
-        "importlib.import_module('fmrimod.contrast') must return the "
-        f"submodule, got {type(submodule)!r}."
-    )
-    assert "group_dataset_from_contrasts" in getattr(submodule, "__all__", ()), (
-        "group_dataset_from_contrasts must stay in fmrimod.contrast "
-        "submodule __all__ so it is discoverable via dir()/autosummary; "
-        "the tutorial relies on this."
-    )
-
-
-def test_top_level_import_is_pinned_unavailable() -> None:
-    """``from fmrimod import group_dataset_from_contrasts`` must fail.
-
-    Pinned as known-unavailable: the tutorial prose explicitly tells
-    readers to use the submodule form. If the helper is ever promoted
-    to the top level, this assertion fails and the tutorial prose must
-    be revised in the same commit (bd-01KRRM5CY3J08X8N4V809XWTB9).
-    """
-    with pytest.raises(ImportError):
-        from fmrimod import group_dataset_from_contrasts  # noqa: F401
-
-
-def test_callable_shadow_blocks_attribute_access() -> None:
-    """``import fmrimod.contrast as c`` binds the callable, so
-    ``c.group_dataset_from_contrasts`` is *not* available — the
-    misleading form the tutorial warns against."""
+def test_helper_is_in_top_level_all() -> None:
+    """The helper is an advertised part of the public surface."""
     import fmrimod
 
-    contrast_attr = fmrimod.contrast
-    assert callable(contrast_attr), (
-        "fmrimod.contrast is a ratified rebind; the attribute must be "
-        f"the callable, got {type(contrast_attr)!r}."
+    assert "group_dataset_from_contrasts" in fmrimod.__all__, (
+        "group_dataset_from_contrasts must be in fmrimod.__all__ so it "
+        "is discoverable via dir()/autosummary; the tutorial relies on it."
     )
-    assert not hasattr(contrast_attr, "group_dataset_from_contrasts"), (
-        "the callable rebind must NOT expose group_dataset_from_contrasts "
-        "as an attribute; this is exactly the trap the tutorial documents."
+
+
+def test_submodule_form_still_works_and_is_the_same_object() -> None:
+    """Back-compat: ``from fmrimod.contrast import …`` still works and
+    resolves to the *same* object as the top-level name."""
+    from fmrimod import group_dataset_from_contrasts as top_level
+    from fmrimod.contrast import group_dataset_from_contrasts as submodule
+
+    assert submodule is top_level, (
+        "the top-level and fmrimod.contrast forms must be the same "
+        "object; a divergent re-export would be a silent fork."
+    )
+
+    module = importlib.import_module("fmrimod.contrast")
+    assert isinstance(module, ModuleType)
+    assert "group_dataset_from_contrasts" in getattr(module, "__all__", ()), (
+        "group_dataset_from_contrasts must stay in the fmrimod.contrast "
+        "submodule __all__ for back-compat discoverability."
     )

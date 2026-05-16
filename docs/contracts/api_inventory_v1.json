@@ -1,8 +1,8 @@
 {
   "counts": {
-    "all_names": 205,
+    "all_names": 206,
     "any_in_signature": 30,
-    "callable": 203,
+    "callable": 204,
     "classes": 22,
     "opaque_forwarder": 31
   },
@@ -2019,6 +2019,21 @@
       "used_by_public_seam_artifact": "review_pending"
     },
     {
+      "compatibility_status": "spine",
+      "has_any_in_signature": false,
+      "has_untagged_kwargs_dict": false,
+      "is_callable": true,
+      "is_class": false,
+      "is_function": true,
+      "name": "group_dataset_from_contrasts",
+      "opaque_forwarder": false,
+      "owner_module": "fmrimod.contrast.group_collection",
+      "runtime_signature": "(contrasts: 'Mapping[str, ContrastResult | Sequence[ContrastResult]]', *, covariates: 'pd.DataFrame | None' = None) -> 'GroupDataset'",
+      "signature_source": "inspect.signature",
+      "tier": "spine",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
       "compatibility_status": "compat",
       "has_any_in_signature": true,
       "has_untagged_kwargs_dict": false,
@@ -2162,7 +2177,7 @@
       "is_function": false,
       "name": "hrf_spmg1",
       "opaque_forwarder": false,
-      "owner_module": null,
+      "owner_module": "functools",
       "runtime_signature": "(*, subset: object = None, contrasts: object = None, normalize: bool = False, summate: bool = True, hrf_fun: Optional[Callable[..., object]] = None, id: Optional[str] = None, prefix: Optional[str] = None, lag: float = 0.0, nbasis: int = 1, onsets: object = None, durations: object = None) -> 'Callable[[FormulaTerm], FormulaTerm]'",
       "signature_source": "inspect.signature",
       "tier": "compat",
