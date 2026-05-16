@@ -26,7 +26,7 @@ import pytest
 
 from fmrimod.dataset import group_data_from_csv
 from fmrimod.dataset.group_data import GroupData
-from fmrimod.stats import fmri_meta, fmri_ttest
+from fmrimod.stats import GroupFitRequest, fmri_meta, fmri_ttest, group_fit
 
 _EFFECT_COLS = {"beta": "beta", "se": "se"}
 
@@ -120,3 +120,53 @@ def test_coerced_dataframe_is_a_frozen_group_data_not_a_raw_dict() -> None:
     coerced = _coerce_group_data(_frame(), _EFFECT_COLS)
     assert isinstance(coerced, GroupData)
     assert _coerce_group_data(coerced, None) is coerced
+
+
+# --- P2.5: group_fit accepts GroupFitRequest | GroupData | DataFrame ---
+
+
+def test_group_fit_dataframe_path_matches_explicit_request() -> None:
+    df = _frame()
+    gd = group_data_from_csv(df, effect_cols=_EFFECT_COLS)
+
+    from_df = group_fit(df, effect_cols=_EFFECT_COLS)
+    from_request = group_fit(GroupFitRequest(data=gd))
+
+    np.testing.assert_allclose(
+        from_df.estimate, from_request.estimate, rtol=1e-12, atol=1e-12
+    )
+    np.testing.assert_allclose(
+        from_df.statistic, from_request.statistic, rtol=1e-12, atol=1e-12
+    )
+
+
+def test_group_fit_group_data_path_matches_explicit_request() -> None:
+    gd = group_data_from_csv(_frame(), effect_cols=_EFFECT_COLS)
+    np.testing.assert_allclose(
+        group_fit(gd).estimate,
+        group_fit(GroupFitRequest(data=gd)).estimate,
+        rtol=1e-12,
+        atol=1e-12,
+    )
+
+
+def test_group_fit_request_path_is_unchanged() -> None:
+    gd = group_data_from_csv(_frame(), effect_cols=_EFFECT_COLS)
+    out = group_fit(GroupFitRequest(data=gd))
+    assert np.all(np.isfinite(out.estimate))
+    assert np.all(np.isfinite(out.p))
+
+
+def test_group_fit_typed_boundary_guards() -> None:
+    df = _frame()
+    gd = group_data_from_csv(df, effect_cols=_EFFECT_COLS)
+    with pytest.raises(ValueError, match="requires effect_cols"):
+        group_fit(df)
+    with pytest.raises(ValueError, match="only applies when 'request' is a GroupData"):
+        group_fit(GroupFitRequest(data=gd), effect_cols=_EFFECT_COLS)
+    with pytest.raises(ValueError, match="only applies when 'data' is a DataFrame"):
+        group_fit(gd, effect_cols=_EFFECT_COLS)
+    with pytest.raises(
+        TypeError, match="GroupFitRequest, a GroupData, or a pandas DataFrame"
+    ):
+        group_fit([1, 2, 3])  # type: ignore[arg-type]

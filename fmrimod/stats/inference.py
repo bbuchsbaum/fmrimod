@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import cast
+from typing import Mapping, Optional, Sequence, cast
 
 import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
 from scipy import stats as sp_stats
 
+from ..dataset.group_data import GroupData
 from .backends import resolve_second_level_backend
 from .interfaces import GroupFitRequest, GroupFitResult
+from .meta import _coerce_group_data
 from .normalize import normalize_group_fit_request
 from .spatial_fdr import spatial_fdr
 
@@ -229,12 +232,38 @@ def _apply_group_correction(
     return replace(result, q=q2, metadata=md)
 
 
-def group_fit(request: GroupFitRequest) -> GroupFitResult:
-    """Canonical second-level interface with parity-oriented normalization."""
-    if not isinstance(request, GroupFitRequest):
-        raise TypeError("request must be a GroupFitRequest")
+def group_fit(
+    request: "GroupFitRequest | GroupData | pd.DataFrame",
+    *,
+    effect_cols: Optional[Mapping[str, str] | Sequence[str]] = None,
+) -> GroupFitResult:
+    """Canonical second-level interface with parity-oriented normalization.
 
-    req = normalize_group_fit_request(request)
+    ``request`` may be a :class:`GroupFitRequest`, or -- for the common
+    default fit -- a :class:`GroupData` or a pandas DataFrame (validated
+    to a frozen ``GroupData`` via the typed ``group_data_from_csv``;
+    pass its ``effect_cols`` schema). ``GroupFitRequest`` stays the way
+    to customize a non-default fit (formula/model/backend/...); it is
+    no longer the *only* way in.
+    """
+    if not isinstance(request, (GroupFitRequest, GroupData, pd.DataFrame)):
+        raise TypeError(
+            "'request' must be a GroupFitRequest, a GroupData, or a "
+            "pandas DataFrame"
+        )
+    if isinstance(request, GroupFitRequest):
+        if effect_cols is not None:
+            raise ValueError(
+                "effect_cols only applies when 'request' is a GroupData "
+                "or DataFrame; a GroupFitRequest already carries its schema"
+            )
+        request_obj = request
+    else:
+        request_obj = GroupFitRequest(
+            data=_coerce_group_data(request, effect_cols)
+        )
+
+    req = normalize_group_fit_request(request_obj)
     backend = resolve_second_level_backend(str(req.backend))
     out = backend.fit(req)
     return _apply_group_correction(out, req)
