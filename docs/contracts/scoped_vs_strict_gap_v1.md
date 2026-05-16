@@ -6,6 +6,17 @@ typed-API epic's scoped gate with the authoritative full-strict
 checked-in measurement; no retirement/refactor/config change is made
 here.
 
+> **DECISION ENACTED (2026-05-16):** the steward chose full-strict as
+> the authoritative gate. The canonical rule now lives in
+> [`decisions/0002-full-strict-is-the-authoritative-type-gate.md`](decisions/0002-full-strict-is-the-authoritative-type-gate.md);
+> the residue is an exiting caveat in
+> [`type_gate_caveats_v1.md`](type_gate_caveats_v1.md) owned by
+> `bd-01KRRM1DB1CP8E5CEA2Q1Z49Z5` (EventModel/HRFProtocol seam) and
+> `bd-01KRRM1DZH80R9SPHDH6QG6ZGR` (CovariateEvent taxonomy). This
+> document is now the historical audit substrate; the
+> §"Recommendation" section below is superseded by decision 0002 and
+> retained only as the reasoning record.
+
 > **STATUS (2026-05-15): mechanical reduction COMPLETE — full-strict
 > 746 → 100 (646 cleared, ~87%, 104 files), full non-rpy2 suite
 > 3007 passed / 0 failed.** The §"746 errors classified" and
@@ -183,7 +194,13 @@ decision's tooling guidance should carry. This was a
 mechanical-work-introduced regression, not a full-strict *find*; the
 direct real-bug yield remains #1/#7 (two bugs, robust-GLM compat).
 
-## Recommendation (for the steward decision, not enacted here)
+## Recommendation (SUPERSEDED by decision 0002 — retained as reasoning record)
+
+> The steward enacted **full-strict as authoritative** on 2026-05-16.
+> The canonical rule is
+> [`decisions/0002-full-strict-is-the-authoritative-type-gate.md`](decisions/0002-full-strict-is-the-authoritative-type-gate.md).
+> The text below is the pre-decision reasoning, kept for the audit
+> trail; it is no longer the operative rule.
 
 The decision is *which gate is authoritative*, and it is reserved
 (adding `follow_imports` to `pyproject` weakens the committed strict

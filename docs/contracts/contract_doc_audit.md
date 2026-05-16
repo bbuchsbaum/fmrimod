@@ -34,6 +34,7 @@ Dispositions:
 | `second_level_parity_v1.md` | `bd-01KRGWWFNX93Q2RX8PZH6RNBP4` | `tests/test_benchmarks/test_tier_c_second_level_workflow.py`; `benchmarks/parity/tier_c_second_level/workflow.py` | second-level Nilearn parity semantics | keep |
 | `scoped_vs_strict_gap_v1.md` | `bd-01KRNN0H73CCYGFJSJ30JPVFTW` | `docs/contracts/scoped_vs_strict_gap_v1.md`; `tests/test_glm/test_fmrireg_compat.py` | scoped-mypy epic gate vs full-strict `[tool.mypy]` reconciliation | keep |
 | `trio_api_inventory_v1.md` | `bd-01KRGFGW2JA7RQNV0RR950Z6VQ` | `tests/test_public_api/test_api_inventory.py`; `docs/contracts/api_inventory_v1.json` | fmrireg/fmridesign/fmrihrf top-level inventory | keep |
+| `type_gate_caveats_v1.md` | `bd-01KRNN0H73CCYGFJSJ30JPVFTW` | `docs/contracts/decisions/0002-full-strict-is-the-authoritative-type-gate.md`; `docs/contracts/type_gate_caveats_v1.md` | full-strict type-gate residue and its exit beads (`bd-01KRRM1DB1CP8E5CEA2Q1Z49Z5`, `bd-01KRRM1DZH80R9SPHDH6QG6ZGR`) | keep |
 
 ## Maintenance Rule
 

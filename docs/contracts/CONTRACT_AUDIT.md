@@ -43,6 +43,7 @@ Allowed dispositions:
 | `docs/contracts/scoped_vs_strict_gap_v1.md` | `bd-01KRNN0H73CCYGFJSJ30JPVFTW` | `uv run pytest tests/test_glm/test_fmrireg_compat.py -q` | scoped-mypy epic gate vs full-strict `[tool.mypy]` reconciliation; verified findings (incl. fixed `fmri_rlm` bug) | `keep` |
 | `docs/contracts/second_level_parity_v1.md` | `bd-01KRFMD3JFKMH2ETGPRRAWAFME` | `uv run pytest tests/test_stats/test_group_fit_interface.py tests/test_benchmarks/test_tier_c_second_level_workflow.py -q` | group-fit parity and pending DataFrame-first second-level API | `bead` |
 | `docs/contracts/trio_api_inventory_v1.md` | `bd-01KRHTHY5309X3VZT515S9E3H3` | `uv run pytest tests/test_public_api/test_api_inventory.py -q` | current R trio surface map; successor should be a unified seven-package inventory | `supersede` |
+| `docs/contracts/type_gate_caveats_v1.md` | `bd-01KRNN0H73CCYGFJSJ30JPVFTW` | `uv run pytest tests/test_public_api/test_contract_doc_audit.py -q` | full-strict type-gate residue index; exits via `bd-01KRRM1DB1CP8E5CEA2Q1Z49Z5` and `bd-01KRRM1DZH80R9SPHDH6QG6ZGR` | `bead` |
 
 ## Follow-up Rules
 
