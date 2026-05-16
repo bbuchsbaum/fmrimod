@@ -76,8 +76,12 @@ these as moving targets until they land in a thematic commit.
 ## Environment
 
 The supported floor is **Python ≥ 3.10** (`pyproject.toml`
-`requires-python`). Python 3.9 is EOL and cannot import `fmrimod`
-(runtime PEP-604 unions in `fmrimod/stats/__init__.py`); do not use it.
+`requires-python`). The floor is a **support policy** — Python 3.9 is
+EOL and excluded by the `requires-python` pin; do not use it. (It is
+*not* an import failure: 3.9 can still `import fmrimod` at HEAD because
+`fmrimod/stats/__init__.py` opens with `from __future__ import
+annotations`, which defers the PEP-604 unions. The floor stands on
+EOL/policy, not on a runtime crash.)
 
 The canonical dev/test environment is the in-repo virtualenv `.venv`
 (Python 3.11, `fmrimod` editable, `nilearn` present). It is
@@ -90,8 +94,9 @@ uv pip install --python .venv/bin/python -e ".[dev,test,cross-test]"
 ```
 
 Do not run bare `.venv/bin/pip` (absent) or `python3.9` / Homebrew
-`python3.12` (3.9 can't import `fmrimod`; Homebrew 3.12 is PEP-668
-externally-managed and `pip install` into it silently no-ops).
+`python3.12` (3.9 is below the supported floor by policy; Homebrew
+3.12 is PEP-668 externally-managed and `pip install` into it silently
+no-ops).
 
 ## Build & Test
 
