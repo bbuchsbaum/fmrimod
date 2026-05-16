@@ -70,14 +70,6 @@ test = [
     "hypothesis>=6.82.0",
     "pytest-benchmark>=4.0.0",
     "tomli>=2.0.0; python_version<'3.11'",
-    # Dog-food the sibling data substrate: CI installs `.[test]`, so
-    # declaring neuroim here makes the gate exercise neuroim-backed
-    # paths instead of skipping them via pytest.importorskip. Tracks
-    # the sibling repo's main so friction surfaces here and is fixed
-    # in neuroim-python, per AGENTS.md. Not a core runtime dep yet
-    # (that posture decision stays with bd-01KRREGW67PZCCH5H5R9DRHA3K
-    # / the neuroim EPIC).
-    "neuroim @ git+https://github.com/bbuchsbaum/neuroim-python.git",
 ]
 cross-test = [
     "rpy2>=3.5.0",
