@@ -93,7 +93,7 @@ Live blocker (open; gates a 0.8 *tag*, not the RC):
 
 | Mote | Role |
 | --- | --- |
-| `bd-01KRRT0ZEM0K909QK4HZCHJ8XH` | Enforcing CI for pytest + ruff/Python-floor guard. Workflow is committed (`.github/workflows/release-0-8.yml`) but the mote is `blocked`: GitHub Actions is billing-blocked, so the gate has **never executed**. Tracked alongside `bd-01KRS5FT6MPY191ADEV6XXPXNF`. |
+| `bd-01KRRT0ZEM0K909QK4HZCHJ8XH` | Enforcing CI for pytest + ruff/Python-floor guard. Workflow is committed (`.github/workflows/release-0-8.yml`). A 0.8 tag requires one genuinely green run on the release tip, tracked alongside `bd-01KRS5FT6MPY191ADEV6XXPXNF`. |
 
 These motes are policy conditions or immediate follow-through:
 
@@ -131,12 +131,11 @@ Before tagging, the broader documented suite should pass:
 .venv/bin/python -m pytest tests/ -k "not rpy2"
 ```
 
-The CI mote (`bd-01KRRT0ZEM0K909QK4HZCHJ8XH`) defines the automated gate. The
-workflow is committed but has **not executed** — GitHub Actions is
-billing-blocked (`bd-01KRS5FT6MPY191ADEV6XXPXNF`). Under the Path B release
-posture, a green `.venv` run of the documented suite is the **interim proof**
-that advances the release *candidate*; a 0.8 *tag* still requires one genuinely
-green run of `.github/workflows/release-0-8.yml` on the tip.
+The CI mote (`bd-01KRRT0ZEM0K909QK4HZCHJ8XH`) defines the automated gate. Under
+the Path B release posture, a green `.venv` run of the documented suite is the
+**interim proof** that advances the release *candidate*; a 0.8 *tag* still
+requires one genuinely green run of `.github/workflows/release-0-8.yml` on the
+tip.
 
 ## Acceptance Checklist
 
@@ -151,9 +150,10 @@ green run of `.github/workflows/release-0-8.yml` on the tip.
       exit criterion.
 - [x] CI gate for release-relevant pytest + ruff/Python-floor is defined and
       committed (`.github/workflows/release-0-8.yml`).
-- [ ] CI gate has executed green on the tip — **blocked**: GitHub Actions
-      billing (`bd-01KRRT0ZEM0K909QK4HZCHJ8XH` / `bd-01KRS5FT6MPY191ADEV6XXPXNF`).
-      RC advances on interim green `.venv` local proof.
+- [ ] CI gate has executed green on the release tip
+      (`bd-01KRRT0ZEM0K909QK4HZCHJ8XH` / `bd-01KRS5FT6MPY191ADEV6XXPXNF`).
+      RC advances on interim green `.venv` local proof; a tag waits for the
+      observed green run.
 - [x] `ROADMAP-1.0.md` no longer reads as the immediate next-release plan.
 - [x] Focused 0.8 gates pass locally.
 - [x] The broader `tests/ -k "not rpy2"` suite is either green or has a

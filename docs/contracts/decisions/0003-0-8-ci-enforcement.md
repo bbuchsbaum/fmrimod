@@ -51,6 +51,10 @@ blocking would turn the 0.8 release into a lint-retirement project.
 5. Move the ruff configuration to the current `[tool.ruff.lint]` schema while
    preserving the existing selected and ignored rule sets. This removes the
    deprecated-config warning without changing the intended lint contract.
+6. Keep one authoritative 0.8 CI workflow: `Release 0.8 Gate`
+   (`.github/workflows/release-0-8.yml`). Do not maintain a second always-on
+   full-suite workflow with a different Python matrix or ruff ratchet unless a
+   later decision supersedes this one.
 
 ## Consequences
 
@@ -58,6 +62,8 @@ blocking would turn the 0.8 release into a lint-retirement project.
 - Repo-wide ruff remains explicitly unclaimed for 0.8. The exit criterion for
   the scoped ratchet is a later lint-retirement bead that makes `ruff check`
   clean across the repository and then replaces the scoped command.
+- Duplicate CI workflows are treated as policy drift for 0.8 if their Python
+  matrix, install route, or ruff scope differs from this decision.
 - This decision does not supersede decision 0002. Full-strict mypy remains the
   authoritative type gate; CI wiring for full-strict follows 0002 and the
   remaining typed-seam owner beads.
