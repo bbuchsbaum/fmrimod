@@ -1,74 +1,117 @@
 ---
 title: "Functional connectivity"
-subtitle: "Seed-to-target correlations and Fisher z transforms."
+subtitle: "Seed-to-target correlation on the typed fmrimod substrate."
 jupyter: python3
 execute:
   freeze: auto
 ---
 
-## Seed-Based Correlations
+Functional connectivity is not a core fmrimod seam — there is no
+`fm.connectivity()`. What fmrimod *does* give you is the typed substrate the
+analysis should sit on: a dataset that owns its timing, a **typed nuisance
+model** instead of a hand-built matrix, projection through the same
+`residualize` used by the first-level path, and the effect-size transforms
+used for group inference. The only step without an fmrimod primitive is the
+Pearson correlation itself, and that stays one explicit line.
 
-Functional connectivity analyses often start from a seed time series and a
-matrix of target time series. This page keeps the calculation explicit and
-uses `fmrimod` for common effect-size transforms. It is an auxiliary summary
-example, not a replacement for the first-level and group-modeling seam used by
-the flagship workflows.
+## A Dataset, Not Bare Arrays
+
+Start from an `fmri_dataset`. It carries the data, the TR, and the sampling
+frame together, so every downstream step reads its timing from one typed
+source instead of re-deriving it.
 
 ```{python}
 import numpy as np
 import pandas as pd
 import fmrimod as fm
+from fmrimod import baseline_model, design_matrix
 from fmrimod.residualize import residualize
 
 rng = np.random.default_rng(13)
-n_time = 160
-n_targets = 8
+n_time, n_vox = 160, 9
 
-seed = rng.normal(size=n_time)
-targets = rng.normal(size=(n_time, n_targets))
-targets[:, :3] += 0.45 * seed[:, None]
+# Voxel 0 is the seed; voxels 1-3 are genuinely coupled to it.
+data = rng.normal(size=(n_time, n_vox))
+data[:, 1:4] += 0.45 * data[:, 0:1]
+motion = rng.normal(size=(n_time, 6))   # e.g. realignment parameters
 
-corr = np.array([np.corrcoef(seed, targets[:, j])[0, 1] for j in range(n_targets)])
-z, z_var = fm.r_to_z(corr, n_time)
+dataset = fm.fmri_dataset(data, tr=2.0)
+dataset.n_timepoints, dataset.n_voxels
+```
+
+## A Typed Nuisance Model
+
+The drift, intercept, and motion confounds are a **typed `baseline_model`**,
+not `np.column_stack([...])`. The model owns the column structure; you never
+hand-assemble the nuisance matrix.
+
+```{python}
+bmodel = baseline_model(
+    basis="poly",
+    degree=2,
+    sframe=dataset.sampling_frame,
+    intercept="runwise",
+    nuisance_list=[motion],
+)
+
+design_matrix(bmodel).shape   # (time, drift + intercept + motion columns)
+```
+
+## Residualize Through the Typed Path
+
+`residualize` dispatches on the typed model — pass `bmodel` itself, not its
+matrix. This is the same projection the first-level seam uses, so the cleaned
+signal is consistent with how fmrimod fits everything else.
+
+```{python}
+clean = residualize(bmodel, dataset.get_all_data())
+clean.shape
+```
+
+## Seed-to-Target Correlation
+
+This is the one step with no fmrimod primitive — fmrimod models signals, it
+does not own a connectivity estimator. Keep it to one explicit, readable
+line on the *cleaned* signal.
+
+```{python}
+seed = clean[:, 0]
+targets = clean[:, 1:]
+
+sc = seed - seed.mean()
+tc = targets - targets.mean(axis=0)
+r = (sc @ tc) / (np.sqrt((sc**2).sum()) * np.sqrt((tc**2).sum(axis=0)))
 
 pd.DataFrame({
-    "target": [f"roi_{j + 1}" for j in range(n_targets)],
-    "r": corr,
+    "target": [f"roi_{j + 1}" for j in range(targets.shape[1])],
+    "r": r,
+}).round(3)
+```
+
+## Back to fmrimod for Group-Ready Effect Sizes
+
+`r_to_z` is the fmrimod effect-size API: it returns the Fisher *z* and its
+sampling variance `1 / (n - 3)`, which is exactly what the group seam
+(`fmri_meta`, `group_fit`) expects per connection.
+
+```{python}
+z, z_var = fm.r_to_z(r, dataset.n_timepoints)
+pooled_r = fm.z_to_r(z.mean())
+
+pd.DataFrame({
     "fisher_z": z,
     "z_variance": z_var,
 }).round(3)
 ```
 
-## Return to Correlation Units
-
-Fisher z values are useful for group summaries because they are closer to
-normal. Convert back to correlations for presentation.
-
 ```{python}
-pooled_z = z.mean()
-pooled_r = fm.z_to_r(pooled_z)
-
-round(float(pooled_z), 3), round(float(pooled_r), 3)
+round(float(z.mean()), 3), round(float(pooled_r), 3)
 ```
 
-## Residualize an Analysis Signal
-
-For already preprocessed time series, residualize the seed and target signals
-with respect to explicit nuisance columns before correlation. Motion
-correction, registration, and normalization remain outside fmrimod's scope.
-
-```{python}
-nuisance = np.column_stack([np.ones(n_time), np.linspace(-1, 1, n_time)])
-seed_resid = residualize(nuisance, seed[:, None]).ravel()
-target_resid = residualize(nuisance, targets)
-
-partial_corr = np.array([
-    np.corrcoef(seed_resid, target_resid[:, j])[0, 1]
-    for j in range(n_targets)
-])
-
-pd.DataFrame({"raw_r": corr, "residualized_r": partial_corr}).round(3)
-```
+The coupled targets (`roi_1`–`roi_3`) carry the visible correlation; the
+Fisher *z* and its variance are now in the shape the group-level tools
+consume. Motion correction, registration, and normalization remain outside
+fmrimod's scope — the substrate here begins at a preprocessed dataset.
 
 ## Next
 
