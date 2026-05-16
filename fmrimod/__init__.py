@@ -64,17 +64,15 @@ from .contrast import (
     oneway_contrast as oneway_contrast,
 )
 
-# Note: ``hrf`` and ``trialwise`` are intentionally NOT bound at top level —
-# the existing ``fmrimod/hrf/`` and ``fmrimod/trialwise.py`` submodules own
-# those attribute slots. Use ``from fmrimod.spec import hrf, trialwise`` to
-# get the Spec-tree builders.
+# Namespace shadowing — ``hrf``/``trialwise`` are withheld here and
+# ``contrast``/``regressor`` rebind their submodules. The *rule* and the
+# enumerated allowed set live in exactly one home per GOVERNANCE G8:
+# docs/contracts/public_api_policy_v1.md § "Namespace shadowing", pinned
+# by tests/test_public_api/test_namespace_shadowing.py (the ``contrast``
+# dual-resolution is additionally anchored by
+# tests/test_contrast/test_polymorphic_predicates.py). Do not restate the
+# rule here; this comment is only a pointer.
 # ── Contrast taxonomy (bd-01KRFMD3F66TENJMP6BQYE32HC) ──────────────────
-# Re-export the existing constructors so users don't have to dig under
-# ``fmrimod.contrast``. The ``contrast`` *function* shadows the
-# ``fmrimod.contrast`` submodule at attribute level (so ``fm.contrast({...})``
-# works), while ``import fmrimod.contrast`` still resolves the submodule via
-# ``sys.modules`` — covered by
-# tests/test_contrast/test_polymorphic_predicates.py.
 from .contrast import (
     pair_contrast as pair_contrast,
 )

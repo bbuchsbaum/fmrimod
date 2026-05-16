@@ -246,10 +246,72 @@ The inventory also carries two review fields beyond `tier`:
   `compat`, `deprecated`, `hidden`, `internal_forwarder`, and
   `review_pending`.
 
+## Namespace shadowing
+
+A top-level name in `fmrimod.__all__` can collide with a same-named
+submodule (`fmrimod/<name>/` or `fmrimod/<name>.py`). The collision is
+not a bug to be stamped out wholesale — a top-level callable that is a
+genuine ergonomic can legitimately occupy the attribute slot — but it
+*is* a public-API state that must be tracked in policy and pinned by a
+test, not left to an inline source comment. Three states are ratified:
+
+- **`rebind`** — a top-level callable intentionally shadows a
+  same-named submodule at attribute level (`fm.contrast({...})`
+  resolves the callable). It is a `rebind` only if `import
+  fmrimod.<name>` *still resolves the distinct submodule object* via
+  `sys.modules`, and a named test anchors that dual resolution.
+  Today: `contrast` (callable shadows the `fmrimod.contrast`
+  submodule; also anchored by
+  `tests/test_contrast/test_polymorphic_predicates.py`) and
+  `regressor` (callable shadows the `fmrimod.regressor` package).
+- **`withheld`** — a name is deliberately *kept out of* `__all__` to
+  protect a submodule slot; the top-level binding is declined so the
+  submodule owns the attribute. The Spec-tree builder, if any, is
+  reached through its package (`from fmrimod.spec import hrf,
+  trialwise`). Today: `hrf`, `trialwise`.
+- **`callable_submodule`** — the submodule object *is itself*
+  callable; the name resolves to a single object that is both the
+  importable submodule and a callable, with no separate shadowing
+  binding (`fmrimod.stats` is a callable module; `import
+  fmrimod.stats` returns that same object). Today: `stats`.
+
+Every shadowed/rebound name must be in the enumerated allowed set
+pinned by `tests/test_public_api/test_namespace_shadowing.py`. A new
+top-level/submodule collision outside that set fails the test until it
+is classified here and added to the pinned set in the same commit —
+the same visible-diff discipline the inventory applies to promotions.
+
+The test pins *behavioural* states, not `hasattr`: importing a
+submodule attaches it as an attribute of the `fmrimod` package even
+when the name is absent from `__all__`, so a naive
+`hasattr(fmrimod, "hrf") is False` assertion is wrong, and submodule
+detection is case-*exact* (`os.listdir`, not `Path.exists()`) because
+the dogfood dev platform is case-insensitive APFS, where
+`Path("fmrimod/HRF").exists()` spuriously matches the `hrf` submodule.
+The pinned assertions are: a `withheld` name is absent from `__all__`
+*and* its submodule resolves; a `rebind` name is in `__all__`,
+callable, *and* `import fmrimod.<name>` resolves a *distinct*
+submodule object; a `callable_submodule` name is in `__all__` and the
+attribute *is* the submodule and is callable; no top-level/submodule
+collision exists outside the union of the enumerated `rebind` and
+`callable_submodule` sets.
+
+The enumerated sets were not hand-curated from the prior inline
+comment — they were *derived by the pinning test itself*, which on
+first run surfaced `regressor` (an undocumented `rebind`) and `stats`
+(the `callable_submodule` pattern) that the inline comment never
+mentioned. That is the remediation lane working as intended.
+
+If shadowing later becomes a recurring cross-package pattern rather
+than the present small set of intentional cases, promote this prose
+state to a machine-readable `shadow_state` inventory field (a
+follow-up to the inventory schema, not a precondition of this policy).
+
 ## Relation to GOVERNANCE.md
 
 | Asks | Answered in |
 | --- | --- |
+| Which top-level names shadow a submodule, and why? | this file § Namespace shadowing |
 | What does "aligned" mean for a module? | `GOVERNANCE.md` § 2 (invariants G1–G7) |
 | Which module is being worked on now? | `GOVERNANCE.md` § 4 (current pilot) and `docs/contracts/alignment_scoreboard.md` once it exists |
 | What does "stable public API" mean? | this file |
