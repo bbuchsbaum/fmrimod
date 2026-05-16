@@ -64,11 +64,19 @@ parametric regressor — still a typed spec, still inspected before fitting.
 modulated = hrf("condition", basis="spmg1") + hrf("response_time", basis="spmg1")
 mod_model, _ = compile_spec(modulated, data=events, sampling_frame=sf)
 
-mod_model.design_matrix.shape
+design_colmap(mod_model)[["col", "name", "condition", "role", "basis_name"]]
 ```
+
+The added `response_time` regressor appears with its own typed
+provenance — composition is inspectable, not a string concatenation.
+
+This page stops at design construction. To see a compiled design carried
+through `fmri_lm`, a typed contrast, and into the group stage with
+recovered numbers, follow the **[golden path](golden-path.qmd)**.
 
 ## Next
 
+- [The golden path](golden-path.qmd) — the full spine into group, with a parity receipt
 - [Linear model](linear-model.qmd)
 - [Contrasts](contrasts.qmd)
 - [Overview and workflow](overview-workflow.qmd)

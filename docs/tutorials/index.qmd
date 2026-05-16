@@ -7,7 +7,7 @@ These guides are organized around the public fmrimod seam, not around a
 function-by-function port of the R packages:
 
 ```text
-fmri_dataset -> fmri_lm -> contrast -> group_fit
+fmri_dataset -> fmri_lm -> contrast -> group
 ```
 
 Some pages use compact matrix helpers because they are useful numerical
@@ -15,6 +15,17 @@ canaries. Flagship workflow pages should prefer typed datasets, typed specs,
 first-level fits, contrast objects, and group-level results.
 
 ::: {.grid}
+
+::: {.g-col-12}
+::: {.card .h-100 .p-3}
+### [The golden path](golden-path.qmd) — start here
+The whole spine, end to end, on data with a known injected effect:
+`fmri_dataset → fmri_lm → typed contrast → group`, with recovered first-
+level and group numbers and a checked-in parity receipt against Nilearn.
+This is the proof artifact for the product claim; every other page is a
+segment of it.
+:::
+:::
 
 ::: {.g-col-12 .g-col-md-6}
 ::: {.card .h-100 .p-3}

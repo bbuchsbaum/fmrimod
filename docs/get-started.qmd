@@ -27,15 +27,13 @@ import numpy as np
 import pandas as pd
 import fmrimod as fm
 from fmrimod.spec import hrf
+from fmrimod.contrast import condition
 
-rng = np.random.default_rng(7)
 events = pd.DataFrame({
-    "onset": [0, 12, 24, 36],
-    "condition": ["face", "scene", "face", "scene"],
-    "duration": [2, 2, 2, 2],
+    "onset": np.arange(8, 210, 12.0),
+    "condition": np.where(np.arange(17) % 2 == 0, "face", "scene"),
+    "duration": 2.0,
 })
-
-dataset = fm.fmri_dataset(rng.normal(size=(40, 8)), tr=1.0, events=events)
 ```
 
 The design is a **typed value**, built with `hrf(...)`. You can read its
@@ -46,13 +44,40 @@ spec = hrf("condition", basis="spmg1")
 spec.variables, spec.hrf
 ```
 
-Fit through the canonical first-level seam. The result carries coefficient
-matrices, residual degrees of freedom, solver configuration, and contrast
-methods.
+So the result can be *checked*, not just shape-inspected, we simulate
+data with a **known** face−scene effect of `2.0` in five of ten voxels.
+The signal is placed by the *typed* column identity — we ask the model
+which column is `term="condition", level="face"`, never hard-code a
+column name.
+
+```{python}
+rng = np.random.default_rng(7)
+probe = fm.fmri_lm(spec, fm.fmri_dataset(np.zeros((220, 10)), tr=1.0, events=events))
+face_ix = next(c.index for c in probe.model.design_columns()
+               if c.term == "condition" and c.level == "face")
+
+X = np.asarray(probe.model.design_matrix_array(run=0))
+true_beta = np.zeros((X.shape[1], 10))
+true_beta[face_ix, :5] = 2.0
+Y = X @ true_beta + rng.normal(scale=1.5, size=(220, 10))
+dataset = fm.fmri_dataset(Y, tr=1.0, events=events)
+```
+
+Fit through the canonical first-level seam, then state the hypothesis by
+**naming conditions** — not column positions. The recovered estimate
+returns the injected effect.
 
 ```{python}
 fit = fm.fmri_lm(spec, dataset)
-fit.n_coefficients, fit.n_voxels
+faces = fit.contrast(
+    condition("face", term="condition") - condition("scene", term="condition"),
+    name="face_minus_scene",
+)
+pd.DataFrame({
+    "estimate": faces.estimate.round(3),
+    "t": faces.stat.round(2),
+    "p": faces.p_value.round(4),
+})  # voxels 0–4 recover ≈ 2.0; voxels 5–9 are null
 ```
 
 The realized design is readable from the fit — built for you, still
@@ -75,15 +100,21 @@ before fitting.
 ## What Just Happened
 
 `fmri_dataset()` binds data to timing and events, `hrf(...)` is the typed
-design spec, and `fmri_lm()` fits the public first-level path. This is the
-same spine the flagship parity workflows use:
+design spec, `fmri_lm()` fits the public first-level path, and
+`fit.contrast(...)` states the hypothesis by name. This is the same spine
+the flagship parity workflows use:
 
 ```text
-fmri_dataset -> fmri_lm(spec) -> contrast -> group_fit
+fmri_dataset -> fmri_lm(spec) -> contrast -> group
 ```
+
+The **[golden path](tutorials/golden-path.qmd)** walks this spine
+continuously — first level *into* group — and checks the recovered
+numbers against the R/Nilearn reference on the page.
 
 ## Next Steps
 
+- [Tutorial: the golden path](tutorials/golden-path.qmd) — the full spine, end to end
 - [Tutorial: overview and workflow](tutorials/overview-workflow.qmd)
 - [Tutorial: design matrices](tutorials/design-matrices.qmd)
 - [Tutorial: linear model](tutorials/linear-model.qmd)
