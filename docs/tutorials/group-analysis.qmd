@@ -1,72 +1,130 @@
 ---
 title: "Group analysis"
-subtitle: "Summarize first-level estimates with native group-analysis helpers."
+subtitle: "Second-level inference over first-level estimates, fully typed."
 jupyter: python3
 execute:
   freeze: auto
 ---
 
-## Inputs
+The production spine ends here: per-subject first-level estimates flow into
+a typed `GroupData` container and out through typed result objects
+(`FmriMetaResult`, `GroupFitResult`, `FmriTTestResult`). The group design is
+a formula, not a hand-built `np.column_stack`; the outputs are typed
+attributes, not dictionary keys.
 
-The production seam ends with group-level inference over first-level estimates.
-This compact example starts from beta estimates and sampling variances directly;
-flagship workflows pass contrast outputs forward from `fmri_lm()`.
+## Per-Subject Estimates → Typed `GroupData`
 
-Rows are subjects or studies; columns are voxels, parcels, or other features.
+A second-level analysis starts from one effect (and its standard error) per
+subject per feature. Stack them as a tidy frame and let
+`group_data_from_csv` build the typed container — it accepts an in-memory
+DataFrame and a covariate table, so the group design is declared by data,
+not assembled by hand.
 
 ```{python}
 import numpy as np
 import pandas as pd
 import fmrimod as fm
+from fmrimod.dataset import group_data_from_csv
+from fmrimod.stats import fmri_meta, group_fit, GroupFitRequest, fmri_ttest
 
 rng = np.random.default_rng(12)
-n_subjects = 10
-n_features = 6
+n_subj, n_feat = 10, 6
+subjects = [f"s{i + 1}" for i in range(n_subj)]
+group = np.repeat(["ctrl", "patient"], n_subj // 2)
 
-group = np.repeat([0, 1], n_subjects // 2)
-X = np.column_stack([np.ones(n_subjects), group])
+# Synthetic first-level betas + sampling variances (the fixture only).
+true = np.array([[0.2] * n_feat, [0.4, 0.3, 0.2, 0.0, -0.1, -0.2]])
+V = rng.uniform(0.04, 0.12, size=(n_subj, n_feat))
+gnum = (group == "patient").astype(int)
+Y = np.column_stack([np.ones(n_subj), gnum]) @ true + rng.normal(scale=np.sqrt(V))
 
-true_effect = np.array([[0.2] * n_features, [0.4, 0.3, 0.2, 0.0, -0.1, -0.2]])
-V = rng.uniform(0.04, 0.12, size=(n_subjects, n_features))
-Y = X @ true_effect + rng.normal(scale=np.sqrt(V))
+long = pd.DataFrame([
+    {"subject": s, "roi": f"feature_{j + 1}",
+     "beta": Y[i, j], "se": np.sqrt(V[i, j])}
+    for i, s in enumerate(subjects)
+    for j in range(n_feat)
+])
 
-Y.shape, V.shape, X.shape
+gd = group_data_from_csv(
+    long,
+    effect_cols={"beta": "beta", "se": "se"},
+    subject_col="subject",
+    roi_col="roi",
+    covariates=pd.DataFrame({"group": group}),
+)
+gd.format, len(gd.subjects)
 ```
 
-## Fit Meta-Regression
+## One-Sample Random Effects
 
-`fmri_meta_fit()` estimates one weighted model per feature. It is a
-matrix-level compatibility helper for the same native group-analysis layer that
-backs higher-level `group_fit` workflows. Use `"fe"` for a fixed-effect fit and
-`"pm"` or `"dl"` for random-effects tau-squared estimates.
+The common second-level question — "is the effect non-zero across subjects?"
+— is a random-effects meta-analysis with an intercept-only formula.
+`fmri_meta` returns a typed `FmriMetaResult`: read `.coefficients`, `.p`,
+`.tau2` as attributes.
 
 ```{python}
-fit = fm.fmri_meta_fit(Y, V, X, method="pm")
+one = fmri_meta(gd, formula="~ 1", method="pm")
 
-fit["beta"].shape, fit["se"].shape, fit["tau2"].round(4)
+pd.DataFrame({
+    "feature": one.feature_names,
+    "estimate": one.coefficients[:, 0],
+    "p": one.p[:, 0],
+    "tau2": one.tau2,
+}).round(3)
 ```
 
-```{python}
-summary = pd.DataFrame({
-    "feature": [f"feature_{i + 1}" for i in range(n_features)],
-    "group_beta": fit["beta"][1],
-    "group_se": fit["se"][1],
-    "group_z": fit["z"][1],
-    "p": fit["p"][1],
-    "I2_fe": fit["I2_fe"],
-})
+## The Canonical Typed Entry: `group_fit`
 
-summary.round(3)
+`group_fit` is the single second-level interface. You describe the analysis
+with a frozen `GroupFitRequest` and get a frozen `GroupFitResult` back — the
+same numbers as `fmri_meta`, but through the parity-normalized seam the
+flagship workflows use.
+
+```{python}
+res = group_fit(
+    GroupFitRequest(
+        data=gd,
+        formula="~ 1",
+        model="meta",
+        effects="random",
+        tau2="pm",
+    )
+)
+type(res).__name__, res.method, res.backend, res.estimate[:, 0].round(3)
 ```
 
-## Covariance Output
+## Between-Group Meta-Regression
 
-When downstream code needs coefficient covariance matrices, use the covariance
-variant.
+To test a group difference, add the covariate to the formula. The
+fixed-effects path supports covariate designs; the coefficient for
+`C(group)[T.patient]` is the between-group contrast per feature.
 
 ```{python}
-fit_cov = fm.fmri_meta_fit_cov(Y, V, X, method="pm")
-fit_cov["cov_tri"].shape
+reg = fmri_meta(gd, formula="~ 1 + C(group)", method="fe")
+
+pd.DataFrame({
+    "feature": reg.feature_names,
+    "patient_minus_ctrl": reg.coefficients[:, 1],
+    "p": reg.p[:, 1],
+}).round(3)
+```
+
+::: {.callout-note}
+The typed **random-effects** path is intercept-only today: a covariate
+formula with `method="pm"`/`"dl"`/`"reml"` raises `NotImplementedError`.
+Use `method="fe"` for covariate meta-regression, or the
+`fmri_meta_fit(Y, V, X, ...)` matrix compat helper if you need
+random-effects with covariates now.
+:::
+
+## One-Sample Test, One Call
+
+For a plain one-sample second-level *t*-test, `fmri_ttest` is the typed
+shortcut — same `GroupData`, a `FmriTTestResult` out.
+
+```{python}
+tt = fmri_ttest(gd, formula="~ 1")
+type(tt).__name__, tt.engine, tt.statistic.round(2)
 ```
 
 ## Next
