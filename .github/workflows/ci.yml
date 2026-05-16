@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Substantive gate: the full Python suite on the supported floor (3.10)
+  # and a current interpreter (3.12). The 3.10 leg is the floor assertion
+  # — it is what would have caught the <3.10-only-syntax class of break.
+  # Mirrors the AGENTS.md "Environment" section: uv-managed venv, the
+  # [test] extra (fmrimod editable + neuroim) plus nilearn; no rpy2/R
+  # (the suite filters rpy2 and does not need it at collection).
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Create venv (Python ${{ matrix.python }})
+        run: uv venv --python ${{ matrix.python }} .venv
+
+      - name: Install package + test deps
+        run: uv pip install --python .venv/bin/python -e ".[test]" nilearn
+
+      - name: Run test suite
+        run: .venv/bin/python -m pytest tests/ -k "not rpy2" -q
+
+  # Ratchet gate (PRs only): ruff on the changed Python files. The repo
+  # carries large pre-existing ruff debt, so a repo-wide check is not a
+  # clean gate; this grandfathers the baseline and blocks *new* debt —
+  # the "scope to a clean baseline + ratchet" path. It is paired with
+  # the always-on `test` job, so it is not a lint-without-suite gate.
+  lint:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Ruff on changed Python files
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          files=$(git diff --name-only --diff-filter=ACM "$base" HEAD -- '*.py')
+          if [ -z "$files" ]; then
+            echo "No Python files changed; nothing to lint."
+            exit 0
+          fi
+          echo "Changed Python files:"
+          echo "$files"
+          uvx ruff@0.15.13 check $files
