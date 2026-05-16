@@ -57,6 +57,24 @@ class DesignColumns:
         """Column names in realized design order."""
         return tuple(column.name for column in self.columns)
 
+    def terms(self) -> tuple[str, ...]:
+        """Unique task-term names in design order.
+
+        Baseline/intercept columns legitimately carry ``term=None``;
+        crossed-term task columns carry a string term. Mixing the two
+        makes the otherwise-natural ``sorted(c.term for c in columns)``
+        raise ``TypeError: '<' not supported between 'NoneType' and
+        'str'`` exactly where a caller introspects term names. This
+        accessor is the None-safe way to read the task terms a design
+        realized: ``None`` terms are excluded and order follows the
+        design, so ``sorted(dc.terms())`` is always safe.
+        """
+        ordered: dict[str, None] = {}
+        for column in self.columns:
+            if column.term is not None:
+                ordered.setdefault(column.term, None)
+        return tuple(ordered)
+
     def where(
         self,
         *,
