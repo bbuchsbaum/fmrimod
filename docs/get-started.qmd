@@ -18,16 +18,15 @@ pip install -e .
 
 ## The 30-Second Tour
 
-Start with an event table and a sampling frame. The event table stores
-experimental timing; the sampling frame defines the acquired time grid. In
-the full workflow, those timing objects travel with an `fmri_dataset` into
-`fmri_lm()`.
+Start with an event table and bind it to data in an `fmri_dataset`. The
+event table stores experimental timing; the dataset keeps data, TR, and
+events together.
 
 ```{python}
 import numpy as np
 import pandas as pd
 import fmrimod as fm
-from fmrimod.design_colmap import design_colmap
+from fmrimod.spec import hrf
 
 rng = np.random.default_rng(7)
 events = pd.DataFrame({
@@ -36,31 +35,15 @@ events = pd.DataFrame({
     "duration": [2, 2, 2, 2],
 })
 
-sf = fm.SamplingFrame(blocklens=40, TR=1.0)
-data = rng.normal(size=(40, 8))
-dataset = fm.fmri_dataset(data, tr=1.0, events=events)
+dataset = fm.fmri_dataset(rng.normal(size=(40, 8)), tr=1.0, events=events)
 ```
 
-Use a formula to turn those events into typed task regressors. The string
-formula is convenience syntax for the same design-spec tree used by the
-object builders.
+The design is a **typed value**, built with `hrf(...)`. You can read its
+fields before anything is fitted — it is not an opaque string.
 
 ```{python}
-model = fm.event_model(
-    'onset ~ hrf(condition, basis="spmg1")',
-    data=events,
-    sampling_frame=sf,
-)
-
-model.column_names
-```
-
-The resulting matrix has one row per acquired sample and one column per model
-regressor. It is inspectable before fitting.
-
-```{python}
-design = model.design_matrix
-design.shape
+spec = hrf("condition", basis="spmg1")
+spec.variables, spec.hrf
 ```
 
 Fit through the canonical first-level seam. The result carries coefficient
@@ -68,31 +51,41 @@ matrices, residual degrees of freedom, solver configuration, and contrast
 methods.
 
 ```{python}
-fit = fm.fmri_lm("hrf(condition)", dataset)
+fit = fm.fmri_lm(spec, dataset)
 fit.n_coefficients, fit.n_voxels
 ```
 
-## What Just Happened
-
-`SamplingFrame` defines the time axis, `fmri_dataset()` binds data to timing
-and events, `event_model()` shows the compiled design surface, and
-`fmri_lm()` fits the public first-level path. This is the same architectural
-shape used by flagship parity workflows:
-
-```text
-fmri_dataset -> fmri_lm -> contrast -> group_fit
-```
-
-You can inspect the design surface with the same top-level API:
+The realized design is readable from the fit — built for you, still
+inspectable.
 
 ```{python}
-colmap = design_colmap(model)
-colmap[["col", "name", "role", "model_source"]]
+list(fit.model.design_matrix(run=0).columns)
+```
+
+::: {.callout-note collapse="true"}
+## Coming from R / `fmrireg`?
+
+The R-style string formula still works and compiles to the *same* spec:
+`fm.fmri_lm("hrf(condition)", dataset)` is exact sugar for
+`fm.fmri_lm(hrf("condition"), dataset)`. Prefer the typed form in
+Python — it is composable with `+`, IDE-introspectable, and inspectable
+before fitting.
+:::
+
+## What Just Happened
+
+`fmri_dataset()` binds data to timing and events, `hrf(...)` is the typed
+design spec, and `fmri_lm()` fits the public first-level path. This is the
+same spine the flagship parity workflows use:
+
+```text
+fmri_dataset -> fmri_lm(spec) -> contrast -> group_fit
 ```
 
 ## Next Steps
 
+- [Tutorial: overview and workflow](tutorials/overview-workflow.qmd)
 - [Tutorial: design matrices](tutorials/design-matrices.qmd)
 - [Tutorial: linear model](tutorials/linear-model.qmd)
-- [Tutorial: group analysis](tutorials/group-analysis.qmd)
+- [Tutorial: contrasts](tutorials/contrasts.qmd)
 - [API reference](reference/index.qmd)
