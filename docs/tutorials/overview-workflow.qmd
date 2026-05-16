@@ -6,102 +6,111 @@ execute:
   freeze: auto
 ---
 
-## Core Workflow
+## The Spine
 
-`fmrimod` combines timing information, event specifications, baseline terms,
-first-level fitting, contrasts, and group summaries under one typed workflow:
+`fmrimod` runs one typed spine end to end. Every arrow below is a typed
+Python value, not a string or a hand-built matrix:
 
 ```text
-fmri_dataset -> fmri_lm -> contrast -> group_fit
+fmri_dataset -> fmri_lm(spec) -> contrast -> group_fit
 ```
 
-A typical workflow starts with an event table, an acquisition grid, and a data
-object that keeps those pieces together.
+This page walks the whole spine on a small synthetic example.
+
+## Dataset
+
+An event table plus an acquisition grid, bound together in an
+`fmri_dataset`.
 
 ```{python}
 import numpy as np
 import pandas as pd
 import fmrimod as fm
-from fmrimod.design_colmap import design_colmap
+from fmrimod.spec import hrf
+from fmrimod.contrast import condition
+from fmrimod.dataset import group_data_from_csv
+from fmrimod.stats import group_fit, GroupFitRequest
 
 events = pd.DataFrame({
     "onset": [0, 12, 24, 36, 48, 60],
-    "stim_type": ["face", "scene", "face", "scene", "face", "scene"],
+    "stim_type": ["face", "scene"] * 3,
+    "duration": 2.0,
 })
 
-sf = fm.SamplingFrame(blocklens=[40, 40], TR=1.0)
-sf.blocklens
-```
-
-```{python}
-rng = np.random.default_rng(42)
-Y = rng.normal(size=(80, 6))
-dataset = fm.fmri_dataset(Y, tr=1.0, events=events)
+dataset = fm.fmri_dataset(
+    np.random.default_rng(42).normal(size=(80, 6)),
+    tr=1.0,
+    events=events,
+)
 dataset.n_timepoints, dataset.n_voxels
 ```
 
-## Event Model
+## Typed Spec → First-Level Fit
 
-The formula creates one HRF-convolved regressor per stimulus level. The string
-form is a concise authoring surface; internally it compiles to the same typed
-design-spec tree used by the object builders.
-
-```{python}
-model = fm.event_model(
-    'onset ~ hrf(stim_type, basis="spmg1")',
-    data=events,
-    sampling_frame=fm.SamplingFrame(blocklens=80, TR=1.0),
-)
-
-model.design_matrix.shape
-```
+The spec is a typed `hrf(...)` value — one HRF-convolved regressor per
+stimulus level. `fmri_lm` compiles it, adds the baseline, and returns an
+inspectable fit.
 
 ```{python}
-design_colmap(model)[["col", "name", "condition", "basis_name"]]
-```
+spec = hrf("stim_type", basis="spmg1")
+fit = fm.fmri_lm(spec, dataset)
 
-## Baseline and Contrasts
-
-Baseline modeling and contrast testing are separate decisions. The design
-matrix stores task regressors; contrast vectors state the scientific
-comparison in that column space.
-
-```{python}
-columns = model.column_names
-event_face_vs_scene = np.zeros(len(columns))
-event_face_vs_scene[columns.index("stim_type_stim_type.face")] = 1
-event_face_vs_scene[columns.index("stim_type_stim_type.scene")] = -1
-
-pd.DataFrame({"column": columns, "face_vs_scene": event_face_vs_scene})
-```
-
-## First-Level Fit
-
-Fit through the public first-level entry point. This keeps the dataset,
-compiled design, baseline, solver configuration, and contrast machinery in one
-inspectable result object.
-
-```{python}
-fit = fm.fmri_lm("hrf(stim_type)", dataset)
 fit.betas.shape, fit.tstat().shape
 ```
 
-```{python}
-fit_columns = list(fit.model.design_matrix().columns)
-face_vs_scene = np.zeros(len(fit_columns))
-face_vs_scene[fit_columns.index("stim_type_stim_type.face")] = 1
-face_vs_scene[fit_columns.index("stim_type_stim_type.scene")] = -1
+The realized design is readable from the fit — built for you, still
+inspectable.
 
-contrast = fit.contrast(face_vs_scene, name="face_vs_scene")
-contrast.estimate.shape, contrast.stat.shape
+```{python}
+list(fit.model.design_matrix(run=0).columns)
+```
+
+## Typed Contrast
+
+The scientific comparison names conditions, not column positions.
+
+```{python}
+face_vs_scene = fit.contrast(
+    condition("face", term="stim_type") - condition("scene", term="stim_type"),
+    name="face_vs_scene",
+)
+face_vs_scene.stat_type, face_vs_scene.estimate.shape, face_vs_scene.stat.shape
+```
+
+## Group Summary
+
+Carry per-subject contrast estimates (and their standard errors) into the
+typed second-level seam. `group_fit` takes a `GroupFitRequest` and returns
+a typed `GroupFitResult` — closing the spine.
+
+```{python}
+rng = np.random.default_rng(0)
+per_subject = pd.DataFrame([
+    {"subject": f"s{i}", "roi": "face_vs_scene",
+     "beta": float(rng.normal(0.3, 0.2)),
+     "se": float(abs(rng.normal(0.1, 0.02)))}
+    for i in range(8)
+])
+
+gd = group_data_from_csv(
+    per_subject,
+    effect_cols={"beta": "beta", "se": "se"},
+    subject_col="subject",
+    roi_col="roi",
+)
+group = group_fit(
+    GroupFitRequest(data=gd, formula="~ 1", model="meta",
+                    effects="random", tau2="pm")
+)
+type(group).__name__, group.estimate.round(3), group.p.round(3)
 ```
 
 ## Advanced Topics
 
-The same design/data contract supports typed engine options, AR diagnostics,
-single-trial estimation, benchmark fixtures, and native group-level inference.
-Low-level matrix helpers remain useful for numerical canaries, but the
-flagship path should stay on the public seam.
+The same dataset/spec contract supports typed engine options, AR
+diagnostics, single-trial estimation, and benchmark fixtures. Low-level
+matrix helpers exist for numerical canaries, but the flagship path stays
+on the typed spine above.
 
 ## Next
 
