@@ -262,6 +262,40 @@ def test_caveats_index_matches_generated_report_caveat_ids() -> None:
     assert set(caveat_index_rows(ROOT)) == live_caveat_ids(ROOT)
 
 
+_LIVE_OWNER_STATUSES = frozenset({"open", "doing", "blocked"})
+
+
+def _owner_status_is_live(show_stdout: str) -> bool:
+    """True if a ``mote show`` owner is a live (not closed) work item.
+
+    The caveats index requires every row to have a *live* owning work
+    item. ``open``/``doing``/``blocked`` are all live (tracked, not
+    done); only ``closed`` means the caveat outlived its owner and
+    should have been retired. Accepting only ``open`` spuriously fails
+    the moment someone claims the bead (``-> doing``) to actually work
+    the exit criterion (bd-01KRRQNE0K4BJBZG0W07P53ET8).
+    """
+    for line in show_stdout.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("status:"):
+            status = stripped.split(":", 1)[1].strip()
+            return status in _LIVE_OWNER_STATUSES
+    return False
+
+
+def test_owner_status_is_live_accepts_active_states_rejects_closed() -> None:
+    for status in ("open", "doing", "blocked"):
+        assert _owner_status_is_live(f"id:       bd-x\nstatus:   {status}\n"), (
+            f"{status!r} owner must count as a live work item"
+        )
+    # The real stale-caveat defect must still be caught (cheap-pass
+    # disqualifier: a fix that no longer fails a closed owner is wrong).
+    assert not _owner_status_is_live("id:       bd-x\nstatus:   closed\n")
+    # Defensive: a missing/garbled status is not live.
+    assert not _owner_status_is_live("id: bd-x\n(no status line)\n")
+    assert not _owner_status_is_live("")
+
+
 def test_caveats_index_owners_are_live_mote_items() -> None:
     if shutil.which("mote") is None:
         pytest.skip("mote CLI not available")
@@ -274,6 +308,8 @@ def test_caveats_index_owners_are_live_mote_items() -> None:
             capture_output=True,
             text=True,
         )
-        assert "status:   open" in result.stdout, (
-            f"{caveat_id} owner {owner} should be a live work item"
+        assert _owner_status_is_live(result.stdout), (
+            f"{caveat_id} owner {owner} is not a live work item "
+            f"(expected open/doing/blocked); a closed owner means the "
+            f"caveat should have been retired"
         )
