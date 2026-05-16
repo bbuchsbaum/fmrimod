@@ -73,24 +73,33 @@ pd.DataFrame({
 }).round(3)
 ```
 
-## The Canonical Typed Entry: `group_fit`
+## The Typed Entry: `group_fit`
 
-`group_fit` is the single second-level interface. You describe the analysis
-with a frozen `GroupFitRequest` and get a frozen `GroupFitResult` back — the
-same numbers as `fmri_meta`, but through the parity-normalized seam the
-flagship workflows use.
+`group_fit` is the single second-level interface. For the default fit, pass
+a `GroupData` (or a DataFrame) straight in and get a frozen
+`GroupFitResult` back — the same numbers as `fmri_meta`, but through the
+parity-normalized seam the flagship workflows use.
 
 ```{python}
-res = group_fit(
+res = group_fit(gd)
+type(res).__name__, res.method, res.backend, res.estimate[:, 0].round(3)
+```
+
+To customize a non-default fit, pass an explicit `GroupFitRequest`. It is
+still importable from `fmrimod.stats` (it is just no longer advertised in
+`fmrimod.stats.__all__`, since the default fit no longer needs it):
+
+```{python}
+res2 = group_fit(
     GroupFitRequest(
         data=gd,
         formula="~ 1",
         model="meta",
         effects="random",
-        tau2="pm",
+        method="pm",
     )
 )
-type(res).__name__, res.method, res.backend, res.estimate[:, 0].round(3)
+res2.method, res2.estimate[:, 0].round(3)
 ```
 
 ## Between-Group Meta-Regression

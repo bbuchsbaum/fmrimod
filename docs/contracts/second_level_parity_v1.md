@@ -12,7 +12,13 @@ Define a stable second-level contract for `fmrimod` that:
 
 ## Canonical Request
 
-`GroupFitRequest` is the canonical interface.
+`group_fit` accepts a `GroupData`, a pandas DataFrame (validated to a
+frozen `GroupData` via the typed `group_data_from_csv`; pass its
+`effect_cols` schema), or an explicit `GroupFitRequest`. The default
+fit needs no `GroupFitRequest`; it remains the explicit form for
+non-default fits (custom `formula`/`model`/`backend`/…) and is still
+importable (`from fmrimod.stats import GroupFitRequest`) though it is
+no longer advertised in `fmrimod.stats.__all__`.
 
 Core fields:
 

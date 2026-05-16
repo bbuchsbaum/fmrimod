@@ -44,7 +44,6 @@ __all__ = [
     "r_to_z",
     "z_to_r",
     "group_fit",
-    "GroupFitRequest",
     "GroupFitResult",
     "available_second_level_backends",
     "fmrigds_backend_available",
