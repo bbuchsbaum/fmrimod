@@ -13,15 +13,16 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
-from typing import Any, Literal, Optional, cast
+from typing import Any, Literal, Mapping, Optional, Sequence, cast
 
 import numpy as np
 from numpy.typing import NDArray
+import pandas as pd
 from patsy import dmatrix
 from scipy import optimize as sp_opt
 from scipy import stats as sp_stats
 
-from ..dataset.group_data import GroupData
+from ..dataset.group_data import GroupData, group_data_from_csv
 
 MetaMethod = Literal["fe", "pm", "dl", "reml"]
 MetaRobust = Literal["none", "huber", "t"]
@@ -333,23 +334,63 @@ def _solve_meta_wls(
     return beta, se, tau2
 
 
+def _coerce_group_data(
+    data: "GroupData | pd.DataFrame",
+    effect_cols: Optional[Mapping[str, str] | Sequence[str]],
+) -> GroupData:
+    """Accept a frozen ``GroupData``, or build one from a DataFrame.
+
+    A DataFrame is a *typed input boundary*, not a string-keyed escape
+    hatch: it is schema-validated and converted to a frozen
+    ``GroupData`` at construction via the existing typed
+    :func:`group_data_from_csv` (which raises on schema violations).
+    ``effect_cols`` is that constructor's own schema parameter, so no
+    new column-spelling vocabulary is introduced. Shared by
+    :func:`fmri_meta` and :func:`fmri_ttest` so the boundary cannot
+    drift between them.
+    """
+    if isinstance(data, GroupData):
+        if effect_cols is not None:
+            raise ValueError(
+                "effect_cols only applies when 'data' is a DataFrame; a "
+                "GroupData already carries its validated schema"
+            )
+        return data
+    if isinstance(data, pd.DataFrame):
+        if effect_cols is None:
+            raise ValueError(
+                "passing a DataFrame requires effect_cols (the typed "
+                "schema resolved at construction), e.g. "
+                "effect_cols={'beta': 'beta', 'se': 'se'}"
+            )
+        return group_data_from_csv(data, effect_cols=effect_cols)
+    raise TypeError("'data' must be a GroupData or a pandas DataFrame")
+
+
 def fmri_meta(
-    data: GroupData,
+    data: "GroupData | pd.DataFrame",
     formula: str = "~ 1",
     method: MetaMethod = "pm",
     robust: MetaRobust = "none",
     weights: MetaWeights = "ivw",
     weights_custom: Optional[NDArray[np.float64]] = None,
     combine: Optional[str] = None,
+    *,
+    effect_cols: Optional[Mapping[str, str] | Sequence[str]] = None,
 ) -> FmriMetaResult:
     """Fit group-level meta-regression for parity-oriented workflows.
+
+    ``data`` may be a frozen :class:`GroupData` or a pandas DataFrame.
+    A DataFrame is validated and converted to a frozen ``GroupData`` at
+    entry via the typed :func:`group_data_from_csv` (pass its
+    ``effect_cols`` schema, e.g. ``{'beta': 'beta', 'se': 'se'}``); it
+    is never consumed as a string-keyed table at use time.
 
     Notes
     -----
     This initial implementation targets CSV-backed effect-size data.
     """
-    if not isinstance(data, GroupData):
-        raise TypeError("'data' must be a GroupData instance")
+    data = _coerce_group_data(data, effect_cols)
     if robust != "none":
         raise NotImplementedError("robust meta estimation is not implemented yet")
     if combine is not None:

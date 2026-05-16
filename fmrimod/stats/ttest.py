@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal, Optional, cast
+from typing import Any, Literal, Mapping, Optional, Sequence, cast
 
 import numpy as np
 from numpy.typing import NDArray
+import pandas as pd
 from scipy import stats as sp_stats
 
 from ..dataset.group_data import GroupData
-from .meta import fmri_meta
+from .meta import _coerce_group_data, fmri_meta
 
 TTestEngine = Literal["auto", "meta", "classic", "welch"]
 
@@ -109,22 +110,26 @@ def _classic_one_sample(
 
 
 def fmri_ttest(
-    data: GroupData,
+    data: "GroupData | pd.DataFrame",
     *,
     engine: TTestEngine = "auto",
     formula: str = "~ 1",
     method: str = "pm",
     weights: str = "ivw",
     weights_custom: Optional[NDArray[np.float64]] = None,
+    effect_cols: Optional[Mapping[str, str] | Sequence[str]] = None,
 ) -> FmriTTestResult:
     """Run a parity-oriented one-sample group t-test.
+
+    ``data`` may be a frozen :class:`GroupData` or a pandas DataFrame
+    (validated and converted to a frozen ``GroupData`` at entry via the
+    typed :func:`group_data_from_csv`; pass its ``effect_cols`` schema).
 
     Current slice:
     - CSV-backed GroupData only
     - one-sample inference around zero (``formula='~ 1'``)
     """
-    if not isinstance(data, GroupData):
-        raise TypeError("'data' must be a GroupData instance")
+    data = _coerce_group_data(data, effect_cols)
     if formula.replace(" ", "") not in ("~1", "1"):
         raise NotImplementedError("fmri_ttest currently supports formula='~ 1' only")
 

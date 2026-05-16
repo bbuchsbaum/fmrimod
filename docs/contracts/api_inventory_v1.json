@@ -1518,7 +1518,7 @@
       "name": "fmri_meta",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.stats.meta",
-      "runtime_signature": "(data: 'GroupData', formula: 'str' = '~ 1', method: 'MetaMethod' = 'pm', robust: 'MetaRobust' = 'none', weights: 'MetaWeights' = 'ivw', weights_custom: 'Optional[NDArray[np.float64]]' = None, combine: 'Optional[str]' = None) -> 'FmriMetaResult'",
+      "runtime_signature": "(data: \"'GroupData | pd.DataFrame'\", formula: 'str' = '~ 1', method: 'MetaMethod' = 'pm', robust: 'MetaRobust' = 'none', weights: 'MetaWeights' = 'ivw', weights_custom: 'Optional[NDArray[np.float64]]' = None, combine: 'Optional[str]' = None, *, effect_cols: 'Optional[Mapping[str, str] | Sequence[str]]' = None) -> 'FmriMetaResult'",
       "signature_source": "inspect.signature",
       "tier": "spine",
       "used_by_public_seam_artifact": "release_1_0_api_spine"
@@ -1623,7 +1623,7 @@
       "name": "fmri_ttest",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.stats.ttest",
-      "runtime_signature": "(data: 'GroupData', *, engine: 'TTestEngine' = 'auto', formula: 'str' = '~ 1', method: 'str' = 'pm', weights: 'str' = 'ivw', weights_custom: 'Optional[NDArray[np.float64]]' = None) -> 'FmriTTestResult'",
+      "runtime_signature": "(data: \"'GroupData | pd.DataFrame'\", *, engine: 'TTestEngine' = 'auto', formula: 'str' = '~ 1', method: 'str' = 'pm', weights: 'str' = 'ivw', weights_custom: 'Optional[NDArray[np.float64]]' = None, effect_cols: 'Optional[Mapping[str, str] | Sequence[str]]' = None) -> 'FmriTTestResult'",
       "signature_source": "inspect.signature",
       "tier": "spine",
       "used_by_public_seam_artifact": "release_1_0_api_spine"
@@ -2177,7 +2177,7 @@
       "is_function": false,
       "name": "hrf_spmg1",
       "opaque_forwarder": false,
-      "owner_module": "functools",
+      "owner_module": null,
       "runtime_signature": "(*, subset: object = None, contrasts: object = None, normalize: bool = False, summate: bool = True, hrf_fun: Optional[Callable[..., object]] = None, id: Optional[str] = None, prefix: Optional[str] = None, lag: float = 0.0, nbasis: int = 1, onsets: object = None, durations: object = None) -> 'Callable[[FormulaTerm], FormulaTerm]'",
       "signature_source": "inspect.signature",
       "tier": "compat",
