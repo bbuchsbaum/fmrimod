@@ -171,19 +171,6 @@ class _NormalizedHRF(HRF):
             self.name = f"{self.base.name}[norm={self.norm_mode}]"
         self.nbasis = self.base.nbasis
         self.span = self.base.span
-        new_params = dict(self.base.params)
-        new_params["hrf_norm"] = self.norm_mode
-        # The factor is stored on the instance; we keep a JSON-safe
-        # representation in params for back-compat readers.
-        if np.ndim(self.norm_factor) == 0:
-            new_params["hrf_norm_factor"] = float(self.norm_factor)
-        else:
-            new_params["hrf_norm_factor"] = (
-                np.asarray(self.norm_factor).tolist()
-            )
-        new_params["_normalized"] = True
-        self.params = new_params
-        self.param_names = self.base.param_names
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         assert self.base is not None

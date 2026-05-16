@@ -36,10 +36,6 @@ class SPMG1_HRF(HRF):
     p2: float = 15.0
     a1: float = 0.0833
 
-    def __post_init__(self) -> None:
-        self.params = _spm_params(self.p1, self.p2, self.a1)
-        self.param_names = list(_SPM_PARAM_NAMES)
-
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         return spm_canonical(t, p1=self.p1, p2=self.p2, a1=self.a1)
 
@@ -97,10 +93,6 @@ class SPMG2_HRF(HRF):
     p2: float = 15.0
     a1: float = 0.0833
 
-    def __post_init__(self) -> None:
-        self.params = _spm_params(self.p1, self.p2, self.a1)
-        self.param_names = list(_SPM_PARAM_NAMES)
-
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         t = np.asarray(t)
         canonical = spm_canonical(t, p1=self.p1, p2=self.p2, a1=self.a1)
@@ -154,10 +146,6 @@ class SPMG3_HRF(HRF):
     # basis used inside ``_derivative``. Kept as a class-level constant so the
     # value is auditable rather than hidden behind a magic literal.
     _DISPERSION_DERIV_DX: ClassVar[float] = 1e-3
-
-    def __post_init__(self) -> None:
-        self.params = _spm_params(self.p1, self.p2, self.a1)
-        self.param_names = list(_SPM_PARAM_NAMES)
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         t = np.asarray(t)

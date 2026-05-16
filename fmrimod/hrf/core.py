@@ -361,12 +361,6 @@ class BoundBasisHRF(HRF):
         self.name = " + ".join(c.name for c in self.components)
         self.nbasis = sum(c.nbasis for c in self.components)
         self.span = max(c.span for c in self.components)
-        combined_params: Dict[str, HrfParamValue] = {}
-        for c in self.components:
-            for key, value in c.params.items():
-                combined_params[f"{c.name}_{key}"] = value
-        self.params = combined_params
-        self.param_names = list(combined_params.keys()) if combined_params else None
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         t = np.asarray(t)
@@ -419,13 +413,13 @@ class CoefficientHRF(HRF):
                 f"Number of coefficients ({len(coefs)}) must match "
                 f"number of basis functions ({base.nbasis})"
             )
+        self.params = {}
+        self.param_names = None
         self.base = base
         self.coefficients = coefs
         self.name = name or f"{base.name}_combined"
         self.nbasis = 1
         self.span = base.span
-        self.params = {"coefficients": list(coefs)}
-        self.param_names = ["coefficients"]
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         basis_values = self.base(t)

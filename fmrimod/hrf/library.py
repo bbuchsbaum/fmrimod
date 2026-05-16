@@ -52,10 +52,6 @@ class GammaHRF(HRF):
     shape: float = 6.0
     rate: float = 1.0
 
-    def __post_init__(self) -> None:
-        self.params = {"shape": self.shape, "rate": self.rate}
-        self.param_names = ["shape", "rate"]
-
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         return gamma_hrf(t, shape=self.shape, rate=self.rate)
 
@@ -68,10 +64,6 @@ class GaussianHRF(HRF):
     mean: float = 6.0
     sd: float = 2.0
 
-    def __post_init__(self) -> None:
-        self.params = {"mean": self.mean, "sd": self.sd}
-        self.param_names = ["mean", "sd"]
-
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         return gaussian_hrf(t, mean=self.mean, sd=self.sd)
 
@@ -83,10 +75,6 @@ class MexhatHRF(HRF):
     span: float = 24.0
     mean: float = 6.0
     sd: float = 2.0
-
-    def __post_init__(self) -> None:
-        self.params = {"mean": self.mean, "sd": self.sd}
-        self.param_names = ["mean", "sd"]
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         return hrf_mexhat(t, mean=self.mean, sd=self.sd)
@@ -102,16 +90,6 @@ class InvLogitHRF(HRF):
     mu2: float = 16.0
     s2: float = 1.0
     lag: float = 0.0  # type: ignore[assignment]
-
-    def __post_init__(self) -> None:
-        self.params = {
-            "mu1": self.mu1,
-            "s1": self.s1,
-            "mu2": self.mu2,
-            "s2": self.s2,
-            "lag": self.lag,
-        }
-        self.param_names = ["mu1", "s1", "mu2", "s2", "lag"]
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         return hrf_inv_logit(
@@ -131,13 +109,6 @@ class HalfCosineHRF(HRF):
     f1: float = 0.0
     f2: float = 0.0
 
-    def __post_init__(self) -> None:
-        self.params = {
-            "h1": self.h1, "h2": self.h2, "h3": self.h3, "h4": self.h4,
-            "f1": self.f1, "f2": self.f2,
-        }
-        self.param_names = ["h1", "h2", "h3", "h4", "f1", "f2"]
-
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         return hrf_half_cosine(
             t, h1=self.h1, h2=self.h2, h3=self.h3, h4=self.h4,
@@ -151,10 +122,6 @@ class TimeHRF(HRF):
     nbasis: int = 1
     span: float = 22.0
     max_time: float = 22.0
-
-    def __post_init__(self) -> None:
-        self.params = {"max_time": self.max_time}
-        self.param_names = ["max_time"]
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         return hrf_time(t, max_time=self.max_time)
@@ -170,10 +137,6 @@ class BSplineHRF(HRF):
     span: float = 24.0
     degree: int = 3
 
-    def __post_init__(self) -> None:
-        self.params = {"n_basis": self.nbasis, "degree": self.degree}
-        self.param_names = ["n_basis", "degree"]
-
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         return bspline_hrf(t, n_basis=self.nbasis, degree=self.degree, span=self.span)
 
@@ -183,10 +146,6 @@ class FIRHRF(HRF):
     name: str = "fir"
     nbasis: int = 12
     span: float = 24.0
-
-    def __post_init__(self) -> None:
-        self.params = {"n_basis": self.nbasis}
-        self.param_names = ["n_basis"]
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         return fir_basis(t, n_basis=self.nbasis, span=self.span)
@@ -198,10 +157,6 @@ class FourierHRF(HRF):
     nbasis: int = 5
     span: float = 24.0
 
-    def __post_init__(self) -> None:
-        self.params = {"n_basis": self.nbasis}
-        self.param_names = ["n_basis"]
-
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         return fourier_hrf(t, n_basis=self.nbasis, span=self.span)
 
@@ -211,10 +166,6 @@ class SineHRF(HRF):
     name: str = "sine"
     nbasis: int = 5
     span: float = 24.0
-
-    def __post_init__(self) -> None:
-        self.params = {"span": self.span, "n_basis": self.nbasis}
-        self.param_names = ["span", "n_basis"]
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         return hrf_sine(t, span=self.span, n_basis=self.nbasis)
@@ -228,10 +179,6 @@ class DaguerreHRF(HRF):
     nbasis: int = 3
     span: float = 24.0
     scale: float = 4.0
-
-    def __post_init__(self) -> None:
-        self.params = {"n_basis": self.nbasis, "scale": self.scale}
-        self.param_names = ["n_basis", "scale"]
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         from .functions import daguerre_basis
@@ -266,6 +213,8 @@ class LWUHRF(HRF):
         rho: float = 0.35,
         normalize: Literal["none", "height", "area"] = "none",
     ) -> None:
+        self.params = {}
+        self.param_names = None
         self.name = name
         self.nbasis = nbasis
         self.span = span
@@ -292,11 +241,6 @@ class LWUHRF(HRF):
             )
         if self._legacy_normalize != "none":
             raise ValueError("normalize must be 'none', 'height', or 'area'")
-        self.params = {
-            "tau": self.tau, "sigma": self.sigma, "rho": self.rho,
-            "normalize": self._legacy_normalize,
-        }
-        self.param_names = ["tau", "sigma", "rho", "normalize"]
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         return hrf_lwu(
@@ -327,13 +271,6 @@ class LWUBasisHRF(HRF):
             )
         if self.normalize_primary != "none":
             raise ValueError("normalize_primary must be 'none' or 'height'")
-        # params back-compat keeps the list form ([..]) since cross_testing
-        # readers may rely on it; the typed field is a tuple.
-        self.params = {
-            "theta0": list(self.theta0),
-            "normalize_primary": self.normalize_primary,
-        }
-        self.param_names = ["theta0", "normalize_primary"]
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         return hrf_basis_lwu(
@@ -351,10 +288,6 @@ class IdentityHRF(HRF):
     name: str = "identity"
     nbasis: int = 1
     span: float = 1.0
-
-    def __post_init__(self) -> None:
-        self.params = {}
-        self.param_names = []
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         return hrf_ident(t)
@@ -383,8 +316,6 @@ class BoxcarHRF(HRF):
             self.span = float(self.width)
         if not self.name:
             self.name = f"boxcar[{self.width:.2g}]"
-        self.params = {"width": self.width, "amplitude": self.amplitude}
-        self.param_names = ["width", "amplitude"]
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         return boxcar_hrf(t, width=self.width, amplitude=self.amplitude)
@@ -430,12 +361,6 @@ class WeightedHRF(HRF):
             self.span = float(times[-1])
         if not self.name:
             self.name = f"weighted[w={self.span:.2g}, {len(self.weights)} wts]"
-        self.params = {
-            "times": list(self.times),
-            "weights": list(self.weights),
-            "method": self.method,
-        }
-        self.param_names = ["times", "weights", "method"]
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         return weighted_hrf(
@@ -483,6 +408,8 @@ class EmpiricalHRF(HRF):
         t_sorted = t_arr[order]
         y_sorted = y_arr[order]
 
+        self.params = {}
+        self.param_names = None
         self.name = name
         self.nbasis = nbasis
         self.span = float(t_sorted[-1]) if span is None else float(span)
@@ -495,8 +422,6 @@ class EmpiricalHRF(HRF):
             bounds_error=False,
             fill_value=0.0,
         )
-        self.params = {"t": list(self.t_points), "y": list(self.y_values)}
-        self.param_names = ["t", "y"]
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         t_arr = np.asarray(t, dtype=np.float64)

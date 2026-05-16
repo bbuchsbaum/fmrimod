@@ -74,10 +74,6 @@ class LaggedHRF(HRF):
         self.name = f"{self.base.name}_lag({self.lag})"
         self.nbasis = self.base.nbasis
         self.span = self.base.span + max(0.0, self.lag)
-        new_params = dict(self.base.params)
-        new_params["_lag"] = self.lag
-        self.params = new_params
-        self.param_names = self.base.param_names
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         assert self.base is not None  # for type checkers; __post_init__ guarantees
@@ -119,15 +115,6 @@ class BlockedHRF(HRF):
         self.name = f"{self.base.name}_block(w={self.width})"
         self.nbasis = self.base.nbasis
         self.span = self.base.span + self.width
-        new_params = dict(self.base.params)
-        new_params.update({
-            "_width": self.width,
-            "_precision": self.precision,
-            "_half_life": self.half_life,
-            "_summate": self.summate,
-        })
-        self.params = new_params
-        self.param_names = self.base.param_names
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         assert self.base is not None
