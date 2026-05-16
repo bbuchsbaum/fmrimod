@@ -110,16 +110,17 @@ pd.DataFrame({
 ```
 
 ::: {.callout-note}
-The typed **random-effects** path is intercept-only today: a covariate
-formula with `method="pm"`/`"dl"`/`"reml"` raises `NotImplementedError`.
-This is a tracked parity gap, not a statistical limitation — the R
-oracle implements it (`fmrigds` `meta:re_reg`, DerSimonian–Laird tau²),
-and porting it is the documented exit criterion
+The typed **random-effects** path supports DerSimonian–Laird
+meta-*regression* with a covariate formula via `method="dl"` — a parity
+port of the R oracle `fmrigds` `meta:re_reg`. `method="pm"` and
+`method="reml"` stay intercept-only: `meta:re_reg` is DL-only, so there
+is no R oracle to port a `pm`/`reml` regression against, and a covariate
+formula with those methods raises `NotImplementedError` by design. The
+former parity gap is retired
 (`typed-re-meta-regression-unimplemented` in
-[`docs/contracts/CAVEATS.md`](https://github.com/bbuchsbaum/fmrimod/blob/main/docs/contracts/CAVEATS.md)).
-Until then, use `method="fe"` for covariate meta-regression, or the
-`fmri_meta_fit(Y, V, X, ...)` matrix compat helper for random-effects
-with covariates.
+[`docs/contracts/CAVEAT_RETIREMENTS.md`](https://github.com/bbuchsbaum/fmrimod/blob/main/docs/contracts/CAVEAT_RETIREMENTS.md)).
+For `pm`/`reml` random-effects with covariates, use `method="dl"`, or
+the `fmri_meta_fit(Y, V, X, ...)` matrix compat helper.
 :::
 
 ## One-Sample Test, One Call

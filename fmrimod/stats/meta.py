@@ -4,6 +4,9 @@ Initial parity slice for ``fmrireg::fmri_meta``:
 - accepts ``GroupData`` inputs
 - supports CSV-backed effect-size data (beta+se or beta+var)
 - supports fixed-effects and intercept-only random-effects fits
+- supports DerSimonian-Laird random-effects meta-*regression* with
+  covariate designs via ``method="dl"`` (parity port of fmrigds
+  ``meta:re_reg``); ``pm``/``reml`` remain intercept-only
 """
 
 from __future__ import annotations
@@ -230,6 +233,46 @@ def _reml_tau2_intercept(y: NDArray[np.float64], v: NDArray[np.float64]) -> floa
     return 0.0 if tau < 1e-10 else tau
 
 
+def _dl_tau2_regression(
+    y: NDArray[np.float64],
+    X: NDArray[np.float64],
+    v: NDArray[np.float64],
+    eps: float = 1e-12,
+) -> float:
+    """DerSimonian-Laird tau2 for meta-*regression* (covariate design).
+
+    1:1 port of fmrigds ``meta:re_reg`` (``R/reducers-core.R``:348-386),
+    which the native :func:`fmrimod.group.reducers.meta_re_reg` already
+    mirrors and is R-oracle parity-tested. The moment term is
+    ``C = sum(w) - tr(H)`` with ``H`` the weighted hat matrix
+    (``tr(H) == p`` algebraically) — deliberately distinct from the
+    intercept-only DL ``C = sum(w) - sum(w^2)/sum(w)``. R ships these as
+    separate reducers (``meta:re_dl`` vs ``meta:re_reg``), so routing the
+    two cases through different code paths here is faithful to the spec,
+    not a shortcut.
+    """
+    n, p = X.shape
+    if n < p + 1:
+        raise ValueError(
+            "Random-effects meta-regression needs at least n_predictors+1 "
+            f"subjects; got n={n}, p={p}"
+        )
+    w = 1.0 / np.maximum(v, eps)
+    Xw = X * np.sqrt(w)[:, np.newaxis]
+    gram = Xw.T @ Xw
+    try:
+        gram_inv = np.linalg.inv(gram)
+    except np.linalg.LinAlgError:
+        gram_inv = np.linalg.pinv(gram)
+    bhat_fe = gram_inv @ (X.T @ (w * y))
+    resid = y - X @ bhat_fe
+    q_val = float(np.sum(w * resid * resid))
+    tr_h = float(np.sum(w * np.sum((X @ gram_inv) * X, axis=1)))
+    c_term = float(np.sum(w) - tr_h)
+    df_val = float(n - p)
+    return max((q_val - df_val) / max(c_term, eps), 0.0)
+
+
 def _solve_meta_wls(
     y: NDArray[np.float64],
     X: NDArray[np.float64],
@@ -240,16 +283,23 @@ def _solve_meta_wls(
 ) -> tuple[NDArray[np.float64], NDArray[np.float64], float]:
     tau2 = 0.0
     if method in ("dl", "pm", "reml"):
-        if X.shape[1] != 1 or not np.allclose(X[:, 0], 1.0):
-            raise NotImplementedError(
-                "Random-effects fmri_meta currently supports intercept-only formula (~ 1)"
-            )
-        if method == "dl":
-            tau2 = _dl_tau2_intercept(y, v)
-        elif method == "pm":
-            tau2 = _pm_tau2_intercept(y, v)
+        intercept_only = X.shape[1] == 1 and np.allclose(X[:, 0], 1.0)
+        if intercept_only:
+            if method == "dl":
+                tau2 = _dl_tau2_intercept(y, v)
+            elif method == "pm":
+                tau2 = _pm_tau2_intercept(y, v)
+            else:
+                tau2 = _reml_tau2_intercept(y, v)
+        elif method == "dl":
+            tau2 = _dl_tau2_regression(y, X, v)
         else:
-            tau2 = _reml_tau2_intercept(y, v)
+            raise NotImplementedError(
+                "Random-effects meta-regression with covariates is "
+                "implemented for method='dl' only (parity port of fmrigds "
+                "meta:re_reg); methods 'pm' and 'reml' support "
+                "intercept-only formula (~ 1)."
+            )
 
     base_w = 1.0 / (v + tau2)
     if weight_mode == "ivw":
