@@ -31,6 +31,7 @@ from typing import (
     Callable,
     ClassVar,
     Dict,
+    Iterable,
     Literal,
     Mapping,
     Optional,
@@ -389,6 +390,7 @@ def _load_entry_points() -> None:
 
         eps = _ep()
         # Python 3.12+ returns a SelectableGroups; 3.9 returns a dict
+        engine_eps: Iterable[Any]
         if isinstance(eps, dict):
             engine_eps = eps.get("fmrimod.engines", [])
         else:
