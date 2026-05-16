@@ -10,6 +10,11 @@ if TYPE_CHECKING:
     from fmrimod.accessors import EstimateOrContrastMap
 
 from .backends import available_second_level_backends, fmrigds_backend_available
+from .connectivity import (
+    SeedTargetLmResult,
+    seed_target_correlation,
+    seed_target_lm,
+)
 from .inference import (
     fdr_correction,
     group_fit,
@@ -54,6 +59,9 @@ __all__ = [
     "FmriTTestResult",
     "SpatialFdrResult",
     "spatial_fdr",
+    "seed_target_correlation",
+    "seed_target_lm",
+    "SeedTargetLmResult",
 ]
 
 

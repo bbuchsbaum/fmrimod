@@ -1,18 +1,18 @@
 ---
 title: "Functional connectivity"
-subtitle: "Seed-to-target correlation on the typed fmrimod substrate."
+subtitle: "Seed-to-target correlation and seed-regressor GLM on the typed fmrimod substrate."
 jupyter: python3
 execute:
   freeze: auto
 ---
 
-Functional connectivity is not a core fmrimod seam — there is no
-`fm.connectivity()`. What fmrimod *does* give you is the typed substrate the
-analysis should sit on: a dataset that owns its timing, a **typed nuisance
-model** instead of a hand-built matrix, projection through the same
-`residualize` used by the first-level path, and the effect-size transforms
-used for group inference. The only step without an fmrimod primitive is the
-Pearson correlation itself, and that stays one explicit line.
+Functional connectivity is not a core fmrimod modeling seam, but the common
+seed-to-target operation should not force every user to rewrite Pearson
+correlation by hand. fmrimod gives you the typed substrate the analysis should
+sit on: a dataset that owns its timing, a **typed nuisance model** instead of a
+hand-built matrix, projection through the same `residualize` used by the
+first-level path, a compact seed-correlation primitive, and the same `fmri_lm`
+machinery when you want the seed signal as a GLM covariate.
 
 ## A Dataset, Not Bare Arrays
 
@@ -26,6 +26,7 @@ import pandas as pd
 import fmrimod as fm
 from fmrimod import baseline_model, design_matrix
 from fmrimod.residualize import residualize
+from fmrimod.stats import seed_target_correlation, seed_target_lm
 
 rng = np.random.default_rng(13)
 n_time, n_vox = 160, 9
@@ -70,32 +71,46 @@ clean.shape
 
 ## Seed-to-Target Correlation
 
-This is the one step with no fmrimod primitive — fmrimod models signals, it
-does not own a connectivity estimator. Keep it to one explicit, readable
-line on the *cleaned* signal.
+For a cleaned ROI matrix, the effect-size estimate is one explicit call. The
+helper preserves the readable "seed versus target columns" shape and adds
+Fisher-*z* columns for group-ready effect sizes.
 
 ```{python}
-seed = clean[:, 0]
-targets = clean[:, 1:]
+seed_target_correlation(
+    clean,
+    seed=0,
+    target_names=[f"roi_{j + 1}" for j in range(clean.shape[1] - 1)],
+).round(3)
+```
 
-sc = seed - seed.mean()
-tc = targets - targets.mean(axis=0)
-r = (sc @ tc) / (np.sqrt((sc**2).sum()) * np.sqrt((tc**2).sum(axis=0)))
+## Seed as a GLM Covariate
 
-pd.DataFrame({
-    "target": [f"roi_{j + 1}" for j in range(targets.shape[1])],
-    "r": r,
-}).round(3)
+The fmrireg-style inferential version treats the seed time series as a sampled
+BOLD covariate. That path is a thin wrapper over `fmri_lm`: it fits each target
+on `[intercept, confounds, seed]` and reports the seed coefficient, standard
+error, *t*, and *p*.
+
+```{python}
+seed_target_lm(
+    dataset.get_all_data(),
+    seed=0,
+    confounds=design_matrix(bmodel),
+    add_intercept=False,
+    target_names=[f"roi_{j + 1}" for j in range(clean.shape[1] - 1)],
+).to_frame().round(3)
 ```
 
 ## Back to fmrimod for Group-Ready Effect Sizes
 
-`r_to_z` is the fmrimod effect-size API: it returns the Fisher *z* and its
-sampling variance `1 / (n - 3)`, which is exactly what the group seam
-(`fmri_meta`, `group_fit`) expects per connection.
+`seed_target_correlation` already includes the Fisher *z* and sampling variance
+`1 / (n - 3)`, which is exactly what the group seam (`fmri_meta`, `group_fit`)
+expects per connection. The lower-level `r_to_z` helper remains available when
+you already have correlations from another source.
 
 ```{python}
-z, z_var = fm.r_to_z(r, dataset.n_timepoints)
+fc = seed_target_correlation(clean, seed=0)
+z = fc["fisher_z"].to_numpy()
+z_var = fc["z_variance"].to_numpy()
 pooled_r = fm.z_to_r(z.mean())
 
 pd.DataFrame({
