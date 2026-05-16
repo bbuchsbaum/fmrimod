@@ -1,6 +1,6 @@
 ---
 title: "Build a design matrix"
-subtitle: "Model event timing with HRFs and inspect the generated regressors."
+subtitle: "Model event timing with a typed spec and inspect the regressors."
 jupyter: python3
 ---
 
@@ -9,12 +9,14 @@ jupyter: python3
 ```{python}
 import pandas as pd
 import fmrimod as fm
+from fmrimod.spec import hrf, compile as compile_spec
 from fmrimod.design_colmap import design_colmap
 
 events = pd.DataFrame({
     "onset": [0, 8, 16, 24, 32, 40],
     "condition": ["face", "scene", "face", "scene", "face", "scene"],
     "response_time": [0.8, 1.1, 0.7, 0.9, 1.0, 1.2],
+    "duration": 2.0,
 })
 events
 ```
@@ -26,41 +28,47 @@ sf = fm.SamplingFrame(blocklens=60, TR=1.0)
 sf.samples[:8]
 ```
 
-## Build the Model
+## Build the Design from a Typed Spec
 
-The formula below creates condition-specific canonical HRF regressors. The
-result is an event model with a concrete design matrix and column metadata.
+`hrf(...)` is a typed value. `compile()` lowers a spec against the events
+and sampling frame into an `EventModel` (and its baseline) — no fitting,
+no string formula. The design matrix and column metadata are inspectable
+immediately.
 
 ```{python}
-model = fm.event_model(
-    'onset ~ hrf(condition, basis="spmg1")',
-    data=events,
-    sampling_frame=sf,
-)
+spec = hrf("condition", basis="spmg1")
+event_model, baseline_model = compile_spec(spec, data=events, sampling_frame=sf)
 
-model.design_matrix.shape
+event_model.design_matrix.shape
 ```
 
 ```{python}
-model.column_names
+event_model.column_names
 ```
 
 ## Inspect Column Metadata
 
+`design_colmap` reports the provenance of every column — which condition,
+which basis, what role — for the compiled event model.
+
 ```{python}
-design_colmap(model)[["col", "name", "condition", "role", "basis_name"]]
+design_colmap(event_model)[["col", "name", "condition", "role", "basis_name"]]
 ```
 
 ## Add a Parametric Modulator
 
-Continuous variables can enter the formula as event-level covariates.
+Terms compose with `+`. A second `hrf(...)` on a continuous column adds a
+parametric regressor — still a typed spec, still inspected before fitting.
 
 ```{python}
-modulated = fm.event_model(
-    'onset ~ hrf(condition, basis="spmg1") + hrf(response_time, basis="spmg1")',
-    data=events,
-    sampling_frame=sf,
-)
+modulated = hrf("condition", basis="spmg1") + hrf("response_time", basis="spmg1")
+mod_model, _ = compile_spec(modulated, data=events, sampling_frame=sf)
 
-modulated.design_matrix.shape
+mod_model.design_matrix.shape
 ```
+
+## Next
+
+- [Linear model](linear-model.qmd)
+- [Contrasts](contrasts.qmd)
+- [Overview and workflow](overview-workflow.qmd)
