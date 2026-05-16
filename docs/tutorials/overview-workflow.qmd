@@ -8,8 +8,8 @@ execute:
 
 ## The Spine
 
-`fmrimod` runs one typed spine end to end. Every arrow below is a typed
-Python value, not a string or a hand-built matrix:
+`fmrimod` runs one typed workflow from data to group results. Every
+arrow below is a typed Python value, not a string or a hand-built matrix:
 
 ```text
 fmri_dataset -> fmri_lm(spec) -> contrast -> group
@@ -17,7 +17,7 @@ fmri_dataset -> fmri_lm(spec) -> contrast -> group
 
 This page walks the first-level segment on a small example with a known
 injected effect; the [golden path](golden-path.qmd) carries the same
-spine all the way into the group stage.
+workflow all the way into the group stage.
 
 ## Dataset
 
@@ -38,24 +38,48 @@ events = pd.DataFrame({
 })
 ```
 
-We simulate data with a **known** face−scene effect of `2.0` in five of
+We use test data with a **known** face−scene effect of `2.0` in five of
 ten voxels so every downstream number can be checked against ground
-truth. The signal is placed by the *typed* column identity — we ask the
-compiled model which column is `term="stim_type", level="face"`, never a
-raw column string.
+truth.
 
 ```{python}
 spec = hrf("stim_type", basis="spmg1")
-rng = np.random.default_rng(42)
-probe = fm.fmri_lm(spec, fm.fmri_dataset(np.zeros((220, 10)), tr=1.0, events=events))
-face_ix = next(c.index for c in probe.model.design_columns()
-               if c.term == "stim_type" and c.level == "face")
+```
 
-X = np.asarray(probe.model.design_matrix_array(run=0))
-true_beta = np.zeros((X.shape[1], 10))
-true_beta[face_ix, :5] = 2.0
-Y = X @ true_beta + rng.normal(scale=1.5, size=(220, 10))
-dataset = fm.fmri_dataset(Y, tr=1.0, events=events)
+::: {.callout-note collapse="true"}
+## `make_demo_dataset` (skim — test-data plumbing, not the lesson)
+
+Builds the same design `fmri_lm` would (via `compile`), places a known
+effect on the `face` regressor found *by name* through the column map,
+then uses fmrimod's own [`simulate_bold`](simulation.qmd) to make a
+noisy series.
+
+```{python}
+from fmrimod.spec import compile as compile_spec
+from fmrimod.design_colmap import design_colmap
+from fmrimod.simulate import simulate_bold
+
+def make_demo_dataset(model_spec, events, effect, term="condition",
+                       n_signal=5, n_voxels=10, noise=1.5, seed=0):
+    sampling = fm.SamplingFrame(blocklens=220, TR=1.0)
+    built, _ = compile_spec(model_spec, data=events, sampling_frame=sampling)
+    face_col = design_colmap(built).query(
+        f"condition == '{term}.face'"
+    ).index[0]
+
+    true_betas = np.zeros((built.design_matrix.shape[1], n_voxels))
+    true_betas[face_col, :n_signal] = effect            # the known effect
+
+    bold = simulate_bold(
+        np.asarray(built.design_matrix), true_betas,
+        noise_sd=noise, n_voxels=n_voxels, rng=np.random.default_rng(seed),
+    )
+    return fm.fmri_dataset(bold, tr=1.0, events=events)
+```
+:::
+
+```{python}
+dataset = make_demo_dataset(spec, events, effect=2.0, term="stim_type", seed=42)
 ```
 
 ## Typed Spec → First-Level Fit
@@ -98,7 +122,7 @@ The estimate returns the effect we injected — the typed contrast is
 ## Closing the Spine
 
 The last arrow — carrying these per-subject `ContrastResult` objects
-into the typed second-level seam and recovering a **group** effect — is
+into the typed second-level (group) step and recovering a **group** effect — is
 shown continuously, with a reference/parity receipt, on the
 **[golden path](golden-path.qmd)**. That page is the proof artifact for
 the whole `fmri_dataset → fmri_lm → contrast → group` claim; this page
@@ -109,11 +133,11 @@ deliberately stops at the first level so each stage stays legible.
 The same dataset/spec contract supports typed engine options, AR
 diagnostics, single-trial estimation, and benchmark fixtures. Low-level
 matrix helpers exist for numerical canaries, but the flagship path stays
-on the typed spine above.
+on the typed workflow above.
 
 ## Next
 
-- [The golden path](golden-path.qmd) — the full spine into group, with a parity receipt
+- [The golden path](golden-path.qmd) — the whole workflow into group, with a parity check
 - [Linear model](linear-model.qmd)
 - [Contrasts](contrasts.qmd)
 - [Group analysis](group-analysis.qmd)

@@ -76,7 +76,7 @@ recovered numbers, follow the **[golden path](golden-path.qmd)**.
 
 ## Next
 
-- [The golden path](golden-path.qmd) — the full spine into group, with a parity receipt
+- [The golden path](golden-path.qmd) — the whole workflow into group, with a parity check
 - [Linear model](linear-model.qmd)
 - [Contrasts](contrasts.qmd)
 - [Overview and workflow](overview-workflow.qmd)

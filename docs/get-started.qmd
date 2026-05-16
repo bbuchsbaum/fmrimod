@@ -44,26 +44,50 @@ spec = hrf("condition", basis="spmg1")
 spec.variables, spec.hrf
 ```
 
-So the result can be *checked*, not just shape-inspected, we simulate
-data with a **known** face−scene effect of `2.0` in five of ten voxels.
-The signal is placed by the *typed* column identity — we ask the model
-which column is `term="condition", level="face"`, never hard-code a
-column name.
+So the result can be *checked* — not just inspected for shape — we use
+test data with a **known** answer: a face−scene effect of `2.0` in five
+of ten voxels, with the other five left as pure noise. A correct model
+must then return ≈ `2.0` in the first five and ≈ `0` in the rest.
+
+::: {.callout-note collapse="true"}
+## How `make_demo_dataset` works (skim — this is test-data plumbing, not the lesson)
+
+It builds the same design `fmri_lm` would (via `compile`, from the
+[design-matrix tutorial](tutorials/design-matrices.qmd)), places a known
+effect on the `face` regressor — found *by name* through the column map,
+never a hard-coded string — then uses fmrimod's own
+[`simulate_bold`](tutorials/simulation.qmd) to turn known betas into a
+noisy BOLD series. No hand-rolled matrix algebra.
 
 ```{python}
-rng = np.random.default_rng(7)
-probe = fm.fmri_lm(spec, fm.fmri_dataset(np.zeros((220, 10)), tr=1.0, events=events))
-face_ix = next(c.index for c in probe.model.design_columns()
-               if c.term == "condition" and c.level == "face")
+from fmrimod.spec import compile as compile_spec
+from fmrimod.design_colmap import design_colmap
+from fmrimod.simulate import simulate_bold
 
-X = np.asarray(probe.model.design_matrix_array(run=0))
-true_beta = np.zeros((X.shape[1], 10))
-true_beta[face_ix, :5] = 2.0
-Y = X @ true_beta + rng.normal(scale=1.5, size=(220, 10))
-dataset = fm.fmri_dataset(Y, tr=1.0, events=events)
+def make_demo_dataset(model_spec, events, effect, term="condition",
+                       n_signal=5, n_voxels=10, noise=1.5, seed=0):
+    sampling = fm.SamplingFrame(blocklens=220, TR=1.0)
+    built, _ = compile_spec(model_spec, data=events, sampling_frame=sampling)
+    face_col = design_colmap(built).query(
+        f"condition == '{term}.face'"
+    ).index[0]
+
+    true_betas = np.zeros((built.design_matrix.shape[1], n_voxels))
+    true_betas[face_col, :n_signal] = effect            # the known effect
+
+    bold = simulate_bold(
+        np.asarray(built.design_matrix), true_betas,
+        noise_sd=noise, n_voxels=n_voxels, rng=np.random.default_rng(seed),
+    )
+    return fm.fmri_dataset(bold, tr=1.0, events=events)
+```
+:::
+
+```{python}
+dataset = make_demo_dataset(spec, events, effect=2.0, seed=7)
 ```
 
-Fit through the canonical first-level seam, then state the hypothesis by
+Fit the first-level model, then state the hypothesis by
 **naming conditions** — not column positions. The recovered estimate
 returns the injected effect.
 
@@ -101,20 +125,20 @@ before fitting.
 
 `fmri_dataset()` binds data to timing and events, `hrf(...)` is the typed
 design spec, `fmri_lm()` fits the public first-level path, and
-`fit.contrast(...)` states the hypothesis by name. This is the same spine
-the flagship parity workflows use:
+`fit.contrast(...)` states the hypothesis by name. This is the same
+workflow the flagship parity checks use:
 
 ```text
 fmri_dataset -> fmri_lm(spec) -> contrast -> group
 ```
 
-The **[golden path](tutorials/golden-path.qmd)** walks this spine
-continuously — first level *into* group — and checks the recovered
+The **[golden path](tutorials/golden-path.qmd)** runs this workflow
+start to finish — first level *into* group — and checks the recovered
 numbers against the R/Nilearn reference on the page.
 
 ## Next Steps
 
-- [Tutorial: the golden path](tutorials/golden-path.qmd) — the full spine, end to end
+- [Tutorial: the golden path](tutorials/golden-path.qmd) — the whole workflow, end to end
 - [Tutorial: overview and workflow](tutorials/overview-workflow.qmd)
 - [Tutorial: design matrices](tutorials/design-matrices.qmd)
 - [Tutorial: linear model](tutorials/linear-model.qmd)

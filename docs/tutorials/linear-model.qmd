@@ -1,6 +1,6 @@
 ---
 title: "Linear model"
-subtitle: "Fit voxel-wise first-level models through the typed fmrimod seam."
+subtitle: "Fit voxel-wise first-level models with the typed fmrimod API."
 jupyter: python3
 execute:
   freeze: auto
@@ -27,22 +27,44 @@ events = pd.DataFrame({
 spec = hrf("condition", basis="spmg1")
 ```
 
-We simulate data with a **known** `face` effect of `2.5` (so a true
-`face − scene` of `2.5`) in five of ten voxels. The signal is placed by
-the *typed* column identity — we ask the compiled model which column is
-`term="condition", level="face"`, never a hand-typed column name.
+We use test data with a **known** `face − scene` effect of `2.5` in five
+of ten voxels, so a correct model must return ≈ `2.5` there and ≈ `0`
+elsewhere.
+
+::: {.callout-note collapse="true"}
+## `make_demo_dataset` (skim — test-data plumbing, not the lesson)
+
+Builds the same design `fmri_lm` would (via `compile`), places a known
+effect on the `face` regressor found *by name* through the column map,
+then uses fmrimod's own [`simulate_bold`](simulation.qmd) to make a
+noisy series.
 
 ```{python}
-rng = np.random.default_rng(5)
-probe = fm.fmri_lm(spec, fm.fmri_dataset(np.zeros((220, 10)), tr=1.0, events=events))
-face_ix = next(c.index for c in probe.model.design_columns()
-               if c.term == "condition" and c.level == "face")
+from fmrimod.spec import compile as compile_spec
+from fmrimod.design_colmap import design_colmap
+from fmrimod.simulate import simulate_bold
 
-X = np.asarray(probe.model.design_matrix_array(run=0))
-true_beta = np.zeros((X.shape[1], 10))
-true_beta[face_ix, :5] = 2.5
-Y = X @ true_beta + rng.normal(scale=1.5, size=(220, 10))
-dataset = fm.fmri_dataset(Y, tr=1.0, events=events)
+def make_demo_dataset(model_spec, events, effect, term="condition",
+                       n_signal=5, n_voxels=10, noise=1.5, seed=0):
+    sampling = fm.SamplingFrame(blocklens=220, TR=1.0)
+    built, _ = compile_spec(model_spec, data=events, sampling_frame=sampling)
+    face_col = design_colmap(built).query(
+        f"condition == '{term}.face'"
+    ).index[0]
+
+    true_betas = np.zeros((built.design_matrix.shape[1], n_voxels))
+    true_betas[face_col, :n_signal] = effect            # the known effect
+
+    bold = simulate_bold(
+        np.asarray(built.design_matrix), true_betas,
+        noise_sd=noise, n_voxels=n_voxels, rng=np.random.default_rng(seed),
+    )
+    return fm.fmri_dataset(bold, tr=1.0, events=events)
+```
+:::
+
+```{python}
+dataset = make_demo_dataset(spec, events, effect=2.5, seed=5)
 ```
 
 ## Fit the First-Level Model
@@ -83,22 +105,21 @@ pd.DataFrame({
 })  # voxels 0–4 recover ≈ 2.5; voxels 5–9 are null
 ```
 
-## Matrix Helper for Numerical Canaries
+## Low-Level Matrix Helper
 
 `fmri_ols_fit()` solves a design/data pair directly. It returns a plain
-dict and bypasses the typed seam — keep it for tests and benchmarks that
-deliberately want a low-level numerical canary, not for user-facing
-analyses.
+dict and bypasses the typed API — keep it for tests and benchmarks that
+deliberately want a low-level cross-check, not for user-facing analyses.
 
 ```{python}
 X = np.asarray(fit.model.design_matrix_array(run=0))
 matrix_fit = fm.fmri_ols_fit(dataset.get_all_data(), X)
-# Same recovered face effect as the typed seam — the canary agrees.
-matrix_fit["beta"][face_ix, :5].round(3)
+# The low-level solver and the typed fit return identical betas.
+np.allclose(matrix_fit["beta"], fit.betas)
 ```
 
 ## Next
 
-- [The golden path](golden-path.qmd) — the full spine into group, with a parity receipt
+- [The golden path](golden-path.qmd) — the whole workflow into group, with a parity check
 - [Contrasts](contrasts.qmd)
 - [Sketched and AR-aware models](sketched-ar-models.qmd)
