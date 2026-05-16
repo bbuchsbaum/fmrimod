@@ -1,9 +1,10 @@
 """SPM HRF implementations with analytic derivatives.
 
 Typed dataclass subclasses of :class:`HRF`. Each SPMG kind exposes its
-double-gamma parameters as named fields (``p1``, ``p2``, ``a1``). The
-inherited ``params`` / ``param_names`` mirror is kept as a transition
-surface; evaluation reads the typed fields directly.
+double-gamma parameters as named fields (``p1``, ``p2``, ``a1``);
+evaluation reads those typed fields directly. The old inherited
+``params`` / ``param_names`` dict mirror was removed by bead
+``bd-01KRGCZJ6JAA4BKRTNQ91P2PE5``.
 """
 
 from __future__ import annotations

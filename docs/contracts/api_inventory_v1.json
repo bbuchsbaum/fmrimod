@@ -93,7 +93,7 @@
       "name": "HRF",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.hrf.core",
-      "runtime_signature": "(name: 'str', nbasis: 'int' = 1, span: 'float' = 24.0, params: 'Dict[str, HrfParamValue]' = <factory>, param_names: 'Optional[list[str]]' = None) -> None",
+      "runtime_signature": "(name: 'str', nbasis: 'int' = 1, span: 'float' = 24.0) -> None",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"

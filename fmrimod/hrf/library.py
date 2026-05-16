@@ -6,9 +6,9 @@ constants (``GAMMA_HRF``, ``HRF_SPMG1``, ...) are default instances of
 those classes. The ``FunctionHRF`` indirection survives only as the
 adapter for raw callables (see ``as_hrf``).
 
-During the transition window each class still mirrors its typed fields
-into the inherited ``params`` / ``param_names`` for cross-testing
-readers; bead ``bd-01KRGCZJ6JAA4BKRTNQ91P2PE5`` retires that mirror.
+Parameters live exclusively as the typed dataclass fields; the old
+inherited ``params`` / ``param_names`` dict mirror was removed by bead
+``bd-01KRGCZJ6JAA4BKRTNQ91P2PE5``.
 """
 
 from __future__ import annotations
@@ -213,8 +213,6 @@ class LWUHRF(HRF):
         rho: float = 0.35,
         normalize: Literal["none", "height", "area"] = "none",
     ) -> None:
-        self.params = {}
-        self.param_names = None
         self.name = name
         self.nbasis = nbasis
         self.span = span
@@ -408,8 +406,6 @@ class EmpiricalHRF(HRF):
         t_sorted = t_arr[order]
         y_sorted = y_arr[order]
 
-        self.params = {}
-        self.param_names = None
         self.name = name
         self.nbasis = nbasis
         self.span = float(t_sorted[-1]) if span is None else float(span)

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, fields, is_dataclass, replace
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Sequence, Union, cast
+from dataclasses import dataclass, fields, is_dataclass, replace
+from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence, Union, cast
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -14,13 +14,14 @@ if TYPE_CHECKING:
 
 
 HrfParamValue = Union[int, float, str, bool, Sequence[float]]
-"""Value types accepted in :attr:`HRF.params`.
+"""Value type for HRF parameter keyword arguments.
 
-Every HRF subclass populates ``params`` with primitive scalars (kind
-parameters like ``shape``, ``rate``, ``n_basis``), short string flags
-(``method``), boolean toggles, or short numeric sequences (``weights``,
-``times``). The alias names this contract so the signature stays out of
-``Any``-typed territory."""
+Used by the HRF factories (:func:`gen_hrf`, :func:`get_hrf`,
+:func:`make_hrf`) and the SPM helpers to keep ``**kwargs`` parameter
+values (primitive scalars like ``shape``/``rate``/``n_basis``, short
+string flags like ``method``, boolean toggles, or short numeric
+sequences) out of ``Any``-typed territory. HRF parameters themselves
+now live as typed dataclass fields on each subclass, not a dict."""
 
 
 @dataclass
@@ -34,20 +35,15 @@ class HRF(ABC):
         name: Name of the HRF
         nbasis: Number of basis functions
         span: Temporal span in seconds
-        params: Dictionary of HRF parameters
-        param_names: List of parameter names
+
+    Concrete subclasses declare their parameters as typed dataclass
+    fields (e.g. ``GammaHRF.shape``); the type system is the parameter
+    contract — there is no ``params`` dict.
     """
     name: str
     nbasis: int = 1
     span: float = 24.0
-    params: Dict[str, HrfParamValue] = field(default_factory=dict)
-    param_names: Optional[list[str]] = None
-    
-    def __post_init__(self) -> None:
-        """Initialize parameter names from params if not provided."""
-        if self.param_names is None and self.params:
-            self.param_names = list(self.params.keys())
-    
+
     @abstractmethod
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         """Evaluate the HRF at time points t.
@@ -212,9 +208,7 @@ class HRF(ABC):
             return NotImplemented
         return bind_basis(self, other)
 
-    _STR_SKIP_FIELDS = frozenset(
-        {"name", "nbasis", "span", "params", "param_names"}
-    )
+    _STR_SKIP_FIELDS = frozenset({"name", "nbasis", "span"})
 
     def __str__(self) -> str:
         """String representation of HRF.
@@ -413,8 +407,6 @@ class CoefficientHRF(HRF):
                 f"Number of coefficients ({len(coefs)}) must match "
                 f"number of basis functions ({base.nbasis})"
             )
-        self.params = {}
-        self.param_names = None
         self.base = base
         self.coefficients = coefs
         self.name = name or f"{base.name}_combined"
