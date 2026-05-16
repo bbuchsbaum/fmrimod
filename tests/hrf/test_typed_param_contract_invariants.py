@@ -27,9 +27,21 @@ import dataclasses
 import numpy as np
 import pytest
 
-from fmrimod.hrf.core import FunctionHRF, as_hrf
-from fmrimod.hrf.library import GAMMA_HRF, SPM_CANONICAL, GammaHRF
+from fmrimod.hrf.core import FunctionHRF, as_hrf, bind_basis
+from fmrimod.hrf.decorators import block_hrf, lag_hrf
+from fmrimod.hrf.library import (
+    BSPLINE_HRF,
+    GAMMA_HRF,
+    SPM_CANONICAL,
+    EmpiricalHRF,
+    GammaHRF,
+)
 from fmrimod.hrf.normalization import _NormalizedHRF, normalize
+
+try:  # multi-basis SPM kinds (typed-fields render path)
+    from fmrimod.hrf.library import HRF_SPMG2  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - name guard
+    HRF_SPMG2 = None
 
 
 class TestHRFParamsDictRemoved:
@@ -87,3 +99,68 @@ class TestNormalizedHRFRequiredFields:
         assert np.ndim(h.norm_factor) == 0
         t = np.arange(0.0, 24.0, 1.0)
         assert np.all(np.isfinite(h(t)))
+
+
+def _str_contract_cases() -> list[tuple[str, object]]:
+    """One instance per structurally distinct HRF kind.
+
+    Covers single-basis, multi-basis, the HRF-valued-field skip path
+    (decorator ``base`` / composite ``components``), the non-dataclass
+    FunctionHRF adapter, a tuple-field carrier (EmpiricalHRF), and a
+    normalized wrapper.
+    """
+    cases: list[tuple[str, object]] = [
+        ("single_basis", GAMMA_HRF),
+        ("spm_canonical", SPM_CANONICAL),
+        ("function_adapter", as_hrf(lambda t: np.asarray(t), name="fn")),
+        ("tuple_fields", EmpiricalHRF([0, 1, 2, 3], [0.0, 1.0, 0.5, 0.1])),
+        ("decorator_lag", lag_hrf(SPM_CANONICAL, 2.0)),
+        ("decorator_block", block_hrf(SPM_CANONICAL, width=3.0)),
+        ("composite_bind", bind_basis(BSPLINE_HRF, GAMMA_HRF)),
+        ("normalized", normalize(SPM_CANONICAL, "spm")),
+    ]
+    if HRF_SPMG2 is not None:
+        cases.append(("multi_basis", HRF_SPMG2))
+    return cases
+
+
+class TestStrContractAcrossHRFHierarchy:
+    """The Phase-A2 __str__ rewrite touched every subclass's repr.
+
+    Pin the contract hierarchy-wide so a future change to __str__ or to
+    any subclass's fields cannot silently break a specific kind's repr
+    or reintroduce a params/param_names rendering.
+    """
+
+    @pytest.mark.parametrize(
+        "hrf", [c[1] for c in _str_contract_cases()],
+        ids=[c[0] for c in _str_contract_cases()],
+    )
+    def test_str_is_well_formed_and_dictless(self, hrf: object) -> None:
+        s = str(hrf)
+        assert s.startswith("HRF(name='")
+        assert f"nbasis={hrf.nbasis}" in s  # type: ignore[attr-defined]
+        assert "span=" in s
+        assert "params=" not in s
+        assert "param_names=" not in s
+        # repr() delegates to / is consistent with the same contract.
+        assert "params=" not in repr(hrf)
+
+    @pytest.mark.parametrize(
+        "hrf",
+        [
+            lag_hrf(SPM_CANONICAL, 2.0),
+            block_hrf(SPM_CANONICAL, width=3.0),
+            bind_basis(BSPLINE_HRF, GAMMA_HRF),
+        ],
+        ids=["lag", "block", "bind"],
+    )
+    def test_hrf_valued_fields_are_skipped_in_str(self, hrf: object) -> None:
+        # The subtle A2 skip-logic: decorator ``base`` / composite
+        # ``components`` (HRF / tuple-of-HRF valued) must NOT be rendered
+        # (no nested "HRF(name=" beyond the single outer one, no
+        # components= dump).
+        s = str(hrf)
+        assert s.count("HRF(name='") == 1
+        assert "components=" not in s
+        assert "base=" not in s
