@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, cast
 
 import numpy as np
 import pandas as pd
+from numpy.typing import ArrayLike
 
 ALLOWED_FORMATS = ("h5", "nifti", "csv", "fmrilm")
 
@@ -402,6 +403,61 @@ def group_data_from_csv(
             "wide_format": wide_format,
         },
         covariates=covariate_frame,
+    )
+
+
+def group_data_from_arrays(
+    beta: ArrayLike,
+    *,
+    se: Optional[ArrayLike] = None,
+    var: Optional[ArrayLike] = None,
+    subjects: Optional[Sequence[str]] = None,
+    covariates: Optional[pd.DataFrame] = None,
+) -> GroupData:
+    """Build a frozen :class:`GroupData` from in-memory effect-size arrays.
+
+    A typed array boundary that mirrors :func:`group_data_from_csv`: the
+    arrays are validated and lowered into the *same* frozen
+    ``GroupData`` (this delegates to ``group_data_from_csv`` so there is
+    one validation path and the array and CSV entries cannot drift).
+    Callers never assemble the internal dict by hand.
+
+    One feature per call: ``beta`` is a 1-D effect vector over subjects
+    with exactly one of ``se`` or ``var``. Multi-ROI/contrast inputs
+    stay on the CSV/DataFrame path until those pass-throughs land.
+    """
+    beta_arr = np.asarray(beta, dtype=np.float64)
+    if beta_arr.ndim != 1:
+        raise ValueError("'beta' must be a 1-D array (one effect per subject)")
+    if (se is None) == (var is None):
+        raise ValueError("provide exactly one of se= or var=")
+
+    n = int(beta_arr.shape[0])
+    subject_ids = (
+        [f"s{i + 1}" for i in range(n)] if subjects is None else list(subjects)
+    )
+    if len(subject_ids) != n:
+        raise ValueError("'subjects' length must match 'beta' length")
+
+    frame = pd.DataFrame({"subject": subject_ids, "beta": beta_arr})
+    if se is not None:
+        se_arr = np.asarray(se, dtype=np.float64)
+        if se_arr.shape != beta_arr.shape:
+            raise ValueError("'se' must have the same shape as 'beta'")
+        frame["se"] = se_arr
+        effect_cols = {"beta": "beta", "se": "se"}
+    else:
+        var_arr = np.asarray(var, dtype=np.float64)
+        if var_arr.shape != beta_arr.shape:
+            raise ValueError("'var' must have the same shape as 'beta'")
+        frame["var"] = var_arr
+        effect_cols = {"beta": "beta", "var": "var"}
+
+    return group_data_from_csv(
+        frame,
+        effect_cols=effect_cols,
+        subject_col="subject",
+        covariates=covariates,
     )
 
 
