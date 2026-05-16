@@ -1,0 +1,73 @@
+{
+  "caveats": [],
+  "column_alignment": [],
+  "deltas": {
+    "effect_audio_gt_visual": {
+      "failed_gates": [],
+      "gate": "allclose+pearson+spearman",
+      "mae": 0.0,
+      "max_abs": 0.0,
+      "name": "effect_audio_gt_visual",
+      "passes": true,
+      "pearson_r": 0.9999999999999998,
+      "rank_candidate": 1,
+      "rank_reference": 1,
+      "scale": 1.0,
+      "shape": [
+        2048
+      ],
+      "spearman_rho": 0.9999999999999998,
+      "tolerance": {
+        "allow_rescale": false,
+        "atol": 1e-09,
+        "check_allclose": true,
+        "max_abs": null,
+        "max_mae": null,
+        "min_pearson": 0.999,
+        "min_spearman": 0.999,
+        "rtol": 1e-06
+      }
+    },
+    "t_audio_gt_visual": {
+      "failed_gates": [],
+      "gate": "allclose+pearson+spearman",
+      "mae": 9.64276389503207e-12,
+      "max_abs": 3.0546054574642767e-10,
+      "name": "t_audio_gt_visual",
+      "passes": true,
+      "pearson_r": 1.0,
+      "rank_candidate": 1,
+      "rank_reference": 1,
+      "scale": 1.0,
+      "shape": [
+        2048
+      ],
+      "spearman_rho": 1.0,
+      "tolerance": {
+        "allow_rescale": false,
+        "atol": 1e-09,
+        "check_allclose": true,
+        "max_abs": null,
+        "max_mae": null,
+        "min_pearson": 0.999,
+        "min_spearman": 0.999,
+        "rtol": 1e-06
+      }
+    }
+  },
+  "name": "tier_a_localizer_audio_gt_visual",
+  "status": "pass",
+  "timings": {
+    "seconds": 1.1200084990000003,
+    "stages": {
+      "fmrimod_contrast_seconds": 0.0013190829999998321,
+      "fmrimod_dataset_seconds": 0.012205457999999947,
+      "fmrimod_design_seconds": 8.175000000010257e-05,
+      "fmrimod_fit_seconds": 0.03179091699999992,
+      "fmrimod_reference_design_seconds": 0.2818261249999998,
+      "load_inputs_seconds": 0.35658429100000033,
+      "nilearn_pipeline_seconds": 0.4362008750000004
+    },
+    "status": "recorded"
+  }
+}

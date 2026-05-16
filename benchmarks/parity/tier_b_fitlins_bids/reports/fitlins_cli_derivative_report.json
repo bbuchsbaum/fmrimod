@@ -1,0 +1,161 @@
+{
+  "ar_config": {
+    "coefficient_bin_width": 0.01,
+    "exact_first_ar1": false,
+    "iter_gls": 1,
+    "voxelwise": true
+  },
+  "caveats": [],
+  "deltas": [
+    {
+      "caveat_id": null,
+      "gate": "max_abs+pearson",
+      "mae": 4.408554751774337e-06,
+      "max_abs": 1.0728299951967557e-05,
+      "name": "node-run/sub-01/sub-01_run-01_contrast-eatingVsBaseline_stat-effect_statmap.nii.gz",
+      "passes": true,
+      "pearson_r": 0.9999999707086595
+    },
+    {
+      "caveat_id": null,
+      "gate": "max_abs+pearson",
+      "mae": 4.02295920355879e-05,
+      "max_abs": 0.00010605617864456462,
+      "name": "node-run/sub-01/sub-01_run-01_contrast-eatingVsBaseline_stat-t_statmap.nii.gz",
+      "passes": true,
+      "pearson_r": 0.9999999868147277
+    },
+    {
+      "caveat_id": null,
+      "gate": "max_abs",
+      "mae": 9.712919320161861e-08,
+      "max_abs": 2.5998427292603377e-07,
+      "name": "node-run/sub-01/sub-01_run-01_contrast-eatingVsBaseline_stat-variance_statmap.nii.gz",
+      "passes": true,
+      "pearson_r": 0.9999999909899199
+    },
+    {
+      "caveat_id": null,
+      "gate": "max_abs+pearson",
+      "mae": 5.11869799234031e-06,
+      "max_abs": 1.4844931834234742e-05,
+      "name": "node-run/sub-01/sub-01_run-01_contrast-icecreamGtCake_stat-effect_statmap.nii.gz",
+      "passes": true,
+      "pearson_r": 0.9999999665237328
+    },
+    {
+      "caveat_id": null,
+      "gate": "max_abs+pearson",
+      "mae": 2.048061942195579e-05,
+      "max_abs": 5.60934572613192e-05,
+      "name": "node-run/sub-01/sub-01_run-01_contrast-icecreamGtCake_stat-t_statmap.nii.gz",
+      "passes": true,
+      "pearson_r": 0.9999999802513355
+    },
+    {
+      "caveat_id": null,
+      "gate": "max_abs",
+      "mae": 2.742534361539607e-07,
+      "max_abs": 7.394234755597751e-07,
+      "name": "node-run/sub-01/sub-01_run-01_contrast-icecreamGtCake_stat-variance_statmap.nii.gz",
+      "passes": true,
+      "pearson_r": 0.9999999926179426
+    }
+  ],
+  "design_columns": [
+    "trial_type.ice_cream",
+    "trial_type.cake",
+    "food_sweats",
+    "intercept"
+  ],
+  "fitlins_command": [
+    "uv",
+    "run",
+    "--project",
+    "/Users/bbuchsbaum/code/pycode/fmrimod/vendor/fitlins",
+    "python",
+    "-c",
+    "import sys;import nipype.utils.profiler as profiler;profiler.get_system_total_memory_gb=lambda:4.0;import nipype.pipeline.plugins.multiproc as multiproc;import nipype.pipeline.plugins as plugins;from nipype.pipeline.plugins.linear import LinearPlugin;multiproc.get_system_total_memory_gb=lambda:4.0;multiproc.MultiProcPlugin=LinearPlugin;plugins.MultiProcPlugin=LinearPlugin;from fitlins.cli.run import main;sys.argv=['fitlins']+sys.argv[1:];raise SystemExit(main())",
+    "/var/folders/9h/nkjq6vss7mqdl4ck7q1hd8ph0000gp/T/fmrimod-fitlins-cli-3gsfw9i3/bids",
+    "/var/folders/9h/nkjq6vss7mqdl4ck7q1hd8ph0000gp/T/fmrimod-fitlins-cli-3gsfw9i3/fitlins-out",
+    "run",
+    "-d",
+    "/var/folders/9h/nkjq6vss7mqdl4ck7q1hd8ph0000gp/T/fmrimod-fitlins-cli-3gsfw9i3/bids/derivatives/fmriprep",
+    "-m",
+    "/var/folders/9h/nkjq6vss7mqdl4ck7q1hd8ph0000gp/T/fmrimod-fitlins-cli-3gsfw9i3/bids/model-junkfood_smdl.json",
+    "-w",
+    "/var/folders/9h/nkjq6vss7mqdl4ck7q1hd8ph0000gp/T/fmrimod-fitlins-cli-3gsfw9i3/fitlins-work",
+    "--n-cpus",
+    "1",
+    "--mem-gb",
+    "4",
+    "--estimator",
+    "nilearn",
+    "--space",
+    "T1w"
+  ],
+  "fitlins_output_files": [
+    "dataset_description.json",
+    "node-run/reports/sub-01/figures/run-01/sub-01_run-01_contrast-eatingVsBaseline_stat-t_ortho.png",
+    "node-run/reports/sub-01/figures/run-01/sub-01_run-01_contrast-icecreamGtCake_stat-t_ortho.png",
+    "node-run/reports/sub-01/figures/run-01/sub-01_task-eating_run-01_contrasts.svg",
+    "node-run/reports/sub-01/figures/run-01/sub-01_task-eating_run-01_corr.svg",
+    "node-run/reports/sub-01/figures/run-01/sub-01_task-eating_run-01_design.svg",
+    "node-run/sub-01/sub-01_run-01_contrast-eatingVsBaseline_stat-effect_statmap.nii.gz",
+    "node-run/sub-01/sub-01_run-01_contrast-eatingVsBaseline_stat-p_statmap.nii.gz",
+    "node-run/sub-01/sub-01_run-01_contrast-eatingVsBaseline_stat-t_statmap.nii.gz",
+    "node-run/sub-01/sub-01_run-01_contrast-eatingVsBaseline_stat-variance_statmap.nii.gz",
+    "node-run/sub-01/sub-01_run-01_contrast-eatingVsBaseline_stat-z_statmap.nii.gz",
+    "node-run/sub-01/sub-01_run-01_contrast-icecreamGtCake_stat-effect_statmap.nii.gz",
+    "node-run/sub-01/sub-01_run-01_contrast-icecreamGtCake_stat-p_statmap.nii.gz",
+    "node-run/sub-01/sub-01_run-01_contrast-icecreamGtCake_stat-t_statmap.nii.gz",
+    "node-run/sub-01/sub-01_run-01_contrast-icecreamGtCake_stat-variance_statmap.nii.gz",
+    "node-run/sub-01/sub-01_run-01_contrast-icecreamGtCake_stat-z_statmap.nii.gz",
+    "node-run/sub-01/sub-01_task-eating_run-01_design.tsv",
+    "node-run/sub-01/sub-01_task-eating_run-01_stat-logLikelihood_statmap.nii.gz",
+    "node-run/sub-01/sub-01_task-eating_run-01_stat-rSquare_statmap.nii.gz",
+    "reports/model-junkfoodModel001.html"
+  ],
+  "fitlins_seconds": 11.504042083,
+  "fmrimod_output_files": [
+    "node-run/sub-01/sub-01_run-01_contrast-eatingVsBaseline_stat-effect_statmap.nii.gz",
+    "node-run/sub-01/sub-01_run-01_contrast-eatingVsBaseline_stat-t_statmap.nii.gz",
+    "node-run/sub-01/sub-01_run-01_contrast-eatingVsBaseline_stat-variance_statmap.nii.gz",
+    "node-run/sub-01/sub-01_run-01_contrast-icecreamGtCake_stat-effect_statmap.nii.gz",
+    "node-run/sub-01/sub-01_run-01_contrast-icecreamGtCake_stat-t_statmap.nii.gz",
+    "node-run/sub-01/sub-01_run-01_contrast-icecreamGtCake_stat-variance_statmap.nii.gz"
+  ],
+  "scope_limitations": [
+    {
+      "omitted_measure": "stat-p contrast statmap",
+      "owner_or_followup": "tier_b_fitlins_bids#scope-extension-p-z",
+      "quantity": "p_value_map",
+      "reason": "FitLins computes inferential p-value maps as a separate output; fmrimod's run-level path produces effect/variance/t and leaves inferential p to higher-level analysis."
+    },
+    {
+      "omitted_measure": "stat-z contrast statmap",
+      "owner_or_followup": "tier_b_fitlins_bids#scope-extension-p-z",
+      "quantity": "z_value_map",
+      "reason": "FitLins emits z-stat maps derived from t and df; fmrimod exposes t and df separately rather than a precomputed z map."
+    },
+    {
+      "omitted_measure": "FitLins HTML/JSON narrative report",
+      "owner_or_followup": "tier_b_fitlins_bids#scope-out-narrative-report",
+      "quantity": "fitlins_html_report",
+      "reason": "FitLins ships a per-run human-readable narrative report; fmrimod's parity surface is the typed result objects, not a narrative document."
+    },
+    {
+      "omitted_measure": "stat-rSquare model-fit map",
+      "owner_or_followup": "tier_b_fitlins_bids#scope-extension-rsquared",
+      "quantity": "r_squared_map",
+      "reason": "FitLins emits an rSquare model-fit map; fmrimod does not expose run-level R^2 in the GLM result object yet."
+    },
+    {
+      "omitted_measure": "stat-loglikelihood map",
+      "owner_or_followup": "tier_b_fitlins_bids#scope-extension-loglikelihood",
+      "quantity": "log_likelihood_map",
+      "reason": "FitLins emits a per-voxel log-likelihood map; fmrimod's GLM result does not currently carry log-likelihood."
+    }
+  ],
+  "status": "pass"
+}
