@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 import json
-import re
 import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 
+from benchmarks.parity.caveats_contract import (
+    caveat_index_rows,
+    live_caveat_ids,
+)
+
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "benchmarks" / "parity" / "proof_artifacts.json"
-CAVEATS = ROOT / "docs" / "contracts" / "CAVEATS.md"
 
 EVIDENCE_LEVELS = {
     "numerical_canary",
@@ -62,58 +65,6 @@ def _has_numeric_timing_payload(timings: object) -> bool:
         isinstance(value, (int, float)) and not isinstance(value, bool)
         for value in stages.values()
     )
-
-
-def _walk_caveat_ids(value: object) -> set[str]:
-    caveat_ids: set[str] = set()
-    if isinstance(value, dict):
-        caveat_id = value.get("caveat_id")
-        if isinstance(caveat_id, str) and caveat_id:
-            caveat_ids.add(caveat_id)
-        for child in value.values():
-            caveat_ids.update(_walk_caveat_ids(child))
-    elif isinstance(value, list):
-        for child in value:
-            caveat_ids.update(_walk_caveat_ids(child))
-    return caveat_ids
-
-
-def _report_caveat_ids() -> set[str]:
-    caveat_ids: set[str] = set()
-    for path in (ROOT / "benchmarks" / "parity").glob("**/*.json"):
-        if not ({"reports", "reports_public"} & set(path.parts)):
-            continue
-        caveat_ids.update(_walk_caveat_ids(json.loads(path.read_text())))
-    return caveat_ids
-
-
-def _declared_caveat_ids() -> set[str]:
-    """Caveats declared by any artifact in the manifest.
-
-    The manifest is the in-repo source of truth for which caveats an artifact
-    *commits to*; generated reports prove they still fire. The caveats index
-    must therefore agree with the union of declarations and realised reports
-    so that index drift is caught even when a workflow's report has not yet
-    been regenerated on this checkout.
-    """
-    caveat_ids: set[str] = set()
-    for item in _load_manifest()["artifacts"]:
-        for caveat in item.get("caveats", []):
-            if isinstance(caveat, str) and caveat:
-                caveat_ids.add(caveat)
-    return caveat_ids
-
-
-def _caveat_rows() -> dict[str, str]:
-    rows: dict[str, str] = {}
-    row_pattern = re.compile(
-        r"^\| `(?P<caveat>[^`]+)` \| .* \| `(?P<owner>bd-[^`]+)` \|"
-    )
-    for line in CAVEATS.read_text().splitlines():
-        match = row_pattern.match(line)
-        if match:
-            rows[match.group("caveat")] = match.group("owner")
-    return rows
 
 
 def test_all_parity_workflow_dirs_are_classified() -> None:
@@ -302,19 +253,20 @@ def test_canaries_name_the_public_workflow_that_should_replace_them() -> None:
 
 
 def test_caveats_index_matches_generated_report_caveat_ids() -> None:
-    # A caveat is "live" if any artifact declares it in the manifest or any
-    # generated report still emits it. The index must match that union: an
-    # extra row signals stale documentation; a missing row signals that a
-    # workflow emits an undocumented caveat.
-    live_caveats = _declared_caveat_ids() | _report_caveat_ids()
-    assert set(_caveat_rows()) == live_caveats
+    # A caveat is "live" if a manifest artifact declares it, a generated
+    # report emits it, or it is explicitly classed no-report by design
+    # (manifest ``no_report_caveats`` — a documented, owned caveat whose
+    # typed path raises so no workflow can honestly emit it). The index
+    # must match that set exactly: an un-classed extra row still signals
+    # stale documentation; a missing row signals an undocumented caveat.
+    assert set(caveat_index_rows(ROOT)) == live_caveat_ids(ROOT)
 
 
 def test_caveats_index_owners_are_live_mote_items() -> None:
     if shutil.which("mote") is None:
         pytest.skip("mote CLI not available")
 
-    for caveat_id, owner in _caveat_rows().items():
+    for caveat_id, owner in caveat_index_rows(ROOT).items():
         result = subprocess.run(
             ["mote", "show", owner],
             cwd=ROOT,

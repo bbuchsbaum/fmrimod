@@ -1,5 +1,6 @@
 {
   "schema_version": "parity-proof-artifacts/v1",
+  "no_report_caveats": [],
   "artifacts": [
     {
       "benchmark_id": "tier_a_f_confound_drift",
