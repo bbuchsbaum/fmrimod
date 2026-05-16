@@ -162,8 +162,7 @@ class TestBasisGenerators:
         assert isinstance(hrf, HRF)
         assert hrf.nbasis == N
         assert hrf.span == span
-        assert hrf.params["n_basis"] == N
-        assert hrf.params["degree"] == degree
+        assert hrf.degree == degree
 
         # Test evaluation
         t = np.arange(0, span, 0.5)
@@ -184,7 +183,6 @@ class TestBasisGenerators:
         assert isinstance(hrf, HRF)
         assert hrf.nbasis == N
         assert hrf.span == span
-        assert hrf.params["n_basis"] == N
 
         # Test evaluation
         t = np.arange(0, span, 0.5)

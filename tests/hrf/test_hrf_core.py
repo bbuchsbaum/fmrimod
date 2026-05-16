@@ -24,8 +24,11 @@ class TestHRFBase:
         assert SPM_CANONICAL.name == "SPMG1"
         assert SPM_CANONICAL.nbasis == 1
         assert SPM_CANONICAL.span == 24.0
-        assert SPM_CANONICAL.param_names == ["p1", "p2", "a1"]
-        assert SPM_CANONICAL.params == {"p1": 5.0, "p2": 15.0, "a1": 0.0833}
+        assert (SPM_CANONICAL.p1, SPM_CANONICAL.p2, SPM_CANONICAL.a1) == (
+            5.0,
+            15.0,
+            0.0833,
+        )
     
     def test_spm_canonical_evaluation(self, time_grid):
         """Test SPM canonical HRF evaluation."""
@@ -68,8 +71,7 @@ class TestHRFBase:
     def test_gamma_hrf(self, time_grid):
         """Test Gamma HRF."""
         assert GAMMA_HRF.name == "gamma"
-        assert GAMMA_HRF.param_names == ["shape", "rate"]
-        
+
         result = GAMMA_HRF(time_grid)
         assert result.shape == time_grid.shape
         assert np.all(result >= 0)  # Gamma should be non-negative
@@ -77,8 +79,7 @@ class TestHRFBase:
     def test_gaussian_hrf(self, time_grid):
         """Test Gaussian HRF."""
         assert GAUSSIAN_HRF.name == "gaussian"
-        assert GAUSSIAN_HRF.param_names == ["mean", "sd"]
-        
+
         result = GAUSSIAN_HRF(time_grid)
         assert result.shape == time_grid.shape
         assert np.all(result >= 0)  # Gaussian PDF is non-negative
@@ -160,20 +161,18 @@ class TestSPMGTypedFields:
         assert hrf.p1 == 6.0
         assert hrf.p2 == 14.0
         assert hrf.a1 == 0.05
-        # Back-compat: params dict mirrors the typed fields during transition.
-        assert hrf.params == {"p1": 6.0, "p2": 14.0, "a1": 0.05}
 
     def test_spmg2_typed_fields_and_call_uses_them(self):
         from fmrimod.hrf.spm_hrf import SPMG2_HRF
 
         hrf = SPMG2_HRF(p1=6.0)
         assert hrf.p1 == 6.0
-        # Mutating params dict must not change the basis: __call__ reads typed
-        # fields, not the dict.
-        hrf.params["p1"] = 99.0
-        result_default_p1 = SPMG2_HRF(p1=6.0)(np.arange(0, 24, 1.0))
-        result_mutated_dict = hrf(np.arange(0, 24, 1.0))
-        assert np.allclose(result_default_p1, result_mutated_dict)
+        # __call__ is driven by the typed p1 field (there is no mutable
+        # params dict): same p1 -> same basis, different p1 -> different.
+        same = SPMG2_HRF(p1=6.0)(np.arange(0, 24, 1.0))
+        different = SPMG2_HRF(p1=9.0)(np.arange(0, 24, 1.0))
+        assert np.allclose(hrf(np.arange(0, 24, 1.0)), same)
+        assert not np.allclose(same, different)
 
     def test_spmg3_typed_fields(self):
         from fmrimod.hrf.spm_hrf import SPMG3_HRF
@@ -198,7 +197,6 @@ class TestBasisHRFTypedFields:
         hrf = GammaHRF(shape=8.0, rate=1.5)
         assert hrf.shape == 8.0
         assert hrf.rate == 1.5
-        assert hrf.params == {"shape": 8.0, "rate": 1.5}
 
     def test_gaussian_typed_fields(self):
         from fmrimod.hrf.library import GaussianHRF
@@ -234,8 +232,8 @@ class TestBasisHRFTypedFields:
         assert hrf.sigma == 3.0
         assert hrf.rho == 0.4
         assert isinstance(hrf.normalize("unit_peak"), _NormalizedHRF)
-        # __call__ reads typed fields, not the back-compat params mirror.
-        hrf.params["tau"] = -999
+        # __call__ is driven by the typed tau/sigma/rho fields: an
+        # independently constructed LWUHRF with the same fields matches.
         ref = LWUHRF(tau=7.0, sigma=3.0, rho=0.4)(np.arange(0, 30, 1.0))
         assert np.allclose(hrf(np.arange(0, 30, 1.0)), ref)
 
@@ -406,9 +404,7 @@ class TestAsHRF:
         assert hrf_obj.name == "test_sq"
         assert hrf_obj.nbasis == 1
         assert hrf_obj.span == 10
-        assert hrf_obj.param_names == ["power"]
-        assert hrf_obj.params == {"power": 2}
-        
+
         # Test evaluation
         assert hrf_obj(5) == 25
         assert np.array_equal(hrf_obj(np.array([1, 2, 3])), np.array([1, 4, 9]))
@@ -422,8 +418,6 @@ class TestAsHRF:
         assert hrf_obj.name == "my_func"
         assert hrf_obj.nbasis == 1
         assert hrf_obj.span == 24.0
-        assert hrf_obj.params == {}
-        assert hrf_obj.param_names is None
     
     def test_multi_basis_function(self):
         """Test as_hrf with multi-basis function."""

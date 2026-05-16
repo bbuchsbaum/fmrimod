@@ -39,7 +39,7 @@ class TestLagHRF:
         assert lagged.nbasis == SPM_CANONICAL.nbasis
         assert lagged.span == SPM_CANONICAL.span + lag_amount
         assert "_lag(2.0)" in lagged.name
-        assert lagged.params['_lag'] == lag_amount
+        assert lagged.lag == lag_amount
         
         # Check function evaluation
         t = time_grid
@@ -113,7 +113,7 @@ class TestBlockHRF:
         assert blocked.nbasis == SPM_CANONICAL.nbasis
         assert blocked.span == SPM_CANONICAL.span + width
         assert "_block(w=3.0)" in blocked.name
-        assert blocked.params['_width'] == width
+        assert blocked.width == width
     
     def test_block_hrf_increases_response(self):
         """Test that blocking increases response magnitude."""
@@ -206,7 +206,7 @@ class TestNormalizePerBasis:
         
         # Check attributes
         assert "[norm=" in norm_hrf.name
-        assert norm_hrf.params['_normalized'] == True
+        assert norm_hrf.norm_mode is not None
         
         # Check peak is approximately 1
         t = np.arange(0, 20, 0.1)

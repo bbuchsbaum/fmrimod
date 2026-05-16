@@ -66,7 +66,7 @@ class TestHRFRegistry:
         hrf = get_hrf("bspline", n_basis=7, degree=2)
 
         assert hrf.nbasis == 7
-        assert hrf.params["degree"] == 2
+        assert hrf.degree == 2
 
     def test_hrf_dispatch_has_no_parallel_registry(self):
         """Compatibility dispatch must delegate to the canonical registry."""
