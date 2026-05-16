@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, is_dataclass, replace
+from dataclasses import dataclass, field, fields, is_dataclass, replace
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Sequence, Union, cast
 
 import numpy as np
@@ -212,12 +212,32 @@ class HRF(ABC):
             return NotImplemented
         return bind_basis(self, other)
 
+    _STR_SKIP_FIELDS = frozenset(
+        {"name", "nbasis", "span", "params", "param_names"}
+    )
+
     def __str__(self) -> str:
-        """String representation of HRF."""
-        params_str = ""
-        if self.params:
-            param_items = [f"{k}={v}" for k, v in self.params.items()]
-            params_str = f", {', '.join(param_items)}"
+        """String representation of HRF.
+
+        Parameter fields are read from the typed dataclass fields of the
+        concrete subclass (the type system is the parameter contract),
+        not a back-compat ``params`` dict. Base identity fields and
+        fields that hold HRF instances (decorator ``base`` /
+        ``components``) are skipped to keep the rendering flat.
+        """
+        param_items: list[str] = []
+        for f in fields(self):
+            if f.name in self._STR_SKIP_FIELDS:
+                continue
+            value = getattr(self, f.name, None)
+            if isinstance(value, HRF):
+                continue
+            if isinstance(value, (tuple, list)) and any(
+                isinstance(item, HRF) for item in value
+            ):
+                continue
+            param_items.append(f"{f.name}={value}")
+        params_str = f", {', '.join(param_items)}" if param_items else ""
         return f"HRF(name='{self.name}', nbasis={self.nbasis}, span={self.span}{params_str})"
 
     def __repr__(self) -> str:
