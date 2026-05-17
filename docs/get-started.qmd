@@ -49,42 +49,20 @@ test data with a **known** answer: a face−scene effect of `2.0` in five
 of ten voxels, with the other five left as pure noise. A correct model
 must then return ≈ `2.0` in the first five and ≈ `0` in the rest.
 
-::: {.callout-note collapse="true"}
-## How `make_demo_dataset` works (skim — this is test-data plumbing, not the lesson)
-
-It builds the same design `fmri_lm` would (via `compile`, from the
-[design-matrix tutorial](tutorials/design-matrices.qmd)), places a known
-effect on the `face` regressor — found *by name* through the column map,
-never a hard-coded string — then uses fmrimod's own
-[`simulate_bold`](tutorials/simulation.qmd) to turn known betas into a
-noisy BOLD series. No hand-rolled matrix algebra.
+The dataset is built by `dataset_with_effect` — a tutorial-support
+helper that places the known effect on the column the **typed
+`condition(...)` object resolves to**, the same object the contrast
+below uses, never a rendered-name string lookup. No hand-rolled matrix
+algebra.
 
 ```{python}
-from fmrimod.spec import compile as compile_spec
-from fmrimod.design_colmap import design_colmap
-from fmrimod.simulate import simulate_bold
+from fmrimod.simulate.demo import dataset_with_effect
 
-def make_demo_dataset(model_spec, events, effect, term="condition",
-                       n_signal=5, n_voxels=10, noise=1.5, seed=0):
-    sampling = fm.SamplingFrame(blocklens=220, TR=1.0)
-    built, _ = compile_spec(model_spec, data=events, sampling_frame=sampling)
-    face_col = design_colmap(built).query(
-        f"condition == '{term}.face'"
-    ).index[0]
-
-    true_betas = np.zeros((built.design_matrix.shape[1], n_voxels))
-    true_betas[face_col, :n_signal] = effect            # the known effect
-
-    bold = simulate_bold(
-        np.asarray(built.design_matrix), true_betas,
-        noise_sd=noise, n_voxels=n_voxels, rng=np.random.default_rng(seed),
-    )
-    return fm.fmri_dataset(bold, tr=1.0, events=events)
-```
-:::
-
-```{python}
-dataset = make_demo_dataset(spec, events, effect=2.0, seed=7)
+sampling = fm.SamplingFrame(blocklens=220, TR=1.0)
+dataset = dataset_with_effect(
+    spec, events, on=condition("face", term="condition"),
+    effect=2.0, sampling_frame=sampling, seed=7,
+)
 ```
 
 Fit the first-level model, then state the hypothesis by

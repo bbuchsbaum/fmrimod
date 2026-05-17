@@ -48,37 +48,16 @@ events = pd.DataFrame({
 })
 ```
 
-::: {.callout-note collapse="true"}
-## `make_demo_dataset` (skim — test-data plumbing, not the lesson)
-
-Builds the same design `fmri_lm` would (via `compile`), places a known
-effect on the `face` regressor found *by name* through the column map,
-then uses fmrimod's own [`simulate_bold`](simulation.qmd) to make a
-noisy series. The same helper appears in [get started](../get-started.qmd).
+The dataset is built by `dataset_with_effect` — a tutorial-support
+helper that places the known effect on the column the **typed
+`condition(...)` object resolves to**, the same object the contrast
+below uses, never a rendered-name string lookup.
 
 ```{python}
-from fmrimod.spec import compile as compile_spec
-from fmrimod.design_colmap import design_colmap
-from fmrimod.simulate import simulate_bold
+from fmrimod.simulate.demo import dataset_with_effect
 
-def make_demo_dataset(model_spec, events, effect, term="condition",
-                       n_signal=5, n_voxels=10, noise=1.5, seed=0):
-    sampling = fm.SamplingFrame(blocklens=220, TR=1.0)
-    built, _ = compile_spec(model_spec, data=events, sampling_frame=sampling)
-    face_col = design_colmap(built).query(
-        f"condition == '{term}.face'"
-    ).index[0]
-
-    true_betas = np.zeros((built.design_matrix.shape[1], n_voxels))
-    true_betas[face_col, :n_signal] = effect            # the known effect
-
-    bold = simulate_bold(
-        np.asarray(built.design_matrix), true_betas,
-        noise_sd=noise, n_voxels=n_voxels, rng=np.random.default_rng(seed),
-    )
-    return fm.fmri_dataset(bold, tr=1.0, events=events)
+sampling = fm.SamplingFrame(blocklens=220, TR=1.0)
 ```
-:::
 
 ## Stage 1–3: dataset → fit → typed contrast
 
@@ -88,7 +67,10 @@ conditions**. The recovered estimate returns the injected
 is *right*, not merely runnable.
 
 ```{python}
-fit = fm.fmri_lm(spec, make_demo_dataset(spec, events, effect=2.0, seed=202))
+fit = fm.fmri_lm(spec, dataset_with_effect(
+    spec, events, on=condition("face", term="condition"),
+    effect=2.0, sampling_frame=sampling, seed=202,
+))
 con = fit.contrast(
     condition("face", term="condition") - condition("scene", term="condition"),
     name="face_minus_scene",
@@ -114,7 +96,10 @@ subject_effect = master.normal(2.0, 0.6, N_SUB)
 
 per_subject = {
     f"sub-{i:02d}": fm.fmri_lm(
-        spec, make_demo_dataset(spec, events, effect=subject_effect[i], seed=200 + i)
+        spec, dataset_with_effect(
+            spec, events, on=condition("face", term="condition"),
+            effect=subject_effect[i], sampling_frame=sampling, seed=200 + i,
+        )
     ).contrast(
         condition("face", term="condition") - condition("scene", term="condition"),
         name="face_minus_scene",
