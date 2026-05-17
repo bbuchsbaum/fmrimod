@@ -1,0 +1,120 @@
+---
+title: "BIDS and result IO"
+subtitle: "Translate BIDS Stats Models and keep image writes at the boundary."
+jupyter: python3
+execute:
+  freeze: auto
+---
+
+The BIDS and IO modules sit at the edges of an analysis: one reads an
+external description of a model (a BIDS Stats Model) and turns it into
+fmrimod objects you can fit; the other writes fitted results back out as
+files. Everything in between is the ordinary modeling workflow — the
+file formats stay at the boundary and never leak into the model.
+
+## Translate a Run-level BIDS Stats Model
+
+`translate_run_node` converts a BIDS Stats Model node into a typed model spec,
+realized event and baseline models, and semantic contrast artifacts. The model
+below is intentionally tiny but uses the same shape as a FitLins-style run
+node.
+
+```{python}
+import numpy as np
+import pandas as pd
+
+import fmrimod as fm
+from fmrimod.bids import StatsModelContrast, translate_run_node
+
+stats_model = {
+    "Name": "tiny_bids_stats_model",
+    "BIDSModelVersion": "1.0.0",
+    "Nodes": [{
+        "Level": "run",
+        "Transformations": [
+            {"Name": "Factor", "Input": ["trial_type"]},
+            {
+                "Name": "Convolve",
+                "Input": ["trial_type.face", "trial_type.scene"],
+                "Model": "spm",
+            },
+        ],
+        "Model": {
+            "X": ["trial_type.face", "trial_type.scene", "framewise_displacement", 1],
+        },
+        "Contrasts": [{
+            "Name": "face_gt_scene",
+            "ConditionList": ["trial_type.face", "trial_type.scene"],
+            "Weights": [1, -1],
+            "Test": "t",
+        }],
+    }],
+}
+
+events = pd.DataFrame({
+    "run": 1,
+    "onset": [4.0, 12.0, 20.0, 28.0],
+    "duration": 1.0,
+    "trial_type": ["face", "scene", "face", "scene"],
+})
+confounds = pd.DataFrame({
+    "framewise_displacement": np.linspace(0.0, 1.0, 40),
+})
+sampling = fm.SamplingFrame(blocklens=[40], tr=2.0)
+
+translated = translate_run_node(
+    stats_model,
+    events=events,
+    sampling_frame=sampling,
+    confounds=confounds,
+)
+```
+
+The translation exposes both low-level realized columns and higher-level typed
+objects. Use the typed objects for modeling decisions; treat the vectors as
+interop artifacts.
+
+```{python}
+contrast = translated.contrast_specs["face_gt_scene"]
+
+pd.Series({
+    "translation": type(translated).__name__,
+    "model_spec": type(translated.model_spec).__name__,
+    "contrast": type(contrast).__name__,
+    "semantic_contrast": type(contrast.semantic_spec()).__name__,
+    "n_columns": len(translated.column_names),
+})
+```
+
+```{python}
+translated.column_names
+```
+
+## Writing Results
+
+`write_results(...)` emits a manifest plus BIDS-like stat files. It asks
+you to pass an explicit `mask` (and `affine`) when the result cannot
+infer them, rather than guessing — the mask defines which voxels the
+written maps refer to, so making it explicit keeps the on-disk results
+unambiguous.
+
+```python
+from fmrimod.io import write_results
+
+manifest = write_results(
+    fit,
+    "derivatives/fmrimod",
+    subject="01",
+    task="localizer",
+    mask=mask,
+    affine=affine,
+    overwrite=True,
+)
+manifest.manifest_path
+```
+
+## Next
+
+- [Datasets](datasets.qmd)
+- [Group analysis](group-analysis.qmd)
+- [Module coverage](module-coverage.qmd)

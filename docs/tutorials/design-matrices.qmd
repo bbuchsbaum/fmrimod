@@ -67,12 +67,13 @@ mod_model, _ = compile_spec(modulated, data=events, sampling_frame=sf)
 design_colmap(mod_model)[["col", "name", "condition", "role", "basis_name"]]
 ```
 
-The added `response_time` regressor appears with its own typed
-provenance — composition is inspectable, not a string concatenation.
+The added `response_time` regressor appears as its own column, tagged
+with where it came from. Because `+` composes typed terms rather than
+concatenating formula strings, you can read off exactly which column
+belongs to which term before fitting anything.
 
-This page stops at design construction. To see a compiled design carried
-through `fmri_lm`, a typed contrast, and into the group stage with
-recovered numbers, follow the **[golden path](golden-path.qmd)**.
+To see a design like this carried through `fmri_lm`, a contrast, and
+into a group analysis, follow the **[golden path](golden-path.qmd)**.
 
 ## Next
 

@@ -1,0 +1,100 @@
+---
+title: "Single-trial estimates"
+subtitle: "Estimate trial-wise betas with the public single-trial and beta APIs."
+jupyter: python3
+execute:
+  freeze: auto
+---
+
+A standard GLM gives you one beta per *condition*. Many analyses —
+representational similarity, trial-wise decoding, single-trial
+variability — instead need one beta per *trial*. That is what
+single-trial estimation produces. The entry point is
+`estimate_single_trial(...)`: pass a time-by-voxel response matrix and a
+time-by-trial design, choose a method, and get back a `SingleTrialResult`
+with one estimate per trial per voxel. (`fmrimod.betas` holds older
+beta-extraction wrappers; new code should use `estimate_single_trial`.)
+
+## A Trial-wise Design
+
+The example uses eight separated trial regressors with a known amplitude
+gradient. Voxel 1 receives the full gradient, voxel 2 receives half, and voxel
+3 is null.
+
+```{python}
+import numpy as np
+import pandas as pd
+
+from fmrimod.betas import estimate_betas
+from fmrimod.single import estimate_single_trial
+
+rng = np.random.default_rng(21)
+n_time, n_trials, n_voxels = 90, 8, 3
+
+X = np.zeros((n_time, n_trials))
+for trial, onset in enumerate(np.arange(8, 72, 8)):
+    X[onset:onset + 3, trial] = [0.2, 1.0, 0.4]
+
+truth = np.linspace(0.5, 2.0, n_trials)[:, None] * np.array([[1.0, 0.5, 0.0]])
+Y = X @ truth + rng.normal(scale=0.03, size=(n_time, n_voxels))
+```
+
+## LSS Through the Dispatcher
+
+`method="lss"` is *least-squares separate*: it fits one model per trial,
+each with that trial's own regressor plus a single regressor collapsing
+all the other trials. This keeps the per-trial estimates from being
+destabilized by the heavy collinearity between closely spaced trial
+regressors — the reason you cannot just read trial betas off one big
+least-squares fit. `estimate_single_trial` selects the estimator by the
+`method` argument and carries trial labels (and standard errors, when
+requested) through to the result.
+
+```{python}
+labels = [f"trial_{i + 1}" for i in range(n_trials)]
+result = estimate_single_trial(
+    Y,
+    X,
+    method="lss",
+    return_se=True,
+    trial_labels=labels,
+)
+
+type(result).__name__, result.method.value, result.betas.shape, result.se.shape
+```
+
+The recovered beta series tracks the injected amplitude gradient
+trial-by-trial — the test that the estimator is actually recovering
+per-trial signal, not just returning an array of the right shape.
+
+```{python}
+pd.DataFrame({
+    "trial": labels,
+    "truth_voxel_1": truth[:, 0],
+    "estimated_voxel_1": result.betas[:, 0],
+}).round(3)
+```
+
+## Compatibility Beta Extraction
+
+`estimate_betas` is the beta-oriented compatibility entry point for older code.
+It returns the same LSS estimates in a smaller `BetaResult`; the dispatcher
+adds the richer metadata you usually want in new analyses.
+
+```{python}
+beta_result = estimate_betas(X, Y, method="lss", trial_labels=labels)
+
+pd.Series({
+    "max_abs_delta": np.max(np.abs(beta_result.betas - result.betas)),
+    "compat_method": beta_result.method,
+    "preferred_result": type(result).__name__,
+})
+```
+
+Use `estimate_single_trial` when you want labels, standard errors, whitening
+metadata, or method-specific diagnostics carried with the trial betas.
+
+## Next
+
+- [Linear model](linear-model.qmd)
+- [Sketched and AR-aware models](sketched-ar-models.qmd)

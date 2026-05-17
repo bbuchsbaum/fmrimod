@@ -1,0 +1,69 @@
+---
+title: "Plotting and visualization"
+subtitle: "Inspect designs and timing without changing the modeling contract."
+jupyter: python3
+execute:
+  freeze: auto
+---
+
+Visualization helpers turn the objects you already authored into diagnostic
+figures: the realized design, the sampling grid, and the HRF shape that will be
+convolved into the model.
+
+## Plot a Realized Design
+
+```{python}
+import matplotlib.pyplot as plt
+import pandas as pd
+
+import fmrimod as fm
+from fmrimod.hrf import get_hrf
+from fmrimod.plotting import plot_hrf
+from fmrimod.spec import compile as compile_spec
+from fmrimod.spec import hrf
+from fmrimod.visualization import plot_design_matrix, plot_sampling_frame
+
+events = pd.DataFrame({
+    "onset": [0.0, 10.0, 20.0, 30.0],
+    "condition": ["face", "scene", "face", "scene"],
+    "duration": 2.0,
+})
+sampling = fm.SamplingFrame(blocklens=60, TR=1.0)
+event_model, _ = compile_spec(hrf("condition", basis="spmg1"), data=events, sampling_frame=sampling)
+```
+
+```{python}
+#| fig-width: 7
+#| fig-height: 3.0
+fig, ax = plot_design_matrix(event_model, figsize=(7, 3))
+plt.show()
+```
+
+## Plot the Sampling Frame
+
+The sampling-frame plot is useful when a model has multiple runs or unusual
+TRs. It reads the timing object already used by design construction.
+
+```{python}
+#| fig-width: 7
+#| fig-height: 2.0
+fig, ax = plot_sampling_frame(sampling, figsize=(7, 2))
+plt.show()
+```
+
+## Plot an HRF
+
+The `fmrimod.plotting` module covers HRF and regressor plots. Use it to inspect
+an HRF object before it is convolved into a design.
+
+```{python}
+#| fig-width: 6
+#| fig-height: 3.0
+ax = plot_hrf(get_hrf("spmg1"), normalize=True)
+plt.show()
+```
+
+## Next
+
+- [Design matrices](design-matrices.qmd)
+- [Overview and workflow](overview-workflow.qmd)

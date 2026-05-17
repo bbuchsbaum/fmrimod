@@ -6,13 +6,12 @@ execute:
   freeze: auto
 ---
 
-Functional connectivity is not a core fmrimod modeling seam, but the common
-seed-to-target operation should not force every user to rewrite Pearson
-correlation by hand. fmrimod gives you the typed substrate the analysis should
-sit on: a dataset that owns its timing, a **typed nuisance model** instead of a
-hand-built matrix, projection through the same `residualize` used by the
-first-level path, a compact seed-correlation primitive, and the same `fmri_lm`
-machinery when you want the seed signal as a GLM covariate.
+Seed-based functional connectivity asks a simple question: which voxels'
+time courses co-vary with a chosen seed region, once nuisance signals
+are removed? This page builds that analysis on the same pieces you
+already use for a GLM — a dataset that owns its timing, a nuisance model,
+the `residualize` projection, and `fmri_lm` itself — so connectivity is
+not a separate toolbox but a short recipe over familiar parts.
 
 ## A Dataset, Not Bare Arrays
 
@@ -143,10 +142,14 @@ pd.DataFrame({
 round(float(z.mean()), 3), round(float(pooled_r), 3)
 ```
 
-The coupled targets (`roi_1`–`roi_3`) carry the visible correlation; the
-Fisher *z* and its variance are now in the shape the group-level tools
-consume. Motion correction, registration, and normalization remain outside
-fmrimod's scope — the substrate here begins at a preprocessed dataset.
+The coupled targets (`roi_1`–`roi_3`) carry the visible correlation, and
+the Fisher *z* and its variance are now in exactly the form the
+group-level tools expect — so a connectivity result can flow into the
+same second-level analysis as any other effect.
+
+One assumption is worth stating plainly: this starts from a
+*preprocessed* dataset. Motion correction, registration, and spatial
+normalization are upstream steps you run before fmrimod sees the data.
 
 ## Next
 

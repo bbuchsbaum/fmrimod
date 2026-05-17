@@ -27,14 +27,13 @@ events = pd.DataFrame({
 spec = hrf("condition", basis="spmg1")
 ```
 
-We use test data with a **known** `face − scene` effect of `2.5` in five
-of ten voxels, so a correct model must return ≈ `2.5` there and ≈ `0`
-elsewhere.
+We use simulated data with a **known** `face − scene` effect of `2.5` in
+five of ten voxels, so a correct model must return ≈ `2.5` there and
+≈ `0` elsewhere — that known answer is what makes the fit checkable.
 
-The dataset is built by `dataset_with_effect` — a tutorial-support
-helper that places the known effect on the column the **typed
-`condition(...)` object resolves to**, the same object the contrast
-below uses, never a rendered-name string lookup.
+`dataset_with_effect` is a tutorial helper that builds the data with the
+effect placed on the `condition("face", ...)` column, the same object
+the contrast below tests.
 
 ```{python}
 from fmrimod.simulate.demo import dataset_with_effect
@@ -69,8 +68,9 @@ pd.DataFrame(
 ## A Typed Contrast
 
 The hypothesis names conditions, not column indices. `fit.contrast(...)`
-returns a typed `ContrastResult`, and the estimate returns the injected
-effect — proof the typed path is *right*, not just runnable.
+returns a `ContrastResult`, and the estimate comes back at ≈ `2.5` —
+the value we injected. A model that fit cleanly but applied the contrast
+to the wrong columns would return a different number here.
 
 ```{python}
 face_vs_scene = fit.contrast(
@@ -86,9 +86,12 @@ pd.DataFrame({
 
 ## Low-Level Matrix Helper
 
-`fmri_ols_fit()` solves a design/data pair directly. It returns a plain
-dict and bypasses the typed API — keep it for tests and benchmarks that
-deliberately want a low-level cross-check, not for user-facing analyses.
+`fmri_ols_fit()` solves a design/data pair directly and returns a plain
+dict of arrays. It skips the spec, the column provenance, and the
+contrast machinery, so reach for it only when you specifically want a
+bare-matrix cross-check — for example, to confirm the high-level fit
+against textbook OLS, as below. For actual analyses, stay on
+`fmri_lm`.
 
 ```{python}
 X = np.asarray(fit.model.design_matrix_array(run=0))

@@ -1,0 +1,60 @@
+---
+title: "Robust model pieces"
+subtitle: "Downweight outliers before they reach the GLM seam."
+jupyter: python3
+execute:
+  freeze: auto
+---
+
+A single bad time point — a swallow, a big head movement — can pull an
+ordinary least-squares estimate toward itself, because OLS minimizes
+*squared* residuals and large residuals dominate that sum. Robust
+fitting limits this: estimate a residual scale that is itself resistant
+to outliers, then downweight any time point whose residual is implausibly
+large for that scale, and refit. The full estimator is `fmri_rlm(...)`;
+this page opens up the two primitives it is built from so you can see
+exactly what "downweight an outlier" means numerically.
+
+## Robust Scale and Weights
+
+```{python}
+import numpy as np
+import pandas as pd
+
+from fmrimod.robust import bisquare_weights, huber_weights, mad_scale
+
+residuals = np.array([
+    [0.10,  0.20],
+    [0.00, -0.10],
+    [0.20,  0.10],
+    [5.00, -4.00],   # a visible outlier in both voxels
+    [-0.10, 0.00],
+])
+
+scale = mad_scale(residuals, axis=0)
+scale.round(3)
+```
+
+Huber weights shrink the outlier; bisquare weights can drop it completely.
+Ordinary residuals retain weight near one.
+
+```{python}
+weights = pd.DataFrame({
+    "residual_voxel_1": residuals[:, 0],
+    "huber_voxel_1": huber_weights(residuals, scale)[:, 0],
+    "bisquare_voxel_1": bisquare_weights(residuals, scale)[:, 0],
+})
+weights.round(3)
+```
+
+## Where This Fits
+
+Use robust fitting when a small number of high-residual time points would
+otherwise dominate a voxel-wise estimate. The authored model stays the same;
+the estimator changes how much influence each time point gets during the
+refit.
+
+## Next
+
+- [Linear model](linear-model.qmd)
+- [Sketched and AR-aware models](sketched-ar-models.qmd)

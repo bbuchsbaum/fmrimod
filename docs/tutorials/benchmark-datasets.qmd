@@ -8,10 +8,10 @@ execute:
 
 ## Available Fixtures
 
-`fmrimod` includes small deterministic benchmark fixtures for examples and
-regression tests. These fixtures are numerical canaries: useful for checking
-algebra and examples, but distinct from flagship workflow parity reports in
-`benchmarks/parity/`.
+`fmrimod` ships small, deterministic datasets where the true betas are
+known. They are ideal for learning and for sanity-checking a method: you
+can fit a model and immediately ask how close the estimates are to the
+truth, with no randomness between runs to muddy the comparison.
 
 ```{python}
 import numpy as np
@@ -44,9 +44,11 @@ X.head()
 
 ## Fit OLS and Score It
 
-The benchmark stores condition-level ground truth, so drop the intercept row
-before evaluating. This page uses direct matrix algebra to make the scoring
-transparent; user-facing analyses should prefer `fmri_dataset -> fmri_lm`.
+The benchmark stores condition-level ground truth, so we drop the
+intercept row before scoring. We solve the GLM with `np.linalg.lstsq`
+here so the scoring is fully explicit and you can see every step; in a
+real analysis you would use `fmri_dataset → fmri_lm`, which does the
+same fit with the design provenance and contrasts attached.
 
 ```{python}
 Y = data["Y_noisy"]

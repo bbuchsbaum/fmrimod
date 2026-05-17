@@ -1,29 +1,33 @@
 ---
 title: "Tutorials"
-subtitle: "Task-focused guides for the typed fmrimod modeling workflow."
+subtitle: "Model fMRI effects without hand-aligning design columns."
 ---
 
-These guides are organized around the public fmrimod seam, not around a
-function-by-function port of the R packages:
+Start with the [golden path](golden-path.qmd): fit a first-level model,
+state a contrast by condition name, carry that contrast into a group model,
+and check the recovered numbers against a Nilearn parity receipt. The point
+is practical: fewer fragile alignments between event tables, design columns,
+contrast vectors, and second-level inputs.
+
+The main workflow is:
 
 ```text
 fmri_dataset -> fmri_lm -> contrast -> group
 ```
 
-Some pages use compact matrix helpers because they are useful numerical
-canaries. Flagship workflow pages should prefer typed datasets, typed specs,
-first-level fits, contrast objects, and group-level results.
+Use the task pages below when you need one part of that workflow in more
+detail.
 
 ::: {.grid}
 
 ::: {.g-col-12}
 ::: {.card .h-100 .p-3}
 ### [The golden path](golden-path.qmd) — start here
-The whole spine, end to end, on data with a known injected effect:
-`fmri_dataset → fmri_lm → typed contrast → group`, with recovered first-
-level and group numbers and a checked-in parity receipt against Nilearn.
-This is the proof artifact for the product claim; every other page is a
-segment of it.
+The whole workflow, end to end, on data with a known injected effect:
+`fmri_dataset → fmri_lm → contrast → group`. Because the effect is
+planted, you can watch it survive every stage and check the first-level
+fit against Nilearn. Read this first; every other page zooms in on one
+step of it.
 :::
 :::
 
@@ -100,6 +104,36 @@ or temporally correlated data.
 
 ::: {.g-col-12 .g-col-md-6}
 ::: {.card .h-100 .p-3}
+### [Single-trial estimates](single-trial.qmd)
+Recover trial-wise betas with labels, standard errors, and method metadata.
+:::
+:::
+
+::: {.g-col-12 .g-col-md-6}
+::: {.card .h-100 .p-3}
+### [Robust model pieces](robust-models.qmd)
+See how robust weights suppress outlying time points before they dominate a
+fit.
+:::
+:::
+
+::: {.g-col-12 .g-col-md-6}
+::: {.card .h-100 .p-3}
+### [BIDS and result IO](bids-io.qmd)
+Translate BIDS Stats Model nodes into typed fmrimod artifacts and keep result
+writing at the IO boundary.
+:::
+:::
+
+::: {.g-col-12 .g-col-md-6}
+::: {.card .h-100 .p-3}
+### [Plotting and visualization](plotting-visualization.qmd)
+Turn authored designs, timing grids, and HRFs into quick diagnostic figures.
+:::
+:::
+
+::: {.g-col-12 .g-col-md-6}
+::: {.card .h-100 .p-3}
 ### [Plugin development](plugin-development.qmd)
 Extend internal registries while keeping user-facing modeling decisions typed.
 :::
@@ -122,3 +156,10 @@ from Python docstrings.
 :::
 
 :::
+
+## Finding the right page
+
+Not sure which tutorial covers the function you need? The [module
+coverage map](module-coverage.qmd) lists every public module family and
+the tutorial that teaches it — a useful index once you know roughly what
+you are looking for, though not the place to start learning.

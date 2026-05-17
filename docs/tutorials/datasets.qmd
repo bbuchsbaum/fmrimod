@@ -8,13 +8,14 @@ execute:
 
 ## Dataset API Overview
 
-`fmrimod.dataset` is the canonical Python home for dataset containers and
-storage adapters. The compatibility package `fmridataset` is only a re-export
-facade for migrated code; new examples should import from `fmrimod` or
-`fmrimod.dataset`.
+`fmrimod.dataset` is where dataset containers and storage adapters live.
+Import them from `fmrimod` or `fmrimod.dataset`. (If you are reading
+older code that imports `fmridataset`, that name still works as a
+re-export — see the migration note at the end.)
 
-The dataset layer is intentionally a substrate for modeling rather than a
-separate project. A typical workflow is:
+A dataset's job is to bind your data to its timing and events so every
+later step reads them from one place instead of re-deriving them. A
+typical workflow is:
 
 ```text
 matrix_dataset / fmri_dataset
@@ -97,8 +98,9 @@ BIDS-HDF5 helpers are available when a workflow needs a compact archive:
   follow the same feature-space storage contract as matrix, latent, HDF5, and
   NIfTI-backed datasets.
 
-These helpers are documented here because they are dataset substrate. There is
-no separate backend-registry or BIDS-HDF5 tutorial to keep in sync.
+Use these when you need a single compact, shareable archive for a study;
+for everyday in-memory work the matrix and image constructors above are
+all you need.
 
 ## Latent Data
 
@@ -133,9 +135,10 @@ chunks = fm.data_chunks(dset, nchunks=4)
 
 ## Migrating From fmridataset
 
-Existing `fmridataset` imports should move mechanically to `fmrimod.dataset`
-or the root `fmrimod` namespace. During consolidation, `fmridataset` re-exports
-only implemented canonical objects identity-equivalently:
+If you have code that imports `fmridataset`, change the import to
+`fmrimod.dataset` (or `fmrimod`) — the objects are the same, so this is
+a find-and-replace, not a rewrite. The re-export returns the identical
+class object, which you can verify directly:
 
 ```{python}
 #| eval: false
@@ -145,8 +148,9 @@ import fmrimod.dataset as ds
 fmridataset.FmriDataset is ds.FmriDataset
 ```
 
-Names that have not landed in `fmrimod.dataset` are intentionally absent from
-the facade rather than implemented as placeholders.
+If a name you used under `fmridataset` is not available, it has not been
+ported yet — there are no stub placeholders, so an `ImportError` here
+means "not yet", not "moved somewhere subtle".
 
 ## Next
 

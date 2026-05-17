@@ -6,11 +6,30 @@ execute:
   freeze: auto
 ---
 
-The production spine ends here: per-subject first-level estimates flow into
-a typed `GroupData` container and out through typed result objects
-(`FmriMetaResult`, `GroupFitResult`, `FmriTTestResult`). The group design is
-a formula, not a hand-built `np.column_stack`; the outputs are typed
-attributes, not dictionary keys.
+This is the last stage of the workflow. A first-level model gives you
+one effect estimate per subject; a *second-level* (group) analysis asks
+whether that effect holds across subjects, and how it varies with
+subject-level variables. Per-subject estimates flow into a `GroupData`
+container and out through result objects you read by attribute. The
+group design is written as a formula, the same way you would write it in
+R or statsmodels.
+
+Three functions in `fmrimod.stats` cover this stage. They are the same
+underlying model seen from different angles, so pick by what you want
+back:
+
+- **`fmri_meta`** — the workhorse. Meta-analysis when the formula is
+  `~ 1`; meta-regression when you add a covariate (`~ 1 + C(group)`).
+  Returns an `FmriMetaResult`.
+- **`fmri_ttest`** — a thin shortcut for the plain one-sample
+  *t*-test, when that is literally all you want. Returns an
+  `FmriTTestResult`.
+- **`group_fit`** — one canonical door that *always* returns the same
+  `GroupFitResult`, whatever model you ask for. Worth it when many fits
+  must come back as one uniform type (a sweep, a pipeline stage).
+
+If you only read one section, read `fmri_meta` below — it is enough for
+almost every analysis.
 
 ## Per-Subject Estimates → Typed `GroupData`
 
@@ -73,21 +92,30 @@ pd.DataFrame({
 }).round(3)
 ```
 
-## The Typed Entry: `group_fit`
+## One Result Type for Every Fit: `group_fit`
 
-`group_fit` is the single second-level interface. For the default fit, pass
-a `GroupData` (or a DataFrame) straight in and get a frozen
-`GroupFitResult` back — the same numbers as `fmri_meta`, but through the
-parity-normalized seam the flagship workflows use.
+`fmri_meta` and `fmri_ttest` each return their own result type. When you
+run many second-level models and want them all to come back as the
+*same* object, `group_fit` is the single entry that always returns a
+`GroupFitResult`.
+
+Called on a dataset alone, it runs **one explicit default**: a
+one-sample (`formula="~ 1"`) **random-effects meta-analysis**, with
+Paule–Mandel `tau2` and inverse-variance weights. That is the same model
+as `fmri_meta(gd, formula="~ 1", method="pm")` — `group_fit(gd)` is just
+the uniform-result-type door to it.
 
 ```{python}
 res = group_fit(gd)
 type(res).__name__, res.method, res.backend, res.estimate[:, 0].round(3)
 ```
 
-To customize a non-default fit, pass an explicit `GroupFitRequest`. It is
-still importable from `fmrimod.stats` (it is just no longer advertised in
-`fmrimod.stats.__all__`, since the default fit no longer needs it):
+For anything other than that default, pass a `GroupFitRequest`: a frozen
+description of the *whole* fit — formula, model (`meta`/`ttest`), fixed
+vs random effects, `tau2` method, weights, backend — as one value you
+can build, inspect, and reuse instead of tracking many keyword
+arguments. The request below just writes the default out in full so you
+can see every knob it sets:
 
 ```{python}
 res2 = group_fit(
@@ -102,14 +130,21 @@ res2 = group_fit(
 res2.method, res2.estimate[:, 0].round(3)
 ```
 
+For everyday analysis, call `fmri_meta`/`fmri_ttest` directly; reach for
+`group_fit` when a uniform `GroupFitResult` across many fits is worth
+more than the shorter call.
+
 ## Between-Group Meta-Regression
 
-To test a group difference, add the covariate to the formula. The
-fixed-effects path supports covariate designs; the coefficient for
-`C(group)[T.patient]` is the between-group contrast per feature.
+To test a group difference, keep the same `fmri_meta` call and just add
+the covariate to the `formula`. With `method="dl"` this is a
+*random-effects* meta-regression: it models between-subject
+heterogeneity (`tau2`) while estimating the group effect. The
+`C(group)[T.patient]` coefficient is the patient-minus-control contrast
+per feature.
 
 ```{python}
-reg = fmri_meta(gd, formula="~ 1 + C(group)", method="fe")
+reg = fmri_meta(gd, formula="~ 1 + C(group)", method="dl")
 
 pd.DataFrame({
     "feature": reg.feature_names,
@@ -119,17 +154,32 @@ pd.DataFrame({
 ```
 
 ::: {.callout-note}
-The typed **random-effects** path supports DerSimonian–Laird
-meta-*regression* with a covariate formula via `method="dl"` — a parity
-port of the R oracle `fmrigds` `meta:re_reg`. `method="pm"` and
-`method="reml"` stay intercept-only: `meta:re_reg` is DL-only, so there
-is no R oracle to port a `pm`/`reml` regression against, and a covariate
-formula with those methods raises `NotImplementedError` by design. The
-former parity gap is retired
-(`typed-re-meta-regression-unimplemented` in
-[`docs/contracts/CAVEAT_RETIREMENTS.md`](https://github.com/bbuchsbaum/fmrimod/blob/main/docs/contracts/CAVEAT_RETIREMENTS.md)).
-For `pm`/`reml` random-effects with covariates, use `method="dl"`, or
-the `fmri_meta_fit(Y, V, X, ...)` matrix compat helper.
+## Choosing `method`
+
+`method` controls how between-subject heterogeneity is handled. Which
+values are valid depends on whether the formula has a covariate.
+
+**One-sample (`formula="~ 1"`):**
+
+- `"pm"` (Paule–Mandel), `"reml"` — random effects, iterative `tau2`;
+  the usual choices for a one-sample test.
+- `"dl"` (DerSimonian–Laird) — random effects, closed-form `tau2`.
+- `"fe"` — fixed effects: assumes a single true effect with no
+  between-subject variance.
+
+**Covariate formula / meta-regression (`formula="~ 1 + …"`):**
+
+- `"dl"` — random-effects meta-regression: models `tau2` *and* the
+  covariate. The usual choice, and the one used above.
+- `"fe"` — fixed-effects meta-regression: the covariate effect with no
+  between-subject variance.
+- `"pm"` and `"reml"` are intercept-only; passing one a covariate
+  formula raises `NotImplementedError` rather than silently fitting a
+  different model.
+
+Rule of thumb: `pm`/`reml` for a one-sample random-effects test, `dl`
+once the design has a covariate (or `fe` when you specifically want a
+fixed-effects model).
 :::
 
 ## One-Sample Test, One Call

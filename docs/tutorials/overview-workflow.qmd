@@ -38,18 +38,19 @@ events = pd.DataFrame({
 })
 ```
 
-We use test data with a **known** face−scene effect of `2.0` in five of
-ten voxels so every downstream number can be checked against ground
-truth.
+We use simulated data with a **known** face−scene effect of `2.0` in
+five of ten voxels. The point of working with simulated data here is
+that we know the right answer: a correct fit must return ≈ `2.0` in
+those voxels and ≈ `0` in the other five.
 
 ```{python}
 spec = hrf("stim_type", basis="spmg1")
 ```
 
-The dataset is built by `dataset_with_effect` — a tutorial-support
-helper that places the known effect on the column the **typed
-`condition(...)` object resolves to**, the same object the contrast
-below uses, never a rendered-name string lookup.
+`dataset_with_effect` is a tutorial helper that builds the simulated
+data with the known effect placed on the `condition("face", ...)`
+column — the same object the contrast below tests, so what we inject and
+what we measure are the same condition by construction.
 
 ```{python}
 from fmrimod.simulate.demo import dataset_with_effect
@@ -95,24 +96,26 @@ pd.DataFrame({
 })  # voxels 0–4 recover the injected ≈ 2.0; voxels 5–9 are null
 ```
 
-The estimate returns the effect we injected — the typed contrast is
-*right*, not merely runnable.
+The estimate returns the effect we injected. Recovering the planted
+value (not just *some* value) is the evidence that the design, the fit,
+and the contrast weights are all specified correctly.
 
 ## Closing the Spine
 
-The last arrow — carrying these per-subject `ContrastResult` objects
-into the typed second-level (group) step and recovering a **group** effect — is
-shown continuously, with a reference/parity receipt, on the
-**[golden path](golden-path.qmd)**. That page is the proof artifact for
-the whole `fmri_dataset → fmri_lm → contrast → group` claim; this page
-deliberately stops at the first level so each stage stays legible.
+The final arrow — carrying these per-subject `ContrastResult` objects
+into a second-level (group) model to ask whether the effect holds across
+subjects — is shown end to end, with a check against Nilearn, on the
+**[golden path](golden-path.qmd)**. We stop at the first level here so
+each stage stays small enough to read; the golden path is the same
+workflow run without a break.
 
-## Advanced Topics
+## Where to go next
 
-The same dataset/spec contract supports typed engine options, AR
-diagnostics, single-trial estimation, and benchmark fixtures. Low-level
-matrix helpers exist for numerical canaries, but the flagship path stays
-on the typed workflow above.
+The same dataset-and-spec pattern carries through to the rest of the
+modeling stack: alternative GLM engines, AR whitening for temporally
+correlated noise, single-trial estimation, and ready-made benchmark
+datasets. Each is one option on the same `fmri_lm` call rather than a
+separate API to learn.
 
 ## Next
 

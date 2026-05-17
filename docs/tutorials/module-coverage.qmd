@@ -1,0 +1,65 @@
+---
+title: "Module coverage"
+subtitle: "Where each public module is taught in the tutorial set."
+jupyter: python3
+execute:
+  freeze: auto
+---
+
+Use this page as a lookup table: find the module you need on the left
+and the table tells you which tutorial demonstrates it. Every public
+module family has at least one tutorial that uses it in a real workflow;
+modules with no analysis-facing API are marked as boundaries so you know
+not to go looking for an example that should not exist.
+
+## Public Spine Coverage
+
+| Module family | Tutorial coverage | Public surface taught |
+| --- | --- | --- |
+| `hrf`, `spec`, `regressor`, `convolve`, `condition_basis` | [Get started](../get-started.qmd), [Design matrices](design-matrices.qmd), [Golden path](golden-path.qmd) | `hrf(...)`, composed specs, HRF-convolved event terms |
+| `events`, `design`, `formula`, `baseline`, `basis`, `covariate`, `sampling` | [Design matrices](design-matrices.qmd), [Functional connectivity](functional-connectivity.qmd), [Overview](overview-workflow.qmd) | event tables, `compile(...)`, baseline models, typed covariates, acquisition grids |
+| `dataset`, `backends`, `accessors` | [Datasets](datasets.qmd), [Golden path](golden-path.qmd) | `fmri_dataset`, `matrix_dataset`, latent datasets, chunks, backend boundaries |
+| `glm`, `model`, `lowrank`, `ar` | [Linear model](linear-model.qmd), [Sketched and AR-aware models](sketched-ar-models.qmd) | `fmri_lm`, engine options, AR config, low-rank sketching |
+| `contrast`, `design_colmap`, `naming` | [Contrasts](contrasts.qmd), [Golden path](golden-path.qmd), [Design matrices](design-matrices.qmd) | typed condition contrasts, omnibus contrasts, column provenance |
+| `group`, `stats` | [Group analysis](group-analysis.qmd), [Golden path](golden-path.qmd), [Functional connectivity](functional-connectivity.qmd) | `group_fit`, `fmri_meta`, `fmri_ttest`, seed-target summaries |
+| `single`, `betas`, `trialwise` | [Single-trial estimates](single-trial.qmd) | `estimate_single_trial`, `estimate_betas`, trial labels and result metadata |
+| `robust` | [Robust model pieces](robust-models.qmd) | robust scale and weighting primitives behind robust refits |
+| `bids`, `io` | [BIDS and result IO](bids-io.qmd), [Datasets](datasets.qmd) | BIDS Stats Model translation, BIDS-HDF5 archive boundary, `write_results` |
+| `simulate` | [Simulation](simulation.qmd), [Benchmark datasets](benchmark-datasets.qmd) | BOLD fixtures, noise, matrix simulations, deterministic benchmarks |
+| `visualization`, `plotting` | [Plotting and visualization](plotting-visualization.qmd) | design, timing, and HRF inspection plots |
+| `validate`, `utils`, `dispatch`, `extension_registry`, `types` | [Plugin development](plugin-development.qmd), [Design matrices](design-matrices.qmd) | validation boundaries, dispatch/registry extension points, typed result contracts |
+| `afni`, `cli` | [BIDS and result IO](bids-io.qmd), [Module coverage](module-coverage.qmd) | interoperability boundary; not a separate analysis language |
+
+## Reading the table
+
+The rows are *module families*, not individual files, because that is
+how you actually look things up: you want "where do I learn contrasts?",
+not "where is `design_colmap.py` exercised?". Helper modules are taught
+inside the workflow that needs them rather than on a page of their own.
+
+```{python}
+covered_families = {
+    "design_spine": ["hrf", "spec", "events", "design", "baseline", "basis"],
+    "data_spine": ["dataset", "backends", "bids", "io"],
+    "fit_spine": ["glm", "model", "contrast", "group", "stats"],
+    "specialized": ["single", "betas", "robust", "lowrank", "ar"],
+    "inspection": ["simulate", "visualization", "plotting"],
+}
+
+sum(len(v) for v in covered_families.values()), sorted(covered_families)
+```
+
+::: {.callout-note}
+## For contributors
+
+If you add a public module, also add a worked example for it: a new task
+tutorial, a section on an existing one, or — for an internal boundary —
+a row above pointing to the tutorial that already exercises the behavior
+it supports. An auto-generated reference page on its own does not teach
+anyone how to use the module.
+:::
+
+## Next
+
+- [The golden path](golden-path.qmd)
+- [Tutorial index](index.qmd)
