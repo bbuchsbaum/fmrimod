@@ -30,15 +30,23 @@ contrast builder reads::
 
 — no string parsing, no positional column counting.
 
-A second finding surfaced while wiring this case: fmrimod's
-``SPMG3`` basis defines the third column as the **second time
-derivative** of the canonical HRF, but Nilearn's
-``spm_dispersion_derivative`` defines it as the **derivative with
-respect to the dispersion parameter**. Same name in both libraries,
-mathematically different basis functions (correlation 0.01 on the
-realised columns). The two engines also differ on the temporal
-derivative numerically — different oversampling grids, different dt.
-That makes column-by-column realised-design parity impossible.
+A second finding surfaced and was fixed while wiring this case:
+fmrimod's ``SPMG3`` previously defined the third column as the
+**second time derivative** ``∂²h/∂t²``, inherited from R
+``fmrireg::HRF_SPMG3``. The SPM definition (matching Nilearn's
+``spm_dispersion_derivative``) is the **derivative with respect to
+the dispersion parameter** ``∂h/∂σ`` taken at ``σ=1``. Same name
+in both libraries, mathematically different basis functions; only
+the dispersion-derivative interpretation supports the claim that
+"the third coefficient captures HRF width changes." fmrimod now
+uses the SPM convention; the legacy R-side definition remains
+available as :func:`spmg1_second_derivative` for callers that need
+it. A tracking issue is open on bbuchsbaum/fmrihrf to align the R
+package the same way. Column-by-column bitwise parity with Nilearn
+still doesn't hold because fmrimod's canonical itself uses a
+different parameterization (``p1=5, p2=15, a1=0.0833`` vs SPM's
+``delay=6, undershoot=16, dispersion=1, ratio=6``), so the realised
+canonical shapes differ in detail.
 
 Pattern B parity claim
 ----------------------

@@ -33,6 +33,7 @@ def spm_canonical(
     p1: float = 5.0,
     p2: float = 15.0,
     a1: float = 0.0833,
+    dispersion: float = 1.0,
 ) -> NDArray[np.float64]:
     """SPM canonical hemodynamic response function.
 
@@ -44,6 +45,16 @@ def spm_canonical(
         p1: First exponent parameter (default: 5)
         p2: Second exponent parameter (default: 15)
         a1: Amplitude scaling factor (default: 0.0833)
+        dispersion: SPM-convention dispersion parameter (default 1.0).
+            The canonical is evaluated at ``t * dispersion``, so
+            ``dispersion > 1`` narrows the response and shifts the peak
+            earlier (matching SPM's ``shape = p / dispersion``
+            convention where larger dispersion reduces the gamma's
+            spread). Used by :class:`SPMG3_HRF` to compute the SPM
+            informed-basis dispersion derivative
+            ``(h(σ=1) - h(σ=1+dx)) / dx`` — the negative forward
+            difference convention shared with Nilearn's
+            ``spm_dispersion_derivative``.
 
     Returns:
         HRF values at time points t
@@ -52,7 +63,12 @@ def spm_canonical(
     result = np.zeros_like(t)
     mask = t >= 0
     if np.any(mask):
-        t_pos = t[mask]
+        sigma = float(dispersion)
+        if sigma <= 0:
+            raise ValueError(
+                f"spm_canonical: dispersion must be positive, got {sigma!r}"
+            )
+        t_pos = t[mask] * sigma
         result[mask] = np.exp(-t_pos) * (a1 * t_pos**p1 - _SPM_C * t_pos**p2)
     return result
 

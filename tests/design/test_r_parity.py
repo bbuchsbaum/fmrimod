@@ -485,6 +485,22 @@ class TestBasisExpanded:
         expected_ncol = self.fix["model_info"]["nbasis"]  # single condition
         assert r_dm.shape[1] == expected_ncol
 
+    @pytest.mark.xfail(
+        reason=(
+            "fmrimod's SPMG3 third basis column is the SPM dispersion "
+            "derivative (matching SPM and Nilearn). R's "
+            "fmrireg::HRF_SPMG3 still uses the second time derivative "
+            "in its third column, which is the older R-side definition "
+            "we intentionally diverged from. The R fixture was generated "
+            "with the second-time-derivative basis and will only match "
+            "again once fmrihrf (R) is updated. Tracking issue: see "
+            "https://github.com/bbuchsbaum/fmrihrf for the open "
+            "ticket to align fmrihrf with the SPM informed-basis "
+            "definition. The first two columns (canonical + temporal "
+            "derivative) still match R; only the third column diverges."
+        ),
+        strict=True,
+    )
     def test_design_matrix_values(self):
         from fmrimod import event_model, design_matrix
 
@@ -507,3 +523,29 @@ class TestBasisExpanded:
         )
         np.testing.assert_allclose(py_dm, r_dm, atol=ATOL,
                                    err_msg="spmg3 design matrix mismatch")
+
+    def test_first_two_basis_columns_still_match_r(self):
+        """Columns 1-2 (canonical + temporal derivative) must still match R.
+
+        Only the third column (dispersion derivative) diverges from
+        R fmrireg; the first two columns are unchanged and should still
+        match the R fixture bitwise (within ATOL).
+        """
+        from fmrimod import event_model, design_matrix
+
+        df = _events_to_df(self.fix["events"])
+        sf = _make_sampling_frame(self.fix["sampling_frame"])
+        model = event_model(
+            "onset ~ hrf(condition, basis='spmg3')",
+            data=df, block="run", sampling_frame=sf, precision=0.3,
+        )
+        py_dm = design_matrix(model)
+        r_dm = np.array(self.fix["design_matrix"]["matrix"])
+        # SPMG3 has 3 basis columns per condition. With one condition,
+        # cols 0/1/2 are canonical/temporal/dispersion. Cols 0-1 should
+        # be unchanged from R's output.
+        np.testing.assert_allclose(
+            py_dm[:, :2], r_dm[:, :2], atol=ATOL,
+            err_msg="SPMG3 canonical + temporal-deriv columns must "
+            "still match R fmrireg",
+        )

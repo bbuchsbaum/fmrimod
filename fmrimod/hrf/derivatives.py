@@ -165,3 +165,50 @@ def spmg1_second_derivative(t: ArrayLike, p1: float = 5, p2: float = 15, a1: flo
         ret[pos] = np.exp(-t_pos) * (d1_prime - d2_prime - (d1 - d2))
 
     return ret
+
+
+# Step size for the SPM dispersion derivative finite difference. SPM uses
+# 0.01 here (see ``spm_get_bf.m`` case "hrf (with time and dispersion
+# derivatives)"); matching that keeps the realised basis comparable to SPM
+# and to Nilearn (which inherits the SPM convention).
+_SPM_DISPERSION_DX = 0.01
+
+
+def spmg1_dispersion_derivative(
+    t: ArrayLike,
+    p1: float = 5,
+    p2: float = 15,
+    a1: float = 0.0833,
+    dx: float = _SPM_DISPERSION_DX,
+) -> NDArray[np.float64]:
+    """SPM informed-basis dispersion derivative ``-∂h/∂σ`` at ``σ=1``.
+
+    Computed by finite difference against the dispersion parameter, with
+    SPM's sign convention ``(h(σ=1) - h(σ=1+dx)) / dx`` (note that this
+    is the *negative* forward difference, i.e. ``-∂h/∂σ``). Matches
+    Nilearn's ``spm_dispersion_derivative`` (which uses the same sign
+    convention) and SPM's ``spm_get_bf`` case "hrf (with time and
+    dispersion derivatives)".
+
+    This differs from :func:`spmg1_second_derivative` — the previous
+    third basis column of :class:`SPMG3_HRF`, which is the second
+    *time* derivative ``∂²h/∂t²``. Same name in some literature, but
+    a different function with a different interpretation
+    (curvature, not width change).
+
+    Args:
+        t: Time points.
+        p1: First exponent parameter of the canonical (default 5).
+        p2: Second exponent parameter (default 15).
+        a1: Amplitude scaling factor (default 0.0833).
+        dx: Finite-difference step in the dispersion parameter
+            (default ``_SPM_DISPERSION_DX = 0.01``).
+
+    Returns:
+        Dispersion-derivative values at time points ``t``.
+    """
+    from .functions import spm_canonical as _canon
+
+    h0 = _canon(t, p1=p1, p2=p2, a1=a1, dispersion=1.0)
+    h1 = _canon(t, p1=p1, p2=p2, a1=a1, dispersion=1.0 + dx)
+    return (h0 - h1) / dx
