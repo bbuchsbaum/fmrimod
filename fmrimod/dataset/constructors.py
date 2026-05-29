@@ -93,6 +93,7 @@ def matrix_dataset(
     *,
     event_table: pd.DataFrame | None = None,
     mask: NDArray[np.bool_] | None = None,
+    censor: NDArray[np.bool_] | list[NDArray[np.bool_]] | None = None,
     TR: float | list[float] | None = None,
 ) -> FmriDataset:
     """Construct an in-memory canonical dataset from matrix data.
@@ -112,6 +113,11 @@ def matrix_dataset(
         Optional event table attached to the resulting dataset.
     mask
         Optional flat or spatial boolean mask.
+    censor
+        Optional per-run censor mask, or a single flat censor vector that
+        will be split along ``run_length``. ``True`` marks volumes to
+        exclude during fitting. Consumed by ``fmri_lm`` strategies that
+        honor censoring (currently the runwise and concat engines).
     """
     resolved_tr = _resolve_tr(tr, TR)
 
@@ -143,7 +149,16 @@ def matrix_dataset(
     flat_mask = None if mask is None else np.asarray(mask, dtype=bool).reshape(-1)
     backend = matrix_backend(data_matrix, mask=flat_mask)
     adapter = BackendAdapter(backend, sampling_frame)
-    return FmriDataset(adapter, event_table=event_table)
+    # Split a flat censor across runs to match the multi-block sframe;
+    # the per-run-list form is passed through to FmriDataset as-is.
+    resolved_censor: Any = censor
+    if isinstance(censor, np.ndarray) and censor.ndim == 1 and len(runs) > 1:
+        run_lengths = [int(r.shape[0]) for r in runs]
+        splits = np.cumsum(run_lengths)[:-1]
+        resolved_censor = list(np.split(np.asarray(censor, dtype=bool), splits))
+    return FmriDataset(
+        adapter, event_table=event_table, censor=resolved_censor
+    )
 
 
 # -- Internal helpers ----------------------------------------------------------

@@ -525,6 +525,12 @@ def fit_concat(
         dtype=compute_dtype,
     )
     Y_full = _gather_concatenated_data(model)
+
+    censor_mask = _gather_concatenated_censor(model, expected_rows=X.shape[0])
+    if censor_mask is not None:
+        # apply_censoring keeps rows where censor == False (True = drop).
+        X, Y_full, _ = apply_censoring(X, Y_full, censor_mask)
+
     proj = fast_preproject(X, compute_dtype=compute_dtype)
     lm = fast_lm_matrix(X, Y_full, proj, compute_dtype=compute_dtype)
 
@@ -554,6 +560,42 @@ def _gather_concatenated_data(model: object) -> NDArray[np.float64]:
     for r in range(n_runs):
         parts.append(np.asarray(dataset.get_data(r), dtype=np.float64))
     return np.vstack(parts)
+
+
+def _gather_concatenated_censor(
+    model: object, *, expected_rows: int
+) -> Optional[NDArray[np.bool_]]:
+    """Concatenate per-run censor vectors, returning ``None`` if none set.
+
+    The runwise strategy consumes ``dataset.get_censor(run_idx)`` one
+    run at a time. The concat strategy stacks the per-run designs and
+    data into a single system, so the censor masks need to be stacked
+    in the same order. Returns ``None`` when the dataset has no
+    censoring (so the caller can skip the row-deletion entirely).
+    """
+    dataset = getattr(model, "dataset", None)
+    if dataset is None:
+        return None
+    if getattr(dataset, "censor", None) is None:
+        return None
+    n_runs = int(getattr(model, "n_runs", 1))
+    parts: list[NDArray[np.bool_]] = []
+    for r in range(n_runs):
+        mask = dataset.get_censor(r)
+        if mask is None:
+            # No censoring on this run — keep every row.
+            mask = np.zeros(int(dataset.get_data(r).shape[0]), dtype=bool)
+        parts.append(np.asarray(mask, dtype=bool).ravel())
+    concatenated = np.concatenate(parts)
+    if concatenated.shape[0] != expected_rows:
+        raise ValueError(
+            f"fit_concat: concatenated censor length "
+            f"{concatenated.shape[0]} does not match design rows "
+            f"{expected_rows}"
+        )
+    if not np.any(concatenated):
+        return None
+    return concatenated
 
 
 def _fit_chunked_lm(

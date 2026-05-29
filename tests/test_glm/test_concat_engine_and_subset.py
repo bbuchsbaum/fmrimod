@@ -279,6 +279,76 @@ def test_concat_engine_uses_textbook_dfres() -> None:
     assert fit.is_full_rank is True
 
 
+def test_concat_engine_honors_dataset_censor() -> None:
+    """The concat engine row-deletes the censor mask before solving."""
+    rng = np.random.default_rng(0)
+    TR = 2.0
+    N = 80
+    events = pd.DataFrame(
+        {
+            "onset": np.linspace(8.0, 96.0, 6),
+            "duration": 0.0,
+            "trial_type": ["A", "B"] * 3,
+            "run": 1,
+        }
+    )
+    Y = rng.normal(size=(N, 8))
+    censor = np.zeros(N, dtype=bool)
+    censor[3:8] = True  # drop 5 frames mid-design
+    ds = fm.fmri_dataset(Y, tr=TR, events=events, censor=censor)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        fit_concat = fm.fmri_lm(
+            hrf("trial_type", basis="spm", norm="spm") + intercept(per="run"),
+            ds,
+            engine="concat",
+        )
+        fit_runwise = fm.fmri_lm(
+            hrf("trial_type", basis="spm", norm="spm") + intercept(per="run"),
+            ds,
+            engine="runwise",
+        )
+    # dfres should reflect (n - censored) - rank, not n - rank.
+    n_kept = int((~censor).sum())
+    rank = int(fit_concat.condition_report().runs[0].rank)
+    assert fit_concat.residual_df == pytest.approx(float(n_kept - rank))
+    # Betas should match the runwise engine which already honors censor.
+    np.testing.assert_allclose(
+        fit_concat.betas, fit_runwise.betas, atol=1e-10
+    )
+
+
+def test_matrix_dataset_accepts_flat_censor_and_splits_by_run_length() -> None:
+    """A flat censor passed to ``matrix_dataset`` gets per-run-split."""
+    from fmrimod.dataset.constructors import matrix_dataset
+
+    rng = np.random.default_rng(0)
+    N_per_run = 40
+    N_RUNS = 2
+    events = pd.DataFrame(
+        {
+            "onset": np.concatenate([
+                np.linspace(8.0, 56.0, 4),
+                np.linspace(8.0, 56.0, 4),
+            ]),
+            "duration": 0.0,
+            "trial_type": ["A", "B"] * 4,
+            "run": [1, 1, 1, 1, 2, 2, 2, 2],
+        }
+    )
+    Y = rng.normal(size=(N_per_run * N_RUNS, 4))
+    censor = np.zeros(N_per_run * N_RUNS, dtype=bool)
+    censor[5:8] = True  # 3 frames in run 1
+    censor[50:52] = True  # 2 frames in run 2
+    ds = matrix_dataset(
+        Y, tr=2.0, run_length=N_per_run, event_table=events, censor=censor
+    )
+    assert ds.censor is not None
+    assert len(ds.censor) == 2
+    assert int(ds.censor[0].sum()) == 3
+    assert int(ds.censor[1].sum()) == 2
+
+
 def test_concat_engine_single_run_works() -> None:
     """The concat engine is also valid on single-run datasets."""
     events = pd.DataFrame(
