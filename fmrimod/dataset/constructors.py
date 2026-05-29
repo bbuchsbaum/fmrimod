@@ -44,7 +44,8 @@ def fmri_dataset(
     tr: float | Sequence[float] | None = None,
     events: pd.DataFrame | None = None,
     censor: NDArray[np.bool_] | list[NDArray[np.bool_]] | None = None,
-    start_time: float = 0.0,
+    start_time: float | Sequence[float] | None = None,
+    slice_timing_offset: float | Sequence[float] | None = None,
     # legacy spellings:
     data_source: DatasetProtocol | None = None,
     event_table: pd.DataFrame | None = None,
@@ -65,14 +66,22 @@ def fmri_dataset(
         Optional event table.
     censor
         Optional boolean censor vector(s).
-    start_time
-        Onset of the first volume (defaults to 0.0).
+    start_time, slice_timing_offset
+        Slice-timing offset in seconds; the realised sampling grid is
+        ``start_time + k * TR`` for ``k`` in ``0..n_scans-1``. Default
+        is ``TR/2`` (BOLD-midpoint convention — the value at sample
+        ``k`` represents the BOLD signal at the middle of the
+        ``k``-th TR window). Pass ``slice_timing_offset=0.0`` for
+        frame-start sampling (Nilearn / SPM-MAT / FitLins convention).
+        The two names are interchangeable; if both are supplied they
+        must agree.
     data_source
         Legacy alias accepting a :class:`DatasetProtocol`-compatible object.
     event_table
         Legacy alias for ``events``.
     """
     resolved_events = _resolve_events(events, event_table)
+    resolved_start_time = _resolve_start_time(start_time, slice_timing_offset)
 
     if data_source is not None:
         if img is not None:
@@ -82,7 +91,18 @@ def fmri_dataset(
     if img is None:
         raise ValueError("fmri_dataset requires `img` (or legacy `data_source`)")
 
-    adapter = _build_adapter(img, mask=mask, tr=tr, start_time=start_time)
+    # Adapter chain expects a scalar start_time; ``None`` means "use the
+    # SamplingFrame default" which the adapter currently encodes as 0.0
+    # (frame-start). To keep the typed dataset constructor's documented
+    # default of TR/2 (BOLD-midpoint), we resolve None against the
+    # supplied TR right here.
+    adapter_start: float
+    if resolved_start_time is None:
+        tr_scalar = float(np.atleast_1d(np.asarray(tr, dtype=float))[0])
+        adapter_start = tr_scalar / 2.0
+    else:
+        adapter_start = float(np.atleast_1d(np.asarray(resolved_start_time))[0])
+    adapter = _build_adapter(img, mask=mask, tr=tr, start_time=adapter_start)
     return FmriDataset(adapter, event_table=resolved_events, censor=censor)
 
 
@@ -94,6 +114,8 @@ def matrix_dataset(
     event_table: pd.DataFrame | None = None,
     mask: NDArray[np.bool_] | None = None,
     censor: NDArray[np.bool_] | list[NDArray[np.bool_]] | None = None,
+    start_time: float | Sequence[float] | None = None,
+    slice_timing_offset: float | Sequence[float] | None = None,
     TR: float | list[float] | None = None,
 ) -> FmriDataset:
     """Construct an in-memory canonical dataset from matrix data.
@@ -118,8 +140,19 @@ def matrix_dataset(
         will be split along ``run_length``. ``True`` marks volumes to
         exclude during fitting. Consumed by ``fmri_lm`` strategies that
         honor censoring (currently the runwise and concat engines).
+    start_time, slice_timing_offset
+        Slice-timing offset in seconds (per-run if provided as a sequence,
+        or scalar broadcast across all runs). The realised sampling grid
+        is ``start_time + k * TR`` for ``k`` in ``0..n_scans-1``. Default
+        is ``TR/2`` (midpoint convention — the value at sample ``k``
+        represents the BOLD signal at the middle of the ``k``-th TR
+        window). Pass ``slice_timing_offset=0.0`` for frame-start
+        sampling (Nilearn / SPM-MAT / FitLins convention). The two names
+        are interchangeable; if both are supplied they must agree.
     """
     resolved_tr = _resolve_tr(tr, TR)
+    resolved_start_time = _resolve_start_time(start_time, slice_timing_offset)
+
 
     if isinstance(data, list):
         runs = [np.asarray(x, dtype=np.float64) for x in data]
@@ -144,7 +177,9 @@ def matrix_dataset(
             ]
 
     blocklens = [int(r.shape[0]) for r in runs]
-    sampling_frame = SamplingFrame(blocklens=blocklens, tr=resolved_tr)
+    sampling_frame = SamplingFrame(
+        blocklens=blocklens, tr=resolved_tr, start_time=resolved_start_time
+    )
     data_matrix = np.vstack(runs)
     flat_mask = None if mask is None else np.asarray(mask, dtype=bool).reshape(-1)
     backend = matrix_backend(data_matrix, mask=flat_mask)
@@ -229,7 +264,9 @@ def _build_adapter(
         if img.ndim == 4:
             return _make_array4d_adapter(img, mask=mask, tr=tr, start_time=start_time)
         if img.ndim == 2:
-            return _make_matrix_adapter(img, mask=mask, tr=tr)
+            return _make_matrix_adapter(
+                img, mask=mask, tr=tr, start_time=start_time
+            )
 
     raise TypeError(
         f"fmri_dataset: cannot build adapter from {type(img).__name__!r}; "
@@ -296,9 +333,13 @@ def _make_array4d_adapter(
     )
 
 
-def _make_matrix_adapter(arr: NDArray, *, mask: Any, tr: Any) -> Any:
+def _make_matrix_adapter(
+    arr: NDArray, *, mask: Any, tr: Any, start_time: float
+) -> Any:
     resolved_tr = _require_tr(tr, what="2-D matrix")
-    sampling_frame = SamplingFrame(blocklens=[int(arr.shape[0])], tr=resolved_tr)
+    sampling_frame = SamplingFrame(
+        blocklens=[int(arr.shape[0])], tr=resolved_tr, start_time=start_time
+    )
     flat_mask = None if mask is None else np.asarray(mask, dtype=bool).reshape(-1)
     backend = matrix_backend(np.asarray(arr, dtype=np.float64), mask=flat_mask)
     return BackendAdapter(backend, sampling_frame)
@@ -315,6 +356,31 @@ def _resolve_tr(
         if not np.array_equal(np.asarray(tr), np.asarray(TR)):
             raise ValueError("tr and TR must agree when both are supplied")
     return TR if tr is None else tr
+
+
+def _resolve_start_time(
+    start_time: float | Sequence[float] | None,
+    slice_timing_offset: float | Sequence[float] | None,
+) -> float | Sequence[float] | None:
+    """Resolve canonical / discoverable spellings of the sampling-grid offset.
+
+    ``start_time`` and ``slice_timing_offset`` are interchangeable. If
+    both are passed they must agree; either being ``None`` defers to the
+    other. Returning ``None`` lets :class:`SamplingFrame` apply its
+    own default (``TR/2`` — the BOLD-midpoint convention).
+    """
+    if start_time is None and slice_timing_offset is None:
+        return None
+    if start_time is not None and slice_timing_offset is not None:
+        if not np.array_equal(
+            np.asarray(start_time, dtype=float),
+            np.asarray(slice_timing_offset, dtype=float),
+        ):
+            raise ValueError(
+                "start_time and slice_timing_offset must agree when both "
+                "are supplied"
+            )
+    return slice_timing_offset if start_time is None else start_time
 
 
 def _normalize_run_lengths(

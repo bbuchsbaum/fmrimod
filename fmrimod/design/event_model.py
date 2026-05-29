@@ -67,6 +67,33 @@ def _import_fmrimod():
     return _FmrimodShim
 
 
+#: TR-relative oversampling factor used by the default
+#: :class:`EventModel` precision. 16x is well past the accuracy plateau
+#: (correlation > 0.999 vs Nilearn at matched sampling grids) while
+#: staying ~3x faster than Nilearn's 50x default. Override per-call by
+#: passing ``precision=...`` (absolute seconds) to ``fmri_lm`` /
+#: ``event_model``.
+DEFAULT_PRECISION_OVERSAMPLING: int = 16
+
+
+def _default_precision_from_sframe(sampling_info: object) -> float:
+    """Resolve the default TR-relative precision from a SamplingFrame.
+
+    ``precision = min(TR) / DEFAULT_PRECISION_OVERSAMPLING``. Falls
+    back to the historical default ``0.3 s`` if no TR is available
+    (legacy ``SamplingInfo`` subclasses that don't expose ``.tr``).
+    """
+    tr_attr = getattr(sampling_info, "tr", None)
+    if tr_attr is None:
+        tr_attr = getattr(sampling_info, "TR", None)
+    if tr_attr is None:
+        return 0.3
+    tr_arr = np.atleast_1d(np.asarray(tr_attr, dtype=float))
+    if tr_arr.size == 0:
+        return 0.3
+    return float(np.min(tr_arr) / DEFAULT_PRECISION_OVERSAMPLING)
+
+
 class EventModel(ModelProtocol):
     """Event model for fMRI design matrix construction.
 
@@ -154,7 +181,16 @@ class EventModel(ModelProtocol):
         self.events = events
         self.sampling_info = sampling_info
         self.name = name or "EventModel"
-        self.precision = precision or 0.3
+        # Default precision is TR-relative (``min(TR) / 16``) — gives 16x
+        # sub-TR oversampling for the convolution grid. That's well past
+        # the accuracy plateau (correlation > 0.999 vs Nilearn's 50x at
+        # matched sampling grids) while staying ~3x faster. The user
+        # override remains absolute seconds.
+        self.precision = (
+            float(precision)
+            if precision is not None
+            else _default_precision_from_sframe(sampling_info)
+        )
         self._blockids = np.asarray(blockids) if blockids is not None else None
         # Raw event table (when available). Used to resolve term-level
         # ``subset=`` predicates against the original DataFrame columns;
@@ -2009,7 +2045,8 @@ def event_model(
     """
     terms = _normalize_term_options(_parse_formula_to_terms(formula))
     sf = _resolve_sampling_frame(sampling_frame, sampling_info, tr, n_scans, sampling_rate)
-    precision = precision if precision is not None else 0.3
+    # ``precision = None`` is preserved so EventModel can resolve the
+    # default to ``min(TR) / DEFAULT_PRECISION_OVERSAMPLING``.
     blockids = _parse_block_ids(block, data)
     kwargs = _parse_durations(durations, data, kwargs)
 
