@@ -25,9 +25,15 @@ nested-model F.
 fmrimod's behavior matches the modern consensus by default: the
 typed ``hrf("trial_type", modulators=("rt", "accuracy"))`` builds
 the natural three-column structure (unmodulated boxcar + one
-modulated regressor per modulator) with no orthogonalization. The
-order ``"rt", "accuracy"`` is interchangeable with ``"accuracy",
-"rt"`` and produces the same betas (up to column reordering).
+modulated regressor per modulator), centers each modulator at the
+raw-value level pre-convolution
+(``center_modulators=True`` by default), and applies no
+orthogonalization between modulators. The order ``"rt",
+"accuracy"`` is interchangeable with ``"accuracy", "rt"`` and
+produces the same betas (up to column reordering). The
+``center_modulators=False`` opt-out is available for R-fmridesign
+exact-value parity or the rare case where the modulator's
+absolute scale carries the analytic meaning.
 
 What this case demonstrates
 ---------------------------
@@ -46,17 +52,18 @@ What this case demonstrates
       regressor?") — the *correct* inferential answer to the
       "are these modulators worth including?" question.
 
-The workflow pre-centers each modulator in the events DataFrame
-before building the spec. That gives the unmodulated boxcar and
-modulator columns the near-orthogonal structure that makes the
-betas interpretable, without the asymmetric-attribution problems
-of sequential orthogonalization.
-
-Pain point logged for follow-up: fmrimod has no
-``hrf(..., center_modulators=True)`` keyword, so the user must
-remember to pre-center modulators themselves (same as Nilearn).
-A typed opt-in would be a clean ergonomic win since the modern-
-correct workflow always wants this.
+The workflow uses raw uncentered modulator values in the events
+DataFrame and relies on the typed-spec
+``center_modulators=True`` default to perform the
+mean-centering at the raw-value level pre-convolution. The
+resulting design has the same near-orthogonal structure as if the
+modulators were pre-centered in the events DataFrame — and
+crucially, fmrimod's centering operates on the input variable
+(the per-event scalar amplitude), never on the convolved
+regressor. This keeps the semantics consistent with
+``EventVariable(center=True)``, ``Scale(center=True)``, and
+``Poly(raw=False)``: all four entry points center the raw
+input variable, never the convolved column.
 
 Pattern B parity claim
 ----------------------
@@ -115,14 +122,14 @@ class ModulatorInputs:
 
 
 def _make_events(seed: int) -> pd.DataFrame:
-    """Build deterministic single-condition trials with two pre-centered modulators.
+    """Build deterministic single-condition trials with raw modulator values.
 
-    The modulators (``rt``, ``accuracy``) are mean-centered in the
-    events DataFrame *before* convolution so the unmodulated boxcar
-    and the modulated regressors are near-orthogonal. The true mean
-    of ``rt`` is around 1.0 s and ``accuracy`` around 0.5; the
-    modulators in the resulting events table sum to zero across
-    trials.
+    The modulators (``rt``, ``accuracy``) are stored as raw (uncentered)
+    values; the typed-spec default ``center_modulators=True`` handles
+    the pre-convolution centering at the input-variable level. The
+    realised modulator columns therefore have near-zero correlation
+    with the unmodulated boxcar, as the modern-correct workflow
+    requires, without any manual pre-centering in the events DataFrame.
     """
     rng = np.random.default_rng(seed)
     n_trials = 18
@@ -132,15 +139,13 @@ def _make_events(seed: int) -> pd.DataFrame:
 
     raw_rt = rng.uniform(0.5, 1.5, n_trials)
     raw_acc = rng.uniform(0.2, 1.0, n_trials)
-    rt_centered = raw_rt - raw_rt.mean()
-    acc_centered = raw_acc - raw_acc.mean()
 
     return pd.DataFrame({
         "onset": onsets,
         "duration": 0.0,
         "trial_type": "A",
-        "rt": rt_centered,
-        "accuracy": acc_centered,
+        "rt": raw_rt,
+        "accuracy": raw_acc,
         "run": 1,
     }).sort_values("onset").reset_index(drop=True)
 

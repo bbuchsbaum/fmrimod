@@ -111,6 +111,13 @@ def _lower_hrf_term(term: HrfTerm) -> list[Any]:
             param._kwargs["prefix"] = term.prefix
         if term.lag:
             param._kwargs["lag"] = term.lag
+        # Plumb the centering choice through to event-spec resolution.
+        # ``_resolve_event_specs`` consults ``_modulator_center_overrides``
+        # (set by the HrfTerm lowering) before constructing the
+        # ``EventVariable`` so the modulator gets centered (or not) at
+        # the raw-value level, matching the typed-spec ``center_modulators``
+        # default of ``True``.
+        param._kwargs["_center_modulator"] = bool(term.center_modulators)
         lowered.append(param)
     return lowered
 

@@ -131,23 +131,98 @@ def test_centered_modulators_are_near_orthogonal_to_unmodulated() -> None:
     assert abs(cm[0, 2]) < 0.1, f"unmod ↔ accuracy corr = {cm[0,2]:.4f}"
 
 
-def test_uncentered_modulators_are_highly_collinear() -> None:
-    """Without pre-centering, the user-visible collinearity is real.
+def test_default_centers_modulators_even_without_pre_centering() -> None:
+    """The typed-spec default ``center_modulators=True`` centers raw values.
 
-    This pins the negative case: if a user forgets to mean-center
-    their modulators, the unmodulated boxcar and modulated columns
-    have correlation > 0.5. The clear ergonomic ask is a
-    ``center_modulators=True`` keyword on ``hrf(...)``; until then
-    the workflow's pre-centering step is the user's responsibility.
+    Pre-centering in the events DataFrame is no longer required —
+    the typed spec defaults to ``center_modulators=True`` which
+    consumes raw values and applies the centering at the input-
+    variable level (pre-convolution). Even with raw uncentered RT
+    and accuracy in the events DataFrame, the realised design has
+    near-orthogonal unmodulated / modulated columns.
     """
-    events = _make_events(centered=False)
-    fit = _fit_with_modulators(events, modulators=("rt", "accuracy"))
+    events_uncentered = _make_events(centered=False)
+    fit = _fit_with_modulators(events_uncentered, modulators=("rt", "accuracy"))
+    X = fit.model.design_matrix_array(run=0)
+    task_idx = [c.index for c in fit.design_columns().columns if c.role == "task"]
+    cm = np.corrcoef(X[:, task_idx].T)
+    assert abs(cm[0, 1]) < 0.1, (
+        f"default center_modulators=True should produce near-orthogonal "
+        f"unmod ↔ rt columns even with uncentered events; got {cm[0, 1]:.4f}"
+    )
+
+
+def test_center_modulators_false_preserves_collinearity() -> None:
+    """Explicit ``center_modulators=False`` opts out of pre-centering.
+
+    Available for R-fmridesign exact-value parity or the rare case
+    where the modulator's absolute scale carries the analytic
+    meaning. With raw uncentered modulators the unmodulated boxcar
+    and modulated regressors are strongly collinear, as expected.
+    """
+    events_uncentered = _make_events(centered=False)
+    ds = fm.fmri_dataset(
+        np.zeros((80, 1)), tr=2.0, events=events_uncentered, slice_timing_offset=0.0
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        fit = fm.fmri_lm(
+            hrf(
+                "trial_type",
+                modulators=("rt", "accuracy"),
+                center_modulators=False,
+            ),
+            ds,
+        )
     X = fit.model.design_matrix_array(run=0)
     task_idx = [c.index for c in fit.design_columns().columns if c.role == "task"]
     cm = np.corrcoef(X[:, task_idx].T)
     assert abs(cm[0, 1]) > 0.5, (
-        f"uncentered rt should be strongly correlated with unmodulated "
-        f"boxcar; got corr = {cm[0,1]:.4f}"
+        f"center_modulators=False should preserve the raw-amplitude "
+        f"collinearity; got unmod ↔ rt corr = {cm[0, 1]:.4f}"
+    )
+
+
+def test_centering_is_pre_convolution_input_variable_operation() -> None:
+    """Centering acts on raw modulator values, NOT on the convolved column.
+
+    This pins fmrimod's consistent semantics across all centering
+    surfaces (``EventVariable(center=True)``, ``Scale(center=True)``,
+    typed-spec ``center_modulators=True``): the operation is on the
+    *input variable* (the scalar modulator value per event) before
+    that scalar becomes the boxcar amplitude. The convolved
+    regressor's mean is the natural consequence of the convolution,
+    not a separately-applied centering step.
+    """
+    events_uncentered = _make_events(centered=False, n=10)
+    events_pre_centered = events_uncentered.copy()
+    for col in ("rt", "accuracy"):
+        events_pre_centered[col] -= events_pre_centered[col].mean()
+
+    # Two ways of getting to the same place: default typed spec on raw
+    # events, vs default typed spec on pre-centered events.
+    fit_auto = _fit_with_modulators(events_uncentered, modulators=("rt",))
+    fit_pre = _fit_with_modulators(events_pre_centered, modulators=("rt",))
+
+    X_auto = fit_auto.model.design_matrix_array(run=0)
+    X_pre = fit_pre.model.design_matrix_array(run=0)
+    rt_idx_auto = fit_auto.design_columns().where(
+        term="trial_type:rt", level="A"
+    ).one().index
+    rt_idx_pre = fit_pre.design_columns().where(
+        term="trial_type:rt", level="A"
+    ).one().index
+
+    # If centering happens at the right (input-variable) stage, the
+    # realised modulator columns are bitwise-equal regardless of
+    # whether the user pre-centered or relied on the typed-spec default.
+    np.testing.assert_allclose(
+        X_auto[:, rt_idx_auto], X_pre[:, rt_idx_pre], atol=1e-12,
+        err_msg=(
+            "Auto-center and pre-center realised columns should be "
+            "bitwise-equal (proves centering is on the raw input variable, "
+            "not on the convolved regressor)"
+        ),
     )
 
 

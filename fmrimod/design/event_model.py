@@ -2351,6 +2351,15 @@ def _extract_event_specs(regular_terms, data):
     """
     event_specs = {}
     for term in regular_terms:
+        # Per-modulator centering override surfaced by the typed-spec
+        # ``HrfTerm.center_modulators`` field (default ``True``). When the
+        # legacy formula path lowered the term it left ``_kwargs`` empty,
+        # so absence here means "fall back to the modern-correct
+        # default of centering numeric modulators at the raw-value
+        # level". A ``False`` explicitly preserves R ``fmridesign``
+        # legacy behavior.
+        term_kwargs = getattr(term, "_kwargs", None) or {}
+        center_modulator = bool(term_kwargs.get("_center_modulator", True))
         for event_name in term.events:
             if event_name not in event_specs:
                 if event_name in data.columns:
@@ -2361,9 +2370,10 @@ def _extract_event_specs(regular_terms, data):
                             'basis': term.basis,
                         }
                     elif pd.api.types.is_numeric_dtype(col_data):
-                        # Match fmridesign defaults: numeric modulators are
-                        # not mean-centered unless explicitly requested.
-                        event_specs[event_name] = {'type': 'variable', 'center': False}
+                        event_specs[event_name] = {
+                            'type': 'variable',
+                            'center': center_modulator,
+                        }
                     else:
                         event_specs[event_name] = {'type': 'factor'}
                 else:

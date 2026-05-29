@@ -85,6 +85,18 @@ class HrfTerm(Term):
         declared ``contrasts``; the parametric terms inherit the same HRF,
         ``durations``, ``lag``, ``subset``, ``prefix``, ``normalize`` and
         ``summate``.
+    center_modulators
+        Whether each parametric modulator's values are mean-centered at
+        the input-variable level (pre-convolution) before becoming the
+        per-event amplitude that scales the boxcar. Default ``True``,
+        matching the modern-correct workflow (Mumford et al. 2015) and
+        the underlying ``EventVariable(center=True)`` default. Pre-
+        centering decorrelates the unmodulated boxcar from its modulated
+        children, so per-modulator betas are interpretable as "the BOLD
+        change per unit of the modulator above its sample mean". Pass
+        ``center_modulators=False`` for exact R ``fmridesign`` parity
+        (which historically did not center) or for the rare case where
+        the modulator's absolute scale carries the analytic meaning.
     durations
         Per-event duration; either a column name in the event table or a
         scalar.  ``None`` defers to the spec-level default.
@@ -112,6 +124,7 @@ class HrfTerm(Term):
     hrf: Union[HRF, str] = "spm"
     contrasts: Tuple[ContrastSpec, ...] = ()
     modulators: Tuple[str, ...] = ()
+    center_modulators: bool = True
     durations: Union[str, float, None] = None
     lag: float = 0.0
     subset: Optional[Predicate] = None
