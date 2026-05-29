@@ -31,7 +31,7 @@ class TestRegressor:
         assert_array_equal(reg.onsets, onsets)
         assert len(reg.duration) == 3
         assert len(reg.amplitude) == 3
-        assert reg.span == 24.0  # Default SPMG1 span
+        assert reg.span == 32.0  # Default SPMG1 span (SPM standard)
         assert reg.summate is True
 
     def test_regressor_is_frozen(self):
@@ -147,7 +147,7 @@ class TestRegressor:
         """A user-supplied span must not be overwritten by the HRF default."""
         reg = regressor([10, 30], hrf="spmg1", span=12.0)
 
-        assert reg.hrf.span == 24.0
+        assert reg.hrf.span == 32.0
         assert reg.span == 12.0
     
     def test_hrf_string(self):

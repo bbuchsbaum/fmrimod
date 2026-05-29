@@ -8,8 +8,139 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from scipy import interpolate, special, stats
 
-# Constant used in SPM canonical HRF parameterization
+# Constant used in legacy SPM canonical HRF parameterization (kept only
+# for the ``spm_canonical_legacy`` path; the new SPM-form canonical
+# uses scipy's gamma pdf directly).
 _SPM_C = 1.274527e-13
+
+
+# Default parameters for the SPM canonical HRF (SPM ``spm_hrf`` /
+# Nilearn ``_gamma_difference_hrf`` defaults — kept as module-level
+# constants so the typed spec, library defaults, and the basis-set
+# subclasses all agree).
+_SPM_DEFAULT_DELAY: float = 6.0
+_SPM_DEFAULT_UNDERSHOOT: float = 16.0
+_SPM_DEFAULT_DISPERSION: float = 1.0
+_SPM_DEFAULT_U_DISPERSION: float = 1.0
+_SPM_DEFAULT_RATIO: float = 0.167
+
+
+def spm_canonical_legacy(
+    t: ArrayLike,
+    p1: float = 5.0,
+    p2: float = 15.0,
+    a1: float = 0.0833,
+    dispersion: float = 1.0,
+) -> NDArray[np.float64]:
+    """Legacy SPM canonical HRF (R ``fmrireg`` parameterization).
+
+    Implements the simplified double-gamma form
+    ``exp(-t) * (a1 * t^p1 - C * t^p2)`` with ``C = 1.274527e-13``.
+    This is the form fmrimod shipped before the SPM-canonical
+    alignment work; the realised canonical's peak/undershoot
+    *ratio* is ~4600 (vs SPM's ~10) and the peak time is ``p1``
+    (vs SPM's ``delay - 1 = 5``), making correlation with SPM /
+    Nilearn realised columns only ~0.91 on identical events.
+
+    Kept on the public surface as ``basis="spm_legacy"`` for
+    callers that pinned the old shape; new code should use
+    :func:`spm_canonical` (the SPM-form double gamma) instead.
+
+    Args:
+        t: Time points in seconds
+        p1: First exponent parameter (default 5)
+        p2: Second exponent parameter (default 15)
+        a1: Amplitude scaling factor (default 0.0833)
+        dispersion: Width-scale parameter (default 1.0). Evaluated at
+            ``t * dispersion``, matching the legacy dispersion-derivative
+            implementation used by ``SPMG3_HRF_Legacy``.
+
+    Returns:
+        Legacy HRF values at time points t.
+    """
+    t = np.asarray(t, dtype=np.float64)
+    result = np.zeros_like(t)
+    mask = t >= 0
+    if np.any(mask):
+        sigma = float(dispersion)
+        if sigma <= 0:
+            raise ValueError(
+                f"spm_canonical_legacy: dispersion must be positive, "
+                f"got {sigma!r}"
+            )
+        t_pos = t[mask] * sigma
+        result[mask] = np.exp(-t_pos) * (a1 * t_pos**p1 - _SPM_C * t_pos**p2)
+    return result
+
+
+def spm_canonical(
+    t: ArrayLike,
+    *,
+    delay: float = _SPM_DEFAULT_DELAY,
+    undershoot: float = _SPM_DEFAULT_UNDERSHOOT,
+    dispersion: float = _SPM_DEFAULT_DISPERSION,
+    u_dispersion: float = _SPM_DEFAULT_U_DISPERSION,
+    ratio: float = _SPM_DEFAULT_RATIO,
+) -> NDArray[np.float64]:
+    """SPM canonical HRF — the standard double-gamma form.
+
+    Matches SPM's ``spm_hrf`` and Nilearn's
+    ``_gamma_difference_hrf`` with the same parameter names and
+    defaults: a peak gamma with shape ``delay / dispersion`` and
+    scale ``dispersion``, minus a smaller undershoot gamma with
+    shape ``undershoot / u_dispersion`` and scale ``u_dispersion``,
+    weighted by ``ratio``.
+
+    At the SPM defaults (delay=6, undershoot=16, dispersion=1,
+    u_dispersion=1, ratio=0.167) the response peaks near 5 s and
+    has an undershoot near 16 s with peak/undershoot magnitude
+    ratio ~10:1.
+
+    Args:
+        t: Time points in seconds.
+        delay: Delay-to-peak of the response gamma (default 6.0).
+        undershoot: Delay-to-peak of the undershoot gamma
+            (default 16.0).
+        dispersion: Dispersion parameter for the peak gamma
+            (default 1.0). Larger values narrow the peak and shift
+            it earlier (SPM convention).
+        u_dispersion: Dispersion for the undershoot gamma
+            (default 1.0).
+        ratio: Undershoot/peak amplitude ratio (default 0.167 =
+            1/6, the SPM default).
+
+    Returns:
+        HRF values at time points t. Not normalized — apply
+        ``norm="spm"`` for the area-normalized form used by
+        Nilearn's realised regressors.
+
+    Notes:
+        Migrated from the legacy form ``exp(-t) * (a1*t^p1 - C*t^p2)``
+        in early 2026 to align fmrimod's default SPM HRF with SPM
+        and Nilearn. The previous behavior is preserved as
+        :func:`spm_canonical_legacy` and reachable via
+        ``basis="spm_legacy"``.
+    """
+    t = np.asarray(t, dtype=np.float64)
+    if dispersion <= 0 or u_dispersion <= 0:
+        raise ValueError(
+            f"spm_canonical: dispersion params must be positive, got "
+            f"dispersion={dispersion!r}, u_dispersion={u_dispersion!r}"
+        )
+    # scipy's gamma.pdf is undefined at t<=0 for shape>1; clip to a
+    # half-open mask so the kernel starts cleanly at the origin.
+    result = np.zeros_like(t)
+    mask = t > 0
+    if np.any(mask):
+        t_pos = t[mask]
+        peak = stats.gamma.pdf(
+            t_pos, delay / dispersion, loc=0.0, scale=dispersion
+        )
+        under = stats.gamma.pdf(
+            t_pos, undershoot / u_dispersion, loc=0.0, scale=u_dispersion
+        )
+        result[mask] = peak - ratio * under
+    return result
 
 
 def hrf_ident(t: ArrayLike) -> NDArray[np.float64]:
@@ -26,51 +157,6 @@ def hrf_ident(t: ArrayLike) -> NDArray[np.float64]:
     """
     t = np.asarray(t, dtype=np.float64)
     return np.where(t == 0, 1.0, 0.0)
-
-
-def spm_canonical(
-    t: ArrayLike,
-    p1: float = 5.0,
-    p2: float = 15.0,
-    a1: float = 0.0833,
-    dispersion: float = 1.0,
-) -> NDArray[np.float64]:
-    """SPM canonical hemodynamic response function.
-
-    Implements the canonical HRF as defined in SPM using the double gamma
-    parameterization: exp(-t) * (A1*t^P1 - C*t^P2) where C = 1.274527e-13.
-
-    Args:
-        t: Time points in seconds
-        p1: First exponent parameter (default: 5)
-        p2: Second exponent parameter (default: 15)
-        a1: Amplitude scaling factor (default: 0.0833)
-        dispersion: SPM-convention dispersion parameter (default 1.0).
-            The canonical is evaluated at ``t * dispersion``, so
-            ``dispersion > 1`` narrows the response and shifts the peak
-            earlier (matching SPM's ``shape = p / dispersion``
-            convention where larger dispersion reduces the gamma's
-            spread). Used by :class:`SPMG3_HRF` to compute the SPM
-            informed-basis dispersion derivative
-            ``(h(σ=1) - h(σ=1+dx)) / dx`` — the negative forward
-            difference convention shared with Nilearn's
-            ``spm_dispersion_derivative``.
-
-    Returns:
-        HRF values at time points t
-    """
-    t = np.asarray(t, dtype=np.float64)
-    result = np.zeros_like(t)
-    mask = t >= 0
-    if np.any(mask):
-        sigma = float(dispersion)
-        if sigma <= 0:
-            raise ValueError(
-                f"spm_canonical: dispersion must be positive, got {sigma!r}"
-            )
-        t_pos = t[mask] * sigma
-        result[mask] = np.exp(-t_pos) * (a1 * t_pos**p1 - _SPM_C * t_pos**p2)
-    return result
 
 
 def gamma_hrf(

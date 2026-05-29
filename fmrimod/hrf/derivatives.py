@@ -207,8 +207,86 @@ def spmg1_dispersion_derivative(
     Returns:
         Dispersion-derivative values at time points ``t``.
     """
-    from .functions import spm_canonical as _canon
+    from .functions import spm_canonical_legacy as _canon
 
     h0 = _canon(t, p1=p1, p2=p2, a1=a1, dispersion=1.0)
     h1 = _canon(t, p1=p1, p2=p2, a1=a1, dispersion=1.0 + dx)
+    return (h0 - h1) / dx
+
+
+# ---------------------------------------------------------------------------
+# SPM-form finite-difference derivatives (new default basis)
+# ---------------------------------------------------------------------------
+
+
+# SPM ``spm_get_bf.m`` uses dt=0.1 for the time derivative perturbation
+# and dt=0.01 for the dispersion perturbation. Nilearn inherits both
+# values. We mirror them so the realised columns line up.
+_SPM_TIME_DX = 0.1
+_SPM_DISP_DX_SPM = 0.01
+
+
+def spmg1_temporal_derivative_spm(
+    t: ArrayLike,
+    *,
+    delay: float = 6.0,
+    undershoot: float = 16.0,
+    dispersion: float = 1.0,
+    u_dispersion: float = 1.0,
+    ratio: float = 0.167,
+    dx: float = _SPM_TIME_DX,
+) -> NDArray[np.float64]:
+    """SPM temporal-derivative basis column (finite difference in delay).
+
+    Matches SPM ``spm_get_bf`` case "hrf (with time derivative)" and
+    Nilearn's ``spm_time_derivative``:
+    ``(h(delay=d) - h(delay=d+dx)) / dx`` with ``dx = 0.1``. This is
+    the negative-forward difference and approximates ``-∂h/∂delay``.
+
+    Differs from the legacy analytic ∂h/∂t (which acts on time
+    instead of the delay parameter); the legacy form is available as
+    :func:`spmg1_derivative` for callers using the legacy canonical.
+    """
+    from .functions import spm_canonical as _canon
+
+    h0 = _canon(
+        t, delay=delay, undershoot=undershoot,
+        dispersion=dispersion, u_dispersion=u_dispersion, ratio=ratio,
+    )
+    h1 = _canon(
+        t, delay=delay + dx, undershoot=undershoot,
+        dispersion=dispersion, u_dispersion=u_dispersion, ratio=ratio,
+    )
+    return (h0 - h1) / dx
+
+
+def spmg1_dispersion_derivative_spm(
+    t: ArrayLike,
+    *,
+    delay: float = 6.0,
+    undershoot: float = 16.0,
+    dispersion: float = 1.0,
+    u_dispersion: float = 1.0,
+    ratio: float = 0.167,
+    dx: float = _SPM_DISP_DX_SPM,
+) -> NDArray[np.float64]:
+    """SPM dispersion-derivative basis column (finite difference in dispersion).
+
+    Matches SPM ``spm_get_bf`` case "hrf (with time and dispersion
+    derivatives)" and Nilearn's ``spm_dispersion_derivative``:
+    ``(h(disp=1) - h(disp=1+dx)) / dx`` with ``dx = 0.01``. SPM and
+    Nilearn perturb only the peak dispersion (p(3)), leaving the
+    undershoot dispersion (p(4)) unchanged; this implementation does
+    the same.
+    """
+    from .functions import spm_canonical as _canon
+
+    h0 = _canon(
+        t, delay=delay, undershoot=undershoot,
+        dispersion=dispersion, u_dispersion=u_dispersion, ratio=ratio,
+    )
+    h1 = _canon(
+        t, delay=delay, undershoot=undershoot,
+        dispersion=dispersion + dx, u_dispersion=u_dispersion, ratio=ratio,
+    )
     return (h0 - h1) / dx

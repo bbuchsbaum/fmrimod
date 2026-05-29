@@ -28,6 +28,7 @@ import pytest
 import fmrimod as fm
 from fmrimod.hrf.derivatives import (
     spmg1_dispersion_derivative,
+    spmg1_dispersion_derivative_spm,
     spmg1_second_derivative,
 )
 from fmrimod.hrf.functions import spm_canonical
@@ -106,7 +107,10 @@ def test_spm_dispersion_derivative_is_not_second_time_derivative() -> None:
     t = np.linspace(0, 20, 201)
     hrf = SPMG3_HRF()
     disp_col = hrf(t)[:, 2]
-    second_time = spmg1_second_derivative(t, p1=hrf.p1, p2=hrf.p2, a1=hrf.a1)
+    # SPM canonical's second time derivative computed on the legacy form
+    # — we only want a distinguishing-shape check, not numerical
+    # equivalence between the two parameterizations.
+    second_time = spmg1_second_derivative(t)
 
     # The two have opposite signs on the rising flank — they are not
     # the same function.
@@ -120,12 +124,20 @@ def test_spm_dispersion_derivative_is_not_second_time_derivative() -> None:
 
 
 def test_spm_dispersion_derivative_function_matches_class_column() -> None:
-    """``spmg1_dispersion_derivative`` and SPMG3()(t)[:,2] return the same array."""
+    """``spmg1_dispersion_derivative_spm`` and SPMG3()(t)[:,2] match exactly.
+
+    The new SPMG3 (post canonical alignment) uses the SPM dispersion
+    derivative (finite difference w.r.t. dispersion parameter), so the
+    module-level helper that matches the class column is
+    :func:`spmg1_dispersion_derivative_spm`, not the legacy
+    :func:`spmg1_dispersion_derivative`.
+    """
     t = np.linspace(0, 24, 49)
-    hrf = SPMG3_HRF()
-    from_class = hrf(t)[:, 2]
-    from_function = spmg1_dispersion_derivative(
-        t, p1=hrf.p1, p2=hrf.p2, a1=hrf.a1
+    h = SPMG3_HRF()
+    from_class = h(t)[:, 2]
+    from_function = spmg1_dispersion_derivative_spm(
+        t, delay=h.delay, undershoot=h.undershoot,
+        dispersion=h.dispersion, u_dispersion=h.u_dispersion, ratio=h.ratio,
     )
     np.testing.assert_allclose(from_class, from_function, atol=1e-14)
 
