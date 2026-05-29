@@ -53,14 +53,24 @@ design_colmap(model)[["col", "name", "condition", "role", "basis_name"]]
 
 ## Add a Parametric Modulator
 
-Continuous variables can enter the formula as event-level covariates.
+To model a condition modulated by a trial-by-trial continuous variable
+(reaction time, accuracy, confidence, ...), use the typed-spec
+`modulators=` keyword. This expands the term into an unmodulated
+boxcar plus one regressor per modulator. By default each modulator
+is mean-centered at the raw-value level (pre-convolution), giving
+the unmodulated boxcar and modulated columns the near-orthogonal
+structure that makes per-modulator betas interpretable.
 
 ```{python}
-modulated = fm.event_model(
-    'onset ~ hrf(condition, basis="spmg1") + hrf(response_time, basis="spmg1")',
-    data=events,
-    sampling_frame=sf,
-)
+from fmrimod.spec import hrf
+
+modulated_spec = hrf("condition", modulators=("response_time",))
+modulated = fm.event_model(modulated_spec, data=events, sampling_frame=sf)
 
 modulated.design_matrix.shape
 ```
+
+See the [parametric modulators](parametric-modulators.qmd) tutorial
+for the full story on centering semantics, the `center_modulators=`
+opt-out, and why fmrimod does not orthogonalize modulators
+automatically.

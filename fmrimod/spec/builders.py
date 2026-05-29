@@ -62,6 +62,21 @@ def hrf(
 
     Parameters
     ----------
+    modulators
+        Names of parametric-modulator columns in the events DataFrame.
+        Each modulator expands into one additional regressor: the
+        unmodulated boxcar scaled by the modulator's per-event value.
+        Listing order is irrelevant — fmrimod does not orthogonalize
+        modulators against each other.
+    center_modulators
+        Mean-center each modulator at the input-variable level (on
+        the raw per-event scalar that becomes the boxcar amplitude),
+        before convolution. Default ``True``, matching
+        :class:`~fmrimod.events.EventVariable`'s ``center=True``
+        default and the post-Mumford modern-correct workflow. Set to
+        ``False`` for exact R ``fmridesign`` parity or when the
+        modulator's absolute scale carries the analytic meaning. See
+        the *parametric modulators* tutorial for the full discussion.
     norm
         HRF normalization mode. ``"spm"`` matches Nilearn's
         ``hrf_model="spm"`` scale on the reference grid;
@@ -75,6 +90,8 @@ def hrf(
     >>> hrf("trial_type", basis="spmg3")
     >>> hrf("trial_type", norm="spm")  # Nilearn-compatible scale
     >>> hrf("trial_type", "block", subset={"task": "memory"})
+    >>> hrf("trial_type", modulators=("rt", "accuracy"))  # auto-centered
+    >>> hrf("trial_type", modulators=("rt",), center_modulators=False)
     """
     if not variables:
         raise ValueError("hrf() requires at least one variable name")
