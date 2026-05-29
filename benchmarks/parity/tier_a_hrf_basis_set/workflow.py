@@ -136,7 +136,7 @@ def _realize_design(
     """Build the SPMG3 design via the typed spec."""
     spec = (
         hrf("trial_type", basis="spmg3", norm="spm")
-        + drift("poly", degree=2)
+        + drift("cosine", cutoff=128.0)
     )
     dummy = fm.fmri_dataset(
         np.zeros((N_SCANS, 1), dtype=np.float64),
@@ -316,7 +316,7 @@ def fmrimod_pipeline(inputs: BasisSetInputs) -> PipelineOutput:
     """Typed fmrimod path: ``fmri_lm(spec, ds, engine="concat")``."""
     spec = (
         hrf("trial_type", basis="spmg3", norm="spm")
-        + drift("poly", degree=2)
+        + drift("cosine", cutoff=128.0)
     )
     ds = fm.fmri_dataset(inputs.data, tr=TR, events=inputs.events)
     with warnings.catch_warnings():

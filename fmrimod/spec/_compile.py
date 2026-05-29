@@ -219,6 +219,62 @@ def compile_events(
     return build_event_model(lowered_terms, **kwargs)
 
 
+def _cosine_degree_from_cutoff(drift_term: Drift, sampling_frame: Any) -> int:
+    """Compute the SPM DCT cosine-basis count from a high-pass cutoff.
+
+    Convention (matching SPM and Nilearn's ``create_cosine_drift``):
+    ``high_pass_hz = 1 / cutoff_seconds`` and
+    ``n_basis = floor(2 * T * high_pass_hz)`` where ``T`` is the
+    block duration in seconds. When run lengths differ across blocks
+    we use the maximum so every per-block stripe carries the same
+    number of drift columns; shorter blocks then carry the same
+    DCT-II frequencies sampled over their own length.
+    """
+    if drift_term.cutoff is None:
+        raise ValueError(
+            "drift(basis='cosine') requires cutoff= (high-pass period "
+            "in seconds, e.g. cutoff=128.0); none was supplied."
+        )
+    cutoff = float(drift_term.cutoff)
+    if cutoff <= 0:
+        raise ValueError(
+            f"drift(basis='cosine'): cutoff must be positive, got {cutoff!r}"
+        )
+    blocklens_attr = getattr(sampling_frame, "blocklens", None)
+    blocklens = (
+        list(np.asarray(blocklens_attr).ravel())
+        if blocklens_attr is not None
+        else []
+    )
+    if not blocklens:
+        raise ValueError(
+            "drift(basis='cosine'): sampling frame has no block lengths"
+        )
+    tr_attr = getattr(sampling_frame, "tr", None)
+    if tr_attr is None:
+        tr_attr = getattr(sampling_frame, "TR", None)
+    if tr_attr is None:
+        raise ValueError(
+            "drift(basis='cosine'): sampling frame has no TR; cannot "
+            "translate cutoff (seconds) to a DCT basis count."
+        )
+    # SamplingFrame may carry per-run TRs as a list/array.
+    tr_arr = np.atleast_1d(np.asarray(tr_attr, dtype=np.float64))
+    tr_max = float(np.max(tr_arr))
+    block_len_max = int(max(blocklens))
+    T = float(block_len_max) * tr_max
+    high_pass_hz = 1.0 / cutoff
+    n_basis = int(np.floor(2.0 * T * high_pass_hz))
+    if n_basis < 1:
+        raise ValueError(
+            f"drift(basis='cosine', cutoff={cutoff!r}): high-pass period "
+            f"is longer than the run duration ({T:.1f} s); no cosine "
+            f"basis functions would be generated. Reduce cutoff or use "
+            f"a different drift basis."
+        )
+    return n_basis
+
+
 def compile_baseline(
     spec: Spec,
     sampling_frame: Any,
@@ -247,6 +303,16 @@ def compile_baseline(
 
     basis = cast(BaselineBasis, drift_term.basis if drift_term else "constant")
     degree: int = drift_term.degree if drift_term else 1
+    if drift_term is not None and drift_term.basis == "cosine":
+        degree = _cosine_degree_from_cutoff(drift_term, sampling_frame)
+    elif drift_term is not None and drift_term.cutoff is not None:
+        import warnings as _warnings
+        _warnings.warn(
+            f"drift(basis={drift_term.basis!r}, cutoff={drift_term.cutoff!r}): "
+            "cutoff= is only meaningful with basis='cosine'; ignoring.",
+            UserWarning,
+            stacklevel=3,
+        )
     intercept_kind: str = intercept_term.per if intercept_term else "runwise"
     # Map our "run" convention to the legacy "runwise" label.
     if intercept_kind == "run":

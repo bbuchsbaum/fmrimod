@@ -210,7 +210,9 @@ class TestBaselineModel:
 
     def test_public_option_sets_are_closed_literals(self):
         """Baseline options expose the closed sets accepted at runtime."""
-        assert get_args(BaselineBasis) == ('constant', 'poly', 'bs', 'ns')
+        assert get_args(BaselineBasis) == (
+            'constant', 'poly', 'bs', 'ns', 'cosine'
+        )
         assert get_args(BaselineIntercept) == ('runwise', 'global', 'none')
         assert get_args(NuisanceCheckMode) == ('warn', 'error', 'drop', 'none')
 

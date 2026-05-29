@@ -21,14 +21,14 @@ from scipy.interpolate import BSpline as ScipyBSpline
 from ..types import Array, SamplingInfo
 from .baseline_term import BaselineTerm
 
-BaselineBasis = Literal['constant', 'poly', 'bs', 'ns']
+BaselineBasis = Literal['constant', 'poly', 'bs', 'ns', 'cosine']
 BaselineIntercept = Literal['runwise', 'global', 'none']
 BaselineTermRole = Literal['drift', 'block', 'nuisance']
 NuisanceCheckMode = Literal['warn', 'error', 'drop', 'none']
 
 BASELINE_TERM_ORDER: tuple[BaselineTermRole, ...] = ('drift', 'block', 'nuisance')
 
-_BASELINE_BASIS: tuple[BaselineBasis, ...] = ('constant', 'poly', 'bs', 'ns')
+_BASELINE_BASIS: tuple[BaselineBasis, ...] = ('constant', 'poly', 'bs', 'ns', 'cosine')
 _BASELINE_INTERCEPTS: tuple[BaselineIntercept, ...] = ('runwise', 'global', 'none')
 _NUISANCE_CHECK_MODES: tuple[NuisanceCheckMode, ...] = (
     'warn',
@@ -277,8 +277,38 @@ class BaselineSpec:
             return self._bs_basis
         elif self.basis == 'ns':
             return self._ns_basis
+        elif self.basis == 'cosine':
+            return self._cosine_basis
         else:
             raise ValueError(f"Unknown basis type: {self.basis}")
+
+    def _cosine_basis(self, x: Array, degree: int) -> NDArray[np.float64]:
+        """Discrete cosine transform (DCT-II) high-pass drift basis.
+
+        Implements the SPM convention used by Nilearn's
+        ``create_cosine_drift`` (with the trailing constant column
+        omitted — the intercept is handled by the baseline intercept
+        block, not by the drift basis):
+
+            B[i, k-1] = sqrt(2 / n) * cos((pi / n) * (i + 0.5) * k)
+
+        for ``k`` in ``1..degree`` and ``i`` in ``0..n-1``. ``degree``
+        is the number of cosine basis functions; for the
+        ``high_pass = 1 / cutoff_seconds`` SPM convention the typed
+        compile step picks ``degree = floor(2 * T * high_pass)`` where
+        ``T`` is the block duration in seconds.
+        """
+        x = np.asarray(x).ravel()
+        n = len(x)
+        order = max(0, int(degree))
+        if order == 0 or n == 0:
+            return np.zeros((n, 0), dtype=np.float64)
+        # i = 0..n-1 (matches Nilearn's ``n_times = arange(n_frames)``)
+        i = np.arange(n, dtype=np.float64)
+        k = np.arange(1, order + 1, dtype=np.float64)
+        # B[i, k-1] = sqrt(2/n) * cos((pi/n) * (i + 0.5) * k)
+        phase = (np.pi / float(n)) * (i[:, None] + 0.5) * k[None, :]
+        return (np.sqrt(2.0 / float(n)) * np.cos(phase)).astype(np.float64)
     
     def _poly_basis(self, x: Array, degree: int) -> NDArray[np.float64]:
         """Polynomial basis function."""
@@ -1077,7 +1107,7 @@ def _construct_drift_term(spec: BaselineSpec, sframe: SamplingInfo) -> BaselineT
         if spec.basis == 'ns':
             # Natural splines use 'df' parameter
             block_matrix = spec.fun(t, df=spec.degree)
-        elif spec.basis in ('poly', 'bs'):
+        elif spec.basis in ('poly', 'bs', 'cosine'):
             block_matrix = spec.fun(t, degree=spec.degree)
         else:
             # Constant
