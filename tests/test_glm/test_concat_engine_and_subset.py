@@ -367,3 +367,103 @@ def test_concat_engine_single_run_works() -> None:
         )
     assert fit.betas.shape == (3, 4)
     assert fit.is_full_rank is True
+
+
+# -- 4. Concat engine guards for unsupported compositions --------------------
+#
+# ``fit_concat`` returns ``residuals=None`` and a single-element
+# ``run_X=[X]``. Both the AR integration path and the robust (IRLS) refit
+# path read *per-run* residuals via ``initial_fit["residuals"][r]``, so
+# composing either with ``engine="concat"`` would crash with a
+# ``TypeError: 'NoneType' object is not subscriptable`` deep inside the
+# refit. ``fmri_lm`` detects both combinations up front and raises a clear
+# ``NotImplementedError`` instead.
+
+def test_concat_engine_rejects_robust_refit() -> None:
+    """robust + concat raises a clear unsupported-composition error."""
+    from fmrimod.model.config import FmriLmConfig, RobustOptions
+
+    _events, ds = _two_run_events_and_dataset()
+    spec = hrf("trial_type", basis="spm", norm="spm") + intercept(per="run")
+    config = FmriLmConfig(robust=RobustOptions(type="huber"))
+    with pytest.raises(NotImplementedError, match="robust.*concat|concat.*robust"):
+        fm.fmri_lm(spec, ds, config=config, engine="concat")
+
+
+def test_concat_engine_rejects_ar_prewhitening() -> None:
+    """AR + concat raises a clear unsupported-composition error."""
+    _events, ds = _two_run_events_and_dataset()
+    spec = hrf("trial_type", basis="spm", norm="spm") + intercept(per="run")
+    with pytest.raises(NotImplementedError, match="AR.*concat|concat.*AR"):
+        fm.fmri_lm(spec, ds, ar="ar1", engine="concat")
+
+
+# -- 5. Concat engine honors configured preprocessing ------------------------
+#
+# The runwise path applies volume weights and soft-subspace projection via
+# ``_prepare_run_matrices``. The concat path used to apply only censoring
+# and then solve, silently dropping those options. Both now flow through the
+# same preprocessing pipeline, so concat estimates match the runwise engine
+# (and differ from the unweighted/unprojected concat solve).
+
+def test_concat_engine_applies_volume_weights() -> None:
+    from fmrimod.model.config import FmriLmConfig, VolumeWeightOptions
+
+    _events, ds = _two_run_events_and_dataset(seed=1)
+    spec = (
+        hrf("trial_type", "run_label", basis="spm", norm="spm")
+        + intercept(per="run")
+    )
+    # Non-trivial weights over all concatenated rows (2 runs x 80).
+    rng = np.random.default_rng(7)
+    weights = rng.uniform(0.2, 1.0, size=160)
+    config = FmriLmConfig(
+        volume_weights=VolumeWeightOptions(enabled=True, weights=weights)
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        fit_concat_w = fm.fmri_lm(spec, ds, config=config, engine="concat")
+        fit_runwise_w = fm.fmri_lm(spec, ds, config=config, engine="runwise")
+        fit_concat_unw = fm.fmri_lm(spec, ds, engine="concat")
+    # Weights are now honored: concat matches the runwise weighted fit ...
+    np.testing.assert_allclose(
+        fit_concat_w.betas, fit_runwise_w.betas, atol=1e-10
+    )
+    # ... and the weighting actually changed the solution (no silent drop).
+    assert not np.allclose(fit_concat_w.betas, fit_concat_unw.betas, atol=1e-6)
+
+
+def test_concat_engine_applies_soft_subspace_projection() -> None:
+    from fmrimod.glm.preprocess import soft_subspace_projection
+    from fmrimod.glm.solver import fast_lm_matrix, fast_preproject
+    from fmrimod.model.config import FmriLmConfig, SoftSubspaceOptions
+
+    _events, ds = _two_run_events_and_dataset(seed=2)
+    spec = (
+        hrf("trial_type", "run_label", basis="spm", norm="spm")
+        + intercept(per="run")
+    )
+    # Nuisance regressors defined over all concatenated rows.
+    rng = np.random.default_rng(11)
+    nuisance = rng.normal(size=(160, 3))
+    config = FmriLmConfig(
+        soft_subspace=SoftSubspaceOptions(
+            enabled=True, nuisance_matrix=nuisance, lam=0.0
+        )
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        fit_concat_p = fm.fmri_lm(spec, ds, config=config, engine="concat")
+        fit_concat_unp = fm.fmri_lm(spec, ds, engine="concat")
+    # The projection actually changed the solution (no silent drop).
+    assert not np.allclose(fit_concat_p.betas, fit_concat_unp.betas, atol=1e-6)
+    # The concat engine routes the *whole stacked system* through the same
+    # soft-subspace helper the runwise path uses, so it equals a manual
+    # full-system residualization + OLS. (This is distinct from the runwise
+    # engine, which residualizes each run against its own nuisance slice.)
+    X = np.asarray(fit_concat_p.model.design_matrix_array(run=None), dtype=float)
+    Y = np.asarray(ds.get_data_matrix(), dtype=float)
+    Xp, Yp = soft_subspace_projection(X, Y, nuisance, 0.0)
+    proj = fast_preproject(Xp)
+    manual = fast_lm_matrix(Xp, Yp, proj)
+    np.testing.assert_allclose(fit_concat_p.betas, manual.betas, atol=1e-10)

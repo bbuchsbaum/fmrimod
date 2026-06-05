@@ -527,9 +527,20 @@ def fit_concat(
     Y_full = _gather_concatenated_data(model)
 
     censor_mask = _gather_concatenated_censor(model, expected_rows=X.shape[0])
-    if censor_mask is not None:
-        # apply_censoring keeps rows where censor == False (True = drop).
-        X, Y_full, _ = apply_censoring(X, Y_full, censor_mask)
+    # Route the concatenated system through the same preprocessing pipeline
+    # the runwise strategy uses, so censoring, volume weights, and
+    # soft-subspace projection are all honored instead of silently dropped.
+    # ``run=None`` tells ``_prepare_run_matrices`` to treat X/Y as the
+    # already-concatenated, full-length matrices (weights / nuisance are
+    # defined over all rows here, so no per-run slicing is needed).
+    X, Y_full = _prepare_run_matrices(
+        X,
+        Y_full,
+        config,
+        censor=censor_mask,
+        dataset=getattr(model, "dataset", None),
+        run=None,
+    )
 
     proj = fast_preproject(X, compute_dtype=compute_dtype)
     lm = fast_lm_matrix(X, Y_full, proj, compute_dtype=compute_dtype)

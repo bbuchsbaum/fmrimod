@@ -887,6 +887,21 @@ def fmri_lm(
             "engine (drop the engine= argument or pass engine='runwise')."
         )
 
+    # Robust + concat engine combination: same shape of problem as the AR
+    # guard above. ``robust_refit`` reads per-run residuals via
+    # ``initial_fit["residuals"][r]``, but ``fit_concat`` returns
+    # ``residuals=None`` (and a single-element ``run_X=[X]``), so the
+    # robust path would crash with ``TypeError: 'NoneType' object is not
+    # subscriptable`` instead of producing a fit. Detect the combination
+    # here and raise a clear error pointing the user at the working path.
+    if config.robust.enabled and _engine_selector_is_concat(engine):
+        raise NotImplementedError(
+            "fmri_lm: robust (IRLS) refitting does not currently compose "
+            "with engine='concat'. The robust path requires per-run "
+            "residuals from the runwise strategy. Use the default runwise "
+            "engine (drop the engine= argument or pass engine='runwise')."
+        )
+
     # Resolve and run the engine
     eng, fit_kwargs = resolve_engine(engine, engine_kwargs)
     eng.preflight(model, config)
