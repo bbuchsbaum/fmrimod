@@ -144,8 +144,8 @@ class TestNoDiff:
 class TestHRFDiff:
     def test_parameter_tweak_returns_HRFDiff_not_EventDiff(self) -> None:
         df = _events_df(["A", "B"], [10.0, 30.0])
-        a = _build_model(df, condition_hrf=SPMG1_HRF(p1=5.0, p2=15.0, a1=0.0833))
-        b = _build_model(df, condition_hrf=SPMG1_HRF(p1=6.0, p2=15.0, a1=0.0833))
+        a = _build_model(df, condition_hrf=SPMG1_HRF(delay=6.0))
+        b = _build_model(df, condition_hrf=SPMG1_HRF(delay=7.0))
 
         diff = _diff_for(a, b)
         assert isinstance(diff, HRFDiff)
@@ -155,9 +155,9 @@ class TestHRFDiff:
         assert len(diff.parameter_changes) == 1
         pc = diff.parameter_changes[0]
         assert isinstance(pc, HRFParameterChange)
-        assert pc.parameter == "p1"
-        assert pc.a_value == 5.0
-        assert pc.b_value == 6.0
+        assert pc.parameter == "delay"
+        assert pc.a_value == 6.0
+        assert pc.b_value == 7.0
 
     def test_kind_change_returns_HRFKindChange_not_parameter_change(self) -> None:
         df = _events_df(["A", "B"], [10.0, 30.0])

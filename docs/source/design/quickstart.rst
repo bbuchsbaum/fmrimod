@@ -76,17 +76,35 @@ Continuous covariates can be included in the model:
 Parametric Modulation
 ---------------------
 
-Model parametric modulation of conditions by continuous variables:
+Model parametric modulation of conditions by continuous variables.
+The recommended surface is the typed-spec ``modulators=`` keyword,
+which expands the term into an unmodulated boxcar plus one
+mean-centered regressor per modulator (Mumford et al. 2015):
 
 .. code-block:: python
 
-    # Condition modulated by reaction time
-    model = event_model(
-        "condition + condition:rt",
-        data=data,
-        tr=2.0,
-        n_scans=100
+    from fmrimod.spec import hrf, drift, intercept
+
+    # Condition modulated by reaction time. By default each
+    # modulator is mean-centered at the raw-value level before
+    # convolution; pass ``center_modulators=False`` for R-fmridesign
+    # exact-value parity.
+    spec = (
+        hrf("condition", modulators=("rt",))
+        + drift("poly", degree=2)
+        + intercept(per="run")
     )
+    fit = fm.fmri_lm(spec, dataset)
+
+This produces three task columns: ``condition`` (unmodulated boxcar),
+``condition:rt`` (boxcar scaled by ``rt - mean(rt)``), and the
+baseline drift / intercept columns. fmrimod does **not** orthogonalize
+between modulators when multiple are supplied — listing
+``modulators=("rt", "accuracy")`` is equivalent to
+``modulators=("accuracy", "rt")`` (modulo column ordering). See the
+`parametric modulators tutorial
+<../../tutorials/parametric-modulators.qmd>`_ for the full discussion
+of centering semantics and the four entry points.
 
 Adding Baseline Terms
 ---------------------

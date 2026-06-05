@@ -39,7 +39,14 @@ from .functions import (
     hrf_time,
     weighted_hrf,
 )
-from .spm_hrf import SPMG1_HRF, SPMG2_HRF, SPMG3_HRF
+from .spm_hrf import (
+    SPMG1_HRF,
+    SPMG2_HRF,
+    SPMG3_HRF,
+    SPMG1_HRF_Legacy,
+    SPMG2_HRF_Legacy,
+    SPMG3_HRF_Legacy,
+)
 
 # --- Single-basis kernels --------------------------------------------------
 
@@ -426,10 +433,18 @@ class EmpiricalHRF(HRF):
 
 # --- Singleton instances ---------------------------------------------------
 
-# SPM Canonical HRF (now with analytic derivative support)
-SPM_CANONICAL = SPMG1_HRF(p1=5.0, p2=15.0, a1=0.0833)
-SPM_WITH_DERIVATIVE = SPMG2_HRF(p1=5.0, p2=15.0, a1=0.0833)
-SPM_WITH_DISPERSION = SPMG3_HRF(p1=5.0, p2=15.0, a1=0.0833)
+# Default SPM HRF basis using the SPM/Nilearn standard parameterization
+# (delay=6, undershoot=16, dispersion=1, u_dispersion=1, ratio=0.167).
+# See ``fmrimod/hrf/spm_hrf.py`` for the migration note.
+SPM_CANONICAL = SPMG1_HRF()
+SPM_WITH_DERIVATIVE = SPMG2_HRF()
+SPM_WITH_DISPERSION = SPMG3_HRF()
+
+# Legacy R-fmrireg parameterization, reachable via ``basis="spm_legacy"``
+# / ``"spmg1_legacy"`` / ``"spmg2_legacy"`` / ``"spmg3_legacy"``.
+SPM_CANONICAL_LEGACY = SPMG1_HRF_Legacy()
+SPM_WITH_DERIVATIVE_LEGACY = SPMG2_HRF_Legacy()
+SPM_WITH_DISPERSION_LEGACY = SPMG3_HRF_Legacy()
 
 GAMMA_HRF = GammaHRF()
 GAUSSIAN_HRF = GaussianHRF()
@@ -458,6 +473,12 @@ PREDEFINED_HRFS = {
     "spm_canonical": SPM_CANONICAL,
     "spmg2": SPM_WITH_DERIVATIVE,
     "spmg3": SPM_WITH_DISPERSION,
+    # Legacy R-fmrireg parameterization (pre-2026 alignment).
+    "spm_legacy": SPM_CANONICAL_LEGACY,
+    "spmg1_legacy": SPM_CANONICAL_LEGACY,
+    "spm_canonical_legacy": SPM_CANONICAL_LEGACY,
+    "spmg2_legacy": SPM_WITH_DERIVATIVE_LEGACY,
+    "spmg3_legacy": SPM_WITH_DISPERSION_LEGACY,
     "gamma": GAMMA_HRF,
     "gaussian": GAUSSIAN_HRF,
     "bspline": BSPLINE_HRF,

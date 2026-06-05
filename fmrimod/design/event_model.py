@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import warnings
 from itertools import product as iter_product
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Mapping, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -64,6 +64,33 @@ def _import_fmrimod() -> Any:
         regressor = staticmethod(_regressor_func)
 
     return _FmrimodShim
+
+
+#: TR-relative oversampling factor used by the default
+#: :class:`EventModel` precision. 16x is well past the accuracy plateau
+#: (correlation > 0.999 vs Nilearn at matched sampling grids) while
+#: staying ~3x faster than Nilearn's 50x default. Override per-call by
+#: passing ``precision=...`` (absolute seconds) to ``fmri_lm`` /
+#: ``event_model``.
+DEFAULT_PRECISION_OVERSAMPLING: int = 16
+
+
+def _default_precision_from_sframe(sampling_info: object) -> float:
+    """Resolve the default TR-relative precision from a SamplingFrame.
+
+    ``precision = min(TR) / DEFAULT_PRECISION_OVERSAMPLING``. Falls
+    back to the historical default ``0.3 s`` if no TR is available
+    (legacy ``SamplingInfo`` subclasses that don't expose ``.tr``).
+    """
+    tr_attr = getattr(sampling_info, "tr", None)
+    if tr_attr is None:
+        tr_attr = getattr(sampling_info, "TR", None)
+    if tr_attr is None:
+        return 0.3
+    tr_arr = np.atleast_1d(np.asarray(tr_attr, dtype=float))
+    if tr_arr.size == 0:
+        return 0.3
+    return float(np.min(tr_arr) / DEFAULT_PRECISION_OVERSAMPLING)
 
 
 class EventModel(ModelProtocol):  # type: ignore[misc]
@@ -146,14 +173,29 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         name: Optional[str] = None,
         precision: Optional[float] = None,
         blockids: Optional[Array] = None,
+        data: Optional[pd.DataFrame] = None,
     ):
         """Initialize event model."""
         self.terms = terms
         self.events = events
         self.sampling_info = sampling_info
         self.name = name or "EventModel"
-        self.precision = precision or 0.3
+        # Default precision is TR-relative (``min(TR) / 16``) — gives 16x
+        # sub-TR oversampling for the convolution grid. That's well past
+        # the accuracy plateau (correlation > 0.999 vs Nilearn's 50x at
+        # matched sampling grids) while staying ~3x faster. The user
+        # override remains absolute seconds.
+        self.precision = (
+            float(precision)
+            if precision is not None
+            else _default_precision_from_sframe(sampling_info)
+        )
         self._blockids = np.asarray(blockids) if blockids is not None else None
+        # Raw event table (when available). Used to resolve term-level
+        # ``subset=`` predicates against the original DataFrame columns;
+        # this is the only path that can reach columns the convolver
+        # otherwise wouldn't keep (e.g. ``block``, an accuracy flag).
+        self._data = data
 
         # Cached values
         self._design_matrix: Optional[Array] = None
@@ -210,10 +252,91 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         event_terms = []
         for term in self.terms:
             event_term = self._create_single_event_term(term)
+            event_term = self._apply_term_subset(term, event_term)
             event_terms.append(event_term)
 
         self._event_terms = event_terms
         return event_terms
+
+    def _term_subset_spec(self, term: Term) -> Any:
+        """Return the ``subset=`` predicate declared on a term, or ``None``."""
+        extra = getattr(term, "_kwargs", None) or {}
+        return extra.get("subset")
+
+    def _resolve_subset_mask(self, subset: Any, term_name: str) -> Array:
+        """Evaluate a term-level subset predicate against the events table.
+
+        Accepts the same shapes the typed ``hrf(..., subset=...)`` builder
+        documents:
+
+        - ``dict``: an AND of equality clauses, ``{"block": 1, "valid": True}``.
+        - ``str``: a pandas ``.eval`` predicate, e.g. ``"block <= 3"``.
+        - ``callable``: a function taking the events DataFrame and
+          returning a boolean array.
+
+        Returns a 1-D boolean array of length ``len(events)``.
+        """
+        if self._data is None:
+            raise ValueError(
+                f"term '{term_name}' declares subset={subset!r} but the "
+                f"EventModel was constructed without the raw events "
+                f"DataFrame; rebuild via event_model(..., data=df, ...)."
+            )
+        df = self._data
+        if callable(subset):
+            mask = subset(df)
+        elif isinstance(subset, str):
+            try:
+                mask = df.eval(subset)
+            except Exception as exc:
+                raise ValueError(
+                    f"term '{term_name}' subset string {subset!r} could "
+                    f"not be evaluated against the events table: {exc}"
+                ) from exc
+        elif isinstance(subset, Mapping):
+            mask_arr = np.ones(len(df), dtype=bool)
+            for key, value in subset.items():
+                if key not in df.columns:
+                    raise ValueError(
+                        f"term '{term_name}' subset key {key!r} is not a "
+                        f"column of the events table; columns: "
+                        f"{list(df.columns)!r}"
+                    )
+                mask_arr &= (df[key].to_numpy() == value)
+            mask = mask_arr
+        else:
+            raise TypeError(
+                f"term '{term_name}' subset must be a dict, predicate "
+                f"string, or callable; got {type(subset).__name__}"
+            )
+        mask_arr = np.asarray(mask, dtype=bool)
+        if mask_arr.shape != (len(df),):
+            raise ValueError(
+                f"term '{term_name}' subset predicate returned a mask of "
+                f"shape {mask_arr.shape}; expected ({len(df)},)"
+            )
+        return mask_arr
+
+    def _apply_term_subset(self, term: Term, event_term: EventTerm) -> EventTerm:
+        """Filter an event term to its declared subset, if any."""
+        subset = self._term_subset_spec(term)
+        if subset is None:
+            return event_term
+        if getattr(term, "_event_overrides", None) is not None:
+            # Terms with private event overrides have already been
+            # subset-filtered in _apply_term_specific_event_options().
+            return event_term
+        mask = self._resolve_subset_mask(subset, term.name)
+        if not np.any(mask):
+            raise ValueError(
+                f"term '{term.name}' subset={subset!r} matched zero events"
+            )
+        # Reuse the existing block-subsetting helper; onset_shift=0 keeps
+        # global onsets intact.
+        filtered = self._subset_event_term(event_term, mask, onset_shift=0.0)
+        if filtered is None:  # pragma: no cover - guarded by np.any above
+            return event_term
+        return filtered
 
     def _create_single_event_term(self, term: Term) -> EventTerm:
         """Create an EventTerm from a single Term specification.
@@ -262,6 +385,35 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         et_any._is_trialwise = True
         et_any._add_sum = cast(Any, term)._add_sum
         et_any._trialwise_label = cast(Any, term)._trialwise_label
+        # Per-trial condition labels lifted from the events DataFrame
+        # when the typed ``trialwise(condition="...")`` arg was used.
+        # Falling back to ``None`` keeps the legacy "trial.NN" tag path.
+        cond_col = getattr(term, "_trialwise_condition_col", None)
+        if cond_col is not None and self._data is not None:
+            df = self._data
+            if cond_col in df.columns:
+                # Preserve the events row order so the per-trial labels
+                # align with how ``_create_trial_factor`` enumerates the
+                # trials. We use a stable sort on (block, onset) when
+                # both columns are present; otherwise the natural row
+                # order in the DataFrame is what the trial factor sees.
+                ordered = df
+                onset_col = next(
+                    (c for c in ("onset", "Onset") if c in df.columns),
+                    None,
+                )
+                block_col = next(
+                    (c for c in ("run", "block", "Run", "Block")
+                     if c in df.columns),
+                    None,
+                )
+                if onset_col is not None and block_col is not None:
+                    ordered = df.sort_values([block_col, onset_col])
+                elif onset_col is not None:
+                    ordered = df.sort_values(onset_col)
+                trial_conditions = list(ordered[cond_col].astype(str))
+                if len(trial_conditions) == n_trials:
+                    et_any._trialwise_conditions = trial_conditions
         return event_term
 
     def _find_trial_info(self) -> tuple[int, Optional[Array]]:
@@ -1642,6 +1794,14 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         list of str
             Condition tags
         """
+        # Trialwise term carrying a user-supplied condition column:
+        # surface the per-trial experimental-condition label so
+        # downstream MVPA tooling can pull per-condition trial sets via
+        # typed lookup (``cols.where(role="task", condition="A")``).
+        trialwise_cond = getattr(event_term, "_trialwise_conditions", None)
+        if trialwise_cond is not None:
+            return [str(c) for c in trialwise_cond]
+
         cond_tags = []
 
         if event_term.interaction:
@@ -2051,7 +2211,8 @@ def event_model(
     kwargs = _apply_formula_onset_default(formula, kwargs)
     terms = _normalize_term_options(_parse_formula_to_terms(formula))
     sf = _resolve_sampling_frame(sampling_frame, sampling_info, tr, n_scans, sampling_rate)
-    precision = precision if precision is not None else 0.3
+    # ``precision = None`` is preserved so EventModel can resolve the
+    # default to ``min(TR) / DEFAULT_PRECISION_OVERSAMPLING``.
     blockids = _parse_block_ids(block, data)
     kwargs = _parse_durations(durations, data, kwargs)
 
@@ -2064,6 +2225,7 @@ def event_model(
         sampling_info=sf,
         precision=precision,
         blockids=blockids,
+        data=data,
     )
 
 
@@ -2366,7 +2528,13 @@ def _apply_term_specific_event_options(events: Dict[str, Any], terms: List[Term]
         if not options:
             continue
 
-        mask = _resolve_subset_mask(data, options.get('subset'))
+        subset = options.get('subset')
+        mask = _resolve_subset_mask(data, subset)
+        if subset is not None and not np.any(mask):
+            term_name = getattr(term, "name", None) or f"term{term_index}"
+            raise ValueError(
+                f"term '{term_name}' subset={subset!r} matched zero events"
+            )
         onsets = _resolve_term_vector(
             options.get('onsets'), data, mask, 'onsets', allow_scalar=False
         )
@@ -2555,6 +2723,15 @@ def _extract_event_specs(regular_terms: List[Any], data: Any) -> Dict[str, Dict[
     """
     event_specs = {}
     for term in regular_terms:
+        # Per-modulator centering override surfaced by the typed-spec
+        # ``HrfTerm.center_modulators`` field (default ``True``). When the
+        # legacy formula path lowered the term it left ``_kwargs`` empty,
+        # so absence here means "fall back to the modern-correct
+        # default of centering numeric modulators at the raw-value
+        # level". A ``False`` explicitly preserves R ``fmridesign``
+        # legacy behavior.
+        term_kwargs = getattr(term, "_kwargs", None) or {}
+        center_modulator = bool(term_kwargs.get("_center_modulator", True))
         for event_name in term.events:
             if event_name not in event_specs:
                 if event_name in data.columns:
@@ -2565,9 +2742,10 @@ def _extract_event_specs(regular_terms: List[Any], data: Any) -> Dict[str, Dict[
                             'basis': term.basis,
                         }
                     elif pd.api.types.is_numeric_dtype(col_data):
-                        # Match fmridesign defaults: numeric modulators are
-                        # not mean-centered unless explicitly requested.
-                        event_specs[event_name] = {'type': 'variable', 'center': False}
+                        event_specs[event_name] = {
+                            'type': 'variable',
+                            'center': center_modulator,
+                        }
                     else:
                         event_specs[event_name] = {'type': 'factor'}
                 else:

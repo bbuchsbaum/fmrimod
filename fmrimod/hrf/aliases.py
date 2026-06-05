@@ -19,6 +19,9 @@ HRFName = Literal[
     "spmg1",
     "spmg2",
     "spmg3",
+    "spmg1_legacy",
+    "spmg2_legacy",
+    "spmg3_legacy",
     "gamma",
     "gaussian",
     "bspline",
@@ -66,6 +69,12 @@ _ALIASES: dict[str, HRFName] = {
     # SPM canonical synonyms
     "spm": "spmg1",
     "spm_canonical": "spmg1",
+    # Legacy (pre-2026) R-fmrireg parameterization
+    "spmg1_legacy": "spmg1_legacy",
+    "spmg2_legacy": "spmg2_legacy",
+    "spmg3_legacy": "spmg3_legacy",
+    "spm_legacy": "spmg1_legacy",
+    "spm_canonical_legacy": "spmg1_legacy",
     # Generator-prefixed names
     "hrf_gamma": "gamma",
     "hrf_bspline": "bspline",

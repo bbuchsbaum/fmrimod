@@ -93,6 +93,18 @@ class HrfTerm(Term):
         declared ``contrasts``; the parametric terms inherit the same HRF,
         ``durations``, ``lag``, ``subset``, ``prefix``, ``normalize`` and
         ``summate``.
+    center_modulators
+        Whether each parametric modulator's values are mean-centered at
+        the input-variable level (pre-convolution) before becoming the
+        per-event amplitude that scales the boxcar. Default ``True``,
+        matching the modern-correct workflow (Mumford et al. 2015) and
+        the underlying ``EventVariable(center=True)`` default. Pre-
+        centering decorrelates the unmodulated boxcar from its modulated
+        children, so per-modulator betas are interpretable as "the BOLD
+        change per unit of the modulator above its sample mean". Pass
+        ``center_modulators=False`` for exact R ``fmridesign`` parity
+        (which historically did not center) or for the rare case where
+        the modulator's absolute scale carries the analytic meaning.
     durations
         Per-event duration; either a column name in the event table or a
         scalar.  ``None`` defers to the spec-level default.
@@ -122,6 +134,7 @@ class HrfTerm(Term):
     nbasis: Optional[int] = None
     contrasts: Tuple[ContrastSpec, ...] = ()
     modulators: Tuple[str, ...] = ()
+    center_modulators: bool = True
     durations: Union[str, float, None] = None
     lag: float = 0.0
     subset: Optional[Predicate] = None
@@ -166,10 +179,29 @@ class Intercept(Term):
 
 @dataclass(frozen=True)
 class Confounds(Term):
-    """Nuisance regressors (motion, physio, etc.)."""
+    """Nuisance regressors (motion, physio, etc.).
+
+    Parameters
+    ----------
+    columns
+        Names of confound columns to attach. For a single-source DataFrame
+        these are the column names in that DataFrame. For a per-run
+        sequence (see ``source``) every supplied DataFrame must contain
+        the same columns.
+    source
+        Either a single :class:`pandas.DataFrame` covering the whole
+        run-concatenated time series, or a sequence of per-run
+        DataFrames (one per block in the dataset's
+        :class:`~fmrimod.sampling.SamplingFrame`). When a single DataFrame
+        is supplied and the design has multiple runs, it is split
+        block-by-block along the per-run row counts. When a sequence is
+        supplied the entries are used directly. ``None`` defers to the
+        legacy formula path where the columns are looked up against the
+        events table's confound columns at compile time.
+    """
 
     columns: Tuple[str, ...]
-    source: Optional[pd.DataFrame] = None
+    source: Optional[Union[pd.DataFrame, Sequence[pd.DataFrame]]] = None
 
 
 # -- Composition container ---------------------------------------------------

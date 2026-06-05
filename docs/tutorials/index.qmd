@@ -49,6 +49,15 @@ resulting column metadata.
 
 ::: {.g-col-12 .g-col-md-6}
 ::: {.card .h-100 .p-3}
+### [Parametric modulators](parametric-modulators.qmd)
+Model conditions modulated by trial-by-trial continuous variables. Centering
+semantics, the `center_modulators=` opt-out, and why fmrimod does not
+orthogonalize modulators automatically (Mumford et al. 2015).
+:::
+:::
+
+::: {.g-col-12 .g-col-md-6}
+::: {.card .h-100 .p-3}
 ### [Contrasts](contrasts.qmd)
 Create named contrast vectors from model columns and use factorial contrast
 generators for main effects and interactions.

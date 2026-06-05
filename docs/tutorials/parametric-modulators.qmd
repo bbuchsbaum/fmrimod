@@ -1,0 +1,260 @@
+---
+title: "Parametric modulators"
+subtitle: "Centering, semantics, and the modern-correct workflow"
+jupyter: python3
+---
+
+Continuous variables that vary trial-by-trial — reaction time, accuracy,
+confidence, stimulus intensity — can enter the GLM as **parametric
+modulators** of a categorical condition. fmrimod's typed-spec
+`modulators=` keyword expands a single condition into an unmodulated
+boxcar plus one regressor per modulator, with the centering
+convention modern fMRI methodology recommends (Mumford, Poline &
+Poldrack, 2015) wired in by default.
+
+This page covers:
+
+- The unified semantic: centering operates on the **raw input
+  variable** before convolution, never on the convolved column.
+- The four entry points and their (now consistent) defaults.
+- Why mean-centering and "no automatic orthogonalization" is the
+  modern-correct choice.
+- The opt-out for R-fmridesign / SPM-style exact reproducibility.
+
+## The typed-spec surface
+
+```{python}
+import numpy as np
+import pandas as pd
+import fmrimod as fm
+from fmrimod.spec import hrf, drift, intercept
+
+rng = np.random.default_rng(0)
+n_trials = 12
+
+events = pd.DataFrame({
+    "onset": np.linspace(8.0, 96.0, n_trials),
+    "duration": 0.0,
+    "trial_type": "A",
+    # Raw modulator values — no manual centering needed.
+    "rt": rng.uniform(0.5, 1.5, n_trials),
+    "accuracy": rng.uniform(0.0, 1.0, n_trials),
+    "run": 1,
+})
+
+ds = fm.fmri_dataset(
+    np.zeros((80, 4)), tr=2.0, events=events, slice_timing_offset=0.0
+)
+
+spec = (
+    hrf("trial_type", modulators=("rt", "accuracy"))
+    + drift("poly", degree=2)
+    + intercept(per="run")
+)
+```
+
+The `modulators=("rt", "accuracy")` argument expands the term into:
+
+1. `trial_type:A` — the unmodulated boxcar at the trial onsets.
+2. `trial_type:rt:A` — the boxcar scaled by `(rt − mean(rt))` per event.
+3. `trial_type:accuracy:A` — the boxcar scaled by
+   `(accuracy − mean(accuracy))` per event.
+
+The realised columns are addressable by typed level lookup:
+
+```{python}
+import warnings
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", UserWarning)
+    fit = fm.fmri_lm(spec, ds, engine="concat")
+
+cols = fit.design_columns()
+unmod_idx = cols.where(term="trial_type", level="A").one().index
+rt_idx = cols.where(term="trial_type:rt", level="A").one().index
+acc_idx = cols.where(term="trial_type:accuracy", level="A").one().index
+print(f"unmod={unmod_idx}, rt={rt_idx}, accuracy={acc_idx}")
+```
+
+Empirically, the centered modulators are near-orthogonal to the
+unmodulated boxcar — so per-modulator betas have a clean interpretation:
+"the BOLD change per unit of the modulator above its sample mean."
+
+```{python}
+X = fit.model.design_matrix_array(run=0)
+task_idx = [unmod_idx, rt_idx, acc_idx]
+np.set_printoptions(precision=3, suppress=True)
+np.corrcoef(X[:, task_idx].T)
+```
+
+## Centering operates on the raw input variable
+
+A common source of confusion in fMRI analyses is *where* in the
+pipeline centering happens. fmrimod's convention is unambiguous:
+
+| operation | acts on | when |
+| --- | --- | --- |
+| modulator centering | the scalar modulator value per event (the "amplitude" attached to each onset) | before convolution |
+| modulator scaling (z-score) | same scalar value | before convolution |
+| polynomial expansion (`Poly`) | same scalar value | before convolution |
+| HRF convolution | the resulting amplitude × boxcar time series | the convolution itself |
+
+So the modulator amplitude attached to each event onset goes through:
+
+```
+raw_value → (center) → (scale / poly basis) → amplitude_per_event → boxcar × hrf → realised column
+```
+
+No code path centers the convolved time series itself. This means
+the realised modulator column is **identical** whether you pre-center
+in the events DataFrame or rely on the typed-spec default — fmrimod
+just applies the centering one step earlier in the chain. The
+regression test
+`tests/spec/test_parametric_modulators.py::test_centering_is_pre_convolution_input_variable_operation`
+pins this bitwise.
+
+## Four entry points, one default
+
+The same conceptual operation is reachable from four surfaces. After
+the early-2026 consistency alignment, all four default to the same
+modern-correct behavior:
+
+| entry point | default centering | how to opt out |
+| --- | --- | --- |
+| `EventVariable(name, onsets, values)` direct | `center=True` | `center=False` |
+| `Scale.from_data(x)` | `center=True` | `Scale(center=False)` |
+| `Poly.from_data(x, raw=False)` (orthogonal) | implicit via QR | `Poly(raw=True)` |
+| `hrf("trial_type", modulators=("rt",))` typed | `center_modulators=True` | `center_modulators=False` |
+
+The typed-spec path used to silently override `EventVariable`'s
+`center=True` default with `center=False` to match the R
+`fmridesign` legacy. That hard-coded override is gone; the typed
+spec now follows the same convention as every other entry point.
+
+## Why no automatic orthogonalization
+
+When you list multiple modulators on the same condition, fmrimod
+does **not** orthogonalize them against each other. The order
+`modulators=("rt", "accuracy")` produces the same betas as
+`modulators=("accuracy", "rt")` (modulo column reordering).
+
+This is deliberate, following Mumford, Poline & Poldrack
+([2015, *PLoS ONE*](https://doi.org/10.1371/journal.pone.0126255)).
+The original SPM motivation for sequential Gram-Schmidt
+orthogonalization was that uncentered modulators are correlated
+with the unmodulated boxcar; orthogonalization made the betas look
+identifiable. But it has serious problems:
+
+- **Order-dependence**: the first-listed modulator absorbs shared
+  variance; later modulators only get credit for unique variance.
+  Listing `("rt", "accuracy")` vs `("accuracy", "rt")` gives
+  different betas. Researchers rarely have a principled basis for
+  one ordering.
+
+- **Beta interpretation changes**: an orthogonalized
+  modulator-2 beta is "residual variance after partialing out
+  modulator-1 and the unmodulated regressor," not "the effect of
+  modulator-2." Most users assume the latter.
+
+- **Hides rather than addresses collinearity**: the modulator-to-
+  modulator collinearity reflects real ambiguity in the data;
+  orthogonalization conceals that without resolving it.
+
+**Mean-centering alone handles the original motivation** (modulator
+× unmodulated correlation). For "does this modulator add unique
+variance beyond the unmodulated boxcar?", the correct answer is an
+explicit joint F-test over the modulator columns:
+
+```{python}
+n_cols = sum(1 for _ in cols.columns)
+c = np.zeros((2, n_cols))
+c[0, rt_idx] = 1.0
+c[1, acc_idx] = 1.0
+f_joint = fit.contrast(c, name="modulators_joint")
+print(f"joint F over (rt, accuracy): {f_joint.stat[0]:.3f}")
+```
+
+This is the inferential question Mumford et al. recommend, and it's
+the headline output of the
+[`tier_a_parametric_modulators` parity workflow](https://github.com/bbuchsbaum/fmrimod/tree/main/benchmarks/parity/tier_a_parametric_modulators).
+fmrimod, Nilearn, FSL FEAT, AFNI 3dDeconvolve, and recent SPM
+versions all agree this is the correct shape.
+
+## When to opt out
+
+Pass `center_modulators=False` for two cases:
+
+```python
+# 1. Exact R fmridesign / SPM12 default reproducibility on
+#    legacy fixtures or published designs.
+fm.fmri_lm(
+    hrf("trial_type", modulators=("rt",), center_modulators=False),
+    ds,
+)
+```
+
+```python
+# 2. The rare case where the modulator's absolute scale is the
+#    quantity of analytic interest (e.g. modeling a stimulus
+#    luminance level whose zero point matters scientifically).
+fm.fmri_lm(
+    hrf("trial_type", modulators=("luminance_lux",),
+        center_modulators=False),
+    ds,
+)
+```
+
+In both cases the resulting design will have higher collinearity
+between the unmodulated boxcar and the modulator columns — that's
+the legitimate trade-off you make for preserving absolute-scale
+meaning.
+
+## Comparing entry points
+
+For users coming from other Python tools or R, the typed
+`modulators=` keyword is the recommended surface. The direct
+event-construction APIs are available for power users who need
+finer control:
+
+```python
+# (a) Typed spec — recommended for most analyses.
+spec_typed = hrf("trial_type", modulators=("rt",))
+
+# (b) Direct events — explicit control over each event piece.
+from fmrimod.events import EventVariable, EventFactor
+rt_event = EventVariable(
+    name="rt", onsets=events["onset"], values=events["rt"],
+    center=True,  # default
+)
+
+# (c) With a basis transform on raw values.
+from fmrimod.basis import Scale, Poly
+scaled_rt = EventVariable(
+    name="rt", onsets=events["onset"], values=events["rt"],
+    center=True, scale=True,  # z-score the modulator
+)
+
+# (d) Polynomial expansion of a modulator into multiple columns.
+from fmrimod.events import EventBasis
+poly_rt = EventBasis(
+    name="rt", onsets=events["onset"], values=events["rt"],
+    basis=Poly(degree=2, raw=False),  # orthogonal poly, implicit centering
+)
+```
+
+All four paths center the raw input variable before convolution.
+None centers a convolved time series. This is the consistency
+contract pinned by the regression suite.
+
+## Further reading
+
+- [`tier_a_parametric_modulators` parity workflow](https://github.com/bbuchsbaum/fmrimod/tree/main/benchmarks/parity/tier_a_parametric_modulators)
+  — end-to-end Pattern B parity claim including the joint F-test.
+- [Mumford, Poline & Poldrack (2015, *PLoS ONE*)](https://doi.org/10.1371/journal.pone.0126255)
+  "Orthogonalization of regressors in fMRI models" — the canonical
+  critique of SPM's default orthogonalization.
+- `tests/spec/test_parametric_modulators.py` — regression suite
+  pinning the centering defaults, the pre-convolution semantics,
+  and the order-independence of modulator listing.
+- [`docs/contracts/CAVEATS.md`](https://github.com/bbuchsbaum/fmrimod/blob/main/docs/contracts/CAVEATS.md)
+  → `parametric-modulator-r-parity-divergence` for the
+  R-fmridesign alignment ticket status.

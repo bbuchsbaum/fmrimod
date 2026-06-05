@@ -119,8 +119,8 @@ def test_spec_compile_applies_norm_via_registry():
 
     col_norm = fit_norm.model.event_model.design_matrix[:, 0]
     col_raw = fit_raw.model.event_model.design_matrix[:, 0]
-    # Normalized column should be ~2-3 orders of magnitude smaller than the
-    # raw canonical (factor ~0.002 — matches Nilearn).
+    # Normalized column should be substantially smaller than the raw
+    # canonical (factor ~0.024 for the SPM-standard canonical).
     scale = col_norm.max() / col_raw.max()
-    assert scale < 0.01
-    assert scale > 1e-4
+    assert scale < 0.05
+    assert scale > 0.01

@@ -51,6 +51,7 @@ def hrf(
     nbasis: Optional[int] = None,
     contrasts: Sequence[ContrastSpec] = (),
     modulators: Sequence[str] = (),
+    center_modulators: bool = True,
     durations: str | float | None = None,
     lag: float = 0.0,
     subset: Optional[Predicate] = None,
@@ -64,6 +65,21 @@ def hrf(
 
     Parameters
     ----------
+    modulators
+        Names of parametric-modulator columns in the events DataFrame.
+        Each modulator expands into one additional regressor: the
+        unmodulated boxcar scaled by the modulator's per-event value.
+        Listing order is irrelevant — fmrimod does not orthogonalize
+        modulators against each other.
+    center_modulators
+        Mean-center each modulator at the input-variable level (on
+        the raw per-event scalar that becomes the boxcar amplitude),
+        before convolution. Default ``True``, matching
+        :class:`~fmrimod.events.EventVariable`'s ``center=True``
+        default and the post-Mumford modern-correct workflow. Set to
+        ``False`` for exact R ``fmridesign`` parity or when the
+        modulator's absolute scale carries the analytic meaning. See
+        the *parametric modulators* tutorial for the full discussion.
     norm
         HRF normalization mode. Leave as ``None`` for the raw canonical
         scale.
@@ -98,13 +114,11 @@ def hrf(
 
     Notes
     -----
-    Informed basis sets (``basis="spmg2"`` / ``"spmg3"``) use **closed-form**
-    temporal derivatives, not the finite-difference derivatives that
-    Nilearn (``hrf_model="spm + derivative"``) and SPM12 produce. This is
-    a deliberate divergence — see :class:`fmrimod.hrf.SPMG2_HRF` for the
-    full rationale and the downstream latency-calibration caveat
-    (``β_derivative / β_canonical`` ratios do **not** transfer from
-    SPM12-published constants without re-derivation).
+    Informed basis sets (``basis="spmg2"`` / ``"spmg3"``) use the
+    SPM/Nilearn finite-difference derivatives: the temporal derivative
+    is taken in the delay parameter, and the dispersion derivative is
+    taken in the dispersion parameter. Use the ``*_legacy`` bases for
+    the pre-alignment R-fmrireg analytic-derivative behavior.
 
     Examples
     --------
@@ -113,6 +127,8 @@ def hrf(
     >>> hrf("trial_type", basis="fir", nbasis=8)
     >>> hrf("trial_type", norm="spm")  # Nilearn-compatible scale
     >>> hrf("trial_type", "block", subset={"task": "memory"})
+    >>> hrf("trial_type", modulators=("rt", "accuracy"))  # auto-centered
+    >>> hrf("trial_type", modulators=("rt",), center_modulators=False)
     """
     if not variables:
         raise ValueError("hrf() requires at least one variable name")
@@ -125,6 +141,7 @@ def hrf(
         nbasis=None if nbasis is None else int(nbasis),
         contrasts=tuple(contrasts),
         modulators=tuple(modulators),
+        center_modulators=bool(center_modulators),
         durations=durations,
         lag=lag,
         subset=subset,
@@ -213,6 +230,7 @@ def trialwise(
     *,
     hrf_fun: Optional[Callable[..., object]] = None,
     nbasis: Optional[int] = None,
+    condition: Optional[str] = None,
     durations: str | float | None = None,
     lag: float = 0.0,
     subset: Optional[Predicate] = None,
@@ -227,10 +245,24 @@ def trialwise(
     Mirrors R's :func:`trialwise()` — produces one regressor per event.
     Realisation happens in :mod:`fmrimod.spec._compile`. See
     :func:`hrf` for the ``norm`` argument.
+
+    Parameters
+    ----------
+    condition
+        Optional name of an events-table column carrying the
+        experimental-condition label for each trial (e.g.
+        ``"trial_type"``). When set, each per-trial realised column
+        carries the corresponding condition value on
+        ``DesignColumn.condition`` / ``DesignColumn.level``, so MVPA
+        pipelines can group per-trial betas by condition via typed
+        lookup (``cols.where(role="task", condition="A")``) instead
+        of parsing trial indices out of column names. When omitted,
+        ``condition`` defaults to the zero-padded trial index
+        (``"trial.01"``, ``"trial.02"``, ...).
     """
     if nbasis is not None and int(nbasis) < 1:
         raise ValueError("trialwise(..., nbasis=) must be a positive integer")
-    return HrfTerm(
+    term = HrfTerm(
         variables=("__trial__",),  # sentinel resolved at compile time
         hrf=basis,
         hrf_fun=hrf_fun,
@@ -244,3 +276,12 @@ def trialwise(
         normalize=bool(normalize),
         summate=bool(summate),
     )
+    if condition is not None:
+        # Stash on the typed kwargs bag — the compile path plumbs it
+        # through to the EventModel term so trialwise condition labels
+        # come from the events DataFrame rather than the
+        # ``"trial_NN"`` zero-padded indices.
+        object.__setattr__(
+            term, "_trialwise_condition_col", str(condition)
+        )
+    return term

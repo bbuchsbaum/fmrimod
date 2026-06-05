@@ -3,6 +3,36 @@
   "no_report_caveats": [],
   "artifacts": [
     {
+      "benchmark_id": "tier_a_ar1_prewhitening",
+      "evidence_level": "workflow_parity",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_a_ar1_prewhitening/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_ar1_prewhitening/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_ar1_prewhitening/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_ar1_prewhitening/workflow.py::fmrimod_pipeline",
+      "caveats": []
+    },
+    {
+      "benchmark_id": "tier_a_block_epoch_durations",
+      "evidence_level": "workflow_parity",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_a_block_epoch_durations/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_block_epoch_durations/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_block_epoch_durations/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_block_epoch_durations/workflow.py::fmrimod_pipeline",
+      "caveats": []
+    },
+    {
+      "benchmark_id": "tier_a_censored_concat",
+      "evidence_level": "workflow_parity",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_a_censored_concat/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_censored_concat/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_censored_concat/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_censored_concat/workflow.py::fmrimod_pipeline",
+      "caveats": []
+    },
+    {
       "benchmark_id": "tier_a_f_confound_drift",
       "evidence_level": "workflow_parity",
       "public_seam": true,
@@ -125,6 +155,16 @@
           "caveats"
         ]
       }
+    },
+    {
+      "benchmark_id": "tier_a_factorial_3way",
+      "evidence_level": "workflow_parity",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_a_factorial_3way/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_factorial_3way/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_factorial_3way/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_factorial_3way/workflow.py::fmrimod_pipeline",
+      "caveats": []
     },
     {
       "benchmark_id": "tier_a_factorial_3x3_parametric",
@@ -261,6 +301,16 @@
       }
     },
     {
+      "benchmark_id": "tier_a_fir_basis",
+      "evidence_level": "workflow_parity",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_a_fir_basis/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_fir_basis/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_fir_basis/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_fir_basis/workflow.py::fmrimod_pipeline",
+      "caveats": []
+    },
+    {
       "benchmark_id": "tier_a_fir_unconstrained_hrf",
       "evidence_level": "workflow_parity",
       "public_seam": true,
@@ -320,6 +370,26 @@
           "caveats"
         ]
       }
+    },
+    {
+      "benchmark_id": "tier_a_group_level_t",
+      "evidence_level": "workflow_parity",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_a_group_level_t/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_group_level_t/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_group_level_t/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_group_level_t/workflow.py::fmrimod_pipeline",
+      "caveats": []
+    },
+    {
+      "benchmark_id": "tier_a_hrf_basis_set",
+      "evidence_level": "workflow_parity",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_a_hrf_basis_set/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_hrf_basis_set/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_hrf_basis_set/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_hrf_basis_set/workflow.py::fmrimod_pipeline",
+      "caveats": []
     },
     {
       "benchmark_id": "tier_a_localizer_fixed_effects",
@@ -386,6 +456,16 @@
           "caveats"
         ]
       }
+    },
+    {
+      "benchmark_id": "tier_a_mixed_tr_multirun",
+      "evidence_level": "workflow_parity",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_a_mixed_tr_multirun/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_mixed_tr_multirun/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_mixed_tr_multirun/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_mixed_tr_multirun/workflow.py::fmrimod_pipeline",
+      "caveats": []
     },
     {
       "benchmark_id": "tier_a_multicollinear_baseline",
@@ -597,6 +677,36 @@
           "caveats"
         ]
       }
+    },
+    {
+      "benchmark_id": "tier_a_parametric_modulators",
+      "evidence_level": "workflow_parity",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_a_parametric_modulators/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_parametric_modulators/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_parametric_modulators/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_parametric_modulators/workflow.py::fmrimod_pipeline",
+      "caveats": []
+    },
+    {
+      "benchmark_id": "tier_a_realistic_confounds",
+      "evidence_level": "workflow_parity",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_a_realistic_confounds/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_realistic_confounds/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_realistic_confounds/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_realistic_confounds/workflow.py::fmrimod_pipeline",
+      "caveats": []
+    },
+    {
+      "benchmark_id": "tier_a_single_trial_lss",
+      "evidence_level": "workflow_parity",
+      "public_seam": false,
+      "workflow_path": "benchmarks/parity/tier_a_single_trial_lss/workflow.py",
+      "report_path": "benchmarks/parity/tier_a_single_trial_lss/reports/parity_report.json",
+      "reference_path": "benchmarks/parity/tier_a_single_trial_lss/workflow.py::nilearn_pipeline",
+      "fmrimod_path": "benchmarks/parity/tier_a_single_trial_lss/workflow.py::fmrimod_pipeline",
+      "caveats": []
     },
     {
       "benchmark_id": "tier_a_spm_auditory",

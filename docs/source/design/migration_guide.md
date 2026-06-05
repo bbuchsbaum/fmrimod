@@ -95,10 +95,36 @@ values = np.array([1.5, np.nan, 2.0, 3.5])
 | R Function | Python Equivalent | Notes |
 |------------|-------------------|-------|
 | `event_factor()` | `EventFactor()` | Requires explicit `levels` argument |
-| `event_variable()` | `EventVariable()` | Auto-centers by default |
+| `event_variable()` | `EventVariable()` | Auto-centers by default (`center=True`) |
 | `event_matrix()` | `EventMatrix()` | Column names required |
 | `event_basis()` | `EventBasis()` | Similar usage |
 | `event_table()` | `event_table()` | Returns DataFrame instead of data.table |
+
+### Parametric modulators
+
+The typed-spec equivalent of R `fmrireg`'s `trial_type + trial_type:rt`
+parametric-modulator pattern is the `modulators=` keyword on `hrf(...)`:
+
+```python
+from fmrimod.spec import hrf
+spec = hrf("trial_type", modulators=("rt",))
+```
+
+**Centering default differs from R fmrireg**: fmrimod centers each
+modulator at the input-variable level by default
+(`center_modulators=True`), matching `EventVariable(center=True)` and
+the post-Mumford modern-correct workflow. R `fmrireg` historically
+did not center modulators. For exact R-output reproducibility on
+legacy fixtures, pass `center_modulators=False`:
+
+```python
+spec_r_compat = hrf("trial_type", modulators=("rt",),
+                    center_modulators=False)
+```
+
+See [Parametric modulators](../../tutorials/parametric-modulators.qmd)
+for the full discussion (semantics, the four entry points, why no
+automatic orthogonalization).
 
 ### Model Building
 

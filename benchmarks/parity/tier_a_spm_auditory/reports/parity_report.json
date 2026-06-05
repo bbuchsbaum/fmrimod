@@ -4,7 +4,7 @@
   "contrast_receipt": {
     "intent": {
       "basis_label": "hrf_norm:spm",
-      "design_id": "design:sha256:242aac8622f1eb9a",
+      "design_id": "design:sha256:ca73787dc0d03501",
       "kind": "semantic_contrast",
       "levels": [
         "listening"
@@ -41,18 +41,18 @@
     "design_listening": {
       "failed_gates": [],
       "gate": "pearson+spearman+max_abs",
-      "mae": 0.03851488338825346,
-      "max_abs": 0.12479075357003559,
+      "mae": 0.0045721870793248775,
+      "max_abs": 0.03169997302289951,
       "name": "design_listening",
       "passes": true,
-      "pearson_r": 0.9939003469801304,
+      "pearson_r": 0.999800136961627,
       "rank_candidate": 1,
       "rank_reference": 1,
       "scale": 1.0,
       "shape": [
         84
       ],
-      "spearman_rho": 0.9729045113854409,
+      "spearman_rho": 0.9902576146036142,
       "tolerance": {
         "allow_rescale": false,
         "atol": 1e-09,
@@ -67,18 +67,18 @@
     "effect_listening": {
       "failed_gates": [],
       "gate": "pearson+spearman+mae",
-      "mae": 0.6345612399925673,
-      "max_abs": 5.865728339725294,
+      "mae": 0.0837299087717967,
+      "max_abs": 1.0484602856562728,
       "name": "effect_listening",
       "passes": true,
-      "pearson_r": 0.9967008119237128,
+      "pearson_r": 0.9998909082019684,
       "rank_candidate": 1,
       "rank_reference": 1,
       "scale": 1.0,
       "shape": [
         2048
       ],
-      "spearman_rho": 0.995203932535096,
+      "spearman_rho": 0.9997886223214562,
       "tolerance": {
         "allow_rescale": false,
         "atol": 1e-09,
@@ -93,18 +93,18 @@
     "t_listening": {
       "failed_gates": [],
       "gate": "pearson+spearman+mae",
-      "mae": 0.08908325346724631,
-      "max_abs": 0.5493994317404214,
+      "mae": 0.016173542161386088,
+      "max_abs": 0.0828249947763604,
       "name": "t_listening",
       "passes": true,
-      "pearson_r": 0.9957564154349409,
+      "pearson_r": 0.9998577522766803,
       "rank_candidate": 1,
       "rank_reference": 1,
       "scale": 1.0,
       "shape": [
         2048
       ],
-      "spearman_rho": 0.9953537479141351,
+      "spearman_rho": 0.9998286501095952,
       "tolerance": {
         "allow_rescale": false,
         "atol": 1e-09,
@@ -151,11 +151,11 @@
   "name": "tier_a_spm_auditory",
   "status": "pass",
   "timings": {
-    "seconds": 0.04928620799910277,
+    "seconds": 0.05096504099856247,
     "stages": {
-      "contrast_seconds": 0.002839708002284169,
-      "dataset_seconds": 0.011461791000328958,
-      "fit_seconds": 0.034984708996489644
+      "contrast_seconds": 0.0028718749999825377,
+      "dataset_seconds": 0.01047383300101501,
+      "fit_seconds": 0.037619332997564925
     },
     "status": "recorded"
   }

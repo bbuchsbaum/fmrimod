@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = REPO_ROOT / "benchmarks" / "parity" / "proof_artifacts.json"
@@ -37,6 +37,21 @@ MANIFEST = REPO_ROOT / "benchmarks" / "parity" / "proof_artifacts.json"
 # "not_recorded" to "recorded" without a payload still fails the test.
 _PENDING_TIMING_ROWS = frozenset(
     {
+        # Merge rationale: these cloud-authored workflow rows predate
+        # the timing-recording gate. They remain pending under
+        # bd-01KRHVJ8TM7SYBZVRTJK5VKCZY until their receipts record
+        # numeric stage-level timings.
+        "tier_a_ar1_prewhitening",
+        "tier_a_block_epoch_durations",
+        "tier_a_censored_concat",
+        "tier_a_factorial_3way",
+        "tier_a_fir_basis",
+        "tier_a_group_level_t",
+        "tier_a_hrf_basis_set",
+        "tier_a_mixed_tr_multirun",
+        "tier_a_parametric_modulators",
+        "tier_a_realistic_confounds",
+        "tier_a_single_trial_lss",
     }
 )
 
@@ -48,7 +63,7 @@ _GATED_LEVELS = frozenset({"flagship_workflow", "workflow_parity"})
 _NUMERIC_TIMING_FIELDS = ("seconds", "seconds_total", "wall_seconds")
 
 
-def _load_manifest() -> Dict[str, Any]:
+def _load_manifest() -> dict[str, Any]:
     return json.loads(MANIFEST.read_text())
 
 

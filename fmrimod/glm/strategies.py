@@ -494,6 +494,126 @@ def fit_runwise(
     }
 
 
+def fit_concat(
+    model: object,
+    config: FmriLmConfig,
+    *,
+    compute_dtype: object = np.float64,
+) -> Dict:
+    """Single-design OLS on the run-concatenated ``X`` and ``Y``.
+
+    The runwise strategy fits each run independently and pools per-run
+    betas via inverse-variance weighting. That recovers the same betas
+    as a single OLS for orthogonal block-diagonal designs, but the
+    residual variance is estimated per-run and pooled — which is *not*
+    the textbook variance for cross-run contrasts.
+
+    The concat strategy stacks the per-run design and data matrices,
+    runs ``fast_lm_matrix`` once on the concatenated system, and
+    returns a single :class:`Projection` and a single ``dfres = n -
+    rank``. This is what users want when a contrast vector spans
+    multiple runs (e.g. "is A's effect different in run 1 vs run 2?")
+    — the variance term then reflects the full concatenated residual
+    space, matching what Nilearn's ``run_glm`` would produce on the
+    same ``X``.
+
+    Returns
+    -------
+    dict
+        ``betas``, ``sigma``, ``dfres``, ``XtXinv``, ``projections``
+        (single-element list), and ``run_results`` (single-element
+        list with the concatenated :class:`LmResult`).
+    """
+
+    X = np.asarray(
+        model.design_matrix_array(run=None),  # type: ignore[attr-defined]
+        dtype=compute_dtype,
+    )
+    Y_full = _gather_concatenated_data(model)
+
+    censor_mask = _gather_concatenated_censor(model, expected_rows=X.shape[0])
+    # Route the concatenated system through the same preprocessing pipeline
+    # the runwise strategy uses, so censoring, volume weights, and
+    # soft-subspace projection are all honored instead of silently dropped.
+    # ``run=None`` tells ``_prepare_run_matrices`` to treat X/Y as the
+    # already-concatenated, full-length matrices (weights / nuisance are
+    # defined over all rows here, so no per-run slicing is needed).
+    X, Y_full = _prepare_run_matrices(
+        X,
+        Y_full,
+        config,
+        censor=censor_mask,
+        dataset=getattr(model, "dataset", None),
+        run=None,
+    )
+
+    proj = fast_preproject(X, compute_dtype=compute_dtype)
+    lm = fast_lm_matrix(X, Y_full, proj, compute_dtype=compute_dtype)
+
+    return {
+        "betas": lm.betas,
+        "sigma": np.sqrt(np.maximum(lm.sigma2, 0.0)),
+        "dfres": float(proj.dfres),
+        "XtXinv": proj.XtXinv,
+        "projections": [proj],
+        "run_results": [lm],
+        "residuals": None,
+        "run_X": [X],
+    }
+
+
+def _gather_concatenated_data(model: object) -> NDArray[np.float64]:
+    """Return the run-concatenated ``timepoints x voxels`` data matrix."""
+    dataset = getattr(model, "dataset", None)
+    if dataset is None:
+        raise ValueError("fit_concat: model has no `.dataset` attribute")
+    matrix = getattr(dataset, "get_data_matrix", None)
+    if callable(matrix):
+        return np.asarray(matrix(), dtype=np.float64)
+    # Fall back to per-run gather.
+    n_runs = int(getattr(model, "n_runs", 1))
+    parts: list[NDArray[np.float64]] = []
+    for r in range(n_runs):
+        parts.append(np.asarray(get_run_data(dataset, r), dtype=np.float64))
+    return np.vstack(parts)
+
+
+def _gather_concatenated_censor(
+    model: object, *, expected_rows: int
+) -> Optional[NDArray[np.bool_]]:
+    """Concatenate per-run censor vectors, returning ``None`` if none set.
+
+    The runwise strategy consumes ``dataset.get_censor(run_idx)`` one
+    run at a time. The concat strategy stacks the per-run designs and
+    data into a single system, so the censor masks need to be stacked
+    in the same order. Returns ``None`` when the dataset has no
+    censoring (so the caller can skip the row-deletion entirely).
+    """
+    dataset = getattr(model, "dataset", None)
+    if dataset is None:
+        return None
+    if getattr(dataset, "censor", None) is None:
+        return None
+    n_runs = int(getattr(model, "n_runs", 1))
+    parts: list[NDArray[np.bool_]] = []
+    for r in range(n_runs):
+        mask = dataset.get_censor(r)
+        if mask is None:
+            # No censoring on this run — keep every row.
+            mask = np.zeros(int(get_run_data(dataset, r).shape[0]), dtype=bool)
+        parts.append(np.asarray(mask, dtype=bool).ravel())
+    concatenated = np.concatenate(parts)
+    if concatenated.shape[0] != expected_rows:
+        raise ValueError(
+            f"fit_concat: concatenated censor length "
+            f"{concatenated.shape[0]} does not match design rows "
+            f"{expected_rows}"
+        )
+    if not np.any(concatenated):
+        return None
+    return concatenated
+
+
 def _fit_chunked_lm(
     X_fit: NDArray[np.float64],
     Y_fit: NDArray[np.float64],
@@ -743,7 +863,16 @@ def _pool_run_results(
         beta_mean += r.betas
         diag_xtxinv = np.maximum(np.diag(proj.XtXinv), 0.0)[:, np.newaxis]  # (p,1)
         se2 = diag_xtxinv * r.sigma2[np.newaxis, :]  # (p,V)
-        w = np.where(se2 > eps, 1.0 / se2, 0.0)
+        # Use np.divide with where= so columns that contribute no
+        # information in this run (zero se2 — happens on orthogonal
+        # multi-run designs where each run's design block is zero for
+        # the other run's columns) get weight 0 without raising
+        # RuntimeWarning: divide by zero.
+        w = np.divide(
+            1.0, se2,
+            out=np.zeros_like(se2),
+            where=se2 > eps,
+        )
         wsum += w
         wbeta += w * r.betas
 

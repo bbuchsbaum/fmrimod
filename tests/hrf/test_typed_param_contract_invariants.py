@@ -68,7 +68,8 @@ class TestHRFParamsDictRemoved:
     def test_str_renders_typed_fields_not_a_params_dict(self) -> None:
         s = str(SPM_CANONICAL)
         assert s.startswith("HRF(name='SPMG1'")
-        assert "p1=5.0" in s
+        assert "delay=6.0" in s
+        assert "ratio=0.167" in s
         assert "params=" not in s
         assert "param_names=" not in s
 

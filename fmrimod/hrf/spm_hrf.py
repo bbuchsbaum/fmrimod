@@ -1,36 +1,183 @@
-"""SPM HRF implementations with analytic derivatives.
+"""SPM HRF implementations with finite-difference and legacy derivatives.
 
-Typed dataclass subclasses of :class:`HRF`. Each SPMG kind exposes its
-double-gamma parameters as named fields (``p1``, ``p2``, ``a1``);
-evaluation reads those typed fields directly. The old inherited
-``params`` / ``param_names`` dict mirror was removed by bead
-``bd-01KRGCZJ6JAA4BKRTNQ91P2PE5``.
+Each SPMG kind exposes its parameters as named typed fields. The
+default classes use the SPM standard parameterization
+(``delay=6, undershoot=16, dispersion=1, u_dispersion=1, ratio=0.167``)
+matching SPM ``spm_hrf`` and Nilearn ``_gamma_difference_hrf``. The
+legacy R-fmrireg parameterization (``p1=5, p2=15, a1=0.0833``) is
+preserved on the ``*_HRF_Legacy`` siblings, reachable from the typed
+spec via ``basis="spm_legacy"`` / ``"spmg1_legacy"`` / ``"spmg2_legacy"``
+/ ``"spmg3_legacy"``.
+
+Migration notes
+---------------
+- The default ``basis="spm"`` / ``"spmg1"`` / ``"spmg2"`` / ``"spmg3"``
+  changed in early 2026 from the legacy R parameterization to the SPM
+  standard form. The realised canonical column changed shape
+  (peak/undershoot magnitude ratio went from ~4600 to the SPM-standard
+  ~10), and the realised columns are now Pearson-correlated > 0.999
+  with Nilearn's realised regressors on identical events.
+- SPMG2's temporal derivative and SPMG3's dispersion derivative on
+  the new classes use SPM's finite-difference scheme in the *delay*
+  and *dispersion* parameters respectively, matching Nilearn's
+  ``spm_time_derivative`` / ``spm_dispersion_derivative``. The legacy
+  classes keep the analytic time-derivative and the dispersion-as-
+  time-scaling derivative used previously.
+- The old inherited ``params`` / ``param_names`` dict mirror was
+  removed by bead ``bd-01KRGCZJ6JAA4BKRTNQ91P2PE5``. Evaluation reads
+  the dataclass fields directly.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import ClassVar
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from .core import HRF, HrfParamValue
-from .derivatives import spmg1_derivative, spmg1_second_derivative
-from .functions import spm_canonical
+from .core import HRF
+from .derivatives import (
+    spmg1_derivative,
+    spmg1_dispersion_derivative,
+    spmg1_dispersion_derivative_spm,
+    spmg1_second_derivative,
+    spmg1_temporal_derivative_spm,
+)
+from .functions import (
+    _SPM_DEFAULT_DELAY,
+    _SPM_DEFAULT_DISPERSION,
+    _SPM_DEFAULT_RATIO,
+    _SPM_DEFAULT_U_DISPERSION,
+    _SPM_DEFAULT_UNDERSHOOT,
+    spm_canonical,
+    spm_canonical_legacy,
+)
 
-_SPM_PARAM_NAMES = ("p1", "p2", "a1")
 
-
-def _spm_params(p1: float, p2: float, a1: float) -> dict[str, HrfParamValue]:
-    return {"p1": p1, "p2": p2, "a1": a1}
-
+# ---------------------------------------------------------------------------
+# Default (SPM standard) classes
+# ---------------------------------------------------------------------------
 
 @dataclass
 class SPMG1_HRF(HRF):
-    """SPM canonical HRF with analytic derivative support."""
+    """SPM canonical HRF (standard SPM/Nilearn parameterization).
+
+    See :func:`spm_canonical` for the formula and default values.
+    """
 
     name: str = "SPMG1"
+    nbasis: int = 1
+    span: float = 32.0
+    delay: float = _SPM_DEFAULT_DELAY
+    undershoot: float = _SPM_DEFAULT_UNDERSHOOT
+    dispersion: float = _SPM_DEFAULT_DISPERSION
+    u_dispersion: float = _SPM_DEFAULT_U_DISPERSION
+    ratio: float = _SPM_DEFAULT_RATIO
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        return spm_canonical(
+            t, delay=self.delay, undershoot=self.undershoot,
+            dispersion=self.dispersion, u_dispersion=self.u_dispersion,
+            ratio=self.ratio,
+        )
+
+
+@dataclass
+class SPMG2_HRF(HRF):
+    """SPM informed basis: canonical + SPM time derivative.
+
+    The second column is the SPM/Nilearn time derivative, computed as
+    a finite difference in the delay parameter:
+    ``(h(delay=6) - h(delay=6+0.1)) / 0.1`` (matches SPM
+    ``spm_get_bf``'s "hrf (with time derivative)" case and Nilearn's
+    ``spm_time_derivative``).
+    """
+
+    name: str = "SPMG2"
+    nbasis: int = 2
+    span: float = 32.0
+    delay: float = _SPM_DEFAULT_DELAY
+    undershoot: float = _SPM_DEFAULT_UNDERSHOOT
+    dispersion: float = _SPM_DEFAULT_DISPERSION
+    u_dispersion: float = _SPM_DEFAULT_U_DISPERSION
+    ratio: float = _SPM_DEFAULT_RATIO
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        t = np.asarray(t)
+        canonical = spm_canonical(
+            t, delay=self.delay, undershoot=self.undershoot,
+            dispersion=self.dispersion, u_dispersion=self.u_dispersion,
+            ratio=self.ratio,
+        )
+        derivative = spmg1_temporal_derivative_spm(
+            t, delay=self.delay, undershoot=self.undershoot,
+            dispersion=self.dispersion, u_dispersion=self.u_dispersion,
+            ratio=self.ratio,
+        )
+        result = np.column_stack([canonical, derivative])
+        if t.ndim == 0 or (t.ndim == 1 and len(t) == 1):
+            result = result.reshape(1, -1)
+        return result
+
+
+@dataclass
+class SPMG3_HRF(HRF):
+    """SPM informed basis: canonical + temporal + dispersion derivatives.
+
+    Both derivatives use SPM's finite-difference scheme in the
+    relevant parameter (delay for column 2, dispersion for column 3),
+    matching SPM's ``spm_get_bf`` "hrf (with time and dispersion
+    derivatives)" and Nilearn's ``spm_time_derivative`` /
+    ``spm_dispersion_derivative``.
+
+    The R-side ``fmrireg::HRF_SPMG3`` historically used the second
+    *time* derivative as the third column and a different canonical
+    parameterization; fmrimod now diverges from that to match the
+    SPM literature. The legacy form is preserved as
+    :class:`SPMG3_HRF_Legacy` (basis ``"spmg3_legacy"``).
+    """
+
+    name: str = "SPMG3"
+    nbasis: int = 3
+    span: float = 32.0
+    delay: float = _SPM_DEFAULT_DELAY
+    undershoot: float = _SPM_DEFAULT_UNDERSHOOT
+    dispersion: float = _SPM_DEFAULT_DISPERSION
+    u_dispersion: float = _SPM_DEFAULT_U_DISPERSION
+    ratio: float = _SPM_DEFAULT_RATIO
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        t = np.asarray(t)
+        canonical = spm_canonical(
+            t, delay=self.delay, undershoot=self.undershoot,
+            dispersion=self.dispersion, u_dispersion=self.u_dispersion,
+            ratio=self.ratio,
+        )
+        time_deriv = spmg1_temporal_derivative_spm(
+            t, delay=self.delay, undershoot=self.undershoot,
+            dispersion=self.dispersion, u_dispersion=self.u_dispersion,
+            ratio=self.ratio,
+        )
+        disp_deriv = spmg1_dispersion_derivative_spm(
+            t, delay=self.delay, undershoot=self.undershoot,
+            dispersion=self.dispersion, u_dispersion=self.u_dispersion,
+            ratio=self.ratio,
+        )
+        result = np.column_stack([canonical, time_deriv, disp_deriv])
+        if t.ndim == 0 or (t.ndim == 1 and len(t) == 1):
+            result = result.reshape(1, -1)
+        return result
+
+
+# ---------------------------------------------------------------------------
+# Legacy classes (R fmrireg parameterization)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class SPMG1_HRF_Legacy(HRF):
+    """Legacy SPM canonical HRF (R ``fmrireg`` parameterization)."""
+
+    name: str = "SPMG1_legacy"
     nbasis: int = 1
     span: float = 24.0
     p1: float = 5.0
@@ -38,56 +185,17 @@ class SPMG1_HRF(HRF):
     a1: float = 0.0833
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
-        return spm_canonical(t, p1=self.p1, p2=self.p2, a1=self.a1)
+        return spm_canonical_legacy(t, p1=self.p1, p2=self.p2, a1=self.a1)
 
     def _derivative(self, t: ArrayLike) -> NDArray[np.float64]:
         return spmg1_derivative(t, p1=self.p1, p2=self.p2, a1=self.a1)
 
 
 @dataclass
-class SPMG2_HRF(HRF):
-    """SPM HRF with canonical + temporal derivative basis (informed basis set).
+class SPMG2_HRF_Legacy(HRF):
+    """Legacy SPMG2: legacy canonical + analytic ∂h/∂t."""
 
-    Two-column basis: column 0 is the SPM canonical HRF; column 1 is its
-    **closed-form** first temporal derivative ``spmg1_derivative``.
-
-    Divergence from Nilearn / SPM12
-    -------------------------------
-    SPM12 and Nilearn (``hrf_model="spm + derivative"``) compute the
-    derivative column as a finite difference of the canonical HRF
-    evaluated at the sampling grid: ``(h(t + dt) - h(t)) / dt`` with
-    ``dt`` tied to the microtime resolution. We use the closed-form
-    analytic derivative instead. The two agree on peak shape (Pearson
-    ~0.98 in the ``tier_a_spm_derivative_basis`` parity workflow) but
-    disagree on the rank-order of near-zero tail values because finite
-    differences inject discretisation noise that the analytic form does
-    not.
-
-    The trade-off is intentional:
-
-    - Closed-form is numerically cleaner and grid-independent; Nilearn /
-      SPM12 finite-difference output depends on the chosen ``dt``.
-    - Friston et al.'s Taylor-expansion justification for the informed
-      basis set (``h(t - Δt) ≈ h(t) - Δt · h'(t)``) uses the analytic
-      derivative; we implement what the theory says, while SPM12
-      implements a finite-difference approximation to it.
-
-    **Downstream calibration caveat.** Latency-shift estimates derived
-    from ``β_derivative / β_canonical`` (Henson 2002, Liao 2002) carry a
-    proportionality constant that depends on the derivative
-    implementation. The constants published in the SPM12-anchored
-    literature are calibrated to the finite-difference column; they do
-    not transfer to ``β`` ratios from this HRF without re-derivation.
-    Bit-compatibility with SPM12-published latency calibration is an
-    explicit non-goal here.
-
-    See ``benchmarks/parity/tier_a_spm_derivative_basis/workflow.py`` for
-    the parity case that exercises this divergence and the tolerance
-    posture it forces (Pearson + max_abs as the gate; Spearman dropped
-    because near-zero tail rank-order is implementation-dependent).
-    """
-
-    name: str = "SPMG2"
+    name: str = "SPMG2_legacy"
     nbasis: int = 2
     span: float = 24.0
     p1: float = 5.0
@@ -96,7 +204,7 @@ class SPMG2_HRF(HRF):
 
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         t = np.asarray(t)
-        canonical = spm_canonical(t, p1=self.p1, p2=self.p2, a1=self.a1)
+        canonical = spm_canonical_legacy(t, p1=self.p1, p2=self.p2, a1=self.a1)
         derivative = spmg1_derivative(t, p1=self.p1, p2=self.p2, a1=self.a1)
         result = np.column_stack([canonical, derivative])
         if t.ndim == 0 or (t.ndim == 1 and len(t) == 1):
@@ -106,7 +214,9 @@ class SPMG2_HRF(HRF):
     def _derivative(self, t: ArrayLike) -> NDArray[np.float64]:
         t = np.asarray(t)
         first_deriv = spmg1_derivative(t, p1=self.p1, p2=self.p2, a1=self.a1)
-        second_deriv = spmg1_second_derivative(t, p1=self.p1, p2=self.p2, a1=self.a1)
+        second_deriv = spmg1_second_derivative(
+            t, p1=self.p1, p2=self.p2, a1=self.a1
+        )
         result = np.column_stack([first_deriv, second_deriv])
         if t.ndim == 0 or (t.ndim == 1 and len(t) == 1):
             result = result.reshape(1, -1)
@@ -114,64 +224,33 @@ class SPMG2_HRF(HRF):
 
 
 @dataclass
-class SPMG3_HRF(HRF):
-    """SPM HRF with canonical + temporal + dispersion derivatives.
+class SPMG3_HRF_Legacy(HRF):
+    """Legacy SPMG3 used by R ``fmrireg::HRF_SPMG3``.
 
-    Three-column basis: column 0 is the SPM canonical HRF; column 1 is
-    its **closed-form** first temporal derivative; column 2 is the
-    closed-form second temporal derivative (used as the dispersion
-    derivative, matching R's ``HRF_SPMG3`` via
-    ``hrf_spmg1_second_deriv``).
-
-    The same closed-form-vs-finite-difference divergence from Nilearn
-    and SPM12 documented on :class:`SPMG2_HRF` applies to columns 1 and
-    2 here. SPM12 and Nilearn (``hrf_model="spm + derivative +
-    dispersion"``) finite-difference the canonical for the temporal
-    derivative and finite-difference the canonical with a perturbed
-    dispersion parameter for the dispersion derivative; we evaluate the
-    closed-form first and second temporal derivatives directly.
-
-    Latency-shift / dispersion-shift estimates derived from
-    ``β_d / β_canonical`` ratios are not bit-compatible with
-    SPM12-published calibrations — see the SPMG2_HRF docstring.
+    Third column is the *dispersion derivative computed on the legacy
+    canonical* (finite difference w.r.t. a time-scaling ``dispersion``
+    parameter on the legacy form), as introduced in the dispersion-
+    derivative fix that preceded the SPM-canonical alignment. This is
+    still numerically distinct from R fmrireg's
+    ``hrf_spmg1_second_deriv`` — see the tracking issue on bbuchsbaum/
+    fmrihrf for the R-side fix.
     """
 
-    name: str = "SPMG3"
+    name: str = "SPMG3_legacy"
     nbasis: int = 3
     span: float = 24.0
     p1: float = 5.0
     p2: float = 15.0
     a1: float = 0.0833
 
-    # Step size for the numerical derivative of the dispersion (second-derivative)
-    # basis used inside ``_derivative``. Kept as a class-level constant so the
-    # value is auditable rather than hidden behind a magic literal.
-    _DISPERSION_DERIV_DX: ClassVar[float] = 1e-3
-
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         t = np.asarray(t)
-        canonical = spm_canonical(t, p1=self.p1, p2=self.p2, a1=self.a1)
+        canonical = spm_canonical_legacy(t, p1=self.p1, p2=self.p2, a1=self.a1)
         derivative = spmg1_derivative(t, p1=self.p1, p2=self.p2, a1=self.a1)
-        # Dispersion derivative is the analytic second temporal derivative,
-        # matching R's HRF_SPMG3 which uses hrf_spmg1_second_deriv.
-        dispersion = spmg1_second_derivative(t, p1=self.p1, p2=self.p2, a1=self.a1)
+        dispersion = spmg1_dispersion_derivative(
+            t, p1=self.p1, p2=self.p2, a1=self.a1
+        )
         result = np.column_stack([canonical, derivative, dispersion])
-        if t.ndim == 0 or (t.ndim == 1 and len(t) == 1):
-            result = result.reshape(1, -1)
-        return result
-
-    def _derivative(self, t: ArrayLike) -> NDArray[np.float64]:
-        t = np.asarray(t)
-        deriv1 = spmg1_derivative(t, p1=self.p1, p2=self.p2, a1=self.a1)
-        deriv2 = spmg1_second_derivative(t, p1=self.p1, p2=self.p2, a1=self.a1)
-        # Derivative of the dispersion basis = derivative of the analytic
-        # second derivative; computed by central difference.
-        dx = self._DISPERSION_DERIV_DX
-        deriv3 = (
-            spmg1_second_derivative(t + dx, p1=self.p1, p2=self.p2, a1=self.a1)
-            - spmg1_second_derivative(t - dx, p1=self.p1, p2=self.p2, a1=self.a1)
-        ) / (2 * dx)
-        result = np.column_stack([deriv1, deriv2, deriv3])
         if t.ndim == 0 or (t.ndim == 1 and len(t) == 1):
             result = result.reshape(1, -1)
         return result

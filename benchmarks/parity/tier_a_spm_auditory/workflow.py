@@ -169,6 +169,7 @@ def fmrimod_pipeline(
             mask=inputs.mask_img,
             tr=TR,
             events=inputs.events.assign(run=1),
+            slice_timing_offset=0.0,
         )
     )
     fit, fit_seconds = _elapsed_seconds(

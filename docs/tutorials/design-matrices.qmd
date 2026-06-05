@@ -57,23 +57,33 @@ design_colmap(event_model)[["col", "name", "condition", "role", "basis_name"]]
 
 ## Add a Parametric Modulator
 
-Terms compose with `+`. A second `hrf(...)` on a continuous column adds a
-parametric regressor — still a typed spec, still inspected before fitting.
+To model a condition modulated by a trial-by-trial continuous variable
+(reaction time, accuracy, confidence, ...), use the typed-spec
+`modulators=` keyword. This expands the term into an unmodulated
+boxcar plus one regressor per modulator. By default each modulator
+is mean-centered at the raw-value level (pre-convolution), giving
+the unmodulated boxcar and modulated columns the near-orthogonal
+structure that makes per-modulator betas interpretable.
 
 ```{python}
-modulated = hrf("condition", basis="spmg1") + hrf("response_time", basis="spmg1")
-mod_model, _ = compile_spec(modulated, data=events, sampling_frame=sf)
+modulated_spec = hrf("condition", basis="spmg1", modulators=("response_time",))
+mod_model = fm.event_model(modulated_spec, data=events, sampling_frame=sf)
 
 design_colmap(mod_model)[["col", "name", "condition", "role", "basis_name"]]
 ```
 
 The added `response_time` regressor appears as its own column, tagged
-with where it came from. Because `+` composes typed terms rather than
-concatenating formula strings, you can read off exactly which column
-belongs to which term before fitting anything.
+with where it came from. Because the modulator is part of the typed
+term metadata rather than a formula-string suffix, you can read off
+exactly which column belongs to which term before fitting anything.
 
 To see a design like this carried through `fmri_lm`, a contrast, and
 into a group analysis, follow the **[golden path](golden-path.qmd)**.
+
+See the [parametric modulators](parametric-modulators.qmd) tutorial
+for the full story on centering semantics, the `center_modulators=`
+opt-out, and why fmrimod does not orthogonalize modulators
+automatically.
 
 ## Next
 

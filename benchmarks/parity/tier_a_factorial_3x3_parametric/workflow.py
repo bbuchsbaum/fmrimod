@@ -238,11 +238,11 @@ def _build_contrasts(
     change in the realised design.
     """
     c_diff = np.zeros(n_total, dtype=np.float64)
-    for (difficulty, emotion), idx in main.items():
+    for (difficulty, _emotion), idx in main.items():
         c_diff[idx] = DIFFICULTY_TREND[difficulty] / len(EMOTION_LEVELS)
 
     c_emo = np.zeros(n_total, dtype=np.float64)
-    for (difficulty, emotion), idx in main.items():
+    for (_difficulty, emotion), idx in main.items():
         c_emo[idx] = EMOTION_TREND[emotion] / len(DIFFICULTY_LEVELS)
 
     # 2x2 sub-interaction: (hard - easy) × (positive - negative)
@@ -473,8 +473,11 @@ def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
             "t_difficulty_linear": ParityTolerance(rtol=1e-7, atol=1e-8),
             "effect_emotion_linear": ParityTolerance(rtol=1e-8, atol=1e-9),
             "t_emotion_linear": ParityTolerance(rtol=1e-7, atol=1e-8),
+            # numerical_floor: fmrimod and Nilearn route this derived
+            # four-cell effect through independent contrast objects and
+            # differ only at a few nanounits.
             "effect_diff_x_emo_quadrant": ParityTolerance(
-                rtol=1e-8, atol=1e-9
+                rtol=1e-8, atol=1e-8
             ),
             "t_diff_x_emo_quadrant": ParityTolerance(
                 rtol=1e-7, atol=1e-8
@@ -514,8 +517,9 @@ def _make_timed_case(
             "t_difficulty_linear": ParityTolerance(rtol=1e-7, atol=1e-8),
             "effect_emotion_linear": ParityTolerance(rtol=1e-8, atol=1e-9),
             "t_emotion_linear": ParityTolerance(rtol=1e-7, atol=1e-8),
+            # numerical_floor: same four-cell effect floor as make_case().
             "effect_diff_x_emo_quadrant": ParityTolerance(
-                rtol=1e-8, atol=1e-9
+                rtol=1e-8, atol=1e-8
             ),
             "t_diff_x_emo_quadrant": ParityTolerance(
                 rtol=1e-7, atol=1e-8

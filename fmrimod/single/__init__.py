@@ -56,6 +56,7 @@ from .item import (
     item_slice_fold,
 )
 from .lsa import lsa_single_trial
+from .typed import fmri_lss
 from .lss import lss_single_trial
 from .mixed import mixed_single_trial
 from .oasis import oasis_single_trial
@@ -469,6 +470,7 @@ def _extract_trialwise_labels(event_model: object) -> list[str] | None:
 __all__ = [
     "estimate_single_trial",
     "estimate_single_trial_from_dataset",
+    "fmri_lss",
     "lss_single_trial",
     "lsa_single_trial",
     "oasis_single_trial",

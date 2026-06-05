@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from benchmarks.performance.check_regression import (
     find_artifact_history_gaps,
@@ -44,13 +44,28 @@ PERFORMANCE_HISTORY = (
 # verify that.
 _PENDING_HARDWARE_TAG_ROWS = frozenset(
     {
+        # Merge rationale: these cloud-authored workflow rows predate
+        # the hardware-tag gate. They remain pending under
+        # bd-01KRHXD5DJ7CATXB0VNWE07JX0 until their parity receipts
+        # record platform-specific timing history.
+        "tier_a_ar1_prewhitening",
+        "tier_a_block_epoch_durations",
+        "tier_a_censored_concat",
+        "tier_a_factorial_3way",
+        "tier_a_fir_basis",
+        "tier_a_group_level_t",
+        "tier_a_hrf_basis_set",
+        "tier_a_mixed_tr_multirun",
+        "tier_a_parametric_modulators",
+        "tier_a_realistic_confounds",
+        "tier_a_single_trial_lss",
     }
 )
 
 _GATED_LEVELS = frozenset({"flagship_workflow", "workflow_parity"})
 
 
-def _load_manifest() -> Dict[str, Any]:
+def _load_manifest() -> dict[str, Any]:
     return json.loads(MANIFEST.read_text())
 
 
