@@ -4,6 +4,7 @@ This module provides tools for defining and computing statistical contrasts
 for hypothesis testing in fMRI analyses.
 """
 
+from .anova import AnovaContrasts, anova_contrasts
 from .basis_filter import apply_basis_filter, filter_basis
 from .contrast_spec import (
     column_contrast,
@@ -29,6 +30,9 @@ from .omnibus import OmnibusContrast
 from .plot_contrasts import plot_contrasts
 
 __all__ = [
+    # ANOVA contrast generator
+    'AnovaContrasts',
+    'anova_contrasts',
     # Core contrast constructors
     'contrast',
     'unit_contrast',

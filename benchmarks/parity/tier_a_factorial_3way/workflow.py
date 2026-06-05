@@ -295,9 +295,39 @@ def load_inputs(
         scale=0.35, size=(N_SCANS, n_voxels)
     )
 
-    (c_t_main_tt, c_t_main_diff, c_t_main_ctx,
-     c_t_inter_TD, c_t_inter_TC, c_t_inter_DC,
-     c_t_inter_TDC, c_f_omni) = _build_contrasts(cells, n_total)
+    # Two ways to assemble the ANOVA contrasts:
+    # 1. Hand-rolled via ``_build_contrasts`` — the original path.
+    # 2. The typed ``anova_contrasts`` generator added in the same
+    #    commit that cleaned up the factorial ergonomics.
+    # We verify both produce the same vectors and keep the typed
+    # path in scope so the workflow doubles as a demo of the new API.
+    from fmrimod.contrast import anova_contrasts as _anova_contrasts
+
+    ac = _anova_contrasts(
+        columns,
+        term="trial_type:difficulty:context",
+        factors=("trial_type", "difficulty", "context"),
+    )
+    c_t_main_tt = ac.main["trial_type"]
+    c_t_main_diff = ac.main["difficulty"]
+    c_t_main_ctx = ac.main["context"]
+    c_t_inter_TD = ac.interaction[("trial_type", "difficulty")]
+    c_t_inter_TC = ac.interaction[("trial_type", "context")]
+    c_t_inter_DC = ac.interaction[("difficulty", "context")]
+    c_t_inter_TDC = ac.interaction[
+        ("trial_type", "difficulty", "context")
+    ]
+    c_f_omni = ac.omnibus
+
+    # Sanity check: the typed generator must agree with the manual
+    # ``_build_contrasts`` assembly. Pinned in the parametrised
+    # parity test; here it's an assert against accidental drift.
+    (man_main_tt, man_main_diff, man_main_ctx,
+     man_inter_TD, man_inter_TC, man_inter_DC,
+     man_inter_TDC, man_f_omni) = _build_contrasts(cells, n_total)
+    np.testing.assert_array_equal(c_t_main_tt, man_main_tt)
+    np.testing.assert_array_equal(c_t_inter_TDC, man_inter_TDC)
+    np.testing.assert_array_equal(c_f_omni, man_f_omni)
 
     return FactorialInputs(
         events=events,

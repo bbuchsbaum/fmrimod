@@ -89,6 +89,108 @@ class DesignColumns:
             )
         return DesignColumns(columns)
 
+    def cell(
+        self,
+        *,
+        term: str | None = None,
+        **factor_values: str,
+    ) -> DesignColumn:
+        """Look up a single factorial cell by factor-value keyword arguments.
+
+        For a factorial term like ``"trial_type:difficulty:context"`` the
+        realised level string follows the convention
+        ``"trial_type.A_difficulty.easy_context.off"`` (factor names
+        and values may contain underscores). This helper parses each
+        column's level string against the known factor list (from the
+        ``term`` field) and returns the column whose factor values
+        match every supplied keyword.
+
+        Parameters
+        ----------
+        term
+            Optional explicit term name. When omitted, the term is
+            taken from the unique task term whose factors match
+            the supplied keyword names (works when the design has
+            exactly one factorial term covering those factors).
+        **factor_values
+            One keyword per factor (e.g. ``trial_type="A"``,
+            ``difficulty="easy"``, ``context="off"``). All must match.
+
+        Returns
+        -------
+        DesignColumn
+            The unique cell matching the supplied factor values.
+
+        Raises
+        ------
+        KeyError
+            No cell matched.
+        ValueError
+            More than one cell matched, or the term couldn't be
+            inferred when ``term=None``.
+        """
+        if not factor_values:
+            raise ValueError(
+                "DesignColumns.cell requires at least one factor=value keyword"
+            )
+        # Resolve the term if not given: find the unique task term whose
+        # ``factor1:factor2:...`` decomposition covers every supplied
+        # keyword name.
+        resolved_term = term
+        if resolved_term is None:
+            wanted = set(factor_values.keys())
+            candidates = {
+                col.term for col in self.columns
+                if col.term is not None and ":" in (col.term or "")
+            }
+            matches = [
+                t for t in candidates
+                if wanted.issubset(set(t.split(":")))
+            ]
+            if not matches:
+                raise ValueError(
+                    f"DesignColumns.cell: no factorial term covers factors "
+                    f"{sorted(wanted)!r}; available terms: "
+                    f"{sorted(candidates)!r}"
+                )
+            if len(matches) > 1:
+                raise ValueError(
+                    f"DesignColumns.cell: factors {sorted(wanted)!r} are "
+                    f"covered by multiple terms {sorted(matches)!r}; pass "
+                    f"``term=`` explicitly"
+                )
+            resolved_term = matches[0]
+
+        factor_order = resolved_term.split(":")
+        unknown = [k for k in factor_values if k not in factor_order]
+        if unknown:
+            raise ValueError(
+                f"DesignColumns.cell: factor(s) {unknown!r} not in term "
+                f"{resolved_term!r} (available factors: {factor_order!r})"
+            )
+
+        # Filter to columns from the resolved term, then match by parsed
+        # factor-value mapping.
+        candidates = [c for c in self.columns if c.term == resolved_term]
+        matches: list[DesignColumn] = []
+        for c in candidates:
+            parsed = _parse_factorial_level(c.level, factor_order)
+            if parsed is None:
+                continue
+            if all(parsed.get(k) == v for k, v in factor_values.items()):
+                matches.append(c)
+        if not matches:
+            raise KeyError(
+                f"DesignColumns.cell: no column matched factor values "
+                f"{factor_values!r} on term {resolved_term!r}"
+            )
+        if len(matches) > 1:
+            raise ValueError(
+                f"DesignColumns.cell: {len(matches)} columns matched "
+                f"{factor_values!r} on term {resolved_term!r}; expected 1"
+            )
+        return matches[0]
+
     def one(self) -> DesignColumn:
         """Return the only selected column."""
         if len(self.columns) != 1:
@@ -120,6 +222,36 @@ class DesignColumns:
                 if column.index < len(names)
             )
         return cls(tuple(columns))
+
+
+def _parse_factorial_level(
+    level: str | None, factor_order: list[str]
+) -> dict[str, str] | None:
+    """Parse a factorial level string into a ``{factor: value}`` mapping.
+
+    The level-string convention from the typed factorial expansion is
+    ``"<f1>.<v1>_<f2>.<v2>_<f3>.<v3>"`` where factor names and
+    values may themselves contain underscores. Anchoring on the
+    known factor sequence avoids the ambiguity.
+    """
+    if level is None or not factor_order:
+        return None
+    text = level
+    prefix = factor_order[0] + "."
+    if not text.startswith(prefix):
+        return None
+    text = text[len(prefix):]
+    parsed: dict[str, str] = {}
+    for idx, factor in enumerate(factor_order[:-1]):
+        next_marker = "_" + factor_order[idx + 1] + "."
+        split_at = text.find(next_marker)
+        if split_at < 0:
+            return None
+        parsed[factor] = text[:split_at]
+        text = text[split_at + len(next_marker):]
+    # The remaining ``text`` is the last factor's value.
+    parsed[factor_order[-1]] = text
+    return parsed
 
 
 def _replace_name(column: DesignColumn, name: str) -> DesignColumn:
