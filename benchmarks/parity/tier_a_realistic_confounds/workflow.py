@@ -40,26 +40,26 @@ convolution, just column attachment). This pins fmrimod's
 confound-plumbing correctness against Nilearn's add_regs path
 without needing the SPM-canonical shape conventions to align.
 
-Pain points logged for follow-up
---------------------------------
+Typed lookup surface
+--------------------
 
-Three ergonomic gaps surfaced while wiring this and are pinned in
-``tests/spec/test_confounds_pain_points.py``:
+Three ergonomic gaps surfaced while wiring this case are now closed
+(pinned in ``tests/spec/test_confounds_pain_points.py``):
 
-1. **No distinct ``role="confound"``** — confound columns share
-   ``role="baseline"`` with intercept and drift. Filtering them
-   from the column registry requires name-suffix parsing
-   (``c.name.endswith("trans_x")``) rather than typed lookup.
-2. **No ``where(name="trans_x")`` direct match** — names get
-   prefixed (``"nuis_run1_trans_x"``) so the user's original
-   column name from the events table is not addressable in the
-   typed lookup.
+1. **``role="confound"``** distinguishes nuisance regressors from
+   drift and intercept. ``cols.where(role="confound")`` returns the
+   nuisance columns directly; ``role="drift"`` returns drift; and
+   ``role="intercept"`` returns the block constants.
+2. **User-visible column name as ``term``** — the realised column
+   name still carries the ``"nuis_runK_"`` prefix for legacy
+   inspection, but the user's original DataFrame column name is
+   exposed as ``DesignColumn.term`` so
+   ``cols.where(term="trans_x")`` resolves directly.
 3. **Multi-run confounds via the typed spec** — ``confounds(
-   source=concat_df)`` fails on multi-run designs with
-   "Length of nuisance_list (1) must equal number of blocks (N)";
-   no public typed-spec path takes a list-of-per-run DataFrames.
-   The underlying ``baseline_model(nuisance_list=[df1, df2])``
-   supports it; the gap is at the typed Spec surface.
+   source=df)`` accepts both a single concatenated DataFrame
+   (split row-wise along the dataset's block boundaries when the
+   design has multiple runs) and a per-run sequence of DataFrames.
+   Both shapes produce the same block-diagonal nuisance structure.
 """
 
 from __future__ import annotations
@@ -211,23 +211,16 @@ def _realize_design(
 
 
 def _find_confound_index(columns: DesignColumns, name: str) -> int:
-    """Look up a confound column by suffix-matching its user-visible name.
+    """Look up a confound column by typed name lookup.
 
-    Pinned as a pain point: fmrimod prefixes confound columns with
-    ``"nuis_runK_"`` so the original DataFrame column name is not
-    addressable directly via ``cols.where(name=name)``. Until a
-    proper typed lookup lands (separate `role="confound"` plus
-    user-name preservation), suffix matching is the recommended
-    workaround.
+    fmrimod tags each confound column with ``role="confound"`` and
+    exposes the user's original DataFrame column name as
+    ``DesignColumn.term``, so this is a one-line typed lookup. The
+    helper exists so the workflow's contrast assembly reads cleanly,
+    not because the lookup itself is hard.
     """
-    for c in columns.columns:
-        if (c.name or "").endswith(name):
-            return c.index
-    raise KeyError(
-        f"confound column ending in {name!r} not found in design; "
-        f"available baseline names: "
-        f"{[col.name for col in columns.columns if col.role == 'baseline']}"
-    )
+    matches = columns.where(role="confound", term=name)
+    return matches.one().index
 
 
 def _build_contrasts(

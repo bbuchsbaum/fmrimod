@@ -1,24 +1,25 @@
-"""Regression tests pinning ergonomic gaps in the typed ``confounds(...)`` API.
+"""Regression tests pinning the typed ``confounds(...)`` API contract.
 
-Surfaced while wiring the ``tier_a_realistic_confounds`` parity
-workflow. Each test pins the *current* observed behavior so a
-future fix can flip the assertion from "current state" to "desired
-state". These are NOT correctness gaps — confound values plumb
-through to the realised design bitwise — they are *ergonomic* gaps
-in the typed surface that make confound-aware analyses harder than
-they should be.
+History: when the realistic-confounds parity workflow was wired in
+early 2026 it surfaced three ergonomic gaps in the typed Spec layer
+for nuisance regressors. Each gap was fixed in the same change that
+landed this regression suite; the tests below pin the *current
+(fixed) state* so a future change can't silently regress.
 
-1. **No distinct ``role="confound"``** — confound columns share
-   ``role="baseline"`` with intercept and drift. Filtering them
-   from the column registry requires name-suffix parsing.
-2. **No ``where(name="trans_x")`` direct match** — names get
-   prefixed (``"nuis_runK_<name>"``) so the user's original
-   DataFrame column name is not addressable in the typed lookup.
-3. **Multi-run confounds via the typed spec** —
-   ``confounds(source=concat_df)`` raises on multi-run designs;
-   no public typed-spec path takes per-run DataFrames. The
-   underlying ``baseline_model(nuisance_list=[df1, df2])``
-   supports it; the gap is at the typed Spec surface.
+1. **Distinct ``role="confound"``** — confound columns no longer
+   share ``role="baseline"`` with intercept and drift. Filtering
+   them from the column registry uses typed lookup
+   (``cols.where(role="confound")``), not name-suffix parsing.
+2. **User-visible column name addressable as ``term``** — the
+   prefixed realised column name (``"nuis_runK_<name>"``) is now
+   parsed during colmap construction and the user's original
+   DataFrame column name is exposed as ``DesignColumn.term``, so
+   ``cols.where(term="trans_x")`` resolves directly.
+3. **Multi-run confounds via the typed spec** — ``confounds(
+   source=df)`` accepts both a single DataFrame (split row-wise
+   along the dataset's block boundaries when the design has
+   multiple runs) and a per-run sequence of DataFrames. Both
+   shapes produce the same block-diagonal nuisance structure.
 """
 
 from __future__ import annotations
@@ -61,71 +62,106 @@ def _single_run_fit() -> object:
         return fm.fmri_lm(spec, ds, engine="concat")
 
 
-# -- Pain point 1: no distinct role="confound" ------------------------------
+# -- Pain point 1 (fixed): distinct role="confound" ------------------------
 
 
-def test_confound_columns_share_baseline_role_with_drift_intercept() -> None:
-    """Confound columns currently report ``role="baseline"``.
+def test_confound_columns_carry_distinct_confound_role() -> None:
+    """``cols.where(role='confound')`` returns the confound columns.
 
-    Pinned at the current state so a future fix that introduces a
-    distinct ``role="confound"`` (or a similar refinement) can flip
-    this assertion to the desired state with a clear diff.
+    Before the fix, all baseline-source columns (intercept, drift,
+    confound) shared ``role='baseline'`` and users had to suffix-match
+    on the column name. The typed lookup story is now uniform with
+    task columns (``cols.where(role='task')``).
     """
     fit = _single_run_fit()
     cols = fit.design_columns()
-    confound_cols = [
-        c for c in cols.columns
-        if (c.name or "").startswith("nuis_")
-    ]
-    assert confound_cols, "expected at least one confound column"
+    confound_cols = list(cols.where(role="confound").columns)
+    assert len(confound_cols) == 2, (
+        f"expected 2 confound columns, got {len(confound_cols)}: "
+        f"{[(c.index, c.name, c.role) for c in confound_cols]}"
+    )
     for c in confound_cols:
-        # Current state: confounds carry the same role as drift/intercept.
-        # If this test starts failing, the typed surface has differentiated
-        # confound from baseline-drift — update accordingly.
-        assert c.role == "baseline", (
-            f"confound column {c.name!r} role changed from 'baseline' to "
-            f"{c.role!r}; if intentional, update this regression"
+        assert c.role == "confound"
+        # The other baseline-source roles (drift / intercept) must NOT
+        # match the confound lookup.
+        assert c.role != "drift"
+        assert c.role != "intercept"
+        assert c.role != "baseline"
+
+
+def test_drift_and_intercept_carry_their_own_distinct_roles() -> None:
+    """Drift and intercept columns are now distinguishable from confounds.
+
+    The baseline-source roles (drift, intercept, confound) are each
+    filterable by their own ``role`` value, so a future colmap
+    refactor can't silently collapse them back into a single
+    ``baseline`` lump. The exact intercept/drift assignment depends
+    on which spec terms the user supplied (an ``intercept(per="run")``
+    without an explicit ``drift(...)`` term lives in baseline_model's
+    drift slot with ``basis="constant"``); the canonical example we
+    pin here adds an explicit poly drift so both roles appear.
+    """
+    rng = np.random.default_rng(0)
+    events = pd.DataFrame({
+        "onset": np.linspace(8.0, 96.0, 8),
+        "duration": 0.0,
+        "trial_type": ["A", "B"] * 4,
+        "run": 1,
+    })
+    conf_df = pd.DataFrame({"trans_x": rng.normal(size=80)})
+    ds = fm.fmri_dataset(
+        np.zeros((80, 4)), tr=2.0, events=events, slice_timing_offset=0.0
+    )
+    from fmrimod.spec import drift as drift_term
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        fit = fm.fmri_lm(
+            hrf("trial_type")
+            + confounds("trans_x", source=conf_df)
+            + drift_term("poly", degree=2)
+            + intercept(per="run"),
+            ds,
         )
+    role_counts: dict[str, int] = {}
+    for c in fit.design_columns().columns:
+        role_counts[c.role] = role_counts.get(c.role, 0) + 1
+    assert role_counts.get("task", 0) == 2  # A, B
+    assert role_counts.get("drift", 0) == 2  # poly1, poly2
+    assert role_counts.get("intercept", 0) == 1  # constant
+    assert role_counts.get("confound", 0) == 1  # trans_x
 
 
-# -- Pain point 2: original column names get prefixed -----------------------
+# -- Pain point 2 (fixed): user name is the term ----------------------------
 
 
-def test_confound_user_name_is_not_directly_addressable() -> None:
-    """``cols.where(name="trans_x")`` does NOT match the confound column.
+def test_confound_user_name_resolves_via_typed_term_lookup() -> None:
+    """``cols.where(term='trans_x')`` returns the trans_x confound directly.
 
-    The realised column carries a prefixed name (``"nuis_run1_trans_x"``)
-    so the user's original DataFrame column name is buried. Until a
-    typed-name lookup lands, users must suffix-match.
+    Before the fix, the realised column name carried a ``"nuis_runN_"``
+    prefix and the user's original DataFrame column name was not
+    addressable via the typed lookup; users had to filter by name
+    suffix. The colmap now parses the prefix and exposes the user-
+    visible name as ``DesignColumn.term``.
     """
     fit = _single_run_fit()
     cols = fit.design_columns()
-    # Direct match on the user-visible name returns nothing.
-    direct = [c for c in cols.columns if c.name == "trans_x"]
-    assert direct == [], (
-        f"direct name='trans_x' match should be empty (the column "
-        f"is prefixed to 'nuis_runN_trans_x'); got {direct}"
+    trans_x_matches = list(cols.where(term="trans_x").columns)
+    assert len(trans_x_matches) == 1, (
+        f"expected exactly one 'trans_x' column; got "
+        f"{[(c.index, c.term, c.name) for c in trans_x_matches]}"
     )
-    # The suffix-match workaround does find it.
-    suffix = [c for c in cols.columns if (c.name or "").endswith("trans_x")]
-    assert len(suffix) == 1, (
-        f"suffix-match workaround should find exactly one column; got "
-        f"{[(c.index, c.name) for c in suffix]}"
-    )
-    assert "trans_x" in (suffix[0].name or "")
+    assert trans_x_matches[0].role == "confound"
+    assert "trans_x" in (trans_x_matches[0].name or "")
+
+    rot_x_matches = list(cols.where(term="rot_x").columns)
+    assert len(rot_x_matches) == 1
 
 
-# -- Pain point 3: multi-run confounds via the typed spec --------------------
+# -- Pain point 3 (fixed): multi-run confounds via the typed spec ----------
 
 
-def test_typed_confounds_source_df_fails_on_multirun() -> None:
-    """``confounds(source=concat_df)`` raises on a multi-run design.
-
-    Pinned to surface the gap. The error currently reaches the user as
-    a baseline-model nuisance-length mismatch. A future fix that adds
-    a per-run list path to the typed Spec should change this assertion
-    to the desired behavior.
-    """
+def test_typed_confounds_single_df_splits_along_block_boundaries() -> None:
+    """A single concatenated DataFrame source splits row-wise on multi-run."""
     rng = np.random.default_rng(0)
     n1, n2 = 60, 60
     events = pd.DataFrame({
@@ -136,6 +172,7 @@ def test_typed_confounds_source_df_fails_on_multirun() -> None:
     })
     conf_df = pd.DataFrame({
         "trans_x": rng.normal(size=n1 + n2),
+        "fd":      rng.uniform(size=n1 + n2),
     })
     ds = matrix_dataset(
         np.zeros((n1 + n2, 1)),
@@ -146,22 +183,135 @@ def test_typed_confounds_source_df_fails_on_multirun() -> None:
     )
     spec = (
         hrf("trial_type", basis="spm", norm="spm")
-        + confounds("trans_x", source=conf_df)
+        + confounds("trans_x", "fd", source=conf_df)
         + intercept(per="run")
     )
-    with pytest.raises(ValueError, match="nuisance_list"):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        fit = fm.fmri_lm(spec, ds, engine="concat")
+    X = fit.model.design_matrix_array(run=None)
+    cols = fit.design_columns()
+    # Per-run confound columns surface separately (run 1 and run 2 both
+    # carry a `trans_x` entry).
+    trans_x_cols = list(cols.where(term="trans_x").columns)
+    assert len(trans_x_cols) == 2, (
+        f"expected one trans_x col per run; got {trans_x_cols}"
+    )
+    # Block-diagonal structure: run 1's trans_x is zero in run 2 and
+    # vice versa.
+    run1_col = X[:, trans_x_cols[0].index]
+    run2_col = X[:, trans_x_cols[1].index]
+    assert np.allclose(run1_col[n1:], 0.0)
+    assert np.allclose(run2_col[:n1], 0.0)
+
+
+def test_typed_confounds_per_run_list_produces_same_design() -> None:
+    """A per-run sequence of DataFrames produces the same design as a single concat."""
+    rng = np.random.default_rng(0)
+    n1, n2 = 60, 60
+    events = pd.DataFrame({
+        "onset": [10.0, 30.0, 10.0, 30.0],
+        "duration": 0.0,
+        "trial_type": ["A", "B", "A", "B"],
+        "run": [1, 1, 2, 2],
+    })
+    df_run1 = pd.DataFrame({
+        "trans_x": rng.normal(size=n1), "fd": rng.uniform(size=n1),
+    })
+    df_run2 = pd.DataFrame({
+        "trans_x": rng.normal(size=n2), "fd": rng.uniform(size=n2),
+    })
+    ds = matrix_dataset(
+        np.zeros((n1 + n2, 1)),
+        tr=2.0,
+        run_length=[n1, n2],
+        event_table=events,
+        slice_timing_offset=0.0,
+    )
+    spec_list = (
+        hrf("trial_type", basis="spm", norm="spm")
+        + confounds("trans_x", "fd", source=[df_run1, df_run2])
+        + intercept(per="run")
+    )
+    spec_concat = (
+        hrf("trial_type", basis="spm", norm="spm")
+        + confounds(
+            "trans_x", "fd",
+            source=pd.concat([df_run1, df_run2], ignore_index=True),
+        )
+        + intercept(per="run")
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        fit_list = fm.fmri_lm(spec_list, ds, engine="concat")
+        fit_concat = fm.fmri_lm(spec_concat, ds, engine="concat")
+    np.testing.assert_array_equal(
+        fit_list.model.design_matrix_array(run=None),
+        fit_concat.model.design_matrix_array(run=None),
+    )
+
+
+def test_typed_confounds_rejects_mismatched_row_count() -> None:
+    """A single-DataFrame source whose row count != sum(blocklens) raises."""
+    rng = np.random.default_rng(0)
+    n1, n2 = 60, 60
+    events = pd.DataFrame({
+        "onset": [10.0, 10.0], "duration": 0.0,
+        "trial_type": ["A", "A"], "run": [1, 2],
+    })
+    bad_df = pd.DataFrame({"trans_x": rng.normal(size=80)})  # wrong length
+    ds = matrix_dataset(
+        np.zeros((n1 + n2, 1)),
+        tr=2.0,
+        run_length=[n1, n2],
+        event_table=events,
+        slice_timing_offset=0.0,
+    )
+    spec = (
+        hrf("trial_type", basis="spm", norm="spm")
+        + confounds("trans_x", source=bad_df)
+        + intercept(per="run")
+    )
+    with pytest.raises(ValueError, match="rows"):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            fm.fmri_lm(spec, ds, engine="concat")
+
+
+def test_typed_confounds_rejects_wrong_length_per_run_list() -> None:
+    """A per-run sequence whose length != n_runs raises."""
+    rng = np.random.default_rng(0)
+    n1, n2 = 60, 60
+    events = pd.DataFrame({
+        "onset": [10.0, 10.0], "duration": 0.0,
+        "trial_type": ["A", "A"], "run": [1, 2],
+    })
+    df_one = pd.DataFrame({"trans_x": rng.normal(size=n1)})  # only 1 run
+    ds = matrix_dataset(
+        np.zeros((n1 + n2, 1)),
+        tr=2.0,
+        run_length=[n1, n2],
+        event_table=events,
+        slice_timing_offset=0.0,
+    )
+    spec = (
+        hrf("trial_type", basis="spm", norm="spm")
+        + confounds("trans_x", source=[df_one])
+        + intercept(per="run")
+    )
+    with pytest.raises(ValueError, match="DataFrames"):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
             fm.fmri_lm(spec, ds, engine="concat")
 
 
 def test_baseline_model_supports_multirun_nuisance_list_directly() -> None:
-    """The underlying engine does support per-run confounds.
+    """The underlying ``baseline_model(nuisance_list=...)`` path still works.
 
-    This is the dual of the previous test: it pins that the gap is
-    purely in the typed-Spec surface, not in the lower
-    ``baseline_model`` API. A future fix at the Spec level can build
-    on the working baseline_model path without breaking anything.
+    Both the new typed-spec path AND the existing direct
+    ``baseline_model`` API now produce per-run block-diagonal
+    nuisance structure. Pinning the latter ensures the typed fix
+    did not break the existing direct API surface.
     """
     rng = np.random.default_rng(0)
     n1, n2 = 40, 40
@@ -178,12 +328,6 @@ def test_baseline_model_supports_multirun_nuisance_list_directly() -> None:
     # 4 (poly: 2 cols per run × 2 runs) + 2 (block intercepts)
     # + 2 (per-run trans_x) = 8 columns.
     assert X.shape == (n1 + n2, 8), f"unexpected baseline shape {X.shape}"
-    # Per-run nuisance is block-diagonal: the run-1 nuisance column
-    # is zero in the run-2 segment, and vice versa.
     nuis_cols = X[:, -2:]
-    assert np.allclose(nuis_cols[:n1, 1], 0.0), (
-        "run-2 trans_x should be zero in run 1 segment"
-    )
-    assert np.allclose(nuis_cols[n1:, 0], 0.0), (
-        "run-1 trans_x should be zero in run 2 segment"
-    )
+    assert np.allclose(nuis_cols[:n1, 1], 0.0)
+    assert np.allclose(nuis_cols[n1:, 0], 0.0)

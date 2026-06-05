@@ -328,21 +328,7 @@ def compile_baseline(
 
     nuisance_list = None
     if confounds:
-        # Pull confound matrices per run from each Confounds.source. Keep the
-        # column names as a DataFrame so downstream rank/aliasing diagnostics
-        # surface the user-visible labels ("motion_x") instead of the
-        # auto-numbered "V1"/"V2"/"V3" placeholders.
-        per_run = []
-        for c in confounds:
-            if c.source is None:
-                raise NotImplementedError(
-                    "Confounds without an explicit `source` DataFrame are not yet "
-                    "supported; supply source= or pre-join into the event table."
-                )
-            per_run.append(
-                c.source[list(c.columns)].astype(np.float64).copy()
-            )
-        nuisance_list = per_run
+        nuisance_list = _resolve_confounds_per_run(confounds, sampling_frame)
 
     return build_baseline(
         basis=basis,
@@ -351,6 +337,110 @@ def compile_baseline(
         intercept=intercept,
         nuisance_list=nuisance_list,
     )
+
+
+def _resolve_confounds_per_run(
+    confound_terms: Sequence[Confounds],
+    sampling_frame: Any,
+) -> list[pd.DataFrame]:
+    """Build the per-run nuisance DataFrame list expected by baseline_model.
+
+    Three input shapes are accepted on each :class:`Confounds` term's
+    ``source`` field:
+
+    1. **Single DataFrame, single-run dataset** — pass through as the
+       only per-run nuisance.
+    2. **Single DataFrame, multi-run dataset** — split row-wise along
+       the dataset's block boundaries (the DataFrame must have
+       exactly ``sum(blocklens)`` rows).
+    3. **Sequence of DataFrames** — used directly as the per-run list.
+       Length must equal the number of blocks.
+
+    Multiple :class:`Confounds` terms are concatenated column-wise
+    within each run's slot, so a user can mix sources by composing
+    several ``confounds(...)`` calls.
+    """
+    blocklens_attr = getattr(sampling_frame, "blocklens", None)
+    blocklens = (
+        list(np.asarray(blocklens_attr).ravel())
+        if blocklens_attr is not None
+        else []
+    )
+    if not blocklens:
+        blocklens = [0]
+    n_blocks = len(blocklens)
+    total_rows = int(sum(blocklens))
+
+    per_run: list[pd.DataFrame] = [
+        pd.DataFrame(index=range(int(b))) for b in blocklens
+    ]
+
+    for c in confound_terms:
+        if c.source is None:
+            raise NotImplementedError(
+                "Confounds without an explicit `source` DataFrame are not yet "
+                "supported; supply source= or pre-join into the event table."
+            )
+        # Normalise to a per-run list of DataFrames.
+        if isinstance(c.source, pd.DataFrame):
+            if n_blocks == 1:
+                run_frames: list[pd.DataFrame] = [c.source]
+            else:
+                if len(c.source) != total_rows:
+                    raise ValueError(
+                        f"Confounds source DataFrame has {len(c.source)} rows "
+                        f"but the dataset has {total_rows} scans across "
+                        f"{n_blocks} runs. Pass a per-run sequence of "
+                        f"DataFrames or a single DataFrame whose row count "
+                        f"equals the total scan count."
+                    )
+                splits = np.cumsum(blocklens)[:-1]
+                arrays = np.split(c.source.to_numpy(), splits, axis=0)
+                run_frames = [
+                    pd.DataFrame(arr, columns=list(c.source.columns))
+                    for arr in arrays
+                ]
+        else:
+            # Sequence of DataFrames.
+            run_frames = list(c.source)
+            if len(run_frames) != n_blocks:
+                raise ValueError(
+                    f"Confounds source is a sequence of {len(run_frames)} "
+                    f"DataFrames but the dataset has {n_blocks} runs. Supply "
+                    f"one DataFrame per run."
+                )
+            for run_idx, frame in enumerate(run_frames):
+                if len(frame) != blocklens[run_idx]:
+                    raise ValueError(
+                        f"Confounds source[{run_idx}] has {len(frame)} rows "
+                        f"but run {run_idx + 1} has {blocklens[run_idx]} "
+                        f"scans"
+                    )
+
+        wanted = list(c.columns)
+        for run_idx, frame in enumerate(run_frames):
+            missing = [name for name in wanted if name not in frame.columns]
+            if missing:
+                raise ValueError(
+                    f"Confounds source for run {run_idx + 1} is missing "
+                    f"columns: {missing!r}"
+                )
+            block = frame[wanted].astype(np.float64).copy().reset_index(drop=True)
+            existing = per_run[run_idx]
+            if existing.empty and existing.shape[1] == 0:
+                per_run[run_idx] = block
+            else:
+                per_run[run_idx] = pd.concat(
+                    [existing.reset_index(drop=True), block],
+                    axis=1,
+                )
+
+    # If every block is still empty (no Confounds had usable columns —
+    # shouldn't happen given the validation above), fall back to ``None``
+    # so baseline_model skips the nuisance term entirely.
+    if all(frame.shape[1] == 0 for frame in per_run):
+        return []
+    return per_run
 
 
 def compile(

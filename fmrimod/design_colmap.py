@@ -4,6 +4,36 @@ import numpy as np
 import pandas as pd
 
 
+# Patterns for parsing the user-visible name out of a baseline-term column.
+# - Nuisance columns are emitted as ``nuis_run{K}_{user_name}``.
+# - Drift columns are emitted as ``base_{basis}{degree}_block_{K}``.
+# - Block (intercept) columns are emitted as ``base_constant{N}_block_{K}``
+#   or ``constant_{K}`` / ``constant_global``.
+_NUISANCE_NAME_PATTERN = re.compile(r"^nuis_run(?P<run>\d+)_(?P<name>.+)$")
+
+
+def _split_baseline_column_name(
+    name, *, term_role: str
+) -> tuple[str | None, int | None]:
+    """Recover (user_visible_name, run_id) from a realised baseline column name.
+
+    For nuisance columns the realised name has the form
+    ``nuis_run{K}_{user_name}``; we strip the prefix so typed lookups
+    via ``cols.where(term=user_name)`` resolve directly without
+    requiring suffix matching. For drift and block terms we return
+    ``None`` for the user-visible name (they don't have one in the
+    typed-spec sense — only ``term_role`` is meaningful).
+    """
+    if name is None:
+        return None, None
+    if term_role == "nuisance":
+        match = _NUISANCE_NAME_PATTERN.match(str(name))
+        if match is not None:
+            return match.group("name"), int(match.group("run"))
+        return str(name), None
+    return None, None
+
+
 def design_colmap(x):
     """Get structured column metadata for a design matrix.
 
@@ -198,6 +228,15 @@ def _colmap_event_model(model):
 def _colmap_baseline_model(model):
     """Build column metadata DataFrame for a BaselineModel.
 
+    Walks the model's typed term structure (``terms[role]`` for
+    ``role in ('drift', 'block', 'nuisance')``) and assigns colmap
+    roles directly from term identity rather than inferring from
+    column-name substrings. This preserves the distinction between
+    drift, intercept, and confound regressors, and recovers the
+    user-visible confound name (without the ``"nuis_runK_"`` prefix)
+    in the ``term_tag`` field so typed lookup via
+    ``cols.where(term="trans_x")`` resolves the right column.
+
     Parameters
     ----------
     model : BaselineModel
@@ -214,32 +253,70 @@ def _colmap_baseline_model(model):
         X = dm.values
     else:
         X = np.asarray(dm)
-        cn = [f"V{i+1}" for i in range(X.shape[1])]
+        # Prefer the typed ``BaselineModel.column_names`` over synthesized
+        # ``V{k}`` placeholders so the prefix-stripping that recovers the
+        # user-visible nuisance name resolves the right token.
+        model_names = getattr(model, "column_names", None)
+        if model_names is not None and len(list(model_names)) == X.shape[1]:
+            cn = list(model_names)
+        else:
+            cn = [f"V{i+1}" for i in range(X.shape[1])]
 
     n_cols = len(cn)
     if n_cols == 0:
         return _empty_colmap()
 
-    # Determine role from column names
-    roles = []
-    for name in cn:
-        name_lower = name.lower()
-        if 'intercept' in name_lower or 'const' in name_lower or name_lower.startswith('block'):
-            roles.append('intercept')
-        elif 'drift' in name_lower or 'base_' in name_lower:
-            roles.append('drift')
-        elif 'nuisance' in name_lower or '#' in name:
-            roles.append('nuisance')
+    # Walk the typed term structure to assign roles correctly.
+    from fmrimod.baseline.baseline_model import BASELINE_TERM_ORDER
+
+    role_map = {
+        "drift": "drift",
+        "block": "intercept",
+        "nuisance": "confound",
+    }
+
+    roles: list[str] = []
+    term_tags: list[str | None] = []
+    runs: list[int | None] = []
+    cursor = 0
+    terms = getattr(model, "terms", {}) or {}
+    for term_name in BASELINE_TERM_ORDER:
+        term = terms.get(term_name)
+        if term is None:
+            continue
+        mat = term.design_matrix
+        if isinstance(mat, pd.DataFrame):
+            block_cols = mat.shape[1]
         else:
-            roles.append('baseline')
+            block_cols = int(np.asarray(mat).shape[1])
+        if block_cols == 0:
+            continue
+        block_role = role_map.get(term_name, "baseline")
+        for local in range(block_cols):
+            full_name = cn[cursor + local] if cursor + local < len(cn) else None
+            roles.append(block_role)
+            user_name, run_id = _split_baseline_column_name(
+                full_name, term_role=term_name
+            )
+            term_tags.append(user_name)
+            runs.append(run_id)
+        cursor += block_cols
+
+    # Any trailing columns (defensive — should not normally happen)
+    # get the generic ``baseline`` role + no term tag.
+    while cursor < n_cols:
+        roles.append("baseline")
+        term_tags.append(None)
+        runs.append(None)
+        cursor += 1
 
     return pd.DataFrame({
         'col': range(1, n_cols + 1),
         'name': cn,
-        'term_tag': [None] * n_cols,
+        'term_tag': term_tags,
         'term_index': [None] * n_cols,
         'condition': [None] * n_cols,
-        'run': [None] * n_cols,
+        'run': runs,
         'role': roles,
         'model_source': ['baseline'] * n_cols,
         'basis_name': [None] * n_cols,

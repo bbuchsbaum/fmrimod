@@ -156,10 +156,29 @@ class Intercept(Term):
 
 @dataclass(frozen=True)
 class Confounds(Term):
-    """Nuisance regressors (motion, physio, etc.)."""
+    """Nuisance regressors (motion, physio, etc.).
+
+    Parameters
+    ----------
+    columns
+        Names of confound columns to attach. For a single-source DataFrame
+        these are the column names in that DataFrame. For a per-run
+        sequence (see ``source``) every supplied DataFrame must contain
+        the same columns.
+    source
+        Either a single :class:`pandas.DataFrame` covering the whole
+        run-concatenated time series, or a sequence of per-run
+        DataFrames (one per block in the dataset's
+        :class:`~fmrimod.sampling.SamplingFrame`). When a single DataFrame
+        is supplied and the design has multiple runs, it is split
+        block-by-block along the per-run row counts. When a sequence is
+        supplied the entries are used directly. ``None`` defers to the
+        legacy formula path where the columns are looked up against the
+        events table's confound columns at compile time.
+    """
 
     columns: Tuple[str, ...]
-    source: Optional[pd.DataFrame] = None
+    source: Optional[Union[pd.DataFrame, Sequence[pd.DataFrame]]] = None
 
 
 # -- Composition container ---------------------------------------------------

@@ -54,7 +54,7 @@ def test_cosine_drift_matches_nilearn_bitwise() -> None:
     drift_indices = [
         c.index
         for c in fit.design_columns().columns
-        if c.role == "baseline" and "cosine" in (c.name or "")
+        if c.role == "drift" and "cosine" in (c.name or "")
     ]
     fm_drift = X_fm[:, drift_indices]
 
@@ -80,7 +80,7 @@ def test_cosine_drift_degree_from_cutoff() -> None:
         fit = fm.fmri_lm(spec, ds)
     cosine_cols = [
         c for c in fit.design_columns().columns
-        if c.role == "baseline" and "cosine" in (c.name or "")
+        if c.role == "drift" and "cosine" in (c.name or "")
     ]
     assert len(cosine_cols) == 8
 
@@ -141,12 +141,12 @@ def test_cosine_drift_per_run_in_multirun_dataset() -> None:
     X = fit.model.design_matrix_array(run=None)
     cosine_block_1 = [
         c for c in fit.design_columns().columns
-        if c.role == "baseline" and "cosine" in (c.name or "")
+        if c.role == "drift" and "cosine" in (c.name or "")
         and "block_1" in (c.name or "")
     ]
     cosine_block_2 = [
         c for c in fit.design_columns().columns
-        if c.role == "baseline" and "cosine" in (c.name or "")
+        if c.role == "drift" and "cosine" in (c.name or "")
         and "block_2" in (c.name or "")
     ]
     assert cosine_block_1, "expected per-run cosine columns for block 1"
