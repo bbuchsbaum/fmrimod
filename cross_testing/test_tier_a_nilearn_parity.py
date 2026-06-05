@@ -34,6 +34,7 @@ pytest.importorskip("nibabel")
         "benchmarks.parity.tier_a_realistic_confounds.workflow",
         "benchmarks.parity.tier_a_single_trial_lss.workflow",
         "benchmarks.parity.tier_a_ar1_prewhitening.workflow",
+        "benchmarks.parity.tier_a_factorial_3way.workflow",
     ],
 )
 def test_tier_a_nilearn_case_passes_and_renders(module_name, tmp_path):
