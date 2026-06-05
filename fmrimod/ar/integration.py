@@ -72,6 +72,7 @@ def iterative_gls(
                 order=ar_order,
                 voxelwise=ar_opts.voxelwise,
                 censor=censor_r,
+                noise_pools=getattr(ar_opts, "noise_pools", None),
             )
             run_ar_params.append(phi_r)
 

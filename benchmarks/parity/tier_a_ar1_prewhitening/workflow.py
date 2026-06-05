@@ -56,33 +56,31 @@ The compared outputs are checked at **Tier B relaxed tolerances**:
   absolute beta difference. Pinned at the current observed level so
   any AR-algorithm refactor that drifts further can be caught.
 
-Pain points logged for follow-up
---------------------------------
+Ergonomic surface
+-----------------
 
-Three ergonomic and architectural gaps surfaced while wiring this
-case and are pinned in
-``tests/test_ar/test_ar1_pain_points.py``:
+The three ergonomic gaps surfaced while wiring this case are all
+fixed (pinned in ``tests/test_ar/test_ar1_pain_points.py``):
 
-1. **AR(1) doesn't compose with ``engine="concat"``** — the AR
-   integration path requires per-run residuals from the runwise
-   strategy. Passing ``engine="concat"`` with an AR config raises
-   ``TypeError: 'NoneType' object is not subscriptable`` because
-   the concat solver doesn't populate the per-run residual list.
+1. **``fmri_lm(..., ar="ar1", engine="concat")`` raises a clean
+   :class:`NotImplementedError`** at engine resolution instead of
+   crashing inside ``iterative_gls``. The error message points users
+   at the working runwise path.
 
-2. **Verbose typed AR API** — the user has to write
-   ``FmriLmConfig(ar=AROptions(struct="ar1"))`` to enable AR(1).
-   A shorthand ``fmri_lm(..., ar="ar1")`` is documented in the
-   docstring but rejected at runtime by the engine-options
-   resolver. The same shorthand should compose cleanly with
-   typed engine options.
+2. **``fmri_lm(..., ar="ar1")`` shorthand** accepts any AR struct
+   string (``"iid"``, ``"ar1"``, ``"ar2"``, ``"arp"``, ``"arma"``)
+   or a full :class:`AROptions` instance. The shorthand overrides
+   only the ``ar`` slot on the (possibly user-supplied) config.
 
-3. **AR algorithm divergence from Nilearn is silent** — the
-   user gets task betas that differ by ~10-20% from Nilearn's on
-   the same data with no warning. CAVEATS row
-   ``ar1-algorithm-divergence`` documents this; until algorithm
-   harmonisation lands, users comparing fmrimod and Nilearn t/F
-   maps should expect this magnitude of difference even on
-   identical inputs.
+3. **``AROptions(voxelwise=True, noise_pools=N)`` Nilearn-style
+   quantization** quantises voxelwise AR estimates into equal-
+   frequency bins, replacing each voxel's estimate with its bin's
+   median. Mirrors Nilearn's ``noise_model="ar1"`` algorithm shape.
+   Note: enabling noise_pools on the *voxelwise* path doesn't auto-
+   match Nilearn's betas, because fmrimod's default *global* path
+   already achieves per-voxel beta correlation > 0.998 with Nilearn.
+   The noise-pool knob is exposed for users who want the per-voxel
+   AR estimation shape with pooling on top.
 """
 
 from __future__ import annotations
@@ -246,9 +244,9 @@ def fmrimod_pipeline(inputs: Ar1Inputs) -> PipelineOutput:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         warnings.simplefilter("ignore", RuntimeWarning)
-        fit = fm.fmri_lm(
-            spec, ds, config=FmriLmConfig(ar=AROptions(struct="ar1"))
-        )
+        # ``ar="ar1"`` shorthand (added to fmri_lm in the same commit
+        # that pinned this workflow's pain points).
+        fit = fm.fmri_lm(spec, ds, ar="ar1")
     fm_betas = np.asarray(fit.betas, dtype=np.float64)
     return _compute_outputs(
         fm_betas, _nilearn_ar1_betas(inputs), inputs

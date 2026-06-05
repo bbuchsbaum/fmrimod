@@ -740,6 +740,7 @@ def fmri_lm(
     durations: Optional[Union[str, float, NDArray[np.float64]]] = None,
     precision: Optional[float] = None,
     config: Optional[FmriLmConfig] = None,
+    ar: Optional[Union[str, "AROptions"]] = None,
     engine: EngineSelector = DEFAULT_ENGINE_OPTIONS,
     **engine_kwargs: object,
 ) -> FmriLm:
@@ -850,6 +851,42 @@ def fmri_lm(
     if config is None:
         config = FmriLmConfig()
 
+    # ``ar=`` is a shorthand: accept ``"iid"``, ``"ar1"``, ``"ar2"``,
+    # ``"arp"``, ``"arma"`` as a string, or a full :class:`AROptions`
+    # instance. The shorthand overrides ``config.ar`` to make
+    # ``fmri_lm(..., ar="ar1")`` work without spelling out
+    # ``FmriLmConfig(ar=AROptions(struct="ar1"))``.
+    if ar is not None:
+        from ..model.config import AROptions as _AROptions
+        if isinstance(ar, str):
+            resolved_ar = _AROptions(struct=ar)  # type: ignore[arg-type]
+        elif isinstance(ar, _AROptions):
+            resolved_ar = ar
+        else:
+            raise TypeError(
+                "fmri_lm: ``ar=`` must be a string ('iid', 'ar1', 'ar2', "
+                "'arp', 'arma') or an AROptions instance; got "
+                f"{type(ar).__name__}"
+            )
+        # Replace just the ``ar`` slot on the (possibly user-supplied)
+        # config; leave everything else (chunk_size, residuals, etc.)
+        # untouched.
+        config = _replace_ar_on_config(config, resolved_ar)
+
+    # AR + concat engine combination: the AR integration path reads
+    # per-run residuals from the runwise strategy. The concat engine
+    # doesn't populate them, so the call would crash deep inside
+    # iterative_gls with ``TypeError: 'NoneType' object is not
+    # subscriptable``. Detect the combination here and raise a clear
+    # error pointing the user at the working path.
+    if config.ar.enabled and _engine_selector_is_concat(engine):
+        raise NotImplementedError(
+            "fmri_lm: AR(1+) prewhitening does not currently compose with "
+            "engine='concat'. The AR integration path requires per-run "
+            "residuals from the runwise strategy. Use the default runwise "
+            "engine (drop the engine= argument or pass engine='runwise')."
+        )
+
     # Resolve and run the engine
     eng, fit_kwargs = resolve_engine(engine, engine_kwargs)
     eng.preflight(model, config)
@@ -944,6 +981,43 @@ def _warn_if_ill_conditioned(fit: "FmriLm") -> None:
         UserWarning,
         stacklevel=2,
     )
+
+
+def _replace_ar_on_config(
+    config: FmriLmConfig, ar: "AROptions"
+) -> FmriLmConfig:
+    """Return a copy of ``config`` with only the ``ar`` slot replaced.
+
+    ``FmriLmConfig`` is constructed positionally, so the simplest
+    composable approach is to grab all current slot values and
+    rebuild with the new ``ar``. Used by the ``fmri_lm(..., ar=)``
+    shorthand.
+    """
+    from dataclasses import fields, replace as _dc_replace
+    try:
+        return _dc_replace(config, ar=ar)
+    except TypeError:
+        # Fall back to manual reconstruction if ``FmriLmConfig`` isn't
+        # a stdlib dataclass.
+        kwargs = {f.name: getattr(config, f.name) for f in fields(config)}
+        kwargs["ar"] = ar
+        return type(config)(**kwargs)
+
+
+def _engine_selector_is_concat(engine: object) -> bool:
+    """True iff the engine selector resolves to the concat engine.
+
+    Accepts a string ``"concat"``, an options object whose name is
+    ``"concat"``, or an instance of ``ConcatEngineOptions`` (when
+    available). Defensively returns False on anything else so the
+    AR + concat guard doesn't trigger on unrelated engine selectors.
+    """
+    if isinstance(engine, str):
+        return engine.lower() == "concat"
+    name = getattr(engine, "name", None)
+    if isinstance(name, str) and name.lower() == "concat":
+        return True
+    return type(engine).__name__.lower().startswith("concat")
 
 
 def _concatenated_design_is_full_rank(fit: "FmriLm") -> bool:

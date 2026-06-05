@@ -108,6 +108,7 @@ class AROptions:
     pooling: Literal["global", "run", "parcel"] = "global"
     convergence_tol: float = 5e-3
     parcels: Optional[NDArray] = None
+    noise_pools: Optional[int] = None
 
     def __init__(
         self,
@@ -124,6 +125,7 @@ class AROptions:
         pooling: Literal["global", "run", "parcel"] = "global",
         convergence_tol: float = 5e-3,
         parcels: Optional[NDArray] = None,
+        noise_pools: Optional[int] = None,
         **kwargs,
     ) -> None:
         # R-compat alias: ar_options$global -> global_ar
@@ -148,6 +150,7 @@ class AROptions:
         self.pooling = pooling
         self.convergence_tol = convergence_tol
         self.parcels = parcels
+        self.noise_pools = noise_pools
         self.__post_init__()
 
     def __post_init__(self) -> None:

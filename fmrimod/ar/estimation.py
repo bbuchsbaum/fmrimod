@@ -135,6 +135,7 @@ def estimate_ar(
     order: int,
     voxelwise: bool = False,
     censor: Optional[NDArray[np.bool_]] = None,
+    noise_pools: Optional[int] = None,
 ) -> NDArray[np.float64]:
     """Estimate AR parameters from residuals.
 
@@ -148,6 +149,13 @@ def estimate_ar(
         If ``True``, estimate per voxel; otherwise pool globally.
     censor : NDArray[bool], optional
         Boolean vector marking censored timepoints to exclude.
+    noise_pools : int, optional
+        When set and ``voxelwise=True``, quantise the per-voxel AR
+        estimates into ``noise_pools`` equal-frequency bins by the
+        first AR coefficient and replace each voxel's estimate with
+        its bin's median. Matches Nilearn's
+        ``noise_model="ar1"`` scheme (Nilearn defaults to 10 pools).
+        Ignored when ``voxelwise=False``.
 
     Returns
     -------
@@ -159,9 +167,50 @@ def estimate_ar(
         residuals = residuals[~censor]
 
     if voxelwise:
-        return estimate_ar_voxelwise(residuals, order)
+        phi = estimate_ar_voxelwise(residuals, order)
+        if noise_pools is not None and int(noise_pools) > 1:
+            phi = _quantise_to_noise_pools(phi, int(noise_pools))
+        return phi
     else:
         return estimate_ar_yule_walker(residuals, order)
+
+
+def _quantise_to_noise_pools(
+    phi: NDArray[np.float64], n_pools: int
+) -> NDArray[np.float64]:
+    """Quantise per-voxel AR estimates into equal-frequency noise pools.
+
+    Mirrors Nilearn's ``run_glm`` noise-pool scheme: rank-sort voxels
+    by their first AR coefficient, bin into ``n_pools`` equal-size
+    groups, and replace each voxel's AR estimate with the median
+    estimate from its bin. Voxels in the same bin share the same
+    prewhitening operator — the variance-pooling step that
+    distinguishes Nilearn's algorithm from per-voxel AR fits.
+    """
+    if phi.ndim != 2:
+        raise ValueError(
+            f"_quantise_to_noise_pools expects (order, V) input; got "
+            f"shape {phi.shape}"
+        )
+    order, V = phi.shape
+    if V == 0 or n_pools <= 1:
+        return phi.copy()
+    primary = phi[0]
+    ranks = np.argsort(primary, kind="stable")
+    pool_assignment = np.empty(V, dtype=np.int64)
+    chunks = np.array_split(np.arange(V), int(n_pools))
+    for pool_idx, idxs in enumerate(chunks):
+        if idxs.size == 0:
+            continue
+        pool_assignment[ranks[idxs]] = pool_idx
+    out = np.empty_like(phi)
+    for pool_idx in range(int(n_pools)):
+        members = np.where(pool_assignment == pool_idx)[0]
+        if members.size == 0:
+            continue
+        representative = np.median(phi[:, members], axis=1)
+        out[:, members] = representative[:, np.newaxis]
+    return out
 
 
 def _enforce_stationarity(phi: NDArray[np.float64]) -> NDArray[np.float64]:
