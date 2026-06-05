@@ -143,35 +143,22 @@ def load_inputs(
 
 
 def fmrimod_pipeline(inputs: GroupInputs) -> PipelineOutput:
-    """Native fmrimod group OLS via ``ols_voxelwise(formula='~ 1')``.
+    """Typed ``fm.fmri_group_lm(betas)`` one-call group-level path.
 
-    The current canonical path: 4 construction steps to go from
-    ``(n_subjects, n_voxels)`` betas to one-sample t.
+    Closes the typed-spec gap pinned by the original commit's pain
+    points: the four-step ``VoxelSpace`` + ``group_dataset`` +
+    ``ols_voxelwise`` + key-string accessor sequence collapses to one
+    call plus typed ``.effect()`` / ``.t_stat()`` accessors.
     """
-    n_voxels = inputs.betas.shape[1]
-    # Assay layout is (samples × subjects × contrasts). Here samples
-    # are voxels and contrasts is a single A-minus-B column.
-    beta_3d = inputs.betas.T[:, :, np.newaxis]
-    space = VoxelSpace(shape=(n_voxels, 1, 1), affine=inputs.affine)
-    ds = group_dataset(
-        assays={"beta": beta_3d},
-        space=space,
-        subjects=list(inputs.subject_ids),
-        contrasts=["A_minus_B"],
-    )
+    import fmrimod as fm
+
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         warnings.simplefilter("ignore", RuntimeWarning)
-        result = ols_voxelwise(ds, formula="~ 1")
-    # Stats come out keyed by predictor name (the intercept-only
-    # design has a single ``Intercept`` predictor).
-    coef = np.asarray(result.assay("coef:Intercept"), dtype=np.float64)
-    t = np.asarray(result.assay("t_coef:Intercept"), dtype=np.float64)
-    df_res = np.asarray(result.assay("df_res"), dtype=np.float64)
-    # Squeeze the (samples, subjects=1, contrasts=1) → (n_voxels,).
-    effect = coef[:, 0, 0]
-    t_stat = t[:, 0, 0]
-    dof = float(df_res[0, 0, 0])
+        result = fm.fmri_group_lm(inputs.betas)
+    effect = result.effect("Intercept")
+    t_stat = result.t_stat("Intercept")
+    dof = result.residual_df
     return PipelineOutput(
         arrays={
             "effect": effect,

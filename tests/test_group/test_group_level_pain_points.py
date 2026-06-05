@@ -1,28 +1,21 @@
-"""Pain points pinned by the group-level one-sample t parity workflow.
+"""Regression tests for the group-level (second-level) typed surface.
 
-Four ergonomic gaps surfaced while wiring ``tier_a_group_level_t``.
-Each is pinned here in its current-state shape so a future fix has
-a clear regression target. None of these are correctness bugs —
-``ols_voxelwise`` produces bitwise-equal results to Nilearn's
-``SecondLevelModel`` (effect, t-stat, dof) on the same per-subject
-betas. The gaps are at the typed-spec / API discoverability layer.
+History: the ``tier_a_group_level_t`` parity workflow surfaced four
+ergonomic pain points on top of the working ``ols_voxelwise``
+numerics. All four are now closed by ``fm.fmri_group_lm`` +
+:class:`GroupLmResult`; this file pins the fixed state so the typed
+surface can't silently regress.
 
-1. **No top-level ``fm.fmri_group_lm`` entry point.** Users have
-   to know to import from ``fmrimod.group``.
-
-2. **Multi-step from per-subject arrays to fit.** Going from a
-   ``(n_subjects, n_voxels)`` betas matrix to a t-map requires
-   building ``VoxelSpace`` + ``group_dataset`` + ``ols_voxelwise``
-   — four calls where Nilearn's ``SecondLevelModel.fit + compute_-
-   contrast`` is two.
-
-3. **R-formula syntax for one-sample tests.** ``formula="~ 1"``
-   for "intercept-only design" is functional but obscure.
-
-4. **Verbose assay-key naming.** Stats come out as
-   ``"coef:Intercept"`` / ``"t_coef:Intercept"`` /
-   ``"p_coef:Intercept"`` — readable but requires the user to
-   remember the predictor name to access stats.
+1. **Top-level ``fm.fmri_group_lm`` entry point.**
+2. **Per-subject arrays accepted directly** — the four-call
+   construction (``VoxelSpace`` + ``group_dataset`` +
+   ``ols_voxelwise`` + key-string accessor) collapses to one call.
+3. **``intercept_only=True`` default** — the one-sample test
+   doesn't require knowing the R formula idiom ``"~ 1"``.
+4. **Typed predictor-name accessors** (``.effect("Intercept")``,
+   ``.t_stat("group")``) replace ``"coef:Intercept"`` /
+   ``"t_coef:group"`` key strings, and DataFrame column names are
+   preserved into the predictor labels.
 """
 
 from __future__ import annotations
@@ -32,11 +25,10 @@ import pandas as pd
 import pytest
 
 import fmrimod as fm
-from fmrimod.group import group_dataset, ols_voxelwise, VoxelSpace
+from fmrimod.group import GroupLmResult, group_dataset, ols_voxelwise, VoxelSpace
 
 
 def _group_inputs(n_subjects: int = 16, n_voxels: int = 32, seed: int = 0):
-    """Synthesize per-subject contrast betas with a known group-mean effect."""
     rng = np.random.default_rng(seed)
     voxel_drift = np.linspace(-0.4, 0.4, n_voxels)
     true_effect = 0.7 + voxel_drift
@@ -44,151 +36,151 @@ def _group_inputs(n_subjects: int = 16, n_voxels: int = 32, seed: int = 0):
     return (true_effect[np.newaxis, :] + noise).astype(np.float64)
 
 
-# -- Pain point 1: no top-level entry point ---------------------------------
+# -- Fixed: top-level entry point + one-call construction --------------------
 
 
-def test_no_top_level_fmri_group_lm() -> None:
-    """``fmrimod`` doesn't expose a ``fmri_group_lm`` / ``fmri_group_t`` top-level.
-
-    Pinned at the current state. A future ``fm.fmri_group_lm(spec,
-    group_dataset)`` would close the discoverability gap.
-    """
-    assert not hasattr(fm, "fmri_group_lm"), (
-        "if a top-level fmri_group_lm now exists, update this test to "
-        "the desired-state assertion and document the API."
-    )
-    assert not hasattr(fm, "fmri_group_t"), (
-        "if a top-level fmri_group_t now exists, update this test to "
-        "the desired-state assertion."
-    )
+def test_fm_fmri_group_lm_is_top_level() -> None:
+    """``fm.fmri_group_lm`` is exposed at the package top level."""
+    assert callable(fm.fmri_group_lm), "fm.fmri_group_lm should be callable"
+    assert "fmri_group_lm" in fm.__all__
 
 
-def test_group_module_is_importable_with_canonical_names() -> None:
-    """The canonical group-level imports work as documented.
-
-    Positive pin: the documented import path
-    ``from fmrimod.group import group_dataset, ols_voxelwise,
-    VoxelSpace`` resolves so workflows can be built today.
-    """
-    from fmrimod.group import (
-        VoxelSpace as _VS,
-        group_dataset as _gd,
-        ols_voxelwise as _olsv,
-    )
-    assert callable(_gd)
-    assert callable(_olsv)
-    assert callable(_VS)
-
-
-# -- Pain point 2: multi-step construction ----------------------------------
-
-
-def test_per_subject_betas_to_fit_requires_four_calls() -> None:
-    """Document the current minimum-call construction.
-
-    A ``group_lm_from_arrays(betas)`` shorthand would close this
-    gap by collapsing the four calls into one.
-    """
+def test_one_call_from_per_subject_array_to_t_map() -> None:
+    """``fm.fmri_group_lm(betas)`` returns a typed group result in one call."""
     betas = _group_inputs()
-    n_voxels = betas.shape[1]
-    # 1) Shape-shift to (samples, subjects, contrasts).
-    beta_3d = betas.T[:, :, np.newaxis]
-    # 2) Build a VoxelSpace.
-    space = VoxelSpace(shape=(n_voxels, 1, 1))
-    # 3) Build a GroupDataset.
-    ds = group_dataset(
-        assays={"beta": beta_3d},
-        space=space,
-        subjects=[f"sub-{i:02d}" for i in range(betas.shape[0])],
-        contrasts=["A_minus_B"],
-    )
-    # 4) Fit.
-    result = ols_voxelwise(ds, formula="~ 1")
-    # Confirm the call chain produced a valid result.
-    assert "coef:Intercept" in result.assays
+    result = fm.fmri_group_lm(betas)
+    assert isinstance(result, GroupLmResult)
+    # ``intercept_only=True`` is the documented default; the result
+    # carries the canonical predictor name.
+    assert result.predictor_names == ("Intercept",)
+    # Per-voxel outputs are shape ``(n_voxels,)`` — the typed
+    # accessors squeeze the singleton subject / contrast axes.
+    assert result.t_stat().shape == (betas.shape[1],)
+    assert result.effect().shape == (betas.shape[1],)
+    assert result.p_value().shape == (betas.shape[1],)
 
 
-# -- Pain point 3: R-formula syntax for one-sample tests --------------------
-
-
-def test_one_sample_t_requires_r_formula_syntax() -> None:
-    """Users write ``formula="~ 1"`` for the canonical one-sample test.
-
-    A typed shortcut like ``ols_voxelwise(ds, intercept_only=True)``
-    or a dedicated ``one_sample_t`` reducer would make this case
-    obvious.
-    """
-    betas = _group_inputs()
-    n_voxels = betas.shape[1]
-    beta_3d = betas.T[:, :, np.newaxis]
-    space = VoxelSpace(shape=(n_voxels, 1, 1))
-    ds = group_dataset(
-        assays={"beta": beta_3d},
-        space=space,
-        subjects=[f"sub-{i:02d}" for i in range(betas.shape[0])],
-        contrasts=["A_minus_B"],
-    )
-    # The functional path: "~ 1" is the R idiom for intercept-only.
-    result_r = ols_voxelwise(ds, formula="~ 1")
-    # An ``intercept_only`` kwarg currently does not exist; verify
-    # the explicit kwarg is rejected so a future fix has a clear
-    # regression target.
-    with pytest.raises(TypeError):
-        ols_voxelwise(ds, intercept_only=True)
-    assert "coef:Intercept" in result_r.assays
-
-
-# -- Pain point 4: verbose assay-key naming ---------------------------------
-
-
-def test_stats_keyed_by_predictor_name_string() -> None:
-    """Stats are addressed via ``"coef:Intercept"`` / ``"t_coef:Intercept"`` keys.
-
-    Document the current convention. A typed accessor like
-    ``result.effect("Intercept")`` would close the gap.
-    """
-    betas = _group_inputs()
-    n_voxels = betas.shape[1]
-    beta_3d = betas.T[:, :, np.newaxis]
-    space = VoxelSpace(shape=(n_voxels, 1, 1))
-    ds = group_dataset(
-        assays={"beta": beta_3d},
-        space=space,
-        subjects=[f"sub-{i:02d}" for i in range(betas.shape[0])],
-        contrasts=["A_minus_B"],
-    )
-    result = ols_voxelwise(ds, formula="~ 1")
-    # The canonical assay keys for an intercept-only fit:
-    assert "coef:Intercept" in result.assays
-    assert "t_coef:Intercept" in result.assays
-    assert "p_coef:Intercept" in result.assays
-    assert "se_coef:Intercept" in result.assays
-    # No typed effect() accessor exists today; if one is added that
-    # composes with the typed-spec story, the pain point closes.
-
-
-# -- Positive: numerical correctness vs scipy one-sample t ----------------
-
-
-def test_ols_voxelwise_t_matches_scipy_ttest_1samp() -> None:
-    """The native group OLS matches scipy's one-sample t bitwise.
-
-    Positive pin that the underlying numerics are sound; the pain
-    points above are purely ergonomic.
-    """
+def test_one_call_matches_scipy_one_sample_t() -> None:
+    """The one-call typed path matches scipy's ``ttest_1samp`` bitwise."""
     from scipy import stats as sp_stats
 
     betas = _group_inputs(n_subjects=20, n_voxels=48, seed=1)
+    result = fm.fmri_group_lm(betas)
+    np.testing.assert_allclose(
+        result.t_stat(),
+        sp_stats.ttest_1samp(betas, 0, axis=0).statistic,
+        atol=1e-12,
+    )
+
+
+def test_residual_df_equals_n_subjects_minus_predictors() -> None:
+    """``residual_df`` is the canonical ``n - p`` for the one-sample case."""
+    betas = _group_inputs(n_subjects=24)
+    result = fm.fmri_group_lm(betas)
+    assert result.residual_df == 23.0  # 24 - 1
+
+
+# -- Fixed: intercept_only=True default replaces "~ 1" formula --------------
+
+
+def test_intercept_only_default_replaces_r_formula() -> None:
+    """``fm.fmri_group_lm(betas)`` defaults to one-sample t.
+
+    No ``formula="~ 1"`` string required for the common case.
+    """
+    betas = _group_inputs()
+    # Default call works without explicit formula.
+    result_default = fm.fmri_group_lm(betas)
+    # The legacy ``formula="~ 1"`` path is still accepted for users
+    # who want the explicit form.
+    result_legacy = fm.fmri_group_lm(
+        betas, intercept_only=False, formula="~ 1",
+    )
+    np.testing.assert_allclose(
+        result_default.t_stat(), result_legacy.t_stat(), atol=1e-12,
+    )
+
+
+def test_formula_and_design_matrix_are_mutually_exclusive() -> None:
+    """Passing both ``formula=`` and ``design_matrix=`` raises."""
+    betas = _group_inputs(n_subjects=10)
+    design = pd.DataFrame({"a": [1.0]*10, "b": [0]*5 + [1]*5})
+    with pytest.raises(ValueError, match="at most one"):
+        fm.fmri_group_lm(
+            betas, intercept_only=False,
+            formula="~ a + b", design_matrix=design,
+        )
+
+
+# -- Fixed: typed predictor-name accessors ----------------------------------
+
+
+def test_dataframe_predictor_names_pass_through() -> None:
+    """DataFrame column names appear on the typed accessors.
+
+    Before the fix, passing a ``design_matrix=DataFrame`` lost the
+    column names — the typed accessors had to use ``x0``, ``x1``,
+    ... placeholders. Now the column names propagate cleanly.
+    """
+    n = 16
+    rng = np.random.default_rng(3)
+    betas = rng.normal(size=(n, 24))
+    betas[8:] += 0.5  # inject a group effect
+    design = pd.DataFrame({
+        "Intercept": [1.0] * n,
+        "group": [0]*8 + [1]*8,
+    })
+    result = fm.fmri_group_lm(
+        betas, intercept_only=False, design_matrix=design,
+    )
+    assert result.predictor_names == ("Intercept", "group")
+    # The typed effect / t_stat accessors resolve by user-visible name.
+    effect_group = result.effect("group")
+    assert effect_group.shape == (24,)
+    assert effect_group.mean() == pytest.approx(0.5, abs=0.5)
+    assert result.t_stat("group").shape == (24,)
+
+
+def test_unknown_predictor_raises_keyerror() -> None:
+    """Asking for an undefined predictor raises a clear ``KeyError``."""
+    betas = _group_inputs()
+    result = fm.fmri_group_lm(betas)
+    with pytest.raises(KeyError, match="not in"):
+        result.effect("nonexistent")
+
+
+def test_group_dataset_input_still_works() -> None:
+    """A pre-built ``GroupDataset`` can also be passed in."""
+    betas = _group_inputs(n_subjects=12, n_voxels=20)
+    beta_3d = betas.T[:, :, np.newaxis]
+    space = VoxelSpace(shape=(20, 1, 1))
+    ds = group_dataset(
+        assays={"beta": beta_3d},
+        space=space,
+        subjects=[f"sub-{i}" for i in range(12)],
+        contrasts=["c0"],
+    )
+    result = fm.fmri_group_lm(ds)
+    assert isinstance(result, GroupLmResult)
+    assert result.t_stat().shape == (20,)
+
+
+# -- Positive: raw API still available --------------------------------------
+
+
+def test_lower_level_ols_voxelwise_still_works() -> None:
+    """The lower-level ``ols_voxelwise`` path is preserved."""
+    betas = _group_inputs(n_subjects=15, n_voxels=24)
     n_voxels = betas.shape[1]
     beta_3d = betas.T[:, :, np.newaxis]
     space = VoxelSpace(shape=(n_voxels, 1, 1))
     ds = group_dataset(
         assays={"beta": beta_3d},
         space=space,
-        subjects=[f"sub-{i:02d}" for i in range(betas.shape[0])],
-        contrasts=["A_minus_B"],
+        subjects=[f"sub-{i}" for i in range(15)],
+        contrasts=["c0"],
     )
     result = ols_voxelwise(ds, formula="~ 1")
-    fmrimod_t = np.asarray(result.assay("t_coef:Intercept"))[:, 0, 0]
-    scipy_t = sp_stats.ttest_1samp(betas, 0, axis=0).statistic
-    np.testing.assert_allclose(fmrimod_t, scipy_t, atol=1e-12)
+    # Raw assay keys still work for users who want them.
+    assert "coef:Intercept" in result.assays
+    assert "t_coef:Intercept" in result.assays

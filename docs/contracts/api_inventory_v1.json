@@ -1,8 +1,8 @@
 {
   "counts": {
-    "all_names": 195,
-    "any_in_signature": 63,
-    "callable": 193,
+    "all_names": 196,
+    "any_in_signature": 64,
+    "callable": 194,
     "classes": 14,
     "opaque_forwarder": 57
   },
@@ -1339,6 +1339,21 @@
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.constructors",
       "runtime_signature": "(img: 'Any' = None, *, mask: 'Any' = None, tr: 'float | Sequence[float] | None' = None, events: 'pd.DataFrame | None' = None, censor: 'NDArray[np.bool_] | list[NDArray[np.bool_]] | None' = None, start_time: 'float | Sequence[float] | None' = None, slice_timing_offset: 'float | Sequence[float] | None' = None, data_source: 'DatasetProtocol | None' = None, event_table: 'pd.DataFrame | None' = None) -> 'FmriDataset'",
+      "signature_source": "inspect.signature",
+      "tier": "review_pending",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
+      "compatibility_status": "review_pending",
+      "has_any_in_signature": true,
+      "has_untagged_kwargs_dict": false,
+      "is_callable": true,
+      "is_class": false,
+      "is_function": true,
+      "name": "fmri_group_lm",
+      "opaque_forwarder": false,
+      "owner_module": "fmrimod.group.typed",
+      "runtime_signature": "(data: 'Union[NDArray[np.floating], GroupDataset]', *, intercept_only: 'bool' = True, formula: 'Optional[str]' = None, design_matrix: 'Optional[Any]' = None, subjects: 'Optional[Sequence[Any]]' = None, contrasts: 'Optional[Sequence[Any]]' = None, space: 'Optional[VoxelSpace]' = None, n_jobs: 'int' = 1, chunk_size: 'Optional[int]' = None) -> 'GroupLmResult'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"
@@ -2703,7 +2718,7 @@
       "name": "soft_subspace_options",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.model.config",
-      "runtime_signature": "(*, enabled: 'bool' = False, nuisance_matrix: 'Optional[NDArray]' = None, nuisance_mask: 'Optional[object]' = None, lam: \"Union[float, Literal['auto', 'gcv'], object]\" = <object object at 0x7f8d3cdadf00>, warn_redundant: 'bool' = True, **kwargs) -> 'SoftSubspaceOptions'",
+      "runtime_signature": "(*, enabled: 'bool' = False, nuisance_matrix: 'Optional[NDArray]' = None, nuisance_mask: 'Optional[object]' = None, lam: \"Union[float, Literal['auto', 'gcv'], object]\" = <object object at 0x7f36c2be5f00>, warn_redundant: 'bool' = True, **kwargs) -> 'SoftSubspaceOptions'",
       "signature_source": "inspect.signature",
       "tier": "review_pending",
       "used_by_public_seam_artifact": "review_pending"

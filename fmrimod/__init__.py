@@ -308,6 +308,7 @@ _LAZY_ATTRS: dict[str, tuple[str, str]] = {
     "flip_sign": ("fmrimod.glm", "flip_sign"),
     "fmri_dataset": ("fmrimod.dataset", "fmri_dataset"),
     "fmri_latent_lm": ("fmrimod.dataset", "fmri_latent_lm"),
+    "fmri_group_lm": ("fmrimod.group", "fmri_group_lm"),
     "fmri_lm": ("fmrimod.glm.fmri_lm", "fmri_lm"),
     "fmri_lss": ("fmrimod.single", "fmri_lss"),
     "fmri_mem_dataset": ("fmrimod.dataset", "fmri_mem_dataset"),
@@ -551,6 +552,7 @@ __all__ = [
     # GLM fitting
     "fmri_lm",
     "fmri_lss",
+    "fmri_group_lm",
     "combine_runs",
     "combine_contrasts",
     "soft_subspace_options",

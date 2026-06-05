@@ -59,6 +59,7 @@ from .reducers import (
     perm_twosample,
     register_core_reducers,
 )
+from .typed import GroupLmResult, fmri_group_lm
 from .registry import (
     GroupRegistry,
     RegistryEntry,
@@ -104,6 +105,8 @@ __all__ = [
     "SurfaceSpace",
     "UnsupportedGroupFeatureError",
     "VoxelSpace",
+    "GroupLmResult",
+    "fmri_group_lm",
     "adapter_registry",
     "as_group_float_array",
     "as_group_index_array",
