@@ -381,6 +381,35 @@ class EventModel(ModelProtocol):
         event_term._is_trialwise = True
         event_term._add_sum = term._add_sum
         event_term._trialwise_label = term._trialwise_label
+        # Per-trial condition labels lifted from the events DataFrame
+        # when the typed ``trialwise(condition="...")`` arg was used.
+        # Falling back to ``None`` keeps the legacy "trial.NN" tag path.
+        cond_col = getattr(term, "_trialwise_condition_col", None)
+        if cond_col is not None and self._data is not None:
+            df = self._data
+            if cond_col in df.columns:
+                # Preserve the events row order so the per-trial labels
+                # align with how ``_create_trial_factor`` enumerates the
+                # trials. We use a stable sort on (block, onset) when
+                # both columns are present; otherwise the natural row
+                # order in the DataFrame is what the trial factor sees.
+                ordered = df
+                onset_col = next(
+                    (c for c in ("onset", "Onset") if c in df.columns),
+                    None,
+                )
+                block_col = next(
+                    (c for c in ("run", "block", "Run", "Block")
+                     if c in df.columns),
+                    None,
+                )
+                if onset_col is not None and block_col is not None:
+                    ordered = df.sort_values([block_col, onset_col])
+                elif onset_col is not None:
+                    ordered = df.sort_values(onset_col)
+                trial_conditions = list(ordered[cond_col].astype(str))
+                if len(trial_conditions) == n_trials:
+                    event_term._trialwise_conditions = trial_conditions
         return event_term
 
     def _find_trial_info(self):
@@ -1640,6 +1669,14 @@ class EventModel(ModelProtocol):
         list of str
             Condition tags
         """
+        # Trialwise term carrying a user-supplied condition column:
+        # surface the per-trial experimental-condition label so
+        # downstream MVPA tooling can pull per-condition trial sets via
+        # typed lookup (``cols.where(role="task", condition="A")``).
+        trialwise_cond = getattr(event_term, "_trialwise_conditions", None)
+        if trialwise_cond is not None:
+            return [str(c) for c in trialwise_cond]
+
         cond_tags = []
 
         if event_term.interaction:

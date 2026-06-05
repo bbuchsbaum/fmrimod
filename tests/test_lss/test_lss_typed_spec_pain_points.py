@@ -1,9 +1,21 @@
-"""Pain points pinned by the LSS single-trial parity workflow.
+"""Regression tests pinning the typed LSS single-trial contract.
 
-Two ergonomic gaps surfaced and one bug was fixed while wiring
-``tier_a_single_trial_lss``. The bug fix is pinned positively; the
-remaining gaps are pinned as current-state so a future fix can flip
-the assertion to the desired state.
+History: the ``tier_a_single_trial_lss`` parity workflow surfaced
+three issues which were all fixed in the same series of commits.
+This suite pins the fixed state so the typed LSS surface can't
+silently regress.
+
+1. **Typed ``trialwise()`` lowering** — the sentinel
+   ``variables=("__trial__",)`` is now translated to
+   ``_is_trialwise=True`` on the EventModelTerm.
+2. **Typed ``fmri_lss(spec, dataset)`` wrapper** — one-call LSS
+   that compiles the spec, extracts trial X + baseline Z, and
+   runs the vectorised LSS solver.
+3. **Per-trial experimental-condition labels** —
+   ``trialwise(condition="trial_type")`` populates
+   ``DesignColumn.condition`` with each trial's experimental
+   condition value, so MVPA pipelines can group per-trial betas
+   via ``cols.where(role="task", condition="A")``.
 """
 
 from __future__ import annotations
@@ -70,91 +82,159 @@ def test_trialwise_typed_spec_resolves_per_trial_columns() -> None:
         )
 
 
-# -- Pain point: no typed lss_single_trial wrapper on fmri_lm ---------------
+# -- Fixed: typed fmri_lss(spec, dataset) one-call wrapper -----------------
 
 
-def test_lss_requires_manual_design_extraction_from_typed_spec() -> None:
-    """Document the current LSS workflow: pull X and Z out by hand.
+def test_fmri_lss_typed_wrapper_one_call_workflow() -> None:
+    """``fm.fmri_lss(spec, ds)`` runs LSS end-to-end from the typed spec.
 
-    There is no ``fmri_lm(..., engine="lss")`` or ``single_trial(
-    method="lss")`` typed entry point. The user gets the per-trial
-    X and the baseline Z out of a typed ``trialwise()`` fit and then
-    calls the matrix-first ``lss_single_trial(Y, X, baseline_-
-    regressors=Z)`` directly. Pinning the manual-extraction shape
-    here so a future typed wrapper can substitute in cleanly.
+    Before the fix the user had to:
+    1. Build a fit via ``fm.fmri_lm(spec, ds)``.
+    2. Extract trial X via ``cols.where(term="trial")``.
+    3. Extract baseline Z via the baseline roles.
+    4. Pull Y out of the dataset by hand.
+    5. Call the matrix-first ``lss_single_trial`` directly.
+
+    Now ``fm.fmri_lss(spec, ds)`` does the whole pipeline and returns a
+    :class:`SingleTrialResult` with ``betas`` shape
+    ``(n_trials, n_voxels)`` plus trial labels and DoF.
+    """
+    rng = np.random.default_rng(2)
+    n_trials = 8
+    events = pd.DataFrame({
+        "onset": np.linspace(10.0, 90.0, n_trials),
+        "duration": 0.0,
+        "trial_type": ["A", "B"] * (n_trials // 2),
+        "run": 1,
+    })
+    data = rng.normal(size=(80, 4))
+    ds = fm.fmri_dataset(
+        data, tr=2.0, events=events, slice_timing_offset=0.0
+    )
+    spec = (
+        trialwise(basis="spm")
+        + drift("poly", degree=2)
+        + intercept(per="run")
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        result = fm.fmri_lss(spec, ds)
+
+    assert result.betas.shape == (n_trials, 4)
+    assert result.trial_labels is not None
+    assert len(result.trial_labels) == n_trials
+    assert all(label.startswith("trial_") for label in result.trial_labels)
+
+
+def test_fmri_lss_matches_manual_extraction_path() -> None:
+    """The typed wrapper produces the same betas as the manual path.
+
+    Equivalence pin so a future refactor of either path can't drift.
     """
     from fmrimod.single import lss_single_trial
 
-    fit, events = _trialwise_fit()
-    full_design = fit.model.design_matrix_array(run=None)
-    cols = fit.design_columns()
-
-    trial_indices = [c.index for c in cols.where(term="trial").columns]
-    baseline_indices = [
-        c.index for c in cols.columns
-        if c.role in ("drift", "intercept", "confound", "baseline")
-    ]
-    X = full_design[:, trial_indices]
-    Z = full_design[:, baseline_indices]
-    # Manufactured Y for the contract test.
-    rng = np.random.default_rng(1)
-    Y = rng.normal(size=(full_design.shape[0], 4))
-
-    result = lss_single_trial(
-        Y=Y, X=X, baseline_regressors=Z, include_intercept=False,
+    rng = np.random.default_rng(3)
+    events = pd.DataFrame({
+        "onset": np.linspace(10.0, 90.0, 8),
+        "duration": 0.0,
+        "trial_type": ["A", "B"] * 4,
+        "run": 1,
+    })
+    data = rng.normal(size=(80, 4))
+    ds = fm.fmri_dataset(
+        data, tr=2.0, events=events, slice_timing_offset=0.0
     )
-    assert result.betas.shape == (len(events), 4)
+    spec = (
+        trialwise(basis="spm")
+        + drift("poly", degree=2)
+        + intercept(per="run")
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        typed_result = fm.fmri_lss(spec, ds)
+
+        # Manual extraction path.
+        fit = fm.fmri_lm(spec, ds)
+        full_X = fit.model.design_matrix_array(run=None)
+        cols = fit.design_columns()
+        trial_idx = [c.index for c in cols.where(term="trial").columns]
+        baseline_idx = [
+            c.index for c in cols.columns
+            if c.role in ("drift", "intercept", "confound", "baseline")
+        ]
+        manual_result = lss_single_trial(
+            Y=data,
+            X=full_X[:, trial_idx],
+            baseline_regressors=full_X[:, baseline_idx],
+            include_intercept=False,
+        )
+    np.testing.assert_allclose(
+        typed_result.betas, manual_result.betas, atol=1e-12
+    )
 
 
 # -- Pain point: trial labels not surfaced on column provenance --------------
 
 
-def test_trialwise_column_condition_is_trial_index_not_experimental_condition() -> None:
-    """``trialwise()`` columns carry trial-index provenance, not condition labels.
+# -- Fixed: per-trial experimental-condition labels -------------------------
 
-    Each per-trial column has ``term='trial'``, ``level='1'``, ...
-    ``level='N'``, and ``condition='trial.1'`` ... ``'trial.N'`` —
-    so the trial INDEX is surfaced but the experimental condition
-    label (``trial_type``: ``"A"`` or ``"B"`` here) is NOT. MVPA
-    pipelines need the condition label to assemble per-trial betas
-    into condition-specific decoding folds, and currently have to
-    parse the trial index out of the column name and join back to
-    the events DataFrame manually.
 
-    A future fix could either:
+def test_trialwise_default_condition_is_trial_index() -> None:
+    """Without ``condition=``, ``trialwise()`` columns carry trial-index labels.
 
-    1. Add a new ``condition_label`` / ``stimulus`` provenance field
-       carrying the original ``trial_type`` value.
-    2. Or repurpose ``condition`` to mean the experimental condition
-       and use a separate field (``trial_index``) for the index.
-
-    Pinned at the current state so the future fix has a clear
-    regression target.
+    Pinned for backward-compat: when no condition column is supplied,
+    the realised per-trial columns get ``condition='trial.{k}'`` and
+    ``level='{k}'`` (the trial index). MVPA users who don't supply
+    ``condition=`` retain the legacy behavior they'd see in older
+    versions of fmrimod.
     """
     fit, events = _trialwise_fit()
     cols = fit.design_columns()
     trial_cols = list(cols.where(term="trial").columns)
-
-    # Current state: condition is "trial.{k}" — the trial index, not
-    # the experimental condition.
     for c in trial_cols:
         assert (c.condition or "").startswith("trial."), (
-            f"current state: condition encodes the trial index as "
-            f"'trial.{{k}}'; got {c.condition!r}. If a future fix changes "
-            f"this to carry the experimental condition label, update the "
-            f"regression to assert the correct value (e.g. condition in "
-            f"('A', 'B'))."
+            f"default condition tag should be 'trial.{{k}}'; got {c.condition!r}"
         )
 
-    # Current workaround: parse trial index out of the name and join
-    # back via the events DataFrame. This is what an MVPA pipeline
-    # has to do today.
-    sorted_events = events.sort_values("onset").reset_index(drop=True)
-    parsed_indices = sorted(
-        int(c.name.removeprefix("trial_")) for c in trial_cols
+
+def test_trialwise_with_condition_kwarg_surfaces_experimental_label() -> None:
+    """``trialwise(condition="trial_type")`` populates DesignColumn.condition.
+
+    Each per-trial column now carries the user's experimental condition
+    label (here ``"A"`` or ``"B"``) as ``DesignColumn.condition``, so
+    typed lookup ``cols.where(role="task", condition="A")`` returns the
+    trial-A subset directly — no name-parsing required.
+    """
+    events = pd.DataFrame({
+        "onset": np.linspace(10.0, 90.0, 8),
+        "duration": 0.0,
+        "trial_type": ["A", "B"] * 4,
+        "run": 1,
+    })
+    ds = fm.fmri_dataset(
+        np.zeros((80, 4)), tr=2.0, events=events, slice_timing_offset=0.0
     )
-    assert parsed_indices == list(range(1, len(events) + 1))
-    inferred_conditions = [
-        sorted_events.iloc[i - 1]["trial_type"] for i in parsed_indices
-    ]
-    assert all(cond in ("A", "B") for cond in inferred_conditions)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        fit = fm.fmri_lm(
+            trialwise(basis="spm", condition="trial_type")
+            + intercept(per="run"),
+            ds,
+        )
+    cols = fit.design_columns()
+    trial_cols = list(cols.where(term="trial").columns)
+    assert len(trial_cols) == 8
+    # The condition labels alternate A, B, A, B, ... matching the events row order.
+    expected_conditions = events.sort_values("onset")["trial_type"].tolist()
+    actual_conditions = [c.condition for c in trial_cols]
+    assert actual_conditions == expected_conditions
+
+    # Typed condition-based lookup works.
+    a_cols = list(cols.where(role="task", condition="A").columns)
+    b_cols = list(cols.where(role="task", condition="B").columns)
+    assert len(a_cols) == 4
+    assert len(b_cols) == 4
+    assert all(c.condition == "A" for c in a_cols)
+    assert all(c.condition == "B" for c in b_cols)

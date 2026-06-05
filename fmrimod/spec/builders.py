@@ -156,6 +156,7 @@ def confounds(
 def trialwise(
     basis: HRF | str = "spm",
     *,
+    condition: Optional[str] = None,
     durations: str | float | None = None,
     lag: float = 0.0,
     subset: Optional[Predicate] = None,
@@ -170,8 +171,22 @@ def trialwise(
     Mirrors R's :func:`trialwise()` — produces one regressor per event.
     Realisation happens in :mod:`fmrimod.spec._compile`. See
     :func:`hrf` for the ``norm`` argument.
+
+    Parameters
+    ----------
+    condition
+        Optional name of an events-table column carrying the
+        experimental-condition label for each trial (e.g.
+        ``"trial_type"``). When set, each per-trial realised column
+        carries the corresponding condition value on
+        ``DesignColumn.condition`` / ``DesignColumn.level``, so MVPA
+        pipelines can group per-trial betas by condition via typed
+        lookup (``cols.where(role="task", condition="A")``) instead
+        of parsing trial indices out of column names. When omitted,
+        ``condition`` defaults to the zero-padded trial index
+        (``"trial.01"``, ``"trial.02"``, ...).
     """
-    return HrfTerm(
+    term = HrfTerm(
         variables=("__trial__",),  # sentinel resolved at compile time
         hrf=basis,
         durations=durations,
@@ -183,3 +198,12 @@ def trialwise(
         normalize=bool(normalize),
         summate=bool(summate),
     )
+    if condition is not None:
+        # Stash on the typed kwargs bag — the compile path plumbs it
+        # through to the EventModel term so trialwise condition labels
+        # come from the events DataFrame rather than the
+        # ``"trial_NN"`` zero-padded indices.
+        object.__setattr__(
+            term, "_trialwise_condition_col", str(condition)
+        )
+    return term

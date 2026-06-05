@@ -71,6 +71,13 @@ def _hrf_term_to_event_model_term(term: HrfTerm) -> Any:
         # ``_trialwise_label`` attributes on the EventModelTerm.
         lowered._add_sum = False
         lowered._trialwise_label = term.id or "trial"
+        # Surface the per-trial condition column (when supplied via
+        # ``trialwise(condition="trial_type")``) so the EventModel can
+        # look up experimental labels from the events DataFrame at
+        # column-fact time.
+        cond_col = getattr(term, "_trialwise_condition_col", None)
+        if cond_col is not None:
+            lowered._trialwise_condition_col = cond_col
     if term.contrasts:
         lowered._kwargs["contrasts"] = term.contrasts
     if term.durations is not None:

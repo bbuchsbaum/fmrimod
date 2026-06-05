@@ -309,6 +309,7 @@ _LAZY_ATTRS: dict[str, tuple[str, str]] = {
     "fmri_dataset": ("fmrimod.dataset", "fmri_dataset"),
     "fmri_latent_lm": ("fmrimod.dataset", "fmri_latent_lm"),
     "fmri_lm": ("fmrimod.glm.fmri_lm", "fmri_lm"),
+    "fmri_lss": ("fmrimod.single", "fmri_lss"),
     "fmri_mem_dataset": ("fmrimod.dataset", "fmri_mem_dataset"),
     "fmri_meta": ("fmrimod.stats", "fmri_meta"),
     "fmri_meta_fit": ("fmrimod.stats", "fmri_meta_fit"),
@@ -549,6 +550,7 @@ __all__ = [
     "hrf_spmg1",
     # GLM fitting
     "fmri_lm",
+    "fmri_lss",
     "combine_runs",
     "combine_contrasts",
     "soft_subspace_options",

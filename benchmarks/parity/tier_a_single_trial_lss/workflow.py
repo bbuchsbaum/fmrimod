@@ -47,36 +47,25 @@ All four headline outputs match at <= 1e-9:
 - ``mean_lss_beta_B``: per-voxel mean LSS beta across the
   condition-B trials.
 
-Pain points logged for follow-up
---------------------------------
+Typed LSS surface
+-----------------
 
-Two ergonomic gaps surfaced while wiring this and are pinned in
-``tests/test_lss/test_lss_typed_spec_pain_points.py``:
+Three issues surfaced while wiring this case were all fixed in
+the same series of commits (pinned in
+``tests/test_lss/test_lss_typed_spec_pain_points.py``):
 
-1. **The typed ``trialwise()`` spec was broken** at the start of
-   this work — the lowering didn't propagate the ``_is_trialwise``
-   marker, so ``fmri_lm(trialwise(...), ds)`` failed with
-   ``ValueError: Event '__trial__' not found in model``. Fixed in
-   the same commit that landed this workflow.
-
-2. **No typed ``lss_single_trial`` wrapper on the high-level
-   ``fmri_lm`` surface.** The user has to extract the per-trial
-   design themselves (via the ``trialwise()`` typed spec) and the
-   baseline regressors (via the baseline columns of the realised
-   design), then call the matrix-first ``lss_single_trial``
-   directly. A typed ``single_trial(method="lss")`` or
-   ``fmri_lm(..., engine="lss")`` would be a clean win — the
-   matrix-first API already does the heavy lifting.
-
-3. **Trial labels are not surfaced on the per-trial column
-   provenance.** The realised ``trialwise()`` columns get
-   ``term="trial"`` and ``name="trial_NN"`` but no link back to
-   the original event-table row (trial_type, original onset).
-   Users doing MVPA need to join their per-trial betas back to a
-   stimulus / condition label by parsing the trial number out of
-   the column name. Adding ``condition`` / ``level`` provenance
-   on the trialwise columns would let downstream MVPA tooling
-   pull labels via typed lookup.
+1. **Typed ``trialwise()`` lowering** — the sentinel
+   ``variables=("__trial__",)`` is now translated to
+   ``_is_trialwise=True`` on the EventModelTerm.
+2. **Typed one-call wrapper** — :func:`fmrimod.fmri_lss`
+   compiles the spec, extracts trial X + baseline Z from the
+   realised design, pulls Y out of the dataset, and runs the
+   vectorised LSS solver in one call.
+3. **Per-trial experimental-condition labels** —
+   ``trialwise(condition="trial_type")`` populates
+   ``DesignColumn.condition`` with each trial's experimental
+   condition value, so MVPA pipelines can group per-trial betas
+   via ``cols.where(role="task", condition="A")``.
 """
 
 from __future__ import annotations
@@ -271,13 +260,29 @@ def _hand_rolled_nilearn_lss(
 
 
 def fmrimod_pipeline(inputs: LssInputs) -> PipelineOutput:
-    """Typed-spec build of X + matrix-first vectorized LSS solver."""
-    result = lss_single_trial(
-        Y=inputs.data,
-        X=inputs.trialwise_design,
-        baseline_regressors=inputs.baseline_design,
-        include_intercept=False,
+    """Typed-spec one-call LSS via ``fm.fmri_lss(spec, dataset)``.
+
+    The typed wrapper takes a spec containing a ``trialwise()`` term
+    plus optional baseline terms, compiles the design internally,
+    pulls trial X and baseline Z out via the typed column lookup,
+    and runs the vectorised LSS solver — all in one call. The
+    workflow's pre-built ``inputs.trialwise_design`` /
+    ``inputs.baseline_design`` are only used by the reference
+    pipeline below to make the Pattern B comparison apples-to-apples
+    (both sides solve on identical X / Z).
+    """
+    spec = (
+        trialwise(basis="spm", condition="trial_type")
+        + drift("poly", degree=2)
+        + intercept(per="run")
     )
+    ds = fm.fmri_dataset(
+        inputs.data, tr=TR, events=inputs.events, slice_timing_offset=0.0
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        warnings.simplefilter("ignore", RuntimeWarning)
+        result = fm.fmri_lss(spec, ds)
     lss_betas = np.asarray(result.betas, dtype=np.float64)
     return PipelineOutput(
         arrays={
