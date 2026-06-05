@@ -46,6 +46,12 @@ def _hrf_term_to_event_model_term(term: HrfTerm) -> Any:
     if not term.variables:
         raise ValueError("HrfTerm has no variables to lower")
 
+    # Detect the sentinel produced by the typed ``trialwise(...)`` builder
+    # so the EventModel dispatch ends up in ``_create_trialwise_event_term``
+    # (one regressor per event), rather than failing to resolve
+    # ``__trial__`` as a regular events-table column.
+    is_trialwise = term.variables == ("__trial__",)
+
     events: str | list[str]
     if len(term.variables) == 1:
         events = term.variables[0]
@@ -59,6 +65,12 @@ def _hrf_term_to_event_model_term(term: HrfTerm) -> Any:
         normalize=term.normalize,
         summate=term.summate,
     )
+    if is_trialwise:
+        lowered._is_trialwise = True
+        # The legacy formula path expects ``_add_sum`` and
+        # ``_trialwise_label`` attributes on the EventModelTerm.
+        lowered._add_sum = False
+        lowered._trialwise_label = term.id or "trial"
     if term.contrasts:
         lowered._kwargs["contrasts"] = term.contrasts
     if term.durations is not None:
