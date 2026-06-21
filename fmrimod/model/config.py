@@ -352,6 +352,9 @@ class FmriLmConfig:
         Projection solver for OLS. ``"auto"`` keeps the fast default path;
         ``"pinv"`` uses a Moore-Penrose projection for strict reference
         parity workflows.
+    na_action : {"error", "propagate"}
+        Response-data non-finite policy. ``"error"`` fails before fitting;
+        ``"propagate"`` lets affected voxels surface NaN coefficients.
     """
 
     robust: RobustOptions = field(default_factory=RobustOptions)
@@ -359,10 +362,13 @@ class FmriLmConfig:
     volume_weights: VolumeWeightOptions = field(default_factory=VolumeWeightOptions)
     soft_subspace: SoftSubspaceOptions = field(default_factory=SoftSubspaceOptions)
     solver: Literal["auto", "pinv"] = "auto"
+    na_action: Literal["error", "propagate"] = "error"
 
     def __post_init__(self) -> None:
         if self.solver not in ("auto", "pinv"):
             raise ValueError("solver must be 'auto' or 'pinv'")
+        if self.na_action not in ("error", "propagate"):
+            raise ValueError("na_action must be 'error' or 'propagate'")
 
     def __repr__(self) -> str:
         parts = []
@@ -376,6 +382,8 @@ class FmriLmConfig:
             parts.append("soft_subspace=True")
         if self.solver != "auto":
             parts.append(f"solver={self.solver}")
+        if self.na_action != "error":
+            parts.append(f"na_action={self.na_action}")
         if not parts:
             parts.append("OLS")
         return f"FmriLmConfig({', '.join(parts)})"
@@ -439,6 +447,7 @@ def fmri_lm_control(
     volume_weights_options: Optional[dict[str, Any]] = None,
     soft_subspace_options: Optional[dict[str, Any]] = None,
     solver: Literal["auto", "pinv"] = "auto",
+    na_action: Literal["error", "propagate"] = "error",
 ) -> FmriLmConfig:
     """Create an :class:`FmriLmConfig` from dictionaries.
 
@@ -455,6 +464,10 @@ def fmri_lm_control(
         Overrides for :class:`VolumeWeightOptions`.
     soft_subspace_options : dict, optional
         Overrides for :class:`SoftSubspaceOptions`.
+    solver : {"auto", "pinv"}, default="auto"
+        Projection solver for OLS.
+    na_action : {"error", "propagate"}, default="error"
+        Response-data non-finite policy.
 
     Returns
     -------
@@ -471,4 +484,5 @@ def fmri_lm_control(
         volume_weights=vw,
         soft_subspace=ss,
         solver=solver,
+        na_action=na_action,
     )

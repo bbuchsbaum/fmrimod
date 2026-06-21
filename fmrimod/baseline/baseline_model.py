@@ -25,6 +25,7 @@ BaselineBasis = Literal['constant', 'poly', 'bs', 'ns', 'cosine']
 BaselineIntercept = Literal['runwise', 'global', 'none']
 BaselineTermRole = Literal['drift', 'block', 'nuisance']
 NuisanceCheckMode = Literal['warn', 'error', 'drop', 'none']
+NuisanceNAAction = Literal['drop', 'zero', 'median']
 
 BASELINE_TERM_ORDER: tuple[BaselineTermRole, ...] = ('drift', 'block', 'nuisance')
 
@@ -36,6 +37,7 @@ _NUISANCE_CHECK_MODES: tuple[NuisanceCheckMode, ...] = (
     'drop',
     'none',
 )
+_NUISANCE_NA_ACTIONS: tuple[NuisanceNAAction, ...] = ('drop', 'zero', 'median')
 BasisFunction = Callable[..., NDArray[np.float64]]
 
 
@@ -56,6 +58,13 @@ def _normalize_nuisance_check(mode: str) -> NuisanceCheckMode:
         return cast(NuisanceCheckMode, mode)
     allowed = ", ".join(_NUISANCE_CHECK_MODES)
     raise ValueError(f"Invalid nuisance_check: {mode!r}; expected one of {allowed}")
+
+
+def _normalize_na_action(mode: str) -> NuisanceNAAction:
+    if mode in _NUISANCE_NA_ACTIONS:
+        return cast(NuisanceNAAction, mode)
+    allowed = ", ".join(_NUISANCE_NA_ACTIONS)
+    raise ValueError(f"Invalid na_action: {mode!r}; expected one of {allowed}")
 
 
 @dataclass(frozen=True)
@@ -508,6 +517,35 @@ def _as_nuisance_matrices(
     return matrices
 
 
+def _repair_nuisance_na(
+    mats: Sequence[pd.DataFrame],
+    na_action: NuisanceNAAction,
+) -> list[pd.DataFrame]:
+    """Repair missing nuisance values before diagnostics/design realization."""
+    if na_action == 'drop':
+        return [mat.copy() for mat in mats]
+
+    repaired: list[pd.DataFrame] = []
+    for mat in mats:
+        fixed = mat.copy()
+        for column in fixed.columns:
+            values = fixed[column].to_numpy(dtype=float, copy=True)
+            missing = np.isnan(values)
+            if not np.any(missing):
+                continue
+            if na_action == 'zero':
+                values[missing] = 0.0
+            else:
+                finite = values[np.isfinite(values)]
+                if finite.size == 0:
+                    fixed[column] = values
+                    continue
+                values[missing] = float(np.median(finite))
+            fixed[column] = values
+        repaired.append(fixed)
+    return repaired
+
+
 def _qr_rank(matrix: Array, tol: float) -> int:
     """QR/SVD rank helper for nuisance diagnostics."""
     arr = np.asarray(matrix, dtype=float)
@@ -649,9 +687,11 @@ def _check_nuisance_internal(
     baseline_terms: Mapping[BaselineTermRole, BaselineTerm | None],
     tol: float,
     duplicate_threshold: float,
+    na_action: NuisanceNAAction = 'drop',
 ) -> NuisanceCheck:
     """Shared nuisance-check implementation."""
     mats = _as_nuisance_matrices(nuisance_list, sframe)
+    mats = _repair_nuisance_na(mats, na_action)
     rows_by_block = _block_rows(sframe)
     by_block: list[NuisanceBlockCheck] = []
     problems: list[dict[str, object]] = []
@@ -861,10 +901,12 @@ def check_nuisance(
     intercept: BaselineIntercept = 'runwise',
     tol: Optional[float] = None,
     duplicate_threshold: Optional[float] = None,
+    na_action: NuisanceNAAction = 'drop',
 ) -> NuisanceCheck:
     """Check nuisance regressors for rank and column problems."""
     basis = _normalize_basis(basis)
     intercept = _normalize_intercept(intercept)
+    na_action = _normalize_na_action(na_action)
     if basis in ('bs', 'ns') and degree < 3:
         raise ValueError(f"'{basis}' basis must have degree >= 3")
 
@@ -883,6 +925,7 @@ def check_nuisance(
         baseline_terms,
         tol=tol_value,
         duplicate_threshold=threshold,
+        na_action=na_action,
     )
 
 
@@ -894,6 +937,7 @@ def clean_nuisance(
     intercept: BaselineIntercept = 'runwise',
     tol: Optional[float] = None,
     duplicate_threshold: Optional[float] = None,
+    na_action: NuisanceNAAction = 'drop',
 ) -> CleanedNuisance:
     """Drop nuisance columns that do not increase rank."""
     report = check_nuisance(
@@ -904,6 +948,7 @@ def clean_nuisance(
         intercept=intercept,
         tol=tol,
         duplicate_threshold=duplicate_threshold,
+        na_action=na_action,
     )
     return CleanedNuisance(
         nuisance_list=_drop_nuisance_columns(report),
@@ -918,6 +963,7 @@ def baseline_model(
     intercept: BaselineIntercept = 'runwise',
     nuisance_list: Sequence[Array | pd.DataFrame] | None = None,
     nuisance_check: NuisanceCheckMode = 'warn',
+    na_action: NuisanceNAAction = 'drop',
 ) -> BaselineModel:
     """Construct a baseline model for fMRI time series.
     
@@ -946,6 +992,10 @@ def baseline_model(
     nuisance_check : {'warn', 'error', 'drop', 'none'}, default='warn'
         How to handle nuisance columns that are non-finite, zero variance,
         duplicate, or rank-aliased with the baseline design.
+    na_action : {'drop', 'zero', 'median'}, default='drop'
+        Policy for missing values in nuisance regressors. ``'drop'`` preserves
+        the legacy diagnostics-driven behavior; ``'zero'`` and ``'median'``
+        repair NaN values before diagnostics and design realization.
     
     Returns
     -------
@@ -984,6 +1034,7 @@ def baseline_model(
     basis = _normalize_basis(basis)
     intercept = _normalize_intercept(intercept)
     nuisance_check = _normalize_nuisance_check(nuisance_check)
+    na_action = _normalize_na_action(na_action)
 
     # Validate degree for splines
     if basis in ('bs', 'ns') and degree < 3:
@@ -1006,14 +1057,20 @@ def baseline_model(
 
     nuisance_report = None
     effective_nuisance_list = nuisance_list
+    if nuisance_list is not None:
+        effective_nuisance_list = _repair_nuisance_na(
+            _as_nuisance_matrices(nuisance_list, sframe),
+            na_action,
+        )
     if nuisance_list is not None and nuisance_check != 'none':
         tol = float(np.sqrt(np.finfo(float).eps))
         nuisance_report = _check_nuisance_internal(
-            nuisance_list,
+            effective_nuisance_list,
             sframe,
             {'drift': terms['drift'], 'block': terms['block']},
             tol=tol,
             duplicate_threshold=1.0 - tol,
+            na_action='drop',
         )
         if not nuisance_report.ok:
             if nuisance_check == 'error':

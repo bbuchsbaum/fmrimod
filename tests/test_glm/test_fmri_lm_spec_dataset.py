@@ -215,6 +215,32 @@ def test_fmri_lm_spec_dataset_with_config_kwarg(synthetic_run):
     assert isinstance(fit, FmriLm)
 
 
+def test_fmri_lm_errors_on_nonfinite_response_by_default(synthetic_run):
+    events, Y, tr = synthetic_run
+    Y = Y.copy()
+    Y[3, 1] = np.nan
+    ds = fm.fmri_dataset(Y, tr=tr, events=events)
+
+    with pytest.raises(ValueError, match="Non-finite values"):
+        fmri_lm("hrf(trial_type)", ds)
+
+
+def test_fmri_lm_can_propagate_nonfinite_response_voxels(synthetic_run):
+    events, Y, tr = synthetic_run
+    Y = Y.copy()
+    Y[3, 1] = np.nan
+    ds = fm.fmri_dataset(Y, tr=tr, events=events)
+
+    fit = fmri_lm(
+        "hrf(trial_type)",
+        ds,
+        config=FmriLmConfig(na_action="propagate"),
+    )
+
+    assert np.isfinite(fit.betas[:, 0]).all()
+    assert np.isnan(fit.betas[:, 1]).all()
+
+
 def test_fmri_lm_spec_dataset_with_explicit_baseline(synthetic_run):
     events, Y, tr = synthetic_run
     ds = fm.fmri_dataset(Y, tr=tr, events=events)

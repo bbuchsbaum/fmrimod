@@ -398,6 +398,32 @@ def test_fit_run_ols_return_fitted_false_matches_core_estimates():
     np.testing.assert_allclose(Y_fast, Y_full, atol=0.0, rtol=0.0)
 
 
+def test_fit_run_ols_errors_on_nonfinite_response_by_default():
+    X = np.column_stack([np.ones(8), np.linspace(-1.0, 1.0, 8)])
+    Y = np.arange(16, dtype=float).reshape(8, 2)
+    Y[2, 1] = np.nan
+
+    with pytest.raises(ValueError, match="Non-finite values"):
+        fit_run_ols(X, Y, FmriLmConfig())
+
+
+def test_fit_run_ols_can_propagate_nonfinite_response_voxels():
+    X = np.column_stack([np.ones(8), np.linspace(-1.0, 1.0, 8)])
+    Y = np.arange(16, dtype=float).reshape(8, 2)
+    Y[2, 1] = np.nan
+
+    result, _proj, _X_used, _Y_used = fit_run_ols(
+        X,
+        Y,
+        FmriLmConfig(na_action="propagate"),
+    )
+
+    assert np.isfinite(result.betas[:, 0]).all()
+    assert np.isnan(result.betas[:, 1]).all()
+    assert np.isfinite(result.rss[0])
+    assert np.isnan(result.rss[1])
+
+
 def test_fit_run_ols_does_not_mutate_inputs():
     """Pre-fit preprocessing should not mutate caller-provided X/Y arrays."""
     rng = np.random.default_rng(321)

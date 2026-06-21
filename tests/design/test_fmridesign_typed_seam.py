@@ -130,7 +130,7 @@ def test_hrf_term_subset_and_timing_options_create_term_local_event():
         ),
         data=df,
         tr=1.0,
-        n_scans=30,
+        n_scans=60,
     )
 
     assert model.terms[0].events == ["condition"]
@@ -159,7 +159,7 @@ def test_functional_hrf_timing_options_create_term_local_event():
         ],
         data=df,
         tr=1.0,
-        n_scans=30,
+        n_scans=60,
     )
 
     assert model.terms[0].events == ["condition"]
@@ -176,7 +176,7 @@ def test_term_subset_accepts_mapping_selectors_from_typed_spec_lowering():
         [term("condition") | hrf("spmg1", subset={"condition": "A"})],
         data=df,
         tr=1.0,
-        n_scans=30,
+        n_scans=60,
     )
 
     assert model.terms[0].events == ["condition"]
@@ -194,7 +194,7 @@ def test_block_ids_preserve_first_appearance_order():
         data=df,
         block="run",
         tr=1.0,
-        n_scans=30,
+        n_scans=60,
     )
 
     assert model.blockids.tolist() == [1, 2, 1, 2]
@@ -303,6 +303,115 @@ def test_clean_nuisance_returns_cleaned_matrices_and_audit_report():
     assert isinstance(cleaned, CleanedNuisance)
     assert isinstance(cleaned.report, NuisanceCheck)
     assert list(cleaned.nuisance_list[0].columns) == ["dvars"]
+
+
+def test_baseline_model_na_action_zero_repairs_leading_missing_confound():
+    sframe = SamplingFrame(blocklens=[6], TR=1.0)
+    nuisance = [
+        pd.DataFrame(
+            {
+                "dvars": [np.nan, 2.0, 3.0, 4.0, 5.0, 6.0],
+                "motion": [-2.0, -1.0, 0.0, 1.0, 2.0, 3.0],
+            }
+        )
+    ]
+
+    with pytest.warns(UserWarning, match="Non-finite columns: dvars"):
+        dropped = baseline_model(
+            basis="constant",
+            sframe=sframe,
+            nuisance_list=nuisance,
+            nuisance_check="drop",
+        )
+    repaired = baseline_model(
+        basis="constant",
+        sframe=sframe,
+        nuisance_list=nuisance,
+        nuisance_check="drop",
+        na_action="zero",
+    )
+
+    assert list(dropped.terms["nuisance"].design_matrix.columns) == [
+        "nuis_run1_motion"
+    ]
+    assert list(repaired.terms["nuisance"].design_matrix.columns) == [
+        "nuis_run1_dvars",
+        "nuis_run1_motion",
+    ]
+    assert repaired.terms["nuisance"].design_matrix.iloc[0, 0] == 0.0
+    assert not np.isnan(np.asarray(repaired.design_matrix)).any()
+
+
+def test_baseline_model_na_action_median_and_none_share_repaired_matrix():
+    sframe = SamplingFrame(blocklens=[6], TR=1.0)
+    nuisance = [pd.DataFrame({"dvars": [np.nan, 2.0, 3.0, 4.0, 5.0, 6.0]})]
+
+    model = baseline_model(
+        basis="constant",
+        sframe=sframe,
+        nuisance_list=nuisance,
+        nuisance_check="none",
+        na_action="median",
+    )
+
+    assert model.terms["nuisance"].design_matrix.iloc[0, 0] == 4.0
+    assert not np.isnan(np.asarray(model.design_matrix)).any()
+
+
+def test_check_and_clean_nuisance_honor_na_action():
+    sframe = SamplingFrame(blocklens=[6], TR=1.0)
+    nuisance = [
+        pd.DataFrame(
+            {
+                "dvars": [np.nan, 2.0, 3.0, 4.0, 5.0, 6.0],
+                "motion": [-2.0, -1.0, 0.0, 1.0, 2.0, 3.0],
+            }
+        )
+    ]
+
+    report_drop = check_nuisance(nuisance, sframe, basis="constant")
+    report_zero = check_nuisance(
+        nuisance,
+        sframe,
+        basis="constant",
+        na_action="zero",
+    )
+    cleaned = clean_nuisance(
+        nuisance,
+        sframe,
+        basis="constant",
+        na_action="zero",
+    )
+
+    assert "non_finite" in set(report_drop.problems["issue"])
+    assert "non_finite" not in set(report_zero.problems["issue"])
+    assert list(cleaned.nuisance_list[0].columns) == ["dvars", "motion"]
+    assert cleaned.nuisance_list[0].iloc[0, 0] == 0.0
+
+
+def test_baseline_model_na_action_does_not_repair_infinite_values():
+    sframe = SamplingFrame(blocklens=[6], TR=1.0)
+    nuisance = [
+        pd.DataFrame(
+            {
+                "bad": [np.inf, 2.0, 3.0, 4.0, 5.0, 6.0],
+                "motion": [-2.0, -1.0, 0.0, 1.0, 2.0, 3.0],
+            }
+        )
+    ]
+
+    with pytest.warns(UserWarning, match="Non-finite columns: bad"):
+        model = baseline_model(
+            basis="constant",
+            sframe=sframe,
+            nuisance_list=nuisance,
+            nuisance_check="drop",
+            na_action="zero",
+        )
+
+    assert list(model.terms["nuisance"].design_matrix.columns) == [
+        "nuis_run1_motion"
+    ]
 
 
 def test_hrf_lag_shifts_realized_design_matrix():

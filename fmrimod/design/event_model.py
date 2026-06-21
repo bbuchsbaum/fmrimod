@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Mapping, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 
 from .._warnings import call_safely, suppress_fmrimod_warnings
 from ..covariate import CovariateTerm, create_covariate_events
@@ -2108,6 +2109,7 @@ def event_model(
     durations: Optional[Union[str, float, Array]] = None,
     drop_empty: bool = True,
     precision: Optional[float] = None,
+    strict: bool = False,
     # Backward compat
     events: Optional[Dict[str, EventProtocol]] = None,
     sampling_info: Any = None,
@@ -2151,6 +2153,9 @@ def event_model(
         Whether to drop factor levels with zero observations.
     precision : float, optional
         Temporal precision for HRF convolution in seconds (default 0.3).
+    strict : bool, default False
+        If True, event onsets outside ``[0, blocklen * TR)`` or events
+        extending past run end raise an error instead of warning.
     events : dict, optional
         Pre-constructed event objects keyed by name. When provided,
         ``data`` is not required.
@@ -2210,14 +2215,28 @@ def event_model(
     """
     kwargs = _apply_formula_onset_default(formula, kwargs)
     terms = _normalize_term_options(_parse_formula_to_terms(formula))
-    sf = _resolve_sampling_frame(sampling_frame, sampling_info, tr, n_scans, sampling_rate)
+    sf = _resolve_sampling_frame(
+        sampling_frame,
+        sampling_info,
+        tr,
+        n_scans,
+        sampling_rate,
+    )
     # ``precision = None`` is preserved so EventModel can resolve the
     # default to ``min(TR) / DEFAULT_PRECISION_OVERSAMPLING``.
     blockids = _parse_block_ids(block, data)
     kwargs = _parse_durations(durations, data, kwargs)
 
     if events is None:
-        events = _create_events_from_data(data, terms, sf, kwargs)
+        events = _create_events_from_data(
+            data,
+            terms,
+            sf,
+            kwargs,
+            drop_empty=drop_empty,
+        )
+
+    _check_onsets_in_frame(events, blockids, sf, strict=strict)
 
     return EventModel(
         terms=terms,
@@ -2391,6 +2410,146 @@ def _parse_block_ids(block: Any, data: Any) -> Optional[Array]:
             block_map[value] = len(block_map) + 1
         blockids.append(block_map[value])
     return np.asarray(blockids, dtype=int)
+
+
+def _frame_block_lengths_and_tr(
+    sampling_frame: Any,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]] | None:
+    """Return per-block lengths and TR values, if available."""
+    blocklens = getattr(sampling_frame, "blocklens", None)
+    if blocklens is None:
+        blocklens = getattr(sampling_frame, "block_lengths", None)
+    tr = getattr(sampling_frame, "tr", None)
+    if tr is None:
+        tr = getattr(sampling_frame, "TR", None)
+    if blocklens is None or tr is None:
+        return None
+    blocklens_arr = np.atleast_1d(np.asarray(blocklens, dtype=float))
+    tr_arr = np.atleast_1d(np.asarray(tr, dtype=float))
+    if blocklens_arr.size == 0 or tr_arr.size == 0:
+        return None
+    if tr_arr.size == 1 and blocklens_arr.size > 1:
+        tr_arr = np.repeat(tr_arr, blocklens_arr.size)
+    if tr_arr.size != blocklens_arr.size:
+        return None
+    return blocklens_arr, tr_arr
+
+
+def _check_onsets_in_frame(
+    events: Mapping[str, EventProtocol],
+    blockids: Optional[Array],
+    sampling_frame: Any,
+    *,
+    strict: bool,
+) -> None:
+    """Warn/error when event onsets are outside their run sampling frame."""
+    frame = _frame_block_lengths_and_tr(sampling_frame)
+    if frame is None:
+        return
+    blocklens, tr = frame
+    run_end = blocklens * tr
+    seen_offenders: set[tuple[float, float, int]] = set()
+    message_lines: list[str] = []
+    total = 0
+
+    for event in events.values():
+        onsets = np.asarray(getattr(event, "onsets", []), dtype=float)
+        durations = np.asarray(getattr(event, "durations", 0.0), dtype=float)
+        if onsets.ndim != 1 or onsets.size == 0:
+            continue
+        if durations.ndim == 0:
+            durations = np.repeat(float(durations), onsets.size)
+        if durations.shape != onsets.shape:
+            durations = np.resize(durations, onsets.shape)
+        if blockids is None:
+            event_blocks = np.ones(onsets.size, dtype=int)
+        else:
+            event_blocks = np.asarray(blockids, dtype=int)
+            if event_blocks.shape != onsets.shape:
+                continue
+
+        in_range = (
+            np.isfinite(onsets)
+            & np.isfinite(durations)
+            & (event_blocks >= 1)
+            & (event_blocks <= run_end.size)
+        )
+        if not np.any(in_range):
+            continue
+        bounds = np.full(onsets.shape, np.nan, dtype=float)
+        bounds[in_range] = run_end[event_blocks[in_range] - 1]
+        before = np.where(in_range & (onsets < 0.0))[0]
+        after = np.where(in_range & (onsets >= bounds))[0]
+        overrun = np.where(
+            in_range
+            & (onsets >= 0.0)
+            & (onsets < bounds)
+            & ((onsets + durations) > bounds)
+        )[0]
+        offenders = np.union1d(np.union1d(before, after), overrun)
+        if offenders.size == 0:
+            continue
+        new_offenders: list[int] = []
+        for idx in offenders:
+            key = (
+                float(onsets[idx]),
+                float(durations[idx]),
+                int(event_blocks[idx]),
+            )
+            if key in seen_offenders:
+                continue
+            seen_offenders.add(key)
+            new_offenders.append(int(idx))
+        if not new_offenders:
+            continue
+        offender_set = set(new_offenders)
+        offenders = np.asarray(new_offenders, dtype=int)
+        out_of_bounds = np.asarray(
+            [int(idx) for idx in np.union1d(before, after) if int(idx) in offender_set],
+            dtype=int,
+        )
+        overrun = np.asarray(
+            [int(idx) for idx in overrun if int(idx) in offender_set],
+            dtype=int,
+        )
+        total += int(offenders.size)
+        for block in sorted(set(int(x) for x in event_blocks[out_of_bounds])):
+            rows = out_of_bounds[event_blocks[out_of_bounds] == block]
+            examples = rows[:3]
+            message_lines.append(
+                "  Block "
+                f"{block}: {rows.size} onset(s) outside "
+                f"[0, {run_end[block - 1]:.1f}) s "
+                f"({int(blocklens[block - 1])} scans x TR {tr[block - 1]:g}); "
+                f"e.g. onset {', '.join(f'{onsets[i]:.1f}' for i in examples)} "
+                f"at row {', '.join(str(int(i + 1)) for i in examples)}."
+            )
+        for block in sorted(set(int(x) for x in event_blocks[overrun])):
+            rows = overrun[event_blocks[overrun] == block]
+            examples = rows[:3]
+            message_lines.append(
+                "  Block "
+                f"{block}: {rows.size} event(s) extend past run end "
+                f"(onset + duration > {run_end[block - 1]:.1f} s); "
+                f"e.g. row {', '.join(str(int(i + 1)) for i in examples)}."
+            )
+
+    if total == 0:
+        return
+
+    message = (
+        f"event_model(): {total} event(s) fall outside the sampling frame. "
+        "Events outside [0, blocklen x TR) contribute nearly empty regressors; "
+        "check that onsets are on the scan clock.\n"
+        + "\n".join(message_lines)
+    )
+    if strict:
+        raise ValueError(message)
+    warnings.warn(
+        message + "\n(set strict=True to error instead of warn)",
+        UserWarning,
+        stacklevel=3,
+    )
 
 
 def _term_specific_event_options(term: Any) -> Dict[str, Any]:
@@ -2600,7 +2759,14 @@ def _parse_durations(durations: Any, data: Any, kwargs: Dict[str, Any]) -> Dict[
     return kwargs
 
 
-def _create_events_from_data(data: Any, terms: List[Term], sf: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+def _create_events_from_data(
+    data: Any,
+    terms: List[Term],
+    sf: Any,
+    kwargs: Dict[str, Any],
+    *,
+    drop_empty: bool,
+) -> Dict[str, Any]:
     """Create events from data and terms.
 
     Parameters
@@ -2626,7 +2792,7 @@ def _create_events_from_data(data: Any, terms: List[Term], sf: Any, kwargs: Dict
     covariate_terms, trialwise_terms, regular_terms = _separate_term_types(terms)
 
     # Extract event specifications from regular terms
-    event_specs = _extract_event_specs(regular_terms, data)
+    event_specs = _extract_event_specs(regular_terms, data, drop_empty=drop_empty)
 
     onset_col = kwargs.pop('onset_column', kwargs.pop('onset_col', 'onset'))
     duration_col = kwargs.pop('duration_column', kwargs.pop('duration_col', 'duration'))
@@ -2706,7 +2872,12 @@ def _separate_term_types(terms: List[Term]) -> tuple[List[Any], List[Any], List[
     return covariate_terms, trialwise_terms, regular_terms
 
 
-def _extract_event_specs(regular_terms: List[Any], data: Any) -> Dict[str, Dict[str, Any]]:
+def _extract_event_specs(
+    regular_terms: List[Any],
+    data: Any,
+    *,
+    drop_empty: bool,
+) -> Dict[str, Dict[str, Any]]:
     """Extract event specifications from regular terms.
 
     Parameters
@@ -2747,7 +2918,16 @@ def _extract_event_specs(regular_terms: List[Any], data: Any) -> Dict[str, Dict[
                             'center': center_modulator,
                         }
                     else:
-                        event_specs[event_name] = {'type': 'factor'}
+                        spec: dict[str, Any] = {'type': 'factor'}
+                        if isinstance(col_data.dtype, pd.CategoricalDtype):
+                            categories = list(col_data.cat.categories)
+                            if drop_empty:
+                                observed = set(col_data.dropna().unique())
+                                categories = [
+                                    cat for cat in categories if cat in observed
+                                ]
+                            spec['levels'] = list(categories)
+                        event_specs[event_name] = spec
                 else:
                     warnings.warn(
                         f"Event '{event_name}' not found in data columns"

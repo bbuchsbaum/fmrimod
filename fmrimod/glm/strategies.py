@@ -207,6 +207,14 @@ def _prepare_run_matrices(
     X_fit = X
     Y_fit = Y
 
+    if config.na_action == "error" and not np.all(np.isfinite(Y_fit)):
+        run_label = "?" if run is None else str(run)
+        raise ValueError(
+            "Non-finite values (NA/NaN/Inf) in the response data for "
+            f"run {run_label}. Set na_action='propagate' in FmriLmConfig "
+            "to surface affected voxels as NaN, or clean/impute the data."
+        )
+
     # 1. Censoring — coerce integer 0/1 to boolean for fmrireg parity
     if censor is not None:
         censor = np.asarray(censor)
@@ -548,7 +556,13 @@ def fit_concat(
     )
 
     proj = fast_preproject(X, compute_dtype=compute_dtype)
-    lm = fast_lm_matrix(X, Y_full, proj, compute_dtype=compute_dtype)
+    lm = fast_lm_matrix(
+        X,
+        Y_full,
+        proj,
+        compute_dtype=compute_dtype,
+        check_finite=config.na_action == "error",
+    )
 
     return {
         "betas": lm.betas,

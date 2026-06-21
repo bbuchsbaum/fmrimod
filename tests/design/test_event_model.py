@@ -55,6 +55,134 @@ class TestEventModel:
         assert len(model.column_names) == 2
         assert 'condition_condition.A' in model.column_names
         assert 'condition_condition.B' in model.column_names
+
+    def test_drop_empty_drops_unused_categorical_levels_in_realized_design(self):
+        """Factory-level drop_empty should remove all-zero factor columns."""
+        df = pd.DataFrame(
+            {
+                "onset": [2.0, 8.0, 14.0, 20.0],
+                "condition": pd.Categorical(
+                    ["A", "B", "A", "B"],
+                    categories=["A", "B", "C"],
+                    ordered=True,
+                ),
+                "duration": 0.0,
+                "run": 1,
+            }
+        )
+
+        dropped = event_model(
+            "hrf(condition)",
+            data=df,
+            block="run",
+            tr=2.0,
+            n_scans=30,
+            drop_empty=True,
+        )
+        kept = event_model(
+            "hrf(condition)",
+            data=df,
+            block="run",
+            tr=2.0,
+            n_scans=30,
+            drop_empty=False,
+        )
+
+        assert dropped.column_names == [
+            "condition_condition.A",
+            "condition_condition.B",
+        ]
+        assert kept.column_names == [
+            "condition_condition.A",
+            "condition_condition.B",
+            "condition_condition.C",
+        ]
+        assert np.allclose(kept.get_regressor("condition_condition.C"), 0.0)
+
+    def test_onsets_outside_sampling_frame_warn_by_default(self):
+        """Out-of-frame onsets should not silently create empty regressors."""
+        df = pd.DataFrame(
+            {
+                "onset": [2.0, 25.0],
+                "condition": ["A", "A"],
+                "duration": [0.0, 0.0],
+                "run": [1, 1],
+            }
+        )
+
+        with pytest.warns(UserWarning, match="outside the sampling frame"):
+            model = event_model(
+                "hrf(condition)",
+                data=df,
+                block="run",
+                tr=2.0,
+                n_scans=10,
+            )
+
+        assert model.design_matrix.shape == (10, 1)
+
+    def test_onsets_outside_sampling_frame_strict_errors(self):
+        """strict=True escalates the onset bounds warning to an error."""
+        df = pd.DataFrame(
+            {
+                "onset": [2.0, 25.0],
+                "condition": ["A", "A"],
+                "duration": [0.0, 0.0],
+                "run": [1, 1],
+            }
+        )
+
+        with pytest.raises(ValueError, match="outside the sampling frame"):
+            event_model(
+                "hrf(condition)",
+                data=df,
+                block="run",
+                tr=2.0,
+                n_scans=10,
+                strict=True,
+            )
+
+    def test_event_duration_overrun_warns(self):
+        """Events that begin in-frame but extend past run end are flagged."""
+        df = pd.DataFrame(
+            {
+                "onset": [4.0, 18.0],
+                "condition": ["A", "A"],
+                "duration": [1.0, 5.0],
+                "run": [1, 1],
+            }
+        )
+
+        with pytest.warns(UserWarning, match="extend past run end"):
+            event_model(
+                "hrf(condition)",
+                data=df,
+                block="run",
+                tr=2.0,
+                n_scans=10,
+            )
+
+    def test_onset_warning_deduplicates_term_local_event_clones(self):
+        """Subset event clones should not inflate out-of-frame counts."""
+        df = pd.DataFrame(
+            {
+                "onset": [2.0, 25.0],
+                "condition": ["B", "A"],
+                "duration": [0.0, 0.0],
+                "run": [1, 1],
+            }
+        )
+
+        with pytest.warns(UserWarning) as warnings:
+            event_model(
+                "hrf(condition) + hrf(condition, subset='condition == \"A\"')",
+                data=df,
+                block="run",
+                tr=2.0,
+                n_scans=10,
+            )
+
+        assert "1 event(s) fall outside" in str(warnings[0].message)
     
     def test_model_with_hrf(self):
         """Test model with HRF convolution."""

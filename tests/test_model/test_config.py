@@ -309,6 +309,16 @@ class TestFmriLmConfig:
         cfg = FmriLmConfig(robust=RobustOptions(type="huber"))
         assert "robust=huber" in repr(cfg)
 
+    def test_na_action_accepts_propagate(self):
+        cfg = FmriLmConfig(na_action="propagate")
+
+        assert cfg.na_action == "propagate"
+        assert "na_action=propagate" in repr(cfg)
+
+    def test_na_action_rejects_unknown_value(self):
+        with pytest.raises(ValueError, match="na_action must be"):
+            FmriLmConfig(na_action="drop")  # type: ignore[arg-type]
+
 
 class TestFmriLmControl:
     def test_defaults(self):
@@ -376,6 +386,9 @@ class TestFmriLmControl:
             fmri_lm_control(
                 soft_subspace_options={"bad_kwarg": 1, "enabled": True}
             )
+
+    def test_threads_na_action(self):
+        assert fmri_lm_control(na_action="propagate").na_action == "propagate"
 
 
 class TestSoftSubspaceOptionsFactory:
