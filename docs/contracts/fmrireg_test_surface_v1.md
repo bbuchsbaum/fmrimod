@@ -72,7 +72,7 @@ Focused verification snapshot on 2026-05-12:
 | `test-nystrom-weights.R` | ported | `tests/test_lowrank/test_nystrom.py` | Landmark weight sparsity and row-sum behavior are covered. |
 | `test-plugin-api.R` | partial | `tests/design/test_extension_registry.py`, `tests/test_glm/test_engine.py`, `tests/test_lowrank/test_engine.py` | Registry/engine hooks are covered for accepted Python extension points; R plugin S3 dispatch is not literal. |
 | `test-preprocessing.R` | ported | `tests/test_glm/test_preprocess.py` | DVARS, volume weights, censoring, and soft-subspace preprocessing are covered. |
-| `test-rrr-gls-engine.R` | partial | `tests/test_lowrank/test_engine.py`, `cross_testing/core_parity_matrix.py` | Python low-rank/sketch engine coverage exists; exact RRR GLS diagnostics/bootstrap are not all public Python contracts. |
+| `test-rrr-gls-engine.R` | partial | `tests/test_lowrank/test_rrr.py`, `tests/test_glm/test_rrr_engine.py`, `cross_testing/core_parity_matrix.py` | Native reduced-rank solving, `rrr_gls` aliasing, event-target nuisance handling, and seeded bootstrap SEs are covered; exact R RRR diagnostic payload parity remains optional parity-harness scope. |
 | `test-rrr-parity-matrix.R` | partial | `cross_testing/core_parity_matrix.py`, `cross_testing/benchmark_core_parity_matrix.py` | The parity matrix harness covers the supported benchmark view. |
 | `test-spatial_fdr.R` | ported | `tests/test_stats/test_spatial_fdr.py`, `tests/test_stats/test_group_fit_corrections.py` | Spatial FDR, smoothing, input validation, and grouped correction behavior are covered. |
 | `test-srht-plan.R` | ported | `tests/test_lowrank/test_sketch.py` | SRHT dimensions and deterministic sketch behavior are covered. |

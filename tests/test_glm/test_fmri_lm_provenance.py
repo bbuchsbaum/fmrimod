@@ -17,7 +17,7 @@ import pytest
 import fmrimod as fm
 from fmrimod.dataset import FmriDataset
 from fmrimod.dataset.adapters.numpy_adapter import NumpyAdapter
-from fmrimod.glm import SketchEngineOptions
+from fmrimod.glm import ReducedRankEngineOptions, SketchEngineOptions
 from fmrimod.glm.fmri_lm import (
     CompleteFitProvenance,
     FitProvenance,
@@ -325,6 +325,31 @@ def test_fit_provenance_marks_unseeded_sketch_engine_unknown() -> None:
     assert fit.provenance.solver_path == "SketchEngine"
     assert fit.provenance.seed is None
     assert fit.provenance.seed_status == "unknown"
+
+
+def test_fit_provenance_records_reduced_rank_bootstrap_seed() -> None:
+    rng = np.random.default_rng(31)
+    ds = fm.fmri_dataset(
+        rng.standard_normal((60, 4)).astype(np.float64),
+        tr=2.0,
+        events=_events(),
+    )
+
+    fit = fm.fmri_lm(
+        hrf_term("trial_type"),
+        ds,
+        engine=ReducedRankEngineOptions(
+            rank=1,
+            se_mode="bootstrap",
+            bootstrap_n=3,
+            bootstrap_seed=91,
+        ),
+    )
+
+    assert fit.provenance is not None
+    assert fit.provenance.solver_path == "ReducedRankEngine"
+    assert fit.provenance.seed == 91
+    assert fit.provenance.seed_status == "randomized"
 
 
 def test_fit_provenance_carries_json_safe_ar_config_snapshot() -> None:

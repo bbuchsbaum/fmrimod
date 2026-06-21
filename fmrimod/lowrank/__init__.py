@@ -11,10 +11,12 @@ from .nystrom import (
     extend_betas,
     select_landmarks,
 )
-from .sketch import SketchKind, make_sketch, sketch_data
+from .rrr import ReducedRankConfig, ReducedRankResult, fit_reduced_rank
+from .sketch import SketchKind, make_sketch, normalize_sketch_kind, sketch_data
 
 __all__ = [
     "SketchKind",
+    "normalize_sketch_kind",
     "make_sketch",
     "sketch_data",
     "LandmarkWeights",
@@ -23,4 +25,7 @@ __all__ = [
     "select_landmarks",
     "LowRankConfig",
     "fit_sketched",
+    "ReducedRankConfig",
+    "ReducedRankResult",
+    "fit_reduced_rank",
 ]

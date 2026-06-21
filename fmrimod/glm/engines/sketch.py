@@ -43,6 +43,7 @@ class SketchEngine:
         *,
         sketch_kind: str = "gaussian",
         sketch_ratio: float = 0.5,
+        sketch_size: Optional[int] = None,
         use_landmarks: bool = False,
         n_landmarks: int = 500,
         landmark_k: int = 6,
@@ -50,11 +51,24 @@ class SketchEngine:
         ridge: float = 0.0,
         seed: Optional[int] = None,
         coords: Optional[NDArray[np.float64]] = None,
+        method: Optional[str] = None,
+        m: Optional[int] = None,
+        iters: int = 0,
         **kwargs: object,
     ) -> EngineResult:
+        if method is not None:
+            sketch_kind = method
+        if m is not None:
+            sketch_size = int(m)
+        if iters not in (0, None):
+            raise NotImplementedError(
+                "SketchEngine supports one-shot temporal sketching; "
+                "iterative sketch refinements (iters > 0) are not implemented."
+            )
         lr_config = LowRankConfig(
             sketch_kind=sketch_kind,
             sketch_ratio=sketch_ratio,
+            sketch_size=sketch_size,
             use_landmarks=use_landmarks,
             n_landmarks=n_landmarks,
             landmark_k=landmark_k,

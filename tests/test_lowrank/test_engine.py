@@ -46,7 +46,7 @@ class TestFitSketched:
 
     def test_no_sketch_when_ratio_1(self, rng):
         """sketch_ratio=1.0 should give exact OLS."""
-        n, p, V = 100, 3, 5
+        n, V = 100, 5
         X = np.column_stack([np.ones(n), rng.standard_normal((n, 2))])
         true_B = np.array([[1.0], [2.0], [-1.0]]) * np.ones((1, V))
         Y = X @ true_B
@@ -72,6 +72,25 @@ class TestFitSketched:
         np.testing.assert_allclose(got.sigma2, ref.sigma2, atol=1e-12)
         assert got.dfres == ref.dfres
         assert got.rank == ref.rank
+
+    def test_exact_sketch_size_matches_equivalent_ratio(self, rng):
+        n, p, V = 160, 5, 11
+        X = np.column_stack([np.ones(n), rng.standard_normal((n, p - 1))])
+        Y = rng.standard_normal((n, V))
+
+        by_size = fit_sketched(
+            X,
+            Y,
+            LowRankConfig(sketch_kind="srht", sketch_size=80, sketch_ratio=1.0, seed=8),
+        )
+        by_ratio = fit_sketched(
+            X,
+            Y,
+            LowRankConfig(sketch_kind="srht", sketch_ratio=0.5, seed=8),
+        )
+
+        np.testing.assert_allclose(by_size.betas, by_ratio.betas, atol=0.0, rtol=0.0)
+        np.testing.assert_allclose(by_size.rss, by_ratio.rss, atol=0.0, rtol=0.0)
 
     def test_ridge_penalty(self, rng):
         n, p, V = 100, 3, 5

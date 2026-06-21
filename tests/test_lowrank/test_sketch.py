@@ -6,6 +6,7 @@ import pytest
 from fmrimod.lowrank.sketch import (
     SketchKind,
     make_sketch,
+    normalize_sketch_kind,
     sketch_data,
     _next_power_of_two,
 )
@@ -42,6 +43,13 @@ class TestMakeSketch:
     def test_invalid_kind_raises(self, rng):
         with pytest.raises(ValueError):
             make_sketch(10, 5, kind="bogus", rng=rng)
+
+    def test_srht_aliases_normalize(self):
+        assert normalize_sketch_kind("hadamard") is SketchKind.SRHT
+        assert (
+            normalize_sketch_kind("subsampled-randomized-hadamard")
+            is SketchKind.SRHT
+        )
 
 
 class TestSketchPreservation:

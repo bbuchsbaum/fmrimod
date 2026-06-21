@@ -283,11 +283,16 @@ def _seed_provenance(
 ) -> tuple[Optional[int], SeedStatus]:
     """Recover seed provenance from the resolved engine invocation."""
     seed = fit_kwargs.get("seed")
+    if seed is None:
+        seed = fit_kwargs.get("bootstrap_seed")
     if seed is not None:
         return int(cast(Any, seed)), "randomized"
 
     if getattr(engine, "name", None) == "sketch":
         return None, "unknown"
+    if getattr(engine, "name", None) == "reduced_rank":
+        if fit_kwargs.get("se_mode") == "bootstrap":
+            return None, "unknown"
 
     return None, "not_randomized"
 
@@ -1106,8 +1111,9 @@ def fmri_lm(
         Typed engine options object. Built-ins are
         :class:`~fmrimod.glm.engine.RunwiseEngineOptions`,
         :class:`~fmrimod.glm.engine.ChunkwiseEngineOptions`, and
-        :class:`~fmrimod.glm.engine.SketchEngineOptions`. Legacy string engine
-        names remain accepted for compatibility.
+        :class:`~fmrimod.glm.engine.SketchEngineOptions`, and
+        :class:`~fmrimod.glm.engine.ReducedRankEngineOptions`. Legacy string
+        engine names remain accepted for compatibility.
     **engine_kwargs
         Legacy keyword bag forwarded to the engine's ``fit()`` method when
         ``engine`` is a string. Do not mix with typed engine options.

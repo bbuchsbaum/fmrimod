@@ -26,6 +26,24 @@ class SketchKind(str, Enum):
     COUNTSKETCH = "countsketch"
 
 
+_SKETCH_KIND_ALIASES = {
+    "normal": "gaussian",
+    "hadamard": "srht",
+    "subsampled_hadamard": "srht",
+    "subsampled_randomized_hadamard": "srht",
+    "count": "countsketch",
+    "count_sketch": "countsketch",
+}
+
+
+def normalize_sketch_kind(kind: Union[str, SketchKind]) -> SketchKind:
+    """Normalize sketch kind names and accepted compatibility aliases."""
+    if isinstance(kind, SketchKind):
+        return kind
+    key = str(kind).lower().replace("-", "_")
+    return SketchKind(_SKETCH_KIND_ALIASES.get(key, key))
+
+
 def make_sketch(
     n: int,
     k: int,
@@ -50,9 +68,13 @@ def make_sketch(
     NDArray, shape ``(k, n)``
         The sketch matrix.
     """
+    if n < 1:
+        raise ValueError("n must be a positive integer")
+    if k < 1:
+        raise ValueError("k must be a positive integer")
     if rng is None:
         rng = np.random.default_rng()
-    kind = SketchKind(kind)
+    kind = normalize_sketch_kind(kind)
 
     if kind is SketchKind.GAUSSIAN:
         return _gaussian_sketch(n, k, rng)

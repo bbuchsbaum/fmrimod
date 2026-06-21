@@ -36,6 +36,7 @@ from typing import (
     Mapping,
     Optional,
     Protocol,
+    Sequence,
     Union,
     cast,
     runtime_checkable,
@@ -51,11 +52,23 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-EngineName = Literal["runwise", "chunkwise", "sketch"]
+EngineName = Literal[
+    "runwise",
+    "chunkwise",
+    "concat",
+    "sketch",
+    "reduced_rank",
+    "rrr_gls",
+]
 SketchKindName = Literal["gaussian", "srht", "countsketch"]
 LandmarkMethodName = Literal["kmeans", "random"]
+ReducedRankModeName = Literal["fixed", "energy", "rss_budget"]
+ReducedRankSEModeName = Literal["conditional", "bootstrap"]
+ReducedRankTargetName = Literal["event", "all"]
 
-_BUILTIN_ENGINE_NAMES: frozenset[str] = frozenset(("runwise", "chunkwise", "sketch"))
+_BUILTIN_ENGINE_NAMES: frozenset[str] = frozenset(
+    ("runwise", "chunkwise", "concat", "sketch", "reduced_rank", "rrr_gls")
+)
 
 
 def _normalize_engine_name(name: str) -> EngineName:
@@ -142,6 +155,7 @@ class SketchEngineOptions:
 
     sketch_kind: SketchKindName = "gaussian"
     sketch_ratio: float = 0.5
+    sketch_size: Optional[int] = None
     use_landmarks: bool = False
     n_landmarks: int = 500
     landmark_k: int = 6
@@ -156,6 +170,7 @@ class SketchEngineOptions:
             raise ValueError("sketch_kind must be 'gaussian', 'srht', or 'countsketch'")
         if not (0.0 < float(self.sketch_ratio) <= 1.0):
             raise ValueError("sketch_ratio must be in (0, 1]")
+        _validate_optional_positive_int(self.sketch_size, name="sketch_size")
         _validate_positive_int(self.n_landmarks, name="n_landmarks")
         _validate_positive_int(self.landmark_k, name="landmark_k")
         if self.landmark_method not in ("kmeans", "random"):
@@ -177,6 +192,7 @@ class SketchEngineOptions:
         kwargs: Dict[str, object] = {
             "sketch_kind": self.sketch_kind,
             "sketch_ratio": self.sketch_ratio,
+            "sketch_size": self.sketch_size,
             "use_landmarks": self.use_landmarks,
             "n_landmarks": self.n_landmarks,
             "landmark_k": self.landmark_k,
@@ -189,10 +205,74 @@ class SketchEngineOptions:
         return kwargs
 
 
+@dataclass(frozen=True)
+class ReducedRankEngineOptions:
+    """Typed options for the reduced-rank GLM engine."""
+
+    rank: Optional[int] = None
+    rank_mode: ReducedRankModeName = "fixed"
+    energy_keep: float = 0.99
+    rss_budget: Optional[float] = None
+    ridge: float = 0.0
+    se_mode: ReducedRankSEModeName = "conditional"
+    bootstrap_n: int = 200
+    bootstrap_block_size: int = 1
+    bootstrap_seed: Optional[int] = None
+    target: ReducedRankTargetName = "event"
+    target_columns: Optional[Sequence[int | str]] = None
+    name: Literal["reduced_rank"] = field(default="reduced_rank", init=False)
+
+    def __post_init__(self) -> None:
+        _validate_optional_positive_int(self.rank, name="rank")
+        if self.rank_mode not in ("fixed", "energy", "rss_budget"):
+            raise ValueError("rank_mode must be 'fixed', 'energy', or 'rss_budget'")
+        if not (0.0 < float(self.energy_keep) <= 1.0):
+            raise ValueError("energy_keep must be in (0, 1]")
+        if self.rank_mode == "rss_budget" and self.rss_budget is None:
+            raise ValueError("rss_budget is required when rank_mode='rss_budget'")
+        if self.rss_budget is not None and float(self.rss_budget) < 0:
+            raise ValueError("rss_budget must be non-negative")
+        if self.ridge < 0:
+            raise ValueError("ridge must be >= 0")
+        if self.se_mode not in ("conditional", "bootstrap"):
+            raise ValueError("se_mode must be 'conditional' or 'bootstrap'")
+        _validate_positive_int(self.bootstrap_n, name="bootstrap_n")
+        if self.se_mode == "bootstrap" and self.bootstrap_n < 2:
+            raise ValueError("bootstrap_n must be at least 2 when se_mode='bootstrap'")
+        _validate_positive_int(self.bootstrap_block_size, name="bootstrap_block_size")
+        if self.bootstrap_seed is not None and (
+            isinstance(self.bootstrap_seed, bool)
+            or not isinstance(self.bootstrap_seed, int)
+        ):
+            raise ValueError("bootstrap_seed must be an integer or None")
+        if self.target not in ("event", "all"):
+            raise ValueError("target must be 'event' or 'all'")
+        if self.target_columns is not None:
+            for value in self.target_columns:
+                if not isinstance(value, (int, str)) or isinstance(value, bool):
+                    raise ValueError("target_columns must contain integers or strings")
+
+    def fit_kwargs(self) -> Dict[str, object]:
+        return {
+            "rank": self.rank,
+            "rank_mode": self.rank_mode,
+            "energy_keep": self.energy_keep,
+            "rss_budget": self.rss_budget,
+            "ridge": self.ridge,
+            "se_mode": self.se_mode,
+            "bootstrap_n": self.bootstrap_n,
+            "bootstrap_block_size": self.bootstrap_block_size,
+            "bootstrap_seed": self.bootstrap_seed,
+            "target": self.target,
+            "target_columns": self.target_columns,
+        }
+
+
 EngineOptions = Union[
     RunwiseEngineOptions,
     ChunkwiseEngineOptions,
     SketchEngineOptions,
+    ReducedRankEngineOptions,
 ]
 EngineSelector = Union[EngineName, str, EngineOptions]
 DEFAULT_ENGINE_OPTIONS = RunwiseEngineOptions()

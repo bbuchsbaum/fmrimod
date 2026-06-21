@@ -34,6 +34,9 @@ class LowRankConfig:
     sketch_ratio : float
         Fraction of rows to keep when sketching temporally.
         E.g. ``0.5`` halves the time dimension.
+    sketch_size : int or None
+        Exact temporal sketch size. When provided, this takes precedence over
+        ``sketch_ratio``.
     use_landmarks : bool
         Whether to use Nyström landmark extension for spatial
         dimension reduction.
@@ -51,6 +54,7 @@ class LowRankConfig:
 
     sketch_kind: str = "gaussian"
     sketch_ratio: float = 0.5
+    sketch_size: Optional[int] = None
     use_landmarks: bool = False
     n_landmarks: int = 500
     landmark_k: int = 6
@@ -114,7 +118,15 @@ def fit_sketched(
         Y_solve = Y
 
     # -- Temporal sketching --
-    k = max(p + 1, int(n * config.sketch_ratio))
+    if config.sketch_size is not None:
+        if isinstance(config.sketch_size, bool) or config.sketch_size < 1:
+            raise ValueError("sketch_size must be a positive integer or None")
+        k = int(config.sketch_size)
+    else:
+        if not (0.0 < float(config.sketch_ratio) <= 1.0):
+            raise ValueError("sketch_ratio must be in (0, 1]")
+        k = int(n * config.sketch_ratio)
+    k = max(p + 1, k)
     k = min(k, n)  # can't sketch to more rows than we have
 
     if k < n:
