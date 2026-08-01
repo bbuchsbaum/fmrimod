@@ -46,8 +46,15 @@ def test_injection_column_is_the_typed_semantic_resolution() -> None:
     spec = _spec()
     on = condition("face", term="condition")
     ds = dataset_with_effect(
-        spec, _events(), on=on, effect=2.0, sampling_frame=sf,
-        n_signal=5, n_voxels=10, noise=0.3, seed=202,
+        spec,
+        _events(),
+        on=on,
+        effect=2.0,
+        sampling_frame=sf,
+        n_signal=5,
+        n_voxels=10,
+        noise=0.3,
+        seed=202,
     )
     fit = fm.fmri_lm(spec, ds)
 
@@ -66,19 +73,35 @@ def test_known_effect_recovered_by_the_lesson_contrast() -> None:
     sf = fm.SamplingFrame(blocklens=130, TR=1.0)
     spec = _spec()
     ds = dataset_with_effect(
-        spec, _events(), on=condition("face", term="condition"),
-        effect=2.0, sampling_frame=sf, n_signal=5, n_voxels=10,
-        noise=0.3, seed=202,
+        spec,
+        _events(),
+        on=condition("face", term="condition"),
+        effect=2.0,
+        sampling_frame=sf,
+        n_signal=5,
+        n_voxels=10,
+        noise=0.3,
+        seed=202,
     )
     fit = fm.fmri_lm(spec, ds)
     con = fit.contrast(
-        condition("face", term="condition")
-        - condition("scene", term="condition"),
+        condition("face", term="condition") - condition("scene", term="condition"),
         name="face_minus_scene",
     )
     est = np.asarray(con.estimate).ravel()
+    tstat = np.asarray(con.stat).ravel()
     assert est[:5].mean() == pytest.approx(2.0, abs=0.2), est[:5].mean()
-    assert abs(est[5:].mean()) < 0.2, est[5:].mean()
+
+    # The null voxels are checked on the t-scale, which is invariant to the
+    # amplitude of the design column. An absolute beta bound is not: epoch
+    # regressors are now the integral over the block rather than a bare
+    # microtime sample count, so the column is ~3x smaller at the default
+    # precision and a fixed additive noise level yields correspondingly
+    # larger betas. The cheap-pass disqualifier survives either way -- if the
+    # effect were injected on the wrong column the null voxels would carry
+    # the full effect (t ~ 9, as the signal voxels do below).
+    assert np.abs(tstat[5:]).max() < 3.0, tstat[5:]
+    assert tstat[:5].min() > 5.0, tstat[:5]
 
 
 def test_unresolvable_level_raises_not_silent() -> None:
@@ -90,9 +113,11 @@ def test_unresolvable_level_raises_not_silent() -> None:
     sf = fm.SamplingFrame(blocklens=130, TR=1.0)
     with pytest.raises((ValueError, Exception)):
         dataset_with_effect(
-            _spec(), _events(),
+            _spec(),
+            _events(),
             on=condition("does_not_exist", term="condition"),
-            effect=1.0, sampling_frame=sf,
+            effect=1.0,
+            sampling_frame=sf,
         )
 
 
@@ -102,7 +127,11 @@ def test_requires_typed_condition_not_raw_string() -> None:
     sf = fm.SamplingFrame(blocklens=130, TR=1.0)
     with pytest.raises(TypeError):
         dataset_with_effect(
-            _spec(), _events(), on="face", effect=1.0, sampling_frame=sf,
+            _spec(),
+            _events(),
+            on="face",
+            effect=1.0,
+            sampling_frame=sf,
         )
 
 

@@ -723,7 +723,7 @@
       "name": "baseline_model",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.baseline.baseline_model",
-      "runtime_signature": "(basis: 'BaselineBasis' = 'constant', degree: 'int' = 1, sframe: 'SamplingInfo | None' = None, intercept: 'BaselineIntercept' = 'runwise', nuisance_list: 'Sequence[Array | pd.DataFrame] | None' = None, nuisance_check: 'NuisanceCheckMode' = 'warn') -> 'BaselineModel'",
+      "runtime_signature": "(basis: 'BaselineBasis' = 'constant', degree: 'int' = 1, sframe: 'SamplingInfo | None' = None, intercept: 'BaselineIntercept' = 'runwise', nuisance_list: 'Sequence[Array | pd.DataFrame] | None' = None, nuisance_check: 'NuisanceCheckMode' = 'warn', na_action: 'NuisanceNAAction' = 'drop') -> 'BaselineModel'",
       "signature_source": "inspect.signature",
       "tier": "spine",
       "used_by_public_seam_artifact": "release_1_0_api_spine"
@@ -783,7 +783,7 @@
       "name": "check_nuisance",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.baseline.baseline_model",
-      "runtime_signature": "(nuisance_list: 'Sequence[Array | pd.DataFrame]', sframe: 'SamplingInfo', basis: 'BaselineBasis' = 'constant', degree: 'int' = 1, intercept: 'BaselineIntercept' = 'runwise', tol: 'Optional[float]' = None, duplicate_threshold: 'Optional[float]' = None) -> 'NuisanceCheck'",
+      "runtime_signature": "(nuisance_list: 'Sequence[Array | pd.DataFrame]', sframe: 'SamplingInfo', basis: 'BaselineBasis' = 'constant', degree: 'int' = 1, intercept: 'BaselineIntercept' = 'runwise', tol: 'Optional[float]' = None, duplicate_threshold: 'Optional[float]' = None, na_action: 'NuisanceNAAction' = 'drop') -> 'NuisanceCheck'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -798,7 +798,7 @@
       "name": "clean_nuisance",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.baseline.baseline_model",
-      "runtime_signature": "(nuisance_list: 'Sequence[Array | pd.DataFrame]', sframe: 'SamplingInfo', basis: 'BaselineBasis' = 'constant', degree: 'int' = 1, intercept: 'BaselineIntercept' = 'runwise', tol: 'Optional[float]' = None, duplicate_threshold: 'Optional[float]' = None) -> 'CleanedNuisance'",
+      "runtime_signature": "(nuisance_list: 'Sequence[Array | pd.DataFrame]', sframe: 'SamplingInfo', basis: 'BaselineBasis' = 'constant', degree: 'int' = 1, intercept: 'BaselineIntercept' = 'runwise', tol: 'Optional[float]' = None, duplicate_threshold: 'Optional[float]' = None, na_action: 'NuisanceNAAction' = 'drop') -> 'CleanedNuisance'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -1278,7 +1278,7 @@
       "name": "event_model",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.design.event_model",
-      "runtime_signature": "(formula: 'Union[str, List[Term], EventModelBuilder]', data: 'Optional[pd.DataFrame]' = None, block: 'Optional[Union[str, Array]]' = None, sampling_frame: 'Any' = None, durations: 'Optional[Union[str, float, Array]]' = None, drop_empty: 'bool' = True, precision: 'Optional[float]' = None, events: 'Optional[Dict[str, EventProtocol]]' = None, sampling_info: 'Any' = None, tr: 'Optional[float]' = None, n_scans: 'Optional[int]' = None, sampling_rate: 'Optional[float]' = None, **kwargs: 'object') -> 'EventModel'",
+      "runtime_signature": "(formula: 'Union[str, List[Term], EventModelBuilder]', data: 'Optional[pd.DataFrame]' = None, block: 'Optional[Union[str, Array]]' = None, sampling_frame: 'Any' = None, durations: 'Optional[Union[str, float, Array]]' = None, drop_empty: 'bool' = True, precision: 'Optional[float]' = None, strict: 'bool' = False, events: 'Optional[Dict[str, EventProtocol]]' = None, sampling_info: 'Any' = None, tr: 'Optional[float]' = None, n_scans: 'Optional[int]' = None, sampling_rate: 'Optional[float]' = None, **kwargs: 'object') -> 'EventModel'",
       "signature_source": "inspect.signature",
       "tier": "spine_review",
       "used_by_public_seam_artifact": "release_1_0_api_spine"

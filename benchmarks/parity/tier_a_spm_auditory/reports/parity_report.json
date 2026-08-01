@@ -3,8 +3,8 @@
   "column_alignment": [],
   "contrast_receipt": {
     "intent": {
-      "basis_label": "hrf_norm:spm",
-      "design_id": "design:sha256:ca73787dc0d03501",
+      "basis_label": "hrf_norm:unit_integral",
+      "design_id": "design:sha256:c35e52650fcf76b2",
       "kind": "semantic_contrast",
       "levels": [
         "listening"
@@ -16,7 +16,7 @@
         "level": "listening",
         "term": "trial_type"
       },
-      "provenance_id": "fitprov:sha256:e3c4644d7f0b5e3f",
+      "provenance_id": "fitprov:sha256:9e6ee041d54a190e",
       "rows": 1,
       "term": "trial_type",
       "weights": [
@@ -41,18 +41,18 @@
     "design_listening": {
       "failed_gates": [],
       "gate": "pearson+spearman+max_abs",
-      "mae": 0.0045721870793248775,
-      "max_abs": 0.03169997302289951,
+      "mae": 0.00449517830737776,
+      "max_abs": 0.029647392397638916,
       "name": "design_listening",
       "passes": true,
-      "pearson_r": 0.999800136961627,
+      "pearson_r": 0.9998023155342706,
       "rank_candidate": 1,
       "rank_reference": 1,
       "scale": 1.0,
       "shape": [
         84
       ],
-      "spearman_rho": 0.9902576146036142,
+      "spearman_rho": 0.9892603187193298,
       "tolerance": {
         "allow_rescale": false,
         "atol": 1e-09,
@@ -67,18 +67,18 @@
     "effect_listening": {
       "failed_gates": [],
       "gate": "pearson+spearman+mae",
-      "mae": 0.0837299087717967,
-      "max_abs": 1.0484602856562728,
+      "mae": 0.08218797825061688,
+      "max_abs": 1.0085442424496835,
       "name": "effect_listening",
       "passes": true,
-      "pearson_r": 0.9998909082019684,
+      "pearson_r": 0.9998931312554595,
       "rank_candidate": 1,
       "rank_reference": 1,
       "scale": 1.0,
       "shape": [
         2048
       ],
-      "spearman_rho": 0.9997886223214562,
+      "spearman_rho": 0.9997933818466084,
       "tolerance": {
         "allow_rescale": false,
         "atol": 1e-09,
@@ -93,18 +93,18 @@
     "t_listening": {
       "failed_gates": [],
       "gate": "pearson+spearman+mae",
-      "mae": 0.016173542161386088,
-      "max_abs": 0.0828249947763604,
+      "mae": 0.01609314097509914,
+      "max_abs": 0.0801788194648454,
       "name": "t_listening",
       "passes": true,
-      "pearson_r": 0.9998577522766803,
+      "pearson_r": 0.9998595780112824,
       "rank_candidate": 1,
       "rank_reference": 1,
       "scale": 1.0,
       "shape": [
         2048
       ],
-      "spearman_rho": 0.9998286501095952,
+      "spearman_rho": 0.9998307805104925,
       "tolerance": {
         "allow_rescale": false,
         "atol": 1e-09,
@@ -139,7 +139,7 @@
     "design_source_status": "carried",
     "fmrimod_version": "0.1.0",
     "hrf_norm_modes": [
-      "spm"
+      "unit_integral"
     ],
     "mask_mode": "volume",
     "mask_status": "carried",
@@ -151,11 +151,11 @@
   "name": "tier_a_spm_auditory",
   "status": "pass",
   "timings": {
-    "seconds": 0.05096504099856247,
+    "seconds": 0.10237520800728817,
     "stages": {
-      "contrast_seconds": 0.0028718749999825377,
-      "dataset_seconds": 0.01047383300101501,
-      "fit_seconds": 0.037619332997564925
+      "contrast_seconds": 0.004431125009432435,
+      "dataset_seconds": 0.024511083000106737,
+      "fit_seconds": 0.073432999997749
     },
     "status": "recorded"
   }

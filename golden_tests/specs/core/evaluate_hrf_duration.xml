@@ -2,8 +2,8 @@
 <golden_test xmlns="http://golden-tests.org/schema">
   <metadata>
     <id>evaluate_hrf_duration</id>
-    <version>1.0</version>
-    <description>HRF evaluation with duration-based convolution mechanics and summate vs max modes</description>
+    <version>2.0</version>
+    <description>HRF evaluation with duration-based block quadrature and summate (accumulated vs duration-averaged) modes</description>
     <tags>
       <tag>core</tag>
       <tag>hrf</tag>
@@ -12,72 +12,122 @@
       <tag>convolution</tag>
       <tag>summate</tag>
       <tag>block</tag>
+      <tag>quadrature</tag>
     </tags>
   </metadata>
-  
+
+  <revision_history>
+    <revision version="2.0">
+      Corrected three defects that version 1.0 encoded as the contract. 1.0
+      specified (a) an impulse/block branch keyed to `duration &lt; precision`,
+      (b) an *unweighted* sum over temporal offsets, and (c) `summate=FALSE`
+      as a pointwise maximum. (a) let a numerical setting decide which model
+      was evaluated; (b) made block amplitude scale as `1/precision` rather
+      than converge; (c) never matched the R reference at any point in its
+      history. A corrected implementation would have failed this spec and the
+      defective one passed it. See fmrihrf#45 and fmrimod#7, #9, #15.
+      Expected values regenerated from fmrihrf 0.4.0.
+    </revision>
+  </revision_history>
+
   <semantic_description>
-    <purpose>Validate complex HRF evaluation with duration-based convolution mechanics, temporal integration, and the critical distinction between summate vs max evaluation modes for block designs</purpose>
+    <purpose>Validate HRF evaluation with duration-based block quadrature, temporal integration, and the distinction between accumulated (summate=TRUE) and duration-averaged (summate=FALSE) evaluation for block designs</purpose>
     <algorithm>
       The evaluate() method for HRF objects supports both point evaluation and duration-based block evaluation:
-      
-      **Point Evaluation (duration &lt; precision):**
+
+      **Point Evaluation (duration &lt;= 0):**
       - Simple function evaluation: amplitude * hrf(grid)
-      - Direct mapping from time points to HRF values
-      - No temporal integration required
-      
-      **Block Evaluation (duration ≥ precision):**
-      1. Create temporal offsets: offs = seq(0, duration, by=precision)
+      - An impulse of unit mass, so the response is the HRF itself and carries
+        the units of the HRF.
+      - The branch is on `duration` ALONE. It must NOT be keyed to `precision`:
+        `precision` is a numerical accuracy setting and may not decide which
+        model is evaluated. Durations smaller than `precision` are integrated
+        as blocks, which the quadrature handles correctly.
+
+      **Block Evaluation (duration &gt; 0):**
+      1. Build quadrature offsets and weights over [0, duration]:
+         offs = seq(0, duration, by=precision), extended to include `duration`
+         itself when the last step falls short. Weights are the trapezoid rule
+         over those offsets, so sum(weights) == duration exactly.
       2. Evaluate HRF at shifted time points for each offset:
          hlist = [hrf(grid - o) for o in offs]
-      3. Apply combination rule based on summate parameter:
-         - summate=TRUE: Sum responses (Reduce("+", hlist))
-         - summate=FALSE: Take maximum response (apply(hmat, 1, max))
-      
+      3. Combine as a WEIGHTED sum: res = sum_j weights[j] * hlist[j].
+         This is the integral `amplitude * integral_0^duration h(t - u) du`,
+         and it converges as `precision` decreases. An unweighted sum is a
+         bare sample count that grows as `1/precision`.
+      4. Apply the combination rule based on summate:
+         - summate=TRUE: keep the accumulated integral (peak grows with duration)
+         - summate=FALSE: divide by sum(weights) (== duration), giving the
+           duration-averaged, unit-mass response. The temporal profile is
+           preserved, peak amplitude does not grow with duration, and the
+           value approaches the impulse response as duration approaches 0.
+           This is NOT a pointwise maximum.
+
       **Multi-basis HRF Handling:**
-      - Single-basis: Returns vectors, combined into matrix for duration processing
-      - Multi-basis: Returns matrices, combined element-wise
-      - summate=FALSE with multi-basis: Forces summate=TRUE with warning
-      
+      - Single-basis: Returns vectors, combined by weights into a vector
+      - Multi-basis: Returns matrices, combined element-wise by the same weights
+      - summate=FALSE applies the same divisor to every basis column
+
       **Critical Parameters:**
       - amplitude: Scaling factor applied to all evaluations
       - duration: Block width triggering temporal integration
-      - precision: Temporal resolution for duration sampling
-      - summate: Integration mode (sum vs max within duration window)
+      - precision: Quadrature step. Controls numerical accuracy ONLY.
+      - summate: Accumulated integral (TRUE) vs duration-averaged (FALSE)
       - normalize: Post-processing peak normalization
     </algorithm>
     <mathematical_properties>
       **Temporal Integration Properties:**
       - Point evaluation: h(t) = amplitude * HRF(t)
-      - Block evaluation (summate): h(t) = amplitude * Σ HRF(t - δ) for δ ∈ [0, duration]
-      - Block evaluation (max): h(t) = amplitude * max(HRF(t - δ)) for δ ∈ [0, duration]
-      
-      **Summation vs Maximum:**
-      - Summate=TRUE: Models accumulating neural activity over duration
-      - Summate=FALSE: Models peak response within duration window
-      - Different biological interpretations and mathematical properties
-      
+      - Block, summate=TRUE:  h(t) = amplitude * integral_0^duration HRF(t - u) du
+      - Block, summate=FALSE: h(t) = that integral / duration
+
+      **Accumulated vs duration-averaged:**
+      - summate=TRUE models accumulating neural activity over the block; peak
+        grows with duration.
+      - summate=FALSE preserves the temporal profile at unit mass; peak does
+        not grow with duration.
+      - Therefore max(summate=TRUE) / max(summate=FALSE) == duration EXACTLY,
+        for any precision. This ratio is the sharpest available check that the
+        quadrature weights are correct: an unweighted sum gives
+        duration/precision instead, and a pointwise maximum gives neither.
+
+      **Convergence (the defining property of a quadrature):**
+      - The block response must CONVERGE as precision decreases, not diverge.
+        max(duration=3) is 4.8648 / 4.8806 / 4.8828 / 4.8834 at precision
+        0.5 / 0.2 / 0.1 / 0.05.
+      - The limit is the true integral. A `1/precision` factor anywhere in the
+        block path shows up here as divergence.
+
+      **Small-duration limits:**
+      - summate=TRUE: a block of duration d carries mass d, so
+        max(block(d)) / (d * max(impulse)) -> 1 as d -> 0.
+      - summate=FALSE: block(d) -> impulse as d -> 0.
+      - The only discontinuity is at exactly duration == 0, and it is real: it
+        is the impulse (unit mass) versus boxcar (mass = duration) distinction,
+        not an artifact of a numerical parameter.
+
       **Amplitude Scaling:**
       - Applied before duration processing: amplitude * HRF(t)
-      - Preserves linearity for summate=TRUE
-      - Affects peak detection for summate=FALSE
-      
+      - Preserves linearity for both summate modes (the divisor is independent
+        of amplitude)
+
       **Normalization (post-processing):**
       - Single-basis: out / max(abs(out))
       - Multi-basis: column-wise normalization by peak absolute value
       - Applied after all other processing steps
     </mathematical_properties>
     <edge_cases>
-      - duration &lt; precision: Should use point evaluation
-      - duration = 0: Should use point evaluation
+      - duration = 0: Point evaluation (impulse of unit mass)
+      - duration &lt; precision: Block evaluation, NOT point evaluation. The
+        quadrature degenerates to the two endpoints and stays correct.
       - Very large duration: Should handle many temporal offsets
       - amplitude = 0: Should return zeros
       - negative amplitude: Should handle signed scaling
-      - Multi-basis with summate=FALSE: Should warn and use summate=TRUE
       - Empty grid: Should handle gracefully
       - Single time point: Should work with duration
     </edge_cases>
   </semantic_description>
-  
+
   <inputs>
     <input name="time_grid" type="numeric_vector">
       <description>Standard time grid for evaluation</description>
@@ -104,7 +154,7 @@
       <value>c(0.1, 0.2, 0.5)</value>
     </input>
   </inputs>
-  
+
   <expected_outputs>
     <numeric_checks>
       <!-- Basic point evaluation tests -->
@@ -114,14 +164,14 @@
         <expected>41</expected>
         <tolerance>0</tolerance>
       </check>
-      
+
       <check>
         <type>approximate</type>
         <location>evaluate(HRF_SPMG1, 6, amplitude = 1, duration = 0)</location>
         <expected>1.6054</expected>
         <tolerance>1e-4</tolerance>
       </check>
-      
+
       <!-- Amplitude scaling -->
       <check>
         <type>approximate</type>
@@ -129,76 +179,105 @@
         <expected>3.2109</expected>
         <tolerance>1e-4</tolerance>
       </check>
-      
+
       <check>
         <type>approximate</type>
         <location>evaluate(HRF_SPMG1, 6, amplitude = -1, duration = 0)</location>
         <expected>-1.6054</expected>
         <tolerance>1e-4</tolerance>
       </check>
-      
+
       <check>
         <type>exact_value</type>
         <location>evaluate(HRF_SPMG1, 6, amplitude = 0, duration = 0)</location>
         <expected>0</expected>
         <tolerance>1e-15</tolerance>
       </check>
-      
-      <!-- Duration vs point evaluation boundary -->
+
+      <!-- The impulse/block branch is keyed to duration ALONE. A duration
+           below `precision` is a block, and changing `precision` must not
+           change which model is evaluated. Pre-2.0 these two disagreed by
+           more than 5x. -->
       <check>
         <type>approximate</type>
-        <location>max(abs(evaluate(HRF_SPMG1, seq(0, 20, by = 0.5), duration = 0.05, precision = 0.1) - evaluate(HRF_SPMG1, seq(0, 20, by = 0.5), duration = 0)))</location>
-        <expected>0</expected>
-        <tolerance>1e-10</tolerance>
+        <location>max(evaluate(HRF_SPMG1, seq(0, 40, by = 0.1) - 10, duration = 0.19, precision = 0.2))</location>
+        <expected>0.33295</expected>
+        <tolerance>1e-3</tolerance>
       </check>
-      
-      <!-- Block evaluation with summate=TRUE -->
+
+      <check>
+        <type>approximate</type>
+        <location>max(evaluate(HRF_SPMG1, seq(0, 40, by = 0.1) - 10, duration = 0.19, precision = 0.05))</location>
+        <expected>0.33314</expected>
+        <tolerance>1e-3</tolerance>
+      </check>
+
+      <!-- Block evaluation with summate=TRUE (the integral over the block) -->
       <check>
         <type>range</type>
         <location>max(evaluate(HRF_SPMG1, seq(0, 20, by = 0.5), duration = 3, summate = TRUE))</location>
-        <min>25.0</min>
-        <max>26.0</max>
+        <min>4.85</min>
+        <max>4.91</max>
       </check>
-      
+
       <check>
         <type>range</type>
         <location>which.max(evaluate(HRF_SPMG1, seq(0, 20, by = 0.5), duration = 3, summate = TRUE))</location>
         <min>13</min>
         <max>15</max>
       </check>
-      
-      <!-- Block evaluation with summate=FALSE -->
+
+      <!-- Block evaluation with summate=FALSE (duration-averaged, NOT a max) -->
       <check>
         <type>range</type>
         <location>max(evaluate(HRF_SPMG1, seq(0, 20, by = 0.5), duration = 3, summate = FALSE))</location>
-        <min>1.7</min>
-        <max>1.8</max>
+        <min>1.60</min>
+        <max>1.65</max>
       </check>
-      
-      <!-- Summate vs max comparison: max should be smaller than sum -->
+
+      <!-- The sharpest quadrature check: the ratio is exactly `duration`.
+           An unweighted sum would give duration/precision (25 at precision
+           0.2); a pointwise maximum would give neither. -->
       <check>
-        <type>range</type>
+        <type>approximate</type>
         <location>max(evaluate(HRF_SPMG1, seq(0, 20, by = 0.5), duration = 5, summate = TRUE)) / max(evaluate(HRF_SPMG1, seq(0, 20, by = 0.5), duration = 5, summate = FALSE))</location>
-        <min>20</min>
-        <max>22</max>
+        <expected>5</expected>
+        <tolerance>1e-9</tolerance>
       </check>
-      
-      <!-- Precision effect on block evaluation -->
+
+      <check>
+        <type>approximate</type>
+        <location>max(evaluate(HRF_SPMG1, seq(0, 20, by = 0.5), duration = 2, summate = TRUE)) / max(evaluate(HRF_SPMG1, seq(0, 20, by = 0.5), duration = 2, summate = FALSE))</location>
+        <expected>2</expected>
+        <tolerance>1e-9</tolerance>
+      </check>
+
+      <!-- Precision changes the accuracy of the block response, not its
+           scale: the two must agree closely and converge. Pre-2.0 this
+           difference was ~16.8, because halving precision doubled the peak. -->
       <check>
         <type>range</type>
         <location>abs(max(evaluate(HRF_SPMG1, seq(0, 20, by = 0.5), duration = 2, precision = 0.1, summate = TRUE)) - max(evaluate(HRF_SPMG1, seq(0, 20, by = 0.5), duration = 2, precision = 0.2, summate = TRUE)))</location>
-        <min>16.0</min>
-        <max>17.5</max>
+        <min>0</min>
+        <max>0.01</max>
       </check>
-      
+
+      <!-- Convergence of the block peak as precision decreases -->
+      <check>
+        <type>approximate</type>
+        <location>max(evaluate(HRF_SPMG1, seq(0, 20, by = 0.5), duration = 3, precision = 0.05, summate = TRUE))</location>
+        <expected>4.8834</expected>
+        <tolerance>1e-3</tolerance>
+      </check>
+
       <!-- Duration scaling effect -->
       <check>
         <type>range</type>
         <location>max(evaluate(HRF_SPMG1, seq(0, 20, by = 0.5), duration = 6, summate = TRUE)) / max(evaluate(HRF_SPMG1, seq(0, 20, by = 0.5), duration = 3, summate = TRUE))</location>
-        <min>1.5</min>
-        <max>2.5</max>
+        <min>1.60</min>
+        <max>1.70</max>
       </check>
-      
+
       <!-- Multi-basis HRF evaluation -->
       <check>
         <type>exact_value</type>
@@ -206,14 +285,14 @@
         <expected>3</expected>
         <tolerance>0</tolerance>
       </check>
-      
+
       <check>
         <type>exact_value</type>
         <location>nrow(evaluate(HRF_SPMG3, seq(0, 20, by = 0.5), duration = 0))</location>
         <expected>41</expected>
         <tolerance>0</tolerance>
       </check>
-      
+
       <!-- Multi-basis with duration -->
       <check>
         <type>exact_value</type>
@@ -221,7 +300,7 @@
         <expected>3</expected>
         <tolerance>0</tolerance>
       </check>
-      
+
       <!-- Amplitude scaling with multi-basis -->
       <check>
         <type>approximate</type>
@@ -229,7 +308,7 @@
         <expected>0</expected>
         <tolerance>1e-15</tolerance>
       </check>
-      
+
       <!-- Normalization testing -->
       <check>
         <type>approximate</type>
@@ -237,14 +316,14 @@
         <expected>1</expected>
         <tolerance>1e-10</tolerance>
       </check>
-      
+
       <check>
         <type>approximate</type>
         <location>max(apply(abs(evaluate(HRF_SPMG3, seq(0, 20, by = 0.5), amplitude = 2.5, normalize = TRUE)), 2, max))</location>
         <expected>1</expected>
         <tolerance>1e-10</tolerance>
       </check>
-      
+
       <!-- Single time point evaluation -->
       <check>
         <type>exact_value</type>
@@ -252,22 +331,32 @@
         <expected>1</expected>
         <tolerance>0</tolerance>
       </check>
-      
+
       <check>
         <type>range</type>
         <location>evaluate(HRF_SPMG1, 6, duration = 3, summate = TRUE)</location>
-        <min>24.0</min>
-        <max>25.0</max>
+        <min>4.65</min>
+        <max>4.75</max>
       </check>
-      
-      <!-- Edge case: very small duration -->
+
+      <!-- Small-duration limit, summate=TRUE: block mass -> duration * impulse -->
       <check>
         <type>approximate</type>
-        <location>max(abs(evaluate(HRF_SPMG1, seq(0, 20, by = 0.5), duration = 0.01, precision = 0.1) - evaluate(HRF_SPMG1, seq(0, 20, by = 0.5), duration = 0)))</location>
-        <expected>0</expected>
-        <tolerance>1e-10</tolerance>
+        <location>max(evaluate(HRF_SPMG1, seq(0, 20, by = 0.5), duration = 0.01, precision = 0.1, summate = TRUE)) / (0.01 * max(evaluate(HRF_SPMG1, seq(0, 20, by = 0.5), duration = 0)))</location>
+        <expected>1</expected>
+        <tolerance>1e-4</tolerance>
       </check>
-      
+
+      <!-- Small-duration limit, summate=FALSE: -> the impulse response.
+           The gap shrinks linearly with duration (0.0338 / 0.0169 / 0.0034
+           at duration 0.1 / 0.05 / 0.01). -->
+      <check>
+        <type>range</type>
+        <location>max(abs(evaluate(HRF_SPMG1, seq(0, 20, by = 0.5), duration = 0.01, precision = 0.1, summate = FALSE) - evaluate(HRF_SPMG1, seq(0, 20, by = 0.5), duration = 0)))</location>
+        <min>0</min>
+        <max>0.005</max>
+      </check>
+
       <!-- Consistency checks -->
       <check>
         <type>approximate</type>
@@ -275,23 +364,23 @@
         <expected>0</expected>
         <tolerance>1e-15</tolerance>
       </check>
-      
+
       <!-- Large duration behavior -->
       <check>
         <type>range</type>
         <location>max(evaluate(HRF_SPMG1, seq(5, 15, by = 1), duration = 10, summate = TRUE))</location>
-        <min>48.0</min>
-        <max>49.0</max>
+        <min>9.55</min>
+        <max>9.65</max>
       </check>
-      
+
       <!-- Precision boundary testing -->
       <check>
         <type>range</type>
         <location>evaluate(HRF_SPMG1, 6, duration = 1, precision = 0.5, summate = TRUE)</location>
-        <min>5.0</min>
-        <max>5.1</max>
+        <min>1.65</min>
+        <max>1.75</max>
       </check>
-      
+
       <!-- Amplitude and duration interaction -->
       <check>
         <type>approximate</type>
@@ -299,22 +388,22 @@
         <expected>2</expected>
         <tolerance>1e-10</tolerance>
       </check>
-      
+
       <!-- Different HRF types with duration -->
       <check>
         <type>range</type>
         <location>max(evaluate(HRF_GAMMA, seq(0, 20, by = 0.5), duration = 4, summate = TRUE))</location>
-        <min>3.0</min>
-        <max>3.5</max>
+        <min>0.60</min>
+        <max>0.63</max>
       </check>
-      
+
       <check>
         <type>range</type>
         <location>max(evaluate(HRF_GAUSSIAN, seq(0, 20, by = 0.5), duration = 3, summate = TRUE))</location>
-        <min>2.8</min>
-        <max>3.0</max>
+        <min>0.53</min>
+        <max>0.56</max>
       </check>
-      
+
       <!-- Zero duration should equal point evaluation -->
       <check>
         <type>approximate</type>
@@ -322,76 +411,78 @@
         <expected>0</expected>
         <tolerance>1e-15</tolerance>
       </check>
-      
-      <!-- Summate=FALSE vs TRUE consistency -->
+
+      <!-- summate=FALSE at duration 2 -->
       <check>
         <type>range</type>
         <location>evaluate(HRF_SPMG1, 6, duration = 2, summate = FALSE)</location>
-        <min>1.7</min>
-        <max>1.8</max>
+        <min>1.65</min>
+        <max>1.75</max>
       </check>
     </numeric_checks>
   </expected_outputs>
-  
+
   <implementations>
     <R><![CDATA[
-      # R reference implementation
+      # R reference implementation (fmrihrf >= 0.4.0)
       # Function: evaluate.HRF(x, grid, amplitude=1, duration=0, precision=.2, summate=TRUE, normalize=FALSE)
-      # Location: R/hrf.R lines 1020-1086
-      
+      # Location: R/hrf.R; quadrature helper .block_offsets_weights() in R/utils-internal.R
+
       # Use built-in HRF objects - these are already defined globally
       # HRF_SPMG1 is built-in single basis
       # HRF_SPMG3 is built-in 3-basis with canonical + temporal + dispersion derivatives
       # HRF_GAMMA is built-in gamma HRF
       # HRF_GAUSSIAN is built-in gaussian HRF
-      
+
       # Test basic point evaluation
       time_grid <- seq(0, 20, by = 0.5)
       point_eval <- evaluate(HRF_SPMG1, time_grid)
-      
+
       # Test amplitude scaling
       amp_scaled <- evaluate(HRF_SPMG1, 6, amplitude = 2, duration = 0)
       amp_negative <- evaluate(HRF_SPMG1, 6, amplitude = -1, duration = 0)
       amp_zero <- evaluate(HRF_SPMG1, 6, amplitude = 0, duration = 0)
-      
-      # Test duration boundary
-      duration_tiny <- evaluate(HRF_SPMG1, time_grid, duration = 0.05, precision = 0.1)
-      duration_zero <- evaluate(HRF_SPMG1, time_grid, duration = 0)
-      
+
+      # The branch is on duration alone: a duration below `precision` is still
+      # a block, and the two precisions below must agree.
+      sub_precision_coarse <- evaluate(HRF_SPMG1, time_grid, duration = 0.19, precision = 0.2)
+      sub_precision_fine   <- evaluate(HRF_SPMG1, time_grid, duration = 0.19, precision = 0.05)
+
       # Test block evaluation modes
       block_summate <- evaluate(HRF_SPMG1, time_grid, duration = 3, summate = TRUE)
-      block_max <- evaluate(HRF_SPMG1, time_grid, duration = 3, summate = FALSE)
-      
-      # Test precision effects
+      block_average <- evaluate(HRF_SPMG1, time_grid, duration = 3, summate = FALSE)
+      # max(block_summate) / max(block_average) == 3 exactly
+
+      # Test precision effects: these converge, they do not scale
       block_fine <- evaluate(HRF_SPMG1, time_grid, duration = 2, precision = 0.1, summate = TRUE)
       block_coarse <- evaluate(HRF_SPMG1, time_grid, duration = 2, precision = 0.2, summate = TRUE)
-      
+
       # Test duration scaling
       block_short <- evaluate(HRF_SPMG1, time_grid, duration = 3, summate = TRUE)
       block_long <- evaluate(HRF_SPMG1, time_grid, duration = 6, summate = TRUE)
-      
+
       # Test multi-basis HRFs
       multi_point <- evaluate(HRF_SPMG3, time_grid, duration = 0)
       multi_block <- evaluate(HRF_SPMG3, time_grid, duration = 2, summate = TRUE)
       multi_scaled <- evaluate(HRF_SPMG3, time_grid, amplitude = 2, duration = 0)
-      
+
       # Test normalization
       norm_single <- evaluate(HRF_SPMG1, time_grid, amplitude = 3.7, normalize = TRUE)
       norm_multi <- evaluate(HRF_SPMG3, time_grid, amplitude = 2.5, normalize = TRUE)
-      
+
       # Test single time point
       single_point <- evaluate(HRF_SPMG1, 6, duration = 3, summate = TRUE)
-      
+
       # Test other HRF types
       gamma_block <- evaluate(HRF_GAMMA, time_grid, duration = 4, summate = TRUE)
       gaussian_block <- evaluate(HRF_GAUSSIAN, time_grid, duration = 3, summate = TRUE)
     ]]></R>
-    
+
     <Python><![CDATA[
       # Python implementation following semantic specification
-      
+
       import numpy as np
-      
+
       class HRF:
           """Simple HRF class for evaluation testing."""
           def __init__(self, func, name="hrf", nbasis=1, span=24):
@@ -399,67 +490,80 @@
               self.name = name
               self.nbasis = nbasis
               self.span = span
-          
+
           def __call__(self, t):
               return self.func(t)
-      
-      def evaluate_hrf(hrf, grid, amplitude=1, duration=0, precision=0.2, 
+
+      def block_offsets_weights(width, precision):
+          """Trapezoid quadrature nodes and weights over [0, width].
+
+          sum(weights) == width exactly, for any precision. That identity is
+          what makes the block response an integral rather than a sample
+          count, and it is what makes summate=False exactly duration-averaged.
+          """
+          offsets = np.arange(0.0, width + precision / 2.0, precision)
+          if offsets[-1] < width:
+              offsets = np.append(offsets, width)
+          if len(offsets) == 1:
+              return offsets, np.array([1.0])
+
+          deltas = np.diff(offsets)
+          weights = np.zeros(len(offsets))
+          weights[0] = deltas[0] / 2.0
+          weights[-1] = deltas[-1] / 2.0
+          if len(offsets) > 2:
+              weights[1:-1] = (deltas[:-1] + deltas[1:]) / 2.0
+          return offsets, weights
+
+      def evaluate_hrf(hrf, grid, amplitude=1, duration=0, precision=0.2,
                        summate=True, normalize=False):
           """
-          Evaluate HRF with duration-based convolution mechanics.
-          
+          Evaluate HRF with duration-based block quadrature.
+
           Args:
               hrf: HRF object or function
               grid: Time points for evaluation
               amplitude: Scaling factor
-              duration: Block duration (0 for point evaluation)
-              precision: Temporal resolution for block evaluation
-              summate: If True, sum over duration; if False, take max
+              duration: Block duration (<= 0 for point evaluation)
+              precision: Quadrature step. Numerical accuracy ONLY -- it must
+                  not decide which model is evaluated.
+              summate: If True, the accumulated integral over the block; if
+                  False, that integral divided by the duration.
               normalize: If True, normalize to peak absolute value of 1
-              
+
           Returns:
               Array or matrix of HRF values
           """
           grid = np.asarray(grid, dtype=float)
-          
-          # Base function with amplitude scaling
+
           def base_func(g):
               return amplitude * hrf(g)
-          
-          # Evaluate based on duration
-          if duration < precision:
-              # Point evaluation
+
+          # Branch on duration ALONE, never on duration relative to precision.
+          if duration <= 0:
+              # Point evaluation: an impulse of unit mass.
               out = base_func(grid)
           else:
-              # Block evaluation
-              offsets = np.arange(0, duration + precision/2, precision)
-              
-              # Evaluate HRF at shifted time points for each offset
-              hrf_values = []
-              for offset in offsets:
-                  values = base_func(grid - offset)
-                  hrf_values.append(values)
-              
-              # Check if multi-basis (matrix output)
-              is_multi_basis = len(hrf_values[0].shape) > 1 and hrf_values[0].shape[1] > 1
-              
+              offsets, weights = block_offsets_weights(duration, precision)
+
+              hrf_values = [base_func(grid - o) for o in offsets]
+
+              is_multi_basis = hrf_values[0].ndim > 1
+
               if is_multi_basis:
-                  # Multi-basis: always use summation
-                  if not summate:
-                      import warnings
-                      warnings.warn("summate=False is not typically used with multi-basis HRFs. Using summation.")
-                  out = np.sum(hrf_values, axis=0)
+                  out = sum(v * w for v, w in zip(hrf_values, weights))
               else:
-                  # Single basis: stack into matrix and apply combination rule
                   hrf_matrix = np.column_stack(hrf_values)
-                  if summate:
-                      out = np.sum(hrf_matrix, axis=1)
-                  else:
-                      out = np.max(hrf_matrix, axis=1)
-          
+                  out = hrf_matrix @ weights
+
+              if not summate:
+                  weight_sum = float(np.sum(weights))
+                  if weight_sum > 0:
+                      out = out / weight_sum
+
           # Apply normalization if requested
           if normalize:
-              if len(out.shape) > 1:  # Matrix case
+              if out.ndim > 1:  # Matrix case
                   peaks = np.max(np.abs(out), axis=0)
                   peaks[peaks == 0] = 1
                   out = out / peaks
@@ -467,28 +571,55 @@
                   peak_val = np.max(np.abs(out))
                   if peak_val != 0:
                       out = out / peak_val
-          
+
           return out
     ]]></Python>
-    
+
     <Rust><![CDATA[
       // Rust implementation following semantic specification
-      
-      use ndarray::{Array1, Array2, Axis};
-      
+
+      use ndarray::Array1;
+
       pub struct HRF {
           pub func: fn(&[f64]) -> Array1<f64>,
           pub name: String,
           pub nbasis: usize,
           pub span: f64,
       }
-      
+
       impl HRF {
           pub fn evaluate(&self, t: &[f64]) -> Array1<f64> {
               (self.func)(t)
           }
       }
-      
+
+      /// Trapezoid quadrature nodes and weights over [0, width].
+      /// The weights sum to `width` exactly, for any `precision`.
+      pub fn block_offsets_weights(width: f64, precision: f64) -> (Vec<f64>, Vec<f64>) {
+          let mut offsets: Vec<f64> = Vec::new();
+          let mut x = 0.0;
+          while x <= width + precision / 2.0 {
+              offsets.push(x);
+              x += precision;
+          }
+          if *offsets.last().unwrap() < width {
+              offsets.push(width);
+          }
+          if offsets.len() == 1 {
+              return (offsets, vec![1.0]);
+          }
+
+          let n = offsets.len();
+          let deltas: Vec<f64> = (0..n - 1).map(|i| offsets[i + 1] - offsets[i]).collect();
+          let mut weights = vec![0.0; n];
+          weights[0] = deltas[0] / 2.0;
+          weights[n - 1] = deltas[n - 2] / 2.0;
+          for i in 1..n - 1 {
+              weights[i] = (deltas[i - 1] + deltas[i]) / 2.0;
+          }
+          (offsets, weights)
+      }
+
       pub fn evaluate_hrf_duration(
           hrf: &HRF,
           grid: &[f64],
@@ -498,46 +629,33 @@
           summate: bool,
           normalize: bool,
       ) -> Array1<f64> {
-          let grid_array = Array1::from_vec(grid.to_vec());
-          
-          let out = if duration < precision {
-              // Point evaluation
+          // Branch on duration ALONE, never on duration relative to precision.
+          let out = if duration <= 0.0 {
+              // Point evaluation: an impulse of unit mass.
               amplitude * hrf.evaluate(grid)
           } else {
-              // Block evaluation
-              let mut current_offset = 0.0;
-              let mut hrf_values = Vec::new();
-              
-              while current_offset <= duration + precision / 2.0 {
-                  let shifted_grid: Vec<f64> = grid.iter().map(|&t| t - current_offset).collect();
-                  let values = amplitude * hrf.evaluate(&shifted_grid);
-                  hrf_values.push(values);
-                  current_offset += precision;
-              }
-              
-              // Combine based on summate parameter
+              let (offsets, weights) = block_offsets_weights(duration, precision);
+
               let n_time = grid.len();
-              let mut result = Array1::zeros(n_time);
-              
-              if summate {
-                  // Sum across all offsets
-                  for hrf_val in hrf_values {
-                      result = result + hrf_val;
-                  }
-              } else {
-                  // Take maximum across offsets
-                  for i in 0..n_time {
-                      let mut max_val = f64::NEG_INFINITY;
-                      for hrf_val in &hrf_values {
-                          max_val = max_val.max(hrf_val[i]);
-                      }
-                      result[i] = max_val;
+              let mut result: Array1<f64> = Array1::zeros(n_time);
+
+              // Weighted sum: the integral over the block.
+              for (offset, weight) in offsets.iter().zip(weights.iter()) {
+                  let shifted: Vec<f64> = grid.iter().map(|&t| t - offset).collect();
+                  let values = amplitude * hrf.evaluate(&shifted);
+                  result = result + values * *weight;
+              }
+
+              if !summate {
+                  let weight_sum: f64 = weights.iter().sum();
+                  if weight_sum > 0.0 {
+                      result = result / weight_sum;
                   }
               }
-              
+
               result
           };
-          
+
           // Apply normalization if requested
           if normalize {
               let peak_val = out.iter().map(|&x| x.abs()).fold(0.0, f64::max);
@@ -550,14 +668,14 @@
               out
           }
       }
-      
+
       // Default parameters wrapper
       pub fn evaluate_hrf_default(hrf: &HRF, grid: &[f64]) -> Array1<f64> {
           evaluate_hrf_duration(hrf, grid, 1.0, 0.0, 0.2, true, false)
       }
     ]]></Rust>
   </implementations>
-  
+
   <propagation_status>
     <implementation lang="R" status="completed"/>
     <implementation lang="Python" status="pending"/>

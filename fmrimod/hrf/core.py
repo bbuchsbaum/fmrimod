@@ -40,6 +40,7 @@ class HRF(ABC):
     fields (e.g. ``GammaHRF.shape``); the type system is the parameter
     contract — there is no ``params`` dict.
     """
+
     name: str
     nbasis: int = 1
     span: float = 24.0
@@ -47,16 +48,16 @@ class HRF(ABC):
     @abstractmethod
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         """Evaluate the HRF at time points t.
-        
+
         Args:
             t: Time points at which to evaluate the HRF
-            
+
         Returns:
             Array of HRF values. Shape is (len(t),) for single basis,
             or (len(t), nbasis) for multi-basis HRFs.
         """
         pass
-    
+
     def evaluate(
         self,
         grid: ArrayLike,
@@ -95,7 +96,13 @@ class HRF(ABC):
                 "use normalize(hrf, mode) before evaluate()."
             )
 
-        if duration < precision:
+        # Branch on duration alone, not on duration relative to `precision`.
+        # Keying it to `precision` let a numerical setting decide which model
+        # was evaluated: at precision=0.2 a duration of 0.19 was treated as an
+        # impulse and 0.20 as a block, a 5x amplitude jump driven by nothing
+        # but the quadrature step. The remaining discontinuity at duration == 0
+        # is real -- impulse (unit mass) versus boxcar (mass = duration).
+        if duration <= 0:
             result = self(grid)
         else:
             from .decorators import BlockedHRF
@@ -112,36 +119,38 @@ class HRF(ABC):
             result = result.reshape(1, -1)
 
         return result
-    
-    def from_coefficients(self, coefficients: ArrayLike) -> Callable[[ArrayLike], NDArray[np.float64]]:
+
+    def from_coefficients(
+        self, coefficients: ArrayLike
+    ) -> Callable[[ArrayLike], NDArray[np.float64]]:
         """Create a function that evaluates HRF with given coefficients.
-        
+
         Args:
             coefficients: Coefficients for linear combination of basis functions
-            
+
         Returns:
             Function that evaluates the weighted HRF
         """
         coefficients = np.asarray(coefficients)
-        
+
         if len(coefficients) != self.nbasis:
             raise ValueError(
                 f"Number of coefficients ({len(coefficients)}) must match "
                 f"number of basis functions ({self.nbasis})"
             )
-        
+
         def weighted_hrf(t: ArrayLike) -> NDArray[np.float64]:
             """Evaluate weighted combination of basis functions."""
             basis_values = self(t)
-            
+
             if self.nbasis == 1:
                 return cast("NDArray[np.float64]", coefficients[0] * basis_values)
             else:
                 # Matrix multiplication for multi-basis case
                 return cast("NDArray[np.float64]", basis_values @ coefficients)
-        
+
         return weighted_hrf
-    
+
     def plot(
         self,
         time: Any = None,
@@ -152,7 +161,10 @@ class HRF(ABC):
     ) -> Any:
         """Plot this HRF.  See :func:`fmrimod.plotting.plot_hrf`."""
         from ..plotting import plot_hrf
-        return plot_hrf(self, time=time, normalize=normalize, show_peak=show_peak, ax=ax, **kwargs)
+
+        return plot_hrf(
+            self, time=time, normalize=normalize, show_peak=show_peak, ax=ax, **kwargs
+        )
 
     # -- Fluent decorators (return new HRF, mirror fmrihrf's gen_hrf chain) --
 
@@ -241,10 +253,10 @@ class HRF(ABC):
 
 class FunctionHRF(HRF):
     """HRF created from a callable function.
-    
+
     This class wraps a regular Python function to create an HRF object.
     """
-    
+
     def __init__(
         self,
         func: Callable[[ArrayLike], NDArray[np.float64]],
@@ -261,7 +273,7 @@ class FunctionHRF(HRF):
             span: Temporal span in seconds
         """
         if name is None:
-            name = getattr(func, '__name__', 'custom_hrf')
+            name = getattr(func, "__name__", "custom_hrf")
 
         super().__init__(
             name=name,
@@ -269,7 +281,7 @@ class FunctionHRF(HRF):
             span=span,
         )
         self.func = func
-    
+
     def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
         """Evaluate the HRF at time points t."""
         return self.func(t)
@@ -425,21 +437,21 @@ class CoefficientHRF(HRF):
 
 def hrf_from_coefficients(hrf: HRF, coefficients: ArrayLike) -> HRF:
     """Create a new HRF by linearly combining basis functions.
-    
+
     Takes an HRF with multiple basis functions and creates a new HRF
     that is a linear combination of those basis functions.
-    
+
     Args:
         hrf: HRF object with multiple basis functions
         coefficients: Coefficients for linear combination
-        
+
     Returns:
         New HRF object
-        
+
     Examples:
         >>> # Get a 3-basis HRF
         >>> hrf = get_hrf("spmg3")
-        >>> 
+        >>>
         >>> # Create custom combination
         >>> coefs = [1.0, 0.5, -0.2]  # Main + 0.5*deriv1 - 0.2*deriv2
         >>> custom_hrf = hrf_from_coefficients(hrf, coefs)

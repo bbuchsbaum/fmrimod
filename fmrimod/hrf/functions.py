@@ -25,6 +25,24 @@ _SPM_DEFAULT_U_DISPERSION: float = 1.0
 _SPM_DEFAULT_RATIO: float = 0.167
 
 
+def _causal(t: NDArray[np.float64], values: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Zero a response outside the causal support ``t >= 0``.
+
+    Several shape functions (gaussian, mexican hat, inverse logit) are defined
+    by formulas that are non-zero at negative lag. The regressor path masks
+    negative lags itself, but decorators such as :func:`block_hrf` and
+    :func:`lag_hrf` sample ``h(t - offset)`` directly and would otherwise mix
+    in pre-onset values. An HRF is a causal impulse response and carries no
+    response before the event.
+    """
+    pre = ~np.isnan(t) & (t < 0)
+    if values.ndim > 1:
+        values[pre, ...] = 0.0
+    else:
+        values[pre] = 0.0
+    return values
+
+
 def spm_canonical_legacy(
     t: ArrayLike,
     p1: float = 5.0,
@@ -65,8 +83,7 @@ def spm_canonical_legacy(
         sigma = float(dispersion)
         if sigma <= 0:
             raise ValueError(
-                f"spm_canonical_legacy: dispersion must be positive, "
-                f"got {sigma!r}"
+                f"spm_canonical_legacy: dispersion must be positive, " f"got {sigma!r}"
             )
         t_pos = t[mask] * sigma
         result[mask] = np.exp(-t_pos) * (a1 * t_pos**p1 - _SPM_C * t_pos**p2)
@@ -133,9 +150,7 @@ def spm_canonical(
     mask = t > 0
     if np.any(mask):
         t_pos = t[mask]
-        peak = stats.gamma.pdf(
-            t_pos, delay / dispersion, loc=0.0, scale=dispersion
-        )
+        peak = stats.gamma.pdf(t_pos, delay / dispersion, loc=0.0, scale=dispersion)
         under = stats.gamma.pdf(
             t_pos, undershoot / u_dispersion, loc=0.0, scale=u_dispersion
         )
@@ -165,25 +180,25 @@ def gamma_hrf(
     rate: float = 1.0,
 ) -> NDArray[np.float64]:
     """Gamma density hemodynamic response function.
-    
+
     Args:
         t: Time points in seconds
         shape: Shape parameter of gamma distribution
         rate: Rate parameter of gamma distribution
-        
+
     Returns:
         HRF values at time points t
     """
     t = np.asarray(t, dtype=np.float64)
-    
+
     # Set negative times to zero
     result = np.zeros_like(t)
     mask = t >= 0
-    
+
     if np.any(mask):
         # Note: scipy uses scale = 1/rate parameterization
-        result[mask] = stats.gamma.pdf(t[mask], a=shape, scale=1.0/rate)
-    
+        result[mask] = stats.gamma.pdf(t[mask], a=shape, scale=1.0 / rate)
+
     return result
 
 
@@ -193,17 +208,19 @@ def gaussian_hrf(
     sd: float = 2.0,
 ) -> NDArray[np.float64]:
     """Gaussian hemodynamic response function.
-    
+
     Args:
         t: Time points in seconds
         mean: Mean of the Gaussian
         sd: Standard deviation of the Gaussian
-        
+
     Returns:
         HRF values at time points t
     """
     t = np.asarray(t, dtype=np.float64)
-    return cast("NDArray[np.float64]", stats.norm.pdf(t, loc=mean, scale=sd))
+    return _causal(
+        t, np.asarray(stats.norm.pdf(t, loc=mean, scale=sd), dtype=np.float64)
+    )
 
 
 def bspline_hrf(
@@ -214,9 +231,9 @@ def bspline_hrf(
 ) -> NDArray[np.float64]:
     """B-spline basis set for HRF.
 
-    Uses quantile-based interior knot placement matching R's splines::bs,
-    where knots are placed at quantile positions of a uniform grid over
-    the span.
+    Interior knots are placed at quantiles of a uniform grid over ``[0, span]``,
+    matching R ``hrf_bspline()``. They are a function of ``span`` alone, so the
+    basis does not change with the grid the caller passes.
 
     Args:
         t: Time points in seconds
@@ -227,10 +244,9 @@ def bspline_hrf(
     Returns:
         Matrix of B-spline basis functions evaluated at t
     """
-    t = np.asarray(t, dtype=np.float64)
+    t = np.atleast_1d(np.asarray(t, dtype=np.float64))
 
-    # Mirror R hrf_bspline_generator(): evaluate only inside [0, span],
-    # keep zeros outside, and place interior knots from quantiles of t_valid.
+    # Evaluate only inside [0, span] and keep zeros outside.
     valid = (t >= 0) & (t <= span)
     if not np.any(valid):
         return np.zeros((len(t), int(n_basis)), dtype=np.float64)
@@ -240,23 +256,25 @@ def bspline_hrf(
     n_interior = max(0, int(n_basis) - ord_ + 1)
 
     if n_interior > 0:
-        if degree == 1:
-            # Keep tent basis stable as a partition of unity by using fixed,
-            # evenly spaced interior knots over the full support.
-            interior_knots = np.linspace(0.0, float(span), n_interior + 2)[1:-1]
-        else:
-            # Match R hrf_bspline_generator() default knot placement:
-            # quantiles of the in-support evaluation grid.
-            probs = np.arange(1, n_interior + 1, dtype=np.float64) / (n_interior + 1)
-            interior_knots = np.quantile(t_valid, probs)
+        # Interior knots come from `span`, not from the caller's `t`. Deriving
+        # them from `t` (what splines::bs() does when `knots` is omitted) made
+        # the basis a function of the evaluation grid: the same experiment
+        # analysed on two grids got two different bases, and a grid of one or
+        # two points collapsed the knots onto those points. Mirrors R
+        # hrf_bspline(): quantiles of seq(0, span).
+        probs = np.arange(1, n_interior + 1, dtype=np.float64) / (n_interior + 1)
+        ref_grid = np.arange(0.0, np.floor(float(span)) + 1.0)
+        interior_knots = np.quantile(ref_grid, probs)
     else:
         interior_knots = np.array([], dtype=np.float64)
 
-    knots = np.concatenate([
-        np.repeat(0.0, ord_),
-        interior_knots.astype(np.float64),
-        np.repeat(float(span), ord_),
-    ])
+    knots = np.concatenate(
+        [
+            np.repeat(0.0, ord_),
+            interior_knots.astype(np.float64),
+            np.repeat(float(span), ord_),
+        ]
+    )
 
     # Build the full basis then drop the first column (intercept=FALSE),
     # matching splines::bs(..., intercept = FALSE).
@@ -270,12 +288,12 @@ def bspline_hrf(
         basis_full[:, i] = np.nan_to_num(bspl(t_valid), nan=0.0)
 
     if n_basis_full > int(n_basis):
-        basis_valid = basis_full[:, 1:(int(n_basis) + 1)]
+        basis_valid = basis_full[:, 1 : (int(n_basis) + 1)]
     else:
         basis_valid = basis_full
 
     out = np.zeros((len(t), int(n_basis)), dtype=np.float64)
-    out[valid, :basis_valid.shape[1]] = basis_valid
+    out[valid, : basis_valid.shape[1]] = basis_valid
     return out
 
 
@@ -283,6 +301,7 @@ def daguerre_basis(
     t: ArrayLike,
     n_basis: int = 3,
     scale: float = 1.0,
+    span: float = 24.0,
 ) -> NDArray[np.float64]:
     """Daguerre spherical basis functions using Laguerre polynomial recurrence.
 
@@ -293,36 +312,49 @@ def daguerre_basis(
         t: Time points in seconds
         n_basis: Number of basis functions to generate
         scale: Scale parameter for the time axis
+        span: Temporal window defining the reference grid used for column
+            normalization. Fixing this makes the basis a function of ``t``
+            alone rather than of the grid the caller happens to pass.
 
     Returns:
         Matrix of basis functions, shape (len(t), n_basis), each column normalized
-        to unit peak.
+        to unit peak over ``[0, span]``.
     """
-    t = np.asarray(t, dtype=np.float64)
-    x = t / scale
 
-    basis = np.zeros((len(x), n_basis))
+    def _raw(tt: NDArray[np.float64]) -> NDArray[np.float64]:
+        x = tt / scale
+        basis = np.zeros((len(x), n_basis))
 
-    # First basis function (n=0)
-    basis[:, 0] = np.exp(-x / 2)
+        # First basis function (n=0)
+        basis[:, 0] = np.exp(-x / 2)
 
-    if n_basis > 1:
-        # Second basis function (n=1)
-        basis[:, 1] = (1 - x) * np.exp(-x / 2)
+        if n_basis > 1:
+            # Second basis function (n=1)
+            basis[:, 1] = (1 - x) * np.exp(-x / 2)
 
-    if n_basis > 2:
-        # Higher order basis functions using three-term recurrence relation
-        for n in range(2, n_basis):
-            k = n
-            basis[:, n] = ((2 * k - 1 - x) * basis[:, n - 1] - (k - 1) * basis[:, n - 2]) / k
+        if n_basis > 2:
+            # Higher order basis functions using three-term recurrence relation
+            for n in range(2, n_basis):
+                k = n
+                basis[:, n] = (
+                    (2 * k - 1 - x) * basis[:, n - 1] - (k - 1) * basis[:, n - 2]
+                ) / k
 
-    # Normalize each basis function to unit peak
-    for i in range(n_basis):
-        max_abs_val: float = float(np.max(np.abs(basis[:, i])))
-        if max_abs_val > 1e-10:
-            basis[:, i] = basis[:, i] / max_abs_val
+        # These are HRF basis functions, so they carry no response before the
+        # event. Left ungated, exp(-x/2) grows without bound as t goes negative.
+        return _causal(tt, basis)
 
-    return basis
+    t = np.atleast_1d(np.asarray(t, dtype=np.float64))
+
+    # Normalize against a fixed reference grid over the support rather than
+    # against `t`. Normalizing against the argument made the returned values
+    # depend on the query: a grid extending to negative lag inflated the
+    # divisor and shrank every reported value.
+    ref = _raw(np.linspace(0.0, float(span), 512))
+    norms = np.abs(ref).max(axis=0)
+    norms[~np.isfinite(norms) | (norms <= 1e-10)] = 1.0
+
+    return cast("NDArray[np.float64]", _raw(t) / norms)
 
 
 def fourier_hrf(
@@ -345,7 +377,10 @@ def fourier_hrf(
         Matrix of Fourier basis functions evaluated at t, shape
         ``(len(t), n_basis)``.  Values outside [0, span] are zeroed out.
     """
-    t = np.asarray(t, dtype=np.float64)
+    # atleast_1d so a scalar t yields a (1, n_basis) row rather than raising
+    # on len() of an unsized object. Decorators that shift time (lag, block)
+    # can hand a scalar straight to the shape function.
+    t = np.atleast_1d(np.asarray(t, dtype=np.float64))
     in_support = (t >= 0) & (t <= span)
 
     # Frequencies: ceiling(1:n_basis / 2) -> [1, 1, 2, 2, 3, 3, ...]
@@ -408,23 +443,28 @@ def mexhat_hrf(
     center: float = 6.0,
 ) -> NDArray[np.float64]:
     """Mexican hat (Ricker) wavelet HRF.
-    
+
     Args:
         t: Time points in seconds
         sigma: Width parameter
         center: Center of the wavelet
-        
+
     Returns:
         HRF values at time points t
     """
     t = np.asarray(t, dtype=np.float64)
-    
+
     # Shift and scale time
     z = (t - center) / sigma
-    
+
     # Mexican hat formula
     normalization = 2.0 / (np.sqrt(3 * sigma) * np.pi**0.25)
-    return cast("NDArray[np.float64]", normalization * (1.0 - z**2) * np.exp(-z**2 / 2.0))
+    return _causal(
+        t,
+        np.asarray(
+            normalization * (1.0 - z**2) * np.exp(-(z**2) / 2.0), dtype=np.float64
+        ),
+    )
 
 
 def sine_hrf(
@@ -433,12 +473,12 @@ def sine_hrf(
     phase: float = 0.0,
 ) -> NDArray[np.float64]:
     """Sine wave HRF.
-    
+
     Args:
         t: Time points in seconds
         frequency: Frequency in Hz
         phase: Phase shift in radians
-        
+
     Returns:
         HRF values at time points t
     """
@@ -452,30 +492,30 @@ def half_cosine_hrf(
     center: float = 5.0,
 ) -> NDArray[np.float64]:
     """Half-cosine HRF.
-    
+
     Args:
         t: Time points in seconds
         width: Width of the half-cosine
         center: Center of the function
-        
+
     Returns:
         HRF values at time points t
     """
     t = np.asarray(t, dtype=np.float64)
-    
+
     # Create half-cosine centered at 'center'
     result = np.zeros_like(t)
-    
+
     # Define active region
     t_start = center - width / 2
     t_end = center + width / 2
     mask = (t >= t_start) & (t <= t_end)
-    
+
     if np.any(mask):
         # Map to [0, pi] range
         scaled_t = (t[mask] - t_start) * np.pi / width
         result[mask] = 0.5 * (1 + np.cos(scaled_t))
-    
+
     return result
 
 
@@ -485,17 +525,17 @@ def inv_logit_hrf(
     scale: float = 1.0,
 ) -> NDArray[np.float64]:
     """Inverse logit (sigmoid) HRF.
-    
+
     Args:
         t: Time points in seconds
         center: Center of the sigmoid
         scale: Scale parameter (smaller = steeper)
-        
+
     Returns:
         HRF values at time points t
     """
     t = np.asarray(t, dtype=np.float64)
-    return cast("NDArray[np.float64]", special.expit((t - center) / scale))
+    return _causal(t, np.asarray(special.expit((t - center) / scale), dtype=np.float64))
 
 
 def lwu_hrf(
@@ -505,45 +545,47 @@ def lwu_hrf(
     width: float = 3.0,
 ) -> NDArray[np.float64]:
     """Lindquist-Wager-Ungerleider (LWU) basis functions.
-    
+
     These are based on Taylor series expansion around the canonical HRF.
-    
+
     Args:
         t: Time points in seconds
         n_basis: Number of basis functions (1-3)
         center: Center time for expansion
         width: Width parameter for derivatives
-        
+
     Returns:
         Matrix of LWU basis functions evaluated at t
     """
     t = np.asarray(t, dtype=np.float64)
-    
+
     if n_basis < 1 or n_basis > 3:
         raise ValueError("n_basis must be between 1 and 3")
-    
+
     # Start with canonical HRF
     canonical = spm_canonical(t)
-    
+
     if n_basis == 1:
         return canonical.reshape(-1, 1)
-    
+
     # Create basis matrix
     basis = np.zeros((len(t), n_basis))
     basis[:, 0] = canonical
-    
+
     # Add derivative terms
     if n_basis >= 2:
         # First derivative approximation
         dt = 0.01
         derivative1 = (spm_canonical(t + dt) - spm_canonical(t - dt)) / (2 * dt)
         basis[:, 1] = derivative1 * width
-    
+
     if n_basis >= 3:
         # Second derivative approximation
-        derivative2 = (spm_canonical(t + dt) - 2 * canonical + spm_canonical(t - dt)) / (dt**2)
+        derivative2 = (
+            spm_canonical(t + dt) - 2 * canonical + spm_canonical(t - dt)
+        ) / (dt**2)
         basis[:, 2] = derivative2 * (width**2) / 2
-    
+
     return basis
 
 
@@ -566,27 +608,23 @@ def hrf_time(
     return np.where((t > 0) & (t < max_time), t, 0.0)
 
 
-def hrf_mexhat(
-    t: ArrayLike,
-    mean: float = 6.0,
-    sd: float = 2.0
-) -> NDArray[np.float64]:
+def hrf_mexhat(t: ArrayLike, mean: float = 6.0, sd: float = 2.0) -> NDArray[np.float64]:
     """Mexican hat wavelet HRF.
-    
+
     Computes the Mexican hat (Ricker) wavelet at given time points.
-    
+
     Args:
         t: Time points in seconds
         mean: Center of the wavelet
         sd: Width parameter
-        
+
     Returns:
         HRF values at time points
     """
     t = np.asarray(t, dtype=np.float64)
     t0 = t - mean
-    a = (1 - (t0 / sd)**2) * np.exp(-t0**2 / (2 * sd**2))
-    scale = np.sqrt(2 / (3 * sd * np.pi**(1/4)))
+    a = (1 - (t0 / sd) ** 2) * np.exp(-(t0**2) / (2 * sd**2))
+    scale = np.sqrt(2 / (3 * sd * np.pi ** (1 / 4)))
     return cast("NDArray[np.float64]", scale * a)
 
 
@@ -596,12 +634,12 @@ def hrf_inv_logit(
     s1: float = 1.0,
     mu2: float = 16.0,
     s2: float = 1.0,
-    lag: float = 0.0
+    lag: float = 0.0,
 ) -> NDArray[np.float64]:
     """Inverse logit (sigmoid difference) HRF.
-    
+
     HRF using the difference of two inverse logit functions.
-    
+
     Args:
         t: Time points in seconds
         mu1: Time-to-peak for rising phase
@@ -609,7 +647,7 @@ def hrf_inv_logit(
         mu2: Time-to-peak for falling phase
         s2: Width of second logistic function
         lag: Time delay
-        
+
     Returns:
         HRF values at time points
     """
@@ -626,7 +664,7 @@ def hrf_half_cosine(
     h3: float = 7.0,
     h4: float = 7.0,
     f1: float = 0.0,
-    f2: float = 0.0
+    f2: float = 0.0,
 ) -> NDArray[np.float64]:
     """Half-cosine basis HRF.
 
@@ -654,7 +692,10 @@ def hrf_half_cosine(
     def trans(
         tt: NDArray[np.float64], a: float, b: float, t0: float, w: float
     ) -> NDArray[np.float64]:
-        return cast("NDArray[np.float64]", a + 0.5 * (b - a) * (1 - np.cos(np.pi * (tt - t0) / w)))
+        return cast(
+            "NDArray[np.float64]",
+            a + 0.5 * (b - a) * (1 - np.cos(np.pi * (tt - t0) / w)),
+        )
 
     t1 = h1
     t2 = h1 + h2
@@ -700,11 +741,14 @@ def hrf_sine(
     Returns:
         Matrix of sine basis functions ``(len(t), n_basis)``
     """
-    t = np.asarray(t, dtype=np.float64)
+    # atleast_1d so a scalar t yields a (1, n_basis) row rather than raising
+    # on len() of an unsized object. Decorators that shift time (lag, block)
+    # can hand a scalar straight to the shape function.
+    t = np.atleast_1d(np.asarray(t, dtype=np.float64))
     basis = np.zeros((len(t), n_basis))
 
     for n in range(1, n_basis + 1):
-        basis[:, n-1] = np.sin(2 * np.pi * n * t / span)
+        basis[:, n - 1] = np.sin(2 * np.pi * n * t / span)
 
     # Zero out values outside [0, span] support
     out_of_support = (t < 0) | (t > span)
@@ -721,25 +765,25 @@ def hrf_lwu(
     normalize: Literal["none", "height", "area"] = "none",
 ) -> NDArray[np.float64]:
     """Lag-Width-Undershoot (LWU) HRF.
-    
+
     Computes the LWU hemodynamic response function using two Gaussian
     components to model the main response and an optional undershoot.
-    
+
     Formula:
     h(t; τ, σ, ρ) = exp(-(t-τ)²/(2σ²)) - ρ*exp(-(t-τ-2σ)²/(2(1.6σ)²))
-    
+
     Args:
         t: Time points in seconds
         tau: Lag of main Gaussian (time-to-peak)
         sigma: Width of main Gaussian (must be > 0.05)
         rho: Amplitude of undershoot (0 to 1.5)
         normalize: Retired. Use ``normalize(LWUHRF(...), mode)``.
-        
+
     Returns:
         HRF values at time points
     """
     t = np.asarray(t, dtype=np.float64)
-    
+
     # Validate parameters
     if sigma <= 0.05:
         raise ValueError("sigma must be > 0.05")
@@ -759,7 +803,7 @@ def hrf_lwu(
         raise ValueError("normalize must be 'none', 'height', or 'area'")
 
     # Main positive Gaussian component
-    term1 = np.exp(-((t - tau) ** 2) / (2 * sigma ** 2))
+    term1 = np.exp(-((t - tau) ** 2) / (2 * sigma**2))
 
     # Undershoot Gaussian component
     term2 = rho * np.exp(-((t - (tau + 2 * sigma)) ** 2) / (2 * (1.6 * sigma) ** 2))
@@ -770,26 +814,24 @@ def hrf_lwu(
 
 
 def hrf_basis_lwu(
-    theta0: ArrayLike,
-    t: ArrayLike,
-    normalize_primary: str = "none"
+    theta0: ArrayLike, t: ArrayLike, normalize_primary: str = "none"
 ) -> NDArray[np.float64]:
     """LWU HRF basis for Taylor expansion.
-    
+
     Constructs the basis set for the LWU HRF model, consisting of the
     LWU HRF evaluated at expansion point theta0 and its partial derivatives.
-    
+
     Args:
         theta0: Expansion point [tau0, sigma0, rho0]
         t: Time points in seconds
         normalize_primary: Retired. Must be ``"none"``.
-        
+
     Returns:
         Matrix of basis functions (len(t) x 4)
     """
     t = np.asarray(t, dtype=np.float64)
     theta0 = np.asarray(theta0, dtype=np.float64)
-    
+
     if len(theta0) != 3:
         raise ValueError("theta0 must have length 3 [tau, sigma, rho]")
     if normalize_primary != "none":
@@ -797,30 +839,30 @@ def hrf_basis_lwu(
             "normalize_primary on hrf_basis_lwu is retired; "
             "use normalize(LWUBasisHRF(...), mode)."
         )
-    
+
     tau0, sigma0, rho0 = theta0
-    
+
     # Primary HRF at expansion point
     h0 = hrf_lwu(t, tau0, sigma0, rho0, normalize="none")
-    
+
     # Compute partial derivatives numerically
     eps = 1e-5
-    
+
     # Partial derivative w.r.t. tau
     h_tau_plus = hrf_lwu(t, tau0 + eps, sigma0, rho0)
     h_tau_minus = hrf_lwu(t, tau0 - eps, sigma0, rho0)
     dh_dtau = (h_tau_plus - h_tau_minus) / (2 * eps)
-    
+
     # Partial derivative w.r.t. sigma
     h_sigma_plus = hrf_lwu(t, tau0, sigma0 + eps, rho0)
     h_sigma_minus = hrf_lwu(t, tau0, sigma0 - eps, rho0)
     dh_dsigma = (h_sigma_plus - h_sigma_minus) / (2 * eps)
-    
+
     # Partial derivative w.r.t. rho
     h_rho_plus = hrf_lwu(t, tau0, sigma0, rho0 + eps)
     h_rho_minus = hrf_lwu(t, tau0, sigma0, rho0 - eps)
     dh_drho = (h_rho_plus - h_rho_minus) / (2 * eps)
-    
+
     # Stack as columns
     basis = np.column_stack([h0, dh_dtau, dh_dsigma, dh_drho])
 
@@ -859,6 +901,7 @@ def boxcar_hrf(
 
     t = np.asarray(t, dtype=np.float64)
     return np.where((t >= 0) & (t < width), amplitude, 0.0)
+
 
 def weighted_hrf(
     t: ArrayLike,

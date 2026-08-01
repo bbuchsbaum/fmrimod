@@ -32,11 +32,11 @@
     "effect_condition_a_minus_b": {
       "failed_gates": [],
       "gate": "allclose+pearson+spearman",
-      "mae": 6.725306075927584e-16,
-      "max_abs": 3.1086244689504383e-15,
+      "mae": 4.2443804547376285e-16,
+      "max_abs": 1.7763568394002505e-15,
       "name": "effect_condition_a_minus_b",
       "passes": true,
-      "pearson_r": 1.0,
+      "pearson_r": 0.9999999999999996,
       "rank_candidate": 1,
       "rank_reference": 1,
       "scale": 1.0,
@@ -58,11 +58,11 @@
     "f_conditions_omnibus": {
       "failed_gates": [],
       "gate": "allclose+pearson+spearman",
-      "mae": 2.1771496339084706e-07,
-      "max_abs": 2.57740612141788e-06,
+      "mae": 1.1843685754353572e-12,
+      "max_abs": 2.8990143619012088e-11,
       "name": "f_conditions_omnibus",
       "passes": true,
-      "pearson_r": 1.0,
+      "pearson_r": 0.9999999999999998,
       "rank_candidate": 1,
       "rank_reference": 1,
       "scale": 1.0,
@@ -84,11 +84,11 @@
     "t_condition_a_minus_b": {
       "failed_gates": [],
       "gate": "allclose+pearson+spearman",
-      "mae": 3.775501039598615e-10,
-      "max_abs": 3.586194452509517e-09,
+      "mae": 3.450536348483099e-14,
+      "max_abs": 6.465938895416912e-13,
       "name": "t_condition_a_minus_b",
       "passes": true,
-      "pearson_r": 0.9999999999999999,
+      "pearson_r": 1.0,
       "rank_candidate": 1,
       "rank_reference": 1,
       "scale": 1.0,
@@ -111,13 +111,13 @@
   "name": "tier_a_public_f_confound_drift",
   "status": "pass",
   "timings": {
-    "seconds": 0.03179050100152381,
+    "seconds": 0.04011941500357352,
     "stages": {
-      "fmrimod_contrast_seconds": 0.005215375000261702,
-      "fmrimod_dataset_seconds": 4.787500074598938e-05,
-      "fmrimod_fit_seconds": 0.002974458002427127,
-      "load_inputs_seconds": 0.02284670899825869,
-      "nilearn_pipeline_seconds": 0.0007060839998302981
+      "fmrimod_contrast_seconds": 0.006127083004685119,
+      "fmrimod_dataset_seconds": 6.61249941913411e-05,
+      "fmrimod_fit_seconds": 0.003676374995848164,
+      "load_inputs_seconds": 0.029234041008749045,
+      "nilearn_pipeline_seconds": 0.0010157910000998527
     },
     "status": "recorded"
   }

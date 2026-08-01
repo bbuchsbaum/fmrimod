@@ -36,13 +36,24 @@ def neural_input_core(
     amplitudes: NDArray[np.float64],
     start: float,
     end: float,
-    resolution: float
+    resolution: float,
 ) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Generate neural input time series from events.
-    
+
     This function creates a boxcar time series representing neural activity,
     where each event contributes its amplitude during its duration.
-    
+
+    This is the *stimulus function* itself -- what the experiment delivered,
+    for inspection and plotting. It is deliberately a unit-height boxcar and
+    is **not** the quadrature-weighted fine-grid input the convolution path
+    builds in :func:`fmrimod.regressor.convolution._build_neural_input`.
+    Those two are different objects: the boxcar has units of amplitude, the
+    convolution input carries the ``dt`` factors that turn the subsequent
+    convolution into an integral. The R reference draws the same distinction
+    -- ``neural_input_rcpp`` stayed a plain boxcar through the fmrihrf#45
+    quadrature fix, which only touched ``buildImpulseTrain``. Do not "fix"
+    this one to match; they are not supposed to match.
+
     Args:
         onsets: Event onset times
         durations: Event durations
@@ -50,17 +61,17 @@ def neural_input_core(
         start: Start time
         end: End time
         resolution: Time resolution
-        
+
     Returns:
         Tuple of (time_points, neural_input_values)
     """
     # Create time grid
     n_points = int((end - start) / resolution) + 1
     time = np.linspace(start, end, n_points)
-    
+
     # Initialize neural input
     neural = np.zeros(n_points)
-    
+
     # For each event, add amplitude during its duration
     for onset, duration, amplitude in zip(onsets, durations, amplitudes):
         if duration > 0:
@@ -72,75 +83,17 @@ def neural_input_core(
             idx = np.argmin(np.abs(time - onset))
             if 0 <= idx < n_points:
                 neural[idx] += amplitude
-    
+
     return time, neural
 
 
-def neural_input_fast(
-    onsets: NDArray[np.float64],
-    durations: NDArray[np.float64],
-    amplitudes: NDArray[np.float64],
-    start: float,
-    end: float,
-    resolution: float
-) -> Tuple[NDArray[np.float64], NDArray[np.float64]]:
-    """Fast neural input generation using difference array method.
-    
-    This is an optimized O(E + N) algorithm where E is number of events
-    and N is number of time points.
-    
-    Args:
-        onsets: Event onset times
-        durations: Event durations
-        amplitudes: Event amplitudes
-        start: Start time
-        end: End time
-        resolution: Time resolution
-        
-    Returns:
-        Tuple of (time_points, neural_input_values)
-    """
-    if resolution <= 0:
-        raise ValueError("resolution must be positive")
-    
-    # Number of time bins
-    n_bins = int((end - start) / resolution) + 1
-    
-    # Initialize difference array with extra guard slot
-    diff = np.zeros(n_bins + 1)
-    
-    # Process each event
-    for onset, duration, amplitude in zip(onsets, durations, amplitudes):
-        # Calculate start bin index
-        if onset <= start:
-            start_idx = 0
-        else:
-            start_idx = int((onset - start) / resolution)
-        
-        # Skip if event starts after our time range
-        if start_idx >= n_bins:
-            continue
-        
-        # Calculate end bin index
-        end_idx = int((onset + duration - start) / resolution)
-        if end_idx >= n_bins:
-            end_idx = n_bins - 1
-        
-        # Skip if invalid range
-        if start_idx > end_idx:
-            continue
-        
-        # Add amplitude at start, subtract at end+1
-        diff[start_idx] += amplitude
-        diff[end_idx + 1] -= amplitude
-    
-    # Cumulative sum to get actual values (exclude guard slot)
-    neural = np.cumsum(diff[:-1])
-    
-    # Create time array
-    time = np.arange(n_bins) * resolution + start
-    
-    return time, neural
+# ``neural_input_fast()`` used to live here: a second difference-array builder
+# for the same stimulus function. It had no callers, was not exported, and did
+# not agree with ``neural_input_core()`` -- it binned event edges by integer
+# index where the core builder masks on time, so for onsets/durations that fell
+# between bins the two returned different boxcars (summed amplitude 23 vs 20 on
+# a two-event example). A faster-looking duplicate that silently computes
+# something else is a trap, so it is gone. Removed under fmrimod#17.
 
 
 def neural_input(

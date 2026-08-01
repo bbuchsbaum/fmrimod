@@ -160,8 +160,23 @@ def fmrimod_pipeline(
 ) -> PipelineOutput:
     """Run the SPM auditory parity case through the canonical fmrimod API.
 
-    Three lines of user code: dataset → fit → contrast. ``norm="spm"`` puts
-    the HRF on Nilearn's unit-integral scale; no post-hoc rescaling needed.
+    Three lines of user code: dataset → fit → contrast.
+    ``norm="unit_integral"`` puts the HRF on Nilearn's scale for this block
+    design; no post-hoc rescaling needed.
+
+    Nilearn's ``hrf_model="spm"`` kernel is normalized to unit *sum* on a
+    grid of step ``dt_ref``, and its neural input is a unit-height boxcar,
+    so its block regressor is ``integral_block h / integral h`` -- a
+    dimensionless ratio, invariant to oversampling. fmrimod integrates the
+    block properly (see ``_build_neural_input``), so the matching kernel
+    normalization is the continuous integral, not the sampled sum.
+
+    Until the epoch-quadrature fix this case used ``norm="spm"`` (divide by
+    the sampled sum on a ``dt_ref = 0.02`` grid). That agreed with Nilearn
+    only because the missing ``dt`` factor in the old boxcar cancelled the
+    ``1/dt_ref`` in the sum-normalization *at precision 0.02 exactly*:
+    the same comparison scored 0.40x at ``precision=0.05`` and 2.00x at
+    ``precision=0.01``. The parity now holds at every precision.
     """
     ds, dataset_seconds = _elapsed_seconds(
         lambda: fm.fmri_dataset(
@@ -173,7 +188,9 @@ def fmrimod_pipeline(
         )
     )
     fit, fit_seconds = _elapsed_seconds(
-        lambda: fm.fmri_lm(hrf_term("trial_type", norm="spm"), ds, precision=0.02)
+        lambda: fm.fmri_lm(
+            hrf_term("trial_type", norm="unit_integral"), ds, precision=0.02
+        )
     )
     cres, contrast_seconds = _elapsed_seconds(
         lambda: fit.contrast(LISTENING_CONTRAST, name=CONTRAST_NAME)
@@ -214,8 +231,8 @@ def make_case(
 ) -> ParityCase:
     """Build the P1 SPM auditory parity case.
 
-    With ``hrf(..., norm="spm")`` the design column lands on Nilearn's
-    unit-integral scale, closing the historical ~0.002 amplitude gap. A
+    With ``hrf(..., norm="unit_integral")`` the design column lands on
+    Nilearn's scale, closing the historical ~0.002 amplitude gap. A
     small residual (~4 %) remains because Nilearn's ``_gamma_difference_hrf``
     uses ``scipy.stats.gamma.pdf`` while fmrimod evaluates the SPM
     ``exp(-t) * (a1*t^P1 - C*t^P2)`` parameterization at the same grid.

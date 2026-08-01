@@ -467,11 +467,20 @@ def make_case(max_voxels: int = MAX_VOXELS) -> ParityCase:
         inputs=load_inputs(max_voxels=max_voxels),
         tolerances={
             "design": ParityTolerance(rtol=0.0, atol=0.0),
+            # numerical_floor: both pipelines solve OLS on the SAME bitwise
+            # equal X (asserted above at rtol=atol=0), so this gate measures
+            # only solver-vs-solver float noise. Effects here are O(300), and
+            # `rtol` never binds on those; `atol` binds only on the near-zero
+            # voxels, where the observed disagreement is ~2.5e-9 (8e-12
+            # relative to max|effect|). atol=1e-8 matches the sibling
+            # `effect_diff_x_emo_quadrant` gate in this same file. The
+            # previous 1e-9 sat inside the noise band and flipped when the
+            # epoch-quadrature fix changed X's conditioning (fmrimod#7).
             "effect_difficulty_linear": ParityTolerance(
-                rtol=1e-8, atol=1e-9
+                rtol=1e-8, atol=1e-8
             ),
             "t_difficulty_linear": ParityTolerance(rtol=1e-7, atol=1e-8),
-            "effect_emotion_linear": ParityTolerance(rtol=1e-8, atol=1e-9),
+            "effect_emotion_linear": ParityTolerance(rtol=1e-8, atol=1e-8),
             "t_emotion_linear": ParityTolerance(rtol=1e-7, atol=1e-8),
             # numerical_floor: fmrimod and Nilearn route this derived
             # four-cell effect through independent contrast objects and
@@ -511,11 +520,20 @@ def _make_timed_case(
         inputs=inputs,
         tolerances={
             "design": ParityTolerance(rtol=0.0, atol=0.0),
+            # numerical_floor: both pipelines solve OLS on the SAME bitwise
+            # equal X (asserted above at rtol=atol=0), so this gate measures
+            # only solver-vs-solver float noise. Effects here are O(300), and
+            # `rtol` never binds on those; `atol` binds only on the near-zero
+            # voxels, where the observed disagreement is ~2.5e-9 (8e-12
+            # relative to max|effect|). atol=1e-8 matches the sibling
+            # `effect_diff_x_emo_quadrant` gate in this same file. The
+            # previous 1e-9 sat inside the noise band and flipped when the
+            # epoch-quadrature fix changed X's conditioning (fmrimod#7).
             "effect_difficulty_linear": ParityTolerance(
-                rtol=1e-8, atol=1e-9
+                rtol=1e-8, atol=1e-8
             ),
             "t_difficulty_linear": ParityTolerance(rtol=1e-7, atol=1e-8),
-            "effect_emotion_linear": ParityTolerance(rtol=1e-8, atol=1e-9),
+            "effect_emotion_linear": ParityTolerance(rtol=1e-8, atol=1e-8),
             "t_emotion_linear": ParityTolerance(rtol=1e-7, atol=1e-8),
             # numerical_floor: same four-cell effect floor as make_case().
             "effect_diff_x_emo_quadrant": ParityTolerance(

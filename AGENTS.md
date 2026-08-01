@@ -121,6 +121,36 @@ CI/ruff-debt gap is tracked separately — see the board.)
 Twenty-six rpy2 baseline-spline parity tests are pre-existing failures
 unrelated to current work; the `-k "not rpy2"` filter skips them.
 
+### R parity (`cross_testing/`)
+
+The R comparison needs both an rpy2 install and the R package:
+
+```bash
+uv pip install --python .venv/bin/python -e ".[cross-test]"   # brings in rpy2
+R -e 'remotes::install_github("bbuchsbaum/fmrihrf")'          # the R reference
+```
+
+Without them these tests **skip**. A skipped R suite means "not checked",
+not "in agreement" — that is precisely how the fmrihrf#45 defects reached
+fmrimod unflagged (fmrimod#16). Two guards now make that visible:
+
+- Every `cross_testing/` run prints an `R PARITY:` summary line stating how
+  many R-backed tests actually ran. `R PARITY: NOT CHECKED` is printed in red
+  when all of them skipped.
+- `FMRIMOD_REQUIRE_R=1` (or `--require-r` when `cross_testing/` is named
+  directly) turns the skip into a hard failure. Use it in any CI job whose
+  purpose is the R comparison.
+
+```bash
+FMRIMOD_REQUIRE_R=1 .venv/bin/python -m pytest cross_testing/
+```
+
+Twenty-two `cross_testing/` tests fail against fmrihrf 0.4.0 for a
+pre-existing reason unrelated to the quadrature work: R's `HRF_SPMG1` and
+fmrimod's `spmg1` differ by a factor of 10 in normalization convention.
+Establish a baseline before attributing any `cross_testing/` failure to
+your own diff.
+
 ## Issue Tracking — mote
 
 This project uses [`mote`](https://github.com/Dicklesworthstone/mote) for local,

@@ -63,7 +63,8 @@ def test_tier_d_showcase_receipt_renders_proof_scorecard() -> None:
 def test_tier_a_f_confound_drift_uses_typed_omnibus_intent() -> None:
     manifest = json.loads((ROOT / "benchmarks/parity/proof_artifacts.json").read_text())
     artifact = next(
-        item for item in manifest["artifacts"]
+        item
+        for item in manifest["artifacts"]
         if item["benchmark_id"] == "tier_a_f_confound_drift"
     )
 
@@ -97,7 +98,11 @@ def test_tier_a_spm_auditory_uses_semantic_contrast_receipt() -> None:
     assert intent["term"] == "trial_type"
     assert intent["levels"] == ["listening"]
     assert intent["name"] == "listening"
-    assert intent["basis_label"] == "hrf_norm:spm"
+    # unit_integral, not spm: Nilearn's block regressor is the dimensionless
+    # ratio integral_block h / integral h, so the kernel normalization that
+    # matches it under fmrimod's (corrected) block quadrature is the
+    # continuous integral. See tier_a_spm_auditory/workflow.py.
+    assert intent["basis_label"] == "hrf_norm:unit_integral"
     assert intent["weights"]
     assert str(intent["design_id"]).startswith("design:sha256:")
     assert str(intent["provenance_id"]).startswith("fitprov:sha256:")

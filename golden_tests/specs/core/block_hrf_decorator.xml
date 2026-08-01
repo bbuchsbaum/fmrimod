@@ -2,7 +2,7 @@
 <golden_test xmlns="http://golden-tests.org/schema">
   <metadata>
     <id>block_hrf_decorator</id>
-    <version>1.0</version>
+    <version>2.0</version>
     <description>Blocked HRF decorator for sustained stimulus modeling</description>
     <tags>
       <tag>core</tag>
@@ -13,6 +13,20 @@
       <tag>sustained</tag>
     </tags>
   </metadata>
+
+  <revision_history>
+    <revision version="2.0">
+      Version 1.0's expected block values were larger than the reference by
+      exactly 1/precision (73.4203 vs 7.2476 at precision 0.1), and its
+      "precision convergence" check required the difference between two
+      quadrature steps to land in [20, 21] -- specifying divergence where the
+      correct behaviour is convergence (~0.0015). A correct implementation
+      failed this spec. Values regenerated from fmrihrf 0.4.0; tolerances
+      widened where the R and Python SPM canonical parameterizations differ
+      (R uses exp(-t)*(a1*t^P1 - C*t^P2), fmrimod uses scipy's gamma pdf),
+      which is ~1.3% at t=10. See fmrihrf#45 and fmrimod#7, #15.
+    </revision>
+  </revision_history>
   
   <semantic_description>
     <purpose>Validate the block_hrf function that creates blocked hemodynamic responses by convolving HRFs with boxcar functions for sustained stimulus modeling</purpose>
@@ -26,14 +40,16 @@
       - where g(τ) is the boxcar function [1 for 0 ≤ τ ≤ width, 0 otherwise]
       - Discrete approximation: f_blocked(t) ≈ Σᵢ f_original(t - τᵢ) · decay(τᵢ) · precision
       - Exponential decay: decay(τ) = exp(-ln(2) · τ / half_life)
-      - Summation vs max: aggregate responses across block duration
+      - summate=TRUE keeps the accumulated integral; summate=FALSE divides by
+        the summed quadrature weights (== width), giving the duration-averaged
+        response. It is NOT a pointwise maximum.
     </algorithm>
     <mathematical_properties>
       Key properties to validate:
       1. Convolution accuracy: proper integration over block width
       2. Sampling precision effects: convergence with finer sampling
       3. Exponential decay: correct half-life behavior when specified
-      4. Aggregation modes: summation vs maximum selection
+      4. Aggregation modes: accumulated integral vs duration-averaged
       5. Normalization: peak scaling when requested
       6. Span adjustment: span_new = span_original + width
       7. Multi-basis handling: matrix operations preservation
@@ -79,8 +95,8 @@
       <check>
         <type>approximate</type>
         <location>max(evaluate(block_hrf(HRF_SPMG1, width = 5.0, precision = 0.1), seq(0, 35, 0.1)))</location>
-        <expected>73.4203</expected>
-        <tolerance>0.02</tolerance>
+        <expected>7.2476</expected>
+        <tolerance>0.15</tolerance>
       </check>
       
       <!-- Span adjustment verification -->
@@ -102,15 +118,15 @@
       <check>
         <type>approximate</type>
         <location>evaluate(block_hrf(HRF_SPMG1, width = 5.0, precision = 0.1), 5.0)</location>
-        <expected>39.2654</expected>
-        <tolerance>0.05</tolerance>
+        <expected>3.8388</expected>
+        <tolerance>0.10</tolerance>
       </check>
       
       <check>
         <type>approximate</type>
         <location>evaluate(block_hrf(HRF_SPMG1, width = 5.0, precision = 0.1), 10.0)</location>
-        <expected>55.846</expected>
-        <tolerance>0.05</tolerance>
+        <expected>5.4783</expected>
+        <tolerance>0.12</tolerance>
       </check>
       
       <!-- Zero width edge case -->
@@ -121,20 +137,24 @@
         <tolerance>1e-4</tolerance>
       </check>
       
-      <!-- Precision convergence -->
+      <!-- Precision convergence. The blocked response is an integral, so
+           refining the quadrature step must change it only slightly. Version
+           1.0 required this difference to land in [20, 21] — i.e. it
+           specified divergence and would have failed a convergent
+           implementation. The true value is ~0.0015. -->
       <check>
         <type>range</type>
         <location>abs(evaluate(block_hrf(HRF_SPMG1, width = 2.0, precision = 0.1), 8.0) - evaluate(block_hrf(HRF_SPMG1, width = 2.0, precision = 0.5), 8.0))</location>
-        <min>20.0</min>
-        <max>21.0</max>
+        <min>0.0</min>
+        <max>0.01</max>
       </check>
       
       <!-- Exponential decay effect -->
       <check>
         <type>approximate</type>
         <location>evaluate(block_hrf(HRF_SPMG1, width = 8.0, half_life = 4.0, precision = 0.2), 10.0)</location>
-        <expected>23.0246</expected>
-        <tolerance>0.05</tolerance>
+        <expected>4.5587</expected>
+        <tolerance>0.10</tolerance>
       </check>
       
       <!-- Normalization effect -->
