@@ -13,7 +13,7 @@ project:
 
 website:
   title: "fmrimod"
-  description: "Typed, composable fMRI design and statistical modeling in Python."
+  description: "fMRI design and statistical modeling in Python."
   site-url: "https://bbuchsbaum.github.io/fmrimod/"
   repo-url: "https://github.com/bbuchsbaum/fmrimod"
   repo-actions: [edit, issue]

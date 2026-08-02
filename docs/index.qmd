@@ -8,11 +8,10 @@ jupyter: python3
 
 ::: {.hero}
 ::: {.hero-copy}
-[Python · fMRI modeling]{.eyebrow}
 
-# Typed, composable fMRI modeling.
+# fMRI design and statistical modeling in Python
 
-[From an event table to a first-level fit you can inspect at every step — HRFs, design matrices, contrasts, and group reductions as Python values, not opaque arrays.]{.lead}
+[Construct HRFs, design matrices and contrasts as typed Python objects, fit first-level and group models, and inspect the design at each stage.]{.lead}
 
 [Get started →](get-started.qmd){.btn .btn-primary}
 [API reference](reference/index.qmd){.btn .btn-outline-secondary}
@@ -43,7 +42,7 @@ faces.estimate.round(2)   # recovers the injected effect: ≈ 2.0
 :::
 :::
 
-## In 30 seconds {.promise-heading}
+## The design is a value {.promise-heading}
 
 A design in fmrimod is a **typed Python value**, not a magic string. You
 build it from `hrf(...)`, `drift(...)`, `intercept(...)` terms, compose them
@@ -108,37 +107,39 @@ tree — `fm.fmri_lm("hrf(condition)", dataset)` is exact sugar for
 it is composable, IDE-introspectable, and inspectable before fitting.
 :::
 
-## Three promises {.promise-heading}
+## Design principles {.promise-heading}
 
 ::: {.promise-grid}
 ::: {.promise-card}
 #### Typed
-HRFs, baselines, contrasts, AR options, single-trial estimators, and group
-reductions are inspectable Python values — constructed once, validated at the
-boundary. [Get started](get-started.qmd)
+HRFs, baselines, contrasts, AR options, single-trial estimators and group
+reductions are Python objects that can be inspected. They are constructed
+once and validated at construction. [Get started](get-started.qmd)
 
 [`hrf("condition")`]{.promise-tag}
 :::
 ::: {.promise-card}
 #### Composable
-Terms compose with `+` into one typed design, and the same workflow
-— `fmri_dataset → fmri_lm → contrast → group` — carries it from data
-to group results, shown end to end with recovered numbers on the
-[golden path](tutorials/golden-path.qmd).
+Terms combine with `+` into a single typed design. The same sequence,
+`fmri_dataset → fmri_lm → contrast → group`, carries it from data to group
+results; the [golden path](tutorials/golden-path.qmd) works through this end
+to end on a dataset with a known effect.
 
 [`hrf(...) + drift(...)`]{.promise-tag}
 :::
 ::: {.promise-card}
-#### Parity-validated
-R behavior, Nilearn, and FitLins are treated as references; agreement is
-proven through checked-in benchmark and cross-testing artifacts.
+#### Checked against references
+Nilearn, FitLins and the corresponding R implementations are treated as
+references. Agreement is recorded in checked-in benchmark and cross-testing
+artifacts rather than asserted.
 [Workflow overview](tutorials/overview-workflow.qmd)
 
 [`fm.design_matrix`]{.promise-tag}
 :::
 :::
 
-`fmrimod` is the unified Python home for the `fmri*` R modeling ecosystem —
-not a mechanical translation. The public API is redesigned around typed
-composition, reproducible analysis objects, and workflow parity checked
-against concrete artifacts.
+fmrimod brings HRF specification, design construction, first-level and
+group modeling into a single Python library. Capabilities that are spread
+across several R packages are consolidated here under one API, designed
+around typed composition and reproducible analysis objects rather than
+translated directly.

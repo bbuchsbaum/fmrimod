@@ -1,14 +1,14 @@
 # fmrimod
 
-Typed, composable fMRI design and statistical modeling in Python.
+fMRI design and statistical modeling in Python.
 
-A design is a Python value, not a formula string: build it from `hrf(...)`,
-`drift(...)` and `intercept(...)` terms, compose with `+`, and inspect every
-field before a coefficient is solved. One library covers the whole path from
-an event table to a group-level result — HRF specification, design matrices,
-first-level GLM (with AR, robust and low-rank variants), single-trial
-estimation, contrasts, and group statistics — with `numpy`/`pandas` types at
-the boundaries and BIDS in and out.
+A design is a Python value rather than a formula string: it is built from
+`hrf(...)`, `drift(...)` and `intercept(...)` terms, combined with `+`, and
+can be inspected before any coefficient is solved. The library covers HRF
+specification, design matrix construction, first-level GLM (including AR,
+robust and low-rank variants), single-trial estimation, contrasts and group
+statistics, using `numpy` and `pandas` types at the boundaries and reading
+and writing BIDS.
 
 ## Documentation
 
