@@ -26,8 +26,21 @@ def test_ws01_design_parity_returns_metrics():
     report = run_ws01_design_matrix_parity(n_scans=120, tr=1.0, seed=11)
     assert report["status"] == "complete"
     assert "metrics" in report
-    assert "min_column_corr" in report["metrics"]
-    assert "max_scaled_mae" in report["metrics"]
+    # `min_column_corr` / `max_scaled_mae` were split into raw and lag-matched
+    # variants; the test kept asserting the old names and so had been failing
+    # rather than checking anything.
+    metrics = report["metrics"]
+    assert "min_column_corr_raw" in metrics
+    assert "min_column_corr_lagged" in metrics
+    assert "max_scaled_mae_lagged" in metrics
+
+    # The reference is now sampled on fmrimod's own scan grid, so agreement is
+    # near-exact and needs no lag correction. Asserting that here keeps the
+    # sampling alignment from silently regressing back to a half-scan offset,
+    # which is what previously held this workstream at ~0.97.
+    assert metrics["max_abs_lag_scans"] == 0
+    assert metrics["min_column_corr_raw"] > 0.999
+    assert report["parity_ok"] is True
 
 
 def test_ws02_contrast_parity_returns_metrics():

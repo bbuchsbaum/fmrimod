@@ -85,9 +85,7 @@ def _safe_corr(a: Array, b: Array) -> float:
     return float(np.corrcoef(aa, bb)[0, 1])
 
 
-def _align_by_lag(
-    candidate: Array, reference: Array, lag: int
-) -> tuple[Array, Array]:
+def _align_by_lag(candidate: Array, reference: Array, lag: int) -> tuple[Array, Array]:
     """Align 1D series under an integer lag in scan units."""
     c = np.asarray(candidate, dtype=np.float64).reshape(-1)
     r = np.asarray(reference, dtype=np.float64).reshape(-1)
@@ -201,7 +199,9 @@ def _placeholder_workstream(name: str) -> Dict[str, Any]:
     }
 
 
-def _compute_contrast_compat(labels: Array, estimates: Mapping[Any, Any], con: Array, stat: str):
+def _compute_contrast_compat(
+    labels: Array, estimates: Mapping[Any, Any], con: Array, stat: str
+):
     from nilearn.glm.contrasts import compute_contrast
 
     stat_norm = str(stat).strip().lower()
@@ -243,10 +243,15 @@ def run_ws01_design_matrix_parity(
     n_scans: int = 180,
     tr: float = 1.0,
     seed: int = 7,
-    min_column_corr_raw: float = 0.92,
-    min_column_corr_lagged: float = 0.97,
-    max_scaled_mae_lagged: float = 0.025,
-    max_abs_lag_scans: int = 1,
+    # Tightened alongside the frame_times alignment below. On the two CI
+    # profiles the observed values are corr >= 0.99992 and scaled MAE <= 0.00094
+    # with a best lag of 0, so the old 0.92/0.97/0.025/lag<=1 band no longer
+    # constrained anything: it was sized for a half-scan sampling offset that
+    # is now gone. Leaving it wide would keep a gate that cannot fail.
+    min_column_corr_raw: float = 0.999,
+    min_column_corr_lagged: float = 0.999,
+    max_scaled_mae_lagged: float = 0.005,
+    max_abs_lag_scans: int = 0,
     match_max_lag_scans: int = 1,
 ) -> Dict[str, Any]:
     """Run WS01 parity on a deterministic two-condition event fixture."""
@@ -271,7 +276,18 @@ def run_ws01_design_matrix_parity(
 
     for fixture_name, fixture_scans, fixture_tr, fixture_seed in fixture_specs:
         rng = np.random.default_rng(fixture_seed)
-        frame_times = np.arange(fixture_scans, dtype=np.float64) * float(fixture_tr)
+        # Sample the reference at the SAME times fmrimod uses. fmrimod places a
+        # scan at the middle of its acquisition window (SamplingFrame.
+        # global_scan_times == [TR/2, 3TR/2, ...]), whereas Nilearn's usual
+        # frame_times start at 0. Comparing the two on their own grids leaves a
+        # half-scan offset that integer lag matching cannot represent, which
+        # capped this workstream's column correlation at ~0.97 and made the
+        # gate a measure of the offset rather than of agreement. Aligning the
+        # grids takes the correlation to ~0.9999 and the best lag to 0.
+        frame_times = (
+            np.arange(fixture_scans, dtype=np.float64) * float(fixture_tr)
+            + float(fixture_tr) / 2.0
+        )
 
         n_events = 18
         onset_grid = np.linspace(8.0, max(20.0, frame_times[-1] - 24.0), n_events)
@@ -310,7 +326,9 @@ def run_ws01_design_matrix_parity(
             if level not in ref_df.columns:
                 missing.append(f"{fixture_name}:reference:{level}")
                 continue
-            matches = [idx for idx, name in enumerate(cand_names) if f".{level}" in name]
+            matches = [
+                idx for idx, name in enumerate(cand_names) if f".{level}" in name
+            ]
             if len(matches) != 1:
                 missing.append(f"{fixture_name}:candidate:{level}")
                 continue
@@ -430,7 +448,9 @@ def run_ws02_contrast_parity(
     var_factor = float(t_con @ np.asarray(proj.XtXinv, dtype=np.float64) @ t_con)
 
     cand_effect = np.asarray(t_con @ candidate["betas"], dtype=np.float64).reshape(-1)
-    cand_variance = np.asarray(var_factor * candidate["sigma2"], dtype=np.float64).reshape(-1)
+    cand_variance = np.asarray(
+        var_factor * candidate["sigma2"], dtype=np.float64
+    ).reshape(-1)
     cand_z = _z_from_two_sided_p(candidate["p"], candidate["t"])
 
     labels, estimates = run_glm(Y, X, noise_model="ols")
@@ -439,7 +459,9 @@ def run_ws02_contrast_parity(
 
     ref_effect = _maybe_attr_array(t_res, ["effect_size", "effect"])
     if ref_effect is None:
-        ref_effect = np.asarray(t_con @ reference["betas"], dtype=np.float64).reshape(-1)
+        ref_effect = np.asarray(t_con @ reference["betas"], dtype=np.float64).reshape(
+            -1
+        )
 
     ref_variance = _maybe_attr_array(t_res, ["effect_variance", "variance"])
     if ref_variance is None:
@@ -456,7 +478,9 @@ def run_ws02_contrast_parity(
     ref_f_stat = np.asarray(f_res.stat(), dtype=np.float64).reshape(-1)
     ref_f_p = np.asarray(f_res.p_value(), dtype=np.float64).reshape(-1)
 
-    cand_sigma = np.sqrt(np.maximum(np.asarray(candidate["sigma2"], dtype=np.float64), 0.0))
+    cand_sigma = np.sqrt(
+        np.maximum(np.asarray(candidate["sigma2"], dtype=np.float64), 0.0)
+    )
     cand_f = contrast_f(
         f_con,
         np.asarray(candidate["betas"], dtype=np.float64),
@@ -744,9 +768,13 @@ def _run_ws04_single_fixture(
         var_factor = float(con @ np.asarray(proj.XtXinv, dtype=np.float64) @ con)
 
         effect_c = np.asarray(con @ cand["betas"], dtype=np.float64).reshape(-1)
-        var_c = np.maximum(var_factor, 0.0) * np.asarray(cand["sigma2"], dtype=np.float64)
+        var_c = np.maximum(var_factor, 0.0) * np.asarray(
+            cand["sigma2"], dtype=np.float64
+        )
         effect_r = np.asarray(con @ ref["betas"], dtype=np.float64).reshape(-1)
-        var_r = np.maximum(var_factor, 0.0) * np.asarray(ref["sigma2"], dtype=np.float64)
+        var_r = np.maximum(var_factor, 0.0) * np.asarray(
+            ref["sigma2"], dtype=np.float64
+        )
 
         effects_c.append(effect_c)
         vars_c.append(np.asarray(var_c, dtype=np.float64).reshape(-1))
@@ -990,8 +1018,8 @@ def _extract_betas_from_run_glm(labels, estimates, n_regressors: int) -> np.ndar
 
 def _canonical_hrf_kernel(length: int = 24) -> np.ndarray:
     t = np.arange(length, dtype=np.float64)
-    g1 = (t ** 5) * np.exp(-t / 1.0)
-    g2 = (t ** 15) * np.exp(-t / 1.0)
+    g1 = (t**5) * np.exp(-t / 1.0)
+    g2 = (t**15) * np.exp(-t / 1.0)
     h = g1 - 0.5 * g2
     h /= np.max(np.abs(h))
     return h
@@ -1124,7 +1152,9 @@ def run_ws06_lsa_lss_parity_performance(
         warmup=int(warmup),
     )
     lss_conf_stage = _benchmark_pair(
-        lambda: lss_single_trial(Y, X, confounds=confounds, chunk_size=chunk_size).betas,
+        lambda: lss_single_trial(
+            Y, X, confounds=confounds, chunk_size=chunk_size
+        ).betas,
         lambda: _nilearn_lss(Y, X, confounds),
         repeats=int(repeats),
         warmup=int(warmup),
@@ -1177,7 +1207,10 @@ def run_ws06_lsa_lss_parity_performance(
         failures.append("max_lss_mae")
     if metrics["speed"]["lsa"]["speedup_vs_reference"] < thresholds["min_speedup_lsa"]:
         failures.append("min_speedup_lsa")
-    if metrics["speed"]["lss_cached"]["speedup_vs_reference"] < thresholds["min_speedup_lss_cached"]:
+    if (
+        metrics["speed"]["lss_cached"]["speedup_vs_reference"]
+        < thresholds["min_speedup_lss_cached"]
+    ):
         failures.append("min_speedup_lss_cached")
     if metrics["speed"]["projector_speedup"] < thresholds["min_projector_speedup_lss"]:
         failures.append("min_projector_speedup_lss")
@@ -1193,7 +1226,8 @@ def run_ws06_lsa_lss_parity_performance(
         "performance_ok": not any(
             f
             for f in failures
-            if f in {
+            if f
+            in {
                 "min_speedup_lsa",
                 "min_speedup_lss_cached",
                 "min_projector_speedup_lss",
@@ -1276,7 +1310,9 @@ def run_ws07_rank_deficient_design_parity(
         pm = compute_parity_metrics(cand, ref)
 
         cand_dfres = float(fast_preproject(x_fix, check_finite=False).dfres)
-        ref_dfres = float(_reference_dfres_from_nilearn(x_fix, y_fix, noise_model="ols"))
+        ref_dfres = float(
+            _reference_dfres_from_nilearn(x_fix, y_fix, noise_model="ols")
+        )
         df_absdiff = float(abs(cand_dfres - ref_dfres))
 
         expected_rank = float(np.linalg.matrix_rank(x_fix))
@@ -1364,7 +1400,10 @@ def run_ws08_numeric_precision_parity(
     Y_scaled = X_scaled @ beta_true + noise
 
     fixtures = {
-        "standard_scale": (np.asarray(X, dtype=np.float64), np.asarray(Y, dtype=np.float64)),
+        "standard_scale": (
+            np.asarray(X, dtype=np.float64),
+            np.asarray(Y, dtype=np.float64),
+        ),
         "dynamic_range_scaled": (X_scaled, np.asarray(Y_scaled, dtype=np.float64)),
     }
 
@@ -1420,9 +1459,7 @@ def run_ws08_numeric_precision_parity(
         sigma2_corr_gap_vs_ref64 = float(
             abs(float(c32_vs_64.sigma2_corr) - float(r32_vs_64.sigma2_corr))
         )
-        p_mae_gap_vs_ref64 = float(
-            abs(float(c32_vs_64.p_mae) - float(r32_vs_64.p_mae))
-        )
+        p_mae_gap_vs_ref64 = float(abs(float(c32_vs_64.p_mae) - float(r32_vs_64.p_mae)))
 
         fixture_failures: list[str] = []
         if fixture_name == "standard_scale":
@@ -1450,9 +1487,7 @@ def run_ws08_numeric_precision_parity(
                 float(c32_vs_r32.sigma2_corr)
                 < thresholds["min_candidate32_vs_ref32_sigma2_corr_standard"]
             ):
-                fixture_failures.append(
-                    "min_candidate32_vs_ref32_sigma2_corr_standard"
-                )
+                fixture_failures.append("min_candidate32_vs_ref32_sigma2_corr_standard")
         else:
             if (
                 float(c32_vs_r32.t_corr)
@@ -1468,18 +1503,13 @@ def run_ws08_numeric_precision_parity(
                 float(c32_vs_r32.sigma2_corr)
                 < thresholds["min_candidate32_vs_ref32_sigma2_corr_dynamic"]
             ):
-                fixture_failures.append(
-                    "min_candidate32_vs_ref32_sigma2_corr_dynamic"
-                )
+                fixture_failures.append("min_candidate32_vs_ref32_sigma2_corr_dynamic")
             if (
                 sigma2_corr_gap_vs_ref64
                 > thresholds["max_sigma2_corr_gap_vs_reference64_dynamic"]
             ):
                 fixture_failures.append("max_sigma2_corr_gap_vs_reference64_dynamic")
-            if (
-                p_mae_gap_vs_ref64
-                > thresholds["max_p_mae_gap_vs_reference64_dynamic"]
-            ):
+            if p_mae_gap_vs_ref64 > thresholds["max_p_mae_gap_vs_reference64_dynamic"]:
                 fixture_failures.append("max_p_mae_gap_vs_reference64_dynamic")
 
         if fixture_failures:
@@ -1776,9 +1806,13 @@ def run_ws10_performance_decomposition_parity(
         t_p = 2.0 * sp_special.stdtr(dfres_fit, -np.abs(t_stat))
 
         f_effect = f_con_mat @ betas_fit
-        f_quad = np.einsum("iv,ij,jv->v", f_effect, f_inner_inv, f_effect, optimize=True)
+        f_quad = np.einsum(
+            "iv,ij,jv->v", f_effect, f_inner_inv, f_effect, optimize=True
+        )
         with np.errstate(divide="ignore", invalid="ignore"):
-            f_stat = np.where(sigma2_fit > 1e-30, (f_quad / f_dof_num) / sigma2_fit, 0.0)
+            f_stat = np.where(
+                sigma2_fit > 1e-30, (f_quad / f_dof_num) / sigma2_fit, 0.0
+            )
         f_p = sp_special.fdtrc(f_dof_num, dfres_fit, np.maximum(f_stat, 0.0))
         return t_stat, t_p, f_stat, f_p
 
@@ -1934,13 +1968,16 @@ def run_ws10_performance_decomposition_parity(
     }
     ar1_substage_shares = {
         "fit_noise_share_of_candidate_total": float(
-            ar1_substage_medians["fit_noise_median_s"] / max(fit_total_ar1_candidate, 1e-12)
+            ar1_substage_medians["fit_noise_median_s"]
+            / max(fit_total_ar1_candidate, 1e-12)
         ),
         "whitening_share_of_candidate_total": float(
-            ar1_substage_medians["whitening_median_s"] / max(fit_total_ar1_candidate, 1e-12)
+            ar1_substage_medians["whitening_median_s"]
+            / max(fit_total_ar1_candidate, 1e-12)
         ),
         "final_glm_share_of_candidate_total": float(
-            ar1_substage_medians["final_glm_median_s"] / max(fit_total_ar1_candidate, 1e-12)
+            ar1_substage_medians["final_glm_median_s"]
+            / max(fit_total_ar1_candidate, 1e-12)
         ),
     }
     fit_total_ar1_substages = {
@@ -1959,7 +1996,9 @@ def run_ws10_performance_decomposition_parity(
 
     # Stage 5: run-combine only
     rng_rc = np.random.default_rng(seed + 3)
-    rc_effects = rng_rc.normal(size=(int(run_combine_runs), int(n_voxels))).astype(np.float64)
+    rc_effects = rng_rc.normal(size=(int(run_combine_runs), int(n_voxels))).astype(
+        np.float64
+    )
     rc_variances = np.abs(
         rng_rc.normal(loc=0.5, scale=0.2, size=(int(run_combine_runs), int(n_voxels)))
     ).astype(np.float64)
@@ -2006,20 +2045,37 @@ def run_ws10_performance_decomposition_parity(
     }
 
     failures: list[str] = []
-    if stage_metrics["design_build"]["speedup_vs_reference"] < thresholds["min_speedup_design_build"]:
+    if (
+        stage_metrics["design_build"]["speedup_vs_reference"]
+        < thresholds["min_speedup_design_build"]
+    ):
         failures.append("min_speedup_design_build")
-    if stage_metrics["fit_total_ols"]["speedup_vs_reference"] < thresholds["min_speedup_fit_total_ols"]:
+    if (
+        stage_metrics["fit_total_ols"]["speedup_vs_reference"]
+        < thresholds["min_speedup_fit_total_ols"]
+    ):
         failures.append("min_speedup_fit_total_ols")
-    if stage_metrics["contrast_only"]["speedup_vs_reference"] < thresholds["min_speedup_contrast_only"]:
+    if (
+        stage_metrics["contrast_only"]["speedup_vs_reference"]
+        < thresholds["min_speedup_contrast_only"]
+    ):
         failures.append("min_speedup_contrast_only")
-    if stage_metrics["fit_total_ar1"]["speedup_vs_reference"] < thresholds["min_speedup_fit_total_ar1"]:
+    if (
+        stage_metrics["fit_total_ar1"]["speedup_vs_reference"]
+        < thresholds["min_speedup_fit_total_ar1"]
+    ):
         failures.append("min_speedup_fit_total_ar1")
-    if stage_metrics["run_combine"]["speedup_vs_reference"] < thresholds["min_speedup_run_combine"]:
+    if (
+        stage_metrics["run_combine"]["speedup_vs_reference"]
+        < thresholds["min_speedup_run_combine"]
+    ):
         failures.append("min_speedup_run_combine")
 
     parity_ok = True
     for stage in stage_metrics.values():
-        if not np.isfinite(stage["candidate_median_s"]) or not np.isfinite(stage["reference_median_s"]):
+        if not np.isfinite(stage["candidate_median_s"]) or not np.isfinite(
+            stage["reference_median_s"]
+        ):
             parity_ok = False
             break
         if stage["candidate_median_s"] <= 0.0 or stage["reference_median_s"] <= 0.0:
