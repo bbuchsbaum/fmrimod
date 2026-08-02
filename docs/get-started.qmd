@@ -37,23 +37,22 @@ events = pd.DataFrame({
 ```
 
 The design is a **typed value**, built with `hrf(...)`. You can read its
-fields before anything is fitted — it is not an opaque string.
+fields before anything is fitted.
 
 ```{python}
 spec = hrf("condition", basis="spmg1")
 spec.variables, spec.hrf
 ```
 
-So the result can be *checked* — not just inspected for shape — we use
-test data with a **known** answer: a face−scene effect of `2.0` in five
+So the result can be *checked* rather than merely inspected for shape, we
+use test data with a **known** answer: a face−scene effect of `2.0` in five
 of ten voxels, with the other five left as pure noise. A correct model
 must then return ≈ `2.0` in the first five and ≈ `0` in the rest.
 
-The dataset is built by `dataset_with_effect` — a tutorial-support
-helper that places the known effect on the column the **typed
-`condition(...)` object resolves to**, the same object the contrast
-below uses, never a rendered-name string lookup. No hand-rolled matrix
-algebra.
+The dataset is built by `dataset_with_effect`, a tutorial-support helper
+that places the known effect on the column the **`condition(...)` object
+resolves to**, the same object the contrast below uses, rather than on a
+column found by matching a rendered name.
 
 ```{python}
 from fmrimod.simulate.demo import dataset_with_effect
@@ -66,7 +65,7 @@ dataset = dataset_with_effect(
 ```
 
 Fit the first-level model, then state the hypothesis by
-**naming conditions** — not column positions. The recovered estimate
+**naming conditions** rather than column positions. The recovered estimate
 returns the injected effect.
 
 ```{python}
@@ -82,26 +81,47 @@ pd.DataFrame({
 })  # voxels 0–4 recover ≈ 2.0; voxels 5–9 are null
 ```
 
-The realized design is readable from the fit — built for you, still
-inspectable.
+## The Design fmrimod Built
+
+`fmri_lm()` built the design for you, and you can read it back from the
+fit. The columns first:
 
 ```{python}
 list(fit.model.design_matrix(run=0).columns)
 ```
+
+And the columns themselves. Each one is the condition's event timing
+convolved with the SPM canonical HRF, which is what `basis="spmg1"` in the
+spec selected:
+
+```{python}
+#| fig-cap: "Design columns for the two conditions. Every event in the table
+#|   becomes one HRF response: a rise to peak around 5 s after onset, then
+#|   the undershoot. `face` and `scene` alternate every 12 s, so the two
+#|   columns interleave."
+from fmrimod.visualization import plot_design_matrix
+
+# figsize is passed to the function, not set as a cell option: the plot
+# helper builds its own figure.
+fig, ax = plot_design_matrix(fit.model.event_model, figsize=(9, 3.2))
+```
+
+Reading this plot is how you check a design before trusting a fit: the
+peaks should land where the events are, and two conditions that alternate
+in the event table should alternate here.
 
 ::: {.callout-note collapse="true"}
 ## Coming from R / `fmrireg`?
 
 The R-style string formula still works and compiles to the *same* spec:
 `fm.fmri_lm("hrf(condition)", dataset)` is exact sugar for
-`fm.fmri_lm(hrf("condition"), dataset)`. Prefer the typed form in
-Python — it is composable with `+`, IDE-introspectable, and inspectable
-before fitting.
+`fm.fmri_lm(hrf("condition"), dataset)`. Prefer the object form in Python:
+it composes with `+`, and your editor can introspect it before you fit.
 :::
 
 ## What Just Happened
 
-`fmri_dataset()` binds data to timing and events, `hrf(...)` is the typed
+`fmri_dataset()` binds data to timing and events, `hrf(...)` is the
 design spec, `fmri_lm()` fits the public first-level path, and
 `fit.contrast(...)` states the hypothesis by name. This is the same
 workflow the flagship parity checks use:
@@ -111,7 +131,7 @@ fmri_dataset -> fmri_lm(spec) -> contrast -> group
 ```
 
 The **[golden path](tutorials/golden-path.qmd)** runs this workflow
-start to finish — first level *into* group — and checks the recovered
+start to finish, first level *into* group, and checks the recovered
 numbers against the R/Nilearn reference on the page.
 
 ## Next Steps
