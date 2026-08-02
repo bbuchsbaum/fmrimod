@@ -129,7 +129,10 @@ def check_file(path: Path, cfg: dict) -> list[Finding]:
     if cap and words:
         dashes = [(n, m) for n, ln in lines for m in re.finditer("—", ln)]
         rate = len(dashes) * 10_000 / words
-        if rate > float(cap):
+        # Same floor as the rate caps: two em dashes is not a cadence, it is
+        # two em dashes. Without this a 200-word tutorial trips the limit on
+        # length alone and the finding is unactionable.
+        if len(dashes) >= _MIN_RATE_HITS and rate > float(cap):
             n, m = dashes[0]
             out.append(
                 Finding(

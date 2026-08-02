@@ -9,8 +9,8 @@ execute:
 ## A Typed Spec and a Dataset
 
 The canonical first-level path is `fmri_lm(spec, dataset)`. The spec is a
-typed value built from `hrf(...)`; the dataset binds data to timing and
-events. No string formula, no hand-built design matrix.
+value built from `hrf(...)` rather than a formula string; the dataset binds
+data to timing and events.
 
 ```{python}
 import numpy as np
@@ -29,7 +29,7 @@ spec = hrf("condition", basis="spmg1")
 
 We use simulated data with a **known** `face − scene` effect of `2.5` in
 five of ten voxels, so a correct model must return ≈ `2.5` there and
-≈ `0` elsewhere — that known answer is what makes the fit checkable.
+≈ `0` elsewhere.
 
 `dataset_with_effect` is a tutorial helper that builds the data with the
 effect placed on the `condition("face", ...)` column, the same object
@@ -48,14 +48,14 @@ dataset = dataset_with_effect(
 ## Fit the First-Level Model
 
 `fmri_lm()` compiles the spec, builds the full event-plus-baseline design,
-and returns an inspectable typed result.
+and returns a fitted model.
 
 ```{python}
 fit = fm.fmri_lm(spec, dataset)
 fit
 ```
 
-The realized design is inspectable from the fit — you never built it by
+The realized design is inspectable from the fit. You never built it by
 hand, but you can still read every column.
 
 ```{python}
@@ -88,10 +88,8 @@ pd.DataFrame({
 
 `fmri_ols_fit()` solves a design/data pair directly and returns a plain
 dict of arrays. It skips the spec, the column provenance, and the
-contrast machinery, so reach for it only when you specifically want a
-bare-matrix cross-check — for example, to confirm the high-level fit
-against textbook OLS, as below. For actual analyses, stay on
-`fmri_lm`.
+contrast machinery, so use it only for a bare-matrix cross-check: confirming
+the high-level fit against textbook OLS, as below.
 
 ```{python}
 X = np.asarray(fit.model.design_matrix_array(run=0))
