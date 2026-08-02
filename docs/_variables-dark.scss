@@ -1,6 +1,0 @@
-// DEPRECATED — superseded by `_theme-night.scss`. Safe to delete.
-//
-// Emptied rather than removed because this file is still picked up during
-// theme compilation even when it is absent from the `theme:` list in
-// _quarto.yml; any variable assignment left here leaks into the light bundle
-// and forces both modes dark. Do not add rules to this file.
