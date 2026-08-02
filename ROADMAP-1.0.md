@@ -85,7 +85,7 @@ The family-to-artifact mapping lives in
 
 ### 2. The Four-Stage Seam Carries the Flagship Path
 
-The mission spine is:
+The mission's four-stage seam is:
 
 ```text
 fmri_dataset -> fmri_lm -> contrast -> group_fit

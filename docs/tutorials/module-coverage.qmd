@@ -12,7 +12,7 @@ module family has at least one tutorial that uses it in a real workflow;
 modules with no analysis-facing API are marked as boundaries so you know
 not to go looking for an example that should not exist.
 
-## Public Spine Coverage
+## Public API Coverage
 
 | Module family | Tutorial coverage | Public surface taught |
 | --- | --- | --- |
@@ -39,9 +39,9 @@ inside the workflow that needs them rather than on a page of their own.
 
 ```{python}
 covered_families = {
-    "design_spine": ["hrf", "spec", "events", "design", "baseline", "basis"],
-    "data_spine": ["dataset", "backends", "bids", "io"],
-    "fit_spine": ["glm", "model", "contrast", "group", "stats"],
+    "design": ["hrf", "spec", "events", "design", "baseline", "basis"],
+    "data": ["dataset", "backends", "bids", "io"],
+    "fit": ["glm", "model", "contrast", "group", "stats"],
     "specialized": ["single", "betas", "robust", "lowrank", "ar"],
     "inspection": ["simulate", "visualization", "plotting"],
 }

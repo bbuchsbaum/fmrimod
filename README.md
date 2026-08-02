@@ -28,7 +28,7 @@ pip install -e .
 
 ## Subpackages
 
-Grouped by the four-stage spine `dataset -> design -> fit -> contrast/group`:
+Grouped by the four stages `dataset -> design -> fit -> contrast/group`:
 
 **Design and timing**
 
@@ -79,9 +79,9 @@ sf = fmrimod.SamplingFrame(blocklens=100, TR=2.0)
 signal = reg.evaluate(sf.global_scan_times)   # -> (100,)
 ```
 
-The library's actual spine is a *typed* design spec: build it with `+`,
-inspect it before fitting, then name the hypothesis by condition rather than
-by column position.
+The main path through the library uses a *typed* design spec: build it with
+`+`, inspect it before fitting, then name the hypothesis by condition rather
+than by column position.
 
 ```python
 import fmrimod as fm

@@ -41,9 +41,9 @@ neuroim-python, not routed around in fmrimod.
 
 ## Library Design Posture
 
-Keep the core small, typed, and composable. The user-visible spine is
+Keep the core small, typed, and composable. The user-visible path is
 `dataset -> spec/design -> fit -> contrast -> group/report`; new work should
-strengthen that spine or be clearly peripheral. Types should carry statistical
+strengthen that path or be clearly peripheral. Types should carry statistical
 meaning without ceremony, lowering from authored intent to matrices/results
 must be explicit and inspectable, and compatibility layers must stay thin
 facades over one canonical implementation.

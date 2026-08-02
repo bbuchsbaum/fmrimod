@@ -6,7 +6,7 @@ execute:
   freeze: auto
 ---
 
-## The Spine
+## The Workflow
 
 `fmrimod` runs one typed workflow from data to group results. Every
 arrow below is a typed Python value, not a string or a hand-built matrix:
@@ -100,7 +100,7 @@ The estimate returns the effect we injected. Recovering the planted
 value (not just *some* value) is the evidence that the design, the fit,
 and the contrast weights are all specified correctly.
 
-## Closing the Spine
+## The Final Stage
 
 The final arrow — carrying these per-subject `ContrastResult` objects
 into a second-level (group) model to ask whether the effect holds across

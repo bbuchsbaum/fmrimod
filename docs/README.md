@@ -15,7 +15,7 @@ This directory has two documentation layers:
 - `_freeze/`, `_site/`, and generated reference artifacts are build outputs.
 
 Current user-facing docs should describe fmrimod as a typed, composable Python
-library for the load-bearing workflow:
+library for the main workflow:
 
 ```text
 fmri_dataset -> fmri_lm -> contrast -> group_fit
