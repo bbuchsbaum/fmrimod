@@ -62,7 +62,13 @@ jobs:
 
       - name: Render with full execution
         # Fails the job if any cell raises. That failure is the entire point.
-        run: cd docs && quarto render --cache-refresh
+        #
+        # `--no-cache` rather than `--cache-refresh`: freeze and cache are two
+        # separate layers between the tutorials and real execution, and this
+        # job wants neither. Disabling the cache outright is also what lets
+        # the job run without jupyter-cache, instead of depending on it only
+        # to immediately invalidate it.
+        run: cd docs && quarto render --no-cache
 
       - name: Upload rendered site for inspection
         if: failure()
