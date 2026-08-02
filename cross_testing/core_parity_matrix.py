@@ -1378,11 +1378,16 @@ def run_ws08_numeric_precision_parity(
     min_candidate32_vs_ref32_t_corr_standard: float = 0.99,
     max_candidate32_vs_ref32_p_mae_standard: float = 0.015,
     min_candidate32_vs_ref32_sigma2_corr_standard: float = 0.995,
-    min_candidate32_vs_ref32_t_corr_dynamic: float = 0.995,
-    max_candidate32_vs_ref32_p_mae_dynamic: float = 0.01,
-    min_candidate32_vs_ref32_sigma2_corr_dynamic: float = 0.90,
-    max_sigma2_corr_gap_vs_reference64_dynamic: float = 0.10,
-    max_p_mae_gap_vs_reference64_dynamic: float = 0.02,
+    # Tightened alongside the dynamic fixture retune below. Against the old
+    # 1e6 fixture these were sized for a noise-dominated solve; at 1e4 the
+    # observed values on both CI profiles are t_corr 1.00000, p_mae <= 1.2e-4,
+    # sigma2_corr >= 0.99994, and both gaps <= 1e-4, so the old band could not
+    # have failed anything short of total breakage.
+    min_candidate32_vs_ref32_t_corr_dynamic: float = 0.999,
+    max_candidate32_vs_ref32_p_mae_dynamic: float = 0.002,
+    min_candidate32_vs_ref32_sigma2_corr_dynamic: float = 0.999,
+    max_sigma2_corr_gap_vs_reference64_dynamic: float = 0.005,
+    max_p_mae_gap_vs_reference64_dynamic: float = 0.005,
 ) -> Dict[str, Any]:
     X, Y, beta_true, t_con = make_synthetic_glm(
         n_timepoints=int(n_timepoints),
@@ -1393,18 +1398,46 @@ def run_ws08_numeric_precision_parity(
     )
 
     noise = np.asarray(Y - (X @ beta_true), dtype=np.float64)
-    X_scaled = np.asarray(X, dtype=np.float64).copy()
-    if X_scaled.shape[1] > 1:
-        scales = np.geomspace(1e-3, 1e3, X_scaled.shape[1] - 1)
-        X_scaled[:, 1:] = X_scaled[:, 1:] * scales[np.newaxis, :]
-    Y_scaled = X_scaled @ beta_true + noise
+
+    def _scaled(decades: float) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """Design with column scales spanning 10**-decades .. 10**+decades."""
+        x = np.asarray(X, dtype=np.float64).copy()
+        if x.shape[1] > 1:
+            scales = np.geomspace(10.0**-decades, 10.0**decades, x.shape[1] - 1)
+            x[:, 1:] = x[:, 1:] * scales[np.newaxis, :]
+        return x, np.asarray(x @ beta_true + noise, dtype=np.float64)
+
+    # The gated dynamic-range fixture spans 1e4 (cond(X) ~ 1e4). It was 1e6.
+    #
+    # float32 carries ~7 decimal digits (eps ~ 1.19e-7), so a design conditioned
+    # at ~1e6 sits within a factor of ~8 of total precision loss and a float32
+    # solve there is noise: on this fixture Nilearn's own float32 result
+    # correlated with its own float64 result at beta_corr = 0.011 and
+    # t_corr = -0.011. Both libraries were equally destroyed, so gating the
+    # difference between two destroyed quantities measured IEEE754, not
+    # fmrimod, and it moved with the BLAS -- sigma2_corr came out 0.978 on the
+    # PR profile, 0.932 on the nightly one locally, and low enough on the CI
+    # runners to breach the 0.10 gap gate.
+    #
+    # At 1e4 the solve is ~3 orders inside float32's limit, so the metrics
+    # reproduce across problem sizes (sigma2_corr 0.99994 vs 0.99995 on the two
+    # profiles, gap 6e-5 vs 5e-5) while staying measurably short of exact, which
+    # is what lets the gate detect a real precision regression.
+    x_dynamic, y_dynamic = _scaled(2.0)
+
+    # The 1e6 case is retained but NOT gated. The breakdown point is worth
+    # recording -- it is the honest answer to "can I run this in float32?" --
+    # and keeping it visible stops anyone re-tightening the fixture without
+    # seeing why it was loosened.
+    x_extreme, y_extreme = _scaled(3.0)
 
     fixtures = {
         "standard_scale": (
             np.asarray(X, dtype=np.float64),
             np.asarray(Y, dtype=np.float64),
         ),
-        "dynamic_range_scaled": (X_scaled, np.asarray(Y_scaled, dtype=np.float64)),
+        "dynamic_range_scaled": (x_dynamic, y_dynamic),
+        "extreme_dynamic_range_diagnostic": (x_extreme, y_extreme),
     }
 
     thresholds = {
@@ -1488,6 +1521,11 @@ def run_ws08_numeric_precision_parity(
                 < thresholds["min_candidate32_vs_ref32_sigma2_corr_standard"]
             ):
                 fixture_failures.append("min_candidate32_vs_ref32_sigma2_corr_standard")
+        elif fixture_name == "extreme_dynamic_range_diagnostic":
+            # Recorded, never gated: at cond(X) ~ 1e6 a float32 solve is below
+            # the noise floor for both libraries, so there is no signal here to
+            # hold anyone to. See the fixture construction above.
+            pass
         else:
             if (
                 float(c32_vs_r32.t_corr)
