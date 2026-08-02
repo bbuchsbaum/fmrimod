@@ -1,5 +1,37 @@
-# regressor { #fmrimod.regressor }
+# regressor.core.regressor { #fmrimod.regressor.core.regressor }
 
-`regressor`
+```python
+regressor(
+    onsets,
+    hrf='spmg1',
+    duration=0.0,
+    amplitude=1.0,
+    span=None,
+    summate=True,
+)
+```
 
-Regressor module for fMRI event modeling.
+Create a Regressor object.
+
+This is the main public interface for creating regressor objects.
+
+Args:
+    onsets: Event onset times in seconds.
+    hrf: HRF object, string name, callable, or **list of HRFs** for
+        trial-varying designs.  When a list is given its length must be
+        1 (recycled to all events) or equal to ``len(onsets)``.
+    duration: Event duration(s) in seconds.
+    amplitude: Event amplitude(s).
+    span: HRF temporal span in seconds.
+    summate: Whether overlapping responses sum.
+
+Returns:
+    Regressor object
+
+Examples:
+    >>> reg = regressor(onsets=[10, 30, 50])
+    >>> # Trial-varying HRFs
+    >>> from fmrimod import boxcar_generator
+    >>> h1 = boxcar_generator(width=4)
+    >>> h2 = boxcar_generator(width=8)
+    >>> reg_tv = regressor(onsets=[10, 30], hrf=[h1, h2])

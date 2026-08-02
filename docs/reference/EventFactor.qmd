@@ -1,0 +1,203 @@
+# events.factor.EventFactor { #fmrimod.events.factor.EventFactor }
+
+```python
+EventFactor(name, onsets, values, durations=0, levels=None, contrasts=None)
+```
+
+Categorical event with discrete levels.
+
+This represents events that take on discrete values (conditions, 
+categories, etc.) in an fMRI experiment.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name      | Type                                                    | Description                                                      | Default    |
+|-----------|---------------------------------------------------------|------------------------------------------------------------------|------------|
+| name      | [str](`str`)                                            | Name of the event                                                | _required_ |
+| onsets    | [array](`array`) - [like](`like`)                       | Event onset times                                                | _required_ |
+| values    | [array](`array`) - [like](`like`)                       | Categorical values for each event                                | _required_ |
+| durations | [scalar](`scalar`) or [array](`array`) - [like](`like`) | Event durations. If scalar, used for all events. Default is 0.   | `0`        |
+| levels    | [list](`list`)                                          | Explicit ordering of factor levels. If None, inferred from data. | `None`     |
+| contrasts | [dict](`dict`)                                          | Contrast coding for levels                                       | `None`     |
+
+## Attributes {.doc-section .doc-section-attributes}
+
+| Name     | Type                                               | Description                                |
+|----------|----------------------------------------------------|--------------------------------------------|
+| values   | [pd](`pandas`).[Categorical](`pandas.Categorical`) | Categorical representation of event values |
+| levels   | [list](`list`)                                     | Ordered factor levels                      |
+| n_levels | [int](`int`)                                       | Number of unique levels                    |
+
+## Examples {.doc-section .doc-section-examples}
+
+```python
+>>> # Simple categorical event
+>>> event = EventFactor(
+...     name='condition',
+...     onsets=[1, 2, 3, 4],
+...     values=['A', 'B', 'A', 'B']
+... )
+>>> 
+>>> # With explicit levels and durations
+>>> event = EventFactor(
+...     name='condition',
+...     onsets=[1, 2, 3, 4],
+...     values=['easy', 'hard', 'easy', 'medium'],
+...     levels=['easy', 'medium', 'hard'],
+...     durations=1.5
+... )
+```
+
+## Methods
+
+| Name | Description |
+| --- | --- |
+| [design_matrix](#fmrimod.events.factor.EventFactor.design_matrix) | Generate design matrix columns for this event. |
+| [from_dataframe](#fmrimod.events.factor.EventFactor.from_dataframe) | Create EventFactor from DataFrame. |
+| [get_level_durations](#fmrimod.events.factor.EventFactor.get_level_durations) | Get durations for a specific level. |
+| [get_level_indices](#fmrimod.events.factor.EventFactor.get_level_indices) | Get indices where events have a specific level. |
+| [get_level_onsets](#fmrimod.events.factor.EventFactor.get_level_onsets) | Get onset times for a specific level. |
+| [split_by_level](#fmrimod.events.factor.EventFactor.split_by_level) | Split into separate EventFactor objects by level. |
+| [to_dataframe](#fmrimod.events.factor.EventFactor.to_dataframe) | Convert to DataFrame representation. |
+
+### design_matrix { #fmrimod.events.factor.EventFactor.design_matrix }
+
+```python
+design_matrix(sampling_points)
+```
+
+Generate design matrix columns for this event.
+
+Creates indicator columns for each level (dummy coding).
+
+#### Parameters {.doc-section .doc-section-parameters}
+
+| Name            | Type                           | Description                | Default    |
+|-----------------|--------------------------------|----------------------------|------------|
+| sampling_points | [Array](`fmrimod.types.Array`) | Time points to evaluate at | _required_ |
+
+#### Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                           | Description                                           |
+|--------|--------------------------------|-------------------------------------------------------|
+|        | [Array](`fmrimod.types.Array`) | Design matrix columns, shape (n_timepoints, n_levels) |
+
+### from_dataframe { #fmrimod.events.factor.EventFactor.from_dataframe }
+
+```python
+from_dataframe(
+    df,
+    name,
+    onset_col='onset',
+    value_col=None,
+    duration_col='duration',
+    **kwargs,
+)
+```
+
+Create EventFactor from DataFrame.
+
+#### Parameters {.doc-section .doc-section-parameters}
+
+| Name         | Type                                           | Description                                 | Default      |
+|--------------|------------------------------------------------|---------------------------------------------|--------------|
+| df           | [pd](`pandas`).[DataFrame](`pandas.DataFrame`) | DataFrame containing event data             | _required_   |
+| name         | [str](`str`)                                   | Name for the event                          | _required_   |
+| onset_col    | [str](`str`)                                   | Column name for onsets                      | `'onset'`    |
+| value_col    | [str](`str`)                                   | Column name for values. If None, uses name. | `None`       |
+| duration_col | [str](`str`)                                   | Column name for durations                   | `'duration'` |
+| **kwargs     | [object](`object`)                             | Additional arguments passed to EventFactor  | `{}`         |
+
+#### Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                                               | Description              |
+|--------|----------------------------------------------------|--------------------------|
+|        | [EventFactor](`fmrimod.events.factor.EventFactor`) | New EventFactor instance |
+
+### get_level_durations { #fmrimod.events.factor.EventFactor.get_level_durations }
+
+```python
+get_level_durations(level)
+```
+
+Get durations for a specific level.
+
+#### Parameters {.doc-section .doc-section-parameters}
+
+| Name   | Type         | Description                | Default    |
+|--------|--------------|----------------------------|------------|
+| level  | [str](`str`) | Level to get durations for | _required_ |
+
+#### Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                           | Description             |
+|--------|--------------------------------|-------------------------|
+|        | [Array](`fmrimod.types.Array`) | Durations for the level |
+
+### get_level_indices { #fmrimod.events.factor.EventFactor.get_level_indices }
+
+```python
+get_level_indices(level)
+```
+
+Get indices where events have a specific level.
+
+#### Parameters {.doc-section .doc-section-parameters}
+
+| Name   | Type         | Description   | Default    |
+|--------|--------------|---------------|------------|
+| level  | [str](`str`) | Level to find | _required_ |
+
+#### Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                           | Description                                 |
+|--------|--------------------------------|---------------------------------------------|
+|        | [Array](`fmrimod.types.Array`) | Boolean array indicating where level occurs |
+
+### get_level_onsets { #fmrimod.events.factor.EventFactor.get_level_onsets }
+
+```python
+get_level_onsets(level)
+```
+
+Get onset times for a specific level.
+
+#### Parameters {.doc-section .doc-section-parameters}
+
+| Name   | Type         | Description             | Default    |
+|--------|--------------|-------------------------|------------|
+| level  | [str](`str`) | Level to get onsets for | _required_ |
+
+#### Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                           | Description               |
+|--------|--------------------------------|---------------------------|
+|        | [Array](`fmrimod.types.Array`) | Onset times for the level |
+
+### split_by_level { #fmrimod.events.factor.EventFactor.split_by_level }
+
+```python
+split_by_level()
+```
+
+Split into separate EventFactor objects by level.
+
+#### Returns {.doc-section .doc-section-returns}
+
+| Name   | Type           | Description                                           |
+|--------|----------------|-------------------------------------------------------|
+|        | [dict](`dict`) | Dictionary mapping level names to EventFactor objects |
+
+### to_dataframe { #fmrimod.events.factor.EventFactor.to_dataframe }
+
+```python
+to_dataframe()
+```
+
+Convert to DataFrame representation.
+
+#### Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                                           | Description                                       |
+|--------|------------------------------------------------|---------------------------------------------------|
+|        | [pd](`pandas`).[DataFrame](`pandas.DataFrame`) | DataFrame with onset, duration, and value columns |

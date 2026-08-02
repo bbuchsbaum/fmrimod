@@ -1,7 +1,7 @@
 # design_colmap.design_colmap { #fmrimod.design_colmap.design_colmap }
 
 ```python
-design_colmap.design_colmap(x)
+design_colmap(x)
 ```
 
 Get structured column metadata for a design matrix.

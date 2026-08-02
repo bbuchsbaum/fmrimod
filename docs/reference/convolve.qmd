@@ -1,7 +1,7 @@
 # convolve.convolve { #fmrimod.convolve.convolve }
 
 ```python
-convolve.convolve(x, hrf=None, sampling_rate=1.0, sampling_frame=None, **kwargs)
+convolve(x, hrf=None, sampling_rate=1.0, sampling_frame=None, **kwargs)
 ```
 
 Convolve event(s) with hemodynamic response function.
@@ -18,7 +18,7 @@ This is a generic function that convolves various event types with an HRF.
 | sampling_frame | [array](`array`) - [like](`like`) | Explicit time points at which to sample the convolved signal. If provided, takes precedence over sampling_rate.            | `None`     |
 | normalize      | [bool](`bool`)                    | If True, peak-normalize each regressor column after convolution so that max(abs(col)) == 1. Default False.                 | _required_ |
 | summate        | [bool](`bool`)                    | Whether overlapping HRF responses are summed (default True). If False, max is used instead. Passed to fmrimod.regressor(). | _required_ |
-| **kwargs       |                                   | Additional arguments passed to convolution                                                                                 | `{}`       |
+| **kwargs       | [object](`object`)                | Additional arguments passed to convolution                                                                                 | `{}`       |
 
 ## Returns {.doc-section .doc-section-returns}
 

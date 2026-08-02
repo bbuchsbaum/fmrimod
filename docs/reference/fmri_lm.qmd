@@ -1,7 +1,67 @@
-# fmri_lm { #fmrimod.fmri_lm }
+# glm.fmri_lm.fmri_lm { #fmrimod.glm.fmri_lm.fmri_lm }
 
 ```python
-fmri_lm(*args, **kwargs)
+fmri_lm(
+    spec_or_model,
+    dataset_or_config=None,
+    *,
+    baseline=None,
+    block=None,
+    durations=None,
+    precision=None,
+    config=None,
+    ar=None,
+    engine=DEFAULT_ENGINE_OPTIONS,
+    **engine_kwargs,
+)
 ```
 
-Fit a GLM to fMRI data. See :func:`fmrimod.glm.fmri_lm.fmri_lm`.
+Fit a GLM to fMRI data.
+
+Canonical form (matches R ``fmrireg::fmri_lm``)::
+
+    fit = fmri_lm(spec, dataset)
+    fit = fmri_lm(spec, dataset, config=FmriLmConfig(ar="ar1"))
+
+Legacy form (pre-built model)::
+
+    fit = fmri_lm(model)
+    fit = fmri_lm(model, FmriLmConfig())
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name              | Type                                                                                                                                                                      | Description                                                                                                                                                                                                                                                                                                                       | Default                  |
+|-------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------|
+| spec_or_model     | \'Spec \| Term \| str \| Sequence\[object\] \| FmriModelLike\'                                                                                                            | Either a *spec* (R-style formula string, list of :class:`~fmrimod.formula.base.Term`, or :class:`~fmrimod.formula.base.EventModelBuilder`) or a pre-built :class:`~fmrimod.model.FmriModel`-like object. The second positional argument is interpreted accordingly.                                                               | _required_               |
+| dataset_or_config | \'FmriDataset \| FmriLmConfig \| None\'                                                                                                                                   | When ``spec_or_model`` is a spec: the :class:`FmriDataset` to fit (must carry an event table). When ``spec_or_model`` is a model: an :class:`FmriLmConfig` (back-compat positional). May be omitted in either case.                                                                                                               | `None`                   |
+| baseline          | [object](`object`)                                                                                                                                                        | Optional pre-built :class:`~fmrimod.baseline.BaselineModel`. If not provided in the spec path, defaults to ``constant`` basis with runwise intercepts.                                                                                                                                                                            | `None`                   |
+| block             | [Optional](`typing.Optional`)\[[Union](`typing.Union`)\[[str](`str`), [NDArray](`numpy.typing.NDArray`)\[[np](`numpy`).[float64](`numpy.float64`)\]\]\]                   | Block/run column name or array passed to :func:`~fmrimod.event_model`. Auto-detected from ``run`` or ``block`` columns when omitted.                                                                                                                                                                                              | `None`                   |
+| durations         | [Optional](`typing.Optional`)\[[Union](`typing.Union`)\[[str](`str`), [float](`float`), [NDArray](`numpy.typing.NDArray`)\[[np](`numpy`).[float64](`numpy.float64`)\]\]\] | Event durations passed to :func:`~fmrimod.event_model`. Auto-detected from a ``duration`` column when present.                                                                                                                                                                                                                    | `None`                   |
+| precision         | [Optional](`typing.Optional`)\[[float](`float`)\]                                                                                                                         | Temporal precision for HRF convolution.                                                                                                                                                                                                                                                                                           | `None`                   |
+| config            | [Optional](`typing.Optional`)\[[FmriLmConfig](`fmrimod.model.config.FmriLmConfig`)\]                                                                                      | Fitting configuration. Defaults to plain OLS.                                                                                                                                                                                                                                                                                     | `None`                   |
+| engine            | [EngineSelector](`fmrimod.glm.engine.EngineSelector`)                                                                                                                     | Typed engine options object. Built-ins are :class:`~fmrimod.glm.engine.RunwiseEngineOptions`, :class:`~fmrimod.glm.engine.ChunkwiseEngineOptions`, and :class:`~fmrimod.glm.engine.SketchEngineOptions`, and :class:`~fmrimod.glm.engine.ReducedRankEngineOptions`. Legacy string engine names remain accepted for compatibility. | `DEFAULT_ENGINE_OPTIONS` |
+| **engine_kwargs   | [object](`object`)                                                                                                                                                        | Legacy keyword bag forwarded to the engine's ``fit()`` method when ``engine`` is a string. Do not mix with typed engine options.                                                                                                                                                                                                  | `{}`                     |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                                   | Description                                                      |
+|--------|----------------------------------------|------------------------------------------------------------------|
+|        | [FmriLm](`fmrimod.glm.fmri_lm.FmriLm`) | Fitted model with coefficients, residuals, and contrast methods. |
+
+## Examples {.doc-section .doc-section-examples}
+
+Canonical three-line shape::
+
+    >>> ds = fm.fmri_dataset(img, mask=mask, tr=2.0, events=events)
+    >>> fit = fm.fmri_lm("hrf(trial_type)", ds)
+    >>> fit.contrast("trial_type[listening]")
+
+Pre-built realized design::
+
+    >>> design = fm.design.RealizedDesign.from_array(X, columns, source="nilearn")
+    >>> fit = fm.fmri_lm(design, ds)
+
+Sketch engine::
+
+    >>> from fmrimod.glm import SketchEngineOptions
+    >>> fit = fm.fmri_lm(model, engine=SketchEngineOptions(sketch_ratio=0.5))

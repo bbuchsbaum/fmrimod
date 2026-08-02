@@ -1,7 +1,7 @@
-# z_to_r { #fmrimod.z_to_r }
+# stats.inference.z_to_r { #fmrimod.stats.inference.z_to_r }
 
 ```python
-z_to_r(*args, **kwargs)
+z_to_r(z)
 ```
 
-Back-transform Fisher Z values to correlations.
+Back-transform Fisher Z to correlation.

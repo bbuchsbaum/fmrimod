@@ -1,7 +1,19 @@
-# simulate_bold_signal { #fmrimod.simulate_bold_signal }
+# simulate.compat.simulate_bold_signal { #fmrimod.simulate.compat.simulate_bold_signal }
 
 ```python
-simulate_bold_signal(*args, **kwargs)
+simulate_bold_signal(
+    ncond,
+    hrf='spmg1',
+    nreps=12,
+    amps=None,
+    isi=(3.0, 6.0),
+    ampsd=0.0,
+    tr=1.5,
+    seed=None,
+)
 ```
 
-Simulate condition-wise BOLD responses (compatibility helper).
+Simulate condition-wise BOLD signals for a simple event design.
+
+Returns keys compatible with fmrireg:
+``onset``, ``condition``, and ``mat`` (time in first column).

@@ -32,7 +32,12 @@ jobs:
       - uses: quarto-dev/quarto-actions/setup@v2
 
       - name: Build API reference
-        run: cd docs && quartodoc build
+        # `--config` is required: docs/_quarto.yml pulls the quartodoc block in
+        # via `metadata-files:`, which Quarto resolves but quartodoc does not.
+        # Without it the step dies with "No `quartodoc:` section found in your
+        # _quarto.yml", which is how this workflow failed every run from
+        # 2026-05-16 onward.
+        run: cd docs && quartodoc build --config _quartodoc.yml
 
       - name: Render site
         run: cd docs && quarto render

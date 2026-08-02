@@ -1,7 +1,7 @@
 # trialwise.trialwise { #fmrimod.trialwise.trialwise }
 
 ```python
-trialwise.trialwise(
+trialwise(
     basis='spmg1',
     lag=0.0,
     nbasis=1,

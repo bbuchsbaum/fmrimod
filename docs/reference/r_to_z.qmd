@@ -1,7 +1,7 @@
-# r_to_z { #fmrimod.r_to_z }
+# stats.inference.r_to_z { #fmrimod.stats.inference.r_to_z }
 
 ```python
-r_to_z(*args, **kwargs)
+r_to_z(r, n)
 ```
 
-Convert correlations to Fisher Z and variance.
+Convert correlations to Fisher Z and sampling variance.

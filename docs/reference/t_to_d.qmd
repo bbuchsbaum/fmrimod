@@ -1,7 +1,11 @@
-# t_to_d { #fmrimod.t_to_d }
+# stats.inference.t_to_d { #fmrimod.stats.inference.t_to_d }
 
 ```python
-t_to_d(*args, **kwargs)
+t_to_d(t, df, n=None)
 ```
 
-Convert t-statistics to standardized effect sizes.
+Convert t-statistics to standardized effect sizes and variances.
+
+Mirrors ``fmrireg::t_to_d``:
+- if ``n`` is ``None``: one-sample/paired formula
+- else: two-sample formula

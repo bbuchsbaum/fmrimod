@@ -1,7 +1,7 @@
 # residualize.residualize { #fmrimod.residualize.residualize }
 
 ```python
-residualize.residualize(x, data, cols=None)
+residualize(x, data, cols=None)
 ```
 
 Residualize data by projecting out a design matrix.

@@ -1,8 +1,10 @@
-# contrast { #fmrimod.contrast }
+# contrast.contrast_spec.contrast { #fmrimod.contrast.contrast_spec.contrast }
 
-`contrast`
+```python
+contrast(form, name, where=None)
+```
 
-Contrast specification and computation for fMRI design matrices.
+Define a linear contrast using a formula expression.
 
-This module provides tools for defining and computing statistical contrasts
-for hypothesis testing in fMRI analyses.
+Accepts a :class:`Formula`, a string predicate, a dict, or a callable for
+``form`` and ``where``.

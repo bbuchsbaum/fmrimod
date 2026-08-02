@@ -1,7 +1,7 @@
 # validate.validate_contrasts { #fmrimod.validate.validate_contrasts }
 
 ```python
-validate.validate_contrasts(x, weights=None, tol=1e-08)
+validate_contrasts(x, weights=None, tol=1e-08)
 ```
 
 Validate contrast weights against a design matrix or event model.

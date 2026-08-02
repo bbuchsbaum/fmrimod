@@ -20,7 +20,7 @@ to apply (or re-apply) HRF convolution as a post-processing step.
 ### convolve_design { #fmrimod.convolve_design.convolve_design }
 
 ```python
-convolve_design.convolve_design(
+convolve_design(
     design_matrix,
     hrf='spmg1',
     sampling_rate=None,
@@ -48,7 +48,7 @@ HRFs to different parts of a design.
 | time_points   | [array](`array`) - [like](`like`)    | Time points for the design matrix rows. If None, generated from sampling_rate.                                                                                             | `None`     |
 | column_names  | list of str                          | Names for the columns (used when returning DataFrame). Extracted automatically from DataFrame or EventModel.                                                               | `None`     |
 | normalize     | [bool](`bool`)                       | If True, peak-normalize each column after convolution so that max(abs(col)) == 1.                                                                                          | `False`    |
-| **hrf_kwargs  |                                      | Additional keyword arguments passed to HRF function                                                                                                                        | `{}`       |
+| **hrf_kwargs  | [object](`object`)                   | Additional keyword arguments passed to HRF function                                                                                                                        | `{}`       |
 
 #### Returns {.doc-section .doc-section-returns}
 
@@ -61,10 +61,10 @@ HRFs to different parts of a design.
 ```python
 >>> # Convolve existing design matrix with SPM canonical HRF
 >>> X_conv = convolve_design(X, hrf='spmg1', sampling_rate=2.0)
->>>
+>>> 
 >>> # Use custom HRF parameters
 >>> X_conv = convolve_design(X, hrf='gamma', shape=6, scale=1)
->>>
+>>> 
 >>> # Apply to EventModel
 >>> model_conv = convolve_design(model, hrf='spmg3')
 ```
@@ -78,12 +78,7 @@ maintain the original matrix dimensions.
 ### convolve_regressors { #fmrimod.convolve_design.convolve_regressors }
 
 ```python
-convolve_design.convolve_regressors(
-    regressors,
-    hrf='spmg1',
-    sampling_rate=1.0,
-    **hrf_kwargs,
-)
+convolve_regressors(regressors, hrf='spmg1', sampling_rate=1.0, **hrf_kwargs)
 ```
 
 Convolve a dictionary of regressors with an HRF.
@@ -98,7 +93,7 @@ stored in a dictionary.
 | regressors    | [dict](`dict`)           | Dictionary mapping regressor names to time series arrays | _required_ |
 | hrf           | str, dict, or HRF object | HRF specification                                        | `"spmg1"`  |
 | sampling_rate | [float](`float`)         | Sampling rate in seconds                                 | `1.0`      |
-| **hrf_kwargs  |                          | Additional HRF parameters                                | `{}`       |
+| **hrf_kwargs  | [object](`object`)       | Additional HRF parameters                                | `{}`       |
 
 #### Returns {.doc-section .doc-section-returns}
 

@@ -1,7 +1,18 @@
 # glm_lss { #fmrimod.glm_lss }
 
 ```python
-glm_lss(*args, **kwargs)
+glm_lss(
+    trial_regressors,
+    Y,
+    confounds=None,
+    nuisance_projector=None,
+    chunk_size=None,
+    baseline_regressors=None,
+    include_intercept=False,
+    *,
+    progress=None,
+    use_cpp=None,
+)
 ```
 
-Estimate trial-wise LSS betas. See :func:`fmrimod.betas.extraction.estimate_betas_lss`.
+Estimate trial-wise LSS betas.

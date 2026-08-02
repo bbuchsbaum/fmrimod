@@ -102,6 +102,12 @@ full = [
 ]
 docs = [
     "quartodoc>=0.7",
+    # quartodoc 0.11.1 (the current latest) calls griffe's numpydoc parser with
+    # `allow_section_blank_line=`, which griffe 2.x removed, so an unpinned
+    # install fails with `TypeError: parse_numpy() got an unexpected keyword
+    # argument`. quartodoc only declares `griffe>=0.33`, so the ceiling has to
+    # live here until quartodoc supports griffe 2.
+    "griffe<2",
     "jupyter",
     "ipykernel",
     "nbformat",

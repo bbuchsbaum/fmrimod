@@ -1,7 +1,21 @@
 # hrf_formula { #fmrimod.hrf_formula }
 
 ```python
-hrf_formula(*args, **kwargs)
+hrf_formula(
+    spec='spmg1',
+    *,
+    subset=None,
+    contrasts=None,
+    normalize=False,
+    summate=True,
+    hrf_fun=None,
+    id=None,
+    prefix=None,
+    lag=0.0,
+    nbasis=1,
+    onsets=None,
+    durations=None,
+)
 ```
 
 HRF formula function. See :func:`fmrimod.formula.functional.hrf`.

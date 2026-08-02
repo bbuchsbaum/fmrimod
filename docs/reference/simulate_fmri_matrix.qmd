@@ -1,7 +1,34 @@
-# simulate_fmri_matrix { #fmrimod.simulate_fmri_matrix }
+# simulate.compat.simulate_fmri_matrix { #fmrimod.simulate.compat.simulate_fmri_matrix }
 
 ```python
-simulate_fmri_matrix(*args, **kwargs)
+simulate_fmri_matrix(
+    n=1,
+    total_time=240.0,
+    TR=2.0,
+    hrf='spmg1',
+    n_events=10,
+    onsets=None,
+    isi_dist='even',
+    isi_min=2.0,
+    isi_max=6.0,
+    isi_rate=0.25,
+    durations=0.0,
+    duration_sd=0.0,
+    duration_dist='lognormal',
+    amplitudes=1.0,
+    amplitude_sd=0.0,
+    amplitude_dist='lognormal',
+    single_trial=False,
+    noise_type='none',
+    noise_ar=None,
+    noise_sd=1.0,
+    random_seed=None,
+    verbose=False,
+    buffer=16.0,
+)
 ```
 
-Simulate a matrix_dataset-like object with event/noise metadata.
+Simulate an fMRI matrix dataset plus generation metadata.
+
+Returns keys mirroring fmrireg:
+``time_series``, ``ampmat``, ``durmat``, ``hrf_info``, ``noise_params``.

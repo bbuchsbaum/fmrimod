@@ -1,7 +1,94 @@
-# event_model { #fmrimod.event_model }
+# design.event_model.event_model { #fmrimod.design.event_model.event_model }
 
 ```python
-event_model(*args, **kwargs)
+event_model(
+    formula,
+    data=None,
+    block=None,
+    sampling_frame=None,
+    durations=None,
+    drop_empty=True,
+    precision=None,
+    strict=False,
+    events=None,
+    sampling_info=None,
+    tr=None,
+    n_scans=None,
+    sampling_rate=None,
+    **kwargs,
+)
 ```
 
-Create an EventModel. See :func:`fmrimod.design.event_model.event_model`.
+Create an event model from a formula, term list, or builder.
+
+This is the main entry point for constructing fMRI design matrices.
+It accepts multiple specification styles and handles event creation,
+HRF resolution, and sampling-frame construction automatically.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name           | Type                                                          | Description                                                                                                                                                                                                                                                                                                                                                                                          | Default    |
+|----------------|---------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| formula        | str, list of Term, or EventModelBuilder                       | Model specification. Accepted forms:  * **String formula** -- R-style formula parsed by   :func:`~fmrimod.formula.parser.parse_formula`, e.g.   ``"condition + rating:hrf('spm')"``. * **List of Term** -- Explicitly constructed   :class:`~fmrimod.formula.base.Term` objects. * **EventModelBuilder** -- A builder produced by the fluent   :class:`~fmrimod.formula.base.EventModelBuilder` API. | _required_ |
+| data           | [pd](`pandas`).[DataFrame](`pandas.DataFrame`)                | Event table with at least an onset column and one or more event columns. Required when ``events`` is not provided.                                                                                                                                                                                                                                                                                   | `None`     |
+| block          | [str](`str`) or [array](`array`) - [like](`like`)             | Run/block specification. If a string, the column name in ``data``; if array-like, one block ID per row. Block IDs are canonicalised to 1-indexed integers.                                                                                                                                                                                                                                           | `None`     |
+| sampling_frame | [fmrimod](`fmrimod`).[SamplingFrame](`fmrimod.SamplingFrame`) | Temporal sampling specification. Takes precedence over ``sampling_info``, ``tr``, and ``n_scans``.                                                                                                                                                                                                                                                                                                   | `None`     |
+| durations      | str, float, or array-like                                     | Event durations. A string names a column in ``data``; a float is broadcast to all events; an array gives per-event durations.                                                                                                                                                                                                                                                                        | `None`     |
+| drop_empty     | [bool](`bool`)                                                | Whether to drop factor levels with zero observations.                                                                                                                                                                                                                                                                                                                                                | `True`     |
+| precision      | [float](`float`)                                              | Temporal precision for HRF convolution in seconds (default 0.3).                                                                                                                                                                                                                                                                                                                                     | `None`     |
+| strict         | [bool](`bool`)                                                | If True, event onsets outside ``[0, blocklen * TR)`` or events extending past run end raise an error instead of warning.                                                                                                                                                                                                                                                                             | `False`    |
+| events         | [dict](`dict`)                                                | Pre-constructed event objects keyed by name. When provided, ``data`` is not required.                                                                                                                                                                                                                                                                                                                | `None`     |
+| sampling_info  | [SamplingInfo](`fmrimod.types.SamplingInfo`)                  | Legacy alias for ``sampling_frame``.                                                                                                                                                                                                                                                                                                                                                                 | `None`     |
+| tr             | [float](`float`)                                              | Repetition time in seconds. Together with ``n_scans``, used to auto-construct a ``SamplingFrame`` when ``sampling_frame`` is not given.                                                                                                                                                                                                                                                              | `None`     |
+| n_scans        | [int](`int`)                                                  | Number of scan volumes.                                                                                                                                                                                                                                                                                                                                                                              | `None`     |
+| sampling_rate  | [float](`float`)                                              | Alias for ``tr`` (kept for backward compatibility).                                                                                                                                                                                                                                                                                                                                                  | `None`     |
+| **kwargs       | [object](`object`)                                            | Forwarded to event-creation helpers (e.g. ``onset_column``).                                                                                                                                                                                                                                                                                                                                         | `{}`       |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                                                  | Description                                                       |
+|--------|-------------------------------------------------------|-------------------------------------------------------------------|
+|        | [EventModel](`fmrimod.design.event_model.EventModel`) | Fully constructed event model with lazily-computed design matrix. |
+
+## Examples {.doc-section .doc-section-examples}
+
+```python
+>>> import numpy as np
+>>> import pandas as pd
+>>> from fmrimod import event_model
+```
+
+Minimal model from a DataFrame:
+
+```python
+>>> df = pd.DataFrame({
+...     'onset': [0, 5, 10, 15],
+...     'condition': ['face', 'house', 'face', 'house'],
+...     'duration': [1, 1, 1, 1],
+... })
+>>> model = event_model("condition", data=df, tr=2.0, n_scans=100)
+>>> model.design_matrix.shape
+(100, 2)
+```
+
+Formula with explicit HRF and interaction:
+
+```python
+>>> model = event_model(
+...     "hrf(condition) + hrf(condition:block)",
+...     data=df, tr=2.0, n_scans=100,
+... )
+```
+
+Using the functional (pipe) interface:
+
+```python
+>>> from fmrimod.formula.functional import term, hrf
+>>> terms = [term('condition') | hrf('spmg1')]
+>>> model = event_model(terms, data=df, tr=2.0, n_scans=100)
+```
+
+## See Also {.doc-section .doc-section-see-also}
+
+EventModel : The class returned by this function.
+EventModelBuilder : Fluent builder alternative.

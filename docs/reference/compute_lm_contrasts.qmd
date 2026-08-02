@@ -1,7 +1,21 @@
-# compute_lm_contrasts { #fmrimod.compute_lm_contrasts }
+# glm.compat.compute_lm_contrasts { #fmrimod.glm.compat.compute_lm_contrasts }
 
 ```python
-compute_lm_contrasts(*args, **kwargs)
+compute_lm_contrasts(
+    B,
+    XtXinv,
+    df,
+    sigma=None,
+    sigma2=None,
+    contrasts=None,
+    t_contrasts=None,
+    f_contrasts=None,
+    columns=None,
+    output='stacked',
+    robust_weights=None,
+    ar_order=0,
+    drop_failed=True,
+)
 ```
 
 Compute t/F contrast statistics from fitted GLM matrices.

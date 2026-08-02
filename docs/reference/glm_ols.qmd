@@ -1,7 +1,15 @@
 # glm_ols { #fmrimod.glm_ols }
 
 ```python
-glm_ols(*args, **kwargs)
+glm_ols(
+    trial_regressors,
+    Y,
+    confounds=None,
+    baseline_regressors=None,
+    include_intercept=False,
+    *,
+    progress=None,
+)
 ```
 
-Estimate trial-wise OLS betas. See :func:`fmrimod.betas.extraction.estimate_betas_ols`.
+Estimate trial-wise OLS betas.

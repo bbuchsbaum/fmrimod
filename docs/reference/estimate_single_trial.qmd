@@ -1,7 +1,50 @@
-# estimate_single_trial { #fmrimod.estimate_single_trial }
+# single.estimate_single_trial { #fmrimod.single.estimate_single_trial }
 
 ```python
-estimate_single_trial(*args, **kwargs)
+estimate_single_trial(
+    Y,
+    X,
+    method='lss',
+    confounds=None,
+    trial_labels=None,
+    return_se=False,
+    *,
+    prewhiten=None,
+    nuisance_projector=None,
+    chunk_size=None,
+    oasis_config=None,
+    sbhm_config=None,
+    sbhm_library=None,
+    baseline_regressors=None,
+    include_intercept=False,
+)
 ```
 
-Estimate single-trial betas. See :func:`fmrimod.single.estimate_single_trial`.
+Estimate per-trial betas using the specified method.
+
+This is the main dispatcher for single-trial estimation.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name                | Type                                                             | Description                                                                                                          | Default    |
+|---------------------|------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------|------------|
+| Y                   | NDArray, shape ``(n, V)``                                        | Data matrix (time x voxels).                                                                                         | _required_ |
+| X                   | NDArray, shape ``(n, n_trials)`` or ``(n, n_trials * K)``        | Trial regressor matrix (already convolved with HRF).                                                                 | _required_ |
+| method              | SingleTrialMethod or literal string                              | One of ``"lss"``, ``"lsa"``, ``"oasis"``, ``"sbhm"``, ``"mixed"``.                                                   | `'lss'`    |
+| confounds           | NDArray, shape ``(n, q)``                                        | Nuisance regressors (motion, drift, etc.).                                                                           | `None`     |
+| trial_labels        | list of str                                                      | Labels identifying each trial.                                                                                       | `None`     |
+| return_se           | [bool](`bool`)                                                   | Whether to compute standard errors (not all methods support this).                                                   | `False`    |
+| prewhiten           | [PrewhitenConfig](`fmrimod.single._prewhiten.PrewhitenConfig`)   | If provided, AR-based prewhitening is applied to Y, X, and confounds before estimation.                              | `None`     |
+| nuisance_projector  | [NuisanceProjector](`fmrimod.single._project.NuisanceProjector`) | Precomputed nuisance projector for LSS. Useful when reusing the same confound matrix across repeated LSS fits.       | `None`     |
+| chunk_size          | [int](`int`)                                                     | Voxel chunk size for LSS beta-only solves.                                                                           | `None`     |
+| oasis_config        | [OasisConfig](`fmrimod.single._types.OasisConfig`)               | Configuration for the OASIS solver.                                                                                  | `None`     |
+| sbhm_config         | [SbhmConfig](`fmrimod.single._types.SbhmConfig`)                 | Configuration for the SBHM pipeline.                                                                                 | `None`     |
+| sbhm_library        | [SbhmLibrary](`fmrimod.single.sbhm.library.SbhmLibrary`)         | Pre-built SBHM library (required for SBHM method).                                                                   | `None`     |
+| baseline_regressors | NDArray, shape ``(n, p)``                                        | Baseline or experimental regressors included in every LSS model. Equivalent to the ``Z`` matrix in ``fmrilss::lss``. | `None`     |
+| include_intercept   | [bool](`bool`)                                                   | Add an intercept to the LSS adjustment design.                                                                       | `False`    |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                                                           | Description   |
+|--------|----------------------------------------------------------------|---------------|
+|        | [SingleTrialResult](`fmrimod.single._types.SingleTrialResult`) |               |

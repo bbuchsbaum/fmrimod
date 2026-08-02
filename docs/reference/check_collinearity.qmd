@@ -1,7 +1,7 @@
 # validate.check_collinearity { #fmrimod.validate.check_collinearity }
 
 ```python
-validate.check_collinearity(X, threshold=0.9)
+check_collinearity(X, threshold=0.9)
 ```
 
 Check a design matrix for multicollinearity.

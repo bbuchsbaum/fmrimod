@@ -6,28 +6,28 @@ website:
       - reference/SamplingFrame.qmd
       - reference/event_model.qmd
       - reference/design_matrix.qmd
-      - reference/design_colmap.design_colmap.qmd
-      - reference/event_factor.qmd
-      - reference/event_variable.qmd
-      - reference/event_matrix.qmd
+      - reference/design_colmap.qmd
+      - reference/EventFactor.qmd
+      - reference/EventVariable.qmd
+      - reference/EventMatrix.qmd
       - reference/event_term.qmd
       section: Design and events
     - contents:
       - reference/hrf.qmd
       - reference/hrf_formula.qmd
-      - reference/convolve.convolve.qmd
+      - reference/convolve.qmd
       - reference/convolve_design.qmd
       - reference/regressor.qmd
-      - reference/regressors.regressors.qmd
-      - reference/trialwise.trialwise.qmd
+      - reference/regressors.qmd
+      - reference/trialwise.qmd
       section: HRFs and regressors
     - contents:
       - reference/contrast.qmd
       - reference/contrast_weights.qmd
       - reference/Fcontrasts.qmd
-      - reference/validate.validate_contrasts.qmd
-      - reference/validate.check_collinearity.qmd
-      - reference/residualize.residualize.qmd
+      - reference/validate_contrasts.qmd
+      - reference/check_collinearity.qmd
+      - reference/residualize.qmd
       section: Contrasts and validation
     - contents:
       - reference/fmri_lm.qmd

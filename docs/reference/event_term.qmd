@@ -1,7 +1,15 @@
 # event_term { #fmrimod.event_term }
 
 ```python
-event_term(*events, **kwargs)
+event_term(
+    event,
+    event2=None,
+    event3=None,
+    event4=None,
+    *,
+    name=None,
+    interaction=False,
+)
 ```
 
 Construct an event term from one or more events.

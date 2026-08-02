@@ -1,7 +1,33 @@
-# contrast_weights { #fmrimod.contrast_weights }
+# contrast.contrast_weights.contrast_weights { #fmrimod.contrast.contrast_weights.contrast_weights }
 
 ```python
-contrast_weights(*args, **kwargs)
+contrast_weights(x, term=None, **kwargs)
 ```
 
-Compute contrast weights. See :func:`fmrimod.contrast.contrast_weights`.
+Compute contrast weights for a specification.
+
+This is a :func:`functools.singledispatch` generic function: ``x``
+is intentionally ``Any`` because the dispatcher inspects its
+runtime type and routes to one of several typed registrations
+keyed on contrast-spec subclasses. The registered implementations
+carry their own typed signatures.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name     | Type                                                          | Description                                       | Default    |
+|----------|---------------------------------------------------------------|---------------------------------------------------|------------|
+| x        | [ContrastSpec](`fmrimod.contrast.contrast_spec.ContrastSpec`) | Contrast specification                            | _required_ |
+| term     | [object](`object`)                                            | Term to compute weights for                       | `None`     |
+| **kwargs | [Any](`typing.Any`)                                           | Additional arguments for specific implementations | `{}`       |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                                                     | Description                    |
+|--------|----------------------------------------------------------|--------------------------------|
+|        | [Contrast](`fmrimod.contrast.contrast_weights.Contrast`) | Computed contrast with weights |
+
+## Raises {.doc-section .doc-section-raises}
+
+| Name   | Type                                         | Description                                    |
+|--------|----------------------------------------------|------------------------------------------------|
+|        | [NotImplementedError](`NotImplementedError`) | If no method exists for the specification type |

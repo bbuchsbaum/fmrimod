@@ -1,7 +1,0 @@
-# event_matrix { #fmrimod.event_matrix }
-
-```python
-event_matrix(*args, **kwargs)
-```
-
-Construct a multi-column event matrix.

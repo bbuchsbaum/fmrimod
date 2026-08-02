@@ -1,7 +1,13 @@
-# fmri_ols_fit { #fmrimod.fmri_ols_fit }
+# glm.compat.fmri_ols_fit { #fmrimod.glm.compat.fmri_ols_fit }
 
 ```python
-fmri_ols_fit(*args, **kwargs)
+fmri_ols_fit(
+    Y,
+    X,
+    voxelwise=None,
+    center_voxelwise=True,
+    voxel_name='voxel_cov',
+)
 ```
 
-Fit matrix OLS and return beta, SE, and t summaries.
+Fit matrix OLS and return beta, SE, and t matrices.

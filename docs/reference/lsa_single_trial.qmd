@@ -1,7 +1,33 @@
-# lsa_single_trial { #fmrimod.lsa_single_trial }
+# single.lsa.lsa_single_trial { #fmrimod.single.lsa.lsa_single_trial }
 
 ```python
-lsa_single_trial(*args, **kwargs)
+lsa_single_trial(
+    Y,
+    X,
+    confounds=None,
+    return_se=False,
+    trial_labels=None,
+    baseline_regressors=None,
+    include_intercept=False,
+)
 ```
 
-Estimate single-trial betas with LSA/OLS.
+Estimate trial-wise betas via standard OLS (all trials simultaneous).
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name                | Type                             | Description                                                         | Default    |
+|---------------------|----------------------------------|---------------------------------------------------------------------|------------|
+| Y                   | NDArray, shape ``(n, V)``        | Data matrix.                                                        | _required_ |
+| X                   | NDArray, shape ``(n, n_trials)`` | Trial regressor matrix.                                             | _required_ |
+| confounds           | NDArray, shape ``(n, q)``        | Nuisance regressors.                                                | `None`     |
+| return_se           | [bool](`bool`)                   | If ``True``, compute standard errors.                               | `False`    |
+| trial_labels        | list of str                      | Labels for each trial.                                              | `None`     |
+| baseline_regressors | NDArray, shape ``(n, p)``        | Baseline or experimental regressors included in the all-trials GLM. | `None`     |
+| include_intercept   | [bool](`bool`)                   | If ``True``, add an intercept to the adjustment design.             | `False`    |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                                                           | Description   |
+|--------|----------------------------------------------------------------|---------------|
+|        | [SingleTrialResult](`fmrimod.single._types.SingleTrialResult`) |               |
