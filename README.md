@@ -1,10 +1,14 @@
 # fmrimod
 
-fMRI Signal Modeling: HRFs, Design Matrices, and Regression.
+Typed, composable fMRI design and statistical modeling in Python.
 
-A unified Python library for fMRI experimental design and signal modeling,
-combining hemodynamic response function (HRF) specification, design matrix
-construction, and regression tools.
+A design is a Python value, not a formula string: build it from `hrf(...)`,
+`drift(...)` and `intercept(...)` terms, compose with `+`, and inspect every
+field before a coefficient is solved. One library covers the whole path from
+an event table to a group-level result — HRF specification, design matrices,
+first-level GLM (with AR, robust and low-rank variants), single-trial
+estimation, contrasts, and group statistics — with `numpy`/`pandas` types at
+the boundaries and BIDS in and out.
 
 ## Documentation
 
@@ -99,22 +103,26 @@ faces.estimate
 See [the golden path](docs/tutorials/golden-path.qmd) for the same workflow
 end to end, including where `dataset` comes from.
 
+## Correctness
+
+Numerical behaviour is checked against established implementations rather
+than asserted. `benchmarks/` holds end-to-end parity workflows against
+**Nilearn** and **FitLins** — design matrices, effect sizes, t/F statistics
+and group results compared case by case, with the tolerances and receipts
+checked into the repo. `cross_testing/` adds a workstream matrix covering
+contrasts, variance and degrees of freedom, run combination, censoring,
+single-trial estimation, rank-deficient designs, numeric precision and
+residual diagnostics.
+
 ## Lineage
 
-This package unifies Python ports of seven related R neuroimaging packages:
-
-- **fmrihrf** (R) -> `fmrimod.hrf` + `fmrimod.regressor`
-- **fmridesign** (R) -> `fmrimod.events` + `fmrimod.design` + `fmrimod.contrast` + ...
-- **fmrireg** (R) -> `fmrimod.model` + `fmrimod.glm` + `fmrimod.robust` + `fmrimod.lowrank` + ...
-- **fmrilss** (R) -> `fmrimod.single` + `fmrimod.betas`
-- **fmriAR** (R) -> `fmrimod.ar` + `fmrimod.backends`
-- **fmrigds** (R) -> `fmrimod.group` + `fmrimod.stats`
-- **fmridataset** (R) -> `fmrimod.dataset`
-
-It is not a mechanical port: the R behaviour is the specification, but the
-Python types, composition and ergonomics are redesigned for Python. Numerical
-and semantic parity is proven case by case in `benchmarks/` and
-`cross_testing/`.
+fmrimod consolidates capabilities that in R are spread across seven separate
+packages — `fmrihrf`, `fmridesign`, `fmrireg`, `fmrilss`, `fmriAR`,
+`fmrigds` and `fmridataset` — into one Python library with a single coherent
+API. The R implementations serve as an executable specification for the
+statistics, and their behaviour is cross-checked in `cross_testing/`, but the
+types, composition and ergonomics here are designed for Python rather than
+transliterated. Coming from those packages? See the migration guides below.
 
 Migration guides:
 
