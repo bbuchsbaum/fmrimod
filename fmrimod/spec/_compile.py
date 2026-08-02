@@ -234,9 +234,7 @@ def legacy_formula_to_spec(formula: str | Sequence[object]) -> Spec:
         if isinstance(term, str):
             raise TypeError("String items in formula sequences are not typed HRF terms")
         if not isinstance(term, EventModelTerm):
-            raise TypeError(
-                f"Unsupported legacy formula item: {type(term).__name__}"
-            )
+            raise TypeError(f"Unsupported legacy formula item: {type(term).__name__}")
         out = out + _event_model_term_to_hrf_term(term)
     return out
 
@@ -281,7 +279,7 @@ def compile_events(
     return build_event_model(lowered_terms, **kwargs)
 
 
-def _cosine_degree_from_cutoff(drift_term: Drift, sampling_frame: Any) -> int:
+def _cosine_degree_from_cutoff(drift_term: Drift, sampling_frame: SamplingFrame) -> int:
     """Compute the SPM DCT cosine-basis count from a high-pass cutoff.
 
     Convention (matching SPM and Nilearn's ``create_cosine_drift``):
@@ -304,14 +302,10 @@ def _cosine_degree_from_cutoff(drift_term: Drift, sampling_frame: Any) -> int:
         )
     blocklens_attr = getattr(sampling_frame, "blocklens", None)
     blocklens = (
-        list(np.asarray(blocklens_attr).ravel())
-        if blocklens_attr is not None
-        else []
+        list(np.asarray(blocklens_attr).ravel()) if blocklens_attr is not None else []
     )
     if not blocklens:
-        raise ValueError(
-            "drift(basis='cosine'): sampling frame has no block lengths"
-        )
+        raise ValueError("drift(basis='cosine'): sampling frame has no block lengths")
     tr_attr = getattr(sampling_frame, "tr", None)
     if tr_attr is None:
         tr_attr = getattr(sampling_frame, "TR", None)
@@ -373,6 +367,7 @@ def compile_baseline(
         degree = _cosine_degree_from_cutoff(drift_term, sampling_frame)
     elif drift_term is not None and drift_term.cutoff is not None:
         import warnings as _warnings
+
         _warnings.warn(
             f"drift(basis={drift_term.basis!r}, cutoff={drift_term.cutoff!r}): "
             "cutoff= is only meaningful with basis='cosine'; ignoring.",
@@ -400,7 +395,7 @@ def compile_baseline(
 
 def _resolve_confounds_per_run(
     confound_terms: Sequence[Confounds],
-    sampling_frame: Any,
+    sampling_frame: SamplingFrame,
 ) -> list[pd.DataFrame]:
     """Build the per-run nuisance DataFrame list expected by baseline_model.
 
@@ -421,18 +416,14 @@ def _resolve_confounds_per_run(
     """
     blocklens_attr = getattr(sampling_frame, "blocklens", None)
     blocklens = (
-        list(np.asarray(blocklens_attr).ravel())
-        if blocklens_attr is not None
-        else []
+        list(np.asarray(blocklens_attr).ravel()) if blocklens_attr is not None else []
     )
     if not blocklens:
         blocklens = [0]
     n_blocks = len(blocklens)
     total_rows = int(sum(blocklens))
 
-    per_run: list[pd.DataFrame] = [
-        pd.DataFrame(index=range(int(b))) for b in blocklens
-    ]
+    per_run: list[pd.DataFrame] = [pd.DataFrame(index=range(int(b))) for b in blocklens]
 
     for c in confound_terms:
         if c.source is None:
@@ -456,8 +447,7 @@ def _resolve_confounds_per_run(
                 splits = np.cumsum(blocklens)[:-1]
                 arrays = np.split(c.source.to_numpy(), splits, axis=0)
                 run_frames = [
-                    pd.DataFrame(arr, columns=list(c.source.columns))
-                    for arr in arrays
+                    pd.DataFrame(arr, columns=list(c.source.columns)) for arr in arrays
                 ]
         else:
             # Sequence of DataFrames.
