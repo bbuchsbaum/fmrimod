@@ -151,11 +151,11 @@
   "name": "tier_a_spm_auditory",
   "status": "pass",
   "timings": {
-    "seconds": 0.10237520800728817,
+    "seconds": 0.10079279199999291,
     "stages": {
-      "contrast_seconds": 0.004431125009432435,
-      "dataset_seconds": 0.024511083000106737,
-      "fit_seconds": 0.073432999997749
+      "contrast_seconds": 0.004967500004568137,
+      "dataset_seconds": 0.029033208993496373,
+      "fit_seconds": 0.0667920830019284
     },
     "status": "recorded"
   }

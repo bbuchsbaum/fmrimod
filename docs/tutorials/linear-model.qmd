@@ -47,16 +47,16 @@ dataset = dataset_with_effect(
 
 ## Fit the First-Level Model
 
-`fmri_lm()` compiles the spec, builds the full event-plus-baseline design,
-and returns a fitted model.
+`fmri_lm()` compiles the spec into the full event-plus-baseline design and
+fits it.
 
 ```{python}
 fit = fm.fmri_lm(spec, dataset)
 fit
 ```
 
-The realized design is inspectable from the fit. You never built it by
-hand, but you can still read every column.
+`fit.model.design_matrix(run=0)` returns the realized design matrix,
+including the baseline columns `fmri_lm()` added automatically.
 
 ```{python}
 pd.DataFrame(
