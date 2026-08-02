@@ -1,0 +1,62 @@
+/*-- scss:defaults --*/
+
+// ---------------------------------------------------------------------------
+// DARK palette only.
+//
+// Layered on top of `_theme-base.scss`, which owns typography, spacing, radii
+// and every structural rule. Nothing here should do layout: if a rule is
+// needed in both modes it belongs in the base file, written against --bs-*
+// variables. Keeping this file palette-only is what stops light and dark
+// drifting apart, which is how the previous dark-only theme accumulated a
+// parallel ruleset.
+//
+// Assignments here are intentionally WITHOUT `!default`: this layer is
+// applied after the base and must win. That is also why the file must not be
+// named `_theme-base-dark.scss` — see the naming note in the base file. When
+// this layer leaked into the light bundle during development, these
+// non-default assignments overrode the light palette and both modes rendered
+// dark.
+//
+// Starlight's dark mode: near-black with a slight blue cast, raised surfaces
+// a couple of steps lighter, accent lifted for contrast against the dark
+// ground.
+// ---------------------------------------------------------------------------
+
+$body-bg: #17191e; // Starlight --sl-color-black
+$body-color: #eceef2;
+$body-secondary-color: #a8aeb9;
+$body-tertiary-color: #878d96;
+$body-secondary-bg: #23272f; // raised surface (inline code)
+$body-tertiary-bg: #1c1f26; // code blocks
+$body-emphasis-color: #ffffff;
+
+$primary: #6f8dff;
+$link-color: #8aa9ff;
+$link-hover-color: #b3c6ff;
+
+$border-color: #2a2e39;
+$border-color-translucent: rgba(255, 255, 255, 0.1);
+
+$code-bg: #23272f;
+$code-color: #eceef2;
+$code-block-bg: #1c1f26;
+
+$navbar-bg: #17191e;
+$navbar-fg: #a8aeb9;
+
+$card-bg: #1c1f26;
+$card-color: #eceef2;
+$card-border-color: #2a2e39;
+$card-cap-bg: #23272f;
+
+$secondary: #878d96;
+$secondary-color: #a8aeb9;
+
+/*-- scss:rules --*/
+
+// Only the values that cannot be expressed as a Bootstrap variable.
+:root {
+  --fm-elevated-bg: #1c1f26;
+  --fm-code-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  --fm-accent-soft: color-mix(in srgb, var(--bs-link-color) 12%, transparent);
+}

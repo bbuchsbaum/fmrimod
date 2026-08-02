@@ -66,8 +66,18 @@ website:
 
 format:
   html:
-    # Single dark-first theme. One Bootstrap base + the two SCSS layers.
-    theme: [darkly, _variables.scss, _variables-dark.scss]
+    # Light-first with a dark toggle, Starlight-style. `_variables.scss`
+    # carries the shared typography/chrome plus the light palette;
+    # `_variables-dark.scss` only overrides the palette. No Bootswatch base:
+    # the previous `darkly` fought every override and forced dark-only.
+    # Filenames must NOT be a `X` / `X-dark` pair. With the previous
+    # `_variables.scss` / `_variables-dark.scss` the dark layer's values
+    # reached the light bundle too and every page rendered dark. See the
+    # naming note in _theme-base.scss; verify any change by reading
+    # `--bs-body-bg` out of _site/site_libs/bootstrap/, not from the config.
+    theme:
+      light: [_theme-base.scss]
+      dark: [_theme-base.scss, _theme-night.scss]
     css: styles.css
     toc: true
     toc-depth: 3
@@ -79,7 +89,9 @@ format:
     code-overflow: wrap
     code-link: true
     code-annotations: hover
-    highlight-style: github-dark
+    highlight-style:
+      light: github
+      dark: github-dark
     fig-align: center
     fig-cap-location: bottom
     fig-format: retina

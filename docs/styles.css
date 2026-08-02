@@ -27,32 +27,47 @@ a {
   text-decoration: underline;
   text-underline-offset: 3px;
   text-decoration-thickness: 1px;
-  text-decoration-color: rgba(42, 100, 245, 0.35);
+  /* Derived from the active accent so it tracks the light/dark toggle;
+     this was hardcoded to the light-mode blue. */
+  text-decoration-color: color-mix(
+    in srgb,
+    var(--bs-link-color) 40%,
+    transparent
+  );
 }
 a:hover {
   text-decoration-thickness: 2px;
   text-decoration-color: currentColor;
 }
 
+/* Starlight asides: tinted body, accent left rule, no drop shadow. */
 .callout {
   border-left-width: 3px !important;
-  border-radius: 6px !important;
+  border-radius: 0.375rem !important;
   box-shadow: none !important;
+  border-top: 1px solid var(--bs-border-color);
+  border-right: 1px solid var(--bs-border-color);
+  border-bottom: 1px solid var(--bs-border-color);
+}
+.callout .callout-body {
+  background: var(--fm-elevated-bg);
 }
 .callout-header {
   font-weight: 600;
+  background: var(--fm-elevated-bg) !important;
 }
 
 .card {
   border: 1px solid var(--bs-border-color);
-  border-radius: 10px;
+  border-radius: 0.5rem;
   background-color: var(--bs-body-bg);
   color: var(--bs-body-color);
-  transition: border-color 120ms ease, transform 120ms ease;
+  transition: border-color 120ms ease, background-color 120ms ease;
 }
+/* Starlight cards lift by warming the surface, not by moving. */
 .card:hover {
   border-color: var(--bs-link-color);
-  transform: translateY(-1px);
+  background-color: var(--fm-accent-soft);
 }
 .card .card-title {
   font-weight: 600;
@@ -111,7 +126,7 @@ a:hover {
   margin-bottom: 1.8rem;
 }
 .hero-copy .btn {
-  border-radius: 7px;
+  border-radius: 0.375rem;
   padding: 0.62em 1.15em;
   font-weight: 550;
   margin: 0 0.5rem 0.6rem 0;
@@ -151,17 +166,19 @@ a:hover {
 /* Quick-look code card with a faux editor title bar. */
 .code-card {
   border: 1px solid var(--bs-border-color);
-  border-radius: 12px;
+  border-radius: 0.5rem;
   overflow: hidden;
-  background: var(--bs-tertiary-bg, #101827);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
+  background: var(--fm-elevated-bg);
+  /* Per-mode: a heavy drop shadow reads as depth on dark and as grime on
+     white, so each palette supplies its own. */
+  box-shadow: var(--fm-code-shadow);
 }
 .code-card-title {
   display: block;
   position: relative;
   font-family: var(--bs-font-monospace, ui-monospace, monospace);
-  font-size: 0.82rem;
-  color: var(--bs-secondary-color, #8593a6);
+  font-size: 0.8rem;
+  color: var(--bs-tertiary-color);
   padding: 0.7rem 1rem 0.7rem 4.4rem;
   border-bottom: 1px solid var(--bs-border-color);
   background: color-mix(in srgb, var(--bs-body-color) 4%, transparent);
@@ -210,14 +227,14 @@ a:hover {
 }
 .promise-card {
   border: 1px solid var(--bs-border-color);
-  border-radius: 12px;
-  background: var(--bs-secondary-bg, rgba(255, 255, 255, 0.02));
+  border-radius: 0.5rem;
+  background: var(--fm-elevated-bg);
   padding: 1.5rem 1.4rem 1.3rem 1.4rem;
-  transition: border-color 120ms ease, transform 120ms ease;
+  transition: border-color 120ms ease, background-color 120ms ease;
 }
 .promise-card:hover {
   border-color: var(--bs-link-color);
-  transform: translateY(-2px);
+  background: var(--fm-accent-soft);
 }
 .promise-card h4 {
   font-size: 1.12rem;

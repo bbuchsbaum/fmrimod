@@ -67,13 +67,13 @@ structure that makes per-modulator betas interpretable.
 
 ```{python}
 modulated_spec = hrf("condition", basis="spmg1", modulators=("response_time",))
-mod_model = fm.event_model(modulated_spec, data=events, sampling_frame=sf)
+mod_model, _ = compile_spec(modulated_spec, data=events, sampling_frame=sf)
 
 design_colmap(mod_model)[["col", "name", "condition", "role", "basis_name"]]
 ```
 
-The added `response_time` regressor appears as its own column, tagged
-with where it came from. Because the modulator is part of the typed
+The added `response_time` regressors appear as their own columns, tagged
+with where they came from. Because the modulator is part of the typed
 term metadata rather than a formula-string suffix, you can read off
 exactly which column belongs to which term before fitting anything.
 

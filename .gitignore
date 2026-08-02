@@ -29,6 +29,9 @@ benchmarks/performance/results/
 docs/_build/
 docs/_site/
 docs/.quarto/
+# Quarto per-document figure output. Regenerated on render; the canonical
+# copies live in the committed docs/_freeze/ cache.
+docs/**/*_files/
 *.quarto_ipynb
 .jupyter_cache/
 fitlins/

@@ -1,0 +1,69 @@
+name: Docs freshness
+
+# Re-renders the docs with the frozen output discarded, so the ~95 executable
+# cells in docs/tutorials are actually run against the current library.
+#
+# Why this exists: `docs/_quarto.yml` sets `execute: freeze: auto` and
+# `docs/_freeze/` is committed, so the normal Docs workflow restores recorded
+# results instead of executing anything. That makes the published site fast
+# and reproducible, but it also means a tutorial can break against the library
+# and the build stays green. `docs/tutorials/design-matrices.qmd` sat broken
+# that way (it called `fm.event_model()` with a typed `spec.HrfTerm`, which
+# that entry point does not accept) and nothing failed until a change
+# invalidated the freeze.
+#
+# This job does not publish. It only answers: would the docs still run?
+
+on:
+  schedule:
+    # Mondays, 06:00 UTC.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-freshness
+  cancel-in-progress: true
+
+jobs:
+  execute:
+    name: Render docs with no frozen output
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install package and docs dependencies
+        run: pip install -e ".[docs]"
+
+      - uses: quarto-dev/quarto-actions/setup@v2
+
+      - name: Build API reference
+        run: cd docs && quartodoc build
+
+      - name: Discard frozen output
+        # There is no `--no-freeze` flag: `--use-freezer` forces the opposite,
+        # and `--cache-refresh` only defeats `execute: cache`, not
+        # `execute: freeze`. Removing the directory is what makes `freeze:
+        # auto` fall through to real execution. Safe here because the checkout
+        # is disposable; never run this against a working tree you care about.
+        run: rm -rf docs/_freeze
+
+      - name: Render with full execution
+        # Fails the job if any cell raises. That failure is the entire point.
+        run: cd docs && quarto render --cache-refresh
+
+      - name: Upload rendered site for inspection
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-freshness-site
+          path: docs/_site
+          retention-days: 7
