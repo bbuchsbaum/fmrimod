@@ -45,8 +45,12 @@ jobs:
 
       - uses: quarto-dev/quarto-actions/setup@v2
 
-      - name: Build API reference
-        run: cd docs && quartodoc build
+      # Deliberately no `quartodoc build` step here, unlike docs.yml. The
+      # generated reference pages under docs/reference/ are committed, and
+      # this job is about whether the *tutorials* still execute against the
+      # library — regenerating the API reference is a different question.
+      # Keeping it out also stops this job inheriting the pre-existing
+      # `quartodoc build` failure that has broken docs.yml since 2026-05.
 
       - name: Discard frozen output
         # There is no `--no-freeze` flag: `--use-freezer` forces the opposite,
