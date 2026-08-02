@@ -1,0 +1,84 @@
+# Prose style list for generated documentation.
+#
+# Two mechanisms, because two different problems:
+#
+#   [banned]    words/phrases with no legitimate use in these docs. Any
+#               occurrence is a finding.
+#   [rate_cap]  ordinary words that read as a tic in bulk. Legitimate a few
+#               times; a finding above `per_10k`.
+#   [patterns]  regexes for structural habits that no single word carries.
+#
+# Seeded from two sources: tells caught by hand during review, and
+# `scripts/prose_corpus_diff.py`, which ranks n-grams by how much more often
+# this repo's docs use them than ~11k words of the maintainer's own R
+# vignettes. Add to it whenever a new habit is caught -- the point of a
+# checked-in list is that a tell is only ever noticed once.
+
+[banned]
+# Caught by hand, 2026-08-02. Metaphors doing work a plain noun should do.
+spine            = "say what it is: the workflow, the four stages, the main path"
+"load-bearing"   = "say what depends on it, or drop the sentence"
+# Common generated-prose markers. None of these earn their place in docs.
+delve            = "use: look at, examine"
+tapestry         = "no"
+"testament to"   = "state the evidence instead"
+seamless         = "usually means 'it works'; say that"
+seamlessly       = "usually means 'it works'; say that"
+"at its core"    = "delete; start with the noun"
+"it's worth noting" = "if it's worth noting, note it"
+"it is worth noting" = "if it's worth noting, note it"
+"first-class citizen" = "say what it supports"
+"under the hood" = "say which component"
+"a testament"    = "state the evidence instead"
+"navigating the" = "usually padding"
+"in the realm of" = "delete"
+"pivotal"        = "use: central, required"
+"intricate"      = "use: detailed, or say what makes it complex"
+"meticulous"     = "usually self-congratulation; delete"
+"underscore"     = "use: show, confirm (the verb sense)"
+"unlock"         = "marketing verb"
+"empower"        = "marketing verb"
+# NOT banned: "robust". It is vague praise in general prose, but here it is a
+# domain term -- there is a `fmrimod.robust` module and a robust-models
+# tutorial, and the reference corpus uses it 12 times (8/10k). Banning it
+# produced three false positives on its own tutorial in the first run, and a
+# linter that cries wolf gets switched off.
+
+[rate_cap]
+# Legitimate words this repo genuinely needs, but which read as a tic when
+# repeated. `per_10k` is occurrences per 10,000 prose words.
+#
+# Caps are set from measured rates in the reference corpus, not guessed.
+# `typed` is the standout: 152 per 10k in these docs against 0 in ~14k words
+# of the reference. The idea is central to the library so it cannot be
+# banned, but it does not need saying in every paragraph.
+#
+#   word         this repo    reference
+#   typed          152/10k        0/10k
+#   composable       -            0/10k
+#   inspectable      -            0/10k
+#   canonical        -            6/10k
+typed        = 30
+composable   = 20
+inspectable  = 15
+ergonomic    = 5
+canonical    = 20
+leverage     = 2
+
+[patterns]
+# Structural habits. Keys are regexes (case-insensitive, word-aware).
+"\\bnot (just|only) [^.,;]{3,40}, but\\b" = "the 'not just X, but Y' lift; state Y"
+"\\bisn't just\\b"                        = "the 'not just X' lift; state what it is"
+"\\b(moreover|furthermore|additionally),"  = "usually a seam between two paragraphs that should merge"
+"\\bwe (believe|think|feel) that\\b"       = "assert it or cite it"
+"\\bsimply (put|use|call|run)\\b"          = "'simply' tells the reader they should find it easy"
+"\\bof course\\b"                          = "same problem as 'simply'"
+"\\bpowerful and\\b"                       = "vague praise"
+"\\b(that|which) said,"                    = "usually removable"
+
+[limits]
+# Em dashes are fine in moderation; in bulk they are a cadence tell. Counted
+# per 10,000 prose words across the whole file. The reference corpus runs
+# 34/10k (49 dashes in 14,365 words), so 50 allows a comfortable margin over
+# the target voice while still catching a document built out of them.
+em_dash_per_10k = 50
