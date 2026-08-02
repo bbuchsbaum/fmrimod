@@ -2610,15 +2610,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("Required WS gate failed: ws05.parity_ok=False")
             return 1
     if args.require_ws06:
+        # Correctness gates; timing is reported, not gated. AGENTS.md:
+        # "Performance regressions are tracked, not gated ... Wire CI to
+        # [check_regression.py] when a hardware-tagged history file is
+        # available." ws06 and ws10 were the only workstreams failing CI on
+        # wall-clock speedups measured on a shared runner, which is what that
+        # policy exists to prevent: a nightly run failed on
+        # min_speedup_lsa with 0.72x against a 1.0x bar while every other
+        # measurement in the same report was healthy (4.6x, 10.6x, 46x, 47x).
+        # The numbers stay in the report artifact, so they remain trackable.
         ws06 = report["workstreams"]["ws06"]
-        ws06_ok = bool(ws06["parity_ok"]) and bool(ws06["performance_ok"])
-        if not ws06_ok:
-            print(
-                "Required WS gate failed: "
-                f"ws06.parity_ok={ws06['parity_ok']}, "
-                f"ws06.performance_ok={ws06['performance_ok']}"
-            )
+        if not bool(ws06["parity_ok"]):
+            print("Required WS gate failed: ws06.parity_ok=False")
             return 1
+        if not bool(ws06["performance_ok"]):
+            print(
+                "Note: ws06.performance_ok=False (timing only, not gated). "
+                "See the report artifact for the stage-level numbers."
+            )
     if args.require_ws07:
         ws07_ok = bool(report["workstreams"]["ws07"]["parity_ok"])
         if not ws07_ok:
@@ -2635,15 +2644,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("Required WS gate failed: ws09.parity_ok=False")
             return 1
     if args.require_ws10:
+        # Same split as ws06 above: correctness gates, timing is reported.
         ws10 = report["workstreams"]["ws10"]
-        ws10_ok = bool(ws10["parity_ok"]) and bool(ws10["performance_ok"])
-        if not ws10_ok:
-            print(
-                "Required WS gate failed: "
-                f"ws10.parity_ok={ws10['parity_ok']}, "
-                f"ws10.performance_ok={ws10['performance_ok']}"
-            )
+        if not bool(ws10["parity_ok"]):
+            print("Required WS gate failed: ws10.parity_ok=False")
             return 1
+        if not bool(ws10["performance_ok"]):
+            print(
+                "Note: ws10.performance_ok=False (timing only, not gated). "
+                "See the report artifact for the stage-level numbers."
+            )
     return 0
 
 
