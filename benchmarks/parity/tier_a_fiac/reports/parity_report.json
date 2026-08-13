@@ -1,0 +1,129 @@
+{
+  "caveats": [],
+  "column_alignment": [],
+  "deltas": {
+    "effect_sentence_effect": {
+      "failed_gates": [],
+      "gate": "allclose+pearson+spearman",
+      "mae": 0.0,
+      "max_abs": 0.0,
+      "name": "effect_sentence_effect",
+      "passes": true,
+      "pearson_r": 1.0,
+      "rank_candidate": 1,
+      "rank_reference": 1,
+      "scale": 1.0,
+      "shape": [
+        2048
+      ],
+      "spearman_rho": 1.0,
+      "tolerance": {
+        "allow_rescale": false,
+        "atol": 1e-09,
+        "check_allclose": true,
+        "max_abs": null,
+        "max_mae": null,
+        "min_pearson": 0.999,
+        "min_spearman": 0.999,
+        "rtol": 1e-06
+      }
+    },
+    "effect_speaker_effect": {
+      "failed_gates": [],
+      "gate": "allclose+pearson+spearman",
+      "mae": 0.0,
+      "max_abs": 0.0,
+      "name": "effect_speaker_effect",
+      "passes": true,
+      "pearson_r": 0.9999999999999998,
+      "rank_candidate": 1,
+      "rank_reference": 1,
+      "scale": 1.0,
+      "shape": [
+        2048
+      ],
+      "spearman_rho": 1.0,
+      "tolerance": {
+        "allow_rescale": false,
+        "atol": 1e-09,
+        "check_allclose": true,
+        "max_abs": null,
+        "max_mae": null,
+        "min_pearson": 0.999,
+        "min_spearman": 0.999,
+        "rtol": 1e-06
+      }
+    },
+    "t_sentence_effect": {
+      "failed_gates": [],
+      "gate": "allclose+pearson+spearman",
+      "mae": 7.049955220839643e-13,
+      "max_abs": 9.057199434892027e-12,
+      "name": "t_sentence_effect",
+      "passes": true,
+      "pearson_r": 0.9999999999999998,
+      "rank_candidate": 1,
+      "rank_reference": 1,
+      "scale": 1.0,
+      "shape": [
+        2048
+      ],
+      "spearman_rho": 1.0,
+      "tolerance": {
+        "allow_rescale": false,
+        "atol": 1e-09,
+        "check_allclose": true,
+        "max_abs": null,
+        "max_mae": null,
+        "min_pearson": 0.999,
+        "min_spearman": 0.999,
+        "rtol": 1e-06
+      }
+    },
+    "t_speaker_effect": {
+      "failed_gates": [],
+      "gate": "allclose+pearson+spearman",
+      "mae": 6.502272176754225e-13,
+      "max_abs": 6.675993091675991e-12,
+      "name": "t_speaker_effect",
+      "passes": true,
+      "pearson_r": 1.0,
+      "rank_candidate": 1,
+      "rank_reference": 1,
+      "scale": 1.0,
+      "shape": [
+        2048
+      ],
+      "spearman_rho": 1.0,
+      "tolerance": {
+        "allow_rescale": false,
+        "atol": 1e-09,
+        "check_allclose": true,
+        "max_abs": null,
+        "max_mae": null,
+        "min_pearson": 0.999,
+        "min_spearman": 0.999,
+        "rtol": 1e-06
+      }
+    }
+  },
+  "name": "tier_a_fiac_fixed_effects",
+  "status": "pass",
+  "timings": {
+    "seconds": 4.23690375109436,
+    "stages": {
+      "fmrimod_combine_seconds": 9.29099041968584e-06,
+      "fmrimod_contrast_seconds": 0.002344749984331429,
+      "fmrimod_masker_seconds": 0.31645620899507776,
+      "fmrimod_run1_dataset_seconds": 0.9442489580251276,
+      "fmrimod_run1_design_seconds": 9.183300426229835e-05,
+      "fmrimod_run1_fit_seconds": 0.07132716703927144,
+      "fmrimod_run2_dataset_seconds": 0.6123952090274543,
+      "fmrimod_run2_design_seconds": 5.804200191050768e-05,
+      "fmrimod_run2_fit_seconds": 0.001927749952301383,
+      "load_inputs_seconds": 0.02724870905512944,
+      "nilearn_pipeline_seconds": 2.260795833019074
+    },
+    "status": "recorded"
+  }
+}
