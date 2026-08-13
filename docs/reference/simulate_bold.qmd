@@ -1,0 +1,31 @@
+# simulate.bold.simulate_bold { #fmrimod.simulate.bold.simulate_bold }
+
+```python
+simulate_bold(
+    design_matrix,
+    betas,
+    noise_sd=1.0,
+    ar_coeffs=None,
+    n_voxels=1,
+    rng=None,
+)
+```
+
+Simulate BOLD time series from a design matrix and true betas.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name          | Type                | Description                                            | Default    |
+|---------------|---------------------|--------------------------------------------------------|------------|
+| design_matrix | NDArray             | Design matrix, shape ``(n, p)``.                       | _required_ |
+| betas         | NDArray             | True coefficients, shape ``(p,)`` or ``(p, V)``.       | _required_ |
+| noise_sd      | float               | Standard deviation of noise.                           | `1.0`      |
+| ar_coeffs     | NDArray             | AR noise coefficients for temporally correlated noise. | `None`     |
+| n_voxels      | int                 | Number of voxels to simulate (if betas is 1-D).        | `1`        |
+| rng           | np.random.Generator | Random number generator.                               | `None`     |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type    | Description                       |
+|--------|---------|-----------------------------------|
+|        | NDArray | Simulated data, shape ``(n, V)``. |

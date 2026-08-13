@@ -1,0 +1,63 @@
+# spec.terms.Spec { #fmrimod.spec.terms.Spec }
+
+```python
+Spec(events=(), baseline=())
+```
+
+An ordered collection of event and baseline terms.
+
+Use the ``+`` operator to compose:
+
+>>> spec = hrf("trial_type") + drift("cosine", cutoff=128) + intercept()
+
+The container distinguishes *event* terms (HrfTerm, parametric variants)
+from *baseline* terms (Drift, Intercept, Confounds). Composition routes
+each term to the correct bucket automatically.
+
+## Attributes
+
+| Name | Description |
+| --- | --- |
+| `terms` | All terms, events then baseline, in declaration order. |
+
+## Methods
+
+| Name | Description |
+| --- | --- |
+| [diff](#fmrimod.spec.terms.Spec.diff) | Return a structural `SpecDiff` against ``other``. |
+| [from_dict](#fmrimod.spec.terms.Spec.from_dict) | Reconstruct a `Spec` from `to_dict` output. |
+| [to_dict](#fmrimod.spec.terms.Spec.to_dict) | Serialize this `Spec` to a JSON-safe dict. |
+
+### diff { #fmrimod.spec.terms.Spec.diff }
+
+```python
+diff(other)
+```
+
+Return a structural `SpecDiff` against ``other``.
+
+Pure equality (``self == other``) only answers yes/no; this
+helper reports *what* changed: added/removed/changed terms and
+the specific fields that diverge on each changed term. See
+`fmrimod.spec.diff.spec_diff` for the matching rules.
+
+### from_dict { #fmrimod.spec.terms.Spec.from_dict }
+
+```python
+from_dict(payload)
+```
+
+Reconstruct a `Spec` from `to_dict` output.
+
+### to_dict { #fmrimod.spec.terms.Spec.to_dict }
+
+```python
+to_dict()
+```
+
+Serialize this `Spec` to a JSON-safe dict.
+
+The inverse of `from_dict`. See
+`fmrimod.spec.serialize` for the supported value set and
+the explicit-error behavior on shapes that don't round-trip
+(e.g. inline callables, DataFrame payloads).

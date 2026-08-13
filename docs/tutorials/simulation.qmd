@@ -34,6 +34,11 @@ signals.head()
 ```{python}
 #| fig-width: 7
 #| fig-height: 3.5
+#| fig-cap: "Three simulated condition responses with amplitudes 1.0, 1.5,
+#|   and 2.0. Shared event timing makes the requested amplitude differences
+#|   directly visible."
+#| fig-alt: "Line chart of three simulated BOLD condition signals with the
+#|   same timing and progressively larger response amplitudes."
 ax = signals.plot(x="time", y=["cond_1", "cond_2", "cond_3"])
 ax.set_xlabel("Time (s)")
 ax.set_ylabel("Response")
@@ -70,6 +75,11 @@ pd.DataFrame({
 ```{python}
 #| fig-width: 7
 #| fig-height: 3.5
+#| fig-cap: "White-noise and structured-noise simulations generated with the
+#|   same seed. The structured series adds temporal dependence, drift, and
+#|   physiological components."
+#| fig-alt: "Two time-series lines over four hundred seconds; structured
+#|   noise changes more smoothly than the white-noise comparison."
 noise_df = pd.DataFrame({
     "time": time,
     "whiteish": whiteish,

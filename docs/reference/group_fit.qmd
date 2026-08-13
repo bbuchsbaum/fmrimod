@@ -1,0 +1,14 @@
+# stats.inference.group_fit { #fmrimod.stats.inference.group_fit }
+
+```python
+group_fit(request, *, effect_cols=None)
+```
+
+Canonical second-level interface with parity-oriented normalization.
+
+``request`` may be a `GroupFitRequest`, or -- for the common
+default fit -- a `GroupData` or a pandas DataFrame (validated
+to a frozen ``GroupData`` via the typed ``group_data_from_csv``;
+pass its ``effect_cols`` schema). ``GroupFitRequest`` stays the way
+to customize a non-default fit (formula/model/backend/...); it is
+no longer the *only* way in.

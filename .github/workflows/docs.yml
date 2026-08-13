@@ -37,10 +37,20 @@ jobs:
         # Without it the step dies with "No `quartodoc:` section found in your
         # _quarto.yml", which is how this workflow failed every run from
         # 2026-05-16 onward.
-        run: cd docs && quartodoc build --config _quartodoc.yml
+        run: |
+          cd docs && quartodoc build --config _quartodoc.yml
+          cd .. && python scripts/normalize_quartodoc.py
 
-      - name: Render site
-        run: cd docs && quarto render
+      - name: Discard frozen tutorial output
+        # Publishing is a correctness gate: execute current source rather
+        # than silently trusting committed notebook output.
+        run: rm -rf docs/_freeze
+
+      - name: Render site with tutorial execution
+        run: cd docs && quarto render --no-cache
+
+      - name: Audit rendered documentation
+        run: python scripts/audit_docs_artifact.py docs/_site
 
       - uses: actions/upload-pages-artifact@v3
         with:

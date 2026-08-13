@@ -125,11 +125,12 @@ docs = [
     "numpydoc>=1.5.0",
     "myst-parser>=2.0.0",
     "matplotlib>=3.7.0",
+    "nilearn>=0.12.0",
 ]
 
 [project.urls]
 Homepage = "https://github.com/bbuchsbaum/fmrimod"
-Documentation = "https://fmrimod.readthedocs.io"
+Documentation = "https://bbuchsbaum.github.io/fmrimod/"
 Repository = "https://github.com/bbuchsbaum/fmrimod"
 Issues = "https://github.com/bbuchsbaum/fmrimod/issues"
 

@@ -1,0 +1,28 @@
+# glm.combine.combine_runs { #fmrimod.glm.combine.combine_runs }
+
+```python
+combine_runs(fits, *, method='fixed')
+```
+
+Pool per-run `FmriLm` fits into a combined result.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name   | Type                 | Description                                                                                                                                                                                                                                                                                                                                                                                             | Default    |
+|--------|----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| fits   | sequence of FmriLm   | Per-run fitted models. Must share the same voxel count.                                                                                                                                                                                                                                                                                                                                                 | _required_ |
+| method | (\'fixed\', \'ivw\') | Pooling method, applied at the contrast level. ``"fixed"`` (default) matches Nilearn's ``compute_fixed_effect_contrast``: equal-weight averaging of per-run effects with variance ``mean(var) / n_runs``. ``"ivw"`` does inverse-variance-weighted pooling - the maximum- likelihood estimator under independent per-run noise. The two coincide when per-run residual variances are equal across runs. | `"fixed"`  |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type           | Description                                                       |
+|--------|----------------|-------------------------------------------------------------------|
+|        | CombinedFmriLm | A combined fit exposing ``.contrast(spec)`` for pooled contrasts. |
+
+## Examples {.doc-section .doc-section-examples}
+
+```python
+>>> fits = [fm.fmri_lm(spec, ds) for ds in run_datasets]
+>>> combined = fm.combine_runs(fits)
+>>> result = combined.contrast(np.array([0.5, 0.5, -0.5, -0.5]))
+```

@@ -19,21 +19,21 @@ parametric modulators, etc.) in an fMRI experiment.
 
 ## Parameters {.doc-section .doc-section-parameters}
 
-| Name      | Type                                                    | Description                                                    | Default    |
-|-----------|---------------------------------------------------------|----------------------------------------------------------------|------------|
-| name      | [str](`str`)                                            | Name of the event                                              | _required_ |
-| onsets    | [array](`array`) - [like](`like`)                       | Event onset times                                              | _required_ |
-| values    | [array](`array`) - [like](`like`)                       | Continuous values for each event                               | _required_ |
-| durations | [scalar](`scalar`) or [array](`array`) - [like](`like`) | Event durations. If scalar, used for all events. Default is 0. | `0`        |
-| center    | [bool](`bool`)                                          | Whether to center values (subtract mean). Default is True.     | `True`     |
-| scale     | [bool](`bool`)                                          | Whether to scale values (divide by std). Default is False.     | `False`    |
+| Name      | Type                   | Description                                                    | Default    |
+|-----------|------------------------|----------------------------------------------------------------|------------|
+| name      | str                    | Name of the event                                              | _required_ |
+| onsets    | array - like           | Event onset times                                              | _required_ |
+| values    | array - like           | Continuous values for each event                               | _required_ |
+| durations | scalar or array - like | Event durations. If scalar, used for all events. Default is 0. | `0`        |
+| center    | bool                   | Whether to center values (subtract mean). Default is True.     | `True`     |
+| scale     | bool                   | Whether to scale values (divide by std). Default is False.     | `False`    |
 
 ## Attributes {.doc-section .doc-section-attributes}
 
-| Name       | Type                           | Description                               |
-|------------|--------------------------------|-------------------------------------------|
-| values     | [Array](`fmrimod.types.Array`) | Numeric values (possibly centered/scaled) |
-| raw_values | [Array](`fmrimod.types.Array`) | Original values before centering/scaling  |
+| Name       | Type   | Description                               |
+|------------|--------|-------------------------------------------|
+| values     | Array  | Numeric values (possibly centered/scaled) |
+| raw_values | Array  | Original values before centering/scaling  |
 
 ## Examples {.doc-section .doc-section-examples}
 
@@ -44,7 +44,7 @@ parametric modulators, etc.) in an fMRI experiment.
 ...     onsets=[1, 2, 3, 4],
 ...     values=[7.5, 3.2, 8.1, 5.5]
 ... )
->>> 
+>>>
 >>> # With scaling and custom durations
 >>> event = EventVariable(
 ...     name='reaction_time',
@@ -75,16 +75,16 @@ Convert to categorical by binning values.
 
 #### Parameters {.doc-section .doc-section-parameters}
 
-| Name   | Type         | Description                                           | Default   |
-|--------|--------------|-------------------------------------------------------|-----------|
-| n_bins | [int](`int`) | Number of bins                                        | `3`       |
-| labels | list of str  | Labels for bins. If None, uses Low/Medium/High style. | `None`    |
+| Name   | Type        | Description                                           | Default   |
+|--------|-------------|-------------------------------------------------------|-----------|
+| n_bins | int         | Number of bins                                        | `3`       |
+| labels | list of str | Labels for bins. If None, uses Low/Medium/High style. | `None`    |
 
 #### Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                                               | Description                          |
-|--------|----------------------------------------------------|--------------------------------------|
-|        | [EventFactor](`fmrimod.events.factor.EventFactor`) | Categorical event with binned values |
+| Name   | Type        | Description                          |
+|--------|-------------|--------------------------------------|
+|        | EventFactor | Categorical event with binned values |
 
 ### design_matrix { #fmrimod.events.variable.EventVariable.design_matrix }
 
@@ -98,15 +98,15 @@ Creates a single column with the continuous values at event times.
 
 #### Parameters {.doc-section .doc-section-parameters}
 
-| Name            | Type                           | Description                | Default    |
-|-----------------|--------------------------------|----------------------------|------------|
-| sampling_points | [Array](`fmrimod.types.Array`) | Time points to evaluate at | _required_ |
+| Name            | Type   | Description                | Default    |
+|-----------------|--------|----------------------------|------------|
+| sampling_points | Array  | Time points to evaluate at | _required_ |
 
 #### Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                           | Description                                   |
-|--------|--------------------------------|-----------------------------------------------|
-|        | [Array](`fmrimod.types.Array`) | Design matrix column, shape (n_timepoints, 1) |
+| Name   | Type   | Description                                   |
+|--------|--------|-----------------------------------------------|
+|        | Array  | Design matrix column, shape (n_timepoints, 1) |
 
 ### from_dataframe { #fmrimod.events.variable.EventVariable.from_dataframe }
 
@@ -125,20 +125,20 @@ Create EventVariable from DataFrame.
 
 #### Parameters {.doc-section .doc-section-parameters}
 
-| Name         | Type                                           | Description                                  | Default      |
-|--------------|------------------------------------------------|----------------------------------------------|--------------|
-| df           | [pd](`pandas`).[DataFrame](`pandas.DataFrame`) | DataFrame containing event data              | _required_   |
-| name         | [str](`str`)                                   | Name for the event                           | _required_   |
-| onset_col    | [str](`str`)                                   | Column name for onsets                       | `'onset'`    |
-| value_col    | [str](`str`)                                   | Column name for values. If None, uses name.  | `None`       |
-| duration_col | [str](`str`)                                   | Column name for durations                    | `'duration'` |
-| **kwargs     | [object](`object`)                             | Additional arguments passed to EventVariable | `{}`         |
+| Name         | Type         | Description                                  | Default      |
+|--------------|--------------|----------------------------------------------|--------------|
+| df           | pd.DataFrame | DataFrame containing event data              | _required_   |
+| name         | str          | Name for the event                           | _required_   |
+| onset_col    | str          | Column name for onsets                       | `'onset'`    |
+| value_col    | str          | Column name for values. If None, uses name.  | `None`       |
+| duration_col | str          | Column name for durations                    | `'duration'` |
+| **kwargs     | object       | Additional arguments passed to EventVariable | `{}`         |
 
 #### Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                                                     | Description                |
-|--------|----------------------------------------------------------|----------------------------|
-|        | [EventVariable](`fmrimod.events.variable.EventVariable`) | New EventVariable instance |
+| Name   | Type          | Description                |
+|--------|---------------|----------------------------|
+|        | EventVariable | New EventVariable instance |
 
 ### to_dataframe { #fmrimod.events.variable.EventVariable.to_dataframe }
 
@@ -150,6 +150,6 @@ Convert to DataFrame representation.
 
 #### Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                                           | Description                                                  |
-|--------|------------------------------------------------|--------------------------------------------------------------|
-|        | [pd](`pandas`).[DataFrame](`pandas.DataFrame`) | DataFrame with onset, duration, value, and raw_value columns |
+| Name   | Type         | Description                                                  |
+|--------|--------------|--------------------------------------------------------------|
+|        | pd.DataFrame | DataFrame with onset, duration, value, and raw_value columns |

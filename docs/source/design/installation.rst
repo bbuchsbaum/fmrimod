@@ -4,21 +4,21 @@ Installation
 Requirements
 ------------
 
-* Python 3.8 or higher
+* Python 3.10 or higher
 * NumPy
 * Pandas
 * SciPy
 * Matplotlib
 * fmrimod
 
-Installing from PyPI
---------------------
+Installing the alpha from GitHub
+--------------------------------
 
-The easiest way to install fmrimod is via pip:
+fmrimod is not yet published on PyPI. Install the current source directly:
 
 .. code-block:: bash
 
-    pip install fmrimod
+    python -m pip install "fmrimod @ git+https://github.com/bbuchsbaum/fmrimod.git"
 
 Installing from Source
 ----------------------
@@ -27,9 +27,10 @@ To install the latest development version from GitHub:
 
 .. code-block:: bash
 
-    git clone https://github.com/yourusername/fmrimod.git
+    git clone https://github.com/bbuchsbaum/fmrimod.git
     cd fmrimod
-    pip install -e .
+    uv venv --python 3.11 .venv
+    uv pip install --python .venv/bin/python -e ".[dev,test]"
 
 This will install the package in "editable" mode, which is useful for development.
 
@@ -51,19 +52,19 @@ For building documentation:
 
 .. code-block:: bash
 
-    pip install -e ".[docs]"
+    uv pip install --python .venv/bin/python -e ".[docs]"
 
 For running tests:
 
 .. code-block:: bash
 
-    pip install -e ".[test]"
+    uv pip install --python .venv/bin/python -e ".[test]"
 
 For development (includes all optional dependencies):
 
 .. code-block:: bash
 
-    pip install -e ".[dev]"
+    uv pip install --python .venv/bin/python -e ".[dev,test]"
 
 Verifying Installation
 ----------------------

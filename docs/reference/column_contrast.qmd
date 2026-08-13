@@ -1,0 +1,40 @@
+# contrast.contrast_spec.column_contrast { #fmrimod.contrast.contrast_spec.column_contrast }
+
+```python
+column_contrast(pattern_A, name, pattern_B=None, where=None)
+```
+
+Define a contrast by targeting design matrix columns using regex patterns.
+
+This is useful for contrasts involving continuous variables or specific
+basis functions.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name      | Type    | Description                                | Default    |
+|-----------|---------|--------------------------------------------|------------|
+| pattern_A | str     | Regex pattern for positive (+) weights     | _required_ |
+| pattern_B | str     | Regex pattern for negative (-) weights     | `None`     |
+| name      | str     | Contrast name                              | _required_ |
+| where     | Formula | Currently unused, kept for API consistency | `None`     |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type               | Description                   |
+|--------|--------------------|-------------------------------|
+|        | ColumnContrastSpec | Column contrast specification |
+
+## Examples {.doc-section .doc-section-examples}
+
+```python
+>>> # Test main effect of continuous RT
+>>> cc1 = column_contrast(pattern_A="^z_RT$", name="Main_RT")
+>>>
+>>> # Compare conditions for RT effect
+>>> cc2 = column_contrast(pattern_A="^Condition\.A_z_RT$",
+...                       name="CondA_vs_CondB_for_RT",
+...                       pattern_B="^Condition\.B_z_RT$")
+>>>
+>>> # Test specific basis function
+>>> cc3 = column_contrast(pattern_A="_b03$", name="Basis_3_Effect")
+```

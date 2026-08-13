@@ -21,13 +21,13 @@ Estimate trial-wise betas via standard OLS (all trials simultaneous).
 | Y                   | NDArray, shape ``(n, V)``        | Data matrix.                                                        | _required_ |
 | X                   | NDArray, shape ``(n, n_trials)`` | Trial regressor matrix.                                             | _required_ |
 | confounds           | NDArray, shape ``(n, q)``        | Nuisance regressors.                                                | `None`     |
-| return_se           | [bool](`bool`)                   | If ``True``, compute standard errors.                               | `False`    |
+| return_se           | bool                             | If ``True``, compute standard errors.                               | `False`    |
 | trial_labels        | list of str                      | Labels for each trial.                                              | `None`     |
 | baseline_regressors | NDArray, shape ``(n, p)``        | Baseline or experimental regressors included in the all-trials GLM. | `None`     |
-| include_intercept   | [bool](`bool`)                   | If ``True``, add an intercept to the adjustment design.             | `False`    |
+| include_intercept   | bool                             | If ``True``, add an intercept to the adjustment design.             | `False`    |
 
 ## Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                                                           | Description   |
-|--------|----------------------------------------------------------------|---------------|
-|        | [SingleTrialResult](`fmrimod.single._types.SingleTrialResult`) |               |
+| Name   | Type              | Description   |
+|--------|-------------------|---------------|
+|        | SingleTrialResult |               |

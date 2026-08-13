@@ -1,0 +1,138 @@
+---
+title: "How an analysis moves through fmrimod"
+description: "A mental model for the objects and transformations from authored intent to group inference."
+---
+
+This page explains what each stage owns, what changes at its boundary, and what
+must survive the transition. Read the [golden-path tutorial](../tutorials/golden-path.qmd)
+first if you want a runnable analysis. Return here when you need to understand
+why the objects are separate.
+
+## The short version
+
+An fmrimod analysis moves from authored meaning to increasingly numerical
+representations:
+
+`Spec and terms → realized design → fit → contrast result → group data → group inference`
+
+Each arrow lowers an intention into numbers. The library keeps enough context
+alongside those numbers to explain where they came from.
+
+## 1. Author the model as terms
+
+A `Spec` is an immutable, ordered collection of typed terms. Event terms record
+conditions, HRF choices, and modulators; baseline terms record intercepts,
+trends, and other nuisance structure. Composition with `+` builds a model
+description without constructing a matrix.
+
+At this stage, the object preserves research intent and ordering. It does not
+yet know the event rows, scan times, or number of design columns. Those enter
+when the specification is compiled. See [Design matrices](../tutorials/design-matrices.qmd)
+for the authoring workflow and the [`Spec` implementation](https://github.com/bbuchsbaum/fmrimod/blob/main/fmrimod/spec/terms.py)
+for the exact data model.
+
+## 2. Realize the design against events and time
+
+Compilation joins the authored terms to an event table and a `SamplingFrame`.
+The result is a numerical design together with `DesignColumns`: the map from
+matrix columns back to terms, conditions, levels, basis components, and roles.
+This provenance is what later lets a semantic contrast ask for an effect by
+meaning instead of guessing from a column name.
+
+`SamplingFrame` owns run lengths, one TR per run, run start times, and the
+convolution precision. The design owns sampled regressors. These are related,
+but neither replaces the other.
+
+An externally constructed matrix can enter through `RealizedDesign`. That is
+an interoperability route. Its provenance may be inferred or incomplete, so
+semantic resolution can refuse an ambiguous request rather than manufacture a
+meaning the matrix does not establish. The distinction is defined in
+[`RealizedDesign`](https://github.com/bbuchsbaum/fmrimod/blob/main/fmrimod/design/realized.py)
+and [`DesignColumns`](https://github.com/bbuchsbaum/fmrimod/blob/main/fmrimod/design/columns.py).
+
+## 3. Let the dataset own observations and space
+
+`FmriDataset` binds the observations to their acquisition context: events,
+sampling, censoring, and the data adapter. An image-backed adapter can also
+carry a mask and affine. A plain feature matrix is valid input, but it does not
+imply a three-dimensional geometry.
+
+This boundary preserves which samples and features the numbers represent. It
+does not silently add spatial meaning. That is why a matrix-derived result can
+be statistically valid while `to_nifti()` remains unavailable. See
+[Troubleshooting](../help/troubleshooting.qmd#the-contrast-is-valid-but-spatial-export-fails)
+for the repair choices.
+
+## 4. Fit with an explicit solver
+
+`fmri_lm()` combines a specification or realized design with a dataset, then
+applies the selected fitting engine. The fit stores coefficients, residual
+variance and degrees of freedom, the realized design, column provenance, and
+operational provenance such as the solver path and AR or mask status.
+
+The observations have now become parameter estimates and diagnostics. The
+design meaning, sample accounting, and spatial context should remain
+inspectable on the fit. Rank deficiency is not hidden: the solver can produce
+a pseudoinverse solution while reporting which coefficient directions are not
+unique. The [rank-diagnostics tests](https://github.com/bbuchsbaum/fmrimod/blob/main/tests/test_glm/test_rank_diagnostics.py)
+state that contract.
+
+## 5. Resolve a hypothesis into a `ContrastResult`
+
+A semantic contrast begins as intent: for example, a condition, a difference
+between levels, or a joint test over basis components. Resolution uses
+`DesignColumns` to turn that intent into weights for the realized design.
+Missing or ambiguous provenance is an error with a repair path; fmrimod does
+not fall back to a regular-expression guess.
+
+Evaluation produces a `ContrastResult` containing the estimate, statistic,
+standard error, p-value, degrees of freedom, statistic type, spatial context,
+the contrast intent, and the columns touched. The numerical result changes;
+the hypothesis and its provenance remain attached. The
+[Contrasts tutorial](../tutorials/contrasts.qmd) shows the supported semantic
+forms.
+
+## 6. Move subject results into group analysis
+
+There are two related group containers, chosen by where the subject effects
+come from:
+
+- `group_dataset_from_contrasts()` collects named subject `ContrastResult`
+  objects into a native `GroupDataset`. It requires compatible contrast names,
+  dimensions, and spatial context. It preserves JSON-ready intent and touched-
+  column metadata, not Python object identity. `ols_voxelwise()` then fits the
+  group model.
+- `GroupData` describes validated group inputs stored as CSV, HDF5, NIfTI, or
+  first-level results. It is the input container used by `fmri_meta()`,
+  `fmri_ttest()`, and `group_fit()`.
+
+In both routes, subject effects become a subject-by-feature group input, then
+group estimates and inference. Subject and feature identity, contrast meaning,
+and method metadata should survive. First-level residuals and solver internals
+do not become group observations.
+
+::: {.callout-important title="Typed containers do not make every group choice typed"}
+The first-level specification, design provenance, and contrast intent have
+typed representations. Group requests and results also use validated
+containers, but group formulas, method names, robustness modes, and backend
+selectors are still constrained strings in parts of the public API. Treat
+their documented combinations as contracts; do not infer that every
+second-level decision is a closed typed algebra.
+:::
+
+## What changes, and what should remain
+
+| Transition | New representation | Information that should remain inspectable |
+|---|---|---|
+| Terms to realized design | Sampled numeric columns | Term, condition, level, basis, role, and column order |
+| Dataset plus design to fit | Coefficients, variance, degrees of freedom, diagnostics | Sampling, realized design, column provenance, spatial and fit provenance |
+| Contrast intent to result | Weights, estimate, statistic, uncertainty | Intent, touched columns, design/provenance identity, spatial context |
+| Subject results to group input | Subject-by-feature arrays or validated file-backed data | Subject and feature names, compatible contrast metadata, geometry when present |
+| Group input to inference | Group coefficients, statistics, uncertainty | Formula or design, method/backend choice, subject accounting, result geometry |
+
+## Continue from here
+
+- Run the complete path in [Golden path](../tutorials/golden-path.qmd).
+- Learn contrast resolution in [Contrasts](../tutorials/contrasts.qmd).
+- Choose a second-level route in [Group analysis](../tutorials/group-analysis.qmd).
+- Judge numerical and workflow claims with [How to read the evidence](../evidence/index.qmd).

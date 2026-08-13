@@ -12,9 +12,9 @@ and writing BIDS.
 
 ## Documentation
 
-- **[Documentation site](https://bbuchsbaum.github.io/fmrimod/)** — tutorials
+- **[Documentation site](https://bbuchsbaum.github.io/fmrimod/):** tutorials
   and API reference.
-- [Get started](docs/get-started.qmd) · [Tutorials](docs/tutorials/) —
+- [Get started](docs/get-started.qmd) · [Tutorials](docs/tutorials/):
   the same material as source, if you would rather read it in the repo.
 - [The golden path](docs/tutorials/golden-path.qmd) walks one dataset from an
   event table through a first-level fit, a contrast, and into a group
@@ -22,8 +22,20 @@ and writing BIDS.
 
 ## Installation
 
+fmrimod is currently **alpha software**, requires Python **3.10 or newer**,
+and is not yet published on PyPI. Install the current source directly from
+GitHub with a supported interpreter:
+
 ```bash
-pip install -e .
+python3.11 -m venv .venv
+.venv/bin/python -m pip install "fmrimod @ git+https://github.com/bbuchsbaum/fmrimod.git"
+```
+
+For development from a clone, use the repository's uv-managed environment:
+
+```bash
+uv venv --python 3.11 .venv
+uv pip install --python .venv/bin/python -e ".[dev,test]"
 ```
 
 ## Subpackages
@@ -79,35 +91,44 @@ sf = fmrimod.SamplingFrame(blocklens=100, TR=2.0)
 signal = reg.evaluate(sf.global_scan_times)   # -> (100,)
 ```
 
-The main path through the library uses a *typed* design spec: build it with
-`+`, inspect it before fitting, then name the hypothesis by condition rather
-than by column position.
+The main path uses a *typed* design spec: build it with `+`, inspect it before
+fitting, then name the hypothesis by condition rather than column position.
+This example is complete and can be copied into a fresh Python session after
+installation.
 
 ```python
+import numpy as np
+import pandas as pd
 import fmrimod as fm
 from fmrimod.spec import hrf, drift
 from fmrimod.contrast import condition
 
+events = pd.DataFrame({
+    "onset": [8.0, 20.0, 32.0, 44.0],
+    "duration": 2.0,
+    "condition": ["face", "scene", "face", "scene"],
+})
+bold = np.random.default_rng(7).normal(size=(60, 4))
+dataset = fm.fmri_dataset(bold, tr=1.0, events=events)
+
 # The design is a value you can compose and inspect, not a magic string.
 spec = hrf("condition", basis="spmg1") + drift("poly", degree=2)
-
 fit = fm.fmri_lm(spec, dataset)
-
-faces = fit.contrast(
+result = fit.contrast(
     condition("face", term="condition") - condition("scene", term="condition"),
     name="face_minus_scene",
 )
-faces.estimate
+result.estimate
 ```
 
-See [the golden path](docs/tutorials/golden-path.qmd) for the same workflow
-end to end, including where `dataset` comes from.
+See [the golden path](docs/tutorials/golden-path.qmd) for an end-to-end
+workflow with known truth, group analysis, and an independent parity receipt.
 
 ## Correctness
 
 Numerical behaviour is checked against established implementations rather
 than asserted. `benchmarks/` holds end-to-end parity workflows against
-**Nilearn** and **FitLins** — design matrices, effect sizes, t/F statistics
+**Nilearn** and **FitLins**: design matrices, effect sizes, t/F statistics
 and group results compared case by case, with the tolerances and receipts
 checked into the repo. `cross_testing/` adds a workstream matrix covering
 contrasts, variance and degrees of freedom, run combination, censoring,
@@ -117,8 +138,8 @@ residual diagnostics.
 ## Lineage
 
 fmrimod consolidates capabilities that in R are spread across seven separate
-packages — `fmrihrf`, `fmridesign`, `fmrireg`, `fmrilss`, `fmriAR`,
-`fmrigds` and `fmridataset` — into one Python library with a single coherent
+packages (`fmrihrf`, `fmridesign`, `fmrireg`, `fmrilss`, `fmriAR`,
+`fmrigds` and `fmridataset`) into one Python library with a single coherent
 API. The R implementations serve as an executable specification for the
 statistics, and their behaviour is cross-checked in `cross_testing/`, but the
 types, composition and ergonomics here are designed for Python rather than
@@ -134,9 +155,9 @@ Migration guides:
 
 Agents and humans working in this repo share two coordination surfaces:
 
-- [`AGENTS.md`](AGENTS.md) — canonical agent instructions (mote tracker, build
+- [`AGENTS.md`](AGENTS.md): canonical agent instructions (mote tracker, build
   & test, session protocol, commit conventions). `CLAUDE.md` symlinks to it.
-- [`message_board.md`](message_board.md) — `mote discuss` ground rules and
+- [`message_board.md`](message_board.md): `mote discuss` ground rules and
   command crib for the public discussion board (`general-discussion` is the
   catch-all topic).
 

@@ -10,21 +10,21 @@ This is a generic function that convolves various event types with an HRF.
 
 ## Parameters {.doc-section .doc-section-parameters}
 
-| Name           | Type                              | Description                                                                                                                | Default    |
-|----------------|-----------------------------------|----------------------------------------------------------------------------------------------------------------------------|------------|
-| x              | [object](`object`)                | Event object or array to convolve                                                                                          | _required_ |
-| hrf            | HRF, array, or None               | Hemodynamic response function. If None, uses SPM canonical HRF                                                             | `None`     |
-| sampling_rate  | [float](`float`)                  | Sampling rate in Hz (default 1.0). Ignored if sampling_frame is provided.                                                  | `1.0`      |
-| sampling_frame | [array](`array`) - [like](`like`) | Explicit time points at which to sample the convolved signal. If provided, takes precedence over sampling_rate.            | `None`     |
-| normalize      | [bool](`bool`)                    | If True, peak-normalize each regressor column after convolution so that max(abs(col)) == 1. Default False.                 | _required_ |
-| summate        | [bool](`bool`)                    | Whether overlapping HRF responses are summed (default True). If False, max is used instead. Passed to fmrimod.regressor(). | _required_ |
-| **kwargs       | [object](`object`)                | Additional arguments passed to convolution                                                                                 | `{}`       |
+| Name           | Type                | Description                                                                                                                | Default    |
+|----------------|---------------------|----------------------------------------------------------------------------------------------------------------------------|------------|
+| x              | object              | Event object or array to convolve                                                                                          | _required_ |
+| hrf            | HRF, array, or None | Hemodynamic response function. If None, uses SPM canonical HRF                                                             | `None`     |
+| sampling_rate  | float               | Sampling rate in Hz (default 1.0). Ignored if sampling_frame is provided.                                                  | `1.0`      |
+| sampling_frame | array - like        | Explicit time points at which to sample the convolved signal. If provided, takes precedence over sampling_rate.            | `None`     |
+| normalize      | bool                | If True, peak-normalize each regressor column after convolution so that max(abs(col)) == 1. Default False.                 | _required_ |
+| summate        | bool                | Whether overlapping HRF responses are summed (default True). If False, max is used instead. Passed to fmrimod.regressor(). | _required_ |
+| **kwargs       | object              | Additional arguments passed to convolution                                                                                 | `{}`       |
 
 ## Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                           | Description      |
-|--------|--------------------------------|------------------|
-|        | [Array](`fmrimod.types.Array`) | Convolved signal |
+| Name   | Type   | Description      |
+|--------|--------|------------------|
+|        | Array  | Convolved signal |
 
 ## Examples {.doc-section .doc-section-examples}
 

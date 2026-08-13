@@ -6,9 +6,9 @@ Fcontrasts(x, max_inter=4, **kwargs)
 
 Generate F-contrast matrices for testing main effects and interactions.
 
-This is a :func:`functools.singledispatch` generic function: ``x``
+This is a `functools.singledispatch` generic function: ``x``
 is intentionally ``Any`` because the dispatcher routes on the
-runtime type (registered for :class:`EventTerm`, :class:`EventModel`,
+runtime type (registered for `EventTerm`, `EventModel`,
 and the categorical event variants). The registered implementations
 carry their own typed signatures.
 
@@ -18,17 +18,17 @@ matrices for main effects and interactions up to a specified order.
 
 ## Parameters {.doc-section .doc-section-parameters}
 
-| Name      | Type                | Description                                                        | Default    |
-|-----------|---------------------|--------------------------------------------------------------------|------------|
-| x         | [object](`object`)  | Object to generate F-contrasts for (event_term, event_model, etc.) | _required_ |
-| max_inter | [int](`int`)        | Maximum interaction order to include (default: 4)                  | `4`        |
-| **kwargs  | [Any](`typing.Any`) | Additional arguments passed to specific methods                    | `{}`       |
+| Name      | Type   | Description                                                        | Default    |
+|-----------|--------|--------------------------------------------------------------------|------------|
+| x         | object | Object to generate F-contrasts for (event_term, event_model, etc.) | _required_ |
+| max_inter | int    | Maximum interaction order to include (default: 4)                  | `4`        |
+| **kwargs  | Any    | Additional arguments passed to specific methods                    | `{}`       |
 
 ## Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                                                                  | Description                                            |
-|--------|-----------------------------------------------------------------------|--------------------------------------------------------|
-|        | [Dict](`typing.Dict`)\[[str](`str`), [Array](`fmrimod.types.Array`)\] | Dictionary mapping contrast names to contrast matrices |
+| Name   | Type               | Description                                            |
+|--------|--------------------|--------------------------------------------------------|
+|        | Dict\[str, Array\] | Dictionary mapping contrast names to contrast matrices |
 
 ## Examples {.doc-section .doc-section-examples}
 
@@ -38,13 +38,13 @@ matrices for main effects and interactions up to a specified order.
 >>> fcon = Fcontrasts(event)
 >>> fcon.keys()
 dict_keys(['condition'])
->>> 
+>>>
 >>> # F-contrasts for interaction term
 >>> term = EventTerm([cond_event, group_event])
 >>> fcon = Fcontrasts(term)
 >>> fcon.keys()
 dict_keys(['condition', 'group', 'condition:group'])
->>> 
+>>>
 >>> # F-contrasts for full model
 >>> model = event_model("condition * group", data=df)
 >>> fcon = Fcontrasts(model)

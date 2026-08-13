@@ -1,0 +1,7 @@
+# bids.stats_model.load_stats_model { #fmrimod.bids.stats_model.load_stats_model }
+
+```python
+load_stats_model(path)
+```
+
+Load a BIDS Stats Model JSON document.

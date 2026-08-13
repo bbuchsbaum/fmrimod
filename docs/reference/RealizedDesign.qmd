@@ -1,0 +1,55 @@
+# design.realized.RealizedDesign { #fmrimod.design.realized.RealizedDesign }
+
+```python
+RealizedDesign(matrix, columns, source='user')
+```
+
+A named, already-realized design matrix.
+
+``RealizedDesign`` is the typed value for workflows where an external
+system has already constructed the design matrix. It composes the existing
+`DesignColumns` substrate, rather than carrying a second parallel
+metadata shape, so callers can route through `fmrimod.glm.fmri_lm`
+without falling back to raw ``(ndarray, columns)`` pairs or private matrix
+helpers.
+
+## Attributes
+
+| Name | Description |
+| --- | --- |
+| `column_kinds` | Coarse column roles derived from the typed column records. |
+| `column_names` | Column names in realized matrix order. |
+| `n_columns` | Number of design columns. |
+| `n_timepoints` | Number of rows in the realized design. |
+
+## Methods
+
+| Name | Description |
+| --- | --- |
+| [as_dataframe](#fmrimod.design.realized.RealizedDesign.as_dataframe) | Return the full design matrix with stable column names. |
+| [design_columns](#fmrimod.design.realized.RealizedDesign.design_columns) | Return typed column provenance for contrast resolution. |
+| [from_array](#fmrimod.design.realized.RealizedDesign.from_array) | Create a realized design from an array and column metadata. |
+
+### as_dataframe { #fmrimod.design.realized.RealizedDesign.as_dataframe }
+
+```python
+as_dataframe()
+```
+
+Return the full design matrix with stable column names.
+
+### design_columns { #fmrimod.design.realized.RealizedDesign.design_columns }
+
+```python
+design_columns()
+```
+
+Return typed column provenance for contrast resolution.
+
+### from_array { #fmrimod.design.realized.RealizedDesign.from_array }
+
+```python
+from_array(matrix, columns, kinds=None, source='user')
+```
+
+Create a realized design from an array and column metadata.

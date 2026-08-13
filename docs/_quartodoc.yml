@@ -3,12 +3,134 @@ quartodoc:
   style: pkgdown
   dir: reference
   title: "API reference"
-  render_interlinks: true
+  render_interlinks: false
   options:
     include_inherited: true
     signature_name: short
   sidebar: reference/_sidebar.yml
   sections:
+    - title: "Core modeling seam"
+      desc: "Author a typed model, bind data, fit it, and inspect a named result."
+      contents:
+        - kind: page
+          path: Spec
+          contents:
+            - spec.terms.Spec
+        - kind: page
+          path: Term
+          contents:
+            - spec.terms.Term
+        - kind: page
+          path: spec_hrf
+          contents:
+            - spec.builders.hrf
+        - kind: page
+          path: compile
+          contents:
+            - spec._compile.compile
+        - kind: page
+          path: fmri_dataset
+          contents:
+            - dataset.constructors.fmri_dataset
+        - kind: page
+          path: FmriDataset
+          contents:
+            - dataset.fmri_dataset.FmriDataset
+        - kind: page
+          path: RealizedDesign
+          contents:
+            - design.realized.RealizedDesign
+        - kind: page
+          path: FmriLmConfig
+          contents:
+            - model.config.FmriLmConfig
+        - kind: page
+          path: condition
+          contents:
+            - contrast.semantic.condition
+        - kind: page
+          path: column_contrast
+          contents:
+            - contrast.contrast_spec.column_contrast
+        - kind: page
+          path: combine_runs
+          contents:
+            - glm.combine.combine_runs
+        - kind: page
+          path: ContrastResult
+          contents:
+            - glm.contrasts.ContrastResult
+        - kind: page
+          path: group_dataset_from_contrasts
+          contents:
+            - contrast.group_collection.group_dataset_from_contrasts
+        - kind: page
+          path: baseline_model
+          contents:
+            - baseline.baseline_model.baseline_model
+        - kind: page
+          path: fmri_lss
+          contents:
+            - single.typed.fmri_lss
+        - kind: page
+          path: estimate_single_trial_from_dataset
+          contents:
+            - single.estimate_single_trial_from_dataset
+        - kind: page
+          path: fit_glm_from_matrix
+          contents:
+            - glm.matrix.fit_glm_from_matrix
+        - kind: page
+          path: fit_glm_from_suffstats
+          contents:
+            - glm.matrix.fit_glm_from_suffstats
+        - kind: page
+          path: simulate_bold
+          contents:
+            - simulate.bold.simulate_bold
+    - title: "Group, BIDS, and results"
+      desc: "Build group inputs, run native or statistical interfaces, and write outputs."
+      contents:
+        - kind: page
+          path: GroupDataset
+          contents:
+            - group.dataset.GroupDataset
+        - kind: page
+          path: ols_voxelwise
+          contents:
+            - group.reducers.ols_voxelwise
+        - kind: page
+          path: fmri_group_lm
+          contents:
+            - group.typed.fmri_group_lm
+        - kind: page
+          path: group_fit
+          contents:
+            - stats.inference.group_fit
+        - kind: page
+          path: fmri_meta
+          contents:
+            - stats.meta.fmri_meta
+        - kind: page
+          path: fmri_ttest
+          contents:
+            - stats.ttest.fmri_ttest
+        - kind: page
+          path: load_stats_model
+          contents:
+            - bids.stats_model.load_stats_model
+        - kind: page
+          path: write_contrasts
+          contents:
+            - bids.export.write_contrasts
+        - kind: page
+          path: write_results
+          contents:
+            - io.results.write_results
+        - kind: page
+          path: group_data_from_fmrilm
+          contents:
+            - dataset.group_data.group_data_from_fmrilm
     - title: "Design and events"
       desc: "Build event terms and design matrices from fMRI timing tables."
       contents:

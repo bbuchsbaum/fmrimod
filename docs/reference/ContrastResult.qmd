@@ -1,0 +1,99 @@
+# glm.contrasts.ContrastResult { #fmrimod.glm.contrasts.ContrastResult }
+
+```python
+ContrastResult(
+    name,
+    estimate,
+    stat,
+    se,
+    p_value,
+    df,
+    stat_type,
+    spatial=None,
+    intent=None,
+    touched_columns=(),
+    touched_column_details=(),
+    caveats=(),
+)
+```
+
+Result of evaluating a contrast on GLM output.
+
+## Attributes {.doc-section .doc-section-attributes}
+
+| Name      | Type            | Description                                                                         |
+|-----------|-----------------|-------------------------------------------------------------------------------------|
+| name      | str             | Contrast name.                                                                      |
+| estimate  | NDArray         | Contrast estimate ``c' @ B``, shape ``(k, V)`` for F-tests or ``(V,)`` for t-tests. |
+| stat      | NDArray         | Test statistic (t or F), shape ``(V,)``.                                            |
+| se        | NDArray or None | Standard error, shape ``(V,)`` (t-tests only).                                      |
+| p_value   | NDArray         | Two-sided p-values, shape ``(V,)``.                                                 |
+| df        | float or tuple  | Degrees of freedom.  Scalar for t-tests, ``(df1, df2)`` for F-tests.                |
+| stat_type | str             | ``"t"`` or ``"F"``.                                                                 |
+
+## Methods
+
+| Name | Description |
+| --- | --- |
+| [explain](#fmrimod.glm.contrasts.ContrastResult.explain) | Return structured explanation data for this contrast result. |
+| [summary](#fmrimod.glm.contrasts.ContrastResult.summary) | Return a JSON-ready structured summary of this contrast. |
+| [to_neurovec](#fmrimod.glm.contrasts.ContrastResult.to_neurovec) | Return a ``neuroim.DenseNeuroVec`` stacking multiple statistics. |
+| [to_neurovol](#fmrimod.glm.contrasts.ContrastResult.to_neurovol) | Return a ``neuroim.DenseNeuroVol`` for one statistic. |
+| [to_nifti](#fmrimod.glm.contrasts.ContrastResult.to_nifti) | Write one statistic to disk as a NIfTI volume. |
+
+### explain { #fmrimod.glm.contrasts.ContrastResult.explain }
+
+```python
+explain()
+```
+
+Return structured explanation data for this contrast result.
+
+### summary { #fmrimod.glm.contrasts.ContrastResult.summary }
+
+```python
+summary()
+```
+
+Return a JSON-ready structured summary of this contrast.
+
+### to_neurovec { #fmrimod.glm.contrasts.ContrastResult.to_neurovec }
+
+```python
+to_neurovec(kinds=None, *, fill=0.0)
+```
+
+Return a ``neuroim.DenseNeuroVec`` stacking multiple statistics.
+
+#### Parameters {.doc-section .doc-section-parameters}
+
+| Name   | Type            | Description                                                                                                                                                    | Default   |
+|--------|-----------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|
+| kinds  | sequence of str | Statistic kinds to stack along the 4th dimension. Defaults to ``("estimate", "stat", "p_value")`` for t-contrasts and ``("stat", "p_value")`` for F-contrasts. | `None`    |
+| fill   | float           | Out-of-mask fill value (defaults to 0.0).                                                                                                                      | `0.0`     |
+
+### to_neurovol { #fmrimod.glm.contrasts.ContrastResult.to_neurovol }
+
+```python
+to_neurovol(kind='stat', *, fill=0.0, label=None)
+```
+
+Return a ``neuroim.DenseNeuroVol`` for one statistic.
+
+#### Parameters {.doc-section .doc-section-parameters}
+
+| Name   | Type   | Description                                                                                                                     | Default   |
+|--------|--------|---------------------------------------------------------------------------------------------------------------------------------|-----------|
+| kind   | str    | One of ``"stat"`` (default), ``"estimate"``, ``"se"``, ``"p_value"``.                                                           | `'stat'`  |
+| fill   | float  | Value placed at non-mask voxels. Defaults to 0.0 so the volume writes cleanly to NIfTI; pass ``np.nan`` for diagnostic display. | `0.0`     |
+| label  | str    | Volume label. Defaults to ``f"{self.name}.{kind}"``.                                                                            | `None`    |
+
+### to_nifti { #fmrimod.glm.contrasts.ContrastResult.to_nifti }
+
+```python
+to_nifti(path, *, kind='stat', fill=0.0)
+```
+
+Write one statistic to disk as a NIfTI volume.
+
+Returns the resolved `pathlib.Path`.

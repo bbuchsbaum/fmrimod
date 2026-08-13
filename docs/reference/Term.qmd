@@ -1,0 +1,11 @@
+# spec.terms.Term { #fmrimod.spec.terms.Term }
+
+```python
+Term()
+```
+
+Marker base class for spec terms.
+
+A ``Term`` describes one or more design columns. It is intentionally
+decoupled from realisation: a Term knows *what* it represents, not *how*
+to evaluate it.  Lowering happens in `fmrimod.spec._compile.compile`.

@@ -17,20 +17,20 @@ This is a generic function dispatching on the type of ``x``.
 | Name   | Type                                                          | Description                                                                                                                                 | Default    |
 |--------|---------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|------------|
 | x      | numpy.ndarray, pandas.DataFrame, EventModel, or BaselineModel | Design matrix or model to project out. When an ``EventModel`` or ``BaselineModel`` is passed, the design matrix is extracted automatically. | _required_ |
-| data   | [array](`array`) - [like](`like`)                             | Observations to residualize. Shape ``(n_timepoints,)`` or ``(n_timepoints, n_signals)``.                                                    | _required_ |
+| data   | array - like                                                  | Observations to residualize. Shape ``(n_timepoints,)`` or ``(n_timepoints, n_signals)``.                                                    | _required_ |
 | cols   | list of int or list of str                                    | Subset of design columns to use. String names are supported for DataFrame and EventModel inputs.                                            | `None`     |
 
 ## Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                                        | Description                                |
-|--------|---------------------------------------------|--------------------------------------------|
-|        | [numpy](`numpy`).[ndarray](`numpy.ndarray`) | Residuals with the same shape as ``data``. |
+| Name   | Type          | Description                                |
+|--------|---------------|--------------------------------------------|
+|        | numpy.ndarray | Residuals with the same shape as ``data``. |
 
 ## Raises {.doc-section .doc-section-raises}
 
-| Name   | Type                       | Description                                               |
-|--------|----------------------------|-----------------------------------------------------------|
-|        | [ValueError](`ValueError`) | If the number of rows in ``x`` and ``data`` do not match. |
+| Name   | Type       | Description                                               |
+|--------|------------|-----------------------------------------------------------|
+|        | ValueError | If the number of rows in ``x`` and ``data`` do not match. |
 
 ## Examples {.doc-section .doc-section-examples}
 

@@ -1,0 +1,69 @@
+# group.typed.fmri_group_lm { #fmrimod.group.typed.fmri_group_lm }
+
+```python
+fmri_group_lm(
+    data,
+    *,
+    intercept_only=True,
+    formula=None,
+    design_matrix=None,
+    subjects=None,
+    contrasts=None,
+    space=None,
+    n_jobs=1,
+    chunk_size=None,
+)
+```
+
+Fit a group-level / second-level GLM.
+
+Closes the typed-spec gap between the first-level
+(`fmrimod.fmri_lm`) and group-level stages of the
+modeling pipeline.
+
+Headline shape::
+
+    # n_subjects x n_voxels per-subject contrast betas
+    result = fm.fmri_group_lm(betas)
+    result.t_stat()       # (n_voxels,) one-sample group t map
+    result.effect()       # (n_voxels,) group-mean effect
+    result.p_value()      # (n_voxels,) two-sided p map
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name           | Type                                          | Description                                                                                                                                                                                                                                                | Default    |
+|----------------|-----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| data           | Union\[NDArray\[np.floating\], GroupDataset\] | Either:  - ``(n_subjects, n_voxels)`` numpy array of per-subject   contrast values (the common case — wrap into a   `GroupDataset` internally). - A `GroupDataset` for users who already have the   full sample × subject × contrast layout. | _required_ |
+| intercept_only | bool                                          | Default ``True`` — the canonical one-sample group t test (``formula="~ 1"``). Mutually exclusive with ``formula=`` and ``design_matrix=``.                                                                                                                 | `True`     |
+| formula        | Optional\[str\]                               | Optional R-style design formula (e.g. ``"~ group + age"``). Mutually exclusive with ``intercept_only=True`` and ``design_matrix=``.                                                                                                                        | `None`     |
+| design_matrix  | Optional\[Any\]                               | Optional explicit design matrix or DataFrame; predictor column names become the keys for `GroupLmResult.effect`.                                                                                                                                     | `None`     |
+| subjects       | Optional\[Sequence\[Any\]\]                   | Subject ids when wrapping a raw array. Defaults to ``"sub-{i:02d}"`` strings.                                                                                                                                                                              | `None`     |
+| contrasts      | Optional\[Sequence\[Any\]\]                   | First-level contrast names. Defaults to ``("contrast_0", "contrast_1", ...)``.                                                                                                                                                                             | `None`     |
+| space          | Optional\[VoxelSpace\]                        | Optional explicit `VoxelSpace` when wrapping a raw array. Defaults to a dense voxel space with shape ``(n_voxels, 1, 1)`` and identity affine.                                                                                                      | `None`     |
+| n_jobs         | int                                           | Forwarded to `ols_voxelwise`.                                                                                                                                                                                                                        | `1`        |
+| chunk_size     | int                                           | Forwarded to `ols_voxelwise`.                                                                                                                                                                                                                        | `1`        |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type          | Description                                                                                               |
+|--------|---------------|-----------------------------------------------------------------------------------------------------------|
+|        | GroupLmResult | Typed wrapper exposing ``.effect()``, ``.t_stat()``, ``.p_value()``, ``.standard_error()`` per predictor. |
+
+## Examples {.doc-section .doc-section-examples}
+
+One-sample group t in one line::
+
+    result = fm.fmri_group_lm(per_subject_betas)
+    t_map = result.t_stat()
+
+Two-group comparison with covariate::
+
+    import pandas as pd
+    design = pd.DataFrame({"group": [0,0,0,1,1,1], "age": [...]})
+    result = fm.fmri_group_lm(
+        per_subject_betas,
+        intercept_only=False,
+        design_matrix=design,
+    )
+    group_effect = result.effect("group")
+    group_t = result.t_stat("group")

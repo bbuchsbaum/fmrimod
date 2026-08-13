@@ -1,0 +1,31 @@
+# bids.export.write_contrasts { #fmrimod.bids.export.write_contrasts }
+
+```python
+write_contrasts(
+    contrasts,
+    mask,
+    affine,
+    output_dir,
+    entities,
+    stats=('beta', 'tstat', 'pvalue', 'se'),
+)
+```
+
+Write contrast statistic maps as NIfTI files.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name       | Type                      | Description                                   | Default                             |
+|------------|---------------------------|-----------------------------------------------|-------------------------------------|
+| contrasts  | dict                      | ``{name: ContrastResult}`` from a fitted GLM. | _required_                          |
+| mask       | NDArray\[bool\]           |                                               | _required_                          |
+| affine     | NDArray, shape ``(4, 4)`` |                                               | _required_                          |
+| output_dir | Path                      |                                               | _required_                          |
+| entities   | BidsEntities              |                                               | _required_                          |
+| stats      | sequence of str           | Which statistics to write.                    | `('beta', 'tstat', 'pvalue', 'se')` |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type         | Description   |
+|--------|--------------|---------------|
+|        | list of Path |               |

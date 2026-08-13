@@ -1,13 +1,13 @@
 ---
 title: "The golden path"
-subtitle: "The whole workflow — data to group — with recovered numbers and a parity check."
+subtitle: "The whole workflow, from data to group, with recovered numbers and a parity check."
 jupyter: python3
 execute:
   freeze: auto
 ---
 
 Every other tutorial shows one part of the workflow. This page runs the
-**whole** thing — `fmri_dataset → fmri_lm → contrast → group` — without a
+**whole** thing (`fmri_dataset → fmri_lm → contrast → group`) without a
 break, on data with a *known* injected effect, then checks fmrimod's
 first-level math against Nilearn's GLM.
 
@@ -16,13 +16,15 @@ effect into simulated data, so at every stage you can ask the only
 question that really tests an analysis: did the model recover the number
 we put in? Second, recovering your own injected effect proves the
 pipeline is self-consistent but not that the math is correct in absolute
-terms — for that you need an independent implementation, which is why
+terms. That requires an independent implementation, which is why
 the last section compares the first-level fit to Nilearn.
 
 ## The helper that moves results to the group level
 
-`group_dataset_from_contrasts` takes the per-subject contrast results
-and bundles them into one group dataset:
+`group_dataset_from_contrasts` lowers the per-subject contrast results into
+one group dataset. It carries each result's contrast-intent metadata and
+touched-column provenance alongside the numerical estimate; it does not pass
+the authored Python object itself into the group model:
 
 ```{python}
 from fmrimod import group_dataset_from_contrasts
@@ -30,76 +32,72 @@ from fmrimod import group_dataset_from_contrasts
 
 ## A dataset with a known effect
 
-We simulate sixteen subjects. Each has a true `face − scene` effect drawn
-from `N(2.0, 0.6)` in five of ten voxels; the other five are null. That
+We simulate sixteen subjects. Each has a true face-versus-baseline effect
+drawn from `N(2.0, 0.6)` in two of four features; the other two are null. That
 gives us two things to check at every stage: a signal we expect to
-recover, and a null we expect to stay flat. The effect is injected onto
-whichever design column the `condition("face", ...)` object resolves to,
-so the simulation and the contrast we test later refer to the same
-condition by name and cannot silently disagree about which column is
-"face".
+recover, and a null we expect to stay flat. Keeping one task condition makes
+the public simulation recipe unambiguous: the one event-design column carries
+the injected coefficient, and the contrast names that condition explicitly.
 
 ```{python}
 import numpy as np
 import pandas as pd
 
 import fmrimod as fm
-from fmrimod.spec import hrf, drift
+from fmrimod.spec import compile as compile_spec
+from fmrimod.spec import hrf
 from fmrimod.contrast import condition
 from fmrimod.group import ols_voxelwise
+from fmrimod.simulate import simulate_bold
 
 N_SUB = 16
-spec = hrf("condition", basis="spmg1") + drift("poly", degree=2)
+spec = hrf("condition", basis="spmg1")
 events = pd.DataFrame({
-    "onset": np.arange(8, 210, 12.0),
-    "condition": np.where(np.arange(17) % 2 == 0, "face", "scene"),
+    "onset": np.arange(8, 116, 12.0),
+    "condition": "face",
     "duration": 2.0,
 })
+sampling = fm.SamplingFrame(blocklens=130, TR=1.0)
+built, _ = compile_spec(spec, data=events, sampling_frame=sampling)
+
+def subject_dataset(effect, seed):
+    betas = np.array([[effect, effect, 0.0, 0.0]])
+    bold = simulate_bold(
+        np.asarray(built.design_matrix), betas, noise_sd=0.3,
+        n_voxels=4, rng=np.random.default_rng(seed),
+    )
+    return fm.fmri_dataset(bold, tr=1.0, events=events)
 ```
 
-`dataset_with_effect` is a tutorial helper that builds simulated data
-with the known effect placed on the `condition("face", ...)` column —
-the same object we contrast below, so "the effect we injected" and "the
-effect we test for" are guaranteed to be the same thing.
+## Stage 1–3: dataset → fit → named contrast
 
-```{python}
-from fmrimod.simulate.demo import dataset_with_effect
-
-sampling = fm.SamplingFrame(blocklens=220, TR=1.0)
-```
-
-## Stage 1–3: dataset → fit → typed contrast
-
-For one subject: fit the model, then state the hypothesis by naming the
-conditions to compare. The recovered estimate returns ≈ `2.0` in the
-signal voxels and ≈ `0` in the null voxels. This is the check that
-matters — an analysis that ran without error but mis-specified the
+For one subject: fit the model, then state the hypothesis by naming the task
+condition. The recovered estimate returns ≈ `2.0` in the signal features and
+≈ `0` in the null features. This is the check that
+matters: an analysis that ran without error but mis-specified the
 contrast would return some *other* number here, and you would only catch
 it by knowing what the answer should be.
 
 ```{python}
-fit = fm.fmri_lm(spec, dataset_with_effect(
-    spec, events, on=condition("face", term="condition"),
-    effect=2.0, sampling_frame=sampling, seed=202,
-))
+fit = fm.fmri_lm(spec, subject_dataset(2.0, seed=202))
 con = fit.contrast(
-    condition("face", term="condition") - condition("scene", term="condition"),
-    name="face_minus_scene",
+    condition("face", term="condition"), name="face_vs_baseline"
 )
 pd.DataFrame({
     "estimate": con.estimate.round(3),
     "t": con.stat.round(2),
     "p": con.p_value.round(4),
-})  # voxels 0–4 ≈ 2.0 at p≈0; voxels 5–9 null
+})
 ```
 
 ## Stage 4: contrasts → group
 
-`group_dataset_from_contrasts` takes the per-subject `ContrastResult`
-objects from stage 3 directly — no hand-built second-level table, no
-restart from synthetic betas. `ols_voxelwise` then fits the group model
-and the recovered group estimate returns the **true between-subject
-mean**.
+`group_dataset_from_contrasts` takes each subject's `ContrastResult` from
+stage 3, with no hand-built second-level table and no restart from synthetic
+betas. The adapter lowers estimates and standard errors into group assays
+while recording the authored intent and touched-column details as metadata.
+`ols_voxelwise` then fits the group model, and the recovered group estimate
+returns the **true between-subject mean**.
 
 ```{python}
 master = np.random.default_rng(2)
@@ -107,13 +105,9 @@ subject_effect = master.normal(2.0, 0.6, N_SUB)
 
 per_subject = {
     f"sub-{i:02d}": fm.fmri_lm(
-        spec, dataset_with_effect(
-            spec, events, on=condition("face", term="condition"),
-            effect=subject_effect[i], sampling_frame=sampling, seed=200 + i,
-        )
+        spec, subject_dataset(subject_effect[i], seed=200 + i)
     ).contrast(
-        condition("face", term="condition") - condition("scene", term="condition"),
-        name="face_minus_scene",
+        condition("face", term="condition"), name="face_vs_baseline"
     )
     for i in range(N_SUB)
 }
@@ -125,26 +119,26 @@ pd.DataFrame({
     "group_estimate": np.asarray(group.assay("coef:Intercept")).ravel().round(3),
     "t": np.asarray(group.assay("t_coef:Intercept")).ravel().round(2),
     "p": np.asarray(group.assay("p_coef:Intercept")).ravel().round(4),
-})  # voxels 0–4 recover the true group mean; voxels 5–9 stay null
+})
 ```
 
 ```{python}
 f"true between-subject mean = {subject_effect.mean():.3f}"
 ```
 
-The group estimate in the signal voxels matches the true
-between-subject mean to three decimals, with every signal voxel
-significant and every null voxel not. The full chain — first-level fit,
-contrast, second-level fit — has carried the effect we injected sixteen
-subjects ago all the way to a group inference without distorting it.
+The signal-feature estimates should lie near the printed true
+between-subject mean, while the null features remain centered near zero. The
+full chain (first-level fit, contrast, and second-level fit) has carried the
+effect injected sixteen subjects ago into group inference.
 
-## The parity receipt
+## A related parity receipt
 
 Recovering an injected effect shows the workflow agrees with *itself*.
 It does not show the first-level math matches an independent reference.
-For that we load a **saved comparison file** — fmrimod's public
-F-contrast / confound / drift workflow run against Nilearn's GLM — and
-read its agreement numbers straight onto the page.
+For independent evidence about the same public fit-and-contrast machinery, we
+load a **saved comparison file** from fmrimod's F-contrast / confound / drift
+workflow against Nilearn's GLM. It is a related workflow, not a direct replay
+of the synthetic group task above, so its claim stays deliberately narrower.
 
 ```{python}
 import json
@@ -168,27 +162,36 @@ pd.DataFrame([
 ])
 ```
 
-fmrimod agrees with Nilearn to `~1e-5` on the omnibus *F*, and to
-`~1e-8` or tighter on the effect, *t*, and design matrix. Differences
-this small are floating-point rounding, not modeling differences: the
-two implementations are computing the same GLM. The comparison file is
-regenerated whenever the parity suite runs, so these numbers track the
-code rather than going stale.
+The checked-in report records a maximum absolute difference of about
+`2.9e-11` for the omnibus *F*, `6.5e-13` for *t*, and `1.8e-15` for the
+effect; its design matrices are identical. Those numbers support agreement
+for that named first-level workflow under its recorded tolerances. They do not
+by themselves certify the group example on this page or another untested
+analysis.
+
+Read the [evidence ledger](../evidence/index.qmd) for the scope and provenance
+of the project's receipts. The
+[active caveats](https://github.com/bbuchsbaum/fmrimod/blob/main/docs/contracts/CAVEATS.md)
+record every accepted divergence with an owner and an exit criterion; a
+green example on this page does not erase a caveat elsewhere.
 
 ::: {.callout-tip}
 ## Why the contrast never needed column bookkeeping
 
-The hypothesis on this page is one line —
-`condition("face", ...) - condition("scene", ...)` — and the *same*
-object went into the first-level fit and the group stage unchanged.
+The hypothesis on this page is one line: `condition("face", ...)`. The
+first-level fit
+resolves that semantic intent against declared design provenance and returns
+a `ContrastResult`. The group adapter then carries the result's numerical
+evidence and recorded intent forward. The contract is preserved meaning,
+not Python object identity.
 
-The textbook way to write this contrast is a weight vector such as
-`[0, 1, -1, 0, ...]`, lined up by hand against the design matrix's
-column order, then lined up again at the group level. That works, but it
+The textbook way to write a contrast is a weight vector lined up by hand
+against the design matrix's column order, then lined up again at the group
+level. That works, but it
 is brittle: adding a confound or changing the baseline shifts the
 columns and silently turns the vector into the wrong hypothesis with no
 error. Naming the conditions instead of their positions is what lets the
-contrast survive every change to the design — including the trip from
+contrast survive every change to the design, including the trip from
 first level to group.
 :::
 
@@ -200,8 +203,8 @@ is the simplest second-level model and keeps the example to one line,
 which is what we wanted for an end-to-end walkthrough.
 
 For real analyses you usually want a *random-effects* model. It accounts
-for between-subject variability — the fact that the true effect itself
-varies from person to person — and it lets you add subject-level
+for between-subject variability (the true effect itself varies from person
+to person), and it lets you add subject-level
 covariates (age, group, a behavioural score) to the group design:
 
 ```python
@@ -216,6 +219,7 @@ meta-regression with covariates.
 
 ## Next
 
-- [Group analysis](group-analysis.qmd) — the typed second-level interface in depth
-- [Contrasts](contrasts.qmd) — the typed contrast algebra
-- [Benchmark datasets](benchmark-datasets.qmd) — the parity artifacts behind the receipt
+- [Real FIAC data](real-data-fiac.qmd): apply the public seam to a real neuroimaging dataset
+- [Group analysis](group-analysis.qmd): the second-level interface in depth
+- [Contrasts](contrasts.qmd): the semantic contrast algebra
+- [Benchmark datasets](benchmark-datasets.qmd): the parity artifacts behind the receipt

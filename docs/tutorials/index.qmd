@@ -18,11 +18,18 @@ fmri_dataset -> fmri_lm -> contrast -> group
 Use the task pages below when you need one part of that workflow in more
 detail.
 
+## Learn in order
+
+New to fmrimod? Read the first seven pages in order: the golden path gives
+you the destination, then the workflow, dataset, design, fit, contrast, and
+group pages explain each boundary. The remaining pages are task-focused and
+can be read as needed.
+
 ::: {.grid}
 
 ::: {.g-col-12}
 ::: {.card .h-100 .p-3}
-### [The golden path](golden-path.qmd) — start here
+### [The golden path](golden-path.qmd): start here
 The whole workflow, end to end, on data with a known injected effect:
 `fmri_dataset → fmri_lm → contrast → group`. Because the effect is
 planted, you can watch it survive every stage and check the first-level
@@ -33,8 +40,17 @@ step of it.
 
 ::: {.g-col-12 .g-col-md-6}
 ::: {.card .h-100 .p-3}
+### [A real FIAC analysis](real-data-fiac.qmd)
+Apply the public first-level seam to a real neuroimaging dataset, inspect the
+design and contrast maps, and read the result beside its Nilearn parity
+receipt.
+:::
+:::
+
+::: {.g-col-12 .g-col-md-6}
+::: {.card .h-100 .p-3}
 ### [Overview and workflow](overview-workflow.qmd)
-Walk through the modeling stack: sampling frames, datasets, typed specs,
+Walk through the modeling stack: sampling frames, datasets, design specs,
 baseline terms, GLM fitting, contrasts, and group summaries.
 :::
 :::
@@ -129,7 +145,7 @@ fit.
 ::: {.g-col-12 .g-col-md-6}
 ::: {.card .h-100 .p-3}
 ### [BIDS and result IO](bids-io.qmd)
-Translate BIDS Stats Model nodes into typed fmrimod artifacts and keep result
+Translate BIDS Stats Model nodes into explicit fmrimod artifacts and keep result
 writing at the IO boundary.
 :::
 :::
@@ -144,7 +160,7 @@ Turn authored designs, timing grids, and HRFs into quick diagnostic figures.
 ::: {.g-col-12 .g-col-md-6}
 ::: {.card .h-100 .p-3}
 ### [Plugin development](plugin-development.qmd)
-Extend internal registries while keeping user-facing modeling decisions typed.
+Extend internal registries while keeping user-facing modeling decisions explicit.
 :::
 :::
 
@@ -170,5 +186,5 @@ from Python docstrings.
 
 Not sure which tutorial covers the function you need? The [module
 coverage map](module-coverage.qmd) lists every public module family and
-the tutorial that teaches it — a useful index once you know roughly what
+the tutorial that teaches it. This index is useful once you know roughly what
 you are looking for, though not the place to start learning.

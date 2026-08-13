@@ -1,0 +1,33 @@
+# io.results.write_results { #fmrimod.io.results.write_results }
+
+```python
+write_results(
+    result,
+    output_dir,
+    *,
+    subject,
+    task,
+    space='MNI152NLin2009cAsym',
+    run=None,
+    desc='firstlevel',
+    betas='task',
+    beta_layout='4d',
+    beta_groups=('task',),
+    contrasts='all',
+    stats=('effect', 'stat', 'se', 'pvalue'),
+    save_betas=None,
+    save_contrasts=None,
+    contrast_stats=None,
+    mask=None,
+    affine=None,
+    column_names=None,
+    overwrite=False,
+)
+```
+
+Write fitted model results as NIfTI files plus a manifest JSON.
+
+Betas are bundled as 4-D NIfTI files by semantic group. The default writes
+task betas only, leaving nuisance, drift, and intercept columns out of the
+main export unless explicitly requested with ``betas="all"`` and
+corresponding ``beta_groups``.

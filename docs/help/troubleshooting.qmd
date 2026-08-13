@@ -1,0 +1,218 @@
+---
+title: "Troubleshoot a modeling workflow"
+description: "Source-backed diagnoses and repairs for common fmrimod failures and misleading green checks."
+---
+
+Use this page after you can reproduce the problem in the supported project
+environment. Keep the complete exception or warning, the fit's
+`condition_report()` when available, and the command that produced it. The
+[mental model](../concepts/mental-model.qmd) explains which object owns each
+piece of context.
+
+## Find the relevant failure first
+
+| Symptom | First place to look |
+|---|---|
+| Rank-deficiency warning or unstable coefficients | Design columns and `fit.condition_report()` |
+| Semantic contrast cannot resolve | Contrast term, level, basis, and design provenance |
+| Mixed-TR construction or concatenation fails | TR count, run lengths, and sampling precision |
+| `to_nifti()` or `to_neurovol()` fails | The result's spatial context |
+| Group fit rejects a formula or method | Supported formula, estimator, and backend combination |
+| Import or adapter construction fails | The optional dependency for that boundary |
+| R parity suite is green but skipped | The terminal `R PARITY:` summary |
+| Documentation renders old output | Quarto freeze and cache state |
+
+## The design is rank deficient
+
+**Symptom.** `fmri_lm()` warns that the design matrix is rank deficient. The
+fit may still complete, but one or more individual coefficients are not
+uniquely identified.
+
+**Cause.** Exact or near-exact linear dependence exists among design columns.
+The solver uses an SVD pseudoinverse. Contrasts in the estimable row space can
+remain valid even when aliased coefficient directions do not.
+
+**Repair.** Inspect `fit.condition_report()` and the named aliased columns.
+Remove or combine redundant scientific regressors. If the dependence is in a
+nuisance model, use its documented `nuisance_check="drop"` route deliberately
+rather than silencing the warning. Refit and confirm that the intended
+contrast is estimable.
+
+The executable contract is in
+[`test_rank_diagnostics.py`](https://github.com/bbuchsbaum/fmrimod/blob/main/tests/test_glm/test_rank_diagnostics.py).
+For parity interpretation, read the active residual-degrees-of-freedom row in
+[`CAVEATS.md`](https://github.com/bbuchsbaum/fmrimod/blob/main/docs/contracts/CAVEATS.md).
+
+## A semantic contrast cannot resolve
+
+**Symptom.** Resolution reports a missing condition, an ambiguous term, an
+ambiguous multi-basis effect, or weak design provenance. The error includes a
+repair path.
+
+**Cause.** The requested meaning does not identify one valid set of realized
+columns. Common cases are repeated condition labels across terms, an SPMG2 or
+SPMG3 condition without a basis selection, and an external matrix whose
+inferred columns do not establish term or level identity.
+
+**Repair.** Follow the error's repair text. Select the intended term when a
+condition occurs in more than one term. For a single component, specify
+`basis="canonical"`, `"derivative"`, or `"dispersion"` (or an explicit
+`basis_ix`). For a joint multi-basis effect, use an omnibus contrast. Supply
+explicit `DesignColumns` when importing a matrix; do not repair ambiguity with
+regular-expression column matching.
+
+See [Contrasts](../tutorials/contrasts.qmd) and the focused
+[`condition_basis` tests](https://github.com/bbuchsbaum/fmrimod/blob/main/tests/test_contrast/test_condition_basis_kwarg.py)
+and
+[`semantic repair-hint tests`](https://github.com/bbuchsbaum/fmrimod/blob/main/tests/test_contrast/test_semantic_repair_hint.py).
+
+## Mixed-TR data fail before or during concatenation
+
+**Symptom.** Construction reports that the TR list does not match the number
+of runs, or concatenating two `SamplingFrame` objects reports different
+precision.
+
+**Cause.** Mixed TRs are supported. The actual inconsistency is usually one TR
+per run not matching `run_length`, convolution precision that is not smaller
+than the minimum TR, or two sampling frames with different precision.
+Concatenation does not resample one frame to match another.
+
+**Repair.** Provide one run length and one TR for each run. Choose a common,
+valid convolution precision when frames will be concatenated. Construct the
+multi-run dataset from that consistent sampling description. Use the concat
+engine when the scientific question requires a single stacked fit or a
+cross-run contrast; use the runwise engine for separate fits and combination.
+
+The supported behavior is exercised in
+[`test_mixed_tr.py`](https://github.com/bbuchsbaum/fmrimod/blob/main/tests/test_dataset/test_mixed_tr.py)
+and the
+[`mixed-TR parity workflow`](https://github.com/bbuchsbaum/fmrimod/blob/main/benchmarks/parity/tier_a_mixed_tr_multirun/workflow.py).
+
+## The contrast is valid but spatial export fails
+
+**Symptom.** `ContrastResult.to_nifti()` or `.to_neurovol()` says the result
+has no spatial context.
+
+**Cause.** The fit came from a plain feature matrix, or its adapter did not
+carry the mask and affine needed to map features back to a volume. A vector
+length alone cannot establish image geometry.
+
+**Repair.** When the data are spatial, build and fit an image-, nibabel-, or
+neuroim-backed dataset with the correct mask and affine so that context
+propagates into the contrast. Attach a `SpatialContext` manually only when you
+actually know the feature-to-volume mapping. For intentionally nonspatial
+features, keep the array result instead of fabricating a NIfTI geometry.
+
+See
+[`test_contrast_to_neurovol.py`](https://github.com/bbuchsbaum/fmrimod/blob/main/tests/test_glm/test_contrast_to_neurovol.py)
+for both the refusal and the propagation contract.
+
+## A group formula or method is rejected
+
+**Symptom.** A group call raises `NotImplementedError` or rejects a formula,
+estimator, robustness option, or backend.
+
+**Cause.** The supported combinations are narrower than the individual option
+names suggest:
+
+- `fmri_ttest()` implements the one-sample `~ 1` case; Welch is not
+  implemented there.
+- Native meta-analysis supports FE and DL with covariates. PM and REML are
+  intercept-only.
+- The `fmrigds-r` oracle/fallback backend accepts FE and DL, not PM or REML,
+  and does not accept custom weights, robust mode, or combine mode.
+
+**Repair.** Choose a supported combination rather than changing the string
+until it parses: use intercept-only PM/REML, use FE or DL for a covariate
+meta-regression, use the one-sample t-test path for `fmri_ttest()`, or use the
+native Python backend when the R bridge does not implement the requested
+feature. Validate that the revised model still answers the scientific
+question.
+
+Read [Group analysis](../tutorials/group-analysis.qmd), the
+[`second-level parity contract`](https://github.com/bbuchsbaum/fmrimod/blob/main/docs/contracts/second_level_parity_v1.md),
+and the executable
+[`meta-regression`](https://github.com/bbuchsbaum/fmrimod/blob/main/tests/test_stats/test_meta_re_reg_parity.py)
+and
+[`fmrigds backend`](https://github.com/bbuchsbaum/fmrimod/blob/main/tests/test_stats/test_group_fit_fmrigds_parity.py)
+tests.
+
+## An optional boundary is unavailable
+
+**Symptom.** An adapter, exporter, BIDS reader, HDF5 path, or R comparison
+fails with a missing dependency.
+
+**Cause.** The core install does not import every integration dependency.
+Nibabel, PyBIDS, h5py, neuroim, rpy2, Nilearn, R, and the R reference packages
+are installed only for the boundaries that need them.
+
+**Repair.** From an installed-user environment, add the smallest missing
+integration directly:
+
+```bash
+.venv/bin/python -m pip install nibabel   # image and NIfTI boundaries
+.venv/bin/python -m pip install pybids    # BIDS discovery
+.venv/bin/python -m pip install h5py      # HDF5 storage
+```
+
+From a source clone, install the matching project extra instead:
+
+```bash
+uv pip install --python .venv/bin/python -e ".[nibabel]"
+uv pip install --python .venv/bin/python -e ".[bids]"
+uv pip install --python .venv/bin/python -e ".[hdf5]"
+uv pip install --python .venv/bin/python -e ".[cross-test]"
+```
+
+The neuroim adapter additionally needs the sibling
+[`neuroim-python`](https://github.com/bbuchsbaum/neuroim-python) package. The R
+bridge needs an available `Rscript` and the R package it invokes. Missing-
+dependency messages are tested in
+[`test_optional_dependency_errors.py`](https://github.com/bbuchsbaum/fmrimod/blob/main/tests/test_dataset/test_optional_dependency_errors.py).
+
+## R parity was skipped
+
+**Symptom.** Pytest is green, but the terminal ends with `R PARITY: NOT
+CHECKED`, or all R-backed cases are skipped.
+
+**Cause.** `rpy2`, R, or the required R reference package is unavailable. A
+skip is an environment result, not evidence of agreement.
+
+**Repair.** Install the cross-test extra and the required R package, then turn
+the skip into a hard failure:
+
+```bash
+uv pip install --python .venv/bin/python -e ".[cross-test]"
+R -e 'remotes::install_github("bbuchsbaum/fmrihrf")'
+FMRIMOD_REQUIRE_R=1 .venv/bin/python -m pytest cross_testing/
+```
+
+The guard and terminal summary are implemented in
+[`cross_testing/conftest.py`](https://github.com/bbuchsbaum/fmrimod/blob/main/cross_testing/conftest.py).
+Review the reported number of R-backed tests before making a parity claim.
+
+## Documentation shows frozen output
+
+**Symptom.** A Quarto page renders successfully but shows output from an older
+execution, or a code change does not alter the rendered result.
+
+**Cause.** The documentation project uses `freeze: auto` and caching. A normal
+render may reuse checked-in `_freeze` output. That behavior supports stable
+site builds, but it is not proof that every notebook executed from a clean
+state.
+
+**Repair.** Use a disposable checkout for a freshness check. Remove its
+`docs/_freeze`, then render the docs with `quarto render --no-cache`. Keep this
+separate from an ordinary publishing build so the tracked freeze artifacts in
+your working checkout are not deleted accidentally. The hosted
+[`docs-freshness` workflow](https://github.com/bbuchsbaum/fmrimod/blob/main/.github/workflows/docs-freshness.yml)
+uses that exact clean-execution policy and does not publish the site.
+
+## Continue from here
+
+- Return to [Golden path](../tutorials/golden-path.qmd) after the local failure
+  is resolved.
+- Use [How to read the evidence](../evidence/index.qmd) before turning a green
+  run into a broader correctness or release claim.
+- If the observed behavior contradicts the linked test, retain the smallest
+  reproducer, complete environment details, and the exact fmrimod revision.

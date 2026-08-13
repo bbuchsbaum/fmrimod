@@ -35,6 +35,11 @@ event_model, _ = compile_spec(hrf("condition", basis="spmg1"), data=events, samp
 ```{python}
 #| fig-width: 7
 #| fig-height: 3.0
+#| fig-cap: "Realized face and scene regressors on the acquisition grid. The
+#|   alternating peaks make the event order and HRF overlap visible before
+#|   the model is fitted."
+#| fig-alt: "Line chart of alternating face and scene design regressors over
+#|   sixty seconds, with overlapping hemodynamic peaks."
 fig, ax = plot_design_matrix(event_model, figsize=(7, 3))
 plt.show()
 ```
@@ -47,6 +52,10 @@ TRs. It reads the timing object already used by design construction.
 ```{python}
 #| fig-width: 7
 #| fig-height: 2.0
+#| fig-cap: "Acquisition samples for a single 60-volume run at TR = 1 s. A
+#|   break or timing irregularity would be visible here before convolution."
+#| fig-alt: "Sampling-frame plot showing sixty evenly spaced acquisition
+#|   samples in one run."
 fig, ax = plot_sampling_frame(sampling, figsize=(7, 2))
 plt.show()
 ```
@@ -59,6 +68,10 @@ an HRF object before it is convolved into a design.
 ```{python}
 #| fig-width: 6
 #| fig-height: 3.0
+#| fig-cap: "Normalized SPM canonical HRF: a positive peak followed by a
+#|   smaller undershoot. This is the response shape used by the design above."
+#| fig-alt: "Line chart of the normalized SPM canonical hemodynamic response,
+#|   rising to one positive peak and falling through a shallow undershoot."
 ax = plot_hrf(get_hrf("spmg1"), normalize=True)
 plt.show()
 ```

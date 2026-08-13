@@ -1,19 +1,25 @@
 ---
 title: "Get started"
-subtitle: "From event timing to a typed first-level fit."
+subtitle: "From event timing to an inspectable first-level fit."
 jupyter: python3
 ---
 
 ## Install
 
+fmrimod is currently **alpha software**, requires Python **3.10 or newer**,
+and is not published on PyPI. Install the current source from GitHub with a
+supported interpreter:
+
 ```bash
-pip install fmrimod
+python3.11 -m venv .venv
+.venv/bin/python -m pip install "fmrimod @ git+https://github.com/bbuchsbaum/fmrimod.git"
 ```
 
-For local development from this checkout:
+For development from a clone, use the repository's uv-managed environment:
 
 ```bash
-pip install -e .
+uv venv --python 3.11 .venv
+uv pip install --python .venv/bin/python -e ".[dev,test,docs]"
 ```
 
 ## The 30-Second Tour
@@ -26,17 +32,19 @@ events together.
 import numpy as np
 import pandas as pd
 import fmrimod as fm
+from fmrimod.spec import compile as compile_spec
 from fmrimod.spec import hrf
 from fmrimod.contrast import condition
+from fmrimod.simulate import simulate_bold
 
 events = pd.DataFrame({
-    "onset": np.arange(8, 210, 12.0),
-    "condition": np.where(np.arange(17) % 2 == 0, "face", "scene"),
+    "onset": np.arange(8, 116, 12.0),
+    "condition": "face",
     "duration": 2.0,
 })
 ```
 
-The design is a **typed value**, built with `hrf(...)`. You can read its
+The design is a **Python value**, built with `hrf(...)`. You can read its
 fields before anything is fitted.
 
 ```{python}
@@ -44,24 +52,21 @@ spec = hrf("condition", basis="spmg1")
 spec.variables, spec.hrf
 ```
 
-So the result can be *checked* rather than merely inspected for shape, we
-use test data with a **known** answer: a face−scene effect of `2.0` in five
-of ten voxels, with the other five left as pure noise. A correct model
-must then return ≈ `2.0` in the first five and ≈ `0` in the rest.
-
-The dataset is built by `dataset_with_effect`, a tutorial-support helper
-that places the known effect on the column the **`condition(...)` object
-resolves to**, the same object the contrast below uses, rather than on a
-column found by matching a rendered name.
+So the result can be checked rather than merely inspected for shape, generate
+data through the public simulation API with a **known** face-versus-baseline
+effect of `2.0` in two features and no effect in two others.
 
 ```{python}
-from fmrimod.simulate.demo import dataset_with_effect
-
-sampling = fm.SamplingFrame(blocklens=220, TR=1.0)
-dataset = dataset_with_effect(
-    spec, events, on=condition("face", term="condition"),
-    effect=2.0, sampling_frame=sampling, seed=7,
+sampling = fm.SamplingFrame(blocklens=130, TR=1.0)
+built, _ = compile_spec(spec, data=events, sampling_frame=sampling)
+bold = simulate_bold(
+    np.asarray(built.design_matrix),
+    np.array([[2.0, 2.0, 0.0, 0.0]]),
+    noise_sd=0.3,
+    n_voxels=4,
+    rng=np.random.default_rng(7),
 )
+dataset = fm.fmri_dataset(bold, tr=1.0, events=events)
 ```
 
 Fit the first-level model, then state the hypothesis by
@@ -71,14 +76,13 @@ returns the injected effect.
 ```{python}
 fit = fm.fmri_lm(spec, dataset)
 faces = fit.contrast(
-    condition("face", term="condition") - condition("scene", term="condition"),
-    name="face_minus_scene",
+    condition("face", term="condition"), name="face_vs_baseline"
 )
 pd.DataFrame({
     "estimate": faces.estimate.round(3),
     "t": faces.stat.round(2),
     "p": faces.p_value.round(4),
-})  # voxels 0–4 recover ≈ 2.0; voxels 5–9 are null
+})
 ```
 
 ## The Design fmrimod Built
@@ -95,10 +99,10 @@ convolved with the SPM canonical HRF, which is what `basis="spmg1"` in the
 spec selected:
 
 ```{python}
-#| fig-cap: "Design columns for the two conditions. Every event in the table
-#|   becomes one HRF response: a rise to peak around 5 s after onset, then
-#|   the undershoot. `face` and `scene` alternate every 12 s, so the two
-#|   columns interleave."
+#| fig-cap: "The face-condition design regressor. Each event becomes one HRF
+#|   response: a rise to peak around 5 s after onset, then an undershoot."
+#| fig-alt: "Line chart of the face-condition design regressor, with repeated
+#|   hemodynamic peaks followed by shallow undershoots."
 from fmrimod.visualization import plot_design_matrix
 
 # figsize is passed to the function, not set as a cell option: the plot
@@ -106,9 +110,8 @@ from fmrimod.visualization import plot_design_matrix
 fig, ax = plot_design_matrix(fit.model.event_model, figsize=(9, 3.2))
 ```
 
-Reading this plot is how you check a design before trusting a fit: the
-peaks should land where the events are, and two conditions that alternate
-in the event table should alternate here.
+Reading this plot is how you check a design before trusting a fit: each peak
+should follow an event, with the selected HRF's delay and undershoot.
 
 ::: {.callout-note collapse="true"}
 ## Coming from R / `fmrireg`?
@@ -136,7 +139,10 @@ numbers against the R/Nilearn reference on the page.
 
 ## Next Steps
 
-- [Tutorial: the golden path](tutorials/golden-path.qmd) — the whole workflow, end to end
+- [Tutorial: the golden path](tutorials/golden-path.qmd): the whole workflow, end to end
+- [Tutorial: real FIAC data](tutorials/real-data-fiac.qmd): the same modeling seam on neuroimaging data
+- [Concept: the modeling objects](concepts/mental-model.qmd): what each modeling value means
+- [Evidence and active caveats](evidence/index.qmd): what has been verified, and where it applies
 - [Tutorial: overview and workflow](tutorials/overview-workflow.qmd)
 - [Tutorial: design matrices](tutorials/design-matrices.qmd)
 - [Tutorial: linear model](tutorials/linear-model.qmd)

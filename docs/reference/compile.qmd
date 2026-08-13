@@ -1,0 +1,15 @@
+# spec._compile.compile { #fmrimod.spec._compile.compile }
+
+```python
+compile(
+    spec,
+    data,
+    sampling_frame,
+    *,
+    block=None,
+    durations=None,
+    precision=None,
+)
+```
+
+Lower a Spec or single Term to ``(EventModel, BaselineModel)``.

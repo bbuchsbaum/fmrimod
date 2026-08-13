@@ -1,0 +1,28 @@
+# model.config.FmriLmConfig { #fmrimod.model.config.FmriLmConfig }
+
+```python
+FmriLmConfig(
+    robust=RobustOptions(),
+    ar=AROptions(),
+    volume_weights=VolumeWeightOptions(),
+    soft_subspace=SoftSubspaceOptions(),
+    solver='auto',
+    na_action='error',
+)
+```
+
+Complete configuration for GLM fitting.
+
+Collects all sub-option groups into one object, analogous to R's
+``fmri_lm_control()``.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name           | Type                       | Description                                                                                                                                          | Default                 |
+|----------------|----------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------|
+| robust         | RobustOptions              | Robust fitting options.                                                                                                                              | `RobustOptions()`       |
+| ar             | AROptions                  | AR noise modelling options.                                                                                                                          | `AROptions()`           |
+| volume_weights | VolumeWeightOptions        | Volume weighting options.                                                                                                                            | `VolumeWeightOptions()` |
+| soft_subspace  | SoftSubspaceOptions        | Soft subspace projection options.                                                                                                                    | `SoftSubspaceOptions()` |
+| solver         | (\'auto\', \'pinv\')       | Projection solver for OLS. ``"auto"`` keeps the fast default path; ``"pinv"`` uses a Moore-Penrose projection for strict reference parity workflows. | `"auto"`                |
+| na_action      | (\'error\', \'propagate\') | Response-data non-finite policy. ``"error"`` fails before fitting; ``"propagate"`` lets affected voxels surface NaN coefficients.                    | `"error"`               |

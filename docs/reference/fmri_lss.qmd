@@ -1,0 +1,51 @@
+# single.typed.fmri_lss { #fmrimod.single.typed.fmri_lss }
+
+```python
+fmri_lss(
+    spec,
+    dataset,
+    *,
+    block=None,
+    durations=None,
+    precision=None,
+    return_se=False,
+    chunk_size=None,
+)
+```
+
+Run Mumford LSS single-trial estimation through the typed Spec surface.
+
+The headline shape::
+
+    spec = (
+        trialwise(basis="spm")
+        + drift("poly", degree=2)
+        + intercept(per="run")
+    )
+    result = fm.fmri_lss(spec, dataset)
+    result.betas   # (n_trials, n_voxels) per-trial single-trial estimates
+
+The compile step realises the design, the per-trial columns are
+pulled out via the typed ``cols.where(term="trial")`` lookup, the
+drift / intercept / confound columns become the baseline-projection
+regressors, and the data matrix is read from ``dataset``.
+`lss_single_trial` then runs the inner LSS loop in vectorised
+form.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name       | Type                                            | Description                                                                                                                                                                                                                                                                                                | Default    |
+|------------|-------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| spec       | \'Spec \| Term \| Sequence\[object\] \| str\'   | A typed `Spec` containing exactly one `trialwise` term plus optional baseline terms (``drift``, ``intercept``, ``confounds``). Legacy formula strings and ``list[Term]`` inputs are also accepted — they go through the same lowering as `fmrimod.fmri_lm`. | _required_ |
+| dataset    | \'FmriDataset\'                                 | `FmriDataset` carrying the data, events, and sampling frame.                                                                                                                                                                                                                       | _required_ |
+| block      | Optional\[Union\[str, NDArray\[np.float64\]\]\] | Forwarded to the typed compile path. See `fmrimod.fmri_lm` for semantics.                                                                                                                                                                                                                            | `None`     |
+| durations  | Optional\[Union\[str, NDArray\[np.float64\]\]\] | Forwarded to the typed compile path. See `fmrimod.fmri_lm` for semantics.                                                                                                                                                                                                                            | `None`     |
+| precision  | Optional\[Union\[str, NDArray\[np.float64\]\]\] | Forwarded to the typed compile path. See `fmrimod.fmri_lm` for semantics.                                                                                                                                                                                                                            | `None`     |
+| return_se  | bool                                            | If ``True``, compute per-trial standard errors.                                                                                                                                                                                                                                                            | `False`    |
+| chunk_size | Optional\[int\]                                 | Voxel-chunk size for the vectorised LSS solve. ``None`` lets `lss_single_trial` pick a heuristic.                                                                                                                                                                                                    | `None`     |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type              | Description                                                                                                                                                                                                                                            |
+|--------|-------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|        | SingleTrialResult | ``betas`` has shape ``(n_trials, n_voxels)``. ``trial_labels`` carries the realised column names from the trialwise term (``"trial_01"``, ``"trial_02"``, ...). ``residual_df`` carries the per-trial degrees of freedom (``n - 2 - rank(baseline)``). |

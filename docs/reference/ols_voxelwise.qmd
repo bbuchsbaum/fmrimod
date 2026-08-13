@@ -1,0 +1,17 @@
+# group.reducers.ols_voxelwise { #fmrimod.group.reducers.ols_voxelwise }
+
+```python
+ols_voxelwise(
+    dataset,
+    *,
+    model=None,
+    formula='~ 1',
+    X=None,
+    return_cov='none',
+    n_jobs=1,
+    chunk_size=None,
+    blas_threads=None,
+)
+```
+
+OLS reducer across subjects for each sample/contrast feature.

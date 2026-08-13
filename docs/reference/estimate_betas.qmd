@@ -17,7 +17,7 @@ estimate_betas(
 Estimate trial-wise betas.
 
 .. deprecated::
-    Use :func:`fmrimod.single.estimate_single_trial` instead.
+    Use `fmrimod.single.estimate_single_trial` instead.
 
 Dispatcher for OLS and LSS beta estimation.
 
@@ -27,16 +27,16 @@ Dispatcher for OLS and LSS beta estimation.
 |---------------------|---------------------------------------|------------------------------------------------------------------|------------|
 | trial_regressors    | NDArray, shape ``(n_time, n_trials)`` | Per-trial design columns (already convolved with HRF).           | _required_ |
 | Y                   | NDArray, shape ``(n_time, V)``        | Data matrix.                                                     | _required_ |
-| method              | [str](`str`)                          | ``"ols"`` or ``"lss"`` (default).                                | `'lss'`    |
-| confounds           | [NDArray](`numpy.typing.NDArray`)     | Nuisance regressors.                                             | `None`     |
-| nuisance_projector  | [object](`object`)                    | Precomputed nuisance projector for LSS.                          | `None`     |
-| chunk_size          | [int](`int`)                          | Voxel chunk size for beta-only LSS solves.                       | `None`     |
+| method              | str                                   | ``"ols"`` or ``"lss"`` (default).                                | `'lss'`    |
+| confounds           | NDArray                               | Nuisance regressors.                                             | `None`     |
+| nuisance_projector  | object                                | Precomputed nuisance projector for LSS.                          | `None`     |
+| chunk_size          | int                                   | Voxel chunk size for beta-only LSS solves.                       | `None`     |
 | trial_labels        | sequence of str                       | Labels for each trial.                                           | `None`     |
-| baseline_regressors | [NDArray](`numpy.typing.NDArray`)     | Baseline or experimental regressors included in every LSS model. | `None`     |
-| include_intercept   | [bool](`bool`)                        | Add an intercept to the LSS adjustment design.                   | `False`    |
+| baseline_regressors | NDArray                               | Baseline or experimental regressors included in every LSS model. | `None`     |
+| include_intercept   | bool                                  | Add an intercept to the LSS adjustment design.                   | `False`    |
 
 ## Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                                                | Description   |
-|--------|-----------------------------------------------------|---------------|
-|        | [BetaResult](`fmrimod.betas.extraction.BetaResult`) |               |
+| Name   | Type       | Description   |
+|--------|------------|---------------|
+|        | BetaResult |               |

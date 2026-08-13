@@ -1,0 +1,34 @@
+# dataset.constructors.fmri_dataset { #fmrimod.dataset.constructors.fmri_dataset }
+
+```python
+fmri_dataset(
+    img=None,
+    *,
+    mask=None,
+    tr=None,
+    events=None,
+    censor=None,
+    start_time=None,
+    slice_timing_offset=None,
+    run_length=None,
+    data_source=None,
+    event_table=None,
+)
+```
+
+Construct the canonical `FmriDataset` from an image source.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name                | Type                                                       | Description                                                                                                                                                                                                                                                                                                                                                                                                                                      | Default   |
+|---------------------|------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|
+| img                 | object                                                     | Image source. See module docstring for accepted types.                                                                                                                                                                                                                                                                                                                                                                                           | `None`    |
+| mask                | object                                                     | Optional mask. Accepts a NeuroVol/LogicalNeuroVol, 3-D boolean ndarray, nibabel image, or path to a NIfTI volume. Defaults to non-zero voxels of the first volume.                                                                                                                                                                                                                                                                               | `None`    |
+| tr                  | float \| Sequence\[float\] \| None                         | Repetition time in seconds. Required for image inputs.                                                                                                                                                                                                                                                                                                                                                                                           | `None`    |
+| events              | pd.DataFrame \| None                                       | Optional event table.                                                                                                                                                                                                                                                                                                                                                                                                                            | `None`    |
+| censor              | NDArray\[np.bool_\] \| list\[NDArray\[np.bool_\]\] \| None | Optional boolean censor vector(s).                                                                                                                                                                                                                                                                                                                                                                                                               | `None`    |
+| start_time          | float \| Sequence\[float\] \| None                         | Slice-timing offset in seconds; the realised sampling grid is ``start_time + k * TR`` for ``k`` in ``0..n_scans-1``. Default is ``TR/2`` (BOLD-midpoint convention — the value at sample ``k`` represents the BOLD signal at the middle of the ``k``-th TR window). Pass ``slice_timing_offset=0.0`` for frame-start sampling (Nilearn / SPM-MAT / FitLins convention). The two names are interchangeable; if both are supplied they must agree. | `None`    |
+| slice_timing_offset | float \| Sequence\[float\] \| None                         | Slice-timing offset in seconds; the realised sampling grid is ``start_time + k * TR`` for ``k`` in ``0..n_scans-1``. Default is ``TR/2`` (BOLD-midpoint convention — the value at sample ``k`` represents the BOLD signal at the middle of the ``k``-th TR window). Pass ``slice_timing_offset=0.0`` for frame-start sampling (Nilearn / SPM-MAT / FitLins convention). The two names are interchangeable; if both are supplied they must agree. | `None`    |
+| run_length          | int \| Sequence\[int\] \| None                             | Split a single 2-D ``(time, voxels)`` matrix into multiple runs. Mirrors `matrix_dataset`'s ``run_length``. Only valid for 2-D ndarray input; raises ``ValueError`` for any other ``img`` type, including sequences (which already encode runs explicitly) and 4-D ndarrays.                                                                                                                                                               | `None`    |
+| data_source         | DatasetProtocol \| None                                    | Legacy alias accepting a `DatasetProtocol`-compatible object.                                                                                                                                                                                                                                                                                                                                                                             | `None`    |
+| event_table         | pd.DataFrame \| None                                       | Legacy alias for ``events``.                                                                                                                                                                                                                                                                                                                                                                                                                     | `None`    |

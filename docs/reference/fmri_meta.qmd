@@ -1,0 +1,27 @@
+# stats.meta.fmri_meta { #fmrimod.stats.meta.fmri_meta }
+
+```python
+fmri_meta(
+    data,
+    formula='~ 1',
+    method='pm',
+    robust='none',
+    weights='ivw',
+    weights_custom=None,
+    combine=None,
+    *,
+    effect_cols=None,
+)
+```
+
+Fit group-level meta-regression for parity-oriented workflows.
+
+``data`` may be a frozen `GroupData` or a pandas DataFrame.
+A DataFrame is validated and converted to a frozen ``GroupData`` at
+entry via the typed `group_data_from_csv` (pass its
+``effect_cols`` schema, e.g. ``{'beta': 'beta', 'se': 'se'}``); it
+is never consumed as a string-keyed table at use time.
+
+## Notes {.doc-section .doc-section-notes}
+
+This initial implementation targets CSV-backed effect-size data.

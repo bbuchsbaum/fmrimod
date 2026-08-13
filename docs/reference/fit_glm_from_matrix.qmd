@@ -1,0 +1,18 @@
+# glm.matrix.fit_glm_from_matrix { #fmrimod.glm.matrix.fit_glm_from_matrix }
+
+```python
+fit_glm_from_matrix(
+    X,
+    Y,
+    model=None,
+    cfg=None,
+    strategy='external',
+    engine='runwise',
+)
+```
+
+Fit a matrix-design GLM and return a full ``FmriLm`` result.
+
+Unlike `fit_glm_from_suffstats`, this path keeps raw ``X`` and ``Y``
+available to the solver, so cancellation-prone RSS values can be recovered
+from explicit residuals.

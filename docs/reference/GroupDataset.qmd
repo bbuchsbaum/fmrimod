@@ -1,0 +1,56 @@
+# group.dataset.GroupDataset { #fmrimod.group.dataset.GroupDataset }
+
+```python
+GroupDataset(
+    assays,
+    space,
+    subjects,
+    contrasts,
+    col_data=None,
+    row_data=None,
+    contrast_data=None,
+    metadata=dict(),
+)
+```
+
+Materialized group-analysis data.
+
+Assays are stored as ``sample x subject x contrast`` float64 arrays.
+
+## Attributes
+
+| Name | Description |
+| --- | --- |
+| `shape` | Return ``sample x subject x contrast`` shape. |
+
+## Methods
+
+| Name | Description |
+| --- | --- |
+| [assay](#fmrimod.group.dataset.GroupDataset.assay) | Return one assay by name. |
+| [assay_names](#fmrimod.group.dataset.GroupDataset.assay_names) | Return assay names in deterministic order. |
+| [with_assays](#fmrimod.group.dataset.GroupDataset.with_assays) | Return a dataset with replaced assays and preserved axes. |
+
+### assay { #fmrimod.group.dataset.GroupDataset.assay }
+
+```python
+assay(name='beta')
+```
+
+Return one assay by name.
+
+### assay_names { #fmrimod.group.dataset.GroupDataset.assay_names }
+
+```python
+assay_names()
+```
+
+Return assay names in deterministic order.
+
+### with_assays { #fmrimod.group.dataset.GroupDataset.with_assays }
+
+```python
+with_assays(assays, *, metadata=None)
+```
+
+Return a dataset with replaced assays and preserved axes.

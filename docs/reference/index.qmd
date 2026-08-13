@@ -1,4 +1,51 @@
+---
+pagetitle: "API reference"
+---
+
 # API reference {.doc .doc-index}
+
+## Core modeling seam
+
+Author a typed model, bind data, fit it, and inspect a named result.
+
+| | |
+| --- | --- |
+| [spec.terms.Spec](Spec.qmd#fmrimod.spec.terms.Spec) | An ordered collection of event and baseline terms. |
+| [spec.terms.Term](Term.qmd#fmrimod.spec.terms.Term) | Marker base class for spec terms. |
+| [spec.builders.hrf](spec_hrf.qmd#fmrimod.spec.builders.hrf) | Build an `HrfTerm`. |
+| [spec._compile.compile](compile.qmd#fmrimod.spec._compile.compile) | Lower a Spec or single Term to ``(EventModel, BaselineModel)``. |
+| [dataset.constructors.fmri_dataset](fmri_dataset.qmd#fmrimod.dataset.constructors.fmri_dataset) | Construct the canonical `FmriDataset` from an image source. |
+| [dataset.fmri_dataset.FmriDataset](FmriDataset.qmd#fmrimod.dataset.fmri_dataset.FmriDataset) | fMRI dataset combining time-series data with experimental events. |
+| [design.realized.RealizedDesign](RealizedDesign.qmd#fmrimod.design.realized.RealizedDesign) | A named, already-realized design matrix. |
+| [model.config.FmriLmConfig](FmriLmConfig.qmd#fmrimod.model.config.FmriLmConfig) | Complete configuration for GLM fitting. |
+| [contrast.semantic.condition](condition.qmd#fmrimod.contrast.semantic.condition) | Author a condition-level reference for semantic contrasts. |
+| [contrast.contrast_spec.column_contrast](column_contrast.qmd#fmrimod.contrast.contrast_spec.column_contrast) | Define a contrast by targeting design matrix columns using regex patterns. |
+| [glm.combine.combine_runs](combine_runs.qmd#fmrimod.glm.combine.combine_runs) | Pool per-run `FmriLm` fits into a combined result. |
+| [glm.contrasts.ContrastResult](ContrastResult.qmd#fmrimod.glm.contrasts.ContrastResult) | Result of evaluating a contrast on GLM output. |
+| [contrast.group_collection.group_dataset_from_contrasts](group_dataset_from_contrasts.qmd#fmrimod.contrast.group_collection.group_dataset_from_contrasts) | Lower one first-level contrast per subject into a ``GroupDataset``. |
+| [baseline.baseline_model.baseline_model](baseline_model.qmd#fmrimod.baseline.baseline_model.baseline_model) | Construct a baseline model for fMRI time series. |
+| [single.typed.fmri_lss](fmri_lss.qmd#fmrimod.single.typed.fmri_lss) | Run Mumford LSS single-trial estimation through the typed Spec surface. |
+| [single.estimate_single_trial_from_dataset](estimate_single_trial_from_dataset.qmd#fmrimod.single.estimate_single_trial_from_dataset) | Estimate per-trial betas from an FmriDataset and trialwise spec. |
+| [glm.matrix.fit_glm_from_matrix](fit_glm_from_matrix.qmd#fmrimod.glm.matrix.fit_glm_from_matrix) | Fit a matrix-design GLM and return a full ``FmriLm`` result. |
+| [glm.matrix.fit_glm_from_suffstats](fit_glm_from_suffstats.qmd#fmrimod.glm.matrix.fit_glm_from_suffstats) | Build an ``FmriLm`` result from OLS sufficient statistics. |
+| [simulate.bold.simulate_bold](simulate_bold.qmd#fmrimod.simulate.bold.simulate_bold) | Simulate BOLD time series from a design matrix and true betas. |
+
+## Group, BIDS, and results
+
+Build group inputs, run native or statistical interfaces, and write outputs.
+
+| | |
+| --- | --- |
+| [group.dataset.GroupDataset](GroupDataset.qmd#fmrimod.group.dataset.GroupDataset) | Materialized group-analysis data. |
+| [group.reducers.ols_voxelwise](ols_voxelwise.qmd#fmrimod.group.reducers.ols_voxelwise) | OLS reducer across subjects for each sample/contrast feature. |
+| [group.typed.fmri_group_lm](fmri_group_lm.qmd#fmrimod.group.typed.fmri_group_lm) | Fit a group-level / second-level GLM. |
+| [stats.inference.group_fit](group_fit.qmd#fmrimod.stats.inference.group_fit) | Canonical second-level interface with parity-oriented normalization. |
+| [stats.meta.fmri_meta](fmri_meta.qmd#fmrimod.stats.meta.fmri_meta) | Fit group-level meta-regression for parity-oriented workflows. |
+| [stats.ttest.fmri_ttest](fmri_ttest.qmd#fmrimod.stats.ttest.fmri_ttest) | Run a parity-oriented one-sample group t-test. |
+| [bids.stats_model.load_stats_model](load_stats_model.qmd#fmrimod.bids.stats_model.load_stats_model) | Load a BIDS Stats Model JSON document. |
+| [bids.export.write_contrasts](write_contrasts.qmd#fmrimod.bids.export.write_contrasts) | Write contrast statistic maps as NIfTI files. |
+| [io.results.write_results](write_results.qmd#fmrimod.io.results.write_results) | Write fitted model results as NIfTI files plus a manifest JSON. |
+| [dataset.group_data.group_data_from_fmrilm](group_data_from_fmrilm.qmd#fmrimod.dataset.group_data.group_data_from_fmrilm) | Construct group data from first-level model results. |
 
 ## Design and events
 
@@ -22,7 +69,7 @@ Specify HRFs and convolve event timing into regressors.
 | | |
 | --- | --- |
 | [hrf](hrf.qmd#fmrimod.hrf) | HRF module. |
-| [hrf_formula](hrf_formula.qmd#fmrimod.hrf_formula) | HRF formula function. See :func:`fmrimod.formula.functional.hrf`. |
+| [hrf_formula](hrf_formula.qmd#fmrimod.hrf_formula) | HRF formula function. See `fmrimod.formula.functional.hrf`. |
 | [convolve.convolve](convolve.qmd#fmrimod.convolve.convolve) | Convolve event(s) with hemodynamic response function. |
 | [convolve_design](convolve_design.qmd#fmrimod.convolve_design) | Design matrix convolution functionality. |
 | [regressor.core.regressor](regressor.qmd#fmrimod.regressor.core.regressor) | Create a Regressor object. |

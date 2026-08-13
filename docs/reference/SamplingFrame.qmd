@@ -27,13 +27,13 @@ Attributes:
 
 | Name | Description |
 | --- | --- |
-| [TR](#fmrimod.sampling.SamplingFrame.TR) | Repetition time (scalar, for backward compatibility). |
-| [acquisition_onsets](#fmrimod.sampling.SamplingFrame.acquisition_onsets) | Get fMRI acquisition onset times. |
-| [blockids](#fmrimod.sampling.SamplingFrame.blockids) | Block ID for each scan. |
-| [global_scan_times](#fmrimod.sampling.SamplingFrame.global_scan_times) | Global scan times across all blocks. |
-| [n_blocks](#fmrimod.sampling.SamplingFrame.n_blocks) | Number of blocks. |
-| [n_scans](#fmrimod.sampling.SamplingFrame.n_scans) | Total number of scans across all blocks. |
-| [samples](#fmrimod.sampling.SamplingFrame.samples) | Time points for each scan. |
+| `TR` | Repetition time (scalar, for backward compatibility). |
+| `acquisition_onsets` | Get fMRI acquisition onset times. |
+| `blockids` | Block ID for each scan. |
+| `global_scan_times` | Global scan times across all blocks. |
+| `n_blocks` | Number of blocks. |
+| `n_scans` | Total number of scans across all blocks. |
+| `samples` | Time points for each scan. |
 
 ## Methods
 
@@ -119,9 +119,9 @@ Return the run/block id for each scan.
 
 #### Parameters {.doc-section .doc-section-parameters}
 
-| Name      | Type           | Description                                                                                              | Default   |
-|-----------|----------------|----------------------------------------------------------------------------------------------------------|-----------|
-| one_based | [bool](`bool`) | If ``True``, return R-compatible 1-based run ids. The canonical internal representation remains 0-based. | `False`   |
+| Name      | Type   | Description                                                                                              | Default   |
+|-----------|--------|----------------------------------------------------------------------------------------------------------|-----------|
+| one_based | bool   | If ``True``, return R-compatible 1-based run ids. The canonical internal representation remains 0-based. | `False`   |
 
 ### sample_times { #fmrimod.sampling.SamplingFrame.sample_times }
 

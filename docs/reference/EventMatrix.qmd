@@ -11,21 +11,21 @@ multi-dimensional parametric modulators or pre-computed design columns.
 
 ## Parameters {.doc-section .doc-section-parameters}
 
-| Name         | Type                                                    | Description                                                    | Default    |
-|--------------|---------------------------------------------------------|----------------------------------------------------------------|------------|
-| name         | [str](`str`)                                            | Name of the event                                              | _required_ |
-| onsets       | [array](`array`) - [like](`like`)                       | Event onset times                                              | _required_ |
-| values       | [array](`array`) - [like](`like`)                       | Matrix of values, shape (n_events, n_columns)                  | _required_ |
-| durations    | [scalar](`scalar`) or [array](`array`) - [like](`like`) | Event durations. If scalar, used for all events. Default is 0. | `0`        |
-| column_names | list of str                                             | Names for each column. If None, uses generic names.            | `None`     |
+| Name         | Type                   | Description                                                    | Default    |
+|--------------|------------------------|----------------------------------------------------------------|------------|
+| name         | str                    | Name of the event                                              | _required_ |
+| onsets       | array - like           | Event onset times                                              | _required_ |
+| values       | array - like           | Matrix of values, shape (n_events, n_columns)                  | _required_ |
+| durations    | scalar or array - like | Event durations. If scalar, used for all events. Default is 0. | `0`        |
+| column_names | list of str            | Names for each column. If None, uses generic names.            | `None`     |
 
 ## Attributes {.doc-section .doc-section-attributes}
 
-| Name         | Type                           | Description                     |
-|--------------|--------------------------------|---------------------------------|
-| values       | [Array](`fmrimod.types.Array`) | Matrix of event values          |
-| n_columns    | [int](`int`)                   | Number of columns in the matrix |
-| column_names | list of str                    | Names of columns                |
+| Name         | Type        | Description                     |
+|--------------|-------------|---------------------------------|
+| values       | Array       | Matrix of event values          |
+| n_columns    | int         | Number of columns in the matrix |
+| column_names | list of str | Names of columns                |
 
 ## Examples {.doc-section .doc-section-examples}
 
@@ -40,7 +40,7 @@ multi-dimensional parametric modulators or pre-computed design columns.
 ...             [0.1, 0.4, 0.3]],
 ...     column_names=['x', 'y', 'z']
 ... )
->>> 
+>>>
 >>> # Pre-computed regressors
 >>> event = EventMatrix(
 ...     name='custom',
@@ -71,15 +71,15 @@ Apply transformation to values.
 
 #### Parameters {.doc-section .doc-section-parameters}
 
-| Name      | Type                                       | Description                                                                      | Default    |
-|-----------|--------------------------------------------|----------------------------------------------------------------------------------|------------|
-| transform | [array](`array`) or [callable](`callable`) | If array, matrix multiply (values @ transform). If callable, apply element-wise. | _required_ |
+| Name      | Type              | Description                                                                      | Default    |
+|-----------|-------------------|----------------------------------------------------------------------------------|------------|
+| transform | array or callable | If array, matrix multiply (values @ transform). If callable, apply element-wise. | _required_ |
 
 #### Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                                               | Description                             |
-|--------|----------------------------------------------------|-----------------------------------------|
-|        | [EventMatrix](`fmrimod.events.matrix.EventMatrix`) | New EventMatrix with transformed values |
+| Name   | Type        | Description                             |
+|--------|-------------|-----------------------------------------|
+|        | EventMatrix | New EventMatrix with transformed values |
 
 ### design_matrix { #fmrimod.events.matrix.EventMatrix.design_matrix }
 
@@ -93,15 +93,15 @@ Creates multiple columns, one for each column in the value matrix.
 
 #### Parameters {.doc-section .doc-section-parameters}
 
-| Name            | Type                           | Description                | Default    |
-|-----------------|--------------------------------|----------------------------|------------|
-| sampling_points | [Array](`fmrimod.types.Array`) | Time points to evaluate at | _required_ |
+| Name            | Type   | Description                | Default    |
+|-----------------|--------|----------------------------|------------|
+| sampling_points | Array  | Time points to evaluate at | _required_ |
 
 #### Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                           | Description                                            |
-|--------|--------------------------------|--------------------------------------------------------|
-|        | [Array](`fmrimod.types.Array`) | Design matrix columns, shape (n_timepoints, n_columns) |
+| Name   | Type   | Description                                            |
+|--------|--------|--------------------------------------------------------|
+|        | Array  | Design matrix columns, shape (n_timepoints, n_columns) |
 
 ### from_dataframe { #fmrimod.events.matrix.EventMatrix.from_dataframe }
 
@@ -120,20 +120,20 @@ Create EventMatrix from DataFrame.
 
 #### Parameters {.doc-section .doc-section-parameters}
 
-| Name         | Type                                           | Description                                                                           | Default      |
-|--------------|------------------------------------------------|---------------------------------------------------------------------------------------|--------------|
-| df           | [pd](`pandas`).[DataFrame](`pandas.DataFrame`) | DataFrame containing event data                                                       | _required_   |
-| name         | [str](`str`)                                   | Name for the event                                                                    | _required_   |
-| onset_col    | [str](`str`)                                   | Column name for onsets                                                                | `'onset'`    |
-| value_cols   | list of str                                    | Column names for values. If None, uses all numeric columns except onset and duration. | `None`       |
-| duration_col | [str](`str`)                                   | Column name for durations                                                             | `'duration'` |
-| **kwargs     | [object](`object`)                             | Additional arguments passed to EventMatrix                                            | `{}`         |
+| Name         | Type         | Description                                                                           | Default      |
+|--------------|--------------|---------------------------------------------------------------------------------------|--------------|
+| df           | pd.DataFrame | DataFrame containing event data                                                       | _required_   |
+| name         | str          | Name for the event                                                                    | _required_   |
+| onset_col    | str          | Column name for onsets                                                                | `'onset'`    |
+| value_cols   | list of str  | Column names for values. If None, uses all numeric columns except onset and duration. | `None`       |
+| duration_col | str          | Column name for durations                                                             | `'duration'` |
+| **kwargs     | object       | Additional arguments passed to EventMatrix                                            | `{}`         |
 
 #### Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                                               | Description              |
-|--------|----------------------------------------------------|--------------------------|
-|        | [EventMatrix](`fmrimod.events.matrix.EventMatrix`) | New EventMatrix instance |
+| Name   | Type        | Description              |
+|--------|-------------|--------------------------|
+|        | EventMatrix | New EventMatrix instance |
 
 ### get_column { #fmrimod.events.matrix.EventMatrix.get_column }
 
@@ -145,15 +145,15 @@ Get a specific column.
 
 #### Parameters {.doc-section .doc-section-parameters}
 
-| Name   | Type                         | Description          | Default    |
-|--------|------------------------------|----------------------|------------|
-| index  | [int](`int`) or [str](`str`) | Column index or name | _required_ |
+| Name   | Type       | Description          | Default    |
+|--------|------------|----------------------|------------|
+| index  | int or str | Column index or name | _required_ |
 
 #### Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                           | Description   |
-|--------|--------------------------------|---------------|
-|        | [Array](`fmrimod.types.Array`) | Column values |
+| Name   | Type   | Description   |
+|--------|--------|---------------|
+|        | Array  | Column values |
 
 ### split_columns { #fmrimod.events.matrix.EventMatrix.split_columns }
 
@@ -165,9 +165,9 @@ Split into separate EventVariable objects by column.
 
 #### Returns {.doc-section .doc-section-returns}
 
-| Name   | Type           | Description                                              |
-|--------|----------------|----------------------------------------------------------|
-|        | [dict](`dict`) | Dictionary mapping column names to EventVariable objects |
+| Name   | Type   | Description                                              |
+|--------|--------|----------------------------------------------------------|
+|        | dict   | Dictionary mapping column names to EventVariable objects |
 
 ### to_dataframe { #fmrimod.events.matrix.EventMatrix.to_dataframe }
 
@@ -179,6 +179,6 @@ Convert to DataFrame representation.
 
 #### Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                                           | Description                                       |
-|--------|------------------------------------------------|---------------------------------------------------|
-|        | [pd](`pandas`).[DataFrame](`pandas.DataFrame`) | DataFrame with onset, duration, and value columns |
+| Name   | Type         | Description                                       |
+|--------|--------------|---------------------------------------------------|
+|        | pd.DataFrame | DataFrame with onset, duration, and value columns |

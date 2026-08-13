@@ -2,9 +2,82 @@ project:
   type: website
   output-dir: _site
   render:
-    - "*.qmd"
+    - "index.qmd"
+    - "get-started.qmd"
+    - "concepts/*.qmd"
     - "tutorials/*.qmd"
-    - "reference/*.qmd"
+    - "evidence/*.qmd"
+    - "help/*.qmd"
+    # The API inventory is deliberately curated. quartodoc generates these
+    # canonical pages; qualified implementation-path duplicates are not
+    # rendered or indexed as competing search results.
+    - "reference/index.qmd"
+    - "reference/Spec.qmd"
+    - "reference/Term.qmd"
+    - "reference/spec_hrf.qmd"
+    - "reference/compile.qmd"
+    - "reference/fmri_dataset.qmd"
+    - "reference/FmriDataset.qmd"
+    - "reference/RealizedDesign.qmd"
+    - "reference/FmriLmConfig.qmd"
+    - "reference/condition.qmd"
+    - "reference/column_contrast.qmd"
+    - "reference/combine_runs.qmd"
+    - "reference/ContrastResult.qmd"
+    - "reference/group_dataset_from_contrasts.qmd"
+    - "reference/baseline_model.qmd"
+    - "reference/fmri_lss.qmd"
+    - "reference/estimate_single_trial_from_dataset.qmd"
+    - "reference/fit_glm_from_matrix.qmd"
+    - "reference/fit_glm_from_suffstats.qmd"
+    - "reference/simulate_bold.qmd"
+    - "reference/GroupDataset.qmd"
+    - "reference/ols_voxelwise.qmd"
+    - "reference/fmri_group_lm.qmd"
+    - "reference/group_fit.qmd"
+    - "reference/fmri_meta.qmd"
+    - "reference/fmri_ttest.qmd"
+    - "reference/load_stats_model.qmd"
+    - "reference/write_contrasts.qmd"
+    - "reference/write_results.qmd"
+    - "reference/group_data_from_fmrilm.qmd"
+    - "reference/SamplingFrame.qmd"
+    - "reference/event_model.qmd"
+    - "reference/design_matrix.qmd"
+    - "reference/design_colmap.qmd"
+    - "reference/EventFactor.qmd"
+    - "reference/EventVariable.qmd"
+    - "reference/EventMatrix.qmd"
+    - "reference/event_term.qmd"
+    - "reference/hrf.qmd"
+    - "reference/hrf_formula.qmd"
+    - "reference/convolve.qmd"
+    - "reference/convolve_design.qmd"
+    - "reference/regressor.qmd"
+    - "reference/regressors.qmd"
+    - "reference/trialwise.qmd"
+    - "reference/contrast.qmd"
+    - "reference/contrast_weights.qmd"
+    - "reference/Fcontrasts.qmd"
+    - "reference/validate_contrasts.qmd"
+    - "reference/check_collinearity.qmd"
+    - "reference/residualize.qmd"
+    - "reference/fmri_lm.qmd"
+    - "reference/fmri_ols_fit.qmd"
+    - "reference/compute_lm_contrasts.qmd"
+    - "reference/estimate_betas.qmd"
+    - "reference/glm_ols.qmd"
+    - "reference/glm_lss.qmd"
+    - "reference/estimate_single_trial.qmd"
+    - "reference/lss_single_trial.qmd"
+    - "reference/lsa_single_trial.qmd"
+    - "reference/simulate_simple_dataset.qmd"
+    - "reference/simulate_bold_signal.qmd"
+    - "reference/simulate_noise_vector.qmd"
+    - "reference/simulate_fmri_matrix.qmd"
+    - "reference/t_to_d.qmd"
+    - "reference/r_to_z.qmd"
+    - "reference/z_to_r.qmd"
   preview:
     port: 4200
     browser: false
@@ -16,6 +89,7 @@ website:
   description: "fMRI design and statistical modeling in Python."
   site-url: "https://bbuchsbaum.github.io/fmrimod/"
   repo-url: "https://github.com/bbuchsbaum/fmrimod"
+  repo-subdir: docs
   repo-actions: [edit, issue]
   repo-branch: main
   page-navigation: true
@@ -35,10 +109,14 @@ website:
         href: get-started.qmd
       - text: "Tutorials"
         href: tutorials/index.qmd
-      - text: "Reference"
+      - text: "Concepts"
+        href: concepts/mental-model.qmd
+      - text: "API"
         href: reference/index.qmd
-      - text: "Mission"
-        href: "https://github.com/bbuchsbaum/fmrimod/blob/main/MISSION.md"
+      - text: "Evidence"
+        href: evidence/index.qmd
+      - text: "Help"
+        href: help/troubleshooting.qmd
     right:
       - icon: github
         href: "https://github.com/bbuchsbaum/fmrimod"
@@ -50,13 +128,31 @@ website:
       align: left
       contents:
         - tutorials/index.qmd
-        - auto: tutorials/*.qmd
-    - id: reference
-      title: "Reference"
-      style: floating
-      contents:
-        - reference/index.qmd
-        - auto: reference/*.qmd
+        - section: "Learn the workflow"
+          contents:
+            - tutorials/golden-path.qmd
+            - tutorials/real-data-fiac.qmd
+            - tutorials/overview-workflow.qmd
+            - tutorials/datasets.qmd
+            - tutorials/design-matrices.qmd
+            - tutorials/linear-model.qmd
+            - tutorials/contrasts.qmd
+            - tutorials/group-analysis.qmd
+        - section: "Extend the model"
+          contents:
+            - tutorials/parametric-modulators.qmd
+            - tutorials/single-trial.qmd
+            - tutorials/sketched-ar-models.qmd
+            - tutorials/robust-models.qmd
+            - tutorials/functional-connectivity.qmd
+        - section: "Inspect and integrate"
+          contents:
+            - tutorials/plotting-visualization.qmd
+            - tutorials/simulation.qmd
+            - tutorials/bids-io.qmd
+            - tutorials/benchmark-datasets.qmd
+            - tutorials/plugin-development.qmd
+            - tutorials/module-coverage.qmd
   page-footer:
     border: false
     left: "© 2026 Bradley Buchsbaum"
@@ -79,6 +175,7 @@ format:
       light: [_theme-base.scss]
       dark: [_theme-base.scss, _theme-night.scss]
     css: styles.css
+    include-before-body: _includes/skip-link.html
     toc: true
     toc-depth: 3
     toc-location: right
@@ -117,3 +214,4 @@ execute:
 # `quartodoc:` block here — a duplicate shadows the file.
 metadata-files:
   - _quartodoc.yml
+  - reference/_sidebar.yml

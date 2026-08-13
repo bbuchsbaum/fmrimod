@@ -1,0 +1,17 @@
+# glm.matrix.fit_glm_from_suffstats { #fmrimod.glm.matrix.fit_glm_from_suffstats }
+
+```python
+fit_glm_from_suffstats(
+    model,
+    XtX,
+    XtS,
+    StS,
+    df,
+    cfg=None,
+    dataset=None,
+    strategy='external',
+    engine='suffstats',
+)
+```
+
+Build an ``FmriLm`` result from OLS sufficient statistics.

@@ -1,0 +1,20 @@
+# contrast.semantic.condition { #fmrimod.contrast.semantic.condition }
+
+```python
+condition(level, *, term=None, basis_ix=None, basis=None)
+```
+
+Author a condition-level reference for semantic contrasts.
+
+``basis=`` names an SPM informed-set role ("canonical", "derivative",
+"dispersion") so callers do not have to know the internal 1-based
+``basis_ix`` column convention. It is a closed :data:`typing.Literal`,
+not a string-keyed registry, so a typo is a static type error rather than
+a silent miss. ``basis=`` and ``basis_ix=`` are mutually exclusive.
+
+## Examples {.doc-section .doc-section-examples}
+
+``condition("gain") - condition("loss")`` creates a contrast that resolves
+against declared design-column provenance rather than rendered column order.
+``condition("listening", basis="canonical")`` pins the canonical column of
+an SPMG2/SPMG3 informed basis set without spelling out ``basis_ix=1``.

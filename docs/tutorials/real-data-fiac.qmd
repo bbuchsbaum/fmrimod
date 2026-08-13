@@ -1,0 +1,332 @@
+---
+title: "Fit two runs of real FIAC data"
+subtitle: "Carry a published 2 x 2 design through the public first-level seam and back to a brain map."
+jupyter: python3
+execute:
+  freeze: auto
+  cache: true
+---
+
+This tutorial fits two real functional runs from the Functional Imaging
+Analysis Contest (FIAC). The question is a 2 x 2 factorial one: does the BOLD
+response differ when a sentence is repeated, and does it differ when the
+speaker is repeated? We will inspect the inputs, fit each run, pool the runs,
+and put the sentence-effect statistic back into image space.
+
+::: {.callout-note}
+## Before you run it
+
+Install `nilearn>=0.12` alongside fmrimod. On first use,
+`fetch_fiac_first_level()` downloads roughly 80 MB and stores it in Nilearn's
+data cache (by default, `~/nilearn_data`); the process therefore needs network
+access and a writable cache. Later runs reuse those files. Allow under a minute
+for a cached run on a typical laptop, with additional time for the first
+download. The exact timing recorded by the parity workflow appears near the
+end of this page. Nilearn's packaged dataset description reports the FIAC
+license as unknown, so confirm the source terms before redistributing the
+downloaded files.
+
+The fetcher supplies functional NIfTI images, a mask, and already-realized
+design matrices. This is a first-level modeling tutorial, not a preprocessing
+pipeline: motion correction, distortion correction, registration, and
+normalization are upstream of fmrimod and out of scope here.
+:::
+
+::: {.callout-tip}
+## Result and receipt at a glance
+
+The public fmrimod seam below fits both 191-volume runs across all 28,008
+in-mask voxels, restores a pooled sentence-effect statistic to NIfTI space,
+and renders the brain image shown on the [landing page](../index.qmd). The
+matching checked-in FIAC receipt reports `pass`, no active caveats, and a
+maximum t-statistic difference of about `6.05e-12` from Nilearn on its
+deterministic 2,048-voxel parity subset.
+
+This is an interoperability result: Nilearn supplies the realized design and
+masker; fmrimod owns the fit, named contrasts, run combination, and result
+objects. Native design authoring is taught separately.
+:::
+
+## Fetch and inspect the inputs
+
+```{python}
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from nilearn.datasets import fetch_fiac_first_level
+from nilearn.image import load_img, mean_img
+from nilearn.maskers import NiftiMasker
+from nilearn.plotting import plot_design_matrix, plot_stat_map
+
+import fmrimod as fm
+from fmrimod.design import RealizedDesign
+from fmrimod.model.config import FmriLmConfig
+
+fiac = fetch_fiac_first_level(verbose=0)
+run_imgs = (load_img(fiac.func1), load_img(fiac.func2))
+design_matrices = (
+    fiac.design_matrix1.copy(),
+    fiac.design_matrix2.copy(),
+)
+mask_img = load_img(fiac.mask)
+tr = float(np.diff(design_matrices[0].index.to_numpy()[:2])[0])
+```
+
+Each run contains 191 whole-brain volumes. The mask defines the features that
+enter the model; the fitted `NiftiMasker` below retains the inverse mapping
+from those features to the original image grid.
+
+```{python}
+input_summary = pd.DataFrame(
+    {
+        "run": (1, 2),
+        "file": tuple(Path(img.get_filename()).name for img in run_imgs),
+        "image shape (x, y, z, time)": tuple(str(img.shape) for img in run_imgs),
+        "design shape": tuple(str(dm.shape) for dm in design_matrices),
+        "TR (s)": tr,
+        "in-mask voxels": int(np.count_nonzero(mask_img.get_fdata())),
+    }
+)
+input_summary
+```
+
+The four factorial cells encode **Sentence** (same, `SSt`, or different,
+`DSt`) crossed with **Speaker** (same, `SSp`, or different, `DSp`). `FirstSt`
+pools the first sentence across conditions; the drift columns model slow
+variation. These are the actual columns used in both runs, not names
+reconstructed for the tutorial.
+
+```{python}
+pd.DataFrame(
+    {
+        "column": design_matrices[0].columns,
+        "role": [
+            "factorial cell" if i < 4 else "nuisance"
+            for i in range(design_matrices[0].shape[1])
+        ],
+    }
+)
+```
+
+```{python}
+#| label: fig-fiac-design
+#| fig-alt: "FIAC run-one design matrix with 191 time points in rows and thirteen labeled columns. The first four columns are the Sentence by Speaker factorial cells, followed by FirstSt and eight smooth drift terms."
+#| fig-cap: "The realized design supplied with FIAC run 1. The first four columns are the 2 x 2 experimental cells; the remaining columns model the pooled first sentence and low-frequency drift."
+#| fig-width: 9
+#| fig-height: 4.8
+design_ax = plot_design_matrix(design_matrices[0])
+plt.show()
+```
+
+## Fit each run through the public seam
+
+Nilearn's masker performs the image-to-matrix boundary. From that point on,
+the analysis uses fmrimod's public path:
+
+```text
+fmri_dataset -> RealizedDesign(source="nilearn") -> fmri_lm -> combine_runs
+```
+
+`RealizedDesign` carries the imported matrix, its stable column names, and its
+source. The Moore-Penrose solver is selected because it matches the least-
+squares route used by the FIAC parity reference.
+
+```{python}
+masker = NiftiMasker(mask_img=mask_img).fit()
+fits = []
+
+for run_img, design_matrix in zip(run_imgs, design_matrices):
+    signals = masker.transform(run_img)
+    dataset = fm.fmri_dataset(
+        signals,
+        tr=tr,
+        mask=np.ones(signals.shape[1], dtype=bool),
+    )
+    realized_design = RealizedDesign.from_array(
+        design_matrix.to_numpy(dtype=np.float64),
+        columns=tuple(str(column) for column in design_matrix.columns),
+        source="nilearn",
+    )
+    fits.append(
+        fm.fmri_lm(
+            realized_design,
+            dataset,
+            config=FmriLmConfig(solver="pinv"),
+        )
+    )
+
+assert all(fit.provenance.design_source == "nilearn" for fit in fits)
+combined = fm.combine_runs(fits)
+
+pd.DataFrame(
+    {
+        "runs": [combined.n_runs],
+        "voxels per run": [combined.n_voxels],
+        "design source": [fits[0].provenance.design_source],
+        "solver path": [fits[0].provenance.solver_path],
+        "pooling": [combined.method],
+    }
+)
+```
+
+::: {.callout-important}
+## What this path does—and does not—prove
+
+This is an **interop bridge**. It proves that an externally realized design can
+enter the typed fmrimod seam, retain `source="nilearn"` provenance, and produce
+public fit and contrast objects. It does **not** prove native fmrimod design
+authoring for FIAC, because Nilearn supplied the matrix before fmrimod saw it.
+The distinction matters: carrying a matrix safely is not the same claim as
+expressing the experiment as an fmrimod event-design specification.
+:::
+
+## State the two main effects by column meaning
+
+The sentence main effect is the mean of both same-sentence cells minus the
+mean of both different-sentence cells. The speaker main effect makes the
+corresponding comparison across speaker levels. The patterns below name those
+sets of imported columns; fmrimod resolves and normalizes their weights. No
+positional vector is constructed or passed to `contrast()`.
+
+```{python}
+main_effects = {
+    "sentence_effect": fm.column_contrast(
+        pattern_A=r"^SSt-",
+        pattern_B=r"^DSt-",
+        name="sentence_effect",
+    ),
+    "speaker_effect": fm.column_contrast(
+        pattern_A=r"-SSp$",
+        pattern_B=r"-DSp$",
+        name="speaker_effect",
+    ),
+}
+
+results = {
+    name: combined.contrast(spec)
+    for name, spec in main_effects.items()
+}
+
+pd.DataFrame(
+    [
+        {
+            "contrast": name,
+            "statistic": result.stat_type,
+            "residual df": result.df,
+            "min t": result.stat.min(),
+            "max t": result.stat.max(),
+        }
+        for name, result in results.items()
+    ]
+).round(3)
+```
+
+These patterns are safer than weights tied to column positions, but they still
+depend on the names in the imported matrix. A natively authored factorial
+design would let the hypothesis refer directly to declared factor levels; this
+tutorial does not claim that stronger interface.
+
+## Return the sentence statistic to the brain
+
+`results["sentence_effect"].stat` is one value per masked voxel. The same
+fitted masker that extracted those voxels now restores them to the FIAC image
+grid. The display threshold of `|t| >= 2` is only for legibility; it is not a
+multiple-comparison-corrected inferential threshold.
+
+```{python}
+sentence_t_img = masker.inverse_transform(results["sentence_effect"].stat)
+```
+
+```{python}
+#| label: fig-fiac-sentence-effect
+#| fig-alt: "Six axial slices of the FIAC participant's mean functional image. Warm red and yellow areas show positive same-sentence minus different-sentence t statistics of at least 2, while blue areas show negative statistics of at most minus 2. Left and right are labeled on every slice."
+#| fig-cap: "Fixed-effects sentence statistic (same sentence minus different sentence) pooled across two FIAC runs and restored through the fitted NiftiMasker. Colors show t statistics where absolute t is at least 2; the threshold is descriptive, not a corrected significance claim."
+#| fig-width: 12
+#| fig-height: 3.6
+stat_display = plot_stat_map(
+    sentence_t_img,
+    bg_img=mean_img(run_imgs[0]),
+    threshold=2.0,
+    display_mode="z",
+    cut_coords=(28, 44, 60, 76, 92, 108),
+    colorbar=True,
+    title="Same sentence - different sentence",
+)
+docs_root = next(
+    candidate
+    for candidate in (Path.cwd(), *Path.cwd().parents)
+    if (candidate / "_quarto.yml").is_file()
+)
+stat_display.savefig(docs_root / "assets/fiac-sentence-effect.png", dpi=150)
+plt.show()
+```
+
+The result is now an ordinary NIfTI image in the source geometry. The masker,
+not a hand-written reshape, owns the correspondence between the statistical
+vector and the image voxels.
+
+## Read the matching parity receipt
+
+The figure shows that the workflow produces an interpretable image; it does
+not establish agreement with an independent implementation. The checked-in
+FIAC receipt compares these same sentence and speaker estimands against
+Nilearn. Its gate uses a deterministic 2,048-voxel subset of the same mask to
+keep repeated parity runs inexpensive, whereas the tutorial above fits all
+in-mask voxels.
+
+```{python}
+import json
+
+repo_root = next(
+    candidate
+    for candidate in (Path.cwd(), *Path.cwd().parents)
+    if (candidate / "benchmarks/parity/tier_a_fiac").is_dir()
+)
+receipt_path = (
+    repo_root
+    / "benchmarks/parity/tier_a_fiac/reports/parity_report.json"
+)
+receipt = json.loads(receipt_path.read_text())
+
+assert receipt["name"] == "tier_a_fiac_fixed_effects"
+
+print(f"status:  {receipt['status']}")
+print(f"caveats: {receipt['caveats'] or 'none'}")
+print(f"recorded parity-workflow runtime: {receipt['timings']['seconds']:.3f} s")
+
+pd.DataFrame(
+    [
+        {
+            "quantity": name,
+            "max |fmrimod - Nilearn|": delta["max_abs"],
+            "mean absolute error": delta["mae"],
+            "gate": delta["gate"],
+            "pass": delta["passes"],
+        }
+        for name, delta in receipt["deltas"].items()
+    ]
+).sort_values("quantity")
+```
+
+The receipt is generated by the executable workflow in
+`benchmarks/parity/tier_a_fiac/workflow.py`; it is not copied from another
+benchmark. From a source checkout, regenerate it with:
+
+```bash
+.venv/bin/python -m benchmarks.parity.tier_a_fiac.workflow
+```
+
+## Where to go next
+
+You can now carry externally authored, model-ready NIfTI data through a
+two-run fmrimod fit and recover a statistical image without losing design
+provenance or hand-aligning contrast weights.
+
+- [Build design matrices](design-matrices.qmd) to author a design from events
+  inside fmrimod rather than importing a realized matrix.
+- [Contrasts](contrasts.qmd) to use semantic condition-level hypotheses when
+  the design was authored natively.
+- [Group analysis](group-analysis.qmd) to carry first-level contrasts into a
+  second-level model.

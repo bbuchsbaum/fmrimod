@@ -1,0 +1,7 @@
+# contrast.group_collection.group_dataset_from_contrasts { #fmrimod.contrast.group_collection.group_dataset_from_contrasts }
+
+```python
+group_dataset_from_contrasts(contrasts, *, covariates=None)
+```
+
+Lower one first-level contrast per subject into a ``GroupDataset``.

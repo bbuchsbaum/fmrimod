@@ -22,13 +22,13 @@ Performs several diagnostic checks on each contrast vector:
 |---------|------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
 | x       | EventModel, numpy.ndarray, or pandas.DataFrame | Design matrix or event model containing a design matrix.                                                                                                                                                                                                           | _required_ |
 | weights | array-like, dict, or None                      | Contrast weights to validate. Accepted formats:  - ``None``: if ``x`` is an ``EventModel``, validates all   attached contrasts. - ``numpy.ndarray`` or ``list``: a single contrast vector   or matrix. - ``dict``: maps contrast names to weight vectors/matrices. | `None`     |
-| tol     | [float](`float`)                               | Numerical tolerance for zero checks.                                                                                                                                                                                                                               | `1e-8`     |
+| tol     | float                                          | Numerical tolerance for zero checks.                                                                                                                                                                                                                               | `1e-8`     |
 
 ## Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                                               | Description                                                                                                                                                   |
-|--------|----------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|        | [pandas](`pandas`).[DataFrame](`pandas.DataFrame`) | One row per contrast column with fields: ``name``, ``type``, ``estimable``, ``sum_to_zero``, ``orthogonal_to_intercept``, ``full_rank``, ``nonzero_weights``. |
+| Name   | Type             | Description                                                                                                                                                   |
+|--------|------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|        | pandas.DataFrame | One row per contrast column with fields: ``name``, ``type``, ``estimable``, ``sum_to_zero``, ``orthogonal_to_intercept``, ``full_rank``, ``nonzero_weights``. |
 
 ## Examples {.doc-section .doc-section-examples}
 

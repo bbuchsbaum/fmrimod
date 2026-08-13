@@ -4,7 +4,7 @@ Installation
 Requirements
 ------------
 
-fmrimod requires Python 3.8 or later and the following dependencies:
+fmrimod requires Python 3.10 or later and the following dependencies:
 
 - NumPy >= 1.21.0
 - SciPy >= 1.7.0
@@ -12,14 +12,14 @@ fmrimod requires Python 3.8 or later and the following dependencies:
 - scikit-learn >= 0.24.0
 - matplotlib >= 3.4.0 (for plotting)
 
-Installing from PyPI
---------------------
+Installing the alpha from GitHub
+--------------------------------
 
-The easiest way to install fmrimod is using pip:
+fmrimod is not yet published on PyPI. Install the current source directly:
 
 .. code-block:: bash
 
-    pip install fmrimod
+    python -m pip install "fmrimod @ git+https://github.com/bbuchsbaum/fmrimod.git"
 
 Installing from Source
 ----------------------
@@ -30,13 +30,14 @@ To install the latest development version:
 
     git clone https://github.com/bbuchsbaum/fmrimod.git
     cd fmrimod
-    pip install -e .
+    uv venv --python 3.11 .venv
+    uv pip install --python .venv/bin/python -e ".[dev,test]"
 
 For development with all optional dependencies:
 
 .. code-block:: bash
 
-    pip install -e ".[dev]"
+    uv pip install --python .venv/bin/python -e ".[dev,test]"
 
 This includes testing tools (pytest), code formatting (black), and type checking (mypy).
 

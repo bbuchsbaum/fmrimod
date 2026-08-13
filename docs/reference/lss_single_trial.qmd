@@ -18,20 +18,20 @@ Vectorized LSS estimation.
 
 ## Parameters {.doc-section .doc-section-parameters}
 
-| Name                | Type                                                             | Description                                                                                                                                                                                 | Default    |
-|---------------------|------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
-| Y                   | NDArray, shape ``(n, V)``                                        | Data matrix (time x voxels).                                                                                                                                                                | _required_ |
-| X                   | NDArray, shape ``(n, n_trials)``                                 | Trial regressor matrix (already convolved with HRF).                                                                                                                                        | _required_ |
-| confounds           | NDArray, shape ``(n, q)``                                        | Nuisance regressors (motion, drift, etc.).                                                                                                                                                  | `None`     |
-| nuisance_projector  | [NuisanceProjector](`fmrimod.single._project.NuisanceProjector`) | Precomputed nuisance projector returned by :func:`fmrimod.single._project.build_nuisance_projector`. When provided, ``confounds`` is ignored.                                               | `None`     |
-| chunk_size          | [int](`int`)                                                     | Voxel chunk size for beta-only LSS computation.  If ``None``, a heuristic is used to choose full-matrix vs chunked solve.                                                                   | `None`     |
-| return_se           | [bool](`bool`)                                                   | If ``True``, compute standard errors.                                                                                                                                                       | `False`    |
-| trial_labels        | list of str                                                      | Labels for each trial.                                                                                                                                                                      | `None`     |
-| baseline_regressors | NDArray, shape ``(n, p)``                                        | Baseline or experimental regressors to include in every per-trial LSS model.  This is the Python equivalent of the ``Z`` matrix in ``fmrilss::lss``.                                        | `None`     |
-| include_intercept   | [bool](`bool`)                                                   | If ``True``, include an intercept in the adjustment design.  This mirrors the default ``Z = intercept`` behavior of ``fmrilss::lss`` while keeping the lower-level Python default explicit. | `False`    |
+| Name                | Type                             | Description                                                                                                                                                                                 | Default    |
+|---------------------|----------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| Y                   | NDArray, shape ``(n, V)``        | Data matrix (time x voxels).                                                                                                                                                                | _required_ |
+| X                   | NDArray, shape ``(n, n_trials)`` | Trial regressor matrix (already convolved with HRF).                                                                                                                                        | _required_ |
+| confounds           | NDArray, shape ``(n, q)``        | Nuisance regressors (motion, drift, etc.).                                                                                                                                                  | `None`     |
+| nuisance_projector  | NuisanceProjector                | Precomputed nuisance projector returned by `fmrimod.single._project.build_nuisance_projector`. When provided, ``confounds`` is ignored.                                               | `None`     |
+| chunk_size          | int                              | Voxel chunk size for beta-only LSS computation.  If ``None``, a heuristic is used to choose full-matrix vs chunked solve.                                                                   | `None`     |
+| return_se           | bool                             | If ``True``, compute standard errors.                                                                                                                                                       | `False`    |
+| trial_labels        | list of str                      | Labels for each trial.                                                                                                                                                                      | `None`     |
+| baseline_regressors | NDArray, shape ``(n, p)``        | Baseline or experimental regressors to include in every per-trial LSS model.  This is the Python equivalent of the ``Z`` matrix in ``fmrilss::lss``.                                        | `None`     |
+| include_intercept   | bool                             | If ``True``, include an intercept in the adjustment design.  This mirrors the default ``Z = intercept`` behavior of ``fmrilss::lss`` while keeping the lower-level Python default explicit. | `False`    |
 
 ## Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                                                           | Description   |
-|--------|----------------------------------------------------------------|---------------|
-|        | [SingleTrialResult](`fmrimod.single._types.SingleTrialResult`) |               |
+| Name   | Type              | Description   |
+|--------|-------------------|---------------|
+|        | SingleTrialResult |               |

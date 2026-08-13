@@ -1,0 +1,13 @@
+<a id="skip-to-content" class="skip-link" href="#quarto-document-content">Skip to main content</a>
+<script>
+  document.body.prepend(document.getElementById("skip-to-content"));
+  document.addEventListener("DOMContentLoaded", () => {
+    const heroCopy = document.querySelector(".hero-copy");
+    const titleBlock = document.getElementById("title-block-header");
+    const title = titleBlock?.querySelector("h1");
+    if (heroCopy && title) {
+      heroCopy.prepend(title);
+      titleBlock.remove();
+    }
+  });
+</script>

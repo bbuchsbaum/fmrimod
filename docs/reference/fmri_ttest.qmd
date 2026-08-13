@@ -1,0 +1,24 @@
+# stats.ttest.fmri_ttest { #fmrimod.stats.ttest.fmri_ttest }
+
+```python
+fmri_ttest(
+    data,
+    *,
+    engine='auto',
+    formula='~ 1',
+    method='pm',
+    weights='ivw',
+    weights_custom=None,
+    effect_cols=None,
+)
+```
+
+Run a parity-oriented one-sample group t-test.
+
+``data`` may be a frozen `GroupData` or a pandas DataFrame
+(validated and converted to a frozen ``GroupData`` at entry via the
+typed `group_data_from_csv`; pass its ``effect_cols`` schema).
+
+Current slice:
+- CSV-backed GroupData only
+- one-sample inference around zero (``formula='~ 1'``)

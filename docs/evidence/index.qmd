@@ -1,0 +1,125 @@
+---
+title: "How to read fmrimod's evidence"
+description: "A guide to the repository's checks, parity reports, caveats, and release receipts."
+---
+
+This page helps you decide what a green check or checked-in report actually
+supports. It assumes you know the public workflow described in the
+[golden-path tutorial](../tutorials/golden-path.qmd).
+
+::: {.callout-note title="Scope of this page"}
+The links below point to evidence committed in the repository. They do not
+assert that the current checkout, the latest hosted workflow, a published
+wheel, or a downstream project was verified while you read this page.
+:::
+
+## Four different questions require four kinds of evidence
+
+| Evidence class | Question it answers | Strongest honest claim | It does not prove |
+|---|---|---|---|
+| Self-consistency | Do fmrimod objects agree with one another on controlled data? | The public path preserves its own design, fit, contrast, and metadata contracts. | Agreement with an independent implementation. |
+| Numerical canary | Does one mathematical quantity match an oracle under tightly controlled inputs? | The named solver, contrast, transform, or statistic matches within the recorded tolerance. | That a user-facing workflow is complete or well designed. |
+| Workflow parity | Does a realistic fmrimod path agree with a reference workflow? | The named path and comparator agree on the reported outputs, caveats, and inputs. | Coverage of untested workflows or a fully native authoring experience. |
+| Flagship proof | Does a representative public workflow combine numerical evidence with inspectable semantics? | The named end-to-end family meets the checked-in numerical and interface criteria. | General release certification or universal parity. |
+
+These classes are recorded in the
+[`proof_artifacts.json` manifest](https://github.com/bbuchsbaum/fmrimod/blob/main/benchmarks/parity/proof_artifacts.json)
+and checked by
+[`test_parity_proof_artifacts.py`](https://github.com/bbuchsbaum/fmrimod/blob/main/tests/test_benchmarks/test_parity_proof_artifacts.py).
+The classification matters: a precise low-level canary should not be presented
+as an end-to-end user workflow.
+
+## Read an artifact from the outside in
+
+Start with the manifest row, then inspect four things:
+
+1. **The workflow path.** It shows whether the fmrimod side uses the public
+   seam, a private kernel, or an externally realized design.
+2. **The report.** Check its status, metric values, tolerances, timing hardware,
+   and recorded caveat identifiers.
+3. **The reference path.** Confirm that the comparator is independent enough
+   for the claim being made.
+4. **The caveat index.** An accepted, bounded difference remains part of the
+   result until its exit criterion is met.
+
+Concrete examples:
+
+- The public F-contrast case has a
+  [workflow source](https://github.com/bbuchsbaum/fmrimod/blob/main/benchmarks/parity/tier_a_f_confound_drift/public_workflow.py)
+  and a
+  [checked-in parity report](https://github.com/bbuchsbaum/fmrimod/blob/main/benchmarks/parity/tier_a_f_confound_drift/reports_public/parity_report.json).
+  It is workflow-parity evidence through `fmri_dataset → fmri_lm → contrast`.
+- The SPM auditory case has a
+  [flagship workflow](https://github.com/bbuchsbaum/fmrimod/blob/main/benchmarks/parity/tier_a_spm_auditory/workflow.py)
+  and
+  [report](https://github.com/bbuchsbaum/fmrimod/blob/main/benchmarks/parity/tier_a_spm_auditory/reports/parity_report.json).
+  Its checked-in path authors the realized design in fmrimod.
+- The semantic-survival case follows subject contrast intent into a
+  `GroupDataset`; inspect its
+  [workflow](https://github.com/bbuchsbaum/fmrimod/blob/main/benchmarks/parity/tier_group_semantic_survival/workflow.py)
+  and
+  [report](https://github.com/bbuchsbaum/fmrimod/blob/main/benchmarks/parity/tier_group_semantic_survival/reports/semantic_survival_report.json).
+
+A self-consistency check remains useful even when it has no external
+comparator. For example, the
+[`first_trust_contrast` test](https://github.com/bbuchsbaum/fmrimod/blob/main/tests/test_examples/test_first_trust_contrast.py)
+checks that a fitted contrast recovers a known injected effect and carries the
+expected explanation. That supports internal trust in the path, not an
+independent parity claim.
+
+## FIAC is currently an interoperability bridge
+
+The checked-in FIAC artifact reaches a public fmrimod fit and fixed-effects
+combination, but its realized design comes from Nilearn:
+
+`fmri_dataset → RealizedDesign(source="nilearn") → fmri_lm → combine_runs`
+
+The
+[`FIAC workflow`](https://github.com/bbuchsbaum/fmrimod/blob/main/benchmarks/parity/tier_a_fiac/workflow.py)
+and
+[`FIAC report`](https://github.com/bbuchsbaum/fmrimod/blob/main/benchmarks/parity/tier_a_fiac/reports/parity_report.json)
+are valid workflow-parity evidence for that bridge. They are not evidence that
+the FIAC design was authored natively from an fmrimod `Spec`. The
+[`release_1_0_manifest.json`](https://github.com/bbuchsbaum/fmrimod/blob/main/benchmarks/parity/release_1_0_manifest.json)
+therefore classifies FIAC as `interop_bridge`, not `native_flagship`.
+
+## Caveats are part of the proof
+
+The
+[`CAVEATS.md` index](https://github.com/bbuchsbaum/fmrimod/blob/main/docs/contracts/CAVEATS.md)
+records every active accepted divergence, its owner, affected tier, and exit
+criterion. At present, it records the residual-degrees-of-freedom difference
+for rank-deficient designs: fmrimod uses `n - rank(X)`, while the named Nilearn
+comparison uses `n - p`. The row is not a waiver to ignore other differences.
+
+When a caveat is closed, its evidence moves to
+[`CAVEAT_RETIREMENTS.md`](https://github.com/bbuchsbaum/fmrimod/blob/main/docs/contracts/CAVEAT_RETIREMENTS.md).
+Each retirement names the old discrepancy, the resolving change, a proof
+artifact, and a red check. Reading both files prevents an empty active index
+from being mistaken for a project with no history of divergence.
+
+## Release evidence is layered
+
+| Layer | Repository evidence | What must still be checked |
+|---|---|---|
+| Declared release scope | [`release_1_0_manifest.json`](https://github.com/bbuchsbaum/fmrimod/blob/main/benchmarks/parity/release_1_0_manifest.json) classifies required families and public paths. | Whether those declarations match the intended release. |
+| Checked-in bundle | [`release_receipt.json`](https://github.com/bbuchsbaum/fmrimod/blob/main/benchmarks/parity/release_1_0/release_receipt.json) records artifact presence, classifications, blockers, and regenerable commands. | Whether the receipt was regenerated from the current candidate. |
+| Local candidate | The bundle generator and local test commands can rerun the evidence. | Whether the full supported environment and optional parity dependencies were available. |
+| Hosted matrix | The [`release-0-8` workflow](https://github.com/bbuchsbaum/fmrimod/blob/main/.github/workflows/release-0-8.yml) defines hosted Python 3.10 and 3.11 jobs. | The live run status and the exact commit tested. |
+| Distributed release | Built wheels, indexes, and downstream installs provide external evidence. | Publication, installability, and consumer behavior for the exact artifact. |
+
+The checked-in receipt reports no bundle blockers for its recorded input. That
+is a structural receipt, not a claim that all later layers are green today.
+The generator is
+[`release_1_0_bundle.py`](https://github.com/bbuchsbaum/fmrimod/blob/main/benchmarks/parity/release_1_0_bundle.py);
+its tests are in
+[`test_release_1_0_bundle.py`](https://github.com/bbuchsbaum/fmrimod/blob/main/tests/test_benchmarks/test_release_1_0_bundle.py).
+
+## Continue from here
+
+- Use [Troubleshooting](../help/troubleshooting.qmd) when a proof path skips or
+  stops before producing evidence.
+- Read [Group analysis](../tutorials/group-analysis.qmd) before evaluating a
+  second-level result.
+- For a fresh claim, rerun the artifact's recorded command and retain the
+  report, environment, hardware tag, caveat state, and tested commit together.

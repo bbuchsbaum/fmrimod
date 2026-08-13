@@ -1,0 +1,11 @@
+# dataset.group_data.group_data_from_fmrilm { #fmrimod.dataset.group_data.group_data_from_fmrilm }
+
+```python
+group_data_from_fmrilm(
+    lm_list,
+    contrast=None,
+    stat=('beta', 'se'),
+    subjects=None,
+    covariates=None,
+)
+```

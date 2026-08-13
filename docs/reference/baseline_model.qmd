@@ -1,0 +1,64 @@
+# baseline.baseline_model.baseline_model { #fmrimod.baseline.baseline_model.baseline_model }
+
+```python
+baseline_model(
+    basis='constant',
+    degree=1,
+    sframe=None,
+    intercept='runwise',
+    nuisance_list=None,
+    nuisance_check='warn',
+    na_action='drop',
+)
+```
+
+Construct a baseline model for fMRI time series.
+
+Creates a model for low-frequency drift, block-wise intercepts, and
+nuisance regressors that account for non-neural signal variations.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name           | Type                                      | Description                                                                                                                                                                                             | Default      |
+|----------------|-------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------|
+| basis          | (\'constant\', \'poly\', \'bs\', \'ns\')  | Type of basis for drift modeling: - 'constant': Constant (intercept only) - 'poly': Polynomial basis - 'bs': B-spline basis - 'ns': Natural spline basis                                                | `'constant'` |
+| degree         | int                                       | Number of basis functions per block (ignored for 'constant')                                                                                                                                            | `1`          |
+| sframe         | SamplingInfo                              | Sampling frame with block structure information                                                                                                                                                         | `None`       |
+| intercept      | (\'runwise\', \'global\', \'none\')       | Type of intercept to include: - 'runwise': Separate intercept per run/block - 'global': Single intercept for all runs - 'none': No intercept                                                            | `'runwise'`  |
+| nuisance_list  | list of arrays                            | List of nuisance regressor matrices, one per block                                                                                                                                                      | `None`       |
+| nuisance_check | (\'warn\', \'error\', \'drop\', \'none\') | How to handle nuisance columns that are non-finite, zero variance, duplicate, or rank-aliased with the baseline design.                                                                                 | `'warn'`     |
+| na_action      | (\'drop\', \'zero\', \'median\')          | Policy for missing values in nuisance regressors. ``'drop'`` preserves the legacy diagnostics-driven behavior; ``'zero'`` and ``'median'`` repair NaN values before diagnostics and design realization. | `'drop'`     |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type          | Description                |
+|--------|---------------|----------------------------|
+|        | BaselineModel | Constructed baseline model |
+
+## Examples {.doc-section .doc-section-examples}
+
+```python
+>>> # Polynomial drift with runwise intercepts
+>>> bmodel = baseline_model(
+...     basis='poly',
+...     degree=3,
+...     sframe=sampling_frame
+... )
+>>>
+>>> # B-spline drift with global intercept
+>>> bmodel = baseline_model(
+...     basis='bs',
+...     degree=4,
+...     sframe=sampling_frame,
+...     intercept='global'
+... )
+>>>
+>>> # Add nuisance regressors
+>>> nuisance = [np.random.randn(100, 6), np.random.randn(100, 6)]
+>>> bmodel = baseline_model(
+...     basis='poly',
+...     degree=2,
+...     sframe=sampling_frame,
+...     nuisance_list=nuisance
+... )
+```

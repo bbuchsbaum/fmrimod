@@ -6,5 +6,5 @@ contrast(form, name, where=None)
 
 Define a linear contrast using a formula expression.
 
-Accepts a :class:`Formula`, a string predicate, a dict, or a callable for
+Accepts a `Formula`, a string predicate, a dict, or a callable for
 ``form`` and ``where``.

@@ -3,6 +3,39 @@ website:
   - contents:
     - reference/index.qmd
     - contents:
+      - reference/Spec.qmd
+      - reference/Term.qmd
+      - reference/spec_hrf.qmd
+      - reference/compile.qmd
+      - reference/fmri_dataset.qmd
+      - reference/FmriDataset.qmd
+      - reference/RealizedDesign.qmd
+      - reference/FmriLmConfig.qmd
+      - reference/condition.qmd
+      - reference/column_contrast.qmd
+      - reference/combine_runs.qmd
+      - reference/ContrastResult.qmd
+      - reference/group_dataset_from_contrasts.qmd
+      - reference/baseline_model.qmd
+      - reference/fmri_lss.qmd
+      - reference/estimate_single_trial_from_dataset.qmd
+      - reference/fit_glm_from_matrix.qmd
+      - reference/fit_glm_from_suffstats.qmd
+      - reference/simulate_bold.qmd
+      section: Core modeling seam
+    - contents:
+      - reference/GroupDataset.qmd
+      - reference/ols_voxelwise.qmd
+      - reference/fmri_group_lm.qmd
+      - reference/group_fit.qmd
+      - reference/fmri_meta.qmd
+      - reference/fmri_ttest.qmd
+      - reference/load_stats_model.qmd
+      - reference/write_contrasts.qmd
+      - reference/write_results.qmd
+      - reference/group_data_from_fmrilm.qmd
+      section: Group, BIDS, and results
+    - contents:
       - reference/SamplingFrame.qmd
       - reference/event_model.qmd
       - reference/design_matrix.qmd

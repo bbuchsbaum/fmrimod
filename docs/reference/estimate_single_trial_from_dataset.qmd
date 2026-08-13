@@ -1,0 +1,52 @@
+# single.estimate_single_trial_from_dataset { #fmrimod.single.estimate_single_trial_from_dataset }
+
+```python
+estimate_single_trial_from_dataset(
+    dataset,
+    spec,
+    *,
+    method='lss',
+    confounds=None,
+    return_se=False,
+    block=None,
+    durations=None,
+    precision=None,
+    prewhiten=None,
+    nuisance_projector=None,
+    chunk_size=None,
+    oasis_config=None,
+    sbhm_config=None,
+    sbhm_library=None,
+    include_intercept=False,
+)
+```
+
+Estimate per-trial betas from an FmriDataset and trialwise spec.
+
+Public-seam alternative to `estimate_single_trial` that consumes a
+`FmriDataset` plus a spec containing a
+`trialwise` construction, builds the trial design matrix
+from spec + dataset events, and delegates to
+`estimate_single_trial`.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name               | Type                                     | Description                                                                                                                                                                                                                                                                                                                                                                                                                    | Default    |
+|--------------------|------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| dataset            | FmriDataset                              | Typed dataset carrying time-series data and an event table.                                                                                                                                                                                                                                                                                                                                                                    | _required_ |
+| spec               | str or list of Term or EventModelBuilder | Trialwise specification. Slice 1 accepts whatever `fmrimod.event_model` accepts: a string formula such as ``"trialwise()"`` or ``"trialwise(add_sum=True)"``, a list of `Term` objects, or a builder. Routing typed `Spec`/``Term`` trees through this wrapper waits on the typed compile path learning the trialwise placeholder lowering (separate follow-on slice). | _required_ |
+| method             | SingleTrialMethod or literal string      | Estimator selector; see `estimate_single_trial`.                                                                                                                                                                                                                                                                                                                                                                         | `'lss'`    |
+| confounds          | NDArray\[np.float64\] \| None            | oasis_config, sbhm_config, sbhm_library, include_intercept Forwarded to `estimate_single_trial`.                                                                                                                                                                                                                                                                                                                         | `None`     |
+| return_se          | NDArray\[np.float64\] \| None            | oasis_config, sbhm_config, sbhm_library, include_intercept Forwarded to `estimate_single_trial`.                                                                                                                                                                                                                                                                                                                         | `None`     |
+| prewhiten          | NDArray\[np.float64\] \| None            | oasis_config, sbhm_config, sbhm_library, include_intercept Forwarded to `estimate_single_trial`.                                                                                                                                                                                                                                                                                                                         | `None`     |
+| nuisance_projector | NDArray\[np.float64\] \| None            | oasis_config, sbhm_config, sbhm_library, include_intercept Forwarded to `estimate_single_trial`.                                                                                                                                                                                                                                                                                                                         | `None`     |
+| chunk_size         | NDArray\[np.float64\] \| None            | oasis_config, sbhm_config, sbhm_library, include_intercept Forwarded to `estimate_single_trial`.                                                                                                                                                                                                                                                                                                                         | `None`     |
+| block              | object                                   | Forwarded to `fmrimod.event_model`. ``block`` and ``durations`` default to event-table column auto-detection (``run``/``block`` and ``duration``).                                                                                                                                                                                                                                                                       | `None`     |
+| durations          | object                                   | Forwarded to `fmrimod.event_model`. ``block`` and ``durations`` default to event-table column auto-detection (``run``/``block`` and ``duration``).                                                                                                                                                                                                                                                                       | `None`     |
+| precision          | object                                   | Forwarded to `fmrimod.event_model`. ``block`` and ``durations`` default to event-table column auto-detection (``run``/``block`` and ``duration``).                                                                                                                                                                                                                                                                       | `None`     |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type              | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+|--------|-------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|        | SingleTrialResult | Carries ``trial_labels`` derived from the trialwise term column names plus dataset-derived metadata: ``trial_table`` (the events slice aligned with ``betas`` rows), ``run_labels`` (per-trial block/run id when the events table carries one), ``subject_id`` (when the dataset advertises one), and ``spatial_descriptor`` (the capability label describing the voxel space the betas live in). Matrix-first `estimate_single_trial` callers continue to leave all four metadata fields ``None``. |

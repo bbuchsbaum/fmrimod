@@ -234,7 +234,7 @@ agility compounds rather than decays. We accept it.
   caveat and every roadmap item has a bead. Reservations are taken
   before editing shared paths. See [`AGENTS.md`](AGENTS.md) for the
   workflow.
-- **Tests are first-class evidence.** `python3.9 -m pytest tests/ -k
+- **Tests are first-class evidence.** `.venv/bin/python -m pytest tests/ -k
   "not rpy2"` is the always-on gate; `./benchmarks/` and
   `cross_testing/` parity runs are exercised when their inputs change.
 - **Documentation is part of the API.** Quarto tutorials and the

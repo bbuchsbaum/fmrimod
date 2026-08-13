@@ -15,13 +15,13 @@ exceeds the threshold.
 | Name      | Type                                           | Description                                                                                                              | Default    |
 |-----------|------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------|------------|
 | X         | EventModel, numpy.ndarray, or pandas.DataFrame | Design matrix to check. Intercept-like columns (named ``'Intercept'``, ``'constant'``, etc.) are automatically excluded. | _required_ |
-| threshold | [float](`float`)                               | Absolute correlation above which a pair is flagged as collinear.                                                         | `0.9`      |
+| threshold | float                                          | Absolute correlation above which a pair is flagged as collinear.                                                         | `0.9`      |
 
 ## Returns {.doc-section .doc-section-returns}
 
-| Name   | Type           | Description                                                                                                                                                                    |
-|--------|----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|        | [dict](`dict`) | ``{'ok': bool, 'pairs': DataFrame}`` where ``ok`` is True when no pair exceeds the threshold. The ``pairs`` DataFrame has columns ``regressor_1``, ``regressor_2``, and ``r``. |
+| Name   | Type   | Description                                                                                                                                                                    |
+|--------|--------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|        | dict   | ``{'ok': bool, 'pairs': DataFrame}`` where ``ok`` is True when no pair exceeds the threshold. The ``pairs`` DataFrame has columns ``regressor_1``, ``regressor_2``, and ``r``. |
 
 ## Examples {.doc-section .doc-section-examples}
 

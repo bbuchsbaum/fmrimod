@@ -6,31 +6,31 @@ design_matrix(x, **kwargs)
 
 Extract or construct a design matrix.
 
-This is a :func:`functools.singledispatch` generic function: ``x``
+This is a `functools.singledispatch` generic function: ``x``
 is intentionally ``Any`` because the dispatcher inspects its
 runtime type and routes to one of several typed registrations
-(``EventModel``, :class:`BaselineModel`, :class:`BaselineTerm`,
-:class:`EventTerm`). The registered implementations carry their
+(``EventModel``, `BaselineModel`, `BaselineTerm`,
+`EventTerm`). The registered implementations carry their
 own typed signatures.
 
 ## Parameters {.doc-section .doc-section-parameters}
 
-| Name     | Type                | Description                                   | Default    |
-|----------|---------------------|-----------------------------------------------|------------|
-| x        | [object](`object`)  | Object to extract design matrix from          | _required_ |
-| **kwargs | [Any](`typing.Any`) | Additional arguments depending on object type | `{}`       |
+| Name     | Type   | Description                                   | Default    |
+|----------|--------|-----------------------------------------------|------------|
+| x        | object | Object to extract design matrix from          | _required_ |
+| **kwargs | Any    | Additional arguments depending on object type | `{}`       |
 
 ## Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                                                                             | Description   |
-|--------|----------------------------------------------------------------------------------|---------------|
-|        | [Array](`fmrimod.types.Array`) or [pd](`pandas`).[DataFrame](`pandas.DataFrame`) | Design matrix |
+| Name   | Type                  | Description   |
+|--------|-----------------------|---------------|
+|        | Array or pd.DataFrame | Design matrix |
 
 ## Raises {.doc-section .doc-section-raises}
 
-| Name   | Type                                         | Description                             |
-|--------|----------------------------------------------|-----------------------------------------|
-|        | [NotImplementedError](`NotImplementedError`) | If no method exists for the object type |
+| Name   | Type                | Description                             |
+|--------|---------------------|-----------------------------------------|
+|        | NotImplementedError | If no method exists for the object type |
 
 ## Examples {.doc-section .doc-section-examples}
 
@@ -38,7 +38,7 @@ own typed signatures.
 >>> # From EventModel
 >>> model = event_model("condition + rating", data=df, tr=2.0, n_scans=100)
 >>> X = design_matrix(model)
->>> 
+>>>
 >>> # From baseline model (when implemented)
 >>> baseline = baseline_model(poly(3), sampling_info)
 >>> X_baseline = design_matrix(baseline)

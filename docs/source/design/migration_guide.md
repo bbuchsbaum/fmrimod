@@ -281,7 +281,7 @@ As of January 2025, fmrimod implements approximately 80% of fmridesign's functio
 
 ## Getting Help
 
-- **Documentation**: https://fmrimod.readthedocs.io
+- **Documentation**: https://bbuchsbaum.github.io/fmrimod/
 - **Examples**: See the `examples/` directory
 - **Issues**: https://github.com/bbuchsbaum/fmrimod/issues
 

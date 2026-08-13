@@ -18,4 +18,4 @@ hrf_formula(
 )
 ```
 
-HRF formula function. See :func:`fmrimod.formula.functional.hrf`.
+HRF formula function. See `fmrimod.formula.functional.hrf`.
