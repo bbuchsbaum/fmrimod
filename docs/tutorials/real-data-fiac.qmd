@@ -243,8 +243,8 @@ fitted masker that extracted those voxels now restores them to the FIAC image
 grid. A 4 mm FWHM Gaussian smooth is applied to each BOLD run before the model
 fit, a modest choice for these 3 mm voxels. The Nilearn reference in the
 matching parity workflow receives the identically smoothed inputs. The display
-threshold of `|t| >= 2` is descriptive; it is not a multiple-comparison-
-corrected inferential threshold.
+threshold of `|t| >= 2` is descriptive; it is not corrected for multiple
+comparisons.
 
 ```{python}
 sentence_t_img = masker.inverse_transform(results["sentence_effect"].stat)
