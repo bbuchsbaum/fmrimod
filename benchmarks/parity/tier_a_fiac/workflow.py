@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 from nilearn.datasets import fetch_fiac_first_level
 from nilearn.glm.first_level import FirstLevelModel
-from nilearn.image import load_img, new_img_like
+from nilearn.image import load_img, new_img_like, smooth_img
 from nilearn.maskers import NiftiMasker
 from numpy.typing import NDArray
 
@@ -28,6 +28,7 @@ from fmrimod.model.config import FmriLmConfig
 
 Array = NDArray[np.float64]
 MAX_VOXELS = 2048
+SMOOTHING_FWHM_MM = 4.0
 
 
 @dataclass(frozen=True)
@@ -104,7 +105,10 @@ def load_inputs(max_voxels: int = MAX_VOXELS) -> FiacInputs:
         ),
     }
     return FiacInputs(
-        run_imgs=(load_img(data.func1), load_img(data.func2)),
+        run_imgs=tuple(
+            smooth_img(load_img(path), fwhm=SMOOTHING_FWHM_MM)
+            for path in (data.func1, data.func2)
+        ),
         design_matrices=(design1, design2),
         mask_img=_sparse_mask_from_mask(load_img(data.mask), max_voxels=max_voxels),
         contrast_vectors=contrast_vectors,
@@ -158,7 +162,7 @@ def fmrimod_pipeline(
         timing_sink["fmrimod_masker_seconds"] = time.perf_counter() - start
     fits = []
     for index, (img, design) in enumerate(
-        zip(inputs.run_imgs, inputs.design_matrices),
+        zip(inputs.run_imgs, inputs.design_matrices, strict=True),
         start=1,
     ):
         dataset_start = time.perf_counter()

@@ -264,24 +264,24 @@
         "FIAC still consumes Nilearn-realized design matrices instead of authoring the event model natively in fmrimod"
       ],
       "callsite_receipts": [
-        "benchmarks/parity/tier_a_fiac/workflow.py:177",
-        "benchmarks/parity/tier_a_fiac/workflow.py:187",
-        "benchmarks/parity/tier_a_fiac/workflow.py:207"
+        "benchmarks/parity/tier_a_fiac/workflow.py:181",
+        "benchmarks/parity/tier_a_fiac/workflow.py:191",
+        "benchmarks/parity/tier_a_fiac/workflow.py:211"
       ],
       "timings": {
-        "seconds": 2.1142703760000003,
+        "seconds": 2.418598625983577,
         "stages": {
-          "fmrimod_combine_seconds": 2.5250000000198725e-05,
-          "fmrimod_contrast_seconds": 0.003040541999999924,
-          "fmrimod_masker_seconds": 0.09241316699999969,
-          "fmrimod_run1_dataset_seconds": 0.2076667080000001,
-          "fmrimod_run1_design_seconds": 7.299999999998974e-05,
-          "fmrimod_run1_fit_seconds": 0.04012062500000013,
-          "fmrimod_run2_dataset_seconds": 0.20497925000000006,
-          "fmrimod_run2_design_seconds": 6.191700000002243e-05,
-          "fmrimod_run2_fit_seconds": 0.0025535000000003194,
-          "load_inputs_seconds": 0.28987808300000006,
-          "nilearn_pipeline_seconds": 1.2734583339999999
+          "fmrimod_combine_seconds": 8.457980584353209e-06,
+          "fmrimod_contrast_seconds": 0.002289625001139939,
+          "fmrimod_masker_seconds": 0.09945916698779911,
+          "fmrimod_run1_dataset_seconds": 0.09295691701117903,
+          "fmrimod_run1_design_seconds": 8.183298632502556e-05,
+          "fmrimod_run1_fit_seconds": 0.013341874990146607,
+          "fmrimod_run2_dataset_seconds": 0.14062987500801682,
+          "fmrimod_run2_design_seconds": 5.34169957973063e-05,
+          "fmrimod_run2_fit_seconds": 0.001916667039040476,
+          "load_inputs_seconds": 1.1348782500135712,
+          "nilearn_pipeline_seconds": 0.9329825419699773
         },
         "status": "recorded",
         "source": "benchmarks/parity/tier_a_fiac/reports/parity_report.json"

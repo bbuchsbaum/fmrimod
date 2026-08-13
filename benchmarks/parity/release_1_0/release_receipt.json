@@ -233,20 +233,20 @@
       "report_path": "benchmarks/parity/tier_a_fiac/reports/parity_report.json",
       "required_public_path": "fmri_dataset -> RealizedDesign(source='nilearn') -> fmri_lm",
       "timings": {
-        "seconds": 2.1142703760000003,
+        "seconds": 2.418598625983577,
         "source": "benchmarks/parity/tier_a_fiac/reports/parity_report.json",
         "stages": {
-          "fmrimod_combine_seconds": 2.5250000000198725e-05,
-          "fmrimod_contrast_seconds": 0.003040541999999924,
-          "fmrimod_masker_seconds": 0.09241316699999969,
-          "fmrimod_run1_dataset_seconds": 0.2076667080000001,
-          "fmrimod_run1_design_seconds": 7.299999999998974e-05,
-          "fmrimod_run1_fit_seconds": 0.04012062500000013,
-          "fmrimod_run2_dataset_seconds": 0.20497925000000006,
-          "fmrimod_run2_design_seconds": 6.191700000002243e-05,
-          "fmrimod_run2_fit_seconds": 0.0025535000000003194,
-          "load_inputs_seconds": 0.28987808300000006,
-          "nilearn_pipeline_seconds": 1.2734583339999999
+          "fmrimod_combine_seconds": 8.457980584353209e-06,
+          "fmrimod_contrast_seconds": 0.002289625001139939,
+          "fmrimod_masker_seconds": 0.09945916698779911,
+          "fmrimod_run1_dataset_seconds": 0.09295691701117903,
+          "fmrimod_run1_design_seconds": 8.183298632502556e-05,
+          "fmrimod_run1_fit_seconds": 0.013341874990146607,
+          "fmrimod_run2_dataset_seconds": 0.14062987500801682,
+          "fmrimod_run2_design_seconds": 5.34169957973063e-05,
+          "fmrimod_run2_fit_seconds": 0.001916667039040476,
+          "load_inputs_seconds": 1.1348782500135712,
+          "nilearn_pipeline_seconds": 0.9329825419699773
         },
         "status": "recorded"
       },
@@ -335,7 +335,7 @@
       "current_status": "ready",
       "evidence_level": "flagship_workflow",
       "family": "second-level/group inference",
-      "fmrimod_path": "benchmarks/parity/tier_group_semantic_survival/workflow.py::run_demo: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
+      "fmrimod_path": "benchmarks/parity/tier_group_semantic_survival/workflow.py::run_demo: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> group_model -> ols_voxelwise",
       "hardware_tag": "Darwin-arm64-arm",
       "owner_bead": "bd-01KRHTJ9WFSSBZSDGAN4V7PHGS",
       "private_kernel_evidence": {
@@ -372,15 +372,15 @@
       "reference_path": "not_applicable: semantic-survival artifact built on the strict tier_a_f_confound_drift numerical oracle",
       "release_family_class": "native_flagship",
       "report_path": "benchmarks/parity/tier_group_semantic_survival/reports/semantic_survival_report.json",
-      "required_public_path": "fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
+      "required_public_path": "fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> group_model -> ols_voxelwise",
       "timings": {
-        "seconds": 0.0991808759999997,
+        "seconds": 0.27850279100000064,
         "source": "benchmarks/parity/tier_group_semantic_survival/reports/semantic_survival_report.json",
         "stages": {
-          "first_level_seconds": 0.0372889169999997,
-          "group_dataset_seconds": 0.00018512499999978616,
-          "group_fit_seconds": 0.0014443750000001643,
-          "load_inputs_seconds": 0.060262459000000046
+          "first_level_seconds": 0.20433100000000026,
+          "group_dataset_seconds": 0.0001897909999999392,
+          "group_fit_seconds": 0.0011652500000001176,
+          "load_inputs_seconds": 0.07281675000000032
         },
         "status": "recorded"
       },
@@ -389,7 +389,8 @@
         "fmrimod.design.DesignColumns",
         "fmrimod.contrast.OmnibusContrast",
         "fmrimod.glm.ContrastResult",
-        "fmrimod.group.GroupDataset"
+        "fmrimod.group.GroupDataset",
+        "fmrimod.group.GroupLinearModel"
       ],
       "workflow_path": "benchmarks/parity/tier_group_semantic_survival/workflow.py"
     },
@@ -466,7 +467,7 @@
       "current_status": "ready",
       "evidence_level": "flagship_workflow",
       "family": "typed proof scorecard / underdog showcase",
-      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::render: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
+      "fmrimod_path": "benchmarks/parity/tier_d_showcase/workflow.py::render: fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> group_model -> ols_voxelwise",
       "hardware_tag": "Darwin-arm64-arm",
       "owner_bead": "bd-01KRJ0PM9ERPJH7GX0PYYVY2NK",
       "private_kernel_evidence": {
@@ -506,15 +507,15 @@
       "reference_path": "benchmarks/parity/tier_d_showcase/workflow.py::_lss_reference and exact GLM helpers plus tier_group_semantic_survival oracle",
       "release_family_class": "native_flagship",
       "report_path": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json",
-      "required_public_path": "fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> ols_voxelwise",
+      "required_public_path": "fmri_dataset -> fmri_lm -> OmnibusContrast -> ContrastResult.explain -> GroupDataset -> group_model -> ols_voxelwise",
       "timings": {
-        "seconds": 0.04528841700000008,
+        "seconds": 0.09773583299999977,
         "source": "benchmarks/parity/tier_d_showcase/reports/showcase_report.json",
         "stages": {
-          "first_level_seconds": 0.018909874999999854,
-          "group_dataset_seconds": 0.00017412500000002495,
-          "group_fit_seconds": 0.0006257500000002025,
-          "load_inputs_seconds": 0.025578667
+          "first_level_seconds": 0.018393042000000026,
+          "group_dataset_seconds": 0.00017104099999976086,
+          "group_fit_seconds": 0.0005860840000000422,
+          "load_inputs_seconds": 0.07858566599999994
         },
         "status": "recorded"
       },
@@ -524,7 +525,8 @@
         "fmrimod.contrast.OmnibusContrast",
         "fmrimod.glm.FmriLm",
         "fmrimod.glm.ContrastResult",
-        "fmrimod.group.GroupDataset"
+        "fmrimod.group.GroupDataset",
+        "fmrimod.group.GroupLinearModel"
       ],
       "workflow_path": "benchmarks/parity/tier_d_showcase/workflow.py"
     }

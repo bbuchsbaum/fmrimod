@@ -55,7 +55,7 @@ result.estimate
 <a href="tutorials/real-data-fiac.qmd" aria-label="Open the real FIAC analysis">
   <img
     src="assets/fiac-sentence-effect.png"
-    alt="Six axial slices of the FIAC participant's brain showing the pooled same-sentence minus different-sentence t statistic."
+    alt="A centered two-by-four axial montage of the FIAC participant's brain showing the pooled same-sentence minus different-sentence t statistic after 4 mm smoothing of the BOLD data."
     loading="eager">
 </a>
 ```

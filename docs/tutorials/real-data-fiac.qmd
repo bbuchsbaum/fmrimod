@@ -39,7 +39,7 @@ The public fmrimod seam below fits both 191-volume runs across all 28,008
 in-mask voxels, restores a pooled sentence-effect statistic to NIfTI space,
 and renders the brain image shown on the [landing page](../index.qmd). The
 matching checked-in FIAC receipt reports `pass`, no active caveats, and a
-maximum t-statistic difference of about `6.05e-12` from Nilearn on its
+maximum t-statistic difference below `4e-11` from Nilearn on its
 deterministic 2,048-voxel parity subset.
 
 This is an interoperability result: Nilearn supplies the realized design and
@@ -55,10 +55,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.cm import ScalarMappable
+from matplotlib.colors import Normalize
 from nilearn.datasets import fetch_fiac_first_level
-from nilearn.image import load_img, mean_img
+from nilearn.image import load_img, mean_img, smooth_img
 from nilearn.maskers import NiftiMasker
 from nilearn.plotting import plot_design_matrix, plot_stat_map
+from nilearn.plotting.cm import cold_hot
 
 import fmrimod as fm
 from fmrimod.design import RealizedDesign
@@ -134,10 +137,15 @@ source. The Moore-Penrose solver is selected because it matches the least-
 squares route used by the FIAC parity reference.
 
 ```{python}
+smoothing_fwhm_mm = 4.0
+analysis_imgs = tuple(
+    smooth_img(img, fwhm=smoothing_fwhm_mm)
+    for img in run_imgs
+)
 masker = NiftiMasker(mask_img=mask_img).fit()
 fits = []
 
-for run_img, design_matrix in zip(run_imgs, design_matrices):
+for run_img, design_matrix in zip(analysis_imgs, design_matrices):
     signals = masker.transform(run_img)
     dataset = fm.fmri_dataset(
         signals,
@@ -232,8 +240,11 @@ tutorial does not claim that stronger interface.
 
 `results["sentence_effect"].stat` is one value per masked voxel. The same
 fitted masker that extracted those voxels now restores them to the FIAC image
-grid. The display threshold of `|t| >= 2` is only for legibility; it is not a
-multiple-comparison-corrected inferential threshold.
+grid. A 4 mm FWHM Gaussian smooth is applied to each BOLD run before the model
+fit, a modest choice for these 3 mm voxels. The Nilearn reference in the
+matching parity workflow receives the identically smoothed inputs. The display
+threshold of `|t| >= 2` is descriptive; it is not a multiple-comparison-
+corrected inferential threshold.
 
 ```{python}
 sentence_t_img = masker.inverse_transform(results["sentence_effect"].stat)
@@ -241,25 +252,78 @@ sentence_t_img = masker.inverse_transform(results["sentence_effect"].stat)
 
 ```{python}
 #| label: fig-fiac-sentence-effect
-#| fig-alt: "Six axial slices of the FIAC participant's mean functional image. Warm red and yellow areas show positive same-sentence minus different-sentence t statistics of at least 2, while blue areas show negative statistics of at most minus 2. Left and right are labeled on every slice."
-#| fig-cap: "Fixed-effects sentence statistic (same sentence minus different sentence) pooled across two FIAC runs and restored through the fitted NiftiMasker. Colors show t statistics where absolute t is at least 2; the threshold is descriptive, not a corrected significance claim."
-#| fig-width: 12
-#| fig-height: 3.6
-stat_display = plot_stat_map(
-    sentence_t_img,
-    bg_img=mean_img(run_imgs[0]),
-    threshold=2.0,
-    display_mode="z",
-    cut_coords=(28, 44, 60, 76, 92, 108),
-    colorbar=True,
-    title="Same sentence - different sentence",
+#| fig-alt: "A centered two-by-four montage of axial FIAC brain slices from z equals 32 through 88 millimeters. On the participant's mean functional image, warm colors show positive same-sentence minus different-sentence t statistics of at least 2 and cool colors show negative values of at most minus 2."
+#| fig-cap: "Fixed-effects sentence statistic (same sentence minus different sentence) pooled across two FIAC runs and restored through the fitted NiftiMasker. The BOLD data were smoothed at 4 mm FWHM before fitting; colors show absolute t statistics of at least 2 for spatial orientation, not corrected inference."
+#| fig-width: 11
+#| fig-height: 6
+display_threshold = 2.0
+display_limit = 5.0
+cut_coords = (32, 40, 48, 56, 64, 72, 80, 88)
+
+montage_fig, montage_axes = plt.subplots(
+    2,
+    4,
+    figsize=(11, 5.8),
+    facecolor="white",
 )
+
+for axis, z_coord in zip(montage_axes.flat, cut_coords):
+    plot_stat_map(
+        sentence_t_img,
+        bg_img=mean_img(run_imgs),
+        threshold=display_threshold,
+        vmax=display_limit,
+        symmetric_cbar=True,
+        display_mode="z",
+        cut_coords=[z_coord],
+        colorbar=False,
+        annotate=False,
+        draw_cross=False,
+        black_bg=False,
+        dim=-0.25,
+        cmap=cold_hot,
+        axes=axis,
+    )
+    axis.set_title(f"z = {z_coord} mm", fontsize=10, pad=5, color="#252a34")
+    axis.text(0.02, 0.88, "L", transform=axis.transAxes, fontsize=9)
+    axis.text(0.98, 0.88, "R", transform=axis.transAxes, fontsize=9, ha="right")
+    axis.set_facecolor("white")
+
+montage_fig.subplots_adjust(
+    left=0.02,
+    right=0.91,
+    bottom=0.05,
+    top=0.96,
+    wspace=0.08,
+    hspace=0.16,
+)
+color_scale = ScalarMappable(
+    norm=Normalize(vmin=-display_limit, vmax=display_limit),
+    cmap=cold_hot,
+)
+color_scale.set_array([])
+colorbar = montage_fig.colorbar(
+    color_scale,
+    ax=montage_axes.ravel().tolist(),
+    fraction=0.025,
+    pad=0.025,
+    shrink=0.8,
+    extend="both",
+)
+colorbar.set_label("t statistic", fontsize=10)
+colorbar.ax.tick_params(labelsize=9)
+
 docs_root = next(
     candidate
     for candidate in (Path.cwd(), *Path.cwd().parents)
     if (candidate / "_quarto.yml").is_file()
 )
-stat_display.savefig(docs_root / "assets/fiac-sentence-effect.png", dpi=150)
+montage_fig.savefig(
+    docs_root / "assets/fiac-sentence-effect.png",
+    dpi=180,
+    bbox_inches="tight",
+    facecolor="white",
+)
 plt.show()
 ```
 
