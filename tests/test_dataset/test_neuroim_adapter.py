@@ -101,6 +101,27 @@ def test_neurovec_adapter_from_array_round_trip():
     np.testing.assert_allclose(np.diag(affine)[:3], (2.0, 2.0, 3.0))
 
 
+def test_neurovec_adapter_returns_spatial_affine_for_4d_space():
+    shape = (3, 4, 2, 5)
+    affine = np.array(
+        [
+            [-2.0, 0.0, 0.0, 18.0],
+            [0.0, 3.0, 0.0, -21.0],
+            [0.0, 0.0, 4.0, 7.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    vec = neuroim.DenseNeuroVec(
+        np.ones(shape, dtype=np.float64),
+        neuroim.NeuroSpace.from_affine(affine, shape),
+    )
+
+    adapter = NeuroVecAdapter(vec, tr=2.0)
+
+    assert adapter.get_affine().shape == (4, 4)
+    np.testing.assert_allclose(adapter.get_affine(), affine)
+
+
 def test_fmri_dataset_accepts_neurovec():
     vec = _make_neurovec()
     events = pd.DataFrame({"onset": [0.0, 10.0], "trial_type": ["a", "b"]})

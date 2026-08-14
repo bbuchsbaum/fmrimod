@@ -18,24 +18,6 @@ if TYPE_CHECKING:
     import neuroim  # type: ignore[import-untyped]
 
 
-def _spacing_from_affine(
-    affine: NDArray[np.float64],
-) -> tuple[float, float, float]:
-    """Pull voxel sizes from a 4x4 affine."""
-    if affine.shape == (4, 4):
-        scale = np.linalg.norm(affine[:3, :3], axis=0)
-        return (float(scale[0]), float(scale[1]), float(scale[2]))
-    raise ValueError(f"Expected 4x4 affine; got shape {affine.shape}")
-
-
-def _origin_from_affine(
-    affine: NDArray[np.float64],
-) -> tuple[float, float, float]:
-    if affine.shape == (4, 4):
-        return (float(affine[0, 3]), float(affine[1, 3]), float(affine[2, 3]))
-    raise ValueError(f"Expected 4x4 affine; got shape {affine.shape}")
-
-
 @dataclass(frozen=True)
 class SpatialContext:
     """Inverse-transform metadata for a masked voxel vector.
@@ -97,17 +79,14 @@ class SpatialContext:
         """Build a 3-D ``neuroim.NeuroSpace`` for this context."""
         import neuroim
 
-        spacing = self.spacing
-        origin = self.origin
-        if spacing is None or origin is None:
-            if self.affine is not None:
-                if spacing is None:
-                    spacing = _spacing_from_affine(self.affine)
-                if origin is None:
-                    origin = _origin_from_affine(self.affine)
-            else:
-                spacing = spacing or (1.0, 1.0, 1.0)
-                origin = origin or (0.0, 0.0, 0.0)
+        if self.affine is not None:
+            return neuroim.NeuroSpace.from_affine(
+                self.affine,
+                self.spatial_shape,
+            )
+
+        spacing = self.spacing or (1.0, 1.0, 1.0)
+        origin = self.origin or (0.0, 0.0, 0.0)
 
         return neuroim.NeuroSpace(
             dim=tuple(int(d) for d in self.spatial_shape),

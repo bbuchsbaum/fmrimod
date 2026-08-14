@@ -133,7 +133,10 @@ class NeuroVecAdapter:
         self._start_time = float(start_time)
         self._n_timepoints = [int(v.space.dim[3]) for v in self._vecs]
         self._n_voxels = int(self._mask.sum())
-        self._affine = np.asarray(first.space.trans, dtype=np.float64)
+        # ``NeuroVec`` has a 4-D ``NeuroSpace``, whose full transform may be
+        # 5x5.  DatasetProtocol.get_affine() is specifically the 4x4 spatial
+        # voxel-to-world affine used for image reconstruction.
+        self._affine = np.asarray(first.space.affine, dtype=np.float64)
 
     # -- DatasetProtocol implementation --
 

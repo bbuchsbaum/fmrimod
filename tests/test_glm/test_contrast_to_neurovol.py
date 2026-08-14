@@ -11,6 +11,7 @@ from fmrimod.dataset.adapters import NumpyAdapter
 from fmrimod.dataset.fmri_dataset import FmriDataset
 from fmrimod.glm import combine_runs, fit_glm_from_suffstats
 from fmrimod.glm.contrasts import ContrastResult
+from fmrimod.glm.spatial import SpatialContext
 from fmrimod.sampling import SamplingFrame
 
 neuroim = pytest.importorskip("neuroim")
@@ -62,6 +63,35 @@ def test_contrast_to_neurovol_reconstructs_masked_statistic():
     expected = np.full(_mask().shape, -1.0, dtype=np.float64)
     expected[_mask()] = result.stat
     np.testing.assert_allclose(vol.data, expected)
+
+
+def test_contrast_to_neurovol_preserves_signed_affine():
+    affine = np.array(
+        [
+            [-2.0, 0.0, 0.0, 18.0],
+            [0.0, 3.0, 0.0, -21.0],
+            [0.0, 0.0, 4.0, 7.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    result = ContrastResult(
+        name="signed-affine",
+        estimate=np.array([1.0, 2.0, 3.0]),
+        stat=np.array([2.0, 3.0, 4.0]),
+        se=np.ones(3),
+        p_value=np.full(3, 0.05),
+        df=7.0,
+        stat_type="t",
+        spatial=SpatialContext(
+            mask=_mask(),
+            spatial_shape=_mask().shape,
+            affine=affine,
+        ),
+    )
+
+    vol = result.to_neurovol("stat")
+
+    np.testing.assert_allclose(vol.space.affine, affine)
 
 
 def test_contrast_to_neurovec_stacks_t_statistics():
