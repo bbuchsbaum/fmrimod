@@ -13,7 +13,7 @@ jupyter: python3
 <h1>fMRI design and statistical modeling in Python</h1>
 ```
 
-[Construct HRFs, design matrices and contrasts as inspectable Python objects, fit first-level and group models, and examine the design at each stage.]{.lead}
+[Construct HRFs, design matrices and contrasts as explicit Python objects, fit first-level and group models, and examine the design at each stage.]{.lead}
 
 [Get started →](get-started.qmd){.btn .btn-primary}
 [API reference](reference/index.qmd){.btn .btn-outline-secondary}
@@ -55,7 +55,7 @@ result.estimate
 <a href="tutorials/real-data-fiac.qmd" aria-label="Open the real FIAC analysis">
   <img
     src="assets/fiac-sentence-effect.png"
-    alt="A centered two-by-four axial montage of the FIAC participant's brain showing the pooled same-sentence minus different-sentence t statistic after 4 mm smoothing of the BOLD data."
+    alt="A centered two-by-four axial montage of the FIAC participant's brain showing the same-sentence minus different-sentence t statistic from one two-run model after 6 mm smoothing of the BOLD data."
     loading="eager">
 </a>
 ```
@@ -63,9 +63,10 @@ result.estimate
 ::: {.proof-feature-copy}
 ## From typed contrast to brain image
 
-Fit both runs of a published FIAC experiment, pool named sentence and speaker
-effects, restore the statistic through the fitted masker, and compare the
-same task with its checked-in Nilearn parity receipt.
+Fit both runs of a published FIAC experiment in one neuroim-backed dataset,
+state named sentence and speaker effects, and restore the statistic to a
+neuroim brain image. A separate checked-in receipt verifies the explicit
+Nilearn-compatible equal-weight pooling path.
 
 [Run the real-data tutorial →](tutorials/real-data-fiac.qmd)
 :::
@@ -133,14 +134,14 @@ pd.DataFrame({
 The R-style string formula still works and compiles to the *same* Spec
 tree: `fm.fmri_lm("hrf(condition)", dataset)` is exact sugar for
 `fm.fmri_lm(hrf("condition"), dataset)`. Prefer the object form in Python:
-it is composable, IDE-introspectable, and inspectable before fitting.
+it is composable, IDE-introspectable, and visible before fitting.
 :::
 
 ## Design principles {.promise-heading}
 
 ::: {.promise-grid}
 ::: {.promise-card}
-### Typed
+### Intent as data
 HRFs, baselines, contrasts, AR options, single-trial estimators and group
 reductions are Python objects that can be inspected. They are constructed
 once and validated at construction. [Get started](get-started.qmd)

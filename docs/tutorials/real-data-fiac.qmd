@@ -10,13 +10,15 @@ execute:
 This tutorial fits two real functional runs from the Functional Imaging
 Analysis Contest (FIAC). The question is a 2 x 2 factorial one: does the BOLD
 response differ when a sentence is repeated, and does it differ when the
-speaker is repeated? We will inspect the inputs, fit each run, pool the runs,
-and put the sentence-effect statistic back into image space.
+speaker is repeated? We will inspect the inputs, put both runs in one dataset,
+fit one model, and return the sentence-effect statistic to image space.
 
 ::: {.callout-note}
 ## Before you run it
 
-Install `nilearn>=0.12` alongside fmrimod. On first use,
+From a source checkout, the `docs` extra installs `nilearn>=0.12` and the
+current [`neuroim-python`](https://github.com/bbuchsbaum/neuroim-python)
+directly from GitHub. On first use,
 `fetch_fiac_first_level()` downloads roughly 80 MB and stores it in Nilearn's
 data cache (by default, `~/nilearn_data`); the process therefore needs network
 access and a writable cache. Later runs reuse those files. Allow under a minute
@@ -35,16 +37,18 @@ normalization are upstream of fmrimod and out of scope here.
 ::: {.callout-tip}
 ## Result and receipt at a glance
 
-The public fmrimod seam below fits both 191-volume runs across all 28,008
-in-mask voxels, restores a pooled sentence-effect statistic to NIfTI space,
-and renders the brain image shown on the [landing page](../index.qmd). The
-matching checked-in FIAC receipt reports `pass`, no active caveats, and a
-maximum t-statistic difference below `4e-11` from Nilearn on its
-deterministic 2,048-voxel parity subset.
+The public seam below fits both 191-volume runs across all 28,008 in-mask
+voxels as one `FmriDataset` and one `FmriLm`. `neuroim` owns image reading,
+6 mm FWHM smoothing, masking, spatial metadata, and the reconstructed
+statistic shown on the [landing page](../index.qmd). fmrimod's default
+`RunwiseEngine` keeps run-specific solves internal to that one model.
 
-This is an interoperability result: Nilearn supplies the realized design and
-masker; fmrimod owns the fit, named contrasts, run combination, and result
-objects. Native design authoring is taught separately.
+This remains an interoperability result: Nilearn supplies the download and
+already-realized design matrices; fmrimod and neuroim own the modeling path
+from images onward. Native design authoring is taught separately. A narrower
+checked-in receipt near the end verifies fmrimod's explicit Nilearn-compatible
+equal-weight pooling route; it is clearly separated from the default
+multi-run map shown here.
 :::
 
 ## Fetch and inspect the inputs
@@ -55,41 +59,41 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.cm import ScalarMappable
-from matplotlib.colors import Normalize
+import neuroim as ni
 from nilearn.datasets import fetch_fiac_first_level
-from nilearn.image import load_img, mean_img, smooth_img
-from nilearn.maskers import NiftiMasker
-from nilearn.plotting import plot_design_matrix, plot_stat_map
-from nilearn.plotting.cm import cold_hot
+from nilearn.plotting import plot_design_matrix
 
 import fmrimod as fm
 from fmrimod.design import RealizedDesign
 from fmrimod.model.config import FmriLmConfig
 
 fiac = fetch_fiac_first_level(verbose=0)
-run_imgs = (load_img(fiac.func1), load_img(fiac.func2))
+run_paths = (Path(fiac.func1), Path(fiac.func2))
+run_vecs = tuple(ni.read_vec(path) for path in run_paths)
 design_matrices = (
     fiac.design_matrix1.copy(),
     fiac.design_matrix2.copy(),
 )
-mask_img = load_img(fiac.mask)
+mask_vol = ni.read_vol(fiac.mask)
 tr = float(np.diff(design_matrices[0].index.to_numpy()[:2])[0])
 ```
 
-Each run contains 191 whole-brain volumes. The mask defines the features that
-enter the model; the fitted `NiftiMasker` below retains the inverse mapping
-from those features to the original image grid.
+Each `NeuroVec` contains 191 whole-brain volumes. The `NeuroVol` mask defines
+the features that enter the model. Both retain the spatial transform needed to
+return a result to the same brain grid.
 
 ```{python}
 input_summary = pd.DataFrame(
     {
         "run": (1, 2),
-        "file": tuple(Path(img.get_filename()).name for img in run_imgs),
-        "image shape (x, y, z, time)": tuple(str(img.shape) for img in run_imgs),
+        "file": tuple(path.name for path in run_paths),
+        "image shape (x, y, z, time)": tuple(
+            str(tuple(int(value) for value in vec.space.dim))
+            for vec in run_vecs
+        ),
         "design shape": tuple(str(dm.shape) for dm in design_matrices),
         "TR (s)": tr,
-        "in-mask voxels": int(np.count_nonzero(mask_img.get_fdata())),
+        "in-mask voxels": int(np.count_nonzero(mask_vol.data)),
     }
 )
 input_summary
@@ -123,58 +127,66 @@ design_ax = plot_design_matrix(design_matrices[0])
 plt.show()
 ```
 
-## Fit each run through the public seam
+## Fit one multi-run model through the public seam
 
-Nilearn's masker performs the image-to-matrix boundary. From that point on,
-the analysis uses fmrimod's public path:
+The public dataset owns both runs. `neuroim` performs the image operations and
+fmrimod's adapter performs the masked image-to-matrix boundary internally:
 
 ```text
-fmri_dataset -> RealizedDesign(source="nilearn") -> fmri_lm -> combine_runs
+NeuroVec[2] -> fmri_dataset -> RealizedDesign(source="nilearn") -> fmri_lm
 ```
 
-`RealizedDesign` carries the imported matrix, its stable column names, and its
-source. The Moore-Penrose solver is selected because it matches the least-
-squares route used by the FIAC parity reference.
+Because the imported run designs share the same columns, their rows can be
+stacked in acquisition order. `RealizedDesign` carries that matrix, its stable
+column names, and its source. The Moore-Penrose solver is selected explicitly
+for this externally realized design.
+
+The engine still estimates each run separately because run boundaries carry
+statistical meaning. That split is engine work, not user orchestration: the
+user passes one dataset and receives one fit.
 
 ```{python}
-smoothing_fwhm_mm = 4.0
-analysis_imgs = tuple(
-    smooth_img(img, fwhm=smoothing_fwhm_mm)
-    for img in run_imgs
+smoothing_fwhm_mm = 6.0
+analysis_vecs = tuple(
+    ni.gaussian_blur(vec, fwhm_mm=smoothing_fwhm_mm)
+    for vec in run_vecs
 )
-masker = NiftiMasker(mask_img=mask_img).fit()
-fits = []
+dataset = fm.fmri_dataset(
+    analysis_vecs,
+    mask=mask_vol,
+    tr=tr,
+    slice_timing_offset=0.0,
+)
 
-for run_img, design_matrix in zip(analysis_imgs, design_matrices):
-    signals = masker.transform(run_img)
-    dataset = fm.fmri_dataset(
-        signals,
-        tr=tr,
-        mask=np.ones(signals.shape[1], dtype=bool),
-    )
-    realized_design = RealizedDesign.from_array(
-        design_matrix.to_numpy(dtype=np.float64),
-        columns=tuple(str(column) for column in design_matrix.columns),
-        source="nilearn",
-    )
-    fits.append(
-        fm.fmri_lm(
-            realized_design,
-            dataset,
-            config=FmriLmConfig(solver="pinv"),
-        )
-    )
+design_columns = tuple(str(column) for column in design_matrices[0].columns)
+assert all(
+    tuple(str(column) for column in design.columns) == design_columns
+    for design in design_matrices
+)
+realized_design = RealizedDesign.from_array(
+    np.vstack(
+        [design.to_numpy(dtype=np.float64) for design in design_matrices]
+    ),
+    columns=design_columns,
+    source="nilearn",
+)
+fit = fm.fmri_lm(
+    realized_design,
+    dataset,
+    config=FmriLmConfig(solver="pinv"),
+)
 
-assert all(fit.provenance.design_source == "nilearn" for fit in fits)
-combined = fm.combine_runs(fits)
+assert fit.provenance.design_source == "nilearn"
+assert len(fit.run_results) == dataset.n_runs
 
 pd.DataFrame(
     {
-        "runs": [combined.n_runs],
-        "voxels per run": [combined.n_voxels],
-        "design source": [fits[0].provenance.design_source],
-        "solver path": [fits[0].provenance.solver_path],
-        "pooling": [combined.method],
+        "runs in dataset": [dataset.n_runs],
+        "run lengths": [str(dataset.run_lengths)],
+        "in-mask voxels": [fit.n_voxels],
+        "design rows": [realized_design.n_timepoints],
+        "design source": [fit.provenance.design_source],
+        "engine": [fit.provenance.solver_path],
     }
 )
 ```
@@ -182,12 +194,13 @@ pd.DataFrame(
 ::: {.callout-important}
 ## What this path does—and does not—prove
 
-This is an **interop bridge**. It proves that an externally realized design can
-enter the typed fmrimod seam, retain `source="nilearn"` provenance, and produce
-public fit and contrast objects. It does **not** prove native fmrimod design
-authoring for FIAC, because Nilearn supplied the matrix before fmrimod saw it.
-The distinction matters: carrying a matrix safely is not the same claim as
-expressing the experiment as an fmrimod event-design specification.
+This is an **interop bridge**. It proves that neuroim-backed images and an
+externally realized design can enter one typed multi-run dataset/model, retain
+`source="nilearn"` provenance, and produce public fit, contrast, and NeuroVol
+objects. It does **not** prove native fmrimod design authoring for FIAC, because
+Nilearn supplied the matrix before fmrimod saw it. Carrying a matrix safely is
+not the same claim as expressing the experiment as an fmrimod event-design
+specification.
 :::
 
 ## State the two main effects by column meaning
@@ -213,7 +226,7 @@ main_effects = {
 }
 
 results = {
-    name: combined.contrast(spec)
+    name: fit.contrast(spec)
     for name, spec in main_effects.items()
 }
 
@@ -238,80 +251,66 @@ tutorial does not claim that stronger interface.
 
 ## Return the sentence statistic to the brain
 
-`results["sentence_effect"].stat` is one value per masked voxel. The same
-fitted masker that extracted those voxels now restores them to the FIAC image
-grid. A 4 mm FWHM Gaussian smooth is applied to each BOLD run before the model
-fit, a modest choice for these 3 mm voxels. The Nilearn reference in the
-matching parity workflow receives the identically smoothed inputs. The display
-threshold of `|t| >= 2` is descriptive; it is not corrected for multiple
-comparisons.
+`results["sentence_effect"].stat` is one value per masked voxel.
+`to_neurovol()` uses the spatial context retained by the dataset to restore
+those values to the FIAC grid—no masker or hand-written reshape is needed.
+A 6 mm FWHM Gaussian smooth is applied to each BOLD run before fitting. For
+these 3 x 3 x 4 mm voxels, that produces a more legible descriptive map than
+the earlier 4 mm display while remaining within a conventional single-subject
+scale. The display threshold of `|t| >= 2` is descriptive; it is not corrected
+for multiple comparisons.
 
 ```{python}
-sentence_t_img = masker.inverse_transform(results["sentence_effect"].stat)
+sentence_t_vol = results["sentence_effect"].to_neurovol("stat")
+background_vol = ni.concat(*analysis_vecs).mean()
 ```
 
 ```{python}
 #| label: fig-fiac-sentence-effect
-#| fig-alt: "A centered two-by-four montage of axial FIAC brain slices from z equals 32 through 88 millimeters. On the participant's mean functional image, warm colors show positive same-sentence minus different-sentence t statistics of at least 2 and cool colors show negative values of at most minus 2."
-#| fig-cap: "Fixed-effects sentence statistic (same sentence minus different sentence) pooled across two FIAC runs and restored through the fitted NiftiMasker. The BOLD data were smoothed at 4 mm FWHM before fitting; colors show absolute t statistics of at least 2 for spatial orientation, not corrected inference."
+#| fig-alt: "A centered two-by-four montage of axial FIAC brain slices from z equals 32 through 88 millimeters. On the participant's mean functional image, red areas show positive same-sentence minus different-sentence t statistics of at least 2 and blue areas show negative values of at most minus 2."
+#| fig-cap: "Sentence statistic (same sentence minus different sentence) from one neuroim-backed, two-run fmrimod model. The BOLD data were smoothed at 6 mm FWHM before fitting; colors show absolute t statistics of at least 2 for spatial orientation, not corrected inference."
 #| fig-width: 11
 #| fig-height: 6
 display_threshold = 2.0
 display_limit = 5.0
-cut_coords = (32, 40, 48, 56, 64, 72, 80, 88)
+slice_indices = (8, 10, 12, 14, 16, 18, 20, 22)
 
-montage_fig, montage_axes = plt.subplots(
-    2,
-    4,
+montage_fig, montage_axes = ni.plot_overlay(
+    background=background_vol,
+    overlay=sentence_t_vol,
+    zlevels=slice_indices,
+    axis="z",
+    ncol=4,
     figsize=(11, 5.8),
-    facecolor="white",
+    threshold=display_threshold,
+    overlay_cmap="blue-red",
+    ov_range=(-display_limit, display_limit),
+    ov_cap=display_limit,
+    alpha=0.92,
+    colorbar=True,
+    crop=0.06,
+    title="Sentence effect: same − different",
 )
 
-for axis, z_coord in zip(montage_axes.flat, cut_coords):
-    plot_stat_map(
-        sentence_t_img,
-        bg_img=mean_img(run_imgs),
-        threshold=display_threshold,
-        vmax=display_limit,
-        symmetric_cbar=True,
-        display_mode="z",
-        cut_coords=[z_coord],
-        colorbar=False,
-        annotate=False,
-        draw_cross=False,
-        black_bg=False,
-        dim=-0.25,
-        cmap=cold_hot,
-        axes=axis,
+for axis, slice_index in zip(montage_axes, slice_indices):
+    z_coord = float(
+        sentence_t_vol.space.grid_to_coord([[0, 0, slice_index]])[0, 2]
     )
-    axis.set_title(f"z = {z_coord} mm", fontsize=10, pad=5, color="#252a34")
-    axis.text(0.02, 0.88, "L", transform=axis.transAxes, fontsize=9)
-    axis.text(0.98, 0.88, "R", transform=axis.transAxes, fontsize=9, ha="right")
-    axis.set_facecolor("white")
+    axis.set_title(f"z = {z_coord:.0f} mm", fontsize=10, pad=5, color="#252a34")
+    axis.text(
+        0.02, 0.88, "L", transform=axis.transAxes, fontsize=9, color="white"
+    )
+    axis.text(
+        0.98,
+        0.88,
+        "R",
+        transform=axis.transAxes,
+        fontsize=9,
+        color="white",
+        ha="right",
+    )
 
-montage_fig.subplots_adjust(
-    left=0.02,
-    right=0.91,
-    bottom=0.05,
-    top=0.96,
-    wspace=0.08,
-    hspace=0.16,
-)
-color_scale = ScalarMappable(
-    norm=Normalize(vmin=-display_limit, vmax=display_limit),
-    cmap=cold_hot,
-)
-color_scale.set_array([])
-colorbar = montage_fig.colorbar(
-    color_scale,
-    ax=montage_axes.ravel().tolist(),
-    fraction=0.025,
-    pad=0.025,
-    shrink=0.8,
-    extend="both",
-)
-colorbar.set_label("t statistic", fontsize=10)
-colorbar.ax.tick_params(labelsize=9)
+montage_fig.axes[-1].set_ylabel("t statistic", fontsize=10)
 
 docs_root = next(
     candidate
@@ -327,18 +326,23 @@ montage_fig.savefig(
 plt.show()
 ```
 
-The result is now an ordinary NIfTI image in the source geometry. The masker,
-not a hand-written reshape, owns the correspondence between the statistical
-vector and the image voxels.
+The result is a `neuroim.DenseNeuroVol` in the source geometry. It can be
+converted to a nibabel image with `.to_nibabel()` or written as NIfTI, but the
+analysis and figure do not need to leave the neuroim data model.
 
-## Read the matching parity receipt
+## Read the adjacent parity receipt
 
 The figure shows that the workflow produces an interpretable image; it does
 not establish agreement with an independent implementation. The checked-in
-FIAC receipt compares these same sentence and speaker estimands against
-Nilearn. Its gate uses a deterministic 2,048-voxel subset of the same mask to
-keep repeated parity runs inexpensive, whereas the tutorial above fits all
-in-mask voxels.
+FIAC receipt asks a narrower cross-implementation question: when fmrimod uses
+explicit per-run fits plus `combine_runs()` for Nilearn-compatible equal-weight
+fixed pooling, do these same sentence and speaker estimands agree with
+Nilearn? Its gate uses a deterministic 2,048-voxel subset of the same mask to
+keep repeated parity runs inexpensive.
+
+That receipt reports on the explicit equal-weight pooling path, not on the
+default `RunwiseEngine` map above. Keeping the two claims separate avoids
+presenting a neighboring parity result as evidence for a different estimator.
 
 ```{python}
 import json
@@ -384,9 +388,9 @@ benchmark. From a source checkout, regenerate it with:
 
 ## Where to go next
 
-You can now carry externally authored, model-ready NIfTI data through a
-two-run fmrimod fit and recover a statistical image without losing design
-provenance or hand-aligning contrast weights.
+You can now carry two model-ready NIfTI runs through one neuroim-backed
+fmrimod dataset and fit, then recover a typed statistical volume without
+losing design provenance or hand-aligning contrast weights.
 
 - [Build design matrices](design-matrices.qmd) to author a design from events
   inside fmrimod rather than importing a realized matrix.
