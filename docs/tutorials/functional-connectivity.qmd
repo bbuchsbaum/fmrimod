@@ -1,27 +1,36 @@
 ---
 title: "Functional connectivity"
-subtitle: "Seed-to-target correlation and seed-regressor GLM on the typed fmrimod substrate."
+subtitle: "Seed-to-target correlation and seed-regressor GLM from spatial ROI extraction."
 jupyter: python3
 execute:
   freeze: auto
 ---
 
-Seed-based functional connectivity asks a simple question: which voxels'
-time courses co-vary with a chosen seed region, once nuisance signals
-are removed? This page builds that analysis on the same pieces you
-already use for a GLM — a dataset that owns its timing, a nuisance model,
-the `residualize` projection, and `fmri_lm` itself — so connectivity is
-not a separate toolbox but a short recipe over familiar parts.
+Seed-based functional connectivity asks a simple question: which target
+regions co-vary with a chosen seed region once nuisance signals are removed?
+This page starts from a spatial `neuroim` object, extracts named ROIs, and then
+builds the analysis from the same pieces used for a GLM: a dataset that owns
+its timing, a nuisance model, the `residualize` projection, and `fmri_lm`
+itself.
 
-## A Dataset, Not Bare Arrays
+The input is already preprocessed. Motion correction, registration, spatial
+normalization, and denoising decisions happen upstream. This tutorial begins
+at the point where an aligned four-dimensional image and its regions of
+interest are ready for modeling.
 
-Start from an `fmri_dataset`. It carries the data, the TR, and the sampling
-frame together, so every downstream step reads its timing from one typed
-source instead of re-deriving it.
+## Define and extract the spatial ROIs
+
+The synthetic image below has a non-identity signed affine and 160 time
+points. The seed drives two target regions at different strengths; a control
+region shares only a nuisance signal. `cuboid_roi` defines each region on the
+image grid. `series_roi` returns an `ROIExtractionResult`, not an anonymous
+array.
 
 ```{python}
 import numpy as np
 import pandas as pd
+import neuroim as ni
+
 import fmrimod as fm
 from fmrimod import baseline_model, design_matrix
 from fmrimod.residualize import residualize
@@ -29,22 +38,114 @@ from fmrimod.spec import covariate
 from fmrimod.stats import seed_target_correlation, seed_target_lm
 
 rng = np.random.default_rng(13)
-n_time, n_vox = 160, 9
+n_time = 160
+spatial_shape = (7, 6, 5)
+affine = np.array(
+    [
+        [-2.0, 0.0, 0.0, 10.0],
+        [0.0, 2.0, 0.0, -6.0],
+        [0.0, 0.0, 2.5, -5.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ]
+)
+space_3d = ni.NeuroSpace.from_affine(affine, spatial_shape)
+space_4d = ni.NeuroSpace.from_affine(
+    affine, spatial_shape + (n_time,)
+)
+reference = ni.DenseNeuroVol(np.ones(spatial_shape), space_3d)
 
-# Voxel 0 is the seed; voxels 1-3 are genuinely coupled to it.
-data = rng.normal(size=(n_time, n_vox))
-data[:, 1:4] += 0.45 * data[:, 0:1]
-motion = rng.normal(size=(n_time, 6))   # e.g. realignment parameters
+rois = {
+    "seed": ni.cuboid_roi(
+        reference, centroid=[1, 2, 2], surround=[0, 1, 1], fill=1
+    ),
+    "strong": ni.cuboid_roi(
+        reference, centroid=[3, 2, 2], surround=[0, 1, 1], fill=1
+    ),
+    "moderate": ni.cuboid_roi(
+        reference, centroid=[5, 2, 2], surround=[0, 1, 1], fill=1
+    ),
+    "control": ni.cuboid_roi(
+        reference, centroid=[3, 5, 2], surround=[0, 0, 1], fill=1
+    ),
+}
 
-dataset = fm.fmri_dataset(data, tr=2.0)
-dataset.n_timepoints, dataset.n_voxels
+motion = rng.normal(size=(n_time, 6))
+seed_signal = rng.normal(size=n_time)
+data = rng.normal(scale=0.6, size=spatial_shape + (n_time,))
+for name, coupling in {
+    "seed": 1.0,
+    "strong": 0.65,
+    "moderate": 0.35,
+    "control": 0.0,
+}.items():
+    coords = rois[name].coords
+    data[tuple(coords.T)] += coupling * seed_signal + 0.4 * motion[:, 0]
+
+image = ni.DenseNeuroVec(data, space_4d)
+roi_results = {
+    name: image.series_roi(roi)
+    for name, roi in rois.items()
+}
 ```
 
-## A Typed Nuisance Model
+The extraction receipts make the boundary inspectable. Each result records
+the source-space hash, ROI mask hash, method, dimensions, and coordinates.
+The assertions verify that every extraction still points to the source
+affine and time axis.
 
-The drift, intercept, and motion confounds are a **typed `baseline_model`**,
-not `np.column_stack([...])`. The model owns the column structure; you never
-hand-assemble the nuisance matrix.
+```{python}
+assert all(result.n_timepoints == n_time for result in roi_results.values())
+assert all(
+    np.allclose(result.space.affine, affine)
+    for result in roi_results.values()
+)
+
+pd.DataFrame(
+    [
+        {
+            "ROI": name,
+            "result": type(result).__name__,
+            "time x voxels": str(result.values.shape),
+            "method": result.provenance.method_name,
+            "space receipt": result.provenance.source_affine_hash,
+            "mask receipt": result.mask_hash,
+        }
+        for name, result in roi_results.items()
+    ]
+)
+```
+
+## Build a dataset from pre-extracted ROI signals
+
+Connectivity operates on one representative series per ROI. We average the
+voxel series within each extraction result and keep the ROI names in a
+DataFrame. Only here, after spatial extraction and its receipts are visible,
+do those named series cross into fmrimod's matrix-backed dataset seam. This is
+pre-extracted ROI data, not flattened voxel data.
+
+```{python}
+roi_frame = pd.DataFrame(
+    {
+        name: result.values.mean(axis=1)
+        for name, result in roi_results.items()
+    }
+)
+target_names = list(roi_frame.columns[1:])
+
+dataset = fm.fmri_dataset(roi_frame.to_numpy(), tr=2.0)
+pd.DataFrame(
+    {
+        "runs": [dataset.n_runs],
+        "time points": [dataset.n_timepoints],
+        "ROI columns": [str(tuple(roi_frame.columns))],
+    }
+)
+```
+
+## Declare the nuisance model
+
+The drift, intercept, and motion confounds are a `baseline_model`, not a
+hand-assembled nuisance matrix. The model owns its column structure.
 
 ```{python}
 bmodel = baseline_model(
@@ -58,9 +159,9 @@ bmodel = baseline_model(
 design_matrix(bmodel).shape   # (time, drift + intercept + motion columns)
 ```
 
-## Residualize Through the Typed Path
+## Residualize through the model
 
-`residualize` dispatches on the typed model — pass `bmodel` itself, not its
+`residualize` dispatches on the model. Pass `bmodel` itself, not its
 matrix. This is the same projection the first-level seam uses, so the cleaned
 signal is consistent with how fmrimod fits everything else.
 
@@ -79,7 +180,7 @@ Fisher-*z* columns for group-ready effect sizes.
 seed_target_correlation(
     clean,
     seed=0,
-    target_names=[f"roi_{j + 1}" for j in range(clean.shape[1] - 1)],
+    target_names=target_names,
 ).round(3)
 ```
 
@@ -115,7 +216,7 @@ seed_target_lm(
     seed=0,
     confounds=design_matrix(bmodel),
     add_intercept=False,
-    target_names=[f"roi_{j + 1}" for j in range(clean.shape[1] - 1)],
+    target_names=target_names,
 ).to_frame().round(3)
 ```
 
@@ -142,14 +243,10 @@ pd.DataFrame({
 round(float(z.mean()), 3), round(float(pooled_r), 3)
 ```
 
-The coupled targets (`roi_1`–`roi_3`) carry the visible correlation, and
-the Fisher *z* and its variance are now in exactly the form the
-group-level tools expect — so a connectivity result can flow into the
-same second-level analysis as any other effect.
-
-One assumption is worth stating plainly: this starts from a
-*preprocessed* dataset. Motion correction, registration, and spatial
-normalization are upstream steps you run before fmrimod sees the data.
+The `strong` and `moderate` targets carry the planted correlations, while the
+`control` target stays near zero after nuisance removal. Fisher *z* and its
+variance are now in the form the group-level tools expect, so a connectivity
+result can flow into the same second-level analysis as any other effect.
 
 ## Next
 

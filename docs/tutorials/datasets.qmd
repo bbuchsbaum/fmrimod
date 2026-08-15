@@ -11,7 +11,7 @@ execute:
 `fmrimod.dataset` is where dataset containers and storage adapters live.
 Import them from `fmrimod` or `fmrimod.dataset`. (If you are reading
 older code that imports `fmridataset`, that name still works as a
-re-export — see the migration note at the end.)
+re-export; see the migration note at the end.)
 
 A dataset's job is to bind your data to its timing and events so every
 later step reads them from one place instead of re-deriving them. A
@@ -44,6 +44,7 @@ the canonical dataset contract, `samples` are acquisition times in seconds.
 ```{python}
 import numpy as np
 import pandas as pd
+import neuroim as ni
 import fmrimod as fm
 
 sf = fm.SamplingFrame(blocklens=[50, 50], TR=2.0)
@@ -88,6 +89,70 @@ dset.get_data(rows=[0, 1, 2], cols=[0, 1]).shape, dset.get_all_data().shape
 `fmri_dataset()` is the preferred constructor when a workflow starts from
 image-like objects or paths. It keeps image IO at the boundary and returns the
 same typed `FmriDataset` object used by matrix-backed examples.
+
+Here is the same two-run shape using neuroim objects. The example stays small
+and network-free, but it exercises the real spatial adapter: each run is a
+`DenseNeuroVec`, the mask is a `LogicalNeuroVol`, and one dataset owns both
+runs.
+
+```{python}
+spatial_shape = (5, 4, 3)
+image_affine = np.array([
+    [-2.0, 0.0, 0.0, 8.0],
+    [0.0, 2.5, 0.0, -6.0],
+    [0.0, 0.0, 3.0, 4.0],
+    [0.0, 0.0, 0.0, 1.0],
+])
+
+mask_array = np.zeros(spatial_shape, dtype=bool)
+mask_array[1:4, 1:3, :] = True
+mask_vol = ni.LogicalNeuroVol(
+    mask_array,
+    ni.NeuroSpace.from_affine(image_affine, spatial_shape),
+)
+
+image_run_lengths = (12, 10)
+run_vecs = tuple(
+    ni.DenseNeuroVec(
+        np.random.default_rng(seed).normal(
+            size=spatial_shape + (n_time,)
+        ),
+        ni.NeuroSpace.from_affine(
+            image_affine,
+            spatial_shape + (n_time,),
+        ),
+    )
+    for seed, n_time in zip((21, 22), image_run_lengths, strict=True)
+)
+
+image_events = pd.DataFrame({
+    "run": [1, 2],
+    "onset": [2.0, 4.0],
+    "duration": [1.0, 1.0],
+    "condition": ["face", "scene"],
+})
+image_dset = fm.fmri_dataset(
+    run_vecs,
+    mask=mask_vol,
+    tr=2.0,
+    events=image_events,
+)
+
+pd.Series({
+    "dataset": type(image_dset).__name__,
+    "image object": type(run_vecs[0]).__name__,
+    "mask object": type(mask_vol).__name__,
+    "runs": image_dset.n_runs,
+    "run lengths": tuple(image_dset.run_lengths),
+    "mask shape": image_dset.get_mask().shape,
+    "masked voxels": image_dset.n_voxels,
+})
+```
+
+The adapter performs the image-to-matrix boundary when a model asks for one
+run's data. The `NeuroVec` and `NeuroVol` retain the signed affine; downstream
+contrast and export objects use that retained spatial context to return results
+to the same grid. There is no user-managed flattening or identity affine.
 
 BIDS-HDF5 helpers are available when a workflow needs a compact archive:
 
@@ -136,10 +201,13 @@ chunks = fm.data_chunks(dset, nchunks=4)
 ## Migrating From fmridataset
 
 If you have code that imports `fmridataset`, change the import to
-`fmrimod.dataset` (or `fmrimod`) — the objects are the same, so this is
+`fmrimod.dataset` (or `fmrimod`). The objects are the same, so this is
 a find-and-replace, not a rewrite. The re-export returns the identical
-class object, which you can verify directly:
+class object. The historical `fmridataset` distribution is not a docs
+dependency, so this compatibility check is shown but deliberately not run in
+the site build:
 
+<!-- docs-nonexecuted: optional historical fmridataset package is not a docs dependency -->
 ```{python}
 #| eval: false
 import fmridataset
@@ -149,7 +217,7 @@ fmridataset.FmriDataset is ds.FmriDataset
 ```
 
 If a name you used under `fmridataset` is not available, it has not been
-ported yet — there are no stub placeholders, so an `ImportError` here
+ported yet. There are no stub placeholders, so an `ImportError` here
 means "not yet", not "moved somewhere subtle".
 
 ## Next

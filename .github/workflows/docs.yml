@@ -31,6 +31,9 @@ jobs:
 
       - uses: quarto-dev/quarto-actions/setup@v2
 
+      - name: Enforce tutorial source contract
+        run: python scripts/audit_docs_source.py docs/tutorials
+
       - name: Build API reference
         # `--config` is required: docs/_quarto.yml pulls the quartodoc block in
         # via `metadata-files:`, which Quarto resolves but quartodoc does not.

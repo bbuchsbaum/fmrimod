@@ -321,6 +321,18 @@ table td {
   padding: 0.5em 0.75em;
 }
 
+// Executed DataFrame receipts can be wider than a phone viewport. Keep each
+// cell readable and make the output itself the horizontal scroll container.
+.cell-output-display {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.cell-output-display table.dataframe {
+  width: max-content;
+  min-width: 100%;
+}
+
 // -- Footer ------------------------------------------------------------------
 .nav-footer,
 footer.footer,

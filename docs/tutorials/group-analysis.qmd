@@ -1,6 +1,6 @@
 ---
 title: "Group analysis"
-subtitle: "Second-level inference over first-level estimates, fully typed."
+subtitle: "Second-level inference over first-level estimates, with structured results."
 jupyter: python3
 execute:
   freeze: auto
@@ -18,34 +18,145 @@ Three functions in `fmrimod.stats` cover this stage. They are the same
 underlying model seen from different angles, so pick by what you want
 back:
 
-- **`fmri_meta`** — the workhorse. Meta-analysis when the formula is
+- **`fmri_meta`** is the workhorse. Meta-analysis when the formula is
   `~ 1`; meta-regression when you add a covariate (`~ 1 + C(group)`).
   Returns an `FmriMetaResult`.
-- **`fmri_ttest`** — a thin shortcut for the plain one-sample
+- **`fmri_ttest`** is a thin shortcut for the plain one-sample
   *t*-test, when that is literally all you want. Returns an
   `FmriTTestResult`.
-- **`group_fit`** — one canonical door that *always* returns the same
+- **`group_fit`** is one canonical door that *always* returns the same
   `GroupFitResult`, whatever model you ask for. Worth it when many fits
   must come back as one uniform type (a sweep, a pipeline stage).
 
-If you only read one section, read `fmri_meta` below — it is enough for
+If you only read one section, read `fmri_meta` below. It is enough for
 almost every analysis.
+
+## Spatial contrasts stay spatial
+
+The tabular examples later on this page are useful for ROI summaries, but a
+voxelwise analysis should not have to discard its image geometry at the group
+boundary. This network-free example starts with eight small `neuroim` images.
+Each subject has the same planted task effect in a compact region, while the
+surrounding in-mask voxels contain noise.
+
+```{python}
+import numpy as np
+import pandas as pd
+import neuroim as ni
+
+import fmrimod as fm
+from fmrimod.design import RealizedDesign
+from fmrimod.dataset import group_data_from_csv
+from fmrimod.stats import fmri_meta, group_fit, GroupFitRequest, fmri_ttest
+
+rng = np.random.default_rng(44)
+spatial_shape = (5, 5, 4)
+n_timepoints = 48
+affine = np.array(
+    [
+        [-2.0, 0.0, 0.0, 8.0],
+        [0.0, 2.0, 0.0, -4.0],
+        [0.0, 0.0, 2.5, -3.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ]
+)
+space_3d = ni.NeuroSpace.from_affine(affine, spatial_shape)
+space_4d = ni.NeuroSpace.from_affine(
+    affine, spatial_shape + (n_timepoints,)
+)
+
+mask_data = np.zeros(spatial_shape, dtype=bool)
+mask_data[1:4, 1:4, 1:3] = True
+mask = ni.LogicalNeuroVol(mask_data, space_3d)
+
+task = np.tile(np.r_[np.ones(6), -np.ones(6)], 4)
+design = RealizedDesign.from_array(
+    np.column_stack([task, np.ones(n_timepoints)]),
+    columns=("task", "intercept"),
+    kinds=("condition", "baseline"),
+    source="user",
+)
+
+active_region = np.zeros(spatial_shape)
+active_region[2:4, 2:4, 1:3] = 1.0
+subject_effects = rng.normal(1.4, 0.25, size=8)
+```
+
+Each `DenseNeuroVec` enters `fmri_dataset` with the same
+`LogicalNeuroVol`. The adapter performs the masked image-to-matrix step; the
+tutorial never flattens an image or invents an identity affine. The named
+column contrast then produces a spatial `ContrastResult` for each subject.
+
+```{python}
+per_subject = {}
+for index, subject_effect in enumerate(subject_effects):
+    data = rng.normal(
+        scale=0.35,
+        size=spatial_shape + (n_timepoints,),
+    )
+    data += active_region[..., np.newaxis] * task * subject_effect
+    image = ni.DenseNeuroVec(data, space_4d)
+    dataset = fm.fmri_dataset(image, mask=mask, tr=1.0)
+    fit = fm.fmri_lm(design, dataset)
+    per_subject[f"sub-{index + 1:02d}"] = fit.contrast(
+        fm.column_contrast(
+            pattern_A=r"^task$",
+            name="task_vs_baseline",
+        )
+    )
+
+spatial_group = fm.group_dataset_from_contrasts(per_subject)
+group_result = fm.fmri_group_lm(spatial_group)
+```
+
+`group_dataset_from_contrasts` derives the `VoxelSpace` from the first-level
+results and rejects subjects with incompatible geometry. The checks below are
+part of the executed example: shape, signed affine, and packed mask indices all
+survive into the group object. `fmri_group_lm` then runs the native one-sample
+group fit directly on that object.
+
+```{python}
+assert spatial_group.space.shape == spatial_shape
+assert np.allclose(spatial_group.space.affine, affine)
+assert np.array_equal(
+    spatial_group.space.mask_idx,
+    np.flatnonzero(mask_data),
+)
+
+peak_index = int(np.argmax(group_result.t_stat()))
+pd.DataFrame(
+    {
+        "subjects": [spatial_group.n_subjects],
+        "samples": [spatial_group.n_samples],
+        "space": [type(spatial_group.space).__name__],
+        "shape": [str(spatial_group.space.shape)],
+        "affine retained": [
+            np.allclose(spatial_group.space.affine, affine)
+        ],
+        "peak effect": [group_result.effect()[peak_index]],
+        "peak t": [group_result.t_stat()[peak_index]],
+    }
+).round(3)
+```
+
+The peak group estimate should be close to the printed subject-effect mean.
+That is a scientific check on the planted signal, while the assertions are a
+separate geometry check. No NIfTI write/read loop is needed to recover which
+voxel each group statistic belongs to.
+
+```{python}
+f"mean planted effect = {subject_effects.mean():.3f}"
+```
 
 ## Per-Subject Estimates → Typed `GroupData`
 
 A second-level analysis starts from one effect (and its standard error) per
 subject per feature. Stack them as a tidy frame and let
-`group_data_from_csv` build the typed container — it accepts an in-memory
+`group_data_from_csv` build the validated container. It accepts an in-memory
 DataFrame and a covariate table, so the group design is declared by data,
 not assembled by hand.
 
 ```{python}
-import numpy as np
-import pandas as pd
-import fmrimod as fm
-from fmrimod.dataset import group_data_from_csv
-from fmrimod.stats import fmri_meta, group_fit, GroupFitRequest, fmri_ttest
-
 rng = np.random.default_rng(12)
 n_subj, n_feat = 10, 6
 subjects = [f"s{i + 1}" for i in range(n_subj)]
@@ -76,9 +187,9 @@ gd.format, len(gd.subjects)
 
 ## One-Sample Random Effects
 
-The common second-level question — "is the effect non-zero across subjects?"
-— is a random-effects meta-analysis with an intercept-only formula.
-`fmri_meta` returns a typed `FmriMetaResult`: read `.coefficients`, `.p`,
+The common second-level question, "is the effect non-zero across subjects?",
+is a random-effects meta-analysis with an intercept-only formula.
+`fmri_meta` returns an `FmriMetaResult`: read `.coefficients`, `.p`,
 `.tau2` as attributes.
 
 ```{python}
@@ -102,7 +213,7 @@ run many second-level models and want them all to come back as the
 Called on a dataset alone, it runs **one explicit default**: a
 one-sample (`formula="~ 1"`) **random-effects meta-analysis**, with
 Paule–Mandel `tau2` and inverse-variance weights. That is the same model
-as `fmri_meta(gd, formula="~ 1", method="pm")` — `group_fit(gd)` is just
+as `fmri_meta(gd, formula="~ 1", method="pm")`; `group_fit(gd)` is just
 the uniform-result-type door to it.
 
 ```{python}
@@ -111,8 +222,8 @@ type(res).__name__, res.method, res.backend, res.estimate[:, 0].round(3)
 ```
 
 For anything other than that default, pass a `GroupFitRequest`: a frozen
-description of the *whole* fit — formula, model (`meta`/`ttest`), fixed
-vs random effects, `tau2` method, weights, backend — as one value you
+description of the *whole* fit (formula, model, fixed vs random effects,
+`tau2` method, weights, and backend) as one value you
 can build, inspect, and reuse instead of tracking many keyword
 arguments. The request below just writes the default out in full so you
 can see every knob it sets:
@@ -161,17 +272,17 @@ values are valid depends on whether the formula has a covariate.
 
 **One-sample (`formula="~ 1"`):**
 
-- `"pm"` (Paule–Mandel), `"reml"` — random effects, iterative `tau2`;
+- `"pm"` (Paule–Mandel), `"reml"`: random effects, iterative `tau2`;
   the usual choices for a one-sample test.
-- `"dl"` (DerSimonian–Laird) — random effects, closed-form `tau2`.
-- `"fe"` — fixed effects: assumes a single true effect with no
+- `"dl"` (DerSimonian–Laird): random effects, closed-form `tau2`.
+- `"fe"`: fixed effects, which assume a single true effect with no
   between-subject variance.
 
 **Covariate formula / meta-regression (`formula="~ 1 + …"`):**
 
-- `"dl"` — random-effects meta-regression: models `tau2` *and* the
+- `"dl"`: random-effects meta-regression that models `tau2` *and* the
   covariate. The usual choice, and the one used above.
-- `"fe"` — fixed-effects meta-regression: the covariate effect with no
+- `"fe"`: fixed-effects meta-regression for a covariate effect with no
   between-subject variance.
 - `"pm"` and `"reml"` are intercept-only; passing one a covariate
   formula raises `NotImplementedError` rather than silently fitting a
@@ -185,7 +296,7 @@ fixed-effects model).
 ## One-Sample Test, One Call
 
 For a plain one-sample second-level *t*-test, `fmri_ttest` is the typed
-shortcut — same `GroupData`, a `FmriTTestResult` out.
+shortcut: same `GroupData`, a `FmriTTestResult` out.
 
 ```{python}
 tt = fmri_ttest(gd, formula="~ 1")

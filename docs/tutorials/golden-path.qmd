@@ -202,16 +202,53 @@ treats every subject's first-level estimate as equally informative. It
 is the simplest second-level model and keeps the example to one line,
 which is what we wanted for an end-to-end walkthrough.
 
-For real analyses you usually want a *random-effects* model. It accounts
-for between-subject variability (the true effect itself varies from person
-to person), and it lets you add subject-level
-covariates (age, group, a behavioural score) to the group design:
+The same native group dataset can carry subject-level covariates such as age,
+group, or a behavioural score. The example below adds age to the same subjects
+and fits an ordinary least-squares group model with an explicit design. The
+executed assertions check that the covariate is aligned to the subject axis;
+`age` is not an undefined name in a formula.
 
-```python
-from fmrimod.stats import fmri_meta
+```{python}
+age = np.linspace(20.0, 65.0, N_SUB)
+gd_with_age = group_dataset_from_contrasts(
+    per_subject,
+    covariates=pd.DataFrame(
+        {
+            "subject": list(per_subject),
+            "age": age,
+        }
+    ),
+)
+assert gd_with_age.col_data is not None
+assert np.array_equal(gd_with_age.col_data["age"].to_numpy(), age)
 
-fmri_meta(gd, formula="~ 1 + age", method="dl")
+age_design = pd.DataFrame(
+    {
+        "Intercept": np.ones(N_SUB),
+        "age": age - age.mean(),
+    }
+)
+age_model = fm.fmri_group_lm(
+    gd_with_age,
+    intercept_only=False,
+    design_matrix=age_design,
+)
+
+pd.DataFrame(
+    {
+        "feature": [f"feature_{i + 1}" for i in range(gd_with_age.n_samples)],
+        "age coefficient": age_model.effect("age"),
+        "p": age_model.p_value("age"),
+    }
+).round(4)
 ```
+
+This is still OLS: it treats each first-level estimate as equally precise.
+Random-effects meta-analysis is available through `fmri_meta` for the
+`GroupData`/DataFrame input family shown in [Group
+analysis](group-analysis.qmd). In the current alpha API, `fmri_meta` does not
+yet accept the native `GroupDataset` produced above. The docs state that seam
+instead of silently rebuilding a second group object from arrays.
 
 [Group analysis](group-analysis.qmd) builds up the random-effects
 interface in full: one-sample tests, between-group contrasts, and

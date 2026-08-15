@@ -14,12 +14,16 @@ file formats stay at the boundary and never leak into the model.
 
 ## Translate a Run-level BIDS Stats Model
 
-`translate_run_node` converts a BIDS Stats Model node into a typed model spec,
+`translate_run_node` converts a BIDS Stats Model node into a model spec,
 realized event and baseline models, and semantic contrast artifacts. The model
 below is intentionally tiny but uses the same shape as a FitLins-style run
 node.
 
 ```{python}
+import tempfile
+from pathlib import Path
+
+import neuroim as ni
 import numpy as np
 import pandas as pd
 
@@ -70,8 +74,8 @@ translated = translate_run_node(
 )
 ```
 
-The translation exposes both low-level realized columns and higher-level typed
-objects. Use the typed objects for modeling decisions; treat the vectors as
+The translation exposes both low-level realized columns and higher-level model
+objects. Use those objects for modeling decisions; treat the vectors as
 interop artifacts.
 
 ```{python}
@@ -92,26 +96,103 @@ translated.column_names
 
 ## Writing Results
 
-`write_results(...)` emits a manifest plus BIDS-like stat files. It asks
-you to pass an explicit `mask` (and `affine`) when the result cannot
-infer them, rather than guessing — the mask defines which voxels the
-written maps refer to, so making it explicit keeps the on-disk results
-unambiguous.
+`write_results(...)` emits a manifest plus BIDS-like statistic files. When the
+fit came from a neuroim-backed dataset, the mask and affine are already part of
+the analysis object. The exporter must infer them from that object; repeating
+them by hand would create a second, potentially contradictory geometry.
 
-```python
+The compact image below carries a visible face regressor into one small region.
+It is synthetic so the documentation build remains fast and offline, but its
+objects and IO path are the same ones used for a real NIfTI run.
+
+```{python}
 from fmrimod.io import write_results
 
-manifest = write_results(
-    fit,
-    "derivatives/fmrimod",
-    subject="01",
-    task="localizer",
-    mask=mask,
-    affine=affine,
-    overwrite=True,
+image_shape = (4, 4, 3, 40)
+image_affine = np.array([
+    [-3.0, 0.0, 0.0, 9.0],
+    [0.0, 3.0, 0.0, -6.0],
+    [0.0, 0.0, 4.0, 2.0],
+    [0.0, 0.0, 0.0, 1.0],
+])
+
+rng = np.random.default_rng(23)
+bold = rng.normal(scale=0.3, size=image_shape)
+face_signal = np.asarray(
+    translated.event_model.design_matrix[:, 0],
+    dtype=np.float64,
 )
-manifest.manifest_path
+bold[1:3, 1:3, 1, :] += 0.8 * face_signal
+
+bold_vec = ni.DenseNeuroVec(
+    bold,
+    ni.NeuroSpace.from_affine(image_affine, image_shape),
+)
+mask_array = np.zeros(image_shape[:3], dtype=bool)
+mask_array[1:3, 1:3, :] = True
+mask_vol = ni.LogicalNeuroVol(
+    mask_array,
+    ni.NeuroSpace.from_affine(image_affine, image_shape[:3]),
+)
+
+dataset = fm.fmri_dataset(
+    bold_vec,
+    mask=mask_vol,
+    tr=2.0,
+    events=events,
+)
+fit = translated.fit(dataset)
+translated.compute_contrasts(fit)
+
+pd.Series({
+    "dataset": type(dataset).__name__,
+    "image": type(bold_vec).__name__,
+    "fit": type(fit).__name__,
+    "contrasts": tuple(fit.contrasts),
+})
 ```
+
+```{python}
+with tempfile.TemporaryDirectory(prefix="fmrimod-doc-") as tmp:
+    manifest = write_results(
+        fit,
+        Path(tmp),
+        subject="01",
+        task="localizer",
+        stats=("effect", "stat"),
+    )
+    beta_path = next(
+        item.path for item in manifest.files
+        if item.kind == "beta_bundle"
+    )
+    stat_path = next(
+        item.path for item in manifest.files
+        if item.kind == "contrast_statmap" and item.stat == "stat"
+    )
+    beta_vec = ni.read_vec(beta_path)
+    stat_vol = ni.read_vol(stat_path)
+    io_receipt = pd.Series({
+        "files written": len(manifest.files) + 1,
+        "beta object": type(beta_vec).__name__,
+        "beta shape": beta_vec.data.shape,
+        "stat object": type(stat_vol).__name__,
+        "stat shape": stat_vol.data.shape,
+        "beta affine retained": np.allclose(
+            beta_vec.space.affine,
+            image_affine,
+        ),
+        "stat affine retained": np.allclose(
+            stat_vol.space.affine,
+            image_affine,
+        ),
+    })
+
+io_receipt
+```
+
+The round trip returns a `DenseNeuroVec` beta bundle and a `DenseNeuroVol`
+contrast statistic in the source geometry. NIfTI is the exchange format on
+disk; neuroim remains the object model on both sides of that boundary.
 
 ## Next
 

@@ -1,6 +1,6 @@
 ---
 title: "Plugin development"
-subtitle: "Extend internals while preserving typed public modeling decisions."
+subtitle: "Extend internals while preserving public modeling decisions."
 jupyter: python3
 execute:
   freeze: auto
@@ -8,7 +8,7 @@ execute:
 
 ## Extension Points
 
-The public modeling API should stay typed and composable. Registries are
+The public modeling API should stay structured and composable. Registries are
 internal extension mechanisms for adding implementations behind that API, not
 the user-facing way to encode modeling decisions.
 
@@ -21,7 +21,7 @@ The Python package exposes two practical extension surfaces:
 
 `register_basis()` stores an implementation constructor under a name.
 `resolve_basis()` retrieves it later. Keep these names at the extension
-boundary; analysis specifications should compile to typed design objects before
+boundary; analysis specifications should compile to declared design objects before
 they reach fitting code.
 
 ```{python}
@@ -46,6 +46,17 @@ basis(np.linspace(0, 4, 5)).ravel()
 Custom engines live behind the GLM engine registry. An engine class provides a
 `preflight()` method and a `fit()` method returning an `EngineResult`.
 
+::: {.callout-note}
+## Protocol sketch, not an executable fit
+
+The block below shows the required class shape. Its solver variables are
+deliberately placeholders because a real engine must choose an algorithm,
+validate model-specific inputs, and prove its output against an oracle. The
+executed registry example after it shows how to inspect the implementations
+that ship with fmrimod.
+:::
+
+<!-- docs-schematic: engine protocol leaves algorithm-specific solver values undefined -->
 ```python
 from fmrimod.glm.engine import EngineResult, register_engine
 
@@ -82,7 +93,7 @@ list_engines()
 - Return coefficient matrices in `(parameters, voxels)` order.
 - Preserve the model column order used by contrasts.
 - Add a small oracle test against ordinary least squares before optimizing.
-- Keep aliases and user-facing option names in one normalizer or typed config,
+- Keep aliases and user-facing option names in one normalizer or config object,
   not scattered through engine logic.
 
 ## Next
