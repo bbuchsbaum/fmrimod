@@ -38,21 +38,28 @@ class _DesignColumns:
 
 
 class _DummySource:
+    def __init__(self, affine=None):
+        self._affine = (
+            np.eye(4, dtype=np.float64)
+            if affine is None
+            else np.asarray(affine, dtype=np.float64)
+        )
+
     def get_affine(self):
-        return np.eye(4, dtype=np.float64)
+        return self._affine
 
 
 class _DummyDataset:
-    def __init__(self):
-        self._source = _DummySource()
+    def __init__(self, affine=None):
+        self._source = _DummySource(affine)
 
     def get_mask(self):
         return np.ones((2, 2, 2), dtype=bool)
 
 
 class _DummyModel:
-    def __init__(self, columns):
-        self.dataset = _DummyDataset()
+    def __init__(self, columns, affine=None):
+        self.dataset = _DummyDataset(affine)
         self._columns = _DesignColumns(columns)
 
     def design_columns(self):
@@ -70,7 +77,7 @@ class _DummyContrast:
 
 
 class _DummyResult:
-    def __init__(self, columns=None):
+    def __init__(self, columns=None, affine=None):
         if columns is None:
             columns = [
                 _Column("face", 0, "task", term="stim", condition="face"),
@@ -87,7 +94,7 @@ class _DummyResult:
             ]
         )
         self.contrasts = {"faces-vs-houses": _DummyContrast()}
-        self.model = _DummyModel(columns)
+        self.model = _DummyModel(columns, affine)
 
     def design_columns(self):
         return self.model.design_columns()
@@ -123,6 +130,34 @@ def test_write_results_writes_manifest_and_task_beta_bundle(tmp_path):
     assert payload["entities"]["subject"] == "01"
     assert payload["files"][0]["path"] == beta_file.path.name
     assert payload["files"][0]["volumes"][0]["condition"] == "face"
+
+
+def test_write_results_beta_bundle_round_trips_through_neuroim(tmp_path):
+    neuroim = pytest.importorskip("neuroim")
+    affine = np.array(
+        [
+            [-2.0, 0.0, 0.0, 10.0],
+            [0.0, 2.5, 0.0, -8.0],
+            [0.0, 0.0, 3.0, 4.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ],
+        dtype=np.float64,
+    )
+
+    manifest = write_results(
+        _DummyResult(affine=affine),
+        tmp_path / "out",
+        subject="01",
+        task="nback",
+        contrasts=False,
+    )
+
+    beta_vec = neuroim.read_vec(manifest.files[0].path)
+    assert isinstance(beta_vec, neuroim.DenseNeuroVec)
+    assert beta_vec.data.shape == (2, 2, 2, 2)
+    np.testing.assert_allclose(beta_vec.space.affine, affine)
+    np.testing.assert_allclose(beta_vec.data[..., 0].reshape(-1), np.arange(8))
+    np.testing.assert_allclose(beta_vec.data[..., 1].reshape(-1), np.arange(8) + 100)
 
 
 def test_write_results_can_bundle_nuisance_betas_on_request(tmp_path):
