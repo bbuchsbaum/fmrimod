@@ -5,7 +5,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from fmrimod.lowrank.rrr import ReducedRankConfig, fit_reduced_rank
+from fmrimod.lowrank.rrr import (
+    ReducedRankConfig,
+    _block_bootstrap_indices,
+    fit_reduced_rank,
+)
 
 
 @pytest.fixture
@@ -110,13 +114,31 @@ def test_bootstrap_standard_errors_are_seeded(
 
     fit_a = fit_reduced_rank(X, Y, cfg)
     fit_b = fit_reduced_rank(X, Y, cfg)
-    fit_c = fit_reduced_rank(X, Y, ReducedRankConfig(
-        rank=2,
-        se_mode="bootstrap",
-        bootstrap_n=6,
-        bootstrap_seed=12,
-    ))
+    fit_c = fit_reduced_rank(
+        X,
+        Y,
+        ReducedRankConfig(
+            rank=2,
+            se_mode="bootstrap",
+            bootstrap_n=6,
+            bootstrap_seed=12,
+        ),
+    )
 
     assert fit_a.bootstrap_se is not None
     np.testing.assert_allclose(fit_a.bootstrap_se, fit_b.bootstrap_se)
     assert not np.allclose(fit_a.bootstrap_se, fit_c.bootstrap_se)
+
+
+def test_block_bootstrap_full_series_is_one_contiguous_block() -> None:
+    """fmrireg 0.2.0: ``block_size >= n`` is one identity block.
+
+    Cheap pass: modular wrap of a random start (the previous bug).
+    """
+    rng = np.random.default_rng(0)
+    n = 10
+    for block_size in (n, n + 3):
+        idx = _block_bootstrap_indices(n, block_size, rng)
+        np.testing.assert_array_equal(idx, np.arange(n))
+        idx2 = _block_bootstrap_indices(n, block_size, np.random.default_rng(99))
+        np.testing.assert_array_equal(idx2, np.arange(n))

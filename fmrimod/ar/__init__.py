@@ -1,6 +1,12 @@
 """Autoregressive noise modelling for fMRI time series."""
 
 from .afni import afni_phi_ar3, afni_phi_ar5, afni_restricted_plan
+from .acvf import (
+    acvf_bias_matrix,
+    noise_acvf,
+    pooled_acvf_segments,
+    sigma2_from_gamma_phi,
+)
 from .diagnostics import acorr_diagnostics, sandwich_from_whitened_resid
 from .estimation import (
     estimate_ar,
@@ -56,6 +62,10 @@ __all__ = [
     "levinson_durbin",
     "segmented_acvf",
     "run_avg_acvf",
+    "pooled_acvf_segments",
+    "noise_acvf",
+    "acvf_bias_matrix",
+    "sigma2_from_gamma_phi",
     # Estimation
     "estimate_ar",
     "estimate_ar_yule_walker",

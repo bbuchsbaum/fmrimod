@@ -15,7 +15,12 @@ import numpy as np
 from numpy.typing import NDArray
 
 from fmrimod.bids import BidsEntities
-from fmrimod.bids.export import _bids_filename, _make_nifti_image, _write_nifti_image
+from fmrimod.bids.export import (
+    _bids_filename,
+    _make_nifti_image,
+    _write_nifti_image,
+    ensure_nifti_scl_slope,
+)
 
 BetaSelection = Union[Literal["task", "all"], Sequence[str], bool]
 
@@ -431,6 +436,7 @@ def _write_4d_nifti(
         data.shape,
     )
     write_vec(DenseNeuroVec(data, space), path, data_type="FLOAT32")
+    ensure_nifti_scl_slope(path)
 
 
 def _column_records(
@@ -572,13 +578,16 @@ class _ContrastResultLike(Protocol):
     """
 
     @property
-    def estimate(self) -> object: ...
+    def estimate(self) -> object:
+        ...
 
     @property
-    def stat(self) -> object: ...
+    def stat(self) -> object:
+        ...
 
     @property
-    def p_value(self) -> object: ...
+    def p_value(self) -> object:
+        ...
 
 
 def _contrast_stat_array(cres: object, stat_name: str) -> NDArray[np.float64] | None:

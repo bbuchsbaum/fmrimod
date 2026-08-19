@@ -48,11 +48,16 @@ from ._reducers_kernels import (
     _flat_lmm,
     _flatten_feature_axis,
     _max_abs_null,
+    _max_tail_null,
     _pack_upper_tri,
+    _perm_tail_count,
+    _perm_tail_score,
     _safe_inverse,
+    _t_p,
     _t_p_two_sided,
     _two_sided_perm_count,
     _unflatten_feature_axis,
+    _weighted_onesample_stats,
 )
 from ._reducers_lmm import (
     _LMM_EXPECTED_FIT_ERRORS,
@@ -75,7 +80,10 @@ from .dataset import GroupDataset
 from .errors import AdapterContractError, UnsupportedGroupFeatureError
 from .registry import reducer_registry
 
-Tail = Literal["two.sided"]
+Tail = Literal["two.sided", "less", "greater"]
+PermWeightScheme = Literal["equal", "1/var", "n_eff", "custom"]
+_PERM_ALTERNATIVES = frozenset({"two.sided", "less", "greater"})
+_PERM_WEIGHTS = frozenset({"equal", "1/var", "n_eff", "custom"})
 
 
 @dataclass(frozen=True)
@@ -133,7 +141,7 @@ def meta_fe(
     """
     if alternative != "two.sided":
         raise AdapterContractError("meta:fe currently supports only two.sided tests")
-    beta, var = _beta_and_var(dataset)
+    beta, var = _beta_and_var(dataset, method="meta:fe")
     if beta.shape != var.shape:
         raise AdapterContractError("beta and var/se assays must have matching shapes")
     if eps <= 0:
@@ -184,7 +192,7 @@ def meta_re(
     """DerSimonian-Laird random-effects inverse-variance reducer."""
     if alternative != "two.sided":
         raise AdapterContractError("meta:re currently supports only two.sided tests")
-    beta, var = _beta_and_var(dataset)
+    beta, var = _beta_and_var(dataset, method="meta:re")
     if beta.shape != var.shape:
         raise AdapterContractError("beta and var/se assays must have matching shapes")
     if eps <= 0:
@@ -353,7 +361,7 @@ def meta_fe_reg(
     eps: float = 1e-12,
 ) -> GroupDataset:
     """Fixed-effects meta-regression reducer."""
-    beta, var = _beta_and_var(dataset)
+    beta, var = _beta_and_var(dataset, method="meta:fe_reg")
     if beta.shape != var.shape:
         raise AdapterContractError("beta and var/se assays must have matching shapes")
     if eps <= 0:
@@ -434,7 +442,7 @@ def meta_re_reg(
     eps: float = 1e-12,
 ) -> GroupDataset:
     """DerSimonian-Laird random-effects meta-regression reducer."""
-    beta, var = _beta_and_var(dataset)
+    beta, var = _beta_and_var(dataset, method="meta:re_reg")
     if beta.shape != var.shape:
         raise AdapterContractError("beta and var/se assays must have matching shapes")
     if eps <= 0:
@@ -469,8 +477,8 @@ def meta_re_reg(
         bhat_fe = gram_inv @ (Xok.T @ (wok * yok))
         resid = yok - Xok @ bhat_fe
         q_val = float(np.sum(wok * resid * resid))
-        tr_h = float(np.sum(wok * np.sum((Xok @ gram_inv) * Xok, axis=1)))
-        c_term = float(np.sum(wok) - tr_h)
+        x_a_x = np.sum((Xok @ gram_inv) * Xok, axis=1)
+        c_term = float(np.sum(wok) - np.sum((wok**2) * x_a_x))
         df_val = float(np.sum(ok) - pcols)
         tau_val = max((q_val - df_val) / max(c_term, eps), 0.0)
 
@@ -530,6 +538,62 @@ def meta_re_reg(
     )
 
 
+def _resolve_perm_onesample_weights(
+    dataset: GroupDataset,
+    weights: PermWeightScheme,
+    custom_weights: NDArray[np.float64] | None,
+    n_features: int,
+) -> NDArray[np.float64]:
+    """Resolve fmrigds #21 onesample weight schemes to subject x feature."""
+
+    if weights not in _PERM_WEIGHTS:
+        raise AdapterContractError(
+            "perm:onesample weights must be one of: equal, 1/var, n_eff, custom"
+        )
+    n_subjects = dataset.n_subjects
+
+    def expand(raw: NDArray[np.float64], label: str) -> NDArray[np.float64]:
+        arr = np.asarray(raw, dtype=np.float64)
+        if arr.ndim == 1:
+            if arr.shape != (n_subjects,):
+                raise AdapterContractError(
+                    f"{label} weights must have one value per subject or match "
+                    "the beta assay dimensions"
+                )
+            return np.repeat(arr[:, np.newaxis], n_features, axis=1)
+        if arr.shape == (dataset.n_samples, n_subjects, dataset.n_contrasts):
+            return _flatten_feature_axis(arr)
+        if arr.shape == (n_subjects, n_features):
+            return arr
+        raise AdapterContractError(
+            f"{label} weights must have one value per subject or match "
+            "the beta assay dimensions"
+        )
+
+    if weights == "equal":
+        resolved = np.ones((n_subjects, n_features), dtype=np.float64)
+    elif weights == "1/var":
+        _, var = _beta_and_var(dataset, method="perm:onesample")
+        resolved = 1.0 / expand(var, "Inverse-variance")
+    elif weights == "n_eff":
+        if "n_eff" not in dataset.assays:
+            raise AdapterContractError('weights = "n_eff" requires an n_eff assay')
+        resolved = expand(dataset.assay("n_eff"), "n_eff")
+    else:
+        if custom_weights is None:
+            raise AdapterContractError('weights = "custom" requires custom_weights')
+        resolved = expand(np.asarray(custom_weights, dtype=np.float64), "Custom")
+
+    beta_2d = _flatten_feature_axis(dataset.assay("beta"))
+    active = np.isfinite(beta_2d) & ~np.isnan(resolved)
+    if np.any(active & ((~np.isfinite(resolved)) | (resolved <= 0))):
+        raise AdapterContractError(
+            "Non-missing perm:onesample weights must be finite and positive "
+            "wherever beta is finite"
+        )
+    return resolved
+
+
 def perm_onesample(
     dataset: GroupDataset,
     *,
@@ -539,14 +603,16 @@ def perm_onesample(
     include_observed: bool = False,
     min_subjects: int = 2,
     alternative: Tail = "two.sided",
+    weights: PermWeightScheme = "equal",
+    custom_weights: NDArray[np.float64] | None = None,
     n_jobs: int = 1,
     chunk_size: int | None = None,
     blas_threads: int | None = None,
 ) -> GroupDataset:
     """One-sample sign-flip permutation t reducer."""
-    if alternative != "two.sided":
+    if alternative not in _PERM_ALTERNATIVES:
         raise AdapterContractError(
-            "perm:onesample currently supports only two.sided tests"
+            "perm:onesample alternative must be one of: two.sided, less, greater"
         )
     beta = dataset.assay("beta")
     if min_subjects < 2:
@@ -571,6 +637,9 @@ def perm_onesample(
 
     beta_2d = _flatten_feature_axis(beta)
     n_features = beta_2d.shape[1]
+    weight_2d = _resolve_perm_onesample_weights(
+        dataset, weights, custom_weights, n_features
+    )
     beta_g = np.full(n_features, np.nan, dtype=np.float64)
     se_g = np.full(n_features, np.nan, dtype=np.float64)
     t_g = np.full(n_features, np.nan, dtype=np.float64)
@@ -605,30 +674,29 @@ def perm_onesample(
 
         for local_idx, feature_idx in enumerate(range(start, end)):
             y = beta_2d[:, feature_idx]
-            ok = np.isfinite(y)
-            n_ok = int(np.sum(ok))
-            if n_ok < min_subjects:
+            w = weight_2d[:, feature_idx]
+            mean, se, obs_t, df_val = _weighted_onesample_stats(
+                y, w, min_subjects=min_subjects
+            )
+            if not np.isfinite(obs_t):
                 continue
-            y_ok = y[ok]
-            mean = float(np.mean(y_ok))
-            sd = float(np.std(y_ok, ddof=1))
-            se = sd / np.sqrt(n_ok)
-            if se <= 0 or not np.isfinite(se):
-                continue
-            obs_t = mean / se
             beta_chunk[local_idx] = mean
             se_chunk[local_idx] = se
             t_chunk[local_idx] = obs_t
-            df_chunk[local_idx] = n_ok - 1
-            p_chunk[local_idx] = _t_p_two_sided(obs_t, df_chunk[local_idx])
+            df_chunk[local_idx] = df_val
+            p_chunk[local_idx] = _t_p(obs_t, df_val, alternative)
 
-            feature_signs = sign_mat[:, ok]
-            perm_y = feature_signs * y_ok[np.newaxis, :]
-            perm_mean = np.mean(perm_y, axis=1)
-            perm_sd = np.std(perm_y, axis=1, ddof=1)
-            with np.errstate(divide="ignore", invalid="ignore"):
-                null_chunk[:, local_idx] = perm_mean / (perm_sd / np.sqrt(n_ok))
-            count = _two_sided_perm_count(null_chunk[:, local_idx], obs_t)
+            ok = np.isfinite(y) & np.isfinite(w) & (w > 0)
+            y_ok = y[ok]
+            w_ok = w[ok]
+            for perm_idx, signs_row in enumerate(sign_mat[:, ok]):
+                _, _, perm_t, _ = _weighted_onesample_stats(
+                    signs_row.astype(np.float64) * y_ok,
+                    w_ok,
+                    min_subjects=min_subjects,
+                )
+                null_chunk[perm_idx, local_idx] = perm_t
+            count = _perm_tail_count(null_chunk[:, local_idx], obs_t, alternative)
             p_perm_chunk[local_idx] = (count + 1.0) / (sign_mat.shape[0] + 1.0)
 
         return (
@@ -669,9 +737,14 @@ def perm_onesample(
         p_perm[start:end] = p_perm_chunk
         null_stats[:, start:end] = null_chunk
 
-    max_abs = _max_abs_null(null_stats)
+    max_null = _max_tail_null(null_stats, alternative)
+    obs_score = np.asarray(_perm_tail_score(t_g, alternative), dtype=np.float64)
     for feature_idx in range(n_features):
-        count = _two_sided_perm_count(max_abs, t_g[feature_idx])
+        count = (
+            float(np.sum(np.isfinite(max_null) & (max_null >= obs_score[feature_idx])))
+            if np.isfinite(obs_score[feature_idx])
+            else np.nan
+        )
         p_fwer[feature_idx] = (count + 1.0) / (sign_mat.shape[0] + 1.0)
 
     assays = {
@@ -704,6 +777,8 @@ def perm_onesample(
         metadata={
             "n_perm": int(sign_mat.shape[0]),
             "min_subjects": int(min_subjects),
+            "alternative": alternative,
+            "weights": weights,
             "n_jobs": int(n_workers),
             "chunk_size": effective_chunk_size,
             "blas_threads": blas_threads,
@@ -722,14 +797,19 @@ def perm_twosample(
     variance: Literal["welch", "pooled"] = "welch",
     min_group: int = 2,
     alternative: Tail = "two.sided",
+    weights: PermWeightScheme = "equal",
     n_jobs: int = 1,
     chunk_size: int | None = None,
     blas_threads: int | None = None,
 ) -> GroupDataset:
     """Two-sample label-permutation t reducer."""
-    if alternative != "two.sided":
+    if alternative not in _PERM_ALTERNATIVES:
         raise AdapterContractError(
-            "perm:twosample currently supports only two.sided tests"
+            "perm:twosample alternative must be one of: two.sided, less, greater"
+        )
+    if weights != "equal":
+        raise AdapterContractError(
+            'perm:twosample currently supports only weights = "equal"'
         )
     if variance not in ("welch", "pooled"):
         raise AdapterContractError("variance must be 'welch' or 'pooled'")
@@ -828,12 +908,12 @@ def perm_twosample(
             se_chunk[local_idx] = se
             t_chunk[local_idx] = obs_t
             df_chunk[local_idx] = df_val
-            p_chunk[local_idx] = _t_p_two_sided(obs_t, df_val)
+            p_chunk[local_idx] = _t_p(obs_t, df_val, alternative)
 
             for perm_idx, labels in enumerate(perm_mat[:, ok]):
                 _, _, perm_t, _ = two_sample_t(y_ok, labels)
                 null_chunk[perm_idx, local_idx] = perm_t
-            count = _two_sided_perm_count(null_chunk[1:, local_idx], obs_t)
+            count = _perm_tail_count(null_chunk[1:, local_idx], obs_t, alternative)
             p_perm_chunk[local_idx] = (count + 1.0) / float(perm_mat.shape[0])
 
         return (
@@ -874,9 +954,15 @@ def perm_twosample(
         p_perm[start:end] = p_perm_chunk
         null_stats[:, start:end] = null_chunk
 
-    max_abs = _max_abs_null(null_stats)
+    max_null = _max_tail_null(null_stats, alternative)
+    obs_score = np.asarray(_perm_tail_score(t_g, alternative), dtype=np.float64)
     for feature_idx in range(n_features):
-        count = _two_sided_perm_count(max_abs[1:], t_g[feature_idx])
+        score = obs_score[feature_idx]
+        count = (
+            float(np.sum(np.isfinite(max_null[1:]) & (max_null[1:] >= score)))
+            if np.isfinite(score)
+            else np.nan
+        )
         p_fwer[feature_idx] = (count + 1.0) / float(perm_mat.shape[0])
 
     assays = {
@@ -910,6 +996,8 @@ def perm_twosample(
             "n_perm": int(perm_mat.shape[0]),
             "variance": variance,
             "min_group": int(min_group),
+            "alternative": alternative,
+            "weights": weights,
             "n_jobs": int(n_workers),
             "chunk_size": effective_chunk_size,
             "blas_threads": blas_threads,
@@ -928,7 +1016,12 @@ def ols_voxelwise(
     chunk_size: int | None = None,
     blas_threads: int | None = None,
 ) -> GroupDataset:
-    """OLS reducer across subjects for each sample/contrast feature."""
+    """OLS reducer across subjects for each sample/contrast feature.
+
+    Per-feature listwise deletion drops non-finite subjects. The ``n_obs``
+    assay records how many subjects contributed at each feature (fmrigds #7),
+    including features that remain unestimable.
+    """
     if return_cov not in ("none", "tri"):
         raise AdapterContractError("return_cov must be 'none' or 'tri'")
     if model is not None:
@@ -948,6 +1041,7 @@ def ols_voxelwise(
     se_coef = np.full((pcols, n_features), np.nan, dtype=np.float64)
     sigma2 = np.full(n_features, np.nan, dtype=np.float64)
     df_res = np.full(n_features, np.nan, dtype=np.float64)
+    n_obs = np.zeros(n_features, dtype=np.float64)
     cov_tri = np.full((tri_len, n_features), np.nan, dtype=np.float64)
 
     def worker(
@@ -961,18 +1055,22 @@ def ols_voxelwise(
         NDArray[np.float64],
         NDArray[np.float64],
         NDArray[np.float64],
+        NDArray[np.float64],
     ]:
         width = end - start
         coef_chunk = np.full((pcols, width), np.nan, dtype=np.float64)
         se_chunk = np.full((pcols, width), np.nan, dtype=np.float64)
         sigma2_chunk = np.full(width, np.nan, dtype=np.float64)
         df_chunk = np.full(width, np.nan, dtype=np.float64)
+        n_obs_chunk = np.zeros(width, dtype=np.float64)
         cov_chunk = np.full((tri_len, width), np.nan, dtype=np.float64)
 
         for local_idx, feature_idx in enumerate(range(start, end)):
             y = beta_2d[:, feature_idx]
             ok = np.isfinite(y) & np.all(np.isfinite(X_mat), axis=1)
-            if np.sum(ok) <= pcols:
+            n_ok = float(np.sum(ok))
+            n_obs_chunk[local_idx] = n_ok
+            if n_ok <= pcols:
                 continue
             Xok = X_mat[ok, :]
             yok = y[ok]
@@ -981,7 +1079,7 @@ def ols_voxelwise(
                 continue
             bhat = xtx_inv @ (Xok.T @ yok)
             resid = yok - Xok @ bhat
-            df_val = float(np.sum(ok) - pcols)
+            df_val = n_ok - pcols
             sigma2_val = float(np.sum(resid * resid) / df_val)
             cov = xtx_inv * sigma2_val
             coef_chunk[:, local_idx] = bhat
@@ -990,7 +1088,16 @@ def ols_voxelwise(
             df_chunk[local_idx] = df_val
             cov_chunk[:, local_idx] = _pack_upper_tri(cov)
 
-        return start, end, coef_chunk, se_chunk, sigma2_chunk, df_chunk, cov_chunk
+        return (
+            start,
+            end,
+            coef_chunk,
+            se_chunk,
+            sigma2_chunk,
+            df_chunk,
+            n_obs_chunk,
+            cov_chunk,
+        )
 
     chunks, n_workers, effective_chunk_size = _run_feature_chunks(
         n_features,
@@ -999,11 +1106,21 @@ def ols_voxelwise(
         chunk_size=chunk_size,
         blas_threads=blas_threads,
     )
-    for start, end, coef_chunk, se_chunk, sigma2_chunk, df_chunk, cov_chunk in chunks:
+    for (
+        start,
+        end,
+        coef_chunk,
+        se_chunk,
+        sigma2_chunk,
+        df_chunk,
+        n_obs_chunk,
+        cov_chunk,
+    ) in chunks:
         coef[:, start:end] = coef_chunk
         se_coef[:, start:end] = se_chunk
         sigma2[start:end] = sigma2_chunk
         df_res[start:end] = df_chunk
+        n_obs[start:end] = n_obs_chunk
         cov_tri[:, start:end] = cov_chunk
 
     assays: dict[str, NDArray[np.float64]] = {
@@ -1014,6 +1131,11 @@ def ols_voxelwise(
         ),
         "df_res": _unflatten_feature_axis(
             df_res,
+            n_sample=dataset.n_samples,
+            n_contrast=dataset.n_contrasts,
+        ),
+        "n_obs": _unflatten_feature_axis(
+            n_obs,
             n_sample=dataset.n_samples,
             n_contrast=dataset.n_contrasts,
         ),

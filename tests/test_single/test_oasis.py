@@ -41,12 +41,24 @@ class TestOasisK1:
     def test_agrees_with_lss(self, rng):
         """OASIS K=1 should agree closely with LSS for well-conditioned data."""
         from fmrimod.single.lss import lss_single_trial
+
         n, T, V = 100, 8, 15
         X = rng.standard_normal((n, T))
         Y = rng.standard_normal((n, V))
-        result_oasis = oasis_single_trial(Y, X, config=OasisConfig(K=1))
+        result_oasis = oasis_single_trial(
+            Y, X, config=OasisConfig(K=1, ridge_mode="none")
+        )
         result_lss = lss_single_trial(Y, X)
         assert_allclose(result_oasis.betas, result_lss.betas, atol=1e-6)
+
+    def test_default_ridge_changes_betas_vs_none(self, rng):
+        n, T, V = 80, 10, 12
+        X = rng.standard_normal((n, T))
+        Y = rng.standard_normal((n, V))
+        default = oasis_single_trial(Y, X)
+        none = oasis_single_trial(Y, X, config=OasisConfig(K=1, ridge_mode="none"))
+        assert default.betas.shape == none.betas.shape
+        assert np.max(np.abs(default.betas - none.betas)) > 1e-6
 
     def test_with_ridge(self, rng):
         n, T, V = 80, 10, 20
@@ -69,7 +81,7 @@ class TestOasisK1:
         n, T, V = 80, 10, 20
         X = rng.standard_normal((n, T))
         Y = rng.standard_normal((n, V))
-        config = OasisConfig(K=1, return_se=True)
+        config = OasisConfig(K=1, return_se=True, ridge_mode="none")
         result = oasis_single_trial(Y, X, config=config)
         assert result.se is not None
         assert result.se.shape == (T, V)
@@ -80,8 +92,7 @@ class TestOasisK1:
         X = rng.standard_normal((n, T))
         Y = rng.standard_normal((n, V))
         labels = [f"t{i}" for i in range(T)]
-        result = oasis_single_trial(Y, X, config=OasisConfig(K=1),
-                                    trial_labels=labels)
+        result = oasis_single_trial(Y, X, config=OasisConfig(K=1), trial_labels=labels)
         assert result.trial_labels == labels
 
     def test_small_block_cols_matches_large_block_cols(self, rng):
@@ -107,7 +118,9 @@ class TestOasisK1:
             + rng.standard_normal((n, V)) * 0.05
         )
 
-        result = oasis_single_trial(Y, X, confounds=confounds, config=OasisConfig(K=1))
+        result = oasis_single_trial(
+            Y, X, confounds=confounds, config=OasisConfig(K=1, ridge_mode="none")
+        )
         Y_res, X_res = project_nuisance(confounds, Y, X)
         expected = lss_single_trial(Y_res, X_res)
 
@@ -126,6 +139,21 @@ class TestOasisK1:
 
 
 class TestOasisConfig:
+    def test_defaults_match_r_oasis_options(self):
+        """fmrilss 0.2.0 defaults: fractional ridge 0.05, not ridge_mode='none'.
+
+        Cheap pass disqualified: leaving the default at none / zero ridge.
+        """
+        cfg = OasisConfig()
+        assert cfg.ridge_mode == "fractional"
+        assert cfg.ridge_x == 0.05
+        assert cfg.ridge_b == 0.05
+        assert cfg.ridge_mode != "none"
+
+    def test_return_se_requires_zero_ridge(self):
+        with pytest.raises(ValueError, match="return_se requires ridge_x"):
+            OasisConfig(return_se=True)
+
     def test_accepts_valid_options(self):
         cfg = OasisConfig(
             K=2,

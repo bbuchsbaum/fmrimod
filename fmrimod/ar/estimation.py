@@ -7,6 +7,7 @@ Provides Yule-Walker estimation of AR coefficients, either globally
 from __future__ import annotations
 
 from typing import Any, Optional, cast
+import warnings
 
 import numpy as np
 from numpy.typing import NDArray
@@ -48,11 +49,9 @@ def estimate_ar_yule_walker(
     autocorr = np.zeros(order + 1)
     for k in range(order + 1):
         if k == 0:
-            autocorr[k] = np.mean(np.sum(residuals ** 2, axis=0))
+            autocorr[k] = np.mean(np.sum(residuals**2, axis=0))
         else:
-            autocorr[k] = np.mean(
-                np.sum(residuals[k:] * residuals[:-k], axis=0)
-            )
+            autocorr[k] = np.mean(np.sum(residuals[k:] * residuals[:-k], axis=0))
 
     # Normalise to correlation
     if autocorr[0] < 1e-15:
@@ -105,10 +104,12 @@ def estimate_ar_voxelwise(
 
     for v in range(V):
         r_v = residuals[:, v]
-        autocorr = np.array([
-            np.sum(r_v[k:] * r_v[:n - k]) if k > 0 else np.sum(r_v ** 2)
-            for k in range(order + 1)
-        ])
+        autocorr = np.array(
+            [
+                np.sum(r_v[k:] * r_v[: n - k]) if k > 0 else np.sum(r_v**2)
+                for k in range(order + 1)
+            ]
+        )
         if autocorr[0] < 1e-15:
             continue
         rho = autocorr / autocorr[0]
@@ -249,6 +250,7 @@ def _enforce_stationarity(phi: NDArray[np.float64]) -> NDArray[np.float64]:
 # BIC-based AR order selection
 # ---------------------------------------------------------------------------
 
+
 def estimate_ar_bic(
     y: NDArray[np.float64],
     p_max: int,
@@ -292,7 +294,8 @@ def estimate_ar_bic(
     best_phi = np.array([], dtype=np.float64)
     best_p = 0
 
-    for pp in range(1, min(p_max, n - 1) + 1):
+    p_sel = min(int(p_max), n - 1, int(np.floor(n / 5.0)))
+    for pp in range(1, max(p_sel, 0) + 1):
         if len(gamma) < pp + 1:
             break
         phi_try, sigma2 = levinson_durbin(gamma[: pp + 1], pp)
@@ -309,6 +312,7 @@ def estimate_ar_bic(
 # ---------------------------------------------------------------------------
 # fit_noise: main entry point for noise estimation
 # ---------------------------------------------------------------------------
+
 
 def fit_noise(
     resid: Optional[NDArray[np.float64]] = None,
@@ -330,6 +334,9 @@ def fit_noise(
     beta: float = 0.5,
     hr_iter: int = 0,
     step1: str = "yw",
+    design: Optional[NDArray[np.float64]] = None,
+    acvf_correction: Optional[Any] = None,
+    correction_max_lag: int = 25,
 ) -> "WhiteningPlan":
     """Fit an AR/ARMA noise model and return a whitening plan.
 
@@ -376,16 +383,33 @@ def fit_noise(
         Hannan-Rissanen refinement iterations.
     step1 : str
         Preliminary fit method for HR: ``"burg"`` or ``"yw"``.
+    design : ndarray, optional
+        Design whose projection produced ``resid``. Opt-in residual ACVF
+        bias correction (fmriAR 0.3.3); global/run AR only.
+    acvf_correction : ndarray or list, optional
+        Precomputed bias matrices from :func:`acvf_bias_matrix`. Mutually
+        exclusive with ``design``.
+    correction_max_lag : int
+        Lag budget for residual-bias correction (default 25).
 
     Returns
     -------
     WhiteningPlan
     """
-    from .numhelpers import (
-        enforce_stationary_ar,
-        levinson_durbin,
-        run_avg_acvf,
+    from .acvf import (
+        acvf_bias_matrix,
+        acvf_from_pooled,
+        acvf_max_lag,
+        drop_unusable_corrections,
+        estimate_ar_series,
+        parcel_codes,
+        pooled_acvf_segments,
+        run_sets,
+        sigma2_from_gamma_phi,
+        valid_segments,
+        yw_from_acvf,
     )
+    from .numhelpers import enforce_stationary_ar
 
     # Compute residuals if not supplied
     if resid is None:
@@ -404,6 +428,8 @@ def fit_noise(
     resid = np.asarray(resid, dtype=np.float64)
     if resid.ndim == 1:
         resid = resid[:, np.newaxis]
+    if np.any(~np.isfinite(resid)):
+        raise ValueError("'resid' contains NA, NaN, or Inf")
 
     n = resid.shape[0]
     if n < 10:
@@ -413,7 +439,9 @@ def fit_noise(
     if method not in ("ar", "arma"):
         raise ValueError(f"method must be 'ar' or 'arma', got {method!r}")
     if pooling not in ("global", "run", "parcel"):
-        raise ValueError(f"pooling must be 'global', 'run', or 'parcel', got {pooling!r}")
+        raise ValueError(
+            f"pooling must be 'global', 'run', or 'parcel', got {pooling!r}"
+        )
     if exact_first not in ("ar1", "none"):
         exact_first = "ar1" if exact_first else "none"
 
@@ -439,22 +467,18 @@ def fit_noise(
         if len(censor) == 0:
             censor = None
 
-    # Split into runs
-    if runs is not None:
-        runs = np.asarray(runs, dtype=np.intp)
-        run_labels = np.unique(runs)
-        run_sets = [np.where(runs == rl)[0] for rl in run_labels]
-    else:
-        run_sets = [np.arange(n)]
+    # Split into runs (contiguous labels only)
+    named_runs = run_sets(runs, n)
+    run_sets_idx = [idx for _, idx in named_runs]
 
     # Split censor indices by run (relative to run start)
-    censor_by_run = [np.array([], dtype=np.intp) for _ in run_sets]
+    censor_by_run = [np.array([], dtype=np.intp) for _ in run_sets_idx]
     if censor is not None:
-        for ri, idx in enumerate(run_sets):
-            start = idx[0]
+        for ri, idx in enumerate(run_sets_idx):
             c_in = np.intersect1d(censor, idx)
             if len(c_in):
-                censor_by_run[ri] = c_in - start
+                start = int(idx[0])
+                censor_by_run[ri] = (c_in - start).astype(np.intp)
 
     def _rows_from_idx(mat: NDArray[Any], idx: NDArray[Any]) -> NDArray[Any]:
         """Return run rows, preferring slice views for contiguous indices."""
@@ -465,12 +489,50 @@ def fit_noise(
             return mat[i0 : i0 + 1]
         i0 = int(idx[0])
         i1 = int(idx[-1])
-        # Fast contiguous check: run labels are typically contiguous blocks.
         if (i1 - i0 + 1) == len(idx) and np.all(np.diff(idx) == 1):
             return mat[i0 : i1 + 1]
         return cast("NDArray[Any]", mat[idx])
 
-    run_mats = [_rows_from_idx(resid, idx) for idx in run_sets]
+    run_mats = [_rows_from_idx(resid, idx) for idx in run_sets_idx]
+
+    if design is not None and acvf_correction is not None:
+        raise ValueError("supply either 'design' or 'acvf_correction', not both")
+    corr_by_run: list[Optional[NDArray[Any]]] | None = None
+    if design is not None or acvf_correction is not None:
+        if pooling == "parcel":
+            raise ValueError(
+                "residual-bias correction is not yet supported for pooling='parcel'"
+            )
+        if method != "ar":
+            raise ValueError("residual-bias correction applies to method='ar' only")
+        if design is not None:
+            mats = acvf_bias_matrix(
+                design,
+                runs=runs,
+                censor=censor,
+                max_lag=int(min(correction_max_lag, n)),
+            )
+            corr_by_run = drop_unusable_corrections(mats)
+        else:
+            if isinstance(acvf_correction, np.ndarray):
+                corr_by_run = [np.asarray(acvf_correction, dtype=np.float64)] * len(
+                    run_sets_idx
+                )
+            else:
+                corr_list = list(acvf_correction)
+                if len(corr_list) == 1:
+                    corr_by_run = corr_list * len(run_sets_idx)
+                elif len(corr_list) != len(run_sets_idx):
+                    raise ValueError(
+                        f"'acvf_correction' has {len(corr_list)} matrices but "
+                        f"there are {len(run_sets_idx)} runs"
+                    )
+                else:
+                    corr_by_run = [
+                        None if c is None else np.asarray(c, dtype=np.float64)
+                        for c in corr_list
+                    ]
+            corr_by_run = drop_unusable_corrections(corr_by_run)
 
     # --- Parcel pooling ---
     if pooling == "parcel":
@@ -478,7 +540,9 @@ def fit_noise(
             raise ValueError("Parcel pooling currently supports method='ar' only")
         if parcels is None:
             raise ValueError("parcels must be provided for pooling='parcel'")
-        parcels = np.asarray(parcels, dtype=np.intp)
+        parcels = parcel_codes(parcels)
+        if parcels.size != resid.shape[1]:
+            raise ValueError("parcels must have one entry per voxel")
 
         from .multiscale import (
             ms_combine_to_fine,
@@ -488,28 +552,74 @@ def fit_noise(
             parcel_means,
         )
 
-        target = p_max if p_target is None else min(int(p_target), p_max)
+        seg = valid_segments(n, runs=runs, censor=censor)
+        if seg.idx.size < 2:
+            raise ValueError("no valid timepoints remain after censoring")
 
         def _estimator(y_col: NDArray[np.float64]) -> dict[str, Any]:
-            return estimate_ar_bic(y_col, p_max)
+            return estimate_ar_series(
+                y_col,
+                p_max,
+                p=p,
+                starts0=seg.starts0,
+                center_id=seg.run_id,
+            )
 
-        M_fine = parcel_means(resid, parcels)
-        est_f = ms_estimate_scale(M_fine, _estimator)
+        if p_target is None:
+            if p == "auto":
+                target = int(p_max)
+            elif multiscale_mode is not None:
+                target = min(int(p), int(p_max))
+            else:
+                target = int(p_max)
+        else:
+            target = min(int(p_target), int(p_max))
+
+        M_fine_full = parcel_means(resid, parcels)
+        M_fine = {
+            k: np.asarray(v, dtype=np.float64)[seg.idx] for k, v in M_fine_full.items()
+        }
+        est_f = ms_estimate_scale(
+            M_fine,
+            _estimator,
+            run_starts=seg.starts0,
+            lag_max=target,
+            center_id=seg.run_id,
+        )
+
+        def _pad_vec(x: NDArray[Any], n: int) -> NDArray[np.float64]:
+            x = np.asarray(x, dtype=np.float64).ravel()
+            out = np.zeros(n, dtype=np.float64)
+            take = min(x.size, n)
+            if take:
+                out[:take] = x[:take]
+            return out
 
         if parcel_sets is None:
-            # Single-scale parcel pooling
             if multiscale_mode is None or target == 0:
                 phi_parcel = {k: v for k, v in est_f["phi"].items()}
+            elif multiscale_mode == "acvf_pooled":
+                shrink = 0.6
+                acvf_list = {
+                    k: _pad_vec(g, target + 1) for k, g in est_f["acvf"].items()
+                }
+                if acvf_list:
+                    avg_g = np.mean(np.column_stack(list(acvf_list.values())), axis=1)
+                else:
+                    avg_g = np.zeros(target + 1)
+                phi_parcel = {}
+                for k, g_pad in acvf_list.items():
+                    g_mix = (1 - shrink) * g_pad + shrink * avg_g
+                    phi_try, _ = yw_from_acvf(g_mix, target)
+                    phi_parcel[k] = enforce_stationary_ar(phi_try)
             else:
                 from .numhelpers import ar_to_pacf, pacf_to_ar
-                # Shrink toward global average
+
                 shrink = 0.6
                 kap_list = {}
                 for k, phi_v in est_f["phi"].items():
                     kap = ar_to_pacf(phi_v)
-                    padded = np.zeros(target)
-                    padded[: len(kap)] = kap
-                    kap_list[k] = padded
+                    kap_list[k] = _pad_vec(kap, target)
 
                 if kap_list:
                     kap_mat = np.column_stack(list(kap_list.values()))
@@ -523,32 +633,66 @@ def fit_noise(
                     kap_mix = np.clip(kap_mix, -0.99, 0.99)
                     phi_parcel[k] = pacf_to_ar(kap_mix)
         else:
-            # Multi-scale pooling
             required = ("coarse", "medium", "fine")
             for key in required:
                 if key not in parcel_sets:
                     raise ValueError(f"parcel_sets must contain '{key}'")
 
-            parcels_coarse = np.asarray(parcel_sets["coarse"], dtype=np.intp)
-            parcels_medium = np.asarray(parcel_sets["medium"], dtype=np.intp)
-            parcels_fine = np.asarray(parcel_sets["fine"], dtype=np.intp)
+            parcels_coarse = parcel_codes(parcel_sets["coarse"], "parcel_sets$coarse")
+            parcels_medium = parcel_codes(parcel_sets["medium"], "parcel_sets$medium")
+            parcels_fine = parcel_codes(parcel_sets["fine"], "parcel_sets$fine")
+            if not np.array_equal(parcels_fine, parcels):
+                raise ValueError("parcel_sets['fine'] must match parcels")
 
-            M_coarse = parcel_means(resid, parcels_coarse)
-            M_medium = parcel_means(resid, parcels_medium)
+            M_coarse = {
+                k: np.asarray(v, dtype=np.float64)[seg.idx]
+                for k, v in parcel_means(resid, parcels_coarse).items()
+            }
+            M_medium = {
+                k: np.asarray(v, dtype=np.float64)[seg.idx]
+                for k, v in parcel_means(resid, parcels_medium).items()
+            }
 
-            est_c = ms_estimate_scale(M_coarse, _estimator)
-            est_m = ms_estimate_scale(M_medium, _estimator)
+            est_c = ms_estimate_scale(
+                M_coarse,
+                _estimator,
+                run_starts=seg.starts0,
+                lag_max=target,
+                center_id=seg.run_id,
+            )
+            est_m = ms_estimate_scale(
+                M_medium,
+                _estimator,
+                run_starts=seg.starts0,
+                lag_max=target,
+                center_id=seg.run_id,
+            )
 
             parents = ms_parent_maps(parcels_fine, parcels_medium, parcels_coarse)
 
-            n_runs_count = 1 if runs is None else len(np.unique(runs))
+            n_runs_count = 1 if runs is None else len(named_runs)
             sizes = {
                 "n_t": n,
                 "n_runs": n_runs_count,
                 "beta": beta,
-                "coarse": {str(k): int(v) for k, v in zip(*np.unique(parcels_coarse, return_counts=True))},
-                "medium": {str(k): int(v) for k, v in zip(*np.unique(parcels_medium, return_counts=True))},
-                "fine": {str(k): int(v) for k, v in zip(*np.unique(parcels_fine, return_counts=True))},
+                "coarse": {
+                    str(k): int(v)
+                    for k, v in zip(
+                        *np.unique(parcels_coarse, return_counts=True), strict=True
+                    )
+                },
+                "medium": {
+                    str(k): int(v)
+                    for k, v in zip(
+                        *np.unique(parcels_medium, return_counts=True), strict=True
+                    )
+                },
+                "fine": {
+                    str(k): int(v)
+                    for k, v in zip(
+                        *np.unique(parcels_fine, return_counts=True), strict=True
+                    )
+                },
             }
             disp_list = {
                 "coarse": ms_dispersion(resid, parcels_coarse),
@@ -563,9 +707,15 @@ def fit_noise(
                     phi_by_coarse=est_c["phi"],
                     phi_by_medium=est_m["phi"],
                     phi_by_fine=est_f["phi"],
-                    acvf_by_coarse=est_c.get("acvf") if multiscale_mode == "acvf_pooled" else None,
-                    acvf_by_medium=est_m.get("acvf") if multiscale_mode == "acvf_pooled" else None,
-                    acvf_by_fine=est_f.get("acvf") if multiscale_mode == "acvf_pooled" else None,
+                    acvf_by_coarse=est_c.get("acvf")
+                    if multiscale_mode == "acvf_pooled"
+                    else None,
+                    acvf_by_medium=est_m.get("acvf")
+                    if multiscale_mode == "acvf_pooled"
+                    else None,
+                    acvf_by_fine=est_f.get("acvf")
+                    if multiscale_mode == "acvf_pooled"
+                    else None,
                     parents=parents,
                     sizes=sizes,
                     disp_list=disp_list,
@@ -573,15 +723,58 @@ def fit_noise(
                     mode=multiscale_mode,
                 )
 
+        if multiscale_mode is None and p_target is not None and target > 0:
+            padded: dict[str, NDArray[Any]] = {}
+            for k, ph in phi_parcel.items():
+                g = _pad_vec(est_f["acvf"][k], target + 1)
+                phi_try, _ = yw_from_acvf(g, target)
+                padded[k] = enforce_stationary_ar(phi_try) if phi_try.size else ph
+            phi_parcel = padded
+
+        # Trim shared trailing zeros so order reports the fitted length.
+        eff = [
+            int(np.max(np.where(np.asarray(ph) != 0)[0]) + 1)
+            if np.any(np.asarray(ph) != 0)
+            else 0
+            for ph in phi_parcel.values()
+        ]
+        keep = max(eff) if eff else 0
+        phi_parcel = {
+            k: (
+                np.asarray(ph, dtype=np.float64)[:keep]
+                if keep
+                else np.array([], dtype=np.float64)
+            )
+            for k, ph in phi_parcel.items()
+        }
+
         theta_parcel = {k: np.array([], dtype=np.float64) for k in phi_parcel}
-        max_p = max(
-            (len(cast(Any, v)) for v in phi_parcel.values()), default=0
-        )
+        resid_valid = resid[seg.idx]
+        n_valid = seg.idx.size
+        is_start = np.zeros(n_valid, dtype=bool)
+        is_start[seg.starts0[seg.starts0 < n_valid]] = True
+        is_start[0] = True
+        seg_id_p = np.cumsum(is_start.astype(np.intp))
+        gamma_parcel: dict[str, NDArray[Any]] = {}
+        sigma2_parcel: dict[str, float] = {}
+        for k, ph in phi_parcel.items():
+            cols = np.where(parcels == int(k))[0]
+            if cols.size == 0:
+                gamma_parcel[k] = np.array([], dtype=np.float64)
+                sigma2_parcel[k] = float("nan")
+                continue
+            lag_k = max(int(target), len(ph), 1)
+            pooled_p = pooled_acvf_segments(
+                resid_valid[:, cols], seg_id_p, lag_k, center_id=seg.run_id
+            )
+            g, _ = acvf_from_pooled(pooled_p, order=lag_k)
+            gamma_parcel[k] = g
+            sigma2_parcel[k] = sigma2_from_gamma_phi(g, ph)
 
         return WhiteningPlan(
             phi=None,
             theta=None,
-            order=(max_p, 0),
+            order=(keep, 0),
             runs=runs,
             exact_first=(exact_first == "ar1"),
             method=method,
@@ -591,28 +784,17 @@ def fit_noise(
             phi_by_parcel=phi_parcel,
             theta_by_parcel=theta_parcel,
             censor=censor,
+            gamma_by_parcel=gamma_parcel,
+            sigma2_by_parcel=sigma2_parcel,
         )
 
     # --- Per-run estimation ---
-    def _est_run(mat: NDArray[Any], censor_rel: NDArray[Any]) -> dict[str, Any]:
+    def _est_run(
+        mat: NDArray[Any],
+        censor_rel: NDArray[Any],
+        corr: Optional[NDArray[Any]] = None,
+    ) -> dict[str, Any]:
         n_run = mat.shape[0]
-
-        if method == "arma":
-            # ARMA uses run-mean time series; avoid materializing full-row copies
-            # when there is no censoring.
-            if len(censor_rel) > 0:
-                valid = np.ones(n_run, dtype=bool)
-                valid[censor_rel] = False
-                y_mean = mat[valid].mean(axis=1)
-            else:
-                y_mean = mat.mean(axis=1)
-
-            from .hr_arma import hr_arma
-            pp = min(2, p_max) if p == "auto" else int(cast(Any, p))
-            qq = int(q)
-            return hr_arma(y_mean, p=pp, q=qq, n_iter=hr_iter, step1=step1)
-
-        # Build valid indices
         if len(censor_rel) > 0:
             valid = np.ones(n_run, dtype=bool)
             valid[censor_rel] = False
@@ -620,123 +802,147 @@ def fit_noise(
         else:
             valid_idx = np.arange(n_run)
 
-        if method == "ar":
-            n_eff = len(valid_idx)
-            if n_eff <= 1:
-                return {"phi": np.array([], dtype=np.float64),
-                        "theta": np.array([], dtype=np.float64),
-                        "order": (0, 0)}
+        empty: dict[str, Any] = {
+            "phi": np.array([], dtype=np.float64),
+            "theta": np.array([], dtype=np.float64),
+            "order": (0, 0),
+            "gamma": np.array([], dtype=np.float64),
+            "sigma2": float("nan"),
+        }
 
-            p_cap = min(int(p_max), n_eff - 1)
+        if method == "arma":
+            if (
+                len(censor_rel) > 0
+                and valid_idx.size > 1
+                and np.any(np.diff(valid_idx) > 1)
+            ):
+                warnings.warn(
+                    "fit_noise: method='arma' estimates across censoring gaps; "
+                    "AR and MA coefficients will be biased. Prefer method='ar' "
+                    "when censoring is present.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            mat_valid = mat[valid_idx]
+            y_mean = mat_valid.mean(axis=1)
+            from .hr_arma import hr_arma
 
-            # Compute pooled ACVF from valid segments
-            if len(censor_rel) > 0 and n_eff > 0:
-                diffs = np.diff(valid_idx)
-                seg_breaks = np.where(diffs > 1)[0]
-                seg_starts_local = np.concatenate([[0], seg_breaks + 1])
-                seg_ends_local = np.concatenate([seg_breaks, [len(valid_idx) - 1]])
+            pp = min(2, p_max) if p == "auto" else int(cast(Any, p))
+            qq = int(q)
+            fit = hr_arma(y_mean, p=pp, q=qq, n_iter=hr_iter, step1=step1)
+            seg_id_ma = np.cumsum(
+                np.concatenate([[1], (np.diff(valid_idx) > 1).astype(np.intp)])
+            )
+            lag_ma = max(1, pp + qq)
+            pooled_ma = pooled_acvf_segments(mat_valid, seg_id_ma, lag_ma)
+            g_ma, _ = acvf_from_pooled(pooled_ma, order=lag_ma)
+            fit["gamma"] = g_ma
+            fit["sigma2"] = float("nan")
+            return fit
 
-                gamma_sum = np.zeros(p_cap + 1)
-                total_contrib = np.zeros(p_cap + 1)
-
-                for si in range(len(seg_starts_local)):
-                    seg_idx = valid_idx[seg_starts_local[si] : seg_ends_local[si] + 1]
-                    seg_len = len(seg_idx)
-                    if seg_len > 1:
-                        seg_mat = mat[seg_idx]
-                        seg_pmax = min(p_cap, seg_len - 1)
-                        seg_gamma = run_avg_acvf(seg_mat, seg_pmax)
-                        for lag in range(seg_pmax + 1):
-                            contrib = seg_len - lag
-                            gamma_sum[lag] += seg_gamma[lag] * contrib
-                            total_contrib[lag] += contrib
-
-                gamma = np.where(total_contrib > 0, gamma_sum / total_contrib, 0.0)
-                p_cap = int(max(np.max(np.where(total_contrib > 0)[0]) if np.any(total_contrib > 0) else 0, 0))
-                gamma = gamma[: p_cap + 1]
-            else:
-                gamma = run_avg_acvf(mat[valid_idx], p_cap)
-
-            # BIC selection
-            if gamma[0] < 1e-15:
-                return {"phi": np.array([], dtype=np.float64),
-                        "theta": np.array([], dtype=np.float64),
-                        "order": (0, 0)}
-
-            n_eff_log = np.log(n_eff)
-            sigma0 = max(gamma[0], 1e-15)
-            best_bic = n_eff * np.log(sigma0) + n_eff_log
-            best_phi = np.array([], dtype=np.float64)
-            best_p = 0
-
-            for pp in range(1, p_cap + 1):
-                if len(gamma) < pp + 1:
-                    break
-                phi_try, sigma2 = levinson_durbin(gamma[: pp + 1], pp)
-                sigma2 = max(sigma2, 1e-15)
-                bic = n_eff * np.log(sigma2) + (pp + 1) * n_eff_log
-                if bic < best_bic:
-                    best_bic = bic
-                    best_phi = enforce_stationary_ar(phi_try)
-                    best_p = pp
-
-            return {"phi": best_phi,
-                    "theta": np.array([], dtype=np.float64),
-                    "order": (best_p, 0)}
-
-        raise ValueError(f"Unknown estimation method: {method!r}")
-
-    # If p is a fixed integer (not "auto"), override BIC
-    if p != "auto":
-        p_fixed = int(cast(Any, p))
-        # For fixed p, just do Yule-Walker without BIC
-        def _est_run_fixed(
-            mat: NDArray[Any], censor_rel: NDArray[Any]
-        ) -> dict[str, Any]:
-            n_run = mat.shape[0]
-
-            if method == "arma":
-                if len(censor_rel) > 0:
-                    valid = np.ones(n_run, dtype=bool)
-                    valid[censor_rel] = False
-                    y_mean = mat[valid].mean(axis=1)
-                else:
-                    y_mean = mat.mean(axis=1)
-                from .hr_arma import hr_arma
-                return hr_arma(y_mean, p=p_fixed, q=int(q), n_iter=hr_iter, step1=step1)
-
-            if len(censor_rel) > 0:
-                valid = np.ones(n_run, dtype=bool)
-                valid[censor_rel] = False
-                valid_idx = np.where(valid)[0]
-            else:
-                valid_idx = np.arange(n_run)
-
-            if method == "ar":
-                if len(valid_idx) <= p_fixed:
-                    return {"phi": np.zeros(p_fixed, dtype=np.float64),
-                            "theta": np.array([], dtype=np.float64),
-                            "order": (p_fixed, 0)}
-                gamma = run_avg_acvf(mat[valid_idx], p_fixed)
-                if gamma[0] < 1e-15:
-                    return {"phi": np.zeros(p_fixed, dtype=np.float64),
-                            "theta": np.array([], dtype=np.float64),
-                            "order": (p_fixed, 0)}
-                phi_try, _ = levinson_durbin(gamma[: p_fixed + 1], p_fixed)
-                phi_try = enforce_stationary_ar(phi_try)
-                return {"phi": phi_try,
-                        "theta": np.array([], dtype=np.float64),
-                        "order": (p_fixed, 0)}
-
+        if method != "ar":
             raise ValueError(f"Unknown estimation method: {method!r}")
 
-        estimates = [_est_run_fixed(m, c) for m, c in zip(run_mats, censor_by_run)]
+        n_eff = int(len(valid_idx))
+        if n_eff <= 1:
+            return empty
+        p_cap = min(int(p_max), n_eff - 1)
+        if p_cap < 1:
+            return empty
+
+        seg_id = np.cumsum(
+            np.concatenate([[1], (np.diff(valid_idx) > 1).astype(np.intp)])
+        )
+        if corr is None:
+            lag_budget = p_cap
+        else:
+            lag_budget = min(max(p_cap, int(np.asarray(corr).shape[0]) - 1), n_eff - 1)
+        pooled = pooled_acvf_segments(mat[valid_idx], seg_id, lag_budget)
+        gamma0, _ = acvf_from_pooled(pooled, order=0, correction=corr)
+        if gamma0.size == 0 or not np.isfinite(gamma0[0]) or gamma0[0] <= 0:
+            return empty
+        p_cap = min(p_cap, acvf_max_lag(pooled))
+        if p_cap < 1:
+            empty = dict(empty)
+            empty["gamma"] = gamma0
+            empty["sigma2"] = float(gamma0[0])
+            return empty
+        gamma_full, _ = acvf_from_pooled(pooled, order=p_cap, correction=corr)
+
+        def _fit_order(pp: int) -> tuple[NDArray[np.float64], float]:
+            g, _ = acvf_from_pooled(pooled, order=pp, correction=corr)
+            phi, sigma2 = yw_from_acvf(g[: pp + 1], pp)
+            return enforce_stationary_ar(phi, 0.99), float(max(sigma2, 1e-12))
+
+        if p != "auto":
+            pp = min(int(cast(Any, p)), p_cap)
+            if pp <= 0:
+                empty = dict(empty)
+                empty["gamma"] = gamma_full
+                empty["sigma2"] = (
+                    float(gamma_full[0]) if gamma_full.size else float("nan")
+                )
+                return empty
+            phi, sigma2 = _fit_order(pp)
+            return {
+                "phi": phi,
+                "theta": np.array([], dtype=np.float64),
+                "order": (pp, 0),
+                "gamma": gamma_full,
+                "sigma2": sigma2,
+            }
+
+        n_eff_log = np.log(n_eff)
+        sigma0 = max(float(gamma0[0]), 1e-12)
+        best_bic = 2.0 * n_eff * np.log(sigma0) + n_eff_log
+        best_phi = np.array([], dtype=np.float64)
+        best_p = 0
+        best_sigma2 = sigma0
+        p_sel = min(p_cap, int(np.floor(n_eff / 5.0)))
+        for pp in range(1, max(p_sel, 0) + 1):
+            phi_pp, sigma2 = _fit_order(pp)
+            if not np.isfinite(sigma2):
+                continue
+            bic = 2.0 * n_eff * np.log(sigma2) + (pp + 1) * n_eff_log
+            if not np.isfinite(bic) or bic >= best_bic:
+                continue
+            if phi_pp.size != pp or not np.all(np.isfinite(phi_pp)):
+                continue
+            best_bic = bic
+            best_phi = phi_pp
+            best_p = pp
+            best_sigma2 = sigma2
+        return {
+            "phi": best_phi,
+            "theta": np.array([], dtype=np.float64),
+            "order": (best_p, 0),
+            "gamma": gamma_full,
+            "sigma2": best_sigma2,
+        }
+
+    if corr_by_run is None:
+        estimates = [
+            _est_run(m, c) for m, c in zip(run_mats, censor_by_run, strict=True)
+        ]
     else:
-        estimates = [_est_run(m, c) for m, c in zip(run_mats, censor_by_run)]
+        estimates = [
+            _est_run(m, c, corr)
+            for m, c, corr in zip(run_mats, censor_by_run, corr_by_run, strict=True)
+        ]
+
+    from .numhelpers import enforce_invertible_ma
 
     # --- Pool across runs ---
     if pooling == "global":
-        lens = np.array([len(rs) for rs in run_sets])
+        lens = np.array(
+            [
+                int(len(rs) - len(c))
+                for rs, c in zip(run_sets_idx, censor_by_run, strict=True)
+            ],
+            dtype=np.float64,
+        )
+        if float(lens.sum()) <= 0:
+            raise ValueError("no valid timepoints remain after censoring")
         w = lens / lens.sum()
         pmax_len = max(len(e["phi"]) for e in estimates) if estimates else 0
         qmax_len = max(len(e.get("theta", [])) for e in estimates) if estimates else 0
@@ -751,20 +957,59 @@ def fit_noise(
             if len(theta_e):
                 Th[i, : len(theta_e)] = theta_e
 
-        phi_avg = w @ Phi
-        theta_avg = w @ Th
-        # Trim trailing zeros
-        phi_avg = phi_avg[: pmax_len] if pmax_len > 0 else np.array([], dtype=np.float64)
-        theta_avg = theta_avg[: qmax_len] if qmax_len > 0 else np.array([], dtype=np.float64)
-
+        phi_avg = (
+            (w @ Phi)[:pmax_len] if pmax_len > 0 else np.array([], dtype=np.float64)
+        )
+        theta_avg = (
+            (w @ Th)[:qmax_len] if qmax_len > 0 else np.array([], dtype=np.float64)
+        )
+        if phi_avg.size:
+            phi_avg = enforce_stationary_ar(phi_avg, 0.99)
+        if theta_avg.size:
+            theta_avg = enforce_invertible_ma(theta_avg)
         phi_list = [phi_avg]
         theta_list = [theta_avg]
+
+        glens = np.array([len(e.get("gamma", [])) for e in estimates], dtype=np.intp)
+        has_g = glens > 0
+        if np.any(has_g):
+            gmin = int(np.min(glens[has_g]))
+            G = np.vstack(
+                [
+                    e["gamma"][:gmin]
+                    for e, ok in zip(estimates, has_g, strict=True)
+                    if ok
+                ]
+            )
+            wg = lens[has_g] / lens[has_g].sum()
+            gamma_list = [np.asarray(wg @ G, dtype=np.float64)]
+        else:
+            gamma_list = [np.array([], dtype=np.float64)]
+        if method == "arma":
+            sigma2_list = [float("nan")]
+        else:
+            sigma2_list = [sigma2_from_gamma_phi(gamma_list[0], phi_avg)]
     else:
         phi_list = [e["phi"] for e in estimates]
         theta_list = [e.get("theta", np.array([], dtype=np.float64)) for e in estimates]
+        gamma_list = [
+            np.asarray(e.get("gamma", np.array([], dtype=np.float64)), dtype=np.float64)
+            for e in estimates
+        ]
+        if method == "arma":
+            sigma2_list = [float("nan") for _ in estimates]
+        else:
+            sigma2_list = [
+                sigma2_from_gamma_phi(g, ph)
+                for g, ph in zip(gamma_list, phi_list, strict=True)
+            ]
 
-    order_p = max(len(ph) for ph in phi_list) if phi_list else 0
-    order_q = max(len(th) for th in theta_list) if theta_list else 0
+    if pooling == "global":
+        order_p = len(phi_list[0]) if phi_list else 0
+        order_q = len(theta_list[0]) if theta_list else 0
+    else:
+        order_p = max(len(ph) for ph in phi_list) if phi_list else 0
+        order_q = max(len(th) for th in theta_list) if theta_list else 0
 
     return WhiteningPlan(
         phi=phi_list,
@@ -775,4 +1020,6 @@ def fit_noise(
         method=method,
         pooling=pooling,
         censor=censor,
+        gamma=gamma_list,
+        sigma2=sigma2_list,
     )

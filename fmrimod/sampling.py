@@ -20,8 +20,13 @@ class SamplingFrame:
         blocklens: Number of scans per block (array or scalar)
         tr: Repetition time(s) in seconds (array or scalar)
         start_time: Start time offset(s) in seconds (array or scalar, default TR/2)
-        precision: Temporal precision for convolution in seconds
+        precision: Fine-grid step used when a SamplingFrame drives
+            design convolution (default 0.1 s). This is intentionally
+            separate from the HRF/regressor evaluate default of 0.33 s
+            (R ``HRF$evaluate``). Pass the frame's precision into
+            evaluate/convolve when the two must match.
     """
+
     # Field types describe the post-__post_init__ invariant: every field is
     # a normalized 1-D NDArray (or float for precision). The looser
     # Union[ArrayLike, int | float] shape only applies to __init__'s
@@ -318,12 +323,12 @@ class SamplingFrame:
             Dictionary with all sampling frame parameters
         """
         return {
-            'blocklens': self.blocklens.tolist(),
-            'tr': self.tr.tolist(),
-            'start_time': self.start_time.tolist(),
-            'precision': self.precision,
-            'n_blocks': self.n_blocks,
-            'n_scans': self.n_scans,
+            "blocklens": self.blocklens.tolist(),
+            "tr": self.tr.tolist(),
+            "start_time": self.start_time.tolist(),
+            "precision": self.precision,
+            "n_blocks": self.n_blocks,
+            "n_scans": self.n_scans,
         }
 
     @classmethod
@@ -337,10 +342,10 @@ class SamplingFrame:
             New SamplingFrame instance
         """
         return cls(
-            blocklens=data['blocklens'],
-            tr=data.get('tr', data.get('TR')),
-            start_time=data.get('start_time', 0.0),
-            precision=data.get('precision', 0.1),
+            blocklens=data["blocklens"],
+            tr=data.get("tr", data.get("TR")),
+            start_time=data.get("start_time", 0.0),
+            precision=data.get("precision", 0.1),
         )
 
     def concatenate(self, other: SamplingFrame) -> SamplingFrame:

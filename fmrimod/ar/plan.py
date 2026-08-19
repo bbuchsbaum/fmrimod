@@ -48,6 +48,14 @@ class WhiteningPlan:
         Per-parcel MA coefficients.
     censor : NDArray[Any] or None
         0-based indices of censored timepoints.
+    gamma : list of NDArray[Any] or None
+        Per-run (or pooled) noise autocovariance.  ``None`` for parcel plans.
+    sigma2 : list of float or None
+        Per-run (or pooled) innovation variance.  ``None`` for parcel plans.
+    gamma_by_parcel : dict mapping str -> NDArray[Any] or None
+        Per-parcel voxel-scale autocovariance.
+    sigma2_by_parcel : dict mapping str -> float or None
+        Per-parcel innovation variance derived from stored phi and gamma.
     """
 
     phi: list[NDArray[Any]] | None = None
@@ -62,6 +70,10 @@ class WhiteningPlan:
     phi_by_parcel: dict[str, NDArray[Any]] | None = None
     theta_by_parcel: dict[str, NDArray[Any]] | None = None
     censor: NDArray[Any] | None = None
+    gamma: list[NDArray[Any]] | None = None
+    sigma2: list[float] | None = None
+    gamma_by_parcel: dict[str, NDArray[Any]] | None = None
+    sigma2_by_parcel: dict[str, float] | None = None
 
     def __repr__(self) -> str:
         p, q = self.order
@@ -98,7 +110,8 @@ class WhiteningPlan:
                 lines.append("    ...")
         elif self.phi is not None:
             labels = (
-                ["global"] if self.pooling == "global"
+                ["global"]
+                if self.pooling == "global"
                 else [f"run{i}" for i in range(len(self.phi))]
             )
             for i, (lbl, phi_v) in enumerate(zip(labels, self.phi)):
@@ -266,8 +279,11 @@ def whiten_with_phi(
     from .whitening import whiten_apply
 
     plan = plan_from_phi(
-        phi, theta,
-        runs=runs, parcels=parcels,
-        pooling=pooling, exact_first=exact_first,
+        phi,
+        theta,
+        runs=runs,
+        parcels=parcels,
+        pooling=pooling,
+        exact_first=exact_first,
     )
     return whiten_apply(plan, X, Y, runs=runs)

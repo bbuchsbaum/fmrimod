@@ -1,12 +1,12 @@
 """Effective degrees of freedom calculation.
 
 Adjusts residual degrees of freedom to account for preprocessing
-steps that consume additional degrees of freedom (e.g., AR whitening,
-soft projection, volume weighting).
+steps that consume additional degrees of freedom (soft projection,
+already-applied censoring). AR whitening is *not* subtracted here:
+the live GLM path reports ``n - rank`` (fmrireg 0.2.0).
 """
 
 from __future__ import annotations
-
 
 import numpy as np
 from numpy.typing import NDArray
@@ -28,21 +28,22 @@ def effective_df(
     rank : int
         Rank of the design matrix.
     ar_order : int
-        AR model order (reduces effective observations).
+        Accepted for compatibility. Not subtracted: AR whitening does
+        not deflate residual df on the live path.
     n_censored : int
-        Number of censored volumes (already removed from *n*).
+        Number of censored volumes already removed from *n*. Not
+        subtracted again.
     soft_subspace_rank : int
         Rank of the soft subspace projection (reduces df).
 
     Returns
     -------
     float
-        Effective residual degrees of freedom.
+        Effective residual degrees of freedom (``n - rank -
+        soft_subspace_rank``, floored at 1).
     """
+    del ar_order, n_censored
     df = float(n - rank - soft_subspace_rank)
-    # AR whitening effectively loses the first p observations
-    # but we use an approximation: reduce df by ar_order
-    df -= ar_order
     return max(df, 1.0)
 
 
@@ -77,7 +78,7 @@ def satterthwaite_df(
 
     # Variance contribution from each run
     v_parts = []
-    for dfr, xtxi in zip(run_dfres, run_XtXinv):
+    for _dfr, xtxi in zip(run_dfres, run_XtXinv, strict=False):
         v_r = con_vec @ xtxi @ con_vec
         v_parts.append(v_r)
 
@@ -86,8 +87,14 @@ def satterthwaite_df(
         return float(sum(run_dfres))
 
     # Satterthwaite: df = v_total^2 / sum(v_r^2 / df_r)
-    denom = float(sum(v_r ** 2 / dfr for v_r, dfr in zip(v_parts, run_dfres) if dfr > 0))
+    denom = float(
+        sum(
+            v_r**2 / dfr
+            for v_r, dfr in zip(v_parts, run_dfres, strict=False)
+            if dfr > 0
+        )
+    )
     if denom < 1e-15:
         return float(sum(run_dfres))
 
-    return v_total ** 2 / denom
+    return v_total**2 / denom

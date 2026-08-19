@@ -21,6 +21,11 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ._prewhiten import PrewhitenConfig
+from ._trial_design import (
+    PreparedTrialDesign,
+    canonicalize_trial_major,
+    prepare_trialwise_design,
+)
 from ._project import NuisanceProjector, build_nuisance_projector
 from ._types import (
     LssExtras,
@@ -60,6 +65,7 @@ from .typed import fmri_lss
 from .lss import lss_single_trial
 from .mixed import mixed_single_trial
 from .oasis import oasis_single_trial
+from .sbhm.lwu_grid import LwuGrid, create_lwu_grid
 from .voxel_hrf import estimate_hrf, estimate_voxel_hrf, lss_with_voxel_hrf
 
 if TYPE_CHECKING:
@@ -82,6 +88,7 @@ def estimate_single_trial(
     sbhm_library: SbhmLibrary | None = None,
     baseline_regressors: NDArray[np.float64] | None = None,
     include_intercept: bool = False,
+    n_basis: int | None = None,
 ) -> SingleTrialResult:
     """Estimate per-trial betas using the specified method.
 
@@ -122,6 +129,9 @@ def estimate_single_trial(
         Equivalent to the ``Z`` matrix in ``fmrilss::lss``.
     include_intercept : bool
         Add an intercept to the LSS adjustment design.
+    n_basis : int, optional
+        HRF basis dimension. ``K > 1`` is OASIS-only (fmrilss ``f851fb0``).
+        When omitted, ``oasis_config.K`` is used if present.
 
     Returns
     -------
@@ -133,8 +143,12 @@ def estimate_single_trial(
     whitening_plan = None
     if prewhiten is not None and prewhiten.method != "none":
         from ._prewhiten import prewhiten_matrices
+
         pw = prewhiten_matrices(
-            Y, X, confounds, prewhiten,
+            Y,
+            X,
+            confounds,
+            prewhiten,
             baseline_regressors=baseline_regressors,
         )
         Y, X, confounds = pw.Y, pw.X, pw.confounds
@@ -150,6 +164,19 @@ def estimate_single_trial(
     except ValueError as exc:
         valid = ", ".join(member.value for member in SingleTrialMethod)
         raise ValueError(f"method must be one of: {valid}") from exc
+    resolved_k = 1
+    if n_basis is not None:
+        if int(n_basis) != n_basis or int(n_basis) < 1:
+            raise ValueError("n_basis must be a positive integer")
+        resolved_k = int(n_basis)
+    elif oasis_config is not None:
+        resolved_k = int(oasis_config.K)
+    if resolved_k > 1 and method_enum is not SingleTrialMethod.OASIS:
+        raise ValueError(
+            f"multi-basis (K={resolved_k}) designs require method='oasis'; "
+            f"got method={method_enum.value!r}"
+        )
+
     if method_enum not in {SingleTrialMethod.LSS, SingleTrialMethod.LSA} and (
         baseline_regressors is not None or include_intercept
     ):
@@ -160,7 +187,8 @@ def estimate_single_trial(
 
     if method_enum is SingleTrialMethod.LSS:
         result = lss_single_trial(
-            Y, X,
+            Y,
+            X,
             confounds=confounds,
             nuisance_projector=nuisance_projector,
             chunk_size=chunk_size,
@@ -171,7 +199,8 @@ def estimate_single_trial(
         )
     elif method_enum is SingleTrialMethod.LSA:
         result = lsa_single_trial(
-            Y, X,
+            Y,
+            X,
             confounds=confounds,
             return_se=return_se,
             trial_labels=trial_labels,
@@ -179,11 +208,27 @@ def estimate_single_trial(
             include_intercept=include_intercept,
         )
     elif method_enum is SingleTrialMethod.OASIS:
-        oasis_cfg = oasis_config or OasisConfig(return_se=return_se)
-        if return_se and not oasis_cfg.return_se:
-            oasis_cfg = replace(oasis_cfg, return_se=True)
+        if oasis_config is None:
+            oasis_cfg = (
+                OasisConfig(
+                    return_se=True,
+                    K=resolved_k,
+                    ridge_mode="none",
+                    ridge_x=0.0,
+                    ridge_b=0.0,
+                )
+                if return_se
+                else OasisConfig(K=resolved_k)
+            )
+        else:
+            oasis_cfg = oasis_config
+            if oasis_cfg.K == 1 and resolved_k > 1:
+                oasis_cfg = replace(oasis_cfg, K=resolved_k)
+            if return_se and not oasis_cfg.return_se:
+                oasis_cfg = replace(oasis_cfg, return_se=True)
         result = oasis_single_trial(
-            Y, X,
+            Y,
+            X,
             confounds=confounds,
             config=oasis_cfg,
             trial_labels=trial_labels,
@@ -191,9 +236,11 @@ def estimate_single_trial(
     elif method_enum is SingleTrialMethod.SBHM:
         # Lazy import to avoid circular dependencies
         from .sbhm.pipeline import sbhm_single_trial
+
         sbhm_cfg = sbhm_config or SbhmConfig()
         result = sbhm_single_trial(
-            Y, X,
+            Y,
+            X,
             confounds=confounds,
             config=sbhm_cfg,
             trial_labels=trial_labels,
@@ -201,8 +248,10 @@ def estimate_single_trial(
         )
     elif method_enum is SingleTrialMethod.MIXED:
         from .mixed import mixed_single_trial
+
         result = mixed_single_trial(
-            Y, X,
+            Y,
+            X,
             confounds=confounds,
             trial_labels=trial_labels,
         )
@@ -236,6 +285,7 @@ def estimate_single_trial_from_dataset(
     sbhm_config: SbhmConfig | None = None,
     sbhm_library: SbhmLibrary | None = None,
     include_intercept: bool = False,
+    n_basis: int | None = None,
 ) -> SingleTrialResult:
     """Estimate per-trial betas from an FmriDataset and trialwise spec.
 
@@ -320,25 +370,67 @@ def estimate_single_trial_from_dataset(
         precision=precision,
     )
 
-    trial_labels = _extract_trialwise_labels(event_model)
-    if not trial_labels:
+    from ._trial_design import prepare_trialwise_design
+
+    try:
+        prepared = prepare_trialwise_design(event_model)
+    except ValueError as exc:
         raise ValueError(
             "estimate_single_trial_from_dataset(dataset, spec) requires the "
             "spec to contain a trialwise() term; the compiled event model "
             "has no trialwise columns."
-        )
+        ) from exc
 
-    X = np.ascontiguousarray(
-        np.asarray(event_model.design_matrix, dtype=np.float64)
-    )
+    X = prepared.X
+    trial_labels = prepared.trial_labels
+    resolved_n_basis = prepared.K if n_basis is None else n_basis
     baseline_regressors: NDArray[np.float64] | None = None
+    resolved_confounds = confounds
+    try:
+        method_enum = (
+            method
+            if isinstance(method, SingleTrialMethod)
+            else SingleTrialMethod(method)
+        )
+    except ValueError:
+        method_enum = None
+    if method_enum is SingleTrialMethod.OASIS:
+        if prepared.fixed is not None:
+            if resolved_confounds is not None:
+                resolved_confounds = np.hstack(
+                    [prepared.fixed, np.asarray(resolved_confounds, dtype=np.float64)]
+                )
+            else:
+                resolved_confounds = prepared.fixed
+        if oasis_config is None:
+            oasis_config = (
+                OasisConfig(
+                    K=prepared.K,
+                    return_se=True,
+                    ridge_mode="none",
+                    ridge_x=0.0,
+                    ridge_b=0.0,
+                )
+                if return_se
+                else OasisConfig(K=prepared.K)
+            )
+        elif oasis_config.K == 1 and prepared.K > 1:
+            oasis_config = replace(oasis_config, K=prepared.K)
+        elif oasis_config.K != prepared.K:
+            raise ValueError(
+                f"oasis_config.K={oasis_config.K} disagrees with event-model "
+                f"K={prepared.K}"
+            )
+    else:
+        baseline_regressors = prepared.fixed
 
     Y = np.asarray(cast(Any, dataset).get_data(), dtype=np.float64)
 
     result = estimate_single_trial(
-        Y, X,
+        Y,
+        X,
         method=method,
-        confounds=confounds,
+        confounds=resolved_confounds,
         trial_labels=trial_labels,
         return_se=return_se,
         prewhiten=prewhiten,
@@ -349,6 +441,7 @@ def estimate_single_trial_from_dataset(
         sbhm_library=sbhm_library,
         baseline_regressors=baseline_regressors,
         include_intercept=include_intercept,
+        n_basis=resolved_n_basis,
     )
 
     _attach_dataset_metadata(
@@ -497,6 +590,11 @@ __all__ = [
     "OasisConfig",
     "SbhmConfig",
     "PrewhitenConfig",
+    "PreparedTrialDesign",
+    "canonicalize_trial_major",
+    "prepare_trialwise_design",
+    "LwuGrid",
+    "create_lwu_grid",
     "VoxelHrfResult",
     "NuisanceProjector",
     "build_nuisance_projector",

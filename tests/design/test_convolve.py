@@ -17,44 +17,41 @@ from fmrimod.convolve import _get_hrf_array, _convolve_impulses
 
 class TestConvolve:
     """Test direct convolution functionality."""
-    
+
     def test_convolve_event_variable(self):
         """Test convolution of EventVariable."""
         event = EventVariable(
-            onsets=[1, 5, 10],
-            durations=[2, 2, 2],
-            values=[1, 2, 3],
-            name="stimulus"
+            onsets=[1, 5, 10], durations=[2, 2, 2], values=[1, 2, 3], name="stimulus"
         )
-        
+
         # Test with default HRF
         result = convolve(event, sampling_rate=0.5)
         assert result.shape[1] == 1  # Single column for continuous
         assert result.shape[0] > 0
-        
+
         # Test with custom HRF
-        custom_hrf = get_hrf('spm')
+        custom_hrf = get_hrf("spm")
         result2 = convolve(event, hrf=custom_hrf, sampling_rate=0.5)
         assert result2.shape[1] == 1
-    
+
     def test_convolve_event_factor(self):
         """Test convolution of EventFactor."""
         event = EventFactor(
             onsets=[1, 5, 10, 15],
             durations=[2, 2, 2, 2],
-            values=['A', 'B', 'A', 'C'],
-            name="condition"
+            values=["A", "B", "A", "C"],
+            name="condition",
         )
-        
+
         result = convolve(event, sampling_rate=1.0)
         # Should have one column per level
         assert result.shape[1] == 3  # A, B, C
         assert result.shape[0] > 0
-        
+
         # Check that columns sum differently (different number of events)
         col_sums = np.sum(result, axis=0)
         assert not np.allclose(col_sums[0], col_sums[1])  # A vs B
-    
+
     def test_convolve_event_matrix(self):
         """Test convolution of EventMatrix."""
         values = np.array([[1, 0], [0, 1], [1, 0], [0.5, 0.5]])
@@ -63,13 +60,13 @@ class TestConvolve:
             onsets=[1, 5, 10, 15],
             durations=[2, 2, 2, 2],
             values=values,
-            column_names=['col1', 'col2']
+            column_names=["col1", "col2"],
         )
-        
+
         result = convolve(event, sampling_rate=1.0)
         assert result.shape[1] == 2  # Two columns
         assert result.shape[0] > 0
-    
+
     def test_convolve_list_of_events(self):
         """Test convolution of list of events."""
         event1 = EventVariable(
@@ -78,24 +75,20 @@ class TestConvolve:
         event2 = EventVariable(
             onsets=[3, 7], durations=[1, 1], values=[3, 4], name="ev2"
         )
-        
+
         results = convolve([event1, event2], sampling_rate=1.0)
         assert len(results) == 2
         assert all(isinstance(r, np.ndarray) for r in results)
-    
+
     def test_convolve_numpy_array(self):
         """Test convolution of numpy array [onset, duration, value]."""
-        arr = np.array([
-            [1.0, 2.0, 1.0],
-            [5.0, 2.0, 2.0],
-            [10.0, 2.0, 3.0]
-        ])
-        
+        arr = np.array([[1.0, 2.0, 1.0], [5.0, 2.0, 2.0], [10.0, 2.0, 3.0]])
+
         result = convolve(arr, sampling_rate=1.0)
         assert isinstance(result, np.ndarray)
         assert result.ndim == 1
         assert result.shape[0] > 0
-    
+
     def test_convolve_with_array_hrf(self):
         """Test convolution with HRF specified as array."""
         event = EventVariable(
@@ -108,7 +101,7 @@ class TestConvolve:
 
         assert result.shape[0] > 0
         assert np.max(result) > 0
-    
+
     def test_convolve_with_function_hrf(self):
         """Test convolution with HRF specified as function."""
         event = EventVariable(
@@ -121,7 +114,7 @@ class TestConvolve:
 
         result = convolve(event, hrf=my_hrf, sampling_rate=1.0)
         assert result.shape[0] > 0
-    
+
     def test_convolve_preserves_timing(self):
         """Test that convolution preserves event timing."""
         # Single event at t=10
@@ -134,7 +127,7 @@ class TestConvolve:
         # Peak should be around t=10 + HRF peak time (~5-6s)
         peak_idx = np.argmax(result)
         assert 10 <= peak_idx <= 20
-    
+
     def test_convolve_duration_effects(self):
         """Test that longer durations produce larger responses."""
         # Two events with different durations
@@ -150,75 +143,72 @@ class TestConvolve:
 
         # Longer duration should produce larger integrated response
         assert np.sum(result_long) > np.sum(result_short) * 2
-    
+
     def test_convolve_balanced_design(self):
         """Test convolution preserves balance in factorial designs."""
         # Create balanced 2x2 design
         onsets = [1, 5, 10, 15, 20, 25, 30, 35]
-        conditions = ['A', 'A', 'B', 'B', 'A', 'A', 'B', 'B']
-        
+        conditions = ["A", "A", "B", "B", "A", "A", "B", "B"]
+
         event = EventFactor(
-            onsets=onsets,
-            durations=[2] * 8,
-            values=conditions,
-            name="condition"
+            onsets=onsets, durations=[2] * 8, values=conditions, name="condition"
         )
-        
+
         result = convolve(event, sampling_rate=1.0, total_duration=50.0)
-        
+
         # Both conditions should have similar total response
         col_sums = np.sum(result, axis=0)
         assert np.abs(col_sums[0] - col_sums[1]) / np.mean(col_sums) < 0.1
-    
+
     def test_convolve_event_basis(self):
         """Test that EventBasis convolution works with pyfmrihrf."""
         # EventBasis now works with pyfmrihrf
         from fmrimod.basis import Poly
+
         event = EventBasis(
             name="basis_event",
             onsets=[1, 5, 10],
             durations=[2, 2, 2],
             values=[1, 2, 3],
-            basis=Poly(degree=2)
+            basis=Poly(degree=2),
         )
 
         # Should work with pyfmrihrf available
         result = convolve(event, sampling_rate=1.0)
         assert result.shape[0] > 0
         assert result.shape[1] == event.n_basis * len(event.onsets)
-    
+
     def test_get_hrf_array(self):
         """Test HRF array generation."""
         # Test with None (default)
         hrf_array = _get_hrf_array(None, sampling_rate=1.0)
         assert isinstance(hrf_array, np.ndarray)
         assert hrf_array.shape[0] > 0
-        
+
         # Test with existing array
         custom_array = np.array([1, 2, 3, 2, 1])
         result = _get_hrf_array(custom_array, sampling_rate=1.0)
         assert_array_equal(result, custom_array)
-        
+
         # Test with HRF object
-        hrf_obj = get_hrf('spm')
+        hrf_obj = get_hrf("spm")
         result = _get_hrf_array(hrf_obj, sampling_rate=1.0)
         assert isinstance(result, np.ndarray)
-    
+
     def test_convolve_impulses(self):
         """Test low-level impulse convolution."""
         times = np.array([5.0, 10.0, 15.0])
         values = np.array([1.0, 2.0, 1.5])
         durations = np.array([1.0, 2.0, 1.0])
         hrf_array = np.array([0, 0.5, 1.0, 0.5, 0])
-        
+
         result = _convolve_impulses(
-            times, values, durations, hrf_array,
-            sampling_rate=1.0, total_duration=30.0
+            times, values, durations, hrf_array, sampling_rate=1.0, total_duration=30.0
         )
-        
+
         assert result.shape[0] == 30
         assert np.max(result) > 0
-        
+
     def test_convolve_empty_events(self):
         """Test convolution with empty events."""
         # Empty events are now disallowed by validation, so skip this test
@@ -226,10 +216,8 @@ class TestConvolve:
         from fmrimod.types import ValidationError
 
         with pytest.raises(ValidationError, match="Onsets cannot be empty"):
-            event = EventVariable(
-                onsets=[], durations=[], values=[], name="empty"
-            )
-    
+            event = EventVariable(onsets=[], durations=[], values=[], name="empty")
+
     def test_convolve_single_event(self):
         """Test convolution with single event."""
         event = EventVariable(
@@ -240,20 +228,20 @@ class TestConvolve:
         assert result.shape == (40, 1)
         assert np.max(result) > 0
         assert np.sum(result) > 0
-    
+
     def test_convolve_factor_with_missing_level(self):
         """Test factor convolution when some levels have no events."""
         event = EventFactor(
             onsets=[1, 5, 10],
             durations=[1, 1, 1],
-            values=['A', 'A', 'A'],  # Only A, no B
+            values=["A", "A", "A"],  # Only A, no B
             name="condition",
-            levels=['A', 'B', 'C']  # B and C defined but not used
+            levels=["A", "B", "C"],  # B and C defined but not used
         )
-        
+
         result = convolve(event, sampling_rate=1.0, total_duration=20.0)
         assert result.shape[1] == 3  # All levels represented
-        
+
         # Check that unused levels have zero response
         assert np.sum(result[:, 0]) > 0  # A has events
         assert np.sum(result[:, 1]) == 0  # B has no events
@@ -266,27 +254,21 @@ class TestConvolveIntegration:
     def test_convolve_matches_event_model(self):
         """Test that direct convolution matches event_model results."""
         # Create simple event
-        data = pd.DataFrame({
-            'onset': [1, 5, 10],
-            'condition': ['A', 'B', 'A']
-        })
+        data = pd.DataFrame({"onset": [1, 5, 10], "condition": ["A", "B", "A"]})
 
         # Using event_model (full pipeline)
         from fmrimod import SamplingFrame
+
         sframe = SamplingFrame(blocklens=[20], TR=1.0)
 
-        model = event_model(
-            'condition',
-            data=data,
-            sampling_info=sframe
-        )
+        model = event_model("condition", data=data, sampling_info=sframe)
 
         # Using direct convolution
         event = EventFactor(
             onsets=[1, 5, 10],
             durations=[0, 0, 0],  # Default durations
-            values=['A', 'B', 'A'],
-            name='condition'
+            values=["A", "B", "A"],
+            name="condition",
         )
 
         direct_result = convolve(event, sampling_rate=1.0, total_duration=20.0)
@@ -307,10 +289,10 @@ class TestConvolveEventFactorComprehensive:
             name="condition",
             onsets=[2.0, 6.0, 10.0, 14.0],
             durations=[1.0, 1.0, 1.0, 1.0],
-            values=['A', 'B', 'A', 'B']
+            values=["A", "B", "A", "B"],
         )
 
-        result = convolve(event, hrf='spm', sampling_rate=1.0, total_duration=30.0)
+        result = convolve(event, hrf="spm", sampling_rate=1.0, total_duration=30.0)
 
         # Check shape: 30 time points, 2 levels
         assert result.shape == (30, 2)
@@ -329,7 +311,7 @@ class TestConvolveEventFactorComprehensive:
             name="condition",
             onsets=[2.0, 6.0, 10.0, 14.0, 18.0, 22.0],
             durations=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-            values=['A', 'B', 'C', 'A', 'B', 'C']
+            values=["A", "B", "C", "A", "B", "C"],
         )
 
         result = convolve(event, sampling_rate=1.0, total_duration=35.0)
@@ -352,7 +334,7 @@ class TestConvolveEventFactorComprehensive:
             name="stim",
             onsets=[2.0, 6.0, 10.0],
             durations=[0.5, 0.5, 0.5],
-            values=['X', 'Y', 'X']
+            values=["X", "Y", "X"],
         )
 
         # Explicit sampling grid (TR=2.0)
@@ -367,10 +349,7 @@ class TestConvolveEventFactorComprehensive:
     def test_factor_with_normalize(self):
         """Test EventFactor with normalize=True."""
         event = EventFactor(
-            name="cond",
-            onsets=[2.0, 6.0],
-            durations=[1.0, 1.0],
-            values=['A', 'A']
+            name="cond", onsets=[2.0, 6.0], durations=[1.0, 1.0], values=["A", "A"]
         )
 
         result = convolve(event, sampling_rate=1.0, total_duration=20.0, normalize=True)
@@ -389,15 +368,19 @@ class TestConvolveEventFactorComprehensive:
             name="overlap",
             onsets=[2.0, 3.0],  # Close together, will overlap
             durations=[2.0, 2.0],
-            values=['A', 'A']
+            values=["A", "A"],
         )
 
-        result_sum = convolve(event, sampling_rate=1.0, total_duration=15.0, summate=True)
-        result_max = convolve(event, sampling_rate=1.0, total_duration=15.0, summate=False)
+        result_sum = convolve(
+            event, sampling_rate=1.0, total_duration=15.0, summate=True
+        )
+        result_max = convolve(
+            event, sampling_rate=1.0, total_duration=15.0, summate=False
+        )
 
-        # With summate=True, overlapping responses should sum
-        # With summate=False, they should take max
-        # The sum version should generally be larger in overlap regions
+        # With summate=True, overlapping responses accumulate.
+        # With summate=False, each block is duration-averaged.
+        # The summed version should generally be larger in overlap regions.
         assert result_sum.shape == result_max.shape
         assert np.max(result_sum) >= np.max(result_max)
 
@@ -412,7 +395,7 @@ class TestConvolveEventVariableComprehensive:
             onsets=[2.0, 6.0, 10.0],
             durations=[1.0, 1.0, 1.0],
             values=[1.5, 2.5, 3.5],
-            center=False
+            center=False,
         )
 
         result = convolve(event, sampling_rate=1.0, total_duration=20.0)
@@ -428,10 +411,10 @@ class TestConvolveEventVariableComprehensive:
             onsets=[5.0, 10.0],
             durations=[1.0, 1.0],
             values=[1.0, 2.0],
-            center=False
+            center=False,
         )
 
-        result = convolve(event, hrf='spmg1', sampling_rate=1.0, total_duration=25.0)
+        result = convolve(event, hrf="spmg1", sampling_rate=1.0, total_duration=25.0)
 
         assert result.shape == (25, 1)
         assert np.max(result) > 0
@@ -443,10 +426,10 @@ class TestConvolveEventVariableComprehensive:
             onsets=[5.0, 10.0],
             durations=[1.0, 1.0],
             values=[1.0, 2.0],
-            center=False
+            center=False,
         )
 
-        result = convolve(event, hrf='spmg2', sampling_rate=1.0, total_duration=25.0)
+        result = convolve(event, hrf="spmg2", sampling_rate=1.0, total_duration=25.0)
 
         # spmg2 includes time derivative, so should have 2 basis functions
         # But for EventVariable, we get weighted combination
@@ -460,7 +443,7 @@ class TestConvolveEventVariableComprehensive:
             onsets=[2.0, 6.0, 10.0],
             durations=[0.5, 0.5, 0.5],
             values=[0.5, 1.5, 2.5],
-            center=False
+            center=False,
         )
 
         result = convolve(event, sampling_rate=1.0, total_duration=20.0, normalize=True)
@@ -476,7 +459,7 @@ class TestConvolveEventVariableComprehensive:
             onsets=[2.0, 8.0, 14.0],
             durations=[0.5, 2.0, 1.0],  # Different durations
             values=[1.0, 1.0, 1.0],
-            center=False
+            center=False,
         )
 
         result = convolve(event, sampling_rate=1.0, total_duration=25.0)
@@ -491,19 +474,14 @@ class TestConvolveEventMatrixComprehensive:
 
     def test_2column_matrix_event(self):
         """Test 2-column matrix event."""
-        values = np.array([
-            [1.0, 0.0],
-            [0.5, 0.5],
-            [0.0, 1.0],
-            [1.0, 1.0]
-        ])
+        values = np.array([[1.0, 0.0], [0.5, 0.5], [0.0, 1.0], [1.0, 1.0]])
 
         event = EventMatrix(
             name="multi_param",
             onsets=[2.0, 6.0, 10.0, 14.0],
             durations=[1.0, 1.0, 1.0, 1.0],
             values=values,
-            column_names=['param1', 'param2']
+            column_names=["param1", "param2"],
         )
 
         result = convolve(event, sampling_rate=1.0, total_duration=25.0)
@@ -525,7 +503,7 @@ class TestConvolveEventMatrixComprehensive:
             name="motion",
             onsets=[2.0, 4.0, 6.0, 8.0, 10.0],
             durations=[0.5, 0.5, 0.5, 0.5, 0.5],
-            values=values
+            values=values,
         )
 
         result = convolve(event, sampling_rate=1.0, total_duration=20.0)
@@ -536,16 +514,10 @@ class TestConvolveEventMatrixComprehensive:
 
     def test_matrix_with_sampling_frame(self):
         """Test EventMatrix with explicit sampling_frame."""
-        values = np.array([
-            [1.0, 2.0, 3.0],
-            [2.0, 3.0, 1.0]
-        ])
+        values = np.array([[1.0, 2.0, 3.0], [2.0, 3.0, 1.0]])
 
         event = EventMatrix(
-            name="xyz",
-            onsets=[5.0, 10.0],
-            durations=[1.0, 1.0],
-            values=values
+            name="xyz", onsets=[5.0, 10.0], durations=[1.0, 1.0], values=values
         )
 
         # TR=2.0 sampling
@@ -568,7 +540,7 @@ class TestConvolveEventBasisComprehensive:
             onsets=[2.0, 6.0, 10.0],
             durations=[1.0, 1.0, 1.0],
             values=[1.0, 2.0, 3.0],
-            basis=Poly(degree=2)
+            basis=Poly(degree=2),
         )
 
         result = convolve(event, sampling_rate=1.0, total_duration=20.0)
@@ -591,7 +563,7 @@ class TestConvolveEventBasisComprehensive:
             onsets=[2.0, 5.0, 8.0, 11.0],
             durations=[0.5, 0.5, 0.5, 0.5],
             values=[1.0, 2.0, 1.5, 2.5],
-            basis=Poly(degree=degree)
+            basis=Poly(degree=degree),
         )
 
         result = convolve(event, sampling_rate=1.0, total_duration=20.0)
@@ -623,16 +595,14 @@ class TestConvolveNumpyArrayComprehensive:
         """Regression: empty ndarray inputs should fail with a clear message."""
         arr_empty = np.empty((0, 3), dtype=float)
 
-        with pytest.raises(ValueError, match="Array must contain at least one event row"):
+        with pytest.raises(
+            ValueError, match="Array must contain at least one event row"
+        ):
             convolve(arr_empty, sampling_rate=1.0)
 
     def test_array_3column_format(self):
         """Test array with correct [onset, duration, value] format."""
-        arr = np.array([
-            [2.0, 1.0, 1.5],
-            [6.0, 1.0, 2.5],
-            [10.0, 0.5, 1.0]
-        ])
+        arr = np.array([[2.0, 1.0, 1.5], [6.0, 1.0, 2.5], [10.0, 0.5, 1.0]])
 
         result = convolve(arr, sampling_rate=1.0, total_duration=20.0)
 
@@ -643,11 +613,7 @@ class TestConvolveNumpyArrayComprehensive:
 
     def test_array_with_zero_durations(self):
         """Test array with zero-duration impulse events."""
-        arr = np.array([
-            [5.0, 0.0, 1.0],
-            [10.0, 0.0, 2.0],
-            [15.0, 0.0, 1.5]
-        ])
+        arr = np.array([[5.0, 0.0, 1.0], [10.0, 0.0, 2.0], [15.0, 0.0, 1.5]])
 
         result = convolve(arr, sampling_rate=1.0, total_duration=30.0)
 
@@ -665,14 +631,11 @@ class TestConvolveListComprehensive:
             onsets=[2.0, 6.0],
             durations=[1.0, 1.0],
             values=[1.0, 2.0],
-            center=False
+            center=False,
         )
 
         ev2 = EventFactor(
-            name="fac1",
-            onsets=[3.0, 7.0],
-            durations=[1.0, 1.0],
-            values=['A', 'B']
+            name="fac1", onsets=[3.0, 7.0], durations=[1.0, 1.0], values=["A", "B"]
         )
 
         results = convolve([ev1, ev2], sampling_rate=1.0, total_duration=15.0)
@@ -692,10 +655,10 @@ class TestConvolveListComprehensive:
         for i in range(5):
             ev = EventVariable(
                 name=f"ev{i}",
-                onsets=[2.0 + i*2],
+                onsets=[2.0 + i * 2],
                 durations=[0.5],
                 values=[float(i)],
-                center=False
+                center=False,
             )
             events.append(ev)
 
@@ -712,11 +675,7 @@ class TestConvolveEdgeCases:
     def test_very_short_sampling_rate(self):
         """Test with very fine temporal resolution."""
         event = EventVariable(
-            name="fine",
-            onsets=[5.0],
-            durations=[0.1],
-            values=[1.0],
-            center=False
+            name="fine", onsets=[5.0], durations=[0.1], values=[1.0], center=False
         )
 
         # High sampling rate (10 Hz)
@@ -802,10 +761,7 @@ class TestConvolveEdgeCases:
     def test_custom_hrf_as_array(self):
         """Test with custom HRF provided as array."""
         event = EventFactor(
-            name="test",
-            onsets=[5.0, 10.0],
-            durations=[1.0, 1.0],
-            values=['A', 'A']
+            name="test", onsets=[5.0, 10.0], durations=[1.0, 1.0], values=["A", "A"]
         )
 
         # Simple triangular HRF
@@ -823,7 +779,7 @@ class TestConvolveEdgeCases:
             onsets=[0.0, 18.0],  # At boundaries
             durations=[1.0, 1.0],
             values=[1.0, 1.0],
-            center=False
+            center=False,
         )
 
         result = convolve(event, sampling_rate=1.0, total_duration=20.0)
@@ -838,15 +794,11 @@ class TestConvolveEdgeCases:
             name="combo",
             onsets=[2.0, 6.0, 10.0],
             durations=[1.0, 1.0, 1.0],
-            values=['X', 'Y', 'X']
+            values=["X", "Y", "X"],
         )
 
         result = convolve(
-            event,
-            sampling_rate=1.0,
-            total_duration=20.0,
-            normalize=True,
-            summate=False
+            event, sampling_rate=1.0, total_duration=20.0, normalize=True, summate=False
         )
 
         assert result.shape == (20, 2)
@@ -859,14 +811,10 @@ class TestConvolveEdgeCases:
     def test_hrf_string_spmg3(self):
         """Test with spmg3 HRF string (with dispersion derivative)."""
         event = EventVariable(
-            name="test",
-            onsets=[5.0],
-            durations=[1.0],
-            values=[1.0],
-            center=False
+            name="test", onsets=[5.0], durations=[1.0], values=[1.0], center=False
         )
 
-        result = convolve(event, hrf='spmg3', sampling_rate=1.0, total_duration=20.0)
+        result = convolve(event, hrf="spmg3", sampling_rate=1.0, total_duration=20.0)
 
         assert result.shape[0] == 20
         assert np.max(result) > 0
@@ -874,31 +822,23 @@ class TestConvolveEdgeCases:
     def test_hrf_unknown_string(self):
         """Test with unknown HRF string falls back to SPM canonical."""
         event = EventVariable(
-            name="test",
-            onsets=[5.0],
-            durations=[1.0],
-            values=[1.0],
-            center=False
+            name="test", onsets=[5.0], durations=[1.0], values=[1.0], center=False
         )
 
         # Unknown HRF name should fall back to SPM canonical
-        result = convolve(event, hrf='unknown_hrf_name', sampling_rate=1.0, total_duration=20.0)
+        result = convolve(
+            event, hrf="unknown_hrf_name", sampling_rate=1.0, total_duration=20.0
+        )
 
         assert result.shape[0] == 20
         assert np.max(result) > 0
 
     def test_matrix_with_array_hrf_fallback(self):
         """Test EventMatrix with array HRF (uses fallback path)."""
-        values = np.array([
-            [1.0, 2.0],
-            [2.0, 1.0]
-        ])
+        values = np.array([[1.0, 2.0], [2.0, 1.0]])
 
         event = EventMatrix(
-            name="matrix",
-            onsets=[5.0, 10.0],
-            durations=[1.0, 1.0],
-            values=values
+            name="matrix", onsets=[5.0, 10.0], durations=[1.0, 1.0], values=values
         )
 
         # Custom HRF array triggers fallback path
@@ -911,10 +851,7 @@ class TestConvolveEdgeCases:
 
     def test_array_with_array_hrf_fallback(self):
         """Test numpy array convolution with array HRF (uses fallback path)."""
-        arr = np.array([
-            [5.0, 1.0, 1.5],
-            [10.0, 1.0, 2.0]
-        ])
+        arr = np.array([[5.0, 1.0, 1.5], [10.0, 1.0, 2.0]])
 
         # Custom HRF array triggers fallback path
         custom_hrf = np.array([0, 0.5, 1.0, 0.5, 0])
@@ -949,10 +886,12 @@ class TestConvolveEdgeCases:
 
     def test_invalid_sampling_rate_rejected_with_implicit_grid(self):
         """Invalid sampling_rate should fail fast when sampling_frame is omitted."""
-        arr = np.array([
-            [5.0, 1.0, 1.0],
-            [10.0, 1.0, 1.0],
-        ])
+        arr = np.array(
+            [
+                [5.0, 1.0, 1.0],
+                [10.0, 1.0, 1.0],
+            ]
+        )
 
         event_var = EventVariable(
             name="event_variable",
@@ -978,7 +917,10 @@ class TestConvolveEdgeCases:
             ("factor", lambda rate: convolve(event_factor, sampling_rate=rate)),
             ("matrix", lambda rate: convolve(event_matrix, sampling_rate=rate)),
             ("variable", lambda rate: convolve(event_var, sampling_rate=rate)),
-            ("list", lambda rate: convolve([event_factor, event_var], sampling_rate=rate)),
+            (
+                "list",
+                lambda rate: convolve([event_factor, event_var], sampling_rate=rate),
+            ),
         ]
 
         for _name, caller in cases:
@@ -991,6 +933,7 @@ class TestConvolveEdgeCases:
     def test_fallback_empty_sampling_frame_raises_clear_error(self):
         """Regression: empty sampling_frame should fail with ValueError, not IndexError."""
         from fmrimod.basis import Poly
+
         custom_hrf = np.array([0, 0.5, 1.0, 0.5, 0])
         empty_frame = np.array([])
 
@@ -1000,34 +943,33 @@ class TestConvolveEdgeCases:
                 onsets=[5.0, 10.0],
                 durations=[1.0, 1.0],
                 values=[1.0, 2.0],
-                center=False
+                center=False,
             ),
             EventFactor(
                 name="event_factor",
                 onsets=[5.0, 10.0],
                 durations=[1.0, 1.0],
-                values=["A", "B"]
+                values=["A", "B"],
             ),
             EventMatrix(
                 name="event_matrix",
                 onsets=[5.0, 10.0],
                 durations=[1.0, 1.0],
-                values=np.array([[1.0], [2.0]])
+                values=np.array([[1.0], [2.0]]),
             ),
             EventBasis(
                 name="event_basis",
                 onsets=[5.0, 10.0],
                 values=[1.0, 2.0],
-                basis=Poly(degree=1)
+                basis=Poly(degree=1),
             ),
-            np.array([
-                [5.0, 1.0, 1.0],
-                [10.0, 1.0, 2.0]
-            ])
+            np.array([[5.0, 1.0, 1.0], [10.0, 1.0, 2.0]]),
         ]
 
         for event in cases:
-            with pytest.raises(ValueError, match="sampling_frame must contain at least one time point"):
+            with pytest.raises(
+                ValueError, match="sampling_frame must contain at least one time point"
+            ):
                 convolve(event, hrf=custom_hrf, sampling_frame=empty_frame)
 
     def test_fallback_sampling_frame_row_and_column_vectors_are_normalized(self):
@@ -1066,9 +1008,9 @@ class TestConvolveEdgeCases:
         )
 
         grids = [
-            np.array([0.0, 2.0, 4.0]),   # non-unit spacing
-            np.array([1.0, 2.0, 3.0]),   # non-zero start
-            np.array([10.0, 11.0, 12.0]) # shifted window
+            np.array([0.0, 2.0, 4.0]),  # non-unit spacing
+            np.array([1.0, 2.0, 3.0]),  # non-zero start
+            np.array([10.0, 11.0, 12.0]),  # shifted window
         ]
 
         for sampling_frame in grids:
@@ -1091,11 +1033,13 @@ class TestConvolveEdgeCases:
             onsets=[1.0, 2.0],
             durations=[1.0, 1.0],
             values=[1.0, 2.0],
-            center=False
+            center=False,
         )
 
         result_row = convolve(event, hrf=custom_hrf, sampling_frame=sampling_frame_row)
-        result_flat = convolve(event, hrf=custom_hrf, sampling_frame=sampling_frame_flat)
+        result_flat = convolve(
+            event, hrf=custom_hrf, sampling_frame=sampling_frame_flat
+        )
         assert result_row.shape == result_flat.shape
         assert_array_almost_equal(result_row, result_flat)
 
@@ -1109,7 +1053,7 @@ class TestConvolveEdgeCases:
             onsets=[2.0, 6.0],
             durations=[1.0, 1.0],
             values=[1.0, 1.0],
-            center=False
+            center=False,
         )
 
         result = convolve(event, hrf=custom_hrf, sampling_frame=sampling_frame)
@@ -1125,10 +1069,12 @@ class TestConvolveEdgeCases:
             onsets=[2.0, 6.0],
             durations=[1.0, 1.0],
             values=[1.0, 1.0],
-            center=False
+            center=False,
         )
 
-        result_from_grid = convolve(event, hrf=custom_hrf, sampling_frame=sampling_frame)
+        result_from_grid = convolve(
+            event, hrf=custom_hrf, sampling_frame=sampling_frame
+        )
         result_from_rate = convolve(
             event,
             hrf=custom_hrf,
@@ -1155,7 +1101,9 @@ class TestConvolveEdgeCases:
             center=False,
         )
 
-        result_from_grid = convolve(event, hrf=custom_hrf, sampling_frame=sampling_frame)
+        result_from_grid = convolve(
+            event, hrf=custom_hrf, sampling_frame=sampling_frame
+        )
         result_from_rate = convolve(
             event,
             hrf=custom_hrf,
@@ -1190,8 +1138,12 @@ class TestConvolveEdgeCases:
             center=False,
         )
 
-        result_abs = convolve(event_abs, hrf=custom_hrf, sampling_frame=sampling_frame_abs)
-        result_rel = convolve(event_rel, hrf=custom_hrf, sampling_frame=sampling_frame_rel)
+        result_abs = convolve(
+            event_abs, hrf=custom_hrf, sampling_frame=sampling_frame_abs
+        )
+        result_rel = convolve(
+            event_rel, hrf=custom_hrf, sampling_frame=sampling_frame_rel
+        )
 
         assert result_abs.shape == result_rel.shape
         assert_array_almost_equal(result_abs, result_rel)
@@ -1211,13 +1163,17 @@ class TestConvolveEdgeCases:
             ValueError,
             match="sampling_frame must be uniformly spaced when using array/callable HRF",
         ):
-            convolve(event, hrf=custom_hrf, sampling_frame=np.array([0.0, 2.0, 6.0, 7.0]))
+            convolve(
+                event, hrf=custom_hrf, sampling_frame=np.array([0.0, 2.0, 6.0, 7.0])
+            )
 
         with pytest.raises(
             ValueError,
             match="sampling_frame must be strictly increasing",
         ):
-            convolve(event, hrf=custom_hrf, sampling_frame=np.array([0.0, 2.0, 2.0, 4.0]))
+            convolve(
+                event, hrf=custom_hrf, sampling_frame=np.array([0.0, 2.0, 2.0, 4.0])
+            )
 
     def test_fallback_uniform_grid_requirement_across_types(self):
         """Non-uniform sampling frames should be rejected for all fallback entry points."""

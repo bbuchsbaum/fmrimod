@@ -75,7 +75,11 @@ class HRF(ABC):
         Args:
             grid: Time points at which to evaluate
             duration: Duration of block/sustained stimulus in seconds
-            precision: Temporal precision for convolution in seconds
+            precision: Quadrature step in seconds (default 0.1).
+                ``Regressors`` and R ``HRF$evaluate`` default to 0.33 s;
+                :class:`~fmrimod.sampling.SamplingFrame` defaults to
+                0.1 s. Pass the same value when those surfaces must
+                match.
             summate: If True, responses accumulate; if False, averaged
             normalize: Retired. Use ``hrf.normalize(mode).evaluate(...)``.
 

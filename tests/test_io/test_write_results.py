@@ -158,6 +158,33 @@ def test_write_results_beta_bundle_round_trips_through_neuroim(tmp_path):
     np.testing.assert_allclose(beta_vec.space.affine, affine)
     np.testing.assert_allclose(beta_vec.data[..., 0].reshape(-1), np.arange(8))
     np.testing.assert_allclose(beta_vec.data[..., 1].reshape(-1), np.arange(8) + 100)
+    # Raw on-disk field (RNifti-style). nibabel sanitizes identity
+    # slope=1 to NaN on read, so hdr['scl_slope'] is not the check.
+    from fmrimod.bids.export import _raw_nifti_scl_slope
+
+    assert _raw_nifti_scl_slope(manifest.files[0].path) == 1.0
+
+
+def test_ensure_nifti_scl_slope_rewrites_zero_slope(tmp_path):
+    """fmrigds #6: a stored scl_slope of 0 must become 1.
+
+    Cheap pass: documenting the field while leaving 0 on disk.
+    """
+    import gzip
+    import struct
+
+    from fmrimod.bids.export import _raw_nifti_scl_slope, ensure_nifti_scl_slope
+
+    path = tmp_path / "zero_slope.nii.gz"
+    img = nib.Nifti1Image(np.arange(8, dtype=np.float32).reshape(2, 2, 2), np.eye(4))
+    img.to_filename(path)
+    payload = bytearray(gzip.decompress(path.read_bytes()))
+    struct.pack_into("<f", payload, 112, 0.0)
+    struct.pack_into("<f", payload, 116, 0.0)
+    path.write_bytes(gzip.compress(payload))
+    assert _raw_nifti_scl_slope(path) == 0.0
+    ensure_nifti_scl_slope(path)
+    assert _raw_nifti_scl_slope(path) == 1.0
 
 
 def test_write_results_can_bundle_nuisance_betas_on_request(tmp_path):

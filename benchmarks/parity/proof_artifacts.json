@@ -1,6 +1,12 @@
 {
   "schema_version": "parity-proof-artifacts/v1",
-  "no_report_caveats": [],
+  "no_report_caveats": [
+    {
+      "caveat_id": "spmg1-x10-scale",
+      "owner": "bd-01M0E2GZMPAMZTDK3R4XV8V0X6",
+      "reason": "Convention difference between R HRF_SPMG1 and fmrimod spmg1 (factor of 10). Indexed so the divergence is owned; no workflow currently emits this caveat_id because existing cross_testing gates still use allow_rescale."
+    }
+  ],
   "artifacts": [
     {
       "benchmark_id": "tier_a_ar1_prewhitening",

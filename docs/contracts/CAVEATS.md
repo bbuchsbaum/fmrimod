@@ -12,6 +12,7 @@ commit, report path, red check, and owner/closing bead.
 | Caveat ID | First appearance | Affected tiers | Owner | Exit criterion |
 | --- | --- | --- | --- | --- |
 | `dfres-n-minus-rank` | `benchmarks/parity/tier_a_multicollinear_baseline/` | Tier A multicollinear baseline; any rank-deficient parity surface | `bd-01KRHTASRWPA5ZQNGV55BS6XFE` | Nilearn's `run_glm` adopts `dfres = n - rank` for rank-deficient designs, or this divergence is recorded as permanent under the parity-as-exit-door rule. fmrimod's `fast_preproject` (`fmrimod/glm/solver.py:272-278`) uses the textbook `n - rank`; Nilearn uses `n - p` regardless of rank. fmrimod will not regress to match Nilearn — the residual-DoF math for rank-deficient X requires `n - rank`. |
+| `spmg1-x10-scale` | `cross_testing/` R HRF_SPMG1 vs fmrimod `spmg1` | Cross-testing / fmrihrf 0.4.0 convention | `bd-01M0E2GZMPAMZTDK3R4XV8V0X6` | Either `spmg1` gains an explicit, tested rescale so R `HRF_SPMG1` parity passes without `allow_rescale`, or the ×10 convention is recorded as permanent in `CAVEAT_RETIREMENTS.md`. |
 
 ## Maintenance Rule
 

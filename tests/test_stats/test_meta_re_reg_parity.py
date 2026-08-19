@@ -9,12 +9,14 @@ implements this as ``meta:re_reg`` (``~/code/fmrigds`` ->
 already R-oracle parity-tested.
 
 The primary proof here is an *independent* transcription of the R
-``meta:re_reg`` algorithm (FE-WLS -> Q -> ``C = sum(w) - tr(H)`` ->
-DL tau2 -> RE-WLS refit) asserted against ``fmri_meta`` to tight
+``meta:re_reg`` algorithm (FE-WLS -> Q -> ``C = tr(P)`` with
+``tr(P) = sum(w) - sum(w_i^2 x_i' A x_i)`` -> DL tau2 -> RE-WLS refit)
+asserted against ``fmri_meta`` to tight
 tolerance. A stub or a tau2=0 short-circuit cannot pass it: the
 fixtures are deliberately heterogeneous so tau2 > 0 and the regression
 slope is non-trivial. A second, low-coupling check ties the typed path
-transitively to the validated native kernel.
+transitively to the validated native kernel. An unequal-weight fixture
+disqualifies the old ``sum(w * xAx)`` hat-trace formula.
 """
 
 from __future__ import annotations
@@ -43,9 +45,9 @@ def _re_reg_reference(
     bhat_fe = gram_inv @ (X.T @ (w * y))
     resid = y - X @ bhat_fe
     q_val = float(np.sum(w * resid * resid))
-    # DL tau2 (regression): C = sum w - tr(H), df = n - p
-    tr_h = float(np.sum(w * np.sum((X @ gram_inv) * X, axis=1)))
-    c_term = float(np.sum(w) - tr_h)
+    # DL tau2 (regression): C = tr(P) = sum(w) - sum(w_i^2 x_i' A x_i)
+    x_a_x = np.sum((X @ gram_inv) * X, axis=1)
+    c_term = float(np.sum(w) - np.sum((w**2) * x_a_x))
     df_val = float(n - p)
     tau2 = max((q_val - df_val) / max(c_term, eps), 0.0)
     # RE refit
@@ -57,12 +59,12 @@ def _re_reg_reference(
     return coef, se, tau2
 
 
-def _heterogeneous_two_roi() -> tuple[pd.DataFrame, pd.DataFrame, list[str], np.ndarray]:
+def _heterogeneous_two_roi() -> (
+    tuple[pd.DataFrame, pd.DataFrame, list[str], np.ndarray]
+):
     """A 2-ROI covariate dataset with genuine residual heterogeneity."""
     subjects = [f"s{i+1}" for i in range(8)]
-    age = np.array(
-        [22.0, 31.0, 28.0, 45.0, 52.0, 39.0, 60.0, 35.0], dtype=np.float64
-    )
+    age = np.array([22.0, 31.0, 28.0, 45.0, 52.0, 39.0, 60.0, 35.0], dtype=np.float64)
     covariates = pd.DataFrame({"age": age})
     # Effects follow intercept + slope*age plus deliberate, age-uncorrelated
     # scatter so the DL tau2 estimate is strictly positive.
@@ -72,12 +74,8 @@ def _heterogeneous_two_roi() -> tuple[pd.DataFrame, pd.DataFrame, list[str], np.
     scatter_r2 = np.array(
         [-0.25, 0.35, -0.45, 0.50, -0.30, 0.40, -0.55, 0.20], dtype=np.float64
     )
-    se_r1 = np.array(
-        [0.20, 0.25, 0.18, 0.30, 0.22, 0.28, 0.19, 0.26], dtype=np.float64
-    )
-    se_r2 = np.array(
-        [0.24, 0.21, 0.27, 0.23, 0.29, 0.20, 0.31, 0.22], dtype=np.float64
-    )
+    se_r1 = np.array([0.20, 0.25, 0.18, 0.30, 0.22, 0.28, 0.19, 0.26], dtype=np.float64)
+    se_r2 = np.array([0.24, 0.21, 0.27, 0.23, 0.29, 0.20, 0.31, 0.22], dtype=np.float64)
     rows: list[dict[str, object]] = []
     for roi, intercept, slope, scatter, se in [
         ("r1", 1.0, 0.03, scatter_r1, se_r1),
@@ -159,9 +157,7 @@ def test_dl_meta_regression_matches_validated_native_kernel() -> None:
         + np.array([0.3, -0.4, 0.5, -0.2, 0.45, -0.5, 0.25], dtype=np.float64)
     )
     se = np.array([0.2, 0.25, 0.18, 0.3, 0.22, 0.28, 0.19], dtype=np.float64)
-    df = pd.DataFrame(
-        {"subject": subjects, "roi": ["r1"] * 7, "beta": beta, "se": se}
-    )
+    df = pd.DataFrame({"subject": subjects, "roi": ["r1"] * 7, "beta": beta, "se": se})
     gd = group_data_from_csv(
         df,
         effect_cols={"beta": "beta", "se": "se"},
@@ -221,9 +217,7 @@ def test_dl_intercept_only_path_is_unchanged() -> None:
     subjects = [f"s{i+1}" for i in range(6)]
     y = np.array([0.4, -0.1, 0.6, 0.2, -0.3, 0.5], dtype=np.float64)
     se = np.array([0.15, 0.22, 0.18, 0.25, 0.20, 0.17], dtype=np.float64)
-    df = pd.DataFrame(
-        {"subject": subjects, "roi": ["r1"] * 6, "beta": y, "se": se}
-    )
+    df = pd.DataFrame({"subject": subjects, "roi": ["r1"] * 6, "beta": y, "se": se})
     gd = group_data_from_csv(
         df,
         effect_cols={"beta": "beta", "se": "se"},
@@ -243,6 +237,47 @@ def test_dl_intercept_only_path_is_unchanged() -> None:
     tau2_classic = max((q - (len(y) - 1)) / c, 0.0)
 
     np.testing.assert_allclose(out.tau2[0], tau2_classic, rtol=1e-12, atol=1e-14)
+
+
+def test_dl_meta_regression_tr_p_uses_both_weight_factors() -> None:
+    """Unequal-weight fixture where sum(w h) and sum(w^2 h) diverge.
+
+    Transcribed from fmrigds ``tests/testthat/test-meta-re-reg-dl.R``.
+    The old Python C = sum(w) - sum(w * xAx) agrees with the new
+    C = sum(w) - sum(w^2 * xAx) only under equal weights; this fixture
+    is the cheap-pass disqualifier.
+    """
+    y = np.array([0.1, 0.4, 1.2, 1.0, 2.2, 2.8], dtype=np.float64)
+    v = np.array([0.02, 0.08, 0.15, 0.25, 0.5, 0.9], dtype=np.float64)
+    group = np.array([0.0, 0.0, 0.0, 1.0, 1.0, 1.0])
+    X = np.column_stack([np.ones(6), group])
+    coef, se, tau2 = _re_reg_reference(y, X, v)
+
+    w = 1.0 / v
+    gram_inv = np.linalg.inv((X * np.sqrt(w)[:, None]).T @ (X * np.sqrt(w)[:, None]))
+    x_a_x = np.sum((X @ gram_inv) * X, axis=1)
+    c_old = float(np.sum(w) - np.sum(w * x_a_x))
+    c_new = float(np.sum(w) - np.sum((w**2) * x_a_x))
+    assert abs(c_old - c_new) > 1.0
+
+    np.testing.assert_allclose(tau2, 0.209463037073, rtol=0, atol=1e-12)
+
+    subjects = [f"s{i+1}" for i in range(6)]
+    df = pd.DataFrame(
+        {"subject": subjects, "roi": ["r1"] * 6, "beta": y, "se": np.sqrt(v)}
+    )
+    gd = group_data_from_csv(
+        df,
+        effect_cols={"beta": "beta", "se": "se"},
+        subject_col="subject",
+        roi_col="roi",
+        subjects=subjects,
+        covariates=pd.DataFrame({"group": group}),
+    )
+    out = fmri_meta(gd, formula="~ 1 + group", method="dl")
+    np.testing.assert_allclose(out.tau2[0], tau2, rtol=1e-12, atol=1e-14)
+    np.testing.assert_allclose(out.coefficients[0], coef, rtol=1e-10, atol=1e-12)
+    np.testing.assert_allclose(out.se[0], se, rtol=1e-10, atol=1e-12)
 
 
 def test_dl_meta_regression_requires_enough_subjects() -> None:

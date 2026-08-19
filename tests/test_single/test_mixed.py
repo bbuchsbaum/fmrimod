@@ -38,6 +38,7 @@ class TestMixedSingleTrial:
     def test_shrinkage_improves_mse(self, rng):
         """Mixed model shrinkage should have lower MSE than LSS."""
         from fmrimod.single.lss import lss_single_trial
+
         n, T, V = 100, 20, 50
         sigma2_u, sigma2_e = 0.3, 1.0
         true_betas = rng.standard_normal((T, V)) * np.sqrt(sigma2_u)
@@ -77,3 +78,18 @@ class TestMixedSingleTrial:
         Y = rng.standard_normal((80, 20))
         with pytest.raises(ValueError, match="timepoints"):
             mixed_single_trial(Y, X)
+
+    def test_singular_design_returns_nan_and_warns(self, rng):
+        """fmrireg 0.2.0: hard solver failure → NA coefficients, not zeros.
+
+        Cheap pass: ``lstsq`` returning a finite zero vector.
+        """
+        n, t, v = 40, 6, 4
+        X = np.zeros((n, t))
+        Y = rng.standard_normal((n, v))
+        with pytest.warns(RuntimeWarning, match="returning NA coefficients"):
+            result = mixed_single_trial(Y, X)
+        assert result.betas.shape == (t, v)
+        assert np.all(np.isnan(result.betas))
+        assert np.isnan(result.extra.sigma2_u)
+        assert np.isnan(result.extra.sigma2_e)

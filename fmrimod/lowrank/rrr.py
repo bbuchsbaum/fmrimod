@@ -332,8 +332,7 @@ def _assemble_betas(
         task_fitted = np.zeros_like(prepared.Y)
     else:
         task_fitted = (
-            prepared.U[:, :rank]
-            * prepared.singular_values[np.newaxis, :rank]
+            prepared.U[:, :rank] * prepared.singular_values[np.newaxis, :rank]
         ) @ prepared.Vt[:rank, :]
 
     target_betas = prepared.target_pinv @ task_fitted
@@ -391,6 +390,10 @@ def _block_bootstrap_indices(
 ) -> NDArray[np.intp]:
     if block_size <= 1:
         return cast("NDArray[np.intp]", rng.integers(0, n, size=n, dtype=np.intp))
+    # fmrireg 0.2.0: a block that covers the whole series is one contiguous
+    # identity draw, not a modular rotation of a random start.
+    if block_size >= n:
+        return np.arange(n, dtype=np.intp)
     n_blocks = int(np.ceil(n / block_size))
     starts = rng.integers(0, n, size=n_blocks, dtype=np.intp)
     offsets = np.arange(block_size, dtype=np.intp)

@@ -46,6 +46,27 @@ class TestAcorrDiagnostics:
         result = acorr_diagnostics(resid, max_lag=5, aggregate="median")
         assert len(result["acf"]) == 5
 
+    def test_runs_exclude_boundary_lag_products(self):
+        """fmriAR 0.3.3: ``runs=`` must change lag-1 vs a global ACF.
+
+        Cheap pass: accepting ``runs`` while still spanning the join.
+        Two constant runs of opposite sign are white after per-run
+        centering; the concatenated series is highly autocorrelated.
+        """
+        rng = np.random.default_rng(0)
+        resid = np.concatenate(
+            [
+                5.0 + 0.05 * rng.standard_normal((50, 3)),
+                -5.0 + 0.05 * rng.standard_normal((50, 3)),
+            ],
+            axis=0,
+        )
+        runs = np.array([1] * 50 + [2] * 50)
+        ignored = acorr_diagnostics(resid, max_lag=3)
+        honoured = acorr_diagnostics(resid, runs=runs, max_lag=3)
+        assert abs(ignored["acf"][0]) > 0.8
+        assert abs(honoured["acf"][0]) < 0.15
+
 
 class TestSandwichSEs:
     def test_iid(self):
@@ -80,7 +101,7 @@ class TestSandwichSEs:
         XtX_inv = np.linalg.inv(X.T @ X)
         beta_hat = XtX_inv @ (X.T @ Y)
         e = Y - X @ beta_hat
-        sigma2 = np.sum(e ** 2) / (n - p)
+        sigma2 = np.sum(e**2) / (n - p)
         se_manual = np.sqrt(np.outer(np.diag(XtX_inv), sigma2))
         np.testing.assert_allclose(result["se"], se_manual, atol=1e-10)
 
