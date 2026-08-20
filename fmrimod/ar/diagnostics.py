@@ -25,7 +25,8 @@ def acorr_diagnostics(
     resid : NDArray
         Residual matrix, shape ``(n, V)``.
     runs : NDArray, optional
-        Run labels (reserved for future per-run computation).
+        Run labels, length ``n``. When supplied, each run is centred
+        separately and no lag product spans a run boundary.
     max_lag : int
         Maximum lag to evaluate.
     aggregate : str
@@ -41,17 +42,38 @@ def acorr_diagnostics(
         resid = resid[:, np.newaxis]
     n = resid.shape[0]
     ci = 1.96 / np.sqrt(n)
+    seg_id = None
+    if runs is not None:
+        from .acvf import run_codes
+
+        seg_id = run_codes(runs, n)
 
     def _acf_one(y: NDArray[Any]) -> NDArray[Any]:
-        y = y - y.mean()
-        var: float = float(np.sum(y ** 2))
-        if var < 1e-15:
-            return np.zeros(max_lag)
+        if seg_id is None:
+            y = y - y.mean()
+            var: float = float(np.sum(y**2))
+            if var < 1e-15:
+                return np.zeros(max_lag)
+            acf = np.zeros(max_lag)
+            for lag in range(1, max_lag + 1):
+                if lag >= n:
+                    break
+                acf[lag - 1] = np.sum(y[: n - lag] * y[lag:]) / var
+            return acf
+        from .acvf import acvf_from_pooled, pooled_acvf_segments
+
+        pooled = pooled_acvf_segments(
+            np.asarray(y, dtype=np.float64).reshape(-1, 1),
+            seg_id,
+            max_lag,
+            center_id=seg_id,
+        )
+        gamma, _ = acvf_from_pooled(pooled, order=max_lag)
+        if gamma.size < 1 or not np.isfinite(gamma[0]) or gamma[0] <= 0:
+            return np.full(max_lag, np.nan)
         acf = np.zeros(max_lag)
-        for lag in range(1, max_lag + 1):
-            if lag >= n:
-                break
-            acf[lag - 1] = np.sum(y[: n - lag] * y[lag:]) / var
+        n_copy = min(max_lag, gamma.size - 1)
+        acf[:n_copy] = gamma[1 : 1 + n_copy] / gamma[0]
         return acf
 
     if aggregate == "none":
@@ -117,7 +139,7 @@ def sandwich_from_whitened_resid(
     df = n - rank_X if df_mode == "rankX" else n - p_dim
 
     if type == "iid":
-        sigma2 = np.sum(E ** 2, axis=0) / df
+        sigma2 = np.sum(E**2, axis=0) / df
         se = np.sqrt(np.outer(np.diag(XtX_inv), sigma2))
         return {"se": se, "sigma2": sigma2, "XtX_inv": XtX_inv, "df": df, "type": "iid"}
 
@@ -130,5 +152,5 @@ def sandwich_from_whitened_resid(
         V = XtX_inv @ meat @ XtX_inv
         se[:, j] = np.sqrt(np.diag(V))
 
-    sigma2 = np.sum(E ** 2, axis=0) / df
+    sigma2 = np.sum(E**2, axis=0) / df
     return {"se": se, "sigma2": sigma2, "XtX_inv": XtX_inv, "df": df, "type": "hc0"}

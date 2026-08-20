@@ -469,6 +469,35 @@ def test_ols_voxelwise_matches_numpy_least_squares() -> None:
     assert "cov_tri:0" in out.assays
 
 
+def test_ols_voxelwise_n_obs_records_listwise_deletion() -> None:
+    """fmrigds #7: ``n_obs`` counts finite subjects, including unestimable voxels.
+
+    Cheap pass: listwise deletion without an ``n_obs`` assay.
+    """
+    rng = np.random.default_rng(2)
+    n_samples, n_subj = 4, 6
+    beta = rng.normal(loc=2.0, size=(n_samples, n_subj, 1))
+    beta[0, :5, 0] = np.nan
+    beta[1, 0, 0] = np.nan
+    poison = beta.copy()
+    poison[:, 5, :] = np.nan
+
+    ds = group_dataset(
+        {"beta": poison},
+        space=SampleLabelSpace([f"v{i}" for i in range(n_samples)]),
+        subjects=[f"s{i}" for i in range(n_subj)],
+        contrasts=["c1"],
+    )
+    out = ols_voxelwise(ds, formula="~ 1")
+    coef = out.assay("coef:Intercept")[:, 0, 0]
+    n_obs = out.assay("n_obs")[:, 0, 0]
+    assert np.isnan(coef[0])
+    assert np.isfinite(coef[1])
+    assert np.all(np.isfinite(coef[2:]))
+    np.testing.assert_array_equal(n_obs, [0, 4, 5, 5])
+    np.testing.assert_allclose(coef[1], float(np.nanmean(poison[1, :, 0])))
+
+
 def test_group_model_validates_predictor_surface() -> None:
     assert group_model("age").formula == "~ 1 + age"
     assert group_model("age", intercept=False).formula == "~ 0 + age"
@@ -617,9 +646,7 @@ def _lmm_slope_dataset():
     )
     beta = np.empty((2, len(subjects), len(contrasts)), dtype=np.float64)
     beta[0, :, :] = (
-        np.outer(1.1 + b0, np.ones_like(time))
-        + np.outer(0.65 + b1, time)
-        + eps1
+        np.outer(1.1 + b0, np.ones_like(time)) + np.outer(0.65 + b1, time) + eps1
     )
     beta[1, :, :] = (
         np.outer(-0.3 + 0.8 * b0, np.ones_like(time))
@@ -823,3 +850,39 @@ def test_lmm_registry_descriptions_reflect_native_voxelwise_v1() -> None:
         assert "fmrigds-r fallback" in description
         for forbidden in ("place" + "holder", "mile" + "stone"):
             assert forbidden not in description
+
+
+def test_variance_weighted_reducers_refuse_synthetic_unit_variance() -> None:
+    """fmrigds #5: IVW reducers error on the placeholder; OLS is allowed.
+
+    Cheap-pass disqualifier: checking that var happens to equal 1 is not
+    enough — untagged unit variance is a legitimate real variance.
+    """
+    beta = np.array([[[0.2], [0.1], [0.3]]])
+    var = np.ones((1, 3, 1))
+    tagged = group_dataset(
+        {"beta": beta, "var": var},
+        space=SampleLabelSpace(["r1"]),
+        subjects=["s1", "s2", "s3"],
+        contrasts=["c1"],
+        metadata={"synthetic_unit_variance": True},
+    )
+    genuine = group_dataset(
+        {"beta": beta, "var": var},
+        space=SampleLabelSpace(["r1"]),
+        subjects=["s1", "s2", "s3"],
+        contrasts=["c1"],
+    )
+
+    with pytest.raises(AdapterContractError, match="synthetic"):
+        meta_fe(tagged)
+    with pytest.raises(AdapterContractError, match="synthetic"):
+        meta_re(tagged)
+    with pytest.raises(AdapterContractError, match="synthetic"):
+        meta_fe_reg(tagged)
+    with pytest.raises(AdapterContractError, match="synthetic"):
+        meta_re_reg(tagged)
+
+    ols_voxelwise(tagged)
+    meta_fe(genuine)
+    meta_re(genuine)

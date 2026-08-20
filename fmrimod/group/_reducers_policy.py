@@ -60,10 +60,13 @@ def _feature_chunks(
     if n_features < 1:
         return [], 1
     n_workers = min(int(n_jobs), n_features)
-    size = int(chunk_size) if chunk_size is not None else max(1, ceil(n_features / n_workers))
+    size = (
+        int(chunk_size)
+        if chunk_size is not None
+        else max(1, ceil(n_features / n_workers))
+    )
     chunks = [
-        (start, min(start + size, n_features))
-        for start in range(0, n_features, size)
+        (start, min(start + size, n_features)) for start in range(0, n_features, size)
     ]
     return chunks, min(n_workers, len(chunks))
 
@@ -93,9 +96,27 @@ def _run_feature_chunks(
     return results, n_workers, chunk_size
 
 
+def _refuse_synthetic_unit_variance(
+    dataset: GroupDataset, method: str = "meta"
+) -> None:
+    """Refuse IVW reducers when var is a beta-only placeholder."""
+    md = dict(dataset.metadata)
+    if md.get("synthetic_unit_variance") or md.get("synthetic_var"):
+        raise AdapterContractError(
+            f"Reducer '{method}' is variance-weighted, but the var assay is a "
+            "synthetic unit-variance placeholder (beta/stat maps ingested "
+            "without standard errors), so the group standard errors would be "
+            "meaningless. Use an unweighted reducer such as ols_voxelwise, "
+            "or supply real standard errors."
+        )
+
+
 def _beta_and_var(
     dataset: GroupDataset,
+    *,
+    method: str = "meta",
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    _refuse_synthetic_unit_variance(dataset, method=method)
     beta = dataset.assay("beta")
     if "var" in dataset.assays:
         var = dataset.assay("var")
@@ -168,6 +189,7 @@ __all__ = [
     "_feature_chunks",
     "_run_feature_chunks",
     "_beta_and_var",
+    "_refuse_synthetic_unit_variance",
     "_group_col_data",
     "_reduced_dataset",
     "_design_matrix",

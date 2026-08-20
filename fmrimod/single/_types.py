@@ -31,14 +31,17 @@ class SingleTrialMethod(str, Enum):
     LSS_VOXEL_HRF = "lss_voxel_hrf"
 
 
-SingleTrialMethodLike = Union[SingleTrialMethod, Literal[
-    "lss",
-    "lsa",
-    "oasis",
-    "sbhm",
-    "mixed",
-    "lss_voxel_hrf",
-]]
+SingleTrialMethodLike = Union[
+    SingleTrialMethod,
+    Literal[
+        "lss",
+        "lsa",
+        "oasis",
+        "sbhm",
+        "mixed",
+        "lss_voxel_hrf",
+    ],
+]
 """Public single-trial method selector accepted by the dispatcher."""
 
 
@@ -226,9 +229,9 @@ class OasisConfig:
     """
 
     K: int = 1
-    ridge_mode: RidgeMode = "none"
-    ridge_x: float = 0.0
-    ridge_b: float = 0.0
+    ridge_mode: RidgeMode = "fractional"
+    ridge_x: float = 0.05
+    ridge_b: float = 0.05
     return_se: bool = False
     block_cols: int = 4096
 
@@ -245,6 +248,15 @@ class OasisConfig:
         if int(self.block_cols) != self.block_cols or self.block_cols < 1:
             raise ValueError("block_cols must be a positive integer")
         object.__setattr__(self, "block_cols", int(self.block_cols))
+        if (
+            self.return_se
+            and self.ridge_mode != "none"
+            and (self.ridge_x != 0.0 or self.ridge_b != 0.0)
+        ):
+            raise ValueError(
+                "return_se requires ridge_x = ridge_b = 0; "
+                "ridge uncertainty is diagnostic-only"
+            )
 
 
 @dataclass(frozen=True)

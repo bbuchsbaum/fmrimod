@@ -18,11 +18,14 @@ from ._arma_c_backend import arma_whiten_segments_c
 
 try:
     from numba import njit  # type: ignore[import-untyped]
+
     _HAS_NUMBA = True
 except Exception:  # pragma: no cover - optional accelerator
     njit = None
     _HAS_NUMBA = False
-_USE_NUMBA_ARMA = _HAS_NUMBA and os.environ.get("FMRIMOD_DISABLE_NUMBA_ARMA", "0") != "1"
+_USE_NUMBA_ARMA = (
+    _HAS_NUMBA and os.environ.get("FMRIMOD_DISABLE_NUMBA_ARMA", "0") != "1"
+)
 _USE_C_ARMA = os.environ.get("FMRIMOD_DISABLE_C_ARMA", "0") != "1"
 
 from .plan import WhiteningPlan, WhitenResult
@@ -180,6 +183,7 @@ def ar_covariance_matrix(
 # Segment-aware ARMA whitening (ports fmriAR_whiten.cpp)
 # ---------------------------------------------------------------------------
 
+
 def _arma_whiten_segments_numba_core(
     y: NDArray[np.float64],
     phi: NDArray[np.float64],
@@ -190,7 +194,9 @@ def _arma_whiten_segments_numba_core(
     """Placeholder numba backend symbol for monkeypatching in tests."""
     raise RuntimeError("Numba ARMA backend unavailable")
 
+
 if _USE_NUMBA_ARMA:
+
     @njit(cache=True)  # type: ignore[untyped-decorator]
     def _arma_whiten_segments_numba_core(
         y: NDArray[np.float64],
@@ -237,6 +243,7 @@ if _USE_NUMBA_ARMA:
                     out[s_start, col] *= np.sqrt(s)
 
         return out
+
 
 def arma_whiten_segments(
     y: NDArray[np.float64],
@@ -357,18 +364,22 @@ def _sub_run_starts(n_run: int, censor_rel: NDArray[Any]) -> NDArray[np.intp]:
     return np.array(starts, dtype=np.intp)
 
 
-def _full_run_starts(runs: NDArray[np.float64], censor: Optional[NDArray[np.float64]], n: int) -> NDArray[np.float64]:
+def _full_run_starts(
+    runs: NDArray[Any], censor: Optional[NDArray[Any]], n: int
+) -> NDArray[np.intp]:
     """Merge run boundaries and censor gaps into segment starts."""
+    from .acvf import run_codes
+
     starts = {0}
     if runs is not None:
-        runs = np.asarray(runs, dtype=np.intp)
-        diffs = np.where(np.diff(runs) != 0)[0] + 1
-        starts.update(diffs.tolist())
+        codes = run_codes(runs, n)
+        diffs = np.where(np.diff(codes) != 0)[0] + 1
+        starts.update(int(x) for x in diffs.tolist())
     if censor is not None and len(censor) > 0:
         censor = np.asarray(censor, dtype=np.intp)
         extra = censor + 1
         extra = extra[extra < n]
-        starts.update(extra.tolist())
+        starts.update(int(x) for x in extra.tolist())
     return np.array(sorted(starts), dtype=np.intp)
 
 
@@ -402,23 +413,29 @@ def whiten_apply(
     -------
     WhitenResult
     """
+    from .acvf import parcel_codes, run_codes, run_sets
     from .plan import WhitenResult
 
-    X = np.asarray(X, dtype=np.float64)
-    Y = np.asarray(Y, dtype=np.float64)
+    X = np.array(X, dtype=np.float64, copy=True)
+    Y = np.array(Y, dtype=np.float64, copy=True)
     if X.ndim == 1:
         X = X[:, np.newaxis]
     if Y.ndim == 1:
         Y = Y[:, np.newaxis]
+    if not np.all(np.isfinite(X)) or not np.all(np.isfinite(Y)):
+        raise ValueError("whiten_apply: NA values detected in X or Y")
 
     n = X.shape[0]
-    assert Y.shape[0] == n
+    if Y.shape[0] != n:
+        raise ValueError("X and Y must have the same number of rows")
 
     # Resolve runs
     if runs is None and plan.runs is not None and len(plan.runs) == n:
         runs = plan.runs
     if runs is None:
         runs = np.ones(n, dtype=np.intp)
+    else:
+        run_codes(runs, n)
 
     # Resolve censor
     if censor is None:
@@ -429,7 +446,7 @@ def whiten_apply(
         parcels_vec = parcels if parcels is not None else plan.parcels
         if parcels_vec is None:
             raise ValueError("Parcel labels required for parcel plan")
-        parcels_vec = np.asarray(parcels_vec, dtype=np.intp)
+        parcels_vec = parcel_codes(parcels_vec)
 
         run_starts_vec = _full_run_starts(runs, censor, n)
         phi_by = plan.phi_by_parcel or {}
@@ -438,7 +455,7 @@ def whiten_apply(
         Yw = np.empty_like(Y)
         X_by: Dict[str, NDArray[np.float64]] = {}
 
-        for pid in (plan.parcel_ids or sorted(phi_by.keys())):
+        for pid in plan.parcel_ids or sorted(phi_by.keys()):
             key = str(pid)
             cols = np.where(parcels_vec == int(pid))[0]
             if len(cols) == 0:
@@ -450,7 +467,10 @@ def whiten_apply(
             if len(theta_v) == 0:
                 XY_sub = np.hstack((X, Y[:, cols]))
                 XYw_sub = arma_whiten_segments(
-                    XY_sub, phi_v, theta_v, run_starts_vec,
+                    XY_sub,
+                    phi_v,
+                    theta_v,
+                    run_starts_vec,
                     exact_first_ar1=plan.exact_first,
                 )
                 k = X.shape[1]
@@ -458,11 +478,17 @@ def whiten_apply(
                 Y_sub = XYw_sub[:, k:]
             else:
                 Y_sub = arma_whiten_segments(
-                    Y[:, cols], phi_v, theta_v, run_starts_vec,
+                    Y[:, cols],
+                    phi_v,
+                    theta_v,
+                    run_starts_vec,
                     exact_first_ar1=plan.exact_first,
                 )
                 X_sub = arma_whiten_segments(
-                    X, phi_v, theta_v, run_starts_vec,
+                    X,
+                    phi_v,
+                    theta_v,
+                    run_starts_vec,
                     exact_first_ar1=plan.exact_first,
                 )
             Yw[:, cols] = Y_sub
@@ -471,8 +497,7 @@ def whiten_apply(
         return WhitenResult(X=None, Y=Yw, X_by=X_by)
 
     # --- Global / run plan ---
-    run_labels = np.unique(runs)
-    rsplits = [np.where(runs == rl)[0] for rl in run_labels]
+    rsplits = [idx for _, idx in run_sets(runs, n)]
 
     def _row_selector(idx: NDArray[Any]) -> Any:
         """Prefer contiguous slice selectors to avoid fancy-index copies."""
@@ -516,22 +541,27 @@ def whiten_apply(
         Xr = X[row_sel]
         Yr = Y[row_sel]
         phi_r = phi_list[ri] if ri < len(phi_list) else np.array([], dtype=np.float64)
-        theta_r = theta_list[ri] if ri < len(theta_list) else np.array([], dtype=np.float64)
+        theta_r = (
+            theta_list[ri] if ri < len(theta_list) else np.array([], dtype=np.float64)
+        )
 
         seg_starts = _sub_run_starts(len(idx), censor_by_run[ri])
 
         if len(theta_r) == 0:
             XYr = np.hstack((Xr, Yr))
-            XYw_r = arma_whiten_segments(XYr, phi_r, theta_r, seg_starts,
-                                         exact_first_ar1=plan.exact_first)
+            XYw_r = arma_whiten_segments(
+                XYr, phi_r, theta_r, seg_starts, exact_first_ar1=plan.exact_first
+            )
             k = Xr.shape[1]
             Xw_r = XYw_r[:, :k]
             Yw_r = XYw_r[:, k:]
         else:
-            Xw_r = arma_whiten_segments(Xr, phi_r, theta_r, seg_starts,
-                                        exact_first_ar1=plan.exact_first)
-            Yw_r = arma_whiten_segments(Yr, phi_r, theta_r, seg_starts,
-                                        exact_first_ar1=plan.exact_first)
+            Xw_r = arma_whiten_segments(
+                Xr, phi_r, theta_r, seg_starts, exact_first_ar1=plan.exact_first
+            )
+            Yw_r = arma_whiten_segments(
+                Yr, phi_r, theta_r, seg_starts, exact_first_ar1=plan.exact_first
+            )
         Xw[row_sel, :] = Xw_r
         Yw[row_sel, :] = Yw_r
 
@@ -578,5 +608,7 @@ def whiten(
 
     coef, _, _, _ = np.linalg.lstsq(X, Y, rcond=None)
     res = Y - X @ coef
-    plan = fit_noise(resid=res, runs=runs, censor=censor, **cast("dict[str, Any]", fit_kwargs))
+    plan = fit_noise(
+        resid=res, runs=runs, censor=censor, **cast("dict[str, Any]", fit_kwargs)
+    )
     return whiten_apply(plan, X, Y, runs=runs, censor=censor)

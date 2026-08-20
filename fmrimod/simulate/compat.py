@@ -45,7 +45,11 @@ def simulate_bold_signal(
     if len(isi) != 2 or float(isi[1]) <= float(isi[0]):
         raise ValueError("isi must be length-2 with isi[1] > isi[0]")
 
-    amps_array = np.ones(ncond, dtype=np.float64) if amps is None else np.asarray(amps, dtype=np.float64)
+    amps_array = (
+        np.ones(ncond, dtype=np.float64)
+        if amps is None
+        else np.asarray(amps, dtype=np.float64)
+    )
     if amps_array.shape[0] != ncond:
         raise ValueError("Length of amps must equal ncond")
 
@@ -59,7 +63,9 @@ def simulate_bold_signal(
     ).astype(np.float64)
 
     span = float(getattr(hrf, "span", 12.0))
-    time = np.arange(0.0, float(onsets.max()) + span + 1e-12, float(tr), dtype=np.float64)
+    time = np.arange(
+        0.0, float(onsets.max()) + span + 1e-12, float(tr), dtype=np.float64
+    )
 
     cols: list[NDArray[np.float64]] = []
     for i, cond_name in enumerate(conditions):
@@ -118,7 +124,9 @@ def simulate_noise_vector(
         noise[t] = val
 
     time = np.arange(n, dtype=np.float64) * float(tr)
-    noise = noise + float(drift_amplitude) * np.sin(2.0 * np.pi * float(drift_freq) * time)
+    noise = noise + float(drift_amplitude) * np.sin(
+        2.0 * np.pi * float(drift_freq) * time
+    )
 
     if physio:
         cardiac = 0.5 * np.sin(2.0 * np.pi * 1.2 * time)
@@ -128,7 +136,9 @@ def simulate_noise_vector(
     return np.asarray(noise, dtype=np.float64)
 
 
-def _as_event_vector(x: float | Sequence[float], n_events: int, name: str) -> NDArray[np.float64]:
+def _as_event_vector(
+    x: float | Sequence[float], n_events: int, name: str
+) -> NDArray[np.float64]:
     arr = np.asarray(x, dtype=np.float64).reshape(-1)
     if arr.shape[0] == 1:
         return np.full(n_events, float(arr[0]), dtype=np.float64)
@@ -155,8 +165,8 @@ def _resample_param(
         if dist == "lognormal":
             out[i] = rng.lognormal(mean=np.log(mu), sigma=sd)
         elif dist == "gamma":
-            shape = (mu ** 2) / (sd ** 2)
-            rate = mu / (sd ** 2)
+            shape = (mu**2) / (sd**2)
+            rate = mu / (sd**2)
             out[i] = rng.gamma(shape=shape, scale=1.0 / rate)
         elif dist == "gaussian":
             out[i] = rng.normal(loc=mu, scale=sd)
@@ -228,12 +238,16 @@ def simulate_fmri_matrix(
         elif isi_dist == "exponential":
             isi_samples = isi_min + rng.exponential(scale=1.0 / isi_rate, size=n_events)
         else:
-            isi_samples = np.full(n_events, effective_time / n_events, dtype=np.float64)
+            isi_samples = np.full(
+                n_events, effective_time / (n_events + 1), dtype=np.float64
+            )
         onset_vec = np.cumsum(isi_samples)
         if onset_vec.size > 0 and float(np.max(onset_vec)) > effective_time:
             onset_vec = onset_vec[onset_vec < effective_time]
             if verbose:
-                print(f"Reduced to {onset_vec.shape[0]} events to fit within effective time")
+                print(
+                    f"Reduced to {onset_vec.shape[0]} events to fit within effective time"
+                )
     else:
         onset_vec = np.asarray(onsets, dtype=np.float64).reshape(-1)
     if onset_vec.size == 0:
@@ -268,13 +282,21 @@ def simulate_fmri_matrix(
         if noise_type == "none":
             return np.zeros(n_time_points, dtype=np.float64)
         if noise_type == "white":
-            return rng.normal(loc=0.0, scale=noise_sd, size=n_time_points).astype(np.float64)
+            return rng.normal(loc=0.0, scale=noise_sd, size=n_time_points).astype(
+                np.float64
+            )
         if noise_type == "ar1":
-            phi = np.asarray([0.3] if noise_ar is None else noise_ar, dtype=np.float64).reshape(-1)
+            phi = np.asarray(
+                [0.3] if noise_ar is None else noise_ar, dtype=np.float64
+            ).reshape(-1)
             if phi.shape[0] < 1:
                 phi = np.asarray([0.3], dtype=np.float64)
-            return ar_noise(n=n_time_points, V=1, phi=phi[:1], sd=noise_sd, rng=rng)[:, 0]
-        phi = np.asarray([0.3, 0.2] if noise_ar is None else noise_ar, dtype=np.float64).reshape(-1)
+            return ar_noise(n=n_time_points, V=1, phi=phi[:1], sd=noise_sd, rng=rng)[
+                :, 0
+            ]
+        phi = np.asarray(
+            [0.3, 0.2] if noise_ar is None else noise_ar, dtype=np.float64
+        ).reshape(-1)
         if phi.shape[0] < 2:
             phi = np.asarray([0.3, 0.2], dtype=np.float64)
         return ar_noise(n=n_time_points, V=1, phi=phi[:2], sd=noise_sd, rng=rng)[:, 0]
@@ -295,7 +317,9 @@ def simulate_fmri_matrix(
                 duration=this_dur,
                 amplitude=this_amp,
             )
-            bold_signal = np.asarray(rg.evaluate(time_grid), dtype=np.float64).reshape(-1)
+            bold_signal = np.asarray(rg.evaluate(time_grid), dtype=np.float64).reshape(
+                -1
+            )
         else:
             bold_signal = np.zeros(n_time_points, dtype=np.float64)
             for j in range(n_events_eff):
@@ -305,7 +329,9 @@ def simulate_fmri_matrix(
                     duration=float(this_dur[j]),
                     amplitude=float(this_amp[j]),
                 )
-                bold_signal = bold_signal + np.asarray(sreg.evaluate(time_grid), dtype=np.float64).reshape(-1)
+                bold_signal = bold_signal + np.asarray(
+                    sreg.evaluate(time_grid), dtype=np.float64
+                ).reshape(-1)
 
         signal_list.append(bold_signal + gen_noise())
 

@@ -7,7 +7,7 @@ import pytest
 from numpy.testing import assert_allclose
 
 from fmrimod.single import estimate_single_trial
-from fmrimod.single._types import LssExtras, SingleTrialMethod
+from fmrimod.single._types import LssExtras, OasisConfig, SingleTrialMethod
 
 
 @pytest.fixture
@@ -85,7 +85,9 @@ class TestDispatcher:
         assert isinstance(result.extra, LssExtras)
         assert result.extra.adjustment_rank == 2
 
-    def test_baseline_regressors_rejected_for_methods_without_adjustment_surface(self, rng):
+    def test_baseline_regressors_rejected_for_methods_without_adjustment_surface(
+        self, rng
+    ):
         n, T, V = 70, 4, 3
         Y = rng.standard_normal((n, V))
         X = rng.standard_normal((n, T))
@@ -107,7 +109,9 @@ class TestCrossMethodEquivalence:
         X = rng.standard_normal((n, T))
         Y = rng.standard_normal((n, V))
         res_lss = estimate_single_trial(Y, X, method="lss")
-        res_oasis = estimate_single_trial(Y, X, method="oasis")
+        res_oasis = estimate_single_trial(
+            Y, X, method="oasis", oasis_config=OasisConfig(ridge_mode="none")
+        )
         assert_allclose(res_lss.betas, res_oasis.betas, atol=1e-6)
 
     def test_lsa_vs_ols(self, rng):
@@ -123,6 +127,7 @@ class TestCrossMethodEquivalence:
 class TestPrewhitening:
     def test_prewhiten_ar1(self, rng):
         from fmrimod.single._prewhiten import PrewhitenConfig
+
         n, T, V = 100, 8, 15
         X = rng.standard_normal((n, T))
         Y = rng.standard_normal((n, V))
@@ -132,6 +137,7 @@ class TestPrewhitening:
 
     def test_prewhiten_none(self, rng):
         from fmrimod.single._prewhiten import PrewhitenConfig
+
         n, T, V = 80, 8, 15
         X = rng.standard_normal((n, T))
         Y = rng.standard_normal((n, V))
@@ -149,6 +155,14 @@ class TestPrewhitening:
             ({"p": -1}, "p must be a non-negative integer"),
             ({"q": -1}, "q must be a non-negative integer"),
             ({"p_max": 0}, "p_max must be a positive integer"),
+            (
+                {"correction_max_lag": 0},
+                "correction_max_lag must be a positive integer",
+            ),
+            (
+                {"design": np.eye(2), "acvf_correction": np.eye(2)},
+                "either design or acvf_correction",
+            ),
         ],
     )
     def test_prewhiten_config_validates_options(self, kwargs, message):
@@ -171,5 +185,10 @@ class TestPrewhitening:
 class TestSingleTrialMethod:
     def test_all_methods(self):
         assert set(m.value for m in SingleTrialMethod) == {
-            "lss", "lsa", "oasis", "sbhm", "mixed", "lss_voxel_hrf"
+            "lss",
+            "lsa",
+            "oasis",
+            "sbhm",
+            "mixed",
+            "lss_voxel_hrf",
         }

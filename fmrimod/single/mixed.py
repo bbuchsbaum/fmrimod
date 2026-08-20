@@ -7,6 +7,7 @@ amplitudes are random effects.
 
 from __future__ import annotations
 
+import warnings
 from typing import Optional, cast
 
 import numpy as np
@@ -15,6 +16,10 @@ from scipy import linalg
 
 from ._project import project_nuisance
 from ._types import MixedExtras, SingleTrialMethod, SingleTrialResult
+
+
+class MixedSolveError(RuntimeError):
+    """Raised when the mixed-model Cholesky solve cannot proceed."""
 
 
 def _estimate_variance_components_reml(
@@ -46,16 +51,12 @@ def _estimate_variance_components_reml(
 
     # OLS estimates for each voxel
     XtX = X_resid.T @ X_resid  # (T, T)
-    try:
-        L = linalg.cho_factor(XtX)
-        betas_ols = linalg.cho_solve(L, X_resid.T @ Y_resid)  # (T, V)
-    except linalg.LinAlgError:
-        betas_ols = np.linalg.lstsq(X_resid, Y_resid, rcond=None)[0]
+    betas_ols = _cho_solve_or_fail(XtX, X_resid.T @ Y_resid)
 
     # Residual variance (across all voxels)
     Y_fitted = X_resid @ betas_ols  # (n, V)
     residuals = Y_resid - Y_fitted
-    sse = float(np.sum(residuals ** 2))
+    sse = float(np.sum(residuals**2))
     dof_resid = n * V - T * V
     sigma2_e = sse / max(dof_resid, 1.0)
 
@@ -99,8 +100,7 @@ def _blup_betas(
     -------
     betas : (T, V)
     """
-    n, T = X_resid.shape
-    V = Y_resid.shape[1]
+    T = X_resid.shape[1]
 
     # Ridge parameter
     if sigma2_u > eps:
@@ -114,14 +114,27 @@ def _blup_betas(
     G = XtX + lambda_ridge * np.eye(T, dtype=np.float64)
     XtY = X_resid.T @ Y_resid  # (T, V)
 
-    # Solve via Cholesky if possible
-    try:
-        L = linalg.cho_factor(G)
-        betas = linalg.cho_solve(L, XtY)
-    except linalg.LinAlgError:
-        betas = np.linalg.lstsq(G, XtY, rcond=None)[0]
-
+    betas = _cho_solve_or_fail(G, XtY)
     return cast("NDArray[np.float64]", betas)
+
+
+def _cho_solve_or_fail(
+    gram: NDArray[np.float64],
+    rhs: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """Solve ``gram @ x = rhs`` or raise :class:`MixedSolveError`.
+
+    fmrireg 0.2.0 returns NA coefficients on solver failure. A
+    minimum-norm ``lstsq`` fallback can look like a successful zero
+    estimate and is the cheap pass this path refuses.
+    """
+    try:
+        factor = linalg.cho_factor(gram)
+        return cast("NDArray[np.float64]", linalg.cho_solve(factor, rhs))
+    except linalg.LinAlgError as exc:
+        raise MixedSolveError(
+            "mixed-model Gram matrix is singular or not positive definite"
+        ) from exc
 
 
 def mixed_single_trial(
@@ -170,9 +183,7 @@ def mixed_single_trial(
     n, n_trials = X.shape
     V = Y.shape[1]
     if Y.shape[0] != n:
-        raise ValueError(
-            f"Y has {Y.shape[0]} timepoints, X has {n}."
-        )
+        raise ValueError(f"Y has {Y.shape[0]} timepoints, X has {n}.")
 
     # Project out nuisance (fixed effects)
     if confounds is not None:
@@ -183,14 +194,29 @@ def mixed_single_trial(
         Y_clean, X_clean = Y, X
         nuis_rank = 0
 
-    # Estimate variance components
-    sigma2_u, sigma2_e = _estimate_variance_components_reml(Y_clean, X_clean)
+    try:
+        sigma2_u, sigma2_e = _estimate_variance_components_reml(Y_clean, X_clean)
+        betas = _blup_betas(Y_clean, X_clean, sigma2_u, sigma2_e)
+    except MixedSolveError as exc:
+        warnings.warn(
+            f"Mixed model solver failed: {exc}; "
+            "returning NA coefficients for this response.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return SingleTrialResult(
+            betas=np.full((n_trials, V), np.nan, dtype=np.float64),
+            method=SingleTrialMethod.MIXED,
+            trial_labels=list(trial_labels) if trial_labels is not None else None,
+            residual_df=max(1.0, float(n * V - n_trials * V - nuis_rank)),
+            se=None,
+            extra=MixedExtras(
+                sigma2_u=float("nan"),
+                sigma2_e=float("nan"),
+                lambda_ratio=float("nan"),
+            ),
+        )
 
-    # Compute BLUP (shrinkage estimates)
-    betas = _blup_betas(Y_clean, X_clean, sigma2_u, sigma2_e)
-
-    # Residual degrees of freedom
-    # For mixed models: n*V - rank(X) - nuis_rank (approx)
     dof = max(1.0, float(n * V - n_trials * V - nuis_rank))
 
     return SingleTrialResult(
@@ -198,7 +224,7 @@ def mixed_single_trial(
         method=SingleTrialMethod.MIXED,
         trial_labels=list(trial_labels) if trial_labels is not None else None,
         residual_df=dof,
-        se=None,  # SE computation requires full covariance matrix
+        se=None,
         extra=MixedExtras(
             sigma2_u=sigma2_u,
             sigma2_e=sigma2_e,

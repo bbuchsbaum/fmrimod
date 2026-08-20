@@ -19,7 +19,7 @@ downstream LSS solve operates on a fully whitened system.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -59,6 +59,17 @@ class PrewhitenConfig:
         Parcel labels, shape ``(V,)``.
     exact_first : str
         ``"ar1"`` (default) or ``"none"``.
+    design : NDArray or None
+        Design whose projection produced the residuals used to estimate
+        the noise model. Opt-in residual-autocovariance bias correction
+        (fmriAR 0.3.3 / fmrilss ``f851fb0``). Mutually exclusive with
+        ``acvf_correction``.
+    acvf_correction : NDArray or sequence of NDArray or None
+        Cached bias-correction matrix, or list of matrices, from
+        :func:`fmrimod.ar.acvf.acvf_bias_matrix`. Mutually exclusive
+        with ``design``.
+    correction_max_lag : int
+        Lag budget used when ``design`` is supplied (default 25).
     """
 
     method: PrewhitenMethod = "ar"
@@ -69,6 +80,11 @@ class PrewhitenConfig:
     runs: Optional[NDArray[Any]] = None
     parcels: Optional[NDArray[Any]] = None
     exact_first: ExactFirstMode = "ar1"
+    design: Optional[NDArray[np.float64]] = None
+    acvf_correction: Optional[
+        Union[NDArray[np.float64], Sequence[NDArray[np.float64]]]
+    ] = None
+    correction_max_lag: int = 25
 
     def __post_init__(self) -> None:
         if self.method not in {"ar", "arma", "none"}:
@@ -85,8 +101,60 @@ class PrewhitenConfig:
             raise ValueError("q must be a non-negative integer")
         if int(self.p_max) != self.p_max or self.p_max < 1:
             raise ValueError("p_max must be a positive integer")
+        if (
+            int(self.correction_max_lag) != self.correction_max_lag
+            or self.correction_max_lag < 1
+        ):
+            raise ValueError("correction_max_lag must be a positive integer")
+        if self.design is not None and self.acvf_correction is not None:
+            raise ValueError("supply either design or acvf_correction, not both")
+        if self.design is not None:
+            design = np.asarray(self.design, dtype=np.float64)
+            if design.ndim != 2:
+                raise ValueError("design must be a 2-D matrix")
+            object.__setattr__(self, "design", design)
+        if self.acvf_correction is not None:
+            object.__setattr__(
+                self, "acvf_correction", _validate_acvf_correction(self.acvf_correction)
+            )
         object.__setattr__(self, "q", int(self.q))
         object.__setattr__(self, "p_max", int(self.p_max))
+        object.__setattr__(self, "correction_max_lag", int(self.correction_max_lag))
+
+
+def _validate_acvf_correction(
+    correction: Union[NDArray[np.float64], Sequence[NDArray[np.float64]]],
+) -> Union[NDArray[np.float64], list[NDArray[np.float64]]]:
+    """Mirror R's ``prewhiten$acvf_correction`` square-matrix contract."""
+
+    if isinstance(correction, np.ndarray):
+        mat = np.asarray(correction, dtype=np.float64)
+        if (
+            mat.ndim != 2
+            or mat.shape[0] != mat.shape[1]
+            or not np.all(np.isfinite(mat))
+        ):
+            raise ValueError(
+                "acvf_correction must be a finite square numeric matrix "
+                "or a non-empty list of such matrices"
+            )
+        return mat
+    mats = [np.asarray(item, dtype=np.float64) for item in correction]
+    if not mats:
+        raise ValueError(
+            "acvf_correction must be a finite square numeric matrix "
+            "or a non-empty list of such matrices"
+        )
+    for mat in mats:
+        if (
+            mat.ndim != 2
+            or mat.shape[0] != mat.shape[1]
+            or not np.all(np.isfinite(mat))
+        ):
+            raise ValueError(
+                "acvf_correction must contain finite square numeric matrices"
+            )
+    return mats
 
 
 @dataclass(frozen=True)
@@ -250,6 +318,9 @@ def prewhiten_matrices(
         exact_first=exact_first,
         pooling=pooling,
         parcels=parcels,
+        design=config.design,
+        acvf_correction=config.acvf_correction,
+        correction_max_lag=config.correction_max_lag,
     )
 
     if plan.pooling == "parcel":

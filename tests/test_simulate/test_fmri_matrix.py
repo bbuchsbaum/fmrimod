@@ -17,13 +17,21 @@ def test_simulate_fmri_matrix_output_structure_and_shapes():
         noise_type="white",
         random_seed=123,
     )
-    assert set(out.keys()) == {"time_series", "ampmat", "durmat", "hrf_info", "noise_params"}
+    assert set(out.keys()) == {
+        "time_series",
+        "ampmat",
+        "durmat",
+        "hrf_info",
+        "noise_params",
+    }
     assert isinstance(out["time_series"], FmriDataset)
     assert out["time_series"].get_all_data().shape[1] == 3
     assert out["ampmat"].shape == (8, 3)
     assert out["durmat"].shape == (8, 3)
     assert out["time_series"].event_table is not None
-    assert {"run", "onset", "duration", "amplitude"}.issubset(out["time_series"].event_table.columns)
+    assert {"run", "onset", "duration", "amplitude"}.issubset(
+        out["time_series"].event_table.columns
+    )
 
 
 def test_simulate_fmri_matrix_reproducible_with_seed():
@@ -80,3 +88,24 @@ def test_simulate_fmri_matrix_validation():
     with pytest.raises(ValueError, match="No valid onsets generated"):
         simulate_fmri_matrix(onsets=[], random_seed=1)
 
+
+def test_even_isi_spaces_by_n_events_plus_one():
+    """fmrireg c82918a: even ISI is effective_time / (n_events + 1), not / n_events."""
+    total_time = 100.0
+    buffer = 16.0
+    n_events = 8
+    out = simulate_fmri_matrix(
+        n=1,
+        total_time=total_time,
+        TR=2.0,
+        n_events=n_events,
+        isi_dist="even",
+        buffer=buffer,
+        noise_type="none",
+        random_seed=1,
+    )
+    onsets = out["time_series"].event_table["onset"].to_numpy(dtype=np.float64)
+    spacing = (total_time - buffer) / (n_events + 1)
+    np.testing.assert_allclose(onsets, spacing * np.arange(1, n_events + 1))
+    old_spacing = (total_time - buffer) / n_events
+    assert not np.allclose(onsets, old_spacing * np.arange(1, n_events + 1))

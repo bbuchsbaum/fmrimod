@@ -51,7 +51,9 @@ def _as_formula(formula: str | object) -> str:
     return formula
 
 
-def _extract_feature_frames(data: GroupData) -> tuple[list[str], list[tuple[NDArray[np.float64], NDArray[np.float64]]]]:
+def _extract_feature_frames(
+    data: GroupData,
+) -> tuple[list[str], list[tuple[NDArray[np.float64], NDArray[np.float64]]]]:
     if data.format != "csv":
         raise NotImplementedError(
             "fmri_meta currently supports GroupData format='csv' only"
@@ -94,13 +96,14 @@ def _extract_feature_frames(data: GroupData) -> tuple[list[str], list[tuple[NDAr
         missing = [s for s in subjects if s not in by_subj.index]
         if missing:
             raise ValueError(
-                "Missing feature rows for subjects: " + ", ".join(str(s) for s in missing)
+                "Missing feature rows for subjects: "
+                + ", ".join(str(s) for s in missing)
             )
         aligned = by_subj.loc[subjects]
         y = np.asarray(aligned[beta_col], dtype=np.float64)
         if se_col is not None:
             se = np.asarray(aligned[se_col], dtype=np.float64)
-            v = se ** 2
+            v = se**2
         else:
             v = np.asarray(aligned[var_col], dtype=np.float64)
 
@@ -124,14 +127,14 @@ def _extract_feature_frames(data: GroupData) -> tuple[list[str], list[tuple[NDAr
     return feature_names, feature_data
 
 
-def _build_design_matrix(data: GroupData, formula: str) -> tuple[NDArray[np.float64], list[str]]:
+def _build_design_matrix(
+    data: GroupData, formula: str
+) -> tuple[NDArray[np.float64], list[str]]:
     cov = data.covariates
     if cov is None:
         clean = formula.replace(" ", "")
         if clean not in ("~1", "1"):
-            raise ValueError(
-                "Non-intercept formulas require covariates in GroupData"
-            )
+            raise ValueError("Non-intercept formulas require covariates in GroupData")
         X = np.ones((data.n_subjects, 1), dtype=np.float64)
         return X, ["Intercept"]
 
@@ -147,13 +150,15 @@ def _dl_tau2_intercept(y: NDArray[np.float64], v: NDArray[np.float64]) -> float:
         return 0.0
     mu = float(np.sum(w * y) / wsum)
     q = float(np.sum(w * (y - mu) ** 2))
-    c = wsum - float(np.sum(w ** 2) / wsum)
+    c = wsum - float(np.sum(w**2) / wsum)
     if c <= 0:
         return 0.0
     return max((q - (len(y) - 1)) / c, 0.0)
 
 
-def _q_stat_intercept(y: NDArray[np.float64], v: NDArray[np.float64], tau2: float) -> float:
+def _q_stat_intercept(
+    y: NDArray[np.float64], v: NDArray[np.float64], tau2: float
+) -> float:
     """Cochran's Q for intercept-only model at fixed tau2."""
     w = 1.0 / (v + tau2)
     wsum = float(np.sum(w))
@@ -185,7 +190,9 @@ def _pm_tau2_intercept(y: NDArray[np.float64], v: NDArray[np.float64]) -> float:
     return float(sp_opt.brentq(f, 0.0, hi))
 
 
-def _reml_criterion_intercept(tau2: float, y: NDArray[np.float64], v: NDArray[np.float64]) -> float:
+def _reml_criterion_intercept(
+    tau2: float, y: NDArray[np.float64], v: NDArray[np.float64]
+) -> float:
     """-2 restricted log-likelihood (constant dropped), intercept-only model."""
     if tau2 < 0:
         return np.inf
@@ -245,8 +252,8 @@ def _dl_tau2_regression(
     1:1 port of fmrigds ``meta:re_reg`` (``R/reducers-core.R``:348-386),
     which the native :func:`fmrimod.group.reducers.meta_re_reg` already
     mirrors and is R-oracle parity-tested. The moment term is
-    ``C = sum(w) - tr(H)`` with ``H`` the weighted hat matrix
-    (``tr(H) == p`` algebraically) — deliberately distinct from the
+    ``C = tr(P) = sum(w) - sum(w_i^2 x_i' A x_i)`` with ``A = (X'WX)^{-1}``
+    — deliberately distinct from the
     intercept-only DL ``C = sum(w) - sum(w^2)/sum(w)``. R ships these as
     separate reducers (``meta:re_dl`` vs ``meta:re_reg``), so routing the
     two cases through different code paths here is faithful to the spec,
@@ -268,8 +275,8 @@ def _dl_tau2_regression(
     bhat_fe = gram_inv @ (X.T @ (w * y))
     resid = y - X @ bhat_fe
     q_val = float(np.sum(w * resid * resid))
-    tr_h = float(np.sum(w * np.sum((X @ gram_inv) * X, axis=1)))
-    c_term = float(np.sum(w) - tr_h)
+    x_a_x = np.sum((X @ gram_inv) * X, axis=1)
+    c_term = float(np.sum(w) - np.sum((w**2) * x_a_x))
     df_val = float(n - p)
     return max((q_val - df_val) / max(c_term, eps), 0.0)
 

@@ -113,8 +113,13 @@ def _get_fallback_timing(
 
 
 @singledispatch
-def convolve(x: Any, hrf: Any = None, sampling_rate: float = 1.0,
-             sampling_frame: Optional[Array] = None, **kwargs: object) -> Array:
+def convolve(
+    x: Any,
+    hrf: Any = None,
+    sampling_rate: float = 1.0,
+    sampling_frame: Optional[Array] = None,
+    **kwargs: object,
+) -> Array:
     """Convolve event(s) with hemodynamic response function.
 
     This is a generic function that convolves various event types with an HRF.
@@ -135,7 +140,9 @@ def convolve(x: Any, hrf: Any = None, sampling_rate: float = 1.0,
         so that max(abs(col)) == 1. Default False.
     summate : bool, optional
         Whether overlapping HRF responses are summed (default True).
-        If False, max is used instead. Passed to fmrimod.regressor().
+        If False, each block is duration-averaged rather than
+        accumulated. Overlapping events still add. Passed to
+        ``fmrimod.regressor``.
     **kwargs
         Additional arguments passed to convolution
 
@@ -176,13 +183,13 @@ def _get_hrf_array(hrf: Any, sampling_rate: float, duration: float = 32.0) -> Ar
         return hrf
     elif callable(hrf):
         # Plain callable function - evaluate it
-        t = np.arange(0, duration, 1/sampling_rate)
+        t = np.arange(0, duration, 1 / sampling_rate)
         return cast(Array, hrf(t))
     else:
         hrf_obj = hrf
 
     # Sample HRF object
-    t = np.arange(0, duration, 1/sampling_rate)
+    t = np.arange(0, duration, 1 / sampling_rate)
     return hrf_obj.evaluate(t)
 
 
@@ -200,11 +207,11 @@ def _get_hrf_object(hrf: Any) -> Any:
         return _hrf_library.SPM_CANONICAL
     elif isinstance(hrf, str):
         hrf_lower = hrf.lower()
-        if hrf_lower in ('spm', 'spm_canonical', 'canonical', 'spmg1', 'simple'):
+        if hrf_lower in ("spm", "spm_canonical", "canonical", "spmg1", "simple"):
             return _hrf_library.SPM_CANONICAL
-        elif hrf_lower == 'spmg2':
+        elif hrf_lower == "spmg2":
             return _hrf_library.SPM_WITH_DERIVATIVE
-        elif hrf_lower == 'spmg3':
+        elif hrf_lower == "spmg3":
             return _hrf_library.SPM_WITH_DISPERSION
         else:
             try:
@@ -214,7 +221,7 @@ def _get_hrf_object(hrf: Any) -> Any:
     elif isinstance(hrf, np.ndarray):
         # Array HRF - signal to use fallback path
         return None
-    elif callable(hrf) and not hasattr(hrf, 'nbasis'):
+    elif callable(hrf) and not hasattr(hrf, "nbasis"):
         # Plain callable function - signal to use fallback path
         return None
     else:
@@ -233,7 +240,7 @@ def _convolve_with_regressor(
     hrf: Any,
     sampling_grid: Array,
     precision: float = 0.1,
-    summate: bool = True
+    summate: bool = True,
 ) -> Array:
     """Convolve events with HRF using fmrimod.regressor().
 
@@ -253,7 +260,8 @@ def _convolve_with_regressor(
         Temporal precision for convolution (default 0.1s)
     summate : bool
         Whether overlapping HRF responses are summed (default True).
-        If False, max is used instead.
+        If False, each block is duration-averaged rather than
+        accumulated. Overlapping events still add.
 
     Returns
     -------
@@ -262,8 +270,7 @@ def _convolve_with_regressor(
     """
     if not HAS_PYFMRIHRF:
         raise RuntimeError(
-            "fmrimod is required for convolution. "
-            "Install with: pip install fmrimod"
+            "fmrimod is required for convolution. " "Install with: pip install fmrimod"
         )
 
     # Get HRF object
@@ -275,7 +282,7 @@ def _convolve_with_regressor(
         hrf=hrf_obj,
         duration=durations,
         amplitude=amplitudes,
-        summate=summate
+        summate=summate,
     )
 
     # Evaluate at sampling grid
@@ -284,9 +291,14 @@ def _convolve_with_regressor(
     return result
 
 
-def _convolve_impulses(times: Array, values: Array, durations: Array,
-                      hrf_array: Array, sampling_rate: float,
-                      total_duration: float) -> Array:
+def _convolve_impulses(
+    times: Array,
+    values: Array,
+    durations: Array,
+    hrf_array: Array,
+    sampling_rate: float,
+    total_duration: float,
+) -> Array:
     """Convolve impulses with HRF (fallback implementation).
 
     Note: This is maintained for backward compatibility when fmrimod is not available.
@@ -306,7 +318,7 @@ def _convolve_impulses(times: Array, values: Array, durations: Array,
             signal[start_idx:end_idx] += v
 
     # Convolve with HRF
-    convolved = np.convolve(signal, hrf_array, mode='same')
+    convolved = np.convolve(signal, hrf_array, mode="same")
 
     return convolved
 
@@ -359,7 +371,9 @@ def _convolve_impulses_on_grid(
     return np.interp(shifted_grid, dense_grid, dense, left=0.0, right=0.0)
 
 
-def _validate_single_point_sampling_rate(sampling_grid: Array, sampling_rate: float) -> None:
+def _validate_single_point_sampling_rate(
+    sampling_grid: Array, sampling_rate: float
+) -> None:
     """Validate sampling rate when output grid has one sample.
 
     Callable HRFs derive sample spacing from ``sampling_rate`` even with
@@ -371,7 +385,9 @@ def _validate_single_point_sampling_rate(sampling_grid: Array, sampling_rate: fl
         raise ValueError("sampling_rate must be a finite positive number")
 
 
-def _effective_sampling_rate_from_grid(sampling_grid: Array, sampling_rate: float) -> float:
+def _effective_sampling_rate_from_grid(
+    sampling_grid: Array, sampling_rate: float
+) -> float:
     """Resolve effective sampling rate from explicit sampling grid when regular."""
     grid = _prepare_sampling_grid(sampling_grid)
     effective_sampling_rate = float(sampling_rate)
@@ -391,14 +407,17 @@ def _effective_sampling_rate_from_grid(sampling_grid: Array, sampling_rate: floa
 
 
 @convolve.register(EventFactor)
-def _convolve_event_factor(event: EventFactor, hrf: Any = None,
-                          sampling_rate: float = 1.0,
-                          sampling_frame: Optional[Array] = None,
-                          total_duration: Optional[float] = None,
-                          precision: float = 0.1,
-                          normalize: bool = False,
-                          summate: bool = True,
-                          **kwargs: object) -> Array:
+def _convolve_event_factor(
+    event: EventFactor,
+    hrf: Any = None,
+    sampling_rate: float = 1.0,
+    sampling_frame: Optional[Array] = None,
+    total_duration: Optional[float] = None,
+    precision: float = 0.1,
+    normalize: bool = False,
+    summate: bool = True,
+    **kwargs: object,
+) -> Array:
     """Convolve a categorical EventFactor with an HRF.
 
     Each factor level produces one column in the output. Events matching
@@ -421,7 +440,8 @@ def _convolve_event_factor(event: EventFactor, hrf: Any = None,
     normalize : bool
         Peak-normalize each column after convolution.
     summate : bool
-        Sum overlapping HRF responses (True) or take max (False).
+        Sum overlapping HRF responses (True) or duration-average
+        each block (False). Overlapping events still add.
 
     Returns
     -------
@@ -442,11 +462,13 @@ def _convolve_event_factor(event: EventFactor, hrf: Any = None,
         if total_duration is None:
             total_duration = np.max(event.onsets + event.durations) + 32.0
         total_duration = _validate_total_duration(total_duration)
-        grid = _prepare_sampling_grid(np.arange(0, total_duration, 1/sampling_rate))
+        grid = _prepare_sampling_grid(np.arange(0, total_duration, 1 / sampling_rate))
 
     # Check if we should use fmrimod or fallback
     use_fmrimod = HAS_PYFMRIHRF
-    if use_fmrimod and (isinstance(hrf, np.ndarray) or (callable(hrf) and not hasattr(hrf, 'nbasis'))):
+    if use_fmrimod and (
+        isinstance(hrf, np.ndarray) or (callable(hrf) and not hasattr(hrf, "nbasis"))
+    ):
         # Array or plain callable HRF - use fallback path
         use_fmrimod = False
 
@@ -468,7 +490,7 @@ def _convolve_event_factor(event: EventFactor, hrf: Any = None,
                     hrf,
                     grid,
                     precision=precision,
-                    summate=summate
+                    summate=summate,
                 )
                 # Handle single-basis case
                 if result.ndim == 1:
@@ -504,14 +526,17 @@ def _convolve_event_factor(event: EventFactor, hrf: Any = None,
 
 
 @convolve.register(EventVariable)
-def _convolve_event_variable(event: EventVariable, hrf: Any = None,
-                            sampling_rate: float = 1.0,
-                            sampling_frame: Optional[Array] = None,
-                            total_duration: Optional[float] = None,
-                            precision: float = 0.1,
-                            normalize: bool = False,
-                            summate: bool = True,
-                            **kwargs: object) -> Array:
+def _convolve_event_variable(
+    event: EventVariable,
+    hrf: Any = None,
+    sampling_rate: float = 1.0,
+    sampling_frame: Optional[Array] = None,
+    total_duration: Optional[float] = None,
+    precision: float = 0.1,
+    normalize: bool = False,
+    summate: bool = True,
+    **kwargs: object,
+) -> Array:
     """Convolve a continuous EventVariable with an HRF.
 
     The event's (possibly centered/scaled) ``values`` are used as
@@ -534,7 +559,8 @@ def _convolve_event_variable(event: EventVariable, hrf: Any = None,
     normalize : bool
         Peak-normalize after convolution.
     summate : bool
-        Sum overlapping responses (True) or take max (False).
+        Sum overlapping responses (True) or duration-average each
+        block (False). Overlapping events still add.
 
     Returns
     -------
@@ -555,11 +581,13 @@ def _convolve_event_variable(event: EventVariable, hrf: Any = None,
         if total_duration is None:
             total_duration = np.max(event.onsets + event.durations) + 32.0
         total_duration = _validate_total_duration(total_duration)
-        grid = _prepare_sampling_grid(np.arange(0, total_duration, 1/sampling_rate))
+        grid = _prepare_sampling_grid(np.arange(0, total_duration, 1 / sampling_rate))
 
     # Check if we should use fmrimod or fallback
     use_fmrimod = HAS_PYFMRIHRF
-    if use_fmrimod and (isinstance(hrf, np.ndarray) or (callable(hrf) and not hasattr(hrf, 'nbasis'))):
+    if use_fmrimod and (
+        isinstance(hrf, np.ndarray) or (callable(hrf) and not hasattr(hrf, "nbasis"))
+    ):
         # Array or plain callable HRF - use fallback path
         use_fmrimod = False
 
@@ -572,7 +600,7 @@ def _convolve_event_variable(event: EventVariable, hrf: Any = None,
             hrf,
             grid,
             precision=precision,
-            summate=summate
+            summate=summate,
         )
         # Ensure column vector
         if result.ndim == 1:
@@ -599,14 +627,17 @@ def _convolve_event_variable(event: EventVariable, hrf: Any = None,
 
 
 @convolve.register(EventMatrix)
-def _convolve_event_matrix(event: EventMatrix, hrf: Any = None,
-                          sampling_rate: float = 1.0,
-                          sampling_frame: Optional[Array] = None,
-                          total_duration: Optional[float] = None,
-                          precision: float = 0.1,
-                          normalize: bool = False,
-                          summate: bool = True,
-                          **kwargs: object) -> Array:
+def _convolve_event_matrix(
+    event: EventMatrix,
+    hrf: Any = None,
+    sampling_rate: float = 1.0,
+    sampling_frame: Optional[Array] = None,
+    total_duration: Optional[float] = None,
+    precision: float = 0.1,
+    normalize: bool = False,
+    summate: bool = True,
+    **kwargs: object,
+) -> Array:
     """Convolve a multi-column EventMatrix with an HRF.
 
     Each column of the matrix is convolved independently, preserving
@@ -629,7 +660,8 @@ def _convolve_event_matrix(event: EventMatrix, hrf: Any = None,
     normalize : bool
         Peak-normalize each column after convolution.
     summate : bool
-        Sum overlapping responses (True) or take max (False).
+        Sum overlapping responses (True) or duration-average each
+        block (False). Overlapping events still add.
 
     Returns
     -------
@@ -650,14 +682,16 @@ def _convolve_event_matrix(event: EventMatrix, hrf: Any = None,
         if total_duration is None:
             total_duration = np.max(event.onsets + event.durations) + 32.0
         total_duration = _validate_total_duration(total_duration)
-        grid = _prepare_sampling_grid(np.arange(0, total_duration, 1/sampling_rate))
+        grid = _prepare_sampling_grid(np.arange(0, total_duration, 1 / sampling_rate))
 
     n_cols = event.n_columns
     convolved = np.zeros((len(grid), n_cols))
 
     # Check if we should use fmrimod or fallback
     use_fmrimod = HAS_PYFMRIHRF
-    if use_fmrimod and (isinstance(hrf, np.ndarray) or (callable(hrf) and not hasattr(hrf, 'nbasis'))):
+    if use_fmrimod and (
+        isinstance(hrf, np.ndarray) or (callable(hrf) and not hasattr(hrf, "nbasis"))
+    ):
         # Array or plain callable HRF - use fallback path
         use_fmrimod = False
 
@@ -671,7 +705,7 @@ def _convolve_event_matrix(event: EventMatrix, hrf: Any = None,
                 hrf,
                 grid,
                 precision=precision,
-                summate=summate
+                summate=summate,
             )
             # Handle single-basis case
             if result.ndim == 1:
@@ -701,14 +735,17 @@ def _convolve_event_matrix(event: EventMatrix, hrf: Any = None,
 
 
 @convolve.register(EventBasis)
-def _convolve_event_basis(event: EventBasis, hrf: Any = None,
-                         sampling_rate: float = 1.0,
-                         sampling_frame: Optional[Array] = None,
-                         total_duration: Optional[float] = None,
-                         precision: float = 0.1,
-                         normalize: bool = False,
-                         summate: bool = True,
-                         **kwargs: object) -> Array:
+def _convolve_event_basis(
+    event: EventBasis,
+    hrf: Any = None,
+    sampling_rate: float = 1.0,
+    sampling_frame: Optional[Array] = None,
+    total_duration: Optional[float] = None,
+    precision: float = 0.1,
+    normalize: bool = False,
+    summate: bool = True,
+    **kwargs: object,
+) -> Array:
     """Convolve EventBasis with HRF.
 
     For EventBasis, the HRF parameter is typically None since the basis
@@ -729,7 +766,7 @@ def _convolve_event_basis(event: EventBasis, hrf: Any = None,
         if total_duration is None:
             total_duration = np.max(event.onsets + event.durations) + 32.0
         total_duration = _validate_total_duration(total_duration)
-        grid = _prepare_sampling_grid(np.arange(0, total_duration, 1/sampling_rate))
+        grid = _prepare_sampling_grid(np.arange(0, total_duration, 1 / sampling_rate))
 
     if HAS_PYFMRIHRF:
         # EventBasis represents multiple basis functions
@@ -744,17 +781,21 @@ def _convolve_event_basis(event: EventBasis, hrf: Any = None,
         for i in range(n_events):
             for j in range(n_basis):
                 # Get the basis function (HRF) for this column
-                basis_hrf = event.basis.functions[j] if hasattr(event.basis, 'functions') else hrf
+                basis_hrf = (
+                    event.basis.functions[j]
+                    if hasattr(event.basis, "functions")
+                    else hrf
+                )
 
                 # Convolve single event with this basis function
                 result = _convolve_with_regressor(
-                    event.onsets[i:i+1],
-                    event.expanded_values[i:i+1, j:j+1].flatten(),
-                    event.durations[i:i+1],
+                    event.onsets[i : i + 1],
+                    event.expanded_values[i : i + 1, j : j + 1].flatten(),
+                    event.durations[i : i + 1],
                     basis_hrf,
                     grid,
                     precision=precision,
-                    summate=summate
+                    summate=summate,
                 )
                 # Handle single-basis case
                 if result.ndim == 1:
@@ -799,13 +840,16 @@ def _convolve_event_basis(event: EventBasis, hrf: Any = None,
 
 
 @convolve.register(list)
-def _convolve_list(events: List[EventProtocol], hrf: Any = None,
-                   sampling_rate: float = 1.0,
-                   sampling_frame: Optional[Array] = None,
-                   total_duration: Optional[float] = None,
-                   normalize: bool = False,
-                   summate: bool = True,
-                   **kwargs: object) -> List[Array]:
+def _convolve_list(
+    events: List[EventProtocol],
+    hrf: Any = None,
+    sampling_rate: float = 1.0,
+    sampling_frame: Optional[Array] = None,
+    total_duration: Optional[float] = None,
+    normalize: bool = False,
+    summate: bool = True,
+    **kwargs: object,
+) -> List[Array]:
     """Convolve a list of event objects with an HRF.
 
     Each element is convolved independently via :func:`convolve`.
@@ -832,22 +876,34 @@ def _convolve_list(events: List[EventProtocol], hrf: Any = None,
     list of Array
         One convolved array per input event.
     """
-    return [convolve(event, hrf, sampling_rate=sampling_rate,
-                     sampling_frame=sampling_frame, total_duration=total_duration,
-                     normalize=normalize, summate=summate, **kwargs)
-            for event in events]
+    return [
+        convolve(
+            event,
+            hrf,
+            sampling_rate=sampling_rate,
+            sampling_frame=sampling_frame,
+            total_duration=total_duration,
+            normalize=normalize,
+            summate=summate,
+            **kwargs,
+        )
+        for event in events
+    ]
 
 
 # Register for numpy arrays (assume impulse times and values)
 @convolve.register(np.ndarray)
-def _convolve_array(arr: Array, hrf: Any = None,
-                   sampling_rate: float = 1.0,
-                   sampling_frame: Optional[Array] = None,
-                   total_duration: Optional[float] = None,
-                   precision: float = 0.1,
-                   normalize: bool = False,
-                   summate: bool = True,
-                   **kwargs: object) -> Array:
+def _convolve_array(
+    arr: Array,
+    hrf: Any = None,
+    sampling_rate: float = 1.0,
+    sampling_frame: Optional[Array] = None,
+    total_duration: Optional[float] = None,
+    precision: float = 0.1,
+    normalize: bool = False,
+    summate: bool = True,
+    **kwargs: object,
+) -> Array:
     """Convolve array with HRF.
 
     Assumes array has shape (n_events, 3) with columns:
@@ -886,11 +942,13 @@ def _convolve_array(arr: Array, hrf: Any = None,
         if total_duration is None:
             total_duration = np.max(arr[:, 0] + arr[:, 1]) + 32.0
         total_duration = _validate_total_duration(total_duration)
-        grid = _prepare_sampling_grid(np.arange(0, total_duration, 1/sampling_rate))
+        grid = _prepare_sampling_grid(np.arange(0, total_duration, 1 / sampling_rate))
 
     # Check if we should use fmrimod or fallback
     use_fmrimod = HAS_PYFMRIHRF
-    if use_fmrimod and (isinstance(hrf, np.ndarray) or (callable(hrf) and not hasattr(hrf, 'nbasis'))):
+    if use_fmrimod and (
+        isinstance(hrf, np.ndarray) or (callable(hrf) and not hasattr(hrf, "nbasis"))
+    ):
         # Array or plain callable HRF - use fallback path
         use_fmrimod = False
 
@@ -903,7 +961,7 @@ def _convolve_array(arr: Array, hrf: Any = None,
             hrf,
             grid,
             precision=precision,
-            summate=summate
+            summate=summate,
         )
     else:
         # Fallback to manual convolution

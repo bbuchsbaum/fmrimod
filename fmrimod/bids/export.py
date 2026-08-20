@@ -30,22 +30,28 @@ class _ContrastResultLike(Protocol):
     """
 
     @property
-    def estimate(self) -> object: ...
+    def estimate(self) -> object:
+        ...
 
     @property
-    def stat(self) -> object: ...
+    def stat(self) -> object:
+        ...
 
     @property
-    def p_value(self) -> object: ...
+    def p_value(self) -> object:
+        ...
 
     @property
-    def se(self) -> object | None: ...
+    def se(self) -> object | None:
+        ...
 
     @property
-    def stat_type(self) -> str: ...
+    def stat_type(self) -> str:
+        ...
 
     @property
-    def df(self) -> object: ...
+    def df(self) -> object:
+        ...
 
 
 @dataclass
@@ -159,6 +165,57 @@ def _write_nifti_image(img: neuroim.DenseNeuroVol, out_path: Path) -> None:
     from neuroim import write_vol
 
     write_vol(img, out_path, data_type="FLOAT")
+    ensure_nifti_scl_slope(out_path)
+
+
+def _nifti_header_payload(path: Path) -> tuple[bytearray, bool, str, int]:
+    """Return ``(payload, gzipped, endian, sizeof_hdr)`` for a NIfTI file."""
+    import gzip
+    import struct
+
+    raw = Path(path).read_bytes()
+    gzipped = raw[:2] == b"\x1f\x8b"
+    payload = bytearray(gzip.decompress(raw) if gzipped else raw)
+    if len(payload) < 120:
+        raise ValueError(f"{path} is too small to be a NIfTI header")
+    sizeof_le = struct.unpack_from("<i", payload, 0)[0]
+    sizeof_be = struct.unpack_from(">i", payload, 0)[0]
+    if sizeof_le in (348, 540):
+        return payload, gzipped, "<", sizeof_le
+    if sizeof_be in (348, 540):
+        return payload, gzipped, ">", sizeof_be
+    raise ValueError(f"{path} is not a NIfTI-1/2 file")
+
+
+def _raw_nifti_scl_slope(path: Path) -> float:
+    """Read the on-disk ``scl_slope`` without nibabel identity sanitizing."""
+    import struct
+
+    payload, _, endian, sizeof_hdr = _nifti_header_payload(path)
+    if sizeof_hdr == 348:
+        return float(struct.unpack_from(endian + "f", payload, 112)[0])
+    return float(struct.unpack_from(endian + "d", payload, 176)[0])
+
+
+def ensure_nifti_scl_slope(path: Path, slope: float = 1.0) -> None:
+    """Force a usable NIfTI ``scl_slope`` (fmrigds #6).
+
+    Some writers leave ``scl_slope=0`` or NaN, which is spec-valid
+    "no scaling" but breaks readers that multiply by the header
+    slope. nibabel also drops an identity ``(1, 0)`` pair on write,
+    so this patches the on-disk header after the writer finishes.
+    """
+    import gzip
+    import struct
+
+    payload, gzipped, endian, sizeof_hdr = _nifti_header_payload(path)
+    if sizeof_hdr == 348:
+        struct.pack_into(endian + "f", payload, 112, float(slope))
+        struct.pack_into(endian + "f", payload, 116, 0.0)
+    else:
+        struct.pack_into(endian + "d", payload, 176, float(slope))
+        struct.pack_into(endian + "d", payload, 184, 0.0)
+    Path(path).write_bytes(gzip.compress(payload) if gzipped else bytes(payload))
 
 
 def write_betas(
@@ -197,7 +254,10 @@ def write_betas(
     written: list[Path] = []
     for i, name in enumerate(column_names):
         fname = _bids_filename(
-            entities, suffix="statmap", stat="beta", contrast=name,
+            entities,
+            suffix="statmap",
+            stat="beta",
+            contrast=name,
         )
         img = _make_nifti_image(betas[i], mask, affine)
         out_path = output_dir / fname
@@ -208,12 +268,18 @@ def write_betas(
     meta: dict[str, object] = {
         "Description": "GLM beta coefficients",
         "Software": "fmrimod",
-        "GeneratedBy": {"Name": "fmrimod", "CodeURL": "https://github.com/bbuchsbaum/fmrimod"},
+        "GeneratedBy": {
+            "Name": "fmrimod",
+            "CodeURL": "https://github.com/bbuchsbaum/fmrimod",
+        },
         "Columns": list(column_names),
         "Timestamp": datetime.now(timezone.utc).isoformat(),
     }
     json_path = output_dir / _bids_filename(
-        entities, suffix="statmap", stat="beta", extension=".json",
+        entities,
+        suffix="statmap",
+        stat="beta",
+        extension=".json",
     )
     _write_json_sidecar(json_path, meta)
     written.append(json_path)
@@ -265,8 +331,10 @@ def write_contrasts(
                 continue
             data = extractor(cres)
             fname = _bids_filename(
-                entities, suffix="statmap",
-                stat=stat_name, contrast=con_name,
+                entities,
+                suffix="statmap",
+                stat=stat_name,
+                contrast=con_name,
             )
             img = _make_nifti_image(data, mask, affine)
             out_path = output_dir / fname
@@ -282,8 +350,10 @@ def write_contrasts(
             "Timestamp": datetime.now(timezone.utc).isoformat(),
         }
         json_path = output_dir / _bids_filename(
-            entities, suffix="statmap",
-            contrast=con_name, extension=".json",
+            entities,
+            suffix="statmap",
+            contrast=con_name,
+            extension=".json",
         )
         _write_json_sidecar(json_path, meta)
         written.append(json_path)

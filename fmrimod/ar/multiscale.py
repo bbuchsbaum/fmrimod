@@ -15,12 +15,12 @@ from .numhelpers import (
     enforce_stationary_ar,
     levinson_durbin,
     pacf_to_ar,
-    segmented_acvf,
 )
 
 # ---------------------------------------------------------------------------
 # Parcel-level helpers
 # ---------------------------------------------------------------------------
+
 
 def parcel_means(
     resid: NDArray[Any], parcels: NDArray[Any], na_rm: bool = False
@@ -122,7 +122,7 @@ def ms_weights(
     """
     sizes = np.asarray(sizes, dtype=np.float64)
     disp = np.asarray(disp, dtype=np.float64)
-    s = (n_t * n_runs) * (sizes ** beta)
+    s = (n_t * n_runs) * (sizes**beta)
     h = 1.0 / (1.0 + np.maximum(disp, 0.0))
     w = s * h
     w = np.maximum(w, eps)
@@ -140,6 +140,7 @@ def _pad(x: NDArray[Any], length: int) -> NDArray[Any]:
 # ---------------------------------------------------------------------------
 # Parent maps for nested parcellations
 # ---------------------------------------------------------------------------
+
 
 def ms_parent_maps(
     parcels_fine: NDArray[Any],
@@ -184,10 +185,13 @@ def ms_parent_maps(
 # Scale-level estimation
 # ---------------------------------------------------------------------------
 
+
 def ms_estimate_scale(
     M: Dict[str, NDArray[np.float64]],
     estimator: Callable[..., Any],
     run_starts: Optional[NDArray[Any]] = None,
+    lag_max: int = 0,
+    center_id: Optional[NDArray[Any]] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """Estimate AR at a single spatial scale.
 
@@ -198,23 +202,42 @@ def ms_estimate_scale(
     estimator : callable
         ``estimator(y) -> {"phi": NDArray[Any], "order": (p, q)}``.
     run_starts : NDArray[Any], optional
-        0-based run start indices.
+        0-based run start indices in the *passed* series.
+    lag_max : int
+        ACVF lag budget covering the pooling target (not just fitted order).
+    center_id : NDArray[Any], optional
+        Grouping used to remove the mean (typically per-run ids).
 
     Returns
     -------
     dict
         ``{"phi": {pid: NDArray[Any]}, "acvf": {pid: NDArray[Any]}}``
     """
+    from .acvf import acvf_from_pooled, pooled_acvf_segments
+
     if run_starts is None:
         run_starts = np.array([0], dtype=np.intp)
 
     phi_by = {}
     acvf_by = {}
     for pid, y_col in M.items():
+        y_col = np.asarray(y_col, dtype=np.float64).ravel()
         fit = estimator(y_col)
         phi_by[pid] = np.asarray(fit["phi"], dtype=np.float64)
-        lag_max = max(0, fit["order"][0] + 1) if "order" in fit else len(fit["phi"]) + 1
-        acvf_by[pid] = segmented_acvf(y_col, run_starts, lag_max)
+        order_p = int(fit["order"][0]) if "order" in fit else len(fit["phi"])
+        lag_id = max(int(lag_max), order_p, 1)
+        n = y_col.size
+        starts = np.asarray(run_starts, dtype=np.intp)
+        is_start = np.zeros(n, dtype=bool)
+        is_start[starts[starts < n]] = True
+        if n:
+            is_start[0] = True
+        seg_id = np.cumsum(is_start.astype(np.intp))
+        pooled = pooled_acvf_segments(
+            y_col[:, np.newaxis], seg_id, lag_id, center_id=center_id
+        )
+        g, _ = acvf_from_pooled(pooled, order=lag_id)
+        acvf_by[pid] = g
 
     return {"phi": phi_by, "acvf": acvf_by}
 
@@ -222,6 +245,7 @@ def ms_estimate_scale(
 # ---------------------------------------------------------------------------
 # Multi-scale combination
 # ---------------------------------------------------------------------------
+
 
 def ms_combine_to_fine(
     phi_by_coarse: Dict[str, NDArray[Any]],
@@ -280,19 +304,26 @@ def ms_combine_to_fine(
         key_c = str(cid)
 
         # Gather sizes and dispersions for the 3 scales
-        size_vec = np.array([
-            float(sizes["coarse"].get(key_c, 1)),
-            float(sizes["medium"].get(key_m, 1)),
-            float(sizes["fine"].get(key_f, 1)),
-        ])
-        disp_vec = np.array([
-            float(disp_list["coarse"].get(key_c, 0)),
-            float(disp_list["medium"].get(key_m, 0)),
-            float(disp_list["fine"].get(key_f, 0)),
-        ])
+        size_vec = np.array(
+            [
+                float(sizes["coarse"].get(key_c, 1)),
+                float(sizes["medium"].get(key_m, 1)),
+                float(sizes["fine"].get(key_f, 1)),
+            ]
+        )
+        disp_vec = np.array(
+            [
+                float(disp_list["coarse"].get(key_c, 0)),
+                float(disp_list["medium"].get(key_m, 0)),
+                float(disp_list["fine"].get(key_f, 0)),
+            ]
+        )
 
         w = ms_weights(
-            sizes["n_t"], sizes["n_runs"], size_vec, disp_vec,
+            sizes["n_t"],
+            sizes["n_runs"],
+            size_vec,
+            disp_vec,
             beta=sizes.get("beta", 0.5),
         )
         w = w / w.sum()
@@ -306,11 +337,7 @@ def ms_combine_to_fine(
             kap = np.clip(kap, -kappa_clip, kappa_clip)
             out_phi[key_f] = pacf_to_ar(kap)
         else:
-            if (
-                acvf_by_coarse is None
-                or acvf_by_medium is None
-                or acvf_by_fine is None
-            ):
+            if acvf_by_coarse is None or acvf_by_medium is None or acvf_by_fine is None:
                 raise ValueError("acvf_pooled mode requires all three acvf maps")
             g_c = _pad(acvf_by_coarse.get(key_c, np.array([0.0])), p_target + 1)
             g_m = _pad(acvf_by_medium.get(key_m, np.array([0.0])), p_target + 1)

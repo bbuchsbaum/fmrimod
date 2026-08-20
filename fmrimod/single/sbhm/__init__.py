@@ -21,6 +21,7 @@ Example
 
 from .amplitude import sbhm_amplitude
 from .library import SbhmLibrary, build_sbhm_library
+from .lwu_grid import LwuGrid, create_lwu_grid
 from .match import SbhmMatchResult, sbhm_match
 from .pipeline import sbhm_single_trial
 from .prepass import sbhm_prepass
@@ -28,6 +29,8 @@ from .prepass import sbhm_prepass
 __all__ = [
     "SbhmLibrary",
     "build_sbhm_library",
+    "LwuGrid",
+    "create_lwu_grid",
     "sbhm_prepass",
     "SbhmMatchResult",
     "sbhm_match",

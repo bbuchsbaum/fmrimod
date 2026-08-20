@@ -16,6 +16,7 @@ from scipy.linalg import solve_toeplitz
 # PACF <-> AR conversion (Durbin-Levinson recursion)
 # ---------------------------------------------------------------------------
 
+
 def pacf_to_ar(kappa: NDArray[np.float64]) -> NDArray[np.float64]:
     """Convert partial autocorrelations to AR coefficients.
 
@@ -92,33 +93,45 @@ def ar_to_pacf(phi: NDArray[np.float64], eps: float = 1e-12) -> NDArray[np.float
 # Stationarity / invertibility enforcement
 # ---------------------------------------------------------------------------
 
+
 def enforce_stationary_ar(
-    phi: NDArray[np.float64], bound: float = 0.99
+    phi: NDArray[np.float64], bound: float = 0.99, margin: float = 1e-6
 ) -> NDArray[np.float64]:
-    """Enforce stationarity by clipping PACF values.
+    """Enforce stationarity by clipping PACF, then shrinking roots off the unit circle.
 
-    Converts AR coefficients to PACF, clips each to ``[-bound, bound]``,
-    then converts back.  This is more principled than the root-shrinkage
-    heuristic used in the previous implementation.
-
-    Parameters
-    ----------
-    phi : NDArray[np.float64]
-        AR coefficients, shape ``(p,)``.
-    bound : float
-        PACF clipping bound (default 0.99).
-
-    Returns
-    -------
-    NDArray[np.float64]
-        Stationary AR coefficients, shape ``(p,)``.
+    Clamping reflection coefficients bounds each ``|kappa| < 1``, but at high
+    order the implied roots can sit on the unit circle. Shrink geometrically
+    until ``min|root| > 1 + margin``.
     """
     phi = np.asarray(phi, dtype=np.float64).ravel()
     if len(phi) == 0:
         return phi
+    if not np.all(np.isfinite(phi)):
+        return np.array([], dtype=np.float64)
     kap = ar_to_pacf(phi)
+    if not np.all(np.isfinite(kap)):
+        return np.array([], dtype=np.float64)
     kap = np.clip(kap, -bound, bound)
-    return pacf_to_ar(kap)
+    out = pacf_to_ar(kap)
+    if not np.all(np.isfinite(out)):
+        return np.array([], dtype=np.float64)
+    for _ in range(60):
+        # Characteristic polynomial 1 - phi1 z - ... ; R polyroot(c(1, -phi)).
+        # np.roots expects highest-degree coefficient first.
+        coeffs = np.concatenate([[1.0], -out])
+        try:
+            roots = np.roots(coeffs[::-1])
+        except np.linalg.LinAlgError:
+            break
+        mods = np.abs(roots)
+        if mods.size == 0 or (
+            np.all(np.isfinite(mods)) and float(np.min(mods)) > 1.0 + margin
+        ):
+            break
+        out = out * 0.9
+        if float(np.max(np.abs(out))) < 1e-12:
+            return np.array([], dtype=np.float64)
+    return out
 
 
 def enforce_invertible_ma(
@@ -172,6 +185,7 @@ def enforce_invertible_ma(
 # Levinson-Durbin / Yule-Walker
 # ---------------------------------------------------------------------------
 
+
 def levinson_durbin(
     gamma: NDArray[np.float64], p: int
 ) -> Tuple[NDArray[np.float64], float]:
@@ -196,7 +210,9 @@ def levinson_durbin(
     """
     gamma = np.asarray(gamma, dtype=np.float64).ravel()
     if p <= 0 or len(gamma) < p + 1 or gamma[0] < 1e-15:
-        return np.zeros(max(p, 0), dtype=np.float64), float(gamma[0]) if len(gamma) else 0.0
+        return np.zeros(max(p, 0), dtype=np.float64), float(gamma[0]) if len(
+            gamma
+        ) else 0.0
 
     # solve_toeplitz solves T @ x = b where T = toeplitz(gamma[0:p])
     phi = solve_toeplitz(gamma[:p], gamma[1 : p + 1])
@@ -211,6 +227,7 @@ def levinson_durbin(
 # ---------------------------------------------------------------------------
 # Autocovariance functions (segment/run-aware)
 # ---------------------------------------------------------------------------
+
 
 def segmented_acvf(
     y: NDArray[np.float64],
@@ -276,7 +293,9 @@ def segmented_acvf(
 
 
 def run_avg_acvf(
-    mat: NDArray[np.float64], max_lag: int, run_starts: Optional[NDArray[np.float64]] = None
+    mat: NDArray[np.float64],
+    max_lag: int,
+    run_starts: Optional[NDArray[np.float64]] = None,
 ) -> NDArray[np.float64]:
     """Compute column-pooled autocovariance from a matrix.
 
