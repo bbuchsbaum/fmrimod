@@ -425,7 +425,8 @@ _LAZY_ATTRS: dict[str, tuple[str, str]] = {
     "dvars_to_weights": ("fmrimod.glm.preprocess", "dvars_to_weights"),
     "estimate": ("fmrimod.glm", "estimate"),
     "estimate_betas": ("fmrimod.betas.extraction", "estimate_betas"),
-    "estimate_hrf": ("fmrimod.single", "estimate_hrf"),
+    "estimate_hrf": ("fmrimod.hrf.estimate", "estimate_hrf"),
+    "coef_images": ("fmrimod.accessors", "coef_images"),
     "estimate_single_trial": ("fmrimod.single", "estimate_single_trial"),
     "estimate_single_trial_from_dataset": (
         "fmrimod.single",
@@ -686,6 +687,7 @@ __all__ = [
     "shift",
     "ar_parameters",
     "coef_image",
+    "coef_images",
     "coef_names",
     "fitted_hrf",
     "get_contrasts",

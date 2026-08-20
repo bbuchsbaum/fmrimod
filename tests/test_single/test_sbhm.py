@@ -98,6 +98,25 @@ class TestSbhmMatch:
         assert result.weights is not None
         assert result.weights.shape == (V, 3)
 
+    def test_whiten_power_changes_assignment(self, rng):
+        """Cheap pass: accepting whiten_power while still dividing by S."""
+        S = np.array([20.0, 2.0, 0.4])
+        A = np.array(
+            [
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 1.0],
+                [0.6, 0.8, 0.0],
+            ],
+            dtype=np.float64,
+        )
+        beta_bar = np.array([[2.0, 0.1], [0.4, 3.0], [0.05, 0.2]], dtype=np.float64)
+        full = sbhm_match(beta_bar, S, A, shrink=False, whiten_power=1.0)
+        none = sbhm_match(beta_bar, S, A, shrink=False, whiten_power=0.0)
+        assert not np.array_equal(full.matched_idx, none.matched_idx)
+        with pytest.raises(ValueError, match="whiten_power"):
+            sbhm_match(beta_bar, S, A, whiten_power=1.2)
+
 
 class TestSbhmAmplitude:
     def test_basic(self, rng):
@@ -153,6 +172,8 @@ class TestSbhmConfig:
             ({"amplitude_method": "bogus"}, "amplitude_method must be one of"),
             ({"ridge_mode": "bogus"}, "ridge_mode must be one of"),
             ({"ridge_lambda": -0.1}, "ridge_lambda must be non-negative"),
+            ({"alpha_source": "bogus"}, "alpha_source must be one of"),
+            ({"whiten_power": 1.2}, "whiten_power"),
         ],
     )
     def test_rejects_invalid_options(self, kwargs, message):
@@ -182,8 +203,9 @@ class TestSbhmPipeline:
         Y = rng.standard_normal((T, V))
         confounds = rng.standard_normal((T, 3))
         config = SbhmConfig(r=3)
-        result = sbhm_single_trial(Y, X, confounds=confounds,
-                                   config=config, library=library_data)
+        result = sbhm_single_trial(
+            Y, X, confounds=confounds, config=config, library=library_data
+        )
         assert result.betas.shape == (N, V)
 
     def test_no_library_raises(self, rng):
@@ -200,6 +222,34 @@ class TestSbhmPipeline:
         Y = rng.standard_normal((T, V))
         labels = [f"trial_{i}" for i in range(N)]
         config = SbhmConfig(r=3)
-        result = sbhm_single_trial(Y, X, config=config,
-                                   library=library_data, trial_labels=labels)
+        result = sbhm_single_trial(
+            Y, X, config=config, library=library_data, trial_labels=labels
+        )
         assert result.trial_labels == labels
+
+    def test_alpha_source_changes_match(self, rng, library_data):
+        """Cheap pass: stored alpha_source with prepass still used."""
+        T, N, V = 80, 8, 12
+        K = library_data.B.shape[1]
+        X = rng.standard_normal((T, N * K))
+        Y = rng.standard_normal((T, V))
+        pre = sbhm_single_trial(
+            Y,
+            X,
+            config=SbhmConfig(r=3, shrink=False, alpha_source="prepass"),
+            library=library_data,
+        )
+        proj = sbhm_single_trial(
+            Y,
+            X,
+            config=SbhmConfig(r=3, shrink=False, alpha_source="trial_projection"),
+            library=library_data,
+        )
+        oasis = sbhm_single_trial(
+            Y,
+            X,
+            config=SbhmConfig(r=3, shrink=False, alpha_source="oasis_rank1"),
+            library=library_data,
+        )
+        assert not np.array_equal(pre.extra.matched_idx, proj.extra.matched_idx)
+        assert not np.array_equal(pre.extra.matched_idx, oasis.extra.matched_idx)

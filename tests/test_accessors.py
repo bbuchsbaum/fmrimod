@@ -90,6 +90,26 @@ def test_tidy_and_coef_image_accessors():
     vec = fmrimod.coef_image(fit, coef="slope")
     np.testing.assert_allclose(vec, fit.betas[1])
 
+    contrast_vec = fmrimod.coef_image(
+        fit, coef="slope", type="contrasts", statistic="stat"
+    )
+    assert contrast_vec.ndim == 1
+    assert contrast_vec.shape == (fit.n_voxels,)
+    np.testing.assert_allclose(contrast_vec, np.ravel(fit.contrasts["slope"].stat))
+
+    f_vec = fmrimod.coef_image(fit, coef="omnibus", type="F", statistic="stat")
+    assert f_vec.ndim == 1
+    np.testing.assert_allclose(f_vec, np.ravel(fit.contrasts["omnibus"].stat))
+
+    imgs = fmrimod.coef_images(fit, statistic="estimate", type="estimates")
+    assert list(imgs) == ["intercept", "slope"]
+    np.testing.assert_allclose(imgs["slope"], fit.betas[1])
+    con_imgs = fmrimod.coef_images(fit, statistic="stat", type="contrasts")
+    assert list(con_imgs) == ["slope"]
+    np.testing.assert_allclose(con_imgs["slope"], contrast_vec)
+    with pytest.raises(ValueError, match="not found"):
+        fmrimod.coef_images(fit, type="estimates", coefs=["not_a_real_coef"])
+
     mask = np.array([[True, False], [True, True], [False, True]])
     img = fmrimod.coef_image(fit, coef=1, mask=mask)
     assert img.shape == mask.shape
@@ -259,9 +279,9 @@ def test_canonical_statistic_values_emit_no_warning():
             warnings.simplefilter("always")
             fmrimod.coef_image(fit, coef=0, statistic=canonical)
         deprecation = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-        assert not deprecation, (
-            f"canonical statistic {canonical!r} should not warn; got {deprecation!r}"
-        )
+        assert (
+            not deprecation
+        ), f"canonical statistic {canonical!r} should not warn; got {deprecation!r}"
 
 
 def test_legacy_string_inputs_still_work_without_warning():
@@ -276,6 +296,6 @@ def test_legacy_string_inputs_still_work_without_warning():
         fmrimod.stats(fit, type="F")
         fmrimod.coef_image(fit, coef=0, statistic="estimate")
     deprecation = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-    assert not deprecation, (
-        f"canonical strings should not trigger deprecation warnings; got {deprecation!r}"
-    )
+    assert (
+        not deprecation
+    ), f"canonical strings should not trigger deprecation warnings; got {deprecation!r}"

@@ -62,8 +62,8 @@ where old and new formulas agree cannot close a row.
 | Robust / cfg / AR shorthand precedence | 0.2.0 | Typed config redesign | done |
 | `na_action` for non-finite Y | Jun 2026 | Ported | done |
 | Even-ISI simulate `n_events+1` | `c82918a` | Still `/ n_events` | **wave1** |
-| `estimate_hrf` smooth FIR | 0.2.0 / `6fafaac` | Old voxel helper | **wave4** |
-| `coef_images()` / contrast `coef_image` | 0.2.0 | Estimates-only | wave4 |
+| `estimate_hrf` smooth FIR | 0.2.0 / `6fafaac` | Ported (`tests/test_hrf/test_estimate_hrf.py`) | done |
+| `coef_images()` / contrast `coef_image` | 0.2.0 | Ported (`coef_images` + `type=`) | done |
 | Model templates / `collect_results` | Jun 2026 | `StudyDataset` + native group | S2 |
 | Mixed-model fail → NA not zeros | 0.2.0 | Ported (NaN + warn) | done |
 | RRR bootstrap wrap when `block_size>=n` | 0.2.0 | One contiguous identity block | done |
@@ -96,7 +96,7 @@ Red check: `tests/test_ar/test_estimator_correctness.py` transcribed from
 | Multi-basis trial-major inference / OASIS-only `K>1` | `f851fb0` | Ported (`tests/test_single/test_trial_major.py`) | done |
 | OASIS ridge defaults fractional 0.05 | 0.2.0 | Ported (`OasisConfig` defaults + `test_oasis.py`) | done |
 | `create_lwu_grid` ∘ SBHM | `f851fb0` | Ported (`tests/test_single/test_lwu_grid.py`) | done |
-| SBHM `alpha_source` / `whiten_power` | 0.2.0 | Thin pipeline | wave4 |
+| SBHM `alpha_source` / `whiten_power` | 0.2.0 | Ported (`SbhmConfig` + `sbhm_match`) | done |
 
 ## fmrigds (through `67cc585`)
 

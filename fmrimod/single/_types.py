@@ -49,10 +49,14 @@ RidgeMode = Literal["none", "fractional", "absolute"]
 """Ridge regularisation mode shared across OASIS and SBHM configs."""
 
 AmplitudeMethod = Literal["global_ls", "lss1", "oasis_voxel"]
+AlphaSource = Literal["prepass", "trial_projection", "oasis_rank1"]
 """Amplitude estimator used by the SBHM amplitude stage."""
 
 _RIDGE_MODES: frozenset[str] = frozenset({"none", "fractional", "absolute"})
 _AMPLITUDE_METHODS: frozenset[str] = frozenset({"global_ls", "lss1", "oasis_voxel"})
+_ALPHA_SOURCES: frozenset[str] = frozenset(
+    {"prepass", "trial_projection", "oasis_rank1"}
+)
 
 
 @dataclass(frozen=True)
@@ -277,6 +281,16 @@ class SbhmConfig:
         ``"none"``, ``"fractional"``, or ``"absolute"`` (case-sensitive).
     ridge_lambda : float
         Ridge regularisation strength.
+    alpha_source : AlphaSource
+        Where matching coefficients come from: aggregate prepass,
+        per-trial projection, or rank-1 SVD of OASIS trial×basis
+        coefficients.
+    whiten : bool
+        Divide coefficients by ``S**whiten_power`` before cosine match.
+    whiten_power : float
+        Whitening strength in ``[0, 1]`` (1 = full, 0 = none).
+    sv_floor_rel : float
+        Relative singular-value floor used when whitening.
     """
 
     r: int = 3
@@ -285,6 +299,10 @@ class SbhmConfig:
     amplitude_method: AmplitudeMethod = "oasis_voxel"
     ridge_mode: RidgeMode = "fractional"
     ridge_lambda: float = 0.02
+    alpha_source: AlphaSource = "prepass"
+    whiten: bool = True
+    whiten_power: float = 1.0
+    sv_floor_rel: float = 1e-6
 
     def __post_init__(self) -> None:
         if int(self.r) != self.r or self.r < 1:
@@ -301,6 +319,16 @@ class SbhmConfig:
             raise ValueError("ridge_mode must be one of: none, fractional, absolute")
         if self.ridge_lambda < 0:
             raise ValueError("ridge_lambda must be non-negative")
+        if self.alpha_source not in _ALPHA_SOURCES:
+            raise ValueError(
+                "alpha_source must be one of: prepass, trial_projection, oasis_rank1"
+            )
+        if not (0.0 <= float(self.whiten_power) <= 1.0):
+            raise ValueError("whiten_power must be one finite value in [0, 1]")
+        object.__setattr__(self, "whiten_power", float(self.whiten_power))
+        if float(self.sv_floor_rel) < 0 or not np.isfinite(self.sv_floor_rel):
+            raise ValueError("sv_floor_rel must be one nonnegative finite value")
+        object.__setattr__(self, "sv_floor_rel", float(self.sv_floor_rel))
 
 
 @dataclass
