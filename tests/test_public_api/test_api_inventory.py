@@ -19,21 +19,23 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 INVENTORY_PATH = REPO_ROOT / "docs" / "contracts" / "api_inventory_v1.json"
 SCRIPT_PATH = REPO_ROOT / "scripts" / "api_inventory.py"
 
-REQUIRED_ROW_KEYS = frozenset({
-    "name",
-    "tier",
-    "owner_module",
-    "signature_source",
-    "runtime_signature",
-    "used_by_public_seam_artifact",
-    "compatibility_status",
-    "opaque_forwarder",
-    "has_any_in_signature",
-    "is_callable",
-    "is_class",
-    "is_function",
-    "has_untagged_kwargs_dict",
-})
+REQUIRED_ROW_KEYS = frozenset(
+    {
+        "name",
+        "tier",
+        "owner_module",
+        "signature_source",
+        "runtime_signature",
+        "used_by_public_seam_artifact",
+        "compatibility_status",
+        "opaque_forwarder",
+        "has_any_in_signature",
+        "is_callable",
+        "is_class",
+        "is_function",
+        "has_untagged_kwargs_dict",
+    }
+)
 
 
 def _load_inventory() -> dict:
@@ -55,9 +57,9 @@ def test_inventory_rows_carry_all_required_columns() -> None:
     payload = _load_inventory()
     for row in payload["rows"]:
         missing = REQUIRED_ROW_KEYS - set(row)
-        assert not missing, (
-            f"row for {row.get('name')!r} missing columns: {sorted(missing)}"
-        )
+        assert (
+            not missing
+        ), f"row for {row.get('name')!r} missing columns: {sorted(missing)}"
 
 
 def test_inventory_matches_live_probe_for_all_names() -> None:
@@ -156,25 +158,25 @@ def test_spine_names_are_tier_assigned() -> None:
         actual = rows_by_name[name]["tier"]
         if actual != expected_tier:
             mismatches.append(f"{name}: expected {expected_tier!r}, got {actual!r}")
-    assert not mismatches, (
-        "spine tier drift:\n  " + "\n  ".join(mismatches)
-    )
+    assert not mismatches, "spine tier drift:\n  " + "\n  ".join(mismatches)
 
 
 _INTERNAL_AUDIT_PATH = REPO_ROOT / "docs" / "contracts" / "internal_any_audit.json"
-_INTERNAL_REQUIRED_ROW_KEYS = frozenset({
-    "module",
-    "qualname",
-    "lineno",
-    "endlineno",
-    "is_async",
-    "has_any_annotation",
-    "has_var_kwargs",
-    "has_var_args_any",
-    "seam_class",
-    "coercion_exemption",
-    "owner_bead",
-})
+_INTERNAL_REQUIRED_ROW_KEYS = frozenset(
+    {
+        "module",
+        "qualname",
+        "lineno",
+        "endlineno",
+        "is_async",
+        "has_any_annotation",
+        "has_var_kwargs",
+        "has_var_args_any",
+        "seam_class",
+        "coercion_exemption",
+        "owner_bead",
+    }
+)
 _VALID_SEAM_CLASSES = frozenset({"public", "compat", "adapter", "internal"})
 
 
@@ -230,15 +232,15 @@ def test_internal_audit_counts_carry_per_seam_breakdown() -> None:
     """
     counts = _load_internal_audit()["counts"]
     by_seam = counts.get("by_seam_class")
-    assert isinstance(by_seam, dict), (
-        f"counts must include by_seam_class breakdown; got {by_seam!r}"
-    )
+    assert isinstance(
+        by_seam, dict
+    ), f"counts must include by_seam_class breakdown; got {by_seam!r}"
     for seam in _VALID_SEAM_CLASSES:
         assert seam in by_seam, f"by_seam_class missing entry for {seam!r}"
         for key in ("total", "with_any_annotation", "with_var_kwargs"):
-            assert key in by_seam[seam], (
-                f"by_seam_class[{seam!r}] missing {key!r}: {by_seam[seam]}"
-            )
+            assert (
+                key in by_seam[seam]
+            ), f"by_seam_class[{seam!r}] missing {key!r}: {by_seam[seam]}"
     # Sums match the aggregates — no rows go uncounted.
     seam_total = sum(by_seam[s]["total"] for s in _VALID_SEAM_CLASSES)
     assert seam_total == counts["total_functions"], (
@@ -323,9 +325,9 @@ def test_internal_audit_any_count_does_not_silently_grow() -> None:
 
 
 def test_internal_audit_var_kwargs_count_does_not_silently_grow() -> None:
-    """Pin the internal ``**kwargs`` baseline (165 at audit landing)."""
+    """Pin the internal ``**kwargs`` baseline (166 after Wave 4 ``estimate_hrf``)."""
     counts = _load_internal_audit()["counts"]
-    BASELINE_WITH_VAR_KWARGS = 165
+    BASELINE_WITH_VAR_KWARGS = 166
     assert counts["with_var_kwargs"] <= BASELINE_WITH_VAR_KWARGS, (
         f"internal **kwargs count grew from {BASELINE_WITH_VAR_KWARGS} "
         f"to {counts['with_var_kwargs']}; raise the baseline with "

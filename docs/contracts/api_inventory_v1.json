@@ -1,10 +1,10 @@
 {
   "counts": {
-    "all_names": 208,
-    "any_in_signature": 31,
-    "callable": 206,
+    "all_names": 209,
+    "any_in_signature": 32,
+    "callable": 207,
     "classes": 22,
-    "opaque_forwarder": 31
+    "opaque_forwarder": 32
   },
   "fmrimod_version": "0.1.0",
   "rows": [
@@ -813,7 +813,22 @@
       "name": "coef_image",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', coef: 'Union[int, str]' = 0, statistic: 'AccessorStatistic' = 'estimate', mask: 'Optional[NDArray[np.bool_]]' = None) -> 'NDArray[np.float64]'",
+      "runtime_signature": "(x: 'object', coef: 'Union[int, str]' = 0, statistic: 'AccessorStatistic' = 'estimate', mask: 'Optional[NDArray[np.bool_]]' = None, type: 'AccessorTarget' = 'estimates') -> 'NDArray[np.float64]'",
+      "signature_source": "inspect.signature",
+      "tier": "compat",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
+      "compatibility_status": "compat",
+      "has_any_in_signature": false,
+      "has_untagged_kwargs_dict": false,
+      "is_callable": true,
+      "is_class": false,
+      "is_function": true,
+      "name": "coef_images",
+      "opaque_forwarder": false,
+      "owner_module": "fmrimod.accessors",
+      "runtime_signature": "(x: 'object', statistic: 'AccessorStatistic' = 'estimate', type: 'AccessorTarget' = 'estimates', coefs: 'Optional[Sequence[str]]' = None, mask: 'Optional[NDArray[np.bool_]]' = None) -> 'Dict[str, NDArray[np.float64]]'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -1165,15 +1180,15 @@
     },
     {
       "compatibility_status": "compat",
-      "has_any_in_signature": false,
+      "has_any_in_signature": true,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
       "is_function": true,
       "name": "estimate_hrf",
-      "opaque_forwarder": false,
-      "owner_module": "fmrimod.single.voxel_hrf",
-      "runtime_signature": "(Y: 'NDArray[np.float64] | None' = None, X_trials: 'NDArray[np.float64] | None' = None, basis: 'NDArray[np.float64] | object | None' = None, *, confounds: 'Optional[NDArray[np.float64]]' = None, K: 'Optional[int]' = None, output: \"Literal['hrf', 'coefficients', 'result']\" = 'hrf', form: 'Optional[str]' = None, fixed: 'Optional[NDArray[np.float64]]' = None, block: 'Optional[str]' = None, dataset: 'HrfEstimationDataset | None' = None) -> 'NDArray[np.float64] | VoxelHrfResult'",
+      "opaque_forwarder": true,
+      "owner_module": "fmrimod.hrf.estimate",
+      "runtime_signature": "(Y: 'NDArray[np.float64] | None' = None, X_trials: 'NDArray[np.float64] | None' = None, basis: 'object | None' = None, *, confounds: 'NDArray[np.float64] | None' = None, K: 'int | None' = None, output: \"Literal['hrf', 'coefficients', 'result']\" = 'hrf', form: 'str | None' = None, fixed: 'object | None' = None, block: 'str | None' = None, dataset: 'object' = None, rsam: 'Sequence[float] | None' = None, basemod: 'object' = None, k: 'int' = 8, lam: 'LamSpec | None' = None, lam_grid: 'Sequence[float] | None' = None, ci_level: 'float | None' = 0.95, **kwargs: 'object') -> 'NDArray[np.float64] | Any'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -1188,7 +1203,7 @@
       "name": "estimate_single_trial",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.single",
-      "runtime_signature": "(Y: 'NDArray[np.float64]', X: 'NDArray[np.float64]', method: 'SingleTrialMethodLike' = 'lss', confounds: 'NDArray[np.float64] | None' = None, trial_labels: 'list[str] | None' = None, return_se: 'bool' = False, *, prewhiten: 'PrewhitenConfig | None' = None, nuisance_projector: 'NuisanceProjector | None' = None, chunk_size: 'int | None' = None, oasis_config: 'OasisConfig | None' = None, sbhm_config: 'SbhmConfig | None' = None, sbhm_library: 'SbhmLibrary | None' = None, baseline_regressors: 'NDArray[np.float64] | None' = None, include_intercept: 'bool' = False) -> 'SingleTrialResult'",
+      "runtime_signature": "(Y: 'NDArray[np.float64]', X: 'NDArray[np.float64]', method: 'SingleTrialMethodLike' = 'lss', confounds: 'NDArray[np.float64] | None' = None, trial_labels: 'list[str] | None' = None, return_se: 'bool' = False, *, prewhiten: 'PrewhitenConfig | None' = None, nuisance_projector: 'NuisanceProjector | None' = None, chunk_size: 'int | None' = None, oasis_config: 'OasisConfig | None' = None, sbhm_config: 'SbhmConfig | None' = None, sbhm_library: 'SbhmLibrary | None' = None, baseline_regressors: 'NDArray[np.float64] | None' = None, include_intercept: 'bool' = False, n_basis: 'int | None' = None) -> 'SingleTrialResult'",
       "signature_source": "inspect.signature",
       "tier": "spine",
       "used_by_public_seam_artifact": "release_1_0_api_spine"
@@ -1203,7 +1218,7 @@
       "name": "estimate_single_trial_from_dataset",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.single",
-      "runtime_signature": "(dataset: 'object', spec: 'object', *, method: 'SingleTrialMethodLike' = 'lss', confounds: 'NDArray[np.float64] | None' = None, return_se: 'bool' = False, block: 'object' = None, durations: 'object' = None, precision: 'float | None' = None, prewhiten: 'PrewhitenConfig | None' = None, nuisance_projector: 'NuisanceProjector | None' = None, chunk_size: 'int | None' = None, oasis_config: 'OasisConfig | None' = None, sbhm_config: 'SbhmConfig | None' = None, sbhm_library: 'SbhmLibrary | None' = None, include_intercept: 'bool' = False) -> 'SingleTrialResult'",
+      "runtime_signature": "(dataset: 'object', spec: 'object', *, method: 'SingleTrialMethodLike' = 'lss', confounds: 'NDArray[np.float64] | None' = None, return_se: 'bool' = False, block: 'object' = None, durations: 'object' = None, precision: 'float | None' = None, prewhiten: 'PrewhitenConfig | None' = None, nuisance_projector: 'NuisanceProjector | None' = None, chunk_size: 'int | None' = None, oasis_config: 'OasisConfig | None' = None, sbhm_config: 'SbhmConfig | None' = None, sbhm_library: 'SbhmLibrary | None' = None, include_intercept: 'bool' = False, n_basis: 'int | None' = None) -> 'SingleTrialResult'",
       "signature_source": "inspect.signature",
       "tier": "spine",
       "used_by_public_seam_artifact": "release_1_0_api_spine"
@@ -1413,7 +1428,7 @@
       "name": "fit_noise",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.ar.estimation",
-      "runtime_signature": "(resid: 'Optional[NDArray[np.float64]]' = None, Y: 'Optional[NDArray[np.float64]]' = None, X: 'Optional[NDArray[np.float64]]' = None, runs: 'Optional[NDArray[Any]]' = None, censor: 'Optional[NDArray[Any]]' = None, method: 'str' = 'ar', p: 'object' = 'auto', q: 'int' = 0, p_max: 'int' = 6, exact_first: 'str' = 'ar1', pooling: 'str' = 'global', parcels: 'Optional[NDArray[Any]]' = None, parcel_sets: 'Optional[dict[str, Any]]' = None, multiscale: 'object' = None, ms_mode: 'Optional[str]' = None, p_target: 'Optional[int]' = None, beta: 'float' = 0.5, hr_iter: 'int' = 0, step1: 'str' = 'yw') -> \"'WhiteningPlan'\"",
+      "runtime_signature": "(resid: 'Optional[NDArray[np.float64]]' = None, Y: 'Optional[NDArray[np.float64]]' = None, X: 'Optional[NDArray[np.float64]]' = None, runs: 'Optional[NDArray[Any]]' = None, censor: 'Optional[NDArray[Any]]' = None, method: 'str' = 'ar', p: 'object' = 'auto', q: 'int' = 0, p_max: 'int' = 6, exact_first: 'str' = 'ar1', pooling: 'str' = 'global', parcels: 'Optional[NDArray[Any]]' = None, parcel_sets: 'Optional[dict[str, Any]]' = None, multiscale: 'object' = None, ms_mode: 'Optional[str]' = None, p_target: 'Optional[int]' = None, beta: 'float' = 0.5, hr_iter: 'int' = 0, step1: 'str' = 'yw', design: 'Optional[NDArray[np.float64]]' = None, acvf_correction: 'Optional[Any]' = None, correction_max_lag: 'int' = 25) -> \"'WhiteningPlan'\"",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"

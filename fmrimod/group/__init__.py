@@ -2,7 +2,17 @@
 
 from __future__ import annotations
 
+from ._examine_control import (
+    ExaminationControl,
+    GeometryControl,
+    InfluenceReview,
+    QualityRule,
+    SurpriseReview,
+    examination_control,
+)
+from ._examine_geometry import geometry_projection
 from .adapters import GroupAdapter, GroupProbe
+from .collect import collect_results
 from .dataset import (
     GroupDataset,
     group_dataset,
@@ -25,6 +35,7 @@ from .errors import (
     GroupSpaceError,
     UnsupportedGroupFeatureError,
 )
+from .examine import GroupExamination, ResidualEmbedding, examine_group, examine_reduced
 from .io import GDS_H5_VERSION, read_hdf5, write_hdf5
 from .ops import (
     derive,
@@ -61,7 +72,6 @@ from .reducers import (
     perm_twosample,
     register_core_reducers,
 )
-from .typed import GroupLmResult, fmri_group_lm
 from .registry import (
     GroupRegistry,
     RegistryEntry,
@@ -80,6 +90,7 @@ from .space import (
     assert_compatible_spaces,
     common_mask,
 )
+from .typed import GroupLmResult, fmri_group_lm
 
 __all__ = [
     "AdapterContractError",
@@ -108,8 +119,20 @@ __all__ = [
     "SurfaceSpace",
     "UnsupportedGroupFeatureError",
     "VoxelSpace",
+    "ExaminationControl",
+    "GeometryControl",
+    "GroupExamination",
     "GroupLmResult",
+    "InfluenceReview",
+    "QualityRule",
+    "ResidualEmbedding",
+    "SurpriseReview",
+    "collect_results",
+    "examination_control",
+    "examine_group",
+    "examine_reduced",
     "fmri_group_lm",
+    "geometry_projection",
     "adapter_registry",
     "as_group_float_array",
     "as_group_index_array",
