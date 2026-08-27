@@ -1018,9 +1018,48 @@ def ols_voxelwise(
 ) -> GroupDataset:
     """OLS reducer across subjects for each sample/contrast feature.
 
-    Per-feature listwise deletion drops non-finite subjects. The ``n_obs``
-    assay records how many subjects contributed at each feature (fmrigds #7),
-    including features that remain unestimable.
+    Per-feature listwise deletion drops subject rows with a non-finite beta or
+    design value. The ``n_obs`` assay records how many rows remain before
+    estimability checks (fmrigds #7), including features that remain
+    unestimable.
+
+    Parameters
+    ----------
+    dataset : GroupDataset
+        Subject-level data containing a ``beta`` assay. Covariates used by a
+        formula or typed model come from ``dataset.col_data``.
+    model : GroupLinearModel, optional
+        Typed intercept-and-predictor specification. It cannot be combined
+        with ``formula`` or ``X``.
+    formula : str, default "~ 1"
+        Patsy formula evaluated against ``dataset.col_data``. The default fits
+        an intercept-only model. Ignored when ``X`` is provided.
+    X : NDArray, optional
+        Explicit finite subjects-by-predictors design matrix. Rows must match
+        ``dataset.n_subjects``.
+    return_cov : {"none", "tri"}, default "none"
+        Include packed upper-triangular coefficient-covariance assays when set
+        to ``"tri"``.
+    n_jobs : int, default 1
+        Number of feature chunks evaluated concurrently.
+    chunk_size : int, optional
+        Maximum number of flattened sample/contrast features per chunk.
+    blas_threads : int, optional
+        BLAS thread limit applied while each chunk is evaluated, when
+        ``threadpoolctl`` is available.
+
+    Returns
+    -------
+    GroupDataset
+        One-row group result. Assays include ``sigma2``, ``df_res``, ``n_obs``,
+        and ``coef:``, ``se_coef:``, ``t_coef:``, and ``p_coef:`` entries for
+        each predictor. ``return_cov="tri"`` also adds ``cov_tri:`` assays.
+
+    Raises
+    ------
+    AdapterContractError
+        If authoring modes are combined, a design is malformed, or a chunking
+        or threading option is invalid.
     """
     if return_cov not in ("none", "tri"):
         raise AdapterContractError("return_cov must be 'none' or 'tri'")

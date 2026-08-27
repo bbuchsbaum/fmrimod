@@ -15,3 +15,33 @@ ols_voxelwise(
 ```
 
 OLS reducer across subjects for each sample/contrast feature.
+
+Per-feature listwise deletion drops subject rows with a non-finite beta or
+design value. The ``n_obs`` assay records how many rows remain before
+estimability checks (fmrigds #7), including features that remain
+unestimable.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name         | Type                | Description                                                                                                                     | Default    |
+|--------------|---------------------|---------------------------------------------------------------------------------------------------------------------------------|------------|
+| dataset      | GroupDataset        | Subject-level data containing a ``beta`` assay. Covariates used by a formula or typed model come from ``dataset.col_data``.     | _required_ |
+| model        | GroupLinearModel    | Typed intercept-and-predictor specification. It cannot be combined with ``formula`` or ``X``.                                   | `None`     |
+| formula      | str                 | Patsy formula evaluated against ``dataset.col_data``. The default fits an intercept-only model. Ignored when ``X`` is provided. | `"~ 1"`    |
+| X            | NDArray             | Explicit finite subjects-by-predictors design matrix. Rows must match ``dataset.n_subjects``.                                   | `None`     |
+| return_cov   | (\'none\', \'tri\') | Include packed upper-triangular coefficient-covariance assays when set to ``"tri"``.                                            | `"none"`   |
+| n_jobs       | int                 | Number of feature chunks evaluated concurrently.                                                                                | `1`        |
+| chunk_size   | int                 | Maximum number of flattened sample/contrast features per chunk.                                                                 | `None`     |
+| blas_threads | int                 | BLAS thread limit applied while each chunk is evaluated, when ``threadpoolctl`` is available.                                   | `None`     |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type         | Description                                                                                                                                                                                                       |
+|--------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|        | GroupDataset | One-row group result. Assays include ``sigma2``, ``df_res``, ``n_obs``, and ``coef:``, ``se_coef:``, ``t_coef:``, and ``p_coef:`` entries for each predictor. ``return_cov="tri"`` also adds ``cov_tri:`` assays. |
+
+## Raises {.doc-section .doc-section-raises}
+
+| Name   | Type                 | Description                                                                                           |
+|--------|----------------------|-------------------------------------------------------------------------------------------------------|
+|        | AdapterContractError | If authoring modes are combined, a design is malformed, or a chunking or threading option is invalid. |

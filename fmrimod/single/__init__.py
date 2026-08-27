@@ -130,12 +130,17 @@ def estimate_single_trial(
     include_intercept : bool
         Add an intercept to the LSS adjustment design.
     n_basis : int, optional
-        HRF basis dimension. ``K > 1`` is OASIS-only (fmrilss ``f851fb0``).
-        When omitted, ``oasis_config.K`` is used if present.
+        HRF basis dimension in the trial-major design matrix. Values greater
+        than one are OASIS-only (fmrilss ``f851fb0``). When omitted,
+        ``oasis_config.K`` is used if present; otherwise the dimension is one.
+        If both are provided, ``oasis_config.K`` controls the OASIS solve, so
+        keep the two values equal.
 
     Returns
     -------
     SingleTrialResult
+        Trial-wise estimates, labels, method-specific diagnostics, and optional
+        standard errors.
     """
     # Optional prewhitening. Routes through fmrimod.ar.fit_noise +
     # whiten_apply (the same engine the GLM solver uses) so Y, X,
@@ -289,33 +294,55 @@ def estimate_single_trial_from_dataset(
 ) -> SingleTrialResult:
     """Estimate per-trial betas from an FmriDataset and trialwise spec.
 
-    Public-seam alternative to :func:`estimate_single_trial` that consumes a
-    :class:`~fmrimod.dataset.FmriDataset` plus a spec containing a
-    :func:`~fmrimod.trialwise` construction, builds the trial design matrix
-    from spec + dataset events, and delegates to
+    This public-seam wrapper consumes a
+    :class:`~fmrimod.dataset.FmriDataset` plus a specification containing a
+    :func:`~fmrimod.trialwise` construction. It builds the trial design matrix
+    from the specification and dataset events, then delegates to
     :func:`estimate_single_trial`.
 
     Parameters
     ----------
     dataset : FmriDataset
         Typed dataset carrying time-series data and an event table.
-    spec : str or list of Term or EventModelBuilder
-        Trialwise specification. Slice 1 accepts whatever
-        :func:`fmrimod.event_model` accepts: a string formula such as
-        ``"trialwise()"`` or ``"trialwise(add_sum=True)"``, a list of
-        :class:`~fmrimod.formula.base.Term` objects, or a builder.
-        Routing typed :class:`~fmrimod.spec.Spec`/``Term`` trees through this
-        wrapper waits on the typed compile path learning the trialwise
-        placeholder lowering (separate follow-on slice).
+    spec : str, sequence of formula Term, or EventModelBuilder
+        Trialwise definition accepted by :func:`fmrimod.event_model`, such as
+        ``"trialwise()"`` or ``"trialwise(add_sum=True)"``. Typed
+        :class:`~fmrimod.spec.Spec` trees are not accepted by this wrapper.
     method : SingleTrialMethod or literal string
         Estimator selector; see :func:`estimate_single_trial`.
-    confounds, return_se, prewhiten, nuisance_projector, chunk_size,
-        oasis_config, sbhm_config, sbhm_library, include_intercept
-        Forwarded to :func:`estimate_single_trial`.
-    block, durations, precision
-        Forwarded to :func:`fmrimod.event_model`. ``block`` and ``durations``
-        default to event-table column auto-detection (``run``/``block`` and
-        ``duration``).
+    confounds : NDArray, optional
+        Nuisance regressors with one row per time point.
+    return_se : bool, default False
+        Request standard errors from estimators that support them.
+    block : object, optional
+        Run assignment forwarded to :func:`fmrimod.event_model`. When omitted,
+        the wrapper uses the event table's ``run`` or ``block`` column, then
+        falls back to a single run.
+    durations : object, optional
+        Duration specification forwarded to :func:`fmrimod.event_model`.
+        Defaults to the event table's ``duration`` column when present.
+    precision : float, optional
+        Absolute convolution-grid step forwarded to
+        :func:`fmrimod.event_model`.
+    prewhiten : PrewhitenConfig, optional
+        AR prewhitening configuration forwarded to
+        :func:`estimate_single_trial`.
+    nuisance_projector : NuisanceProjector, optional
+        Precomputed nuisance projector for LSS estimation.
+    chunk_size : int, optional
+        Voxel chunk size for LSS beta-only solves.
+    oasis_config : OasisConfig, optional
+        OASIS estimator configuration.
+    sbhm_config : SbhmConfig, optional
+        SBHM pipeline configuration.
+    sbhm_library : SbhmLibrary, optional
+        Pre-built SBHM library required by the SBHM method.
+    include_intercept : bool, default False
+        Add an intercept to the LSS or LSA adjustment design.
+    n_basis : int, optional
+        HRF basis dimension forwarded to :func:`estimate_single_trial`.
+        Normally omit it: the wrapper infers the dimension from the compiled
+        ``trialwise`` design.
 
     Returns
     -------

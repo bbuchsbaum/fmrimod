@@ -13,18 +13,29 @@ from numpy.typing import ArrayLike, NDArray
 class SamplingFrame:
     """fMRI acquisition timing specification.
 
-    This class represents the temporal sampling structure of an fMRI experiment,
-    including the timing of acquisitions, block structure, and precision settings.
+    A frame records scan counts, repetition times, and per-run acquisition
+    offsets. Scalar timing inputs are repeated across runs.
 
-    Attributes:
-        blocklens: Number of scans per block (array or scalar)
-        tr: Repetition time(s) in seconds (array or scalar)
-        start_time: Start time offset(s) in seconds (array or scalar, default TR/2)
-        precision: Fine-grid step used when a SamplingFrame drives
-            design convolution (default 0.1 s). This is intentionally
-            separate from the HRF/regressor evaluate default of 0.33 s
-            (R ``HRF$evaluate``). Pass the frame's precision into
-            evaluate/convolve when the two must match.
+    Parameters
+    ----------
+    blocklens : int or array-like of int, optional
+        Number of scans in each run. Use ``n_scans`` as the compatibility
+        alias.
+    tr : float or array-like of float, optional
+        Repetition time in seconds for each run. Use ``TR`` as the
+        compatibility alias.
+    start_time : float or array-like of float, optional
+        Acquisition offset in seconds for each run. Defaults to half the
+        corresponding TR.
+    precision : float, default 0.1
+        Fine-grid step stored with the frame. This value is not automatically
+        shared with HRF/regressor evaluation (default 0.33 s) or design
+        construction (default ``min(TR) / 16``). Pass an explicit precision
+        when two computations must use the same grid.
+    n_scans : int or array-like of int, optional
+        Compatibility alias for ``blocklens``.
+    TR : float or array-like of float, optional
+        Compatibility alias for ``tr``.
     """
 
     # Field types describe the post-__post_init__ invariant: every field is
@@ -134,8 +145,10 @@ class SamplingFrame:
     def blockids(self) -> NDArray[np.int32]:
         """Block ID for each scan.
 
-        Returns:
-            Array of 0-based block IDs with length equal to total scans
+        Returns
+        -------
+        NDArray[np.int32]
+            Zero-based block IDs, one per scan.
         """
         ids = []
         for i, block_len in enumerate(self.blocklens):
@@ -160,8 +173,10 @@ class SamplingFrame:
     def samples(self) -> NDArray[np.float64]:
         """Time points for each scan.
 
-        Returns:
-            Array of time points in seconds for each scan
+        Returns
+        -------
+        NDArray[np.float64]
+            Global acquisition times in seconds, one per scan.
         """
         return self.sample_times(global_time=True)
 
@@ -172,12 +187,23 @@ class SamplingFrame:
     ) -> NDArray[np.float64]:
         """Get time points for scans with optional filtering.
 
-        Args:
-            global_time: If True, return global times; otherwise block-relative.
-            blockids: Optional 0-based block IDs to filter.
+        Parameters
+        ----------
+        global_time : bool, default True
+            Return experiment-wide times when true; otherwise return times
+            relative to the start of each selected run.
+        blockids : array-like of int, optional
+            Zero-based run IDs to include.
 
-        Returns:
-            Array of time points in seconds
+        Returns
+        -------
+        NDArray[np.float64]
+            Acquisition times in seconds for the selected runs.
+
+        Raises
+        ------
+        ValueError
+            If a requested block ID is outside the frame.
         """
         if blockids is not None:
             blockids = np.atleast_1d(blockids)
@@ -219,11 +245,15 @@ class SamplingFrame:
         wrapper around sample_times(global_time=True) that provides clearer
         semantic meaning for the common use case of getting acquisition times.
 
-        Note: The onset times include the start_time offset (default TR/2),
-        so the first acquisition typically doesn't start at 0.
+        Returns
+        -------
+        NDArray[np.float64]
+            Experiment-wide acquisition times in seconds.
 
-        Returns:
-            Array of acquisition onset times in seconds
+        Notes
+        -----
+        Times include ``start_time`` (half the TR by default), so the first
+        acquisition does not normally occur at zero.
         """
         return self.sample_times(global_time=True)
 
@@ -234,17 +264,22 @@ class SamplingFrame:
     ) -> NDArray[np.float64]:
         """Convert block-relative onset times to global (experiment-wide) onset times.
 
-        Args:
-            onsets: Numeric array of onset times within blocks (block-relative).
-            blockids: Integer array identifying which block each onset belongs to
-                (0-based).
+        Parameters
+        ----------
+        onsets : array-like
+            Times relative to the start of their runs.
+        blockids : array-like of int
+            Zero-based run ID for each onset.
 
-        Returns:
-            Array of global onset times.
+        Returns
+        -------
+        NDArray[np.float64]
+            Experiment-wide onset times.
 
-        Raises:
-            ValueError: If onsets and blockids have different lengths or if
-                blockids are out of range.
+        Raises
+        ------
+        ValueError
+            If the inputs have different lengths or a block ID is out of range.
         """
         onsets = np.asarray(onsets, dtype=np.float64)
         blockids = np.asarray(blockids, dtype=np.int64)
@@ -268,19 +303,30 @@ class SamplingFrame:
     def global_scan_times(self) -> NDArray[np.float64]:
         """Global scan times across all blocks.
 
-        Returns:
-            Array of absolute time points for each scan
+        Returns
+        -------
+        NDArray[np.float64]
+            Experiment-wide time for each scan.
         """
         return self.samples
 
     def block_samples(self, block_idx: int) -> NDArray[np.float64]:
         """Get time points for a specific block.
 
-        Args:
-            block_idx: Block index (0-based)
+        Parameters
+        ----------
+        block_idx : int
+            Zero-based run index.
 
-        Returns:
-            Array of time points for the specified block
+        Returns
+        -------
+        NDArray[np.float64]
+            Run-relative acquisition times in seconds.
+
+        Raises
+        ------
+        ValueError
+            If ``block_idx`` is outside the frame.
         """
         if block_idx < 0 or block_idx >= self.n_blocks:
             raise ValueError(f"block_idx must be in range [0, {self.n_blocks-1}]")
@@ -319,8 +365,10 @@ class SamplingFrame:
     def to_dict(self) -> dict[str, object]:
         """Convert to dictionary representation.
 
-        Returns:
-            Dictionary with all sampling frame parameters
+        Returns
+        -------
+        dict[str, object]
+            JSON-compatible timing parameters and derived run/scan counts.
         """
         return {
             "blocklens": self.blocklens.tolist(),
@@ -335,11 +383,16 @@ class SamplingFrame:
     def from_dict(cls, data: dict[str, Any]) -> SamplingFrame:
         """Create SamplingFrame from dictionary.
 
-        Args:
-            data: Dictionary with sampling frame parameters
+        Parameters
+        ----------
+        data : dict[str, Any]
+            Mapping containing ``blocklens`` plus ``tr`` or ``TR``; optional
+            keys are ``start_time`` and ``precision``.
 
-        Returns:
-            New SamplingFrame instance
+        Returns
+        -------
+        SamplingFrame
+            Validated frame reconstructed from the mapping.
         """
         return cls(
             blocklens=data["blocklens"],
@@ -351,11 +404,20 @@ class SamplingFrame:
     def concatenate(self, other: SamplingFrame) -> SamplingFrame:
         """Concatenate two sampling frames.
 
-        Args:
-            other: Another SamplingFrame to concatenate
+        Parameters
+        ----------
+        other : SamplingFrame
+            Frame appended after this one.
 
-        Returns:
-            New SamplingFrame with combined blocks
+        Returns
+        -------
+        SamplingFrame
+            New frame with both sets of runs and adjusted global offsets.
+
+        Raises
+        ------
+        ValueError
+            If the frames use different precision values.
         """
         if self.precision != other.precision:
             raise ValueError(

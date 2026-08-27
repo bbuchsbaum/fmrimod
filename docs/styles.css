@@ -233,7 +233,20 @@ a:hover {
   }
 }
 
+main.content section.level1 > h1 {
+  overflow-wrap: anywhere;
+}
+
+#TOC .nav-link {
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 576px) {
+  main.content section.level1 > h1 {
+    font-size: clamp(1.3rem, 6vw, 1.65rem);
+    line-height: 1.15;
+  }
+
   .doc-index table,
   .doc-index tbody,
   .doc-index tr,

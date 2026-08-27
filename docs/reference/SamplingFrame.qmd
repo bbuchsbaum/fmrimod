@@ -14,14 +14,19 @@ SamplingFrame(
 
 fMRI acquisition timing specification.
 
-This class represents the temporal sampling structure of an fMRI experiment,
-including the timing of acquisitions, block structure, and precision settings.
+A frame records scan counts, repetition times, and per-run acquisition
+offsets. Scalar timing inputs are repeated across runs.
 
-Attributes:
-    blocklens: Number of scans per block (array or scalar)
-    tr: Repetition time(s) in seconds (array or scalar)
-    start_time: Start time offset(s) in seconds (array or scalar, default TR/2)
-    precision: Temporal precision for convolution in seconds
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name       | Type                         | Description                                                                                                                                                                                                                                             | Default   |
+|------------|------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|
+| blocklens  | int or array-like of int     | Number of scans in each run. Use ``n_scans`` as the compatibility alias.                                                                                                                                                                                | `None`    |
+| tr         | float or array-like of float | Repetition time in seconds for each run. Use ``TR`` as the compatibility alias.                                                                                                                                                                         | `None`    |
+| start_time | float or array-like of float | Acquisition offset in seconds for each run. Defaults to half the corresponding TR.                                                                                                                                                                      | `None`    |
+| precision  | float                        | Fine-grid step stored with the frame. This value is not automatically shared with HRF/regressor evaluation (default 0.33 s) or design construction (default ``min(TR) / 16``). Pass an explicit precision when two computations must use the same grid. | `0.1`     |
+| n_scans    | int or array-like of int     | Compatibility alias for ``blocklens``.                                                                                                                                                                                                                  | `None`    |
+| TR         | float or array-like of float | Compatibility alias for ``tr``.                                                                                                                                                                                                                         | `None`    |
 
 ## Attributes
 
@@ -55,11 +60,23 @@ block_samples(block_idx)
 
 Get time points for a specific block.
 
-Args:
-    block_idx: Block index (0-based)
+#### Parameters {.doc-section .doc-section-parameters}
 
-Returns:
-    Array of time points for the specified block
+| Name      | Type   | Description           | Default    |
+|-----------|--------|-----------------------|------------|
+| block_idx | int    | Zero-based run index. | _required_ |
+
+#### Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                  | Description                                |
+|--------|-----------------------|--------------------------------------------|
+|        | NDArray\[np.float64\] | Run-relative acquisition times in seconds. |
+
+#### Raises {.doc-section .doc-section-raises}
+
+| Name   | Type       | Description                            |
+|--------|------------|----------------------------------------|
+|        | ValueError | If ``block_idx`` is outside the frame. |
 
 ### concatenate { #fmrimod.sampling.SamplingFrame.concatenate }
 
@@ -69,11 +86,23 @@ concatenate(other)
 
 Concatenate two sampling frames.
 
-Args:
-    other: Another SamplingFrame to concatenate
+#### Parameters {.doc-section .doc-section-parameters}
 
-Returns:
-    New SamplingFrame with combined blocks
+| Name   | Type          | Description                    | Default    |
+|--------|---------------|--------------------------------|------------|
+| other  | SamplingFrame | Frame appended after this one. | _required_ |
+
+#### Returns {.doc-section .doc-section-returns}
+
+| Name   | Type          | Description                                                   |
+|--------|---------------|---------------------------------------------------------------|
+|        | SamplingFrame | New frame with both sets of runs and adjusted global offsets. |
+
+#### Raises {.doc-section .doc-section-raises}
+
+| Name   | Type       | Description                                   |
+|--------|------------|-----------------------------------------------|
+|        | ValueError | If the frames use different precision values. |
 
 ### from_dict { #fmrimod.sampling.SamplingFrame.from_dict }
 
@@ -83,11 +112,17 @@ from_dict(data)
 
 Create SamplingFrame from dictionary.
 
-Args:
-    data: Dictionary with sampling frame parameters
+#### Parameters {.doc-section .doc-section-parameters}
 
-Returns:
-    New SamplingFrame instance
+| Name   | Type             | Description                                                                                                 | Default    |
+|--------|------------------|-------------------------------------------------------------------------------------------------------------|------------|
+| data   | dict\[str, Any\] | Mapping containing ``blocklens`` plus ``tr`` or ``TR``; optional keys are ``start_time`` and ``precision``. | _required_ |
+
+#### Returns {.doc-section .doc-section-returns}
+
+| Name   | Type          | Description                                     |
+|--------|---------------|-------------------------------------------------|
+|        | SamplingFrame | Validated frame reconstructed from the mapping. |
 
 ### global_onsets { #fmrimod.sampling.SamplingFrame.global_onsets }
 
@@ -97,17 +132,24 @@ global_onsets(onsets, blockids)
 
 Convert block-relative onset times to global (experiment-wide) onset times.
 
-Args:
-    onsets: Numeric array of onset times within blocks (block-relative).
-    blockids: Integer array identifying which block each onset belongs to
-        (0-based).
+#### Parameters {.doc-section .doc-section-parameters}
 
-Returns:
-    Array of global onset times.
+| Name     | Type              | Description                                | Default    |
+|----------|-------------------|--------------------------------------------|------------|
+| onsets   | array - like      | Times relative to the start of their runs. | _required_ |
+| blockids | array-like of int | Zero-based run ID for each onset.          | _required_ |
 
-Raises:
-    ValueError: If onsets and blockids have different lengths or if
-        blockids are out of range.
+#### Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                  | Description                  |
+|--------|-----------------------|------------------------------|
+|        | NDArray\[np.float64\] | Experiment-wide onset times. |
+
+#### Raises {.doc-section .doc-section-raises}
+
+| Name   | Type       | Description                                                         |
+|--------|------------|---------------------------------------------------------------------|
+|        | ValueError | If the inputs have different lengths or a block ID is out of range. |
 
 ### run_ids { #fmrimod.sampling.SamplingFrame.run_ids }
 
@@ -131,12 +173,24 @@ sample_times(global_time=True, blockids=None)
 
 Get time points for scans with optional filtering.
 
-Args:
-    global_time: If True, return global times; otherwise block-relative.
-    blockids: Optional 0-based block IDs to filter.
+#### Parameters {.doc-section .doc-section-parameters}
 
-Returns:
-    Array of time points in seconds
+| Name        | Type              | Description                                                                                                | Default   |
+|-------------|-------------------|------------------------------------------------------------------------------------------------------------|-----------|
+| global_time | bool              | Return experiment-wide times when true; otherwise return times relative to the start of each selected run. | `True`    |
+| blockids    | array-like of int | Zero-based run IDs to include.                                                                             | `None`    |
+
+#### Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                  | Description                                         |
+|--------|-----------------------|-----------------------------------------------------|
+|        | NDArray\[np.float64\] | Acquisition times in seconds for the selected runs. |
+
+#### Raises {.doc-section .doc-section-raises}
+
+| Name   | Type       | Description                                   |
+|--------|------------|-----------------------------------------------|
+|        | ValueError | If a requested block ID is outside the frame. |
 
 ### to_dict { #fmrimod.sampling.SamplingFrame.to_dict }
 
@@ -146,5 +200,8 @@ to_dict()
 
 Convert to dictionary representation.
 
-Returns:
-    Dictionary with all sampling frame parameters
+#### Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                | Description                                                    |
+|--------|---------------------|----------------------------------------------------------------|
+|        | dict\[str, object\] | JSON-compatible timing parameters and derived run/scan counts. |

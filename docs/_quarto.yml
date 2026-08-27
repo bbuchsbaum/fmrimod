@@ -175,6 +175,7 @@ format:
       light: [_theme-base.scss]
       dark: [_theme-base.scss, _theme-night.scss]
     css: styles.css
+    include-in-header: _includes/quarto-color-scheme-compat.html
     include-before-body: _includes/skip-link.html
     toc: true
     toc-depth: 3
