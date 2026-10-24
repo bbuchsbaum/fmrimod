@@ -279,18 +279,17 @@ class TestTentGenerator:
         assert hrf.span == 12.0
 
     def test_partition_of_unity(self):
-        """Tent functions should approximately sum to 1 in the interior.
+        """Tent functions sum to 1 between the first and last interior knots.
 
-        With R-compatible bs(intercept=FALSE), the first basis function is
-        dropped so sums at the left boundary are < 1.  Check the true
-        interior where all retained bases overlap.
+        The basis drops both boundary functions of the clamped N+2 basis
+        (fmrihrf 18d418f), so sums fall below 1 only within one knot
+        spacing (20 / 9 s here) of either end of the span.
         """
         hrf = tent_generator(nbasis=8, span=20.0)
-        # Stay well inside the span so the dropped intercept basis has no effect
         t = np.linspace(3, 17, 80)
         y = hrf(t)
         row_sums = y.sum(axis=1)
-        np.testing.assert_allclose(row_sums, 1.0, atol=0.05)
+        np.testing.assert_allclose(row_sums, 1.0, rtol=0, atol=1e-12)
 
 
 # ── mexican hat ─────────────────────────────────────────────────────
