@@ -50,7 +50,11 @@ def test_acvf_correction_changes_phi_on_fat_design() -> None:
     X = _fat_design(n_time, rng)
     Y = _ar1_resid(n_time, n_voxels, 0.5, rng)
 
-    uncorrected = prewhiten_matrices(Y, X, None, PrewhitenConfig(method="ar", p=1))
+    # Same (full) residual design as the corrected fit, so only the
+    # correction differs; the aggregate default would change both.
+    uncorrected = prewhiten_matrices(
+        Y, X, None, PrewhitenConfig(method="ar", p=1, residual_model="full")
+    )
     correction = acvf_bias_matrix(X, max_lag=8)
     corrected = prewhiten_matrices(
         Y,
@@ -126,6 +130,10 @@ def test_prewhiten_config_defaults_match_r() -> None:
     assert cfg.design is None
     assert cfg.acvf_correction is None
     assert cfg.correction_max_lag == 25
+    # R prewhiten_options(residual_model = NULL) resolves to "aggregate"
+    # without a correction design (fmrilss a9d816e).
+    assert cfg.residual_model is None
+    assert cfg.resolved_residual_model == "aggregate"
 
 
 def test_prewhiten_config_rejects_nonsquare_correction() -> None:
