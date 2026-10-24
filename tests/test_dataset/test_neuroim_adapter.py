@@ -177,3 +177,29 @@ def test_fmri_dataset_requires_tr_for_neurovec():
     vec = _make_neurovec()
     with pytest.raises(ValueError, match="`tr` is required"):
         fmri_dataset(vec)
+
+
+def test_runs_and_mask_must_share_the_spatial_space():
+    # fmridataset 7cb121e / read_bids_bold geometry check: spatial identity is
+    # the space (shape and affine), never the shape alone. Inventory v2 DS-07.
+    # The fixtures differ only in the sign of the x step, so a spacing-only
+    # comparison would still pass them.
+    import neuroim as ni
+
+    shape = (4, 4, 3)
+    aff_a = np.diag([2.0, 2.0, 2.0, 1.0])
+    aff_b = np.array([[-2.0, 0, 0, 8.0], [0, 2.0, 0, 0], [0, 0, 2.0, 0], [0, 0, 0, 1]])
+    rng = np.random.default_rng(3)
+
+    def vec(aff):
+        return ni.DenseNeuroVec(rng.normal(size=shape + (8,)) + 10,
+                                ni.NeuroSpace.from_affine(aff, shape + (8,)))
+
+    with pytest.raises(ValueError, match="[Rr]un 1"):
+        fmri_dataset([vec(aff_a), vec(aff_b)], tr=2.0)
+    mask_b = ni.LogicalNeuroVol(np.ones(shape, bool), ni.NeuroSpace.from_affine(aff_b, shape))
+    with pytest.raises(ValueError, match="[Mm]ask"):
+        fmri_dataset(vec(aff_a), mask=mask_b, tr=2.0)
+    # Same space still works, and a plain ndarray mask (no space) is accepted.
+    fmri_dataset([vec(aff_b), vec(aff_b)], mask=mask_b, tr=2.0)
+    fmri_dataset(vec(aff_a), mask=np.ones(shape, bool), tr=2.0)

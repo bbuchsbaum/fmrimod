@@ -137,7 +137,8 @@ exports a function for it.
 | Dataset class | `fmrimod.dataset.FmriDataset` | the only public dataset container | `fmridataset.FmriDataset is fmrimod.dataset.FmriDataset` |
 | Timepoint count | `fmrimod.dataset.FmriDataset.n_timepoints` | total number of timepoints | per-run lengths are `blocklens` or `run_lengths` |
 | Matrix data access | `fmrimod.dataset.FmriDataset.get_data` | explicit matrix slicing by `rows` and `cols` | run access uses an explicit name such as `get_run_data` |
-| Storage protocol | `fmrimod.dataset.StorageBackend` and `BackendDims` | the only backend contract and dimensions type | old imports re-export these names |
+| Storage protocol | `fmrimod.dataset.StorageBackend` and `BackendDims` | the only backend contract and dimensions type; every `FmriDataset` reads through one backend plus one `SamplingFrame` (decision 0004) | old imports re-export these names; the adapters are facades exposing `.backend` |
+| Spatial identity | `fmrimod.dataset.space.VolumeSpace` | grid, in-mask voxels in C order, affine or `None`; compatibility is grid plus affine, never shape alone (decision 0004) | lowers to `fmrimod.group.VoxelSpace` at the study seam |
 | Backend registry | `fmrimod.dataset.BackendRegistry` | the only backend registry | no facade-owned registry state |
 | Latent dataset | `fmrimod.dataset.LatentDataset` | storage-backed latent dataset class | temporary score/loadings helper is merged or renamed |
 | Chunks | `fmrimod.dataset.data_chunks` and related chunk types | typed chunks carrying data and indices | index-only chunk helpers need distinct names |
@@ -241,7 +242,7 @@ Required schema:
 | `BidsH5ScanBackend` | BIDS-HDF5 scan backend | none | `adopt` | `fmrimod.dataset.backends.bids_h5` | `tests/test_dataset/test_bids_h5_dataset.py` | Requires hdf5 extra; port after core registry. |
 | `SharedH5Connection` | BIDS-HDF5 scan backend | none | `adopt` | `fmrimod.dataset.backends.bids_h5` | `tests/test_dataset/test_bids_h5_dataset.py` | Requires hdf5 extra; port after core registry. |
 | `matrix_backend` | matrix backend constructor | none | `adopt` | `fmrimod.dataset.backend_constructors` | `tests/test_dataset/test_matrix_backend.py` | Constructor for canonical MatrixBackend. |
-| `nifti_backend` | NIfTI backend constructor | fmrimod.dataset.adapters.NibabelAdapter (different) | `merge` | `fmrimod.dataset.backend_constructors` | `tests/test_dataset/test_nifti_backend.py` | Requires nifti extra; reconcile with existing NibabelAdapter. |
+| `nifti_backend` | NIfTI backend constructor | fmrimod.dataset.adapters.NibabelAdapter (different) | `merge` | `fmrimod.dataset.backend_constructors` | `tests/test_dataset/test_nifti_backend.py` | Requires nifti extra. Reconciled: `NibabelAdapter` is a facade over `NiftiBackend`, which takes paths or in-memory images (decision 0004). |
 | `h5_backend` | HDF5 backend constructor | none | `adopt` | `fmrimod.dataset.backend_constructors` | `tests/test_dataset/test_h5_backend.py` | Requires hdf5 extra. |
 | `zarr_backend` | Zarr backend constructor | none | `scoped_out` | n/a | n/a | Deferred: no zarr backend ever shipped; the `zarr` extra was dropped rather than promise an unbuilt feature (bd-01KRMR4B2Z4ZPTYHZC7J69CY77, umbrella bd-01KRFD264CZ250Q5388MJ6FWTQ). Re-adopt only behind a MISSION-justified zarr-backend work request. |
 | `latent_backend` | latent backend constructor | none | `adopt` | `fmrimod.dataset.backend_constructors` | `tests/test_dataset/test_latent_backend.py` | Requires hdf5 extra for file-backed latent data. |
@@ -261,7 +262,7 @@ Required schema:
 | `StudyDataset` | multi-subject dataset | none | `adopt` | `fmrimod.dataset.StudyDataset` | `tests/test_dataset/test_study_dataset.py` | Canonical multi-subject container. |
 | `BidsH5StudyDataset` | BIDS-HDF5 study dataset | none | `adopt` | `fmrimod.dataset.BidsH5StudyDataset` | `tests/test_dataset/test_bids_h5_dataset.py` | Requires hdf5 extra. |
 | `matrix_dataset` | matrix dataset constructor | fmrimod.matrix_dataset / fmrimod.dataset.fmri_mem_dataset | `merge` | `fmrimod.dataset.matrix_dataset` | `tests/test_dataset/test_canonical_contracts.py` | Top-level fmrimod may expose convenience wrapper only. |
-| `fmri_dataset` | generic dataset constructor | fmrimod.fmri_dataset / fmrimod.dataset.FmriDataset | `merge` | `fmrimod.dataset.fmri_dataset` | `tests/test_dataset/test_dataset_constructors.py` | Reconcile adapter-wrapper contract with backend-backed contract. |
+| `fmri_dataset` | generic dataset constructor | fmrimod.fmri_dataset / fmrimod.dataset.FmriDataset | `merge` | `fmrimod.dataset.fmri_dataset` | `tests/test_dataset/test_dataset_constructors.py` | Reconciled: one backend-backed contract; run-wise `DatasetProtocol` objects are read through `RunwiseSourceBackend` (decision 0004). |
 | `fmri_mem_dataset` | legacy matrix constructor | fmrimod.dataset.fmri_mem_dataset | `compat_alias` | `fmrimod.dataset.matrix_dataset` | `tests/test_dataset/test_dataset_constructors.py` | Compatibility alias only. |
 | `fmri_h5_dataset` | legacy HDF5 constructor | none | `compat_alias` | `fmrimod.dataset.h5_dataset helper` | `tests/test_dataset/test_h5_backend.py` | Compatibility wrapper around HDF5 backend plus fmri_dataset. |
 | `fmri_latent_dataset` | legacy latent constructor | none | `compat_alias` | `fmrimod.dataset.latent_dataset` | `tests/test_dataset/test_latent_dataset.py` | Compatibility alias only. |

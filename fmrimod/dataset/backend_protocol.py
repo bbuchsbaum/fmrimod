@@ -11,6 +11,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .errors import ConfigError
+from .space import VolumeSpace
 
 
 @dataclass(frozen=True)
@@ -120,6 +121,24 @@ class StorageBackend(ABC):
     @abstractmethod
     def get_metadata(self) -> dict[str, object]:
         """Return backend metadata."""
+
+    @property
+    def space(self) -> VolumeSpace:
+        """Spatial identity of the columns.
+
+        The default covers sources without geometry: the reported grid and
+        mask, no affine, and a flat mask. Image backends override it.
+        """
+        dims = self.get_dims()
+        return VolumeSpace(dims.spatial, self.get_mask(), affine=None)
+
+    @property
+    def source_run_lengths(self) -> tuple[int, ...] | None:
+        """Rows contributed by each underlying file or source, when known.
+
+        ``None`` means the backend has no natural run boundaries.
+        """
+        return None
 
     def validate(self) -> bool:
         """Check backend invariants and raise ``ConfigError`` on failure."""

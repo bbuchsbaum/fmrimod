@@ -80,9 +80,11 @@ def _production_positional_get_data_calls() -> Counter[PositionalGetDataCall]:
 
 CANONICAL_RUN_ACCESS_BRIDGE = Counter(
     {
+        # The one bridge from fmrimod's backend contract to a user-written
+        # run-wise DatasetProtocol source.
         PositionalGetDataCall(
-            path="fmrimod/dataset/fmri_dataset.py",
-            qualname="FmriDataset.get_run_data",
+            path="fmrimod/dataset/backends/runwise_backend.py",
+            qualname="RunwiseSourceBackend.get_data.run",
             receiver="self._source",
         ): 1,
         PositionalGetDataCall(
