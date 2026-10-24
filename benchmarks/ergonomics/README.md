@@ -11,7 +11,25 @@ exactly what to fix.
 ```
 
 Results: [`reports/REPORT.md`](reports/REPORT.md) (human) and
-`reports/ergonomics_report.json` (machine).
+`reports/ergonomics_report.json` (machine). `reports/round_1_report.json` is
+the first scorecard, kept as the baseline that the report's
+"fmrimod since round_1" section compares against (`--baseline` picks
+another).
+
+## Rounds so far
+
+- **Round 1** found fmrimod 26% longer than Nilearn in total (976 vs 775
+  tokens), losing code size on 5 of 9 tasks, plus one crash bug (per-run event
+  lists).
+- **Round 2** closed those gaps: `fmri_lm` takes images directly, string
+  level contrasts (`"face - house"`), `drift()` defaults to 128 s, per-run
+  event lists and confound tables, `hrf(..., span=)`, typed `trialwise()`
+  for single trial, `fmri_group_lm` on contrast results,
+  `fm.design_matrix(spec, events=..., n_scans=..., tr=...)`, cached design
+  columns. fmrimod is now 607 tokens against Nilearn's 775 and faster in
+  every small-input row; the ~25k-voxel AR(1) row is close enough that
+  repeated runs score it a tie or a narrow win. Open items are listed at
+  the end of `REPORT.md`.
 
 ## How a scenario is built
 
@@ -52,14 +70,15 @@ equivalent is `docs/tutorials/`.
 The report ends with a ranked **Deficiencies** list: every axis fmrimod
 loses, plus curated friction notes (in each `Scenario.notes`) that name the
 API gap and a candidate fix. Confirmed gaps that are mechanically checkable
-are also pinned as **strict xfail** probes in
+should be pinned as **strict xfail** probes in
 `tests/test_benchmarks/test_ergonomics_vs_nilearn.py`. When you close a gap:
 
 1. the probe XPASSes and fails the test run;
 2. shorten the matching scenario body to the new idiom and drop its note;
 3. regenerate the report (`test_checked_in_report_matches_scenario_bodies`
    fails until you do);
-4. delete the probe.
+4. turn the probe into a regression test asserting the short form equals
+   the long one (section 3 of that file holds round 2's).
 
 ## Adding a scenario
 

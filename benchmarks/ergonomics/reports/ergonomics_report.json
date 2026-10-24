@@ -15,14 +15,14 @@
   },
   "summary": {
     "authoring": {
-      "fmrimod": 2,
-      "nilearn": 5,
+      "fmrimod": 4,
+      "nilearn": 3,
       "tie": 2
     },
     "speed": {
-      "fmrimod": 9,
-      "nilearn": 1,
-      "tie": 1
+      "fmrimod": 11,
+      "nilearn": 0,
+      "tie": 0
     },
     "noise": {
       "fmrimod": 11,
@@ -30,12 +30,12 @@
       "tie": 0
     },
     "docs": {
-      "fmrimod": 6,
-      "nilearn": 1,
-      "tie": 2
+      "fmrimod": 8,
+      "nilearn": 0,
+      "tie": 1
     },
     "total_tokens": {
-      "fmrimod": 976,
+      "fmrimod": 607,
       "nilearn": 775
     }
   },
@@ -58,64 +58,47 @@
         "docs": "fmrimod"
       },
       "notes": [
-        "Two-step entry: Nilearn's `fit(img, events=...)` takes images directly; fmrimod needs `fmri_dataset(img, mask=, tr=, events=)` before `fmri_lm`. Candidate: let `fmri_lm(spec, img, tr=, events=, mask=)` build the dataset.",
-        "Condition contrasts need one `condition(level, term=...)` value per side plus an import; Nilearn accepts the string `'face - house'`, which `FmriLm.contrast` rejects (`KeyError: Unknown contrast name`). Candidate: parse level expressions against `DesignColumns`.",
-        "`drift('cosine')` raises without `cutoff=` and no drift is fitted unless the spec asks; Nilearn defaults to a 100 s cosine high-pass. Candidate: a documented default cutoff (SPM's 128 s).",
-        "Default noise model differs: Nilearn `FirstLevelModel` is AR(1) by default, fmrimod `fmri_lm` is OLS (aligned here with a parity knob). Worth stating in the `fmri_lm` docstring.",
-        "Default sampling grid is the TR midpoint (`slice_timing_offset=TR/2`); Nilearn/SPM/FitLins use frame start. Any cross-tool comparison needs `slice_timing_offset=0.0`."
+        "Default noise model differs: Nilearn `FirstLevelModel` is AR(1) by default, fmrimod `fmri_lm` is OLS (aligned here with a parity knob; now stated in the `fmri_lm` docstring).",
+        "Default sampling grid is the TR midpoint (`slice_timing_offset=TR/2`); Nilearn/SPM/FitLins use frame start. Any cross-tool comparison needs `slice_timing_offset=0.0`.",
+        "Drift is opt-in: `fmri_lm` fits no high-pass unless the spec has `drift()`; Nilearn applies a 100 s cosine by default (fmrimod's `drift()` default is SPM's 128 s)."
       ],
       "fmrimod": {
         "library": "fmrimod",
         "authoring": {
-          "statements": 9,
-          "tokens": 104,
-          "lines": 14,
-          "calls": 7,
-          "keyword_args": 6,
-          "imports": 3,
+          "statements": 4,
+          "tokens": 60,
+          "lines": 10,
+          "calls": 4,
+          "keyword_args": 3,
+          "imports": 2,
           "imported_names": [
             "fm",
-            "condition",
             "drift",
             "hrf"
           ],
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 1.3934986809999828,
-          "warm_seconds": 0.0089169899999888,
+          "first_call_seconds": 1.3078785640000206,
+          "warm_seconds": 0.005127396000034423,
           "warm_samples": [
-            0.010017725000011524,
-            0.011282636000032653,
-            0.009350883000024623,
-            0.0089169899999888,
-            0.011632305000034648,
-            0.00978954499998963,
-            0.008976224999969418
+            0.0063454390000288186,
+            0.005656700000031378,
+            0.0052683850000221355,
+            0.005413793000002443,
+            0.005283520000034514,
+            0.0051527079999686975,
+            0.005127396000034423
           ],
-          "warnings_emitted": 1,
-          "warning_messages": [
-            "SelectableGroups dict interface is deprecated. Use select."
-          ]
+          "warnings_emitted": 0,
+          "warning_messages": []
         },
         "docs": [
-          {
-            "qualname": "fmrimod.contrast.semantic.condition",
-            "has_docstring": true,
-            "has_parameters": false,
-            "has_examples": true
-          },
-          {
-            "qualname": "fmrimod.dataset.constructors.fmri_dataset",
-            "has_docstring": true,
-            "has_parameters": true,
-            "has_examples": false
-          },
           {
             "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
             "has_docstring": true,
             "has_parameters": true,
-            "has_examples": false
+            "has_examples": true
           },
           {
             "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
@@ -126,7 +109,7 @@
           {
             "qualname": "fmrimod.spec.builders.drift",
             "has_docstring": true,
-            "has_parameters": false,
+            "has_parameters": true,
             "has_examples": true
           },
           {
@@ -136,7 +119,7 @@
             "has_examples": true
           }
         ],
-        "docs_score": 0.7777777777777778
+        "docs_score": 1.0
       },
       "nilearn": {
         "library": "nilearn",
@@ -153,16 +136,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.5284786500000109,
-          "warm_seconds": 0.011681582999926832,
+          "first_call_seconds": 0.5648682870000812,
+          "warm_seconds": 0.013388476000045557,
           "warm_samples": [
-            0.016698064000024715,
-            0.015426742000045124,
-            0.013216223999961585,
-            0.012062729000035688,
-            0.011681582999926832,
-            0.012878479000050902,
-            0.012736480000057782
+            0.014274619000048006,
+            0.014729255000020203,
+            0.014376731999959702,
+            0.02003885600004196,
+            0.020958694000000833,
+            0.019340552000016942,
+            0.013388476000045557
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -211,62 +194,47 @@
         "docs": "n/a"
       },
       "notes": [
-        "Two-step entry: Nilearn's `fit(img, events=...)` takes images directly; fmrimod needs `fmri_dataset(img, mask=, tr=, events=)` before `fmri_lm`. Candidate: let `fmri_lm(spec, img, tr=, events=, mask=)` build the dataset.",
-        "Condition contrasts need one `condition(level, term=...)` value per side plus an import; Nilearn accepts the string `'face - house'`, which `FmriLm.contrast` rejects (`KeyError: Unknown contrast name`). Candidate: parse level expressions against `DesignColumns`.",
-        "`drift('cosine')` raises without `cutoff=` and no drift is fitted unless the spec asks; Nilearn defaults to a 100 s cosine high-pass. Candidate: a documented default cutoff (SPM's 128 s).",
-        "Default noise model differs: Nilearn `FirstLevelModel` is AR(1) by default, fmrimod `fmri_lm` is OLS (aligned here with a parity knob). Worth stating in the `fmri_lm` docstring.",
-        "Default sampling grid is the TR midpoint (`slice_timing_offset=TR/2`); Nilearn/SPM/FitLins use frame start. Any cross-tool comparison needs `slice_timing_offset=0.0`."
+        "Default noise model differs: Nilearn `FirstLevelModel` is AR(1) by default, fmrimod `fmri_lm` is OLS (aligned here with a parity knob; now stated in the `fmri_lm` docstring).",
+        "Default sampling grid is the TR midpoint (`slice_timing_offset=TR/2`); Nilearn/SPM/FitLins use frame start. Any cross-tool comparison needs `slice_timing_offset=0.0`.",
+        "Drift is opt-in: `fmri_lm` fits no high-pass unless the spec has `drift()`; Nilearn applies a 100 s cosine by default (fmrimod's `drift()` default is SPM's 128 s)."
       ],
       "fmrimod": {
         "library": "fmrimod",
         "authoring": {
-          "statements": 9,
-          "tokens": 104,
-          "lines": 14,
-          "calls": 7,
-          "keyword_args": 6,
-          "imports": 3,
+          "statements": 4,
+          "tokens": 60,
+          "lines": 10,
+          "calls": 4,
+          "keyword_args": 3,
+          "imports": 2,
           "imported_names": [
             "fm",
-            "condition",
             "drift",
             "hrf"
           ],
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.21555192000005263,
-          "warm_seconds": 0.08145667899998443,
+          "first_call_seconds": 0.2711332119999952,
+          "warm_seconds": 0.07328968700005589,
           "warm_samples": [
-            0.08448080900006971,
-            0.08145667899998443,
-            0.08287936199997148,
-            0.08281451199991352,
-            0.0850691520000737,
-            0.08607514900006663,
-            0.5748161239999945
+            0.09217212399994423,
+            0.08954630799996721,
+            0.07328968700005589,
+            0.07393440600003487,
+            0.07405648100007056,
+            0.07417140999996263,
+            0.074204868000038
           ],
           "warnings_emitted": 0,
           "warning_messages": []
         },
         "docs": [
           {
-            "qualname": "fmrimod.contrast.semantic.condition",
-            "has_docstring": true,
-            "has_parameters": false,
-            "has_examples": true
-          },
-          {
-            "qualname": "fmrimod.dataset.constructors.fmri_dataset",
-            "has_docstring": true,
-            "has_parameters": true,
-            "has_examples": false
-          },
-          {
             "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
             "has_docstring": true,
             "has_parameters": true,
-            "has_examples": false
+            "has_examples": true
           },
           {
             "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
@@ -277,7 +245,7 @@
           {
             "qualname": "fmrimod.spec.builders.drift",
             "has_docstring": true,
-            "has_parameters": false,
+            "has_parameters": true,
             "has_examples": true
           },
           {
@@ -287,7 +255,7 @@
             "has_examples": true
           }
         ],
-        "docs_score": 0.7777777777777778
+        "docs_score": 1.0
       },
       "nilearn": {
         "library": "nilearn",
@@ -304,16 +272,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.41660725300005197,
-          "warm_seconds": 0.15538160199992035,
+          "first_call_seconds": 0.2765548109999827,
+          "warm_seconds": 0.1640554460000203,
           "warm_samples": [
-            0.24334927199993217,
-            0.15640336999990723,
-            0.16315325599998687,
-            0.15538160199992035,
-            0.16761129199994684,
-            0.1618002070000557,
-            0.16115717000002405
+            0.17636539099999027,
+            0.183670371000062,
+            0.7645658929999399,
+            0.1866693250000253,
+            0.17173687900003642,
+            0.16724483200005125,
+            0.1640554460000203
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -357,27 +325,22 @@
       },
       "verdicts": {
         "authoring": "nilearn",
-        "speed": "nilearn",
+        "speed": "fmrimod",
         "noise": "fmrimod",
         "docs": "fmrimod"
       },
-      "notes": [
-        "Bug: `fmri_dataset(imgs, events=[df_run1, df_run2, ...])` is accepted, but `fmri_lm` then fails with `AttributeError: 'list' object has no attribute 'columns'`. Users must merge events into one table with a `run` column; Nilearn takes the per-run list.",
-        "Confounds have no dataset slot: per-run tables must be concatenated and their names re-listed (`confounds(*motion.columns, source=motion)`); Nilearn takes `confounds=[df, ...]`. Candidate: `fmri_dataset(..., confounds=[...])` and `confounds()` defaulting to every column."
-      ],
+      "notes": [],
       "fmrimod": {
         "library": "fmrimod",
         "authoring": {
-          "statements": 11,
-          "tokens": 135,
-          "lines": 20,
-          "calls": 9,
-          "keyword_args": 8,
-          "imports": 4,
+          "statements": 4,
+          "tokens": 68,
+          "lines": 10,
+          "calls": 5,
+          "keyword_args": 4,
+          "imports": 2,
           "imported_names": [
-            "pd",
             "fm",
-            "condition",
             "confounds",
             "drift",
             "hrf"
@@ -385,38 +348,26 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.047673708000047554,
-          "warm_seconds": 0.04555906899997808,
+          "first_call_seconds": 0.02656004400000711,
+          "warm_seconds": 0.020751365000023725,
           "warm_samples": [
-            0.0544924659999424,
-            0.04756341799998154,
-            0.04555906899997808,
-            0.04631932699999197,
-            0.04575700600003074,
-            0.04625446600005034,
-            0.04901416899997457
+            0.02271974500001761,
+            0.02153498000006948,
+            0.020751365000023725,
+            0.021258638000063,
+            0.021493311999961406,
+            0.022856755000020712,
+            0.022100057999978162
           ],
           "warnings_emitted": 0,
           "warning_messages": []
         },
         "docs": [
           {
-            "qualname": "fmrimod.contrast.semantic.condition",
-            "has_docstring": true,
-            "has_parameters": false,
-            "has_examples": true
-          },
-          {
-            "qualname": "fmrimod.dataset.constructors.fmri_dataset",
-            "has_docstring": true,
-            "has_parameters": true,
-            "has_examples": false
-          },
-          {
             "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
             "has_docstring": true,
             "has_parameters": true,
-            "has_examples": false
+            "has_examples": true
           },
           {
             "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
@@ -428,12 +379,12 @@
             "qualname": "fmrimod.spec.builders.confounds",
             "has_docstring": true,
             "has_parameters": true,
-            "has_examples": false
+            "has_examples": true
           },
           {
             "qualname": "fmrimod.spec.builders.drift",
             "has_docstring": true,
-            "has_parameters": false,
+            "has_parameters": true,
             "has_examples": true
           },
           {
@@ -443,7 +394,7 @@
             "has_examples": true
           }
         ],
-        "docs_score": 0.7619047619047619
+        "docs_score": 1.0
       },
       "nilearn": {
         "library": "nilearn",
@@ -460,16 +411,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.047790437000003294,
-          "warm_seconds": 0.030662834000054318,
+          "first_call_seconds": 0.03017145100000107,
+          "warm_seconds": 0.030297306000079516,
           "warm_samples": [
-            0.04720830799999476,
-            0.04043552899997849,
-            0.03131393300009222,
-            0.031641508999996404,
-            0.030662834000054318,
-            0.03267613100001654,
-            0.03174886500005414
+            0.038510716000018874,
+            0.04260243700002775,
+            0.03869974600002024,
+            0.03883959799998138,
+            0.03220708999992894,
+            0.031092694999983905,
+            0.030297306000079516
           ],
           "warnings_emitted": 5,
           "warning_messages": [
@@ -513,64 +464,51 @@
         "agrees": true
       },
       "verdicts": {
-        "authoring": "tie",
+        "authoring": "fmrimod",
         "speed": "fmrimod",
         "noise": "fmrimod",
         "docs": "fmrimod"
       },
       "notes": [
-        "Modulators are expanded per condition, so a main RT effect needs one `condition(level, term='trial_type:rt')` per level; there is no pooled-modulator spelling. Nilearn needs a hand-built duplicated event table with a `modulation` column instead, so this is roughly even."
+        "Modulators expand per condition, so a pooled RT effect is the sum of per-level slopes (`'trial_type:rt.face + trial_type:rt.house'`); there is no single pooled-modulator spelling."
       ],
       "fmrimod": {
         "library": "fmrimod",
         "authoring": {
-          "statements": 9,
-          "tokens": 110,
-          "lines": 14,
-          "calls": 7,
-          "keyword_args": 7,
-          "imports": 3,
+          "statements": 4,
+          "tokens": 66,
+          "lines": 10,
+          "calls": 4,
+          "keyword_args": 4,
+          "imports": 2,
           "imported_names": [
             "fm",
-            "condition",
             "drift",
             "hrf"
           ],
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.01456654600008278,
-          "warm_seconds": 0.0108664660000386,
+          "first_call_seconds": 0.007892026000035912,
+          "warm_seconds": 0.008072241999911967,
           "warm_samples": [
-            0.012016588000051343,
-            0.014523499999995693,
-            0.011647230999983549,
-            0.011606282000002466,
-            0.011504907000016829,
-            0.013464494000004379,
-            0.0108664660000386
+            0.009296847999962665,
+            0.01090735799994036,
+            0.010070165000001907,
+            0.009899475999986862,
+            0.009032747999981439,
+            0.008288785999980064,
+            0.008072241999911967
           ],
           "warnings_emitted": 0,
           "warning_messages": []
         },
         "docs": [
           {
-            "qualname": "fmrimod.contrast.semantic.condition",
-            "has_docstring": true,
-            "has_parameters": false,
-            "has_examples": true
-          },
-          {
-            "qualname": "fmrimod.dataset.constructors.fmri_dataset",
-            "has_docstring": true,
-            "has_parameters": true,
-            "has_examples": false
-          },
-          {
             "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
             "has_docstring": true,
             "has_parameters": true,
-            "has_examples": false
+            "has_examples": true
           },
           {
             "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
@@ -581,7 +519,7 @@
           {
             "qualname": "fmrimod.spec.builders.drift",
             "has_docstring": true,
-            "has_parameters": false,
+            "has_parameters": true,
             "has_examples": true
           },
           {
@@ -591,7 +529,7 @@
             "has_examples": true
           }
         ],
-        "docs_score": 0.7777777777777778
+        "docs_score": 1.0
       },
       "nilearn": {
         "library": "nilearn",
@@ -609,16 +547,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.09624078000001646,
-          "warm_seconds": 0.02425590000007105,
+          "first_call_seconds": 0.12672211500000685,
+          "warm_seconds": 0.028441167999972095,
           "warm_samples": [
-            0.026062959000000774,
-            0.02503454599991528,
-            0.026779337999983,
-            0.025447073999998793,
-            0.024658966999936638,
-            0.02425590000007105,
-            0.025738311999930374
+            0.038615953000089576,
+            0.028441167999972095,
+            0.029770706000022074,
+            0.036057279000033304,
+            0.03322483200008719,
+            0.03600275700000566,
+            0.0293606909999653
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -670,11 +608,11 @@
       "fmrimod": {
         "library": "fmrimod",
         "authoring": {
-          "statements": 7,
-          "tokens": 87,
-          "lines": 12,
-          "calls": 6,
-          "keyword_args": 5,
+          "statements": 5,
+          "tokens": 71,
+          "lines": 11,
+          "calls": 5,
+          "keyword_args": 4,
           "imports": 3,
           "imported_names": [
             "fm",
@@ -685,16 +623,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.010823375999962082,
-          "warm_seconds": 0.009366848000013306,
+          "first_call_seconds": 0.0077255910000531,
+          "warm_seconds": 0.005808559000001878,
           "warm_samples": [
-            0.010076575000084631,
-            0.010146211999995103,
-            0.01017343000000892,
-            0.009366848000013306,
-            0.00988074500003222,
-            0.009887050999964231,
-            0.011513644000046952
+            0.006783795000046666,
+            0.005846406000046045,
+            0.007037799999920935,
+            0.006269240999927206,
+            0.007956513000067389,
+            0.005808559000001878,
+            0.005913009000096281
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -704,19 +642,13 @@
             "qualname": "fmrimod.contrast.omnibus.OmnibusContrast",
             "has_docstring": true,
             "has_parameters": true,
-            "has_examples": false
-          },
-          {
-            "qualname": "fmrimod.dataset.constructors.fmri_dataset",
-            "has_docstring": true,
-            "has_parameters": true,
-            "has_examples": false
+            "has_examples": true
           },
           {
             "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
             "has_docstring": true,
             "has_parameters": true,
-            "has_examples": false
+            "has_examples": true
           },
           {
             "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
@@ -727,7 +659,7 @@
           {
             "qualname": "fmrimod.spec.builders.drift",
             "has_docstring": true,
-            "has_parameters": false,
+            "has_parameters": true,
             "has_examples": true
           },
           {
@@ -737,7 +669,7 @@
             "has_examples": true
           }
         ],
-        "docs_score": 0.7777777777777778
+        "docs_score": 1.0
       },
       "nilearn": {
         "library": "nilearn",
@@ -754,16 +686,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.01540268400003697,
-          "warm_seconds": 0.012763419000066278,
+          "first_call_seconds": 0.014785629000016343,
+          "warm_seconds": 0.012828548000015871,
           "warm_samples": [
-            0.013154829000086465,
-            0.01311912099993151,
-            0.012763419000066278,
-            0.013010588000042844,
-            0.013424353000004885,
-            0.015520913000045766,
-            0.01686010800005988
+            0.01337390600008348,
+            0.012828548000015871,
+            0.013363111999979083,
+            0.014378866000015478,
+            0.013440951999996287,
+            0.013475097999958052,
+            0.013907609000057164
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -806,44 +738,42 @@
         "agrees": true
       },
       "verdicts": {
-        "authoring": "nilearn",
+        "authoring": "tie",
         "speed": "fmrimod",
         "noise": "fmrimod",
-        "docs": "tie"
+        "docs": "fmrimod"
       },
       "notes": [
-        "`hrf(..., basis='fir', nbasis=N)` keeps a 24 s span whatever N is, so N bins are not N scans. Matching Nilearn's `fir_delays=range(N)` requires importing `fmrimod.hrf.hrf_fir_generator(nbasis=N, span=N * tr)`. Candidate: `span=` (or `delays=` in scans) on `hrf()`.",
-        "`condition('face', term=...)` raises `DesignProvenanceError` (ambiguous across basis columns) on a multi-basis term; the omnibus spelling `OmnibusContrast(term=, levels=('face',))` is the one that works, and it is not discoverable from the error message."
+        "`hrf(..., basis='fir', nbasis=N)` without `span=` still covers 24 s whatever N is; one bin per scan needs `span=N * tr` (Nilearn's `fir_delays` are in scans)."
       ],
       "fmrimod": {
         "library": "fmrimod",
         "authoring": {
-          "statements": 9,
-          "tokens": 120,
-          "lines": 14,
-          "calls": 7,
-          "keyword_args": 9,
-          "imports": 4,
+          "statements": 6,
+          "tokens": 97,
+          "lines": 12,
+          "calls": 5,
+          "keyword_args": 8,
+          "imports": 3,
           "imported_names": [
             "fm",
             "OmnibusContrast",
-            "hrf_fir_generator",
             "drift",
             "hrf"
           ],
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.015140797999947608,
-          "warm_seconds": 0.011917336000010437,
+          "first_call_seconds": 0.008768167999960497,
+          "warm_seconds": 0.00794705900000281,
           "warm_samples": [
-            0.014223162000007505,
-            0.01284496300002047,
-            0.011917336000010437,
-            0.013305789000014556,
-            0.012981039000010242,
-            0.012308611999969798,
-            0.012242852000099447
+            0.010191308000003119,
+            0.008115354999972624,
+            0.00794705900000281,
+            0.010670882999988862,
+            0.01132097699996848,
+            0.011293935000026067,
+            0.011346242999934475
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -853,19 +783,13 @@
             "qualname": "fmrimod.contrast.omnibus.OmnibusContrast",
             "has_docstring": true,
             "has_parameters": true,
-            "has_examples": false
-          },
-          {
-            "qualname": "fmrimod.dataset.constructors.fmri_dataset",
-            "has_docstring": true,
-            "has_parameters": true,
-            "has_examples": false
+            "has_examples": true
           },
           {
             "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
             "has_docstring": true,
             "has_parameters": true,
-            "has_examples": false
+            "has_examples": true
           },
           {
             "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
@@ -874,15 +798,9 @@
             "has_examples": true
           },
           {
-            "qualname": "fmrimod.hrf.generators.hrf_fir_generator",
-            "has_docstring": true,
-            "has_parameters": false,
-            "has_examples": false
-          },
-          {
             "qualname": "fmrimod.spec.builders.drift",
             "has_docstring": true,
-            "has_parameters": false,
+            "has_parameters": true,
             "has_examples": true
           },
           {
@@ -892,7 +810,7 @@
             "has_examples": true
           }
         ],
-        "docs_score": 0.7142857142857143
+        "docs_score": 1.0
       },
       "nilearn": {
         "library": "nilearn",
@@ -909,16 +827,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.018678279000027942,
-          "warm_seconds": 0.016770694999991065,
+          "first_call_seconds": 0.02959449399997993,
+          "warm_seconds": 0.016286462999914875,
           "warm_samples": [
-            0.022433653000007325,
-            0.021708907000061117,
-            0.02012861299999713,
-            0.01839547000008679,
-            0.022358069000006253,
-            0.016770694999991065,
-            0.01690407499995672
+            0.016592005999996218,
+            0.016839794000020447,
+            0.016286462999914875,
+            0.018169584000020222,
+            0.01737192899997808,
+            0.01704879199996867,
+            0.016308438999999453
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -961,7 +879,7 @@
         "agrees": true
       },
       "verdicts": {
-        "authoring": "nilearn",
+        "authoring": "tie",
         "speed": "fmrimod",
         "noise": "fmrimod",
         "docs": "fmrimod"
@@ -972,53 +890,40 @@
       "fmrimod": {
         "library": "fmrimod",
         "authoring": {
-          "statements": 9,
-          "tokens": 108,
-          "lines": 14,
-          "calls": 7,
-          "keyword_args": 7,
-          "imports": 3,
+          "statements": 4,
+          "tokens": 64,
+          "lines": 11,
+          "calls": 4,
+          "keyword_args": 4,
+          "imports": 2,
           "imported_names": [
             "fm",
-            "condition",
             "drift",
             "hrf"
           ],
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.019940719000032914,
-          "warm_seconds": 0.016709673000036673,
+          "first_call_seconds": 0.016062622000049487,
+          "warm_seconds": 0.010878424999987146,
           "warm_samples": [
-            0.01815321699996275,
-            0.016982006000034744,
-            0.016709673000036673,
-            0.02809672299997601,
-            0.023176785000032396,
-            0.023215282000023763,
-            0.018155128999978842
+            0.01280182099992544,
+            0.01270031600006405,
+            0.012111598999922535,
+            0.01148337500001162,
+            0.010878424999987146,
+            0.011027947999991738,
+            0.011295044000007692
           ],
           "warnings_emitted": 0,
           "warning_messages": []
         },
         "docs": [
           {
-            "qualname": "fmrimod.contrast.semantic.condition",
-            "has_docstring": true,
-            "has_parameters": false,
-            "has_examples": true
-          },
-          {
-            "qualname": "fmrimod.dataset.constructors.fmri_dataset",
-            "has_docstring": true,
-            "has_parameters": true,
-            "has_examples": false
-          },
-          {
             "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
             "has_docstring": true,
             "has_parameters": true,
-            "has_examples": false
+            "has_examples": true
           },
           {
             "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
@@ -1029,7 +934,7 @@
           {
             "qualname": "fmrimod.spec.builders.drift",
             "has_docstring": true,
-            "has_parameters": false,
+            "has_parameters": true,
             "has_examples": true
           },
           {
@@ -1039,7 +944,7 @@
             "has_examples": true
           }
         ],
-        "docs_score": 0.7777777777777778
+        "docs_score": 1.0
       },
       "nilearn": {
         "library": "nilearn",
@@ -1056,16 +961,16 @@
           "parity_knobs": 2
         },
         "runtime": {
-          "first_call_seconds": 0.05108713300001,
-          "warm_seconds": 0.031160405000036917,
+          "first_call_seconds": 0.027450273999988895,
+          "warm_seconds": 0.025360859999977947,
           "warm_samples": [
-            0.03695140800004992,
-            0.03557878399999481,
-            0.03523564600004647,
-            0.0358078410000644,
-            0.0343580149999525,
-            0.032845468000004985,
-            0.031160405000036917
+            0.026715124000020296,
+            0.02569650600003115,
+            0.02599626799997168,
+            0.02678740499993637,
+            0.027091858999938268,
+            0.026011906999997336,
+            0.025360859999977947
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -1109,7 +1014,7 @@
       },
       "verdicts": {
         "authoring": "n/a",
-        "speed": "tie",
+        "speed": "fmrimod",
         "noise": "fmrimod",
         "docs": "n/a"
       },
@@ -1119,53 +1024,40 @@
       "fmrimod": {
         "library": "fmrimod",
         "authoring": {
-          "statements": 9,
-          "tokens": 108,
-          "lines": 14,
-          "calls": 7,
-          "keyword_args": 7,
-          "imports": 3,
+          "statements": 4,
+          "tokens": 64,
+          "lines": 11,
+          "calls": 4,
+          "keyword_args": 4,
+          "imports": 2,
           "imported_names": [
             "fm",
-            "condition",
             "drift",
             "hrf"
           ],
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 3.4862874230000216,
-          "warm_seconds": 0.8100330139999414,
+          "first_call_seconds": 2.52150699799995,
+          "warm_seconds": 0.8147803729999623,
           "warm_samples": [
-            1.1986874409999473,
-            1.340092616999982,
-            0.8933473920000097,
-            0.8100330139999414,
-            1.6311386669999592,
-            1.216048709000006,
-            0.8519391660000792
+            0.8900304109999979,
+            1.2187995550000323,
+            0.8747785690000001,
+            1.20834904000003,
+            0.8147803729999623,
+            1.2641367610000316,
+            0.9803056580000202
           ],
           "warnings_emitted": 0,
           "warning_messages": []
         },
         "docs": [
           {
-            "qualname": "fmrimod.contrast.semantic.condition",
-            "has_docstring": true,
-            "has_parameters": false,
-            "has_examples": true
-          },
-          {
-            "qualname": "fmrimod.dataset.constructors.fmri_dataset",
-            "has_docstring": true,
-            "has_parameters": true,
-            "has_examples": false
-          },
-          {
             "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
             "has_docstring": true,
             "has_parameters": true,
-            "has_examples": false
+            "has_examples": true
           },
           {
             "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
@@ -1176,7 +1068,7 @@
           {
             "qualname": "fmrimod.spec.builders.drift",
             "has_docstring": true,
-            "has_parameters": false,
+            "has_parameters": true,
             "has_examples": true
           },
           {
@@ -1186,7 +1078,7 @@
             "has_examples": true
           }
         ],
-        "docs_score": 0.7777777777777778
+        "docs_score": 1.0
       },
       "nilearn": {
         "library": "nilearn",
@@ -1203,16 +1095,16 @@
           "parity_knobs": 2
         },
         "runtime": {
-          "first_call_seconds": 0.8782003779999741,
-          "warm_seconds": 0.8378691269999763,
+          "first_call_seconds": 1.572140293000075,
+          "warm_seconds": 0.9711804639999855,
           "warm_samples": [
-            0.8378691269999763,
-            0.9921331749999354,
-            1.9435008919999746,
-            2.577005894000081,
-            1.0014754520000224,
-            1.136280200000101,
-            1.9863185120000253
+            0.971945761000029,
+            1.0052583179999601,
+            2.6191159179999204,
+            1.0248824320000267,
+            0.9711804639999855,
+            2.0410991349999676,
+            2.5852926410000237
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -1258,36 +1150,37 @@
         "authoring": "fmrimod",
         "speed": "fmrimod",
         "noise": "fmrimod",
-        "docs": "tie"
+        "docs": "fmrimod"
       },
       "notes": [
-        "`estimate_single_trial_from_dataset` takes only the formula string `'trialwise()'`; the typed `fmrimod.spec.trialwise()` term raises `TypeError`, so the typed-spec story stops at single-trial models."
+        "Single-trial estimation has no image shorthand: unlike `fmri_lm`, `estimate_single_trial_from_dataset` needs an explicit `fmri_dataset(...)` first."
       ],
       "fmrimod": {
         "library": "fmrimod",
         "authoring": {
-          "statements": 3,
-          "tokens": 53,
-          "lines": 10,
-          "calls": 2,
+          "statements": 4,
+          "tokens": 61,
+          "lines": 11,
+          "calls": 3,
           "keyword_args": 5,
-          "imports": 1,
+          "imports": 2,
           "imported_names": [
-            "fm"
+            "fm",
+            "trialwise"
           ],
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.01540558300007433,
-          "warm_seconds": 0.010211925000021438,
+          "first_call_seconds": 0.014436692000003859,
+          "warm_seconds": 0.01092466299996886,
           "warm_samples": [
-            0.014393168999959016,
-            0.011127078000072288,
-            0.010211925000021438,
-            0.010535822000065309,
-            0.011857401000042955,
-            0.016276188000119873,
-            0.015252308999833986
+            0.012982683000018369,
+            0.013967468000032568,
+            0.01369944599991868,
+            0.011085992999937844,
+            0.01092466299996886,
+            0.011915503999944121,
+            0.012287332000028073
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -1297,16 +1190,22 @@
             "qualname": "fmrimod.dataset.constructors.fmri_dataset",
             "has_docstring": true,
             "has_parameters": true,
-            "has_examples": false
+            "has_examples": true
           },
           {
             "qualname": "fmrimod.single.estimate_single_trial_from_dataset",
             "has_docstring": true,
             "has_parameters": true,
-            "has_examples": false
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.trialwise",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
           }
         ],
-        "docs_score": 0.6666666666666666
+        "docs_score": 1.0
       },
       "nilearn": {
         "library": "nilearn",
@@ -1323,16 +1222,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.3894176569999672,
-          "warm_seconds": 0.3291200310000022,
+          "first_call_seconds": 0.31735131999994337,
+          "warm_seconds": 0.3099847730001102,
           "warm_samples": [
-            0.3334586409998792,
-            0.33820796700001665,
-            0.367117996999923,
-            0.3291200310000022,
-            0.3674864150000303,
-            0.3418855709999207,
-            0.37487105700006396
+            0.38592405899998994,
+            0.5346181149999438,
+            0.3099969859999874,
+            0.3099847730001102,
+            0.3465871219999599,
+            0.4285767469998518,
+            0.4558056979999492
           ],
           "warnings_emitted": 56,
           "warning_messages": [
@@ -1375,77 +1274,44 @@
         "agrees": true
       },
       "verdicts": {
-        "authoring": "tie",
+        "authoring": "fmrimod",
         "speed": "fmrimod",
         "noise": "fmrimod",
         "docs": "fmrimod"
       },
-      "notes": [
-        "Group stage needs two calls (`group_dataset_from_contrasts` then `fmri_group_lm`) and subject-id keys; `fmri_group_lm` does not accept a mapping of `ContrastResult`s directly (`TypeError`)."
-      ],
+      "notes": [],
       "fmrimod": {
         "library": "fmrimod",
         "authoring": {
-          "statements": 13,
-          "tokens": 137,
-          "lines": 18,
-          "calls": 10,
-          "keyword_args": 6,
-          "imports": 3,
+          "statements": 5,
+          "tokens": 74,
+          "lines": 14,
+          "calls": 5,
+          "keyword_args": 3,
+          "imports": 2,
           "imported_names": [
             "fm",
-            "condition",
             "drift",
             "hrf"
           ],
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.09349079200001142,
-          "warm_seconds": 0.07213728900001115,
+          "first_call_seconds": 0.06468253499997445,
+          "warm_seconds": 0.050525404000154595,
           "warm_samples": [
-            0.10969796299991685,
-            0.0868954309999026,
-            0.08063285100001849,
-            0.0813717280000219,
-            0.08502323000016077,
-            0.07213728900001115,
-            0.07557117500005006
+            0.09000980900009381,
+            0.0631708250000429,
+            0.05208066599993799,
+            0.052572054999927786,
+            0.054262071000039214,
+            0.050525404000154595,
+            0.06921394000005421
           ],
           "warnings_emitted": 0,
           "warning_messages": []
         },
         "docs": [
-          {
-            "qualname": "fmrimod.contrast.group_collection.group_dataset_from_contrasts",
-            "has_docstring": true,
-            "has_parameters": false,
-            "has_examples": false
-          },
-          {
-            "qualname": "fmrimod.contrast.semantic.condition",
-            "has_docstring": true,
-            "has_parameters": false,
-            "has_examples": true
-          },
-          {
-            "qualname": "fmrimod.dataset.constructors.fmri_dataset",
-            "has_docstring": true,
-            "has_parameters": true,
-            "has_examples": false
-          },
-          {
-            "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
-            "has_docstring": true,
-            "has_parameters": true,
-            "has_examples": false
-          },
-          {
-            "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
-            "has_docstring": true,
-            "has_parameters": true,
-            "has_examples": true
-          },
           {
             "qualname": "fmrimod.group.typed.fmri_group_lm",
             "has_docstring": true,
@@ -1455,7 +1321,7 @@
           {
             "qualname": "fmrimod.spec.builders.drift",
             "has_docstring": true,
-            "has_parameters": false,
+            "has_parameters": true,
             "has_examples": true
           },
           {
@@ -1465,7 +1331,7 @@
             "has_examples": true
           }
         ],
-        "docs_score": 0.75
+        "docs_score": 1.0
       },
       "nilearn": {
         "library": "nilearn",
@@ -1484,16 +1350,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.1070247150000796,
-          "warm_seconds": 0.09464404799996373,
+          "first_call_seconds": 0.17441834999999628,
+          "warm_seconds": 0.09711658200012607,
           "warm_samples": [
-            0.10735009700010778,
-            0.13401111799998944,
-            0.10359035800001948,
-            0.09464404799996373,
-            0.12784639999995306,
-            0.15068631200006166,
-            0.11438858299993626
+            0.1011791280000125,
+            0.09912709199988967,
+            0.09711658200012607,
+            0.10079436199998781,
+            0.103007259999913,
+            0.10222788700002639,
+            0.10552129100005914
           ],
           "warnings_emitted": 16,
           "warning_messages": [
@@ -1557,80 +1423,47 @@
         "authoring": "nilearn",
         "speed": "fmrimod",
         "noise": "fmrimod",
-        "docs": "nilearn"
+        "docs": "tie"
       },
       "notes": [
-        "No one-call 'spec + events + n_scans -> named design DataFrame'. `spec.compile` returns `(EventModel, BaselineModel)` separately; `EventModel.to_dataframe()` is indexed by seconds while the baseline is positional, so a naive `pd.concat(axis=1)` silently produces 240 misaligned rows instead of 160. Candidate: `fm.design_frame(spec, events, n_scans=, tr=)`.",
-        "Column names repeat the term (`trial_type_trial_type.face`, `base_cosine1_block_1`) where Nilearn uses `face`, `drift_1`."
+        "Column names repeat the term (`trial_type_trial_type.face`, `base_cosine1_block_1`) where Nilearn uses `face`, `drift_1`. Deferred: renaming is a public-contract change (parity receipts, BIDS export)."
       ],
       "fmrimod": {
         "library": "fmrimod",
         "authoring": {
-          "statements": 10,
-          "tokens": 122,
-          "lines": 15,
-          "calls": 8,
-          "keyword_args": 8,
-          "imports": 4,
+          "statements": 3,
+          "tokens": 46,
+          "lines": 8,
+          "calls": 3,
+          "keyword_args": 3,
+          "imports": 2,
           "imported_names": [
-            "pd",
             "fm",
-            "compile_spec",
             "drift",
             "hrf"
           ],
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.0028593849999651866,
-          "warm_seconds": 0.0024271130000670382,
+          "first_call_seconds": 0.002753770000026634,
+          "warm_seconds": 0.0022041400000034628,
           "warm_samples": [
-            0.003290155000058803,
-            0.0027952540001479065,
-            0.0025876930001231813,
-            0.0025242169999728503,
-            0.002494518000048629,
-            0.0026599840000471886,
-            0.0024271130000670382
+            0.0024889149999580695,
+            0.002279647000023033,
+            0.0022432760001720453,
+            0.0022652190000371775,
+            0.0022041400000034628,
+            0.002246250000098371,
+            0.0022227440001643117
           ],
           "warnings_emitted": 0,
           "warning_messages": []
         },
         "docs": [
           {
-            "qualname": "fmrimod.baseline.baseline_model.BaselineModel.column_names",
-            "has_docstring": true,
-            "has_parameters": true,
-            "has_examples": false
-          },
-          {
-            "qualname": "fmrimod.baseline.baseline_model.BaselineModel.design_matrix",
-            "has_docstring": true,
-            "has_parameters": true,
-            "has_examples": false
-          },
-          {
-            "qualname": "fmrimod.design.event_model.EventModel.to_dataframe",
-            "has_docstring": true,
-            "has_parameters": true,
-            "has_examples": false
-          },
-          {
-            "qualname": "fmrimod.sampling.SamplingFrame",
-            "has_docstring": true,
-            "has_parameters": false,
-            "has_examples": false
-          },
-          {
-            "qualname": "fmrimod.spec._compile.compile",
-            "has_docstring": true,
-            "has_parameters": false,
-            "has_examples": false
-          },
-          {
             "qualname": "fmrimod.spec.builders.drift",
             "has_docstring": true,
-            "has_parameters": false,
+            "has_parameters": true,
             "has_examples": true
           },
           {
@@ -1640,7 +1473,7 @@
             "has_examples": true
           }
         ],
-        "docs_score": 0.6190476190476191
+        "docs_score": 1.0
       },
       "nilearn": {
         "library": "nilearn",
@@ -1657,16 +1490,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.007017173999884108,
-          "warm_seconds": 0.005829876999996486,
+          "first_call_seconds": 0.005799687999797243,
+          "warm_seconds": 0.004454695000049469,
           "warm_samples": [
-            0.006655779999846345,
-            0.007042439999850103,
-            0.00662078899995322,
-            0.0063343199999508215,
-            0.005829876999996486,
-            0.005923938000023554,
-            0.006503224999960366
+            0.005319976999999199,
+            0.005843228999992789,
+            0.004693184999950972,
+            0.004560880000099132,
+            0.004529905000026702,
+            0.004511722999950507,
+            0.004454695000049469
           ],
           "warnings_emitted": 1,
           "warning_messages": [
@@ -1687,54 +1520,24 @@
   ],
   "deficiencies": [
     {
-      "scenario": "s02_multirun_confounds[small]",
-      "axis": "speed",
-      "detail": "45.6 ms vs Nilearn 30.7 ms"
-    },
-    {
       "scenario": "s01_two_condition_t[small]",
       "axis": "authoring",
-      "detail": "104 tokens / 9 statements vs Nilearn 57 / 4"
+      "detail": "60 tokens / 4 statements vs Nilearn 57 / 4"
     },
     {
       "scenario": "s02_multirun_confounds[small]",
       "axis": "authoring",
-      "detail": "135 tokens / 11 statements vs Nilearn 60 / 4"
-    },
-    {
-      "scenario": "s05_fir_shape[small]",
-      "axis": "authoring",
-      "detail": "120 tokens / 9 statements vs Nilearn 101 / 6"
-    },
-    {
-      "scenario": "s06_ar1_t[small]",
-      "axis": "authoring",
-      "detail": "108 tokens / 9 statements vs Nilearn 61 / 4"
+      "detail": "68 tokens / 4 statements vs Nilearn 60 / 4"
     },
     {
       "scenario": "s09_design_only[small]",
       "axis": "authoring",
-      "detail": "122 tokens / 10 statements vs Nilearn 37 / 3"
+      "detail": "46 tokens / 3 statements vs Nilearn 37 / 3"
     },
     {
       "scenario": "s01_two_condition_t[small]",
       "axis": "friction",
-      "detail": "Two-step entry: Nilearn's `fit(img, events=...)` takes images directly; fmrimod needs `fmri_dataset(img, mask=, tr=, events=)` before `fmri_lm`. Candidate: let `fmri_lm(spec, img, tr=, events=, mask=)` build the dataset."
-    },
-    {
-      "scenario": "s01_two_condition_t[small]",
-      "axis": "friction",
-      "detail": "Condition contrasts need one `condition(level, term=...)` value per side plus an import; Nilearn accepts the string `'face - house'`, which `FmriLm.contrast` rejects (`KeyError: Unknown contrast name`). Candidate: parse level expressions against `DesignColumns`."
-    },
-    {
-      "scenario": "s01_two_condition_t[small]",
-      "axis": "friction",
-      "detail": "`drift('cosine')` raises without `cutoff=` and no drift is fitted unless the spec asks; Nilearn defaults to a 100 s cosine high-pass. Candidate: a documented default cutoff (SPM's 128 s)."
-    },
-    {
-      "scenario": "s01_two_condition_t[small]",
-      "axis": "friction",
-      "detail": "Default noise model differs: Nilearn `FirstLevelModel` is AR(1) by default, fmrimod `fmri_lm` is OLS (aligned here with a parity knob). Worth stating in the `fmri_lm` docstring."
+      "detail": "Default noise model differs: Nilearn `FirstLevelModel` is AR(1) by default, fmrimod `fmri_lm` is OLS (aligned here with a parity knob; now stated in the `fmri_lm` docstring)."
     },
     {
       "scenario": "s01_two_condition_t[small]",
@@ -1742,29 +1545,19 @@
       "detail": "Default sampling grid is the TR midpoint (`slice_timing_offset=TR/2`); Nilearn/SPM/FitLins use frame start. Any cross-tool comparison needs `slice_timing_offset=0.0`."
     },
     {
-      "scenario": "s02_multirun_confounds[small]",
+      "scenario": "s01_two_condition_t[small]",
       "axis": "friction",
-      "detail": "Bug: `fmri_dataset(imgs, events=[df_run1, df_run2, ...])` is accepted, but `fmri_lm` then fails with `AttributeError: 'list' object has no attribute 'columns'`. Users must merge events into one table with a `run` column; Nilearn takes the per-run list."
-    },
-    {
-      "scenario": "s02_multirun_confounds[small]",
-      "axis": "friction",
-      "detail": "Confounds have no dataset slot: per-run tables must be concatenated and their names re-listed (`confounds(*motion.columns, source=motion)`); Nilearn takes `confounds=[df, ...]`. Candidate: `fmri_dataset(..., confounds=[...])` and `confounds()` defaulting to every column."
+      "detail": "Drift is opt-in: `fmri_lm` fits no high-pass unless the spec has `drift()`; Nilearn applies a 100 s cosine by default (fmrimod's `drift()` default is SPM's 128 s)."
     },
     {
       "scenario": "s03_parametric_rt[small]",
       "axis": "friction",
-      "detail": "Modulators are expanded per condition, so a main RT effect needs one `condition(level, term='trial_type:rt')` per level; there is no pooled-modulator spelling. Nilearn needs a hand-built duplicated event table with a `modulation` column instead, so this is roughly even."
+      "detail": "Modulators expand per condition, so a pooled RT effect is the sum of per-level slopes (`'trial_type:rt.face + trial_type:rt.house'`); there is no single pooled-modulator spelling."
     },
     {
       "scenario": "s05_fir_shape[small]",
       "axis": "friction",
-      "detail": "`hrf(..., basis='fir', nbasis=N)` keeps a 24 s span whatever N is, so N bins are not N scans. Matching Nilearn's `fir_delays=range(N)` requires importing `fmrimod.hrf.hrf_fir_generator(nbasis=N, span=N * tr)`. Candidate: `span=` (or `delays=` in scans) on `hrf()`."
-    },
-    {
-      "scenario": "s05_fir_shape[small]",
-      "axis": "friction",
-      "detail": "`condition('face', term=...)` raises `DesignProvenanceError` (ambiguous across basis columns) on a multi-basis term; the omnibus spelling `OmnibusContrast(term=, levels=('face',))` is the one that works, and it is not discoverable from the error message."
+      "detail": "`hrf(..., basis='fir', nbasis=N)` without `span=` still covers 24 s whatever N is; one bin per scan needs `span=N * tr` (Nilearn's `fir_delays` are in scans)."
     },
     {
       "scenario": "s06_ar1_t[small]",
@@ -1774,97 +1567,12 @@
     {
       "scenario": "s07_lss_beta_series[small]",
       "axis": "friction",
-      "detail": "`estimate_single_trial_from_dataset` takes only the formula string `'trialwise()'`; the typed `fmrimod.spec.trialwise()` term raises `TypeError`, so the typed-spec story stops at single-trial models."
-    },
-    {
-      "scenario": "s08_group_one_sample[small]",
-      "axis": "friction",
-      "detail": "Group stage needs two calls (`group_dataset_from_contrasts` then `fmri_group_lm`) and subject-id keys; `fmri_group_lm` does not accept a mapping of `ContrastResult`s directly (`TypeError`)."
+      "detail": "Single-trial estimation has no image shorthand: unlike `fmri_lm`, `estimate_single_trial_from_dataset` needs an explicit `fmri_dataset(...)` first."
     },
     {
       "scenario": "s09_design_only[small]",
       "axis": "friction",
-      "detail": "No one-call 'spec + events + n_scans -> named design DataFrame'. `spec.compile` returns `(EventModel, BaselineModel)` separately; `EventModel.to_dataframe()` is indexed by seconds while the baseline is positional, so a naive `pd.concat(axis=1)` silently produces 240 misaligned rows instead of 160. Candidate: `fm.design_frame(spec, events, n_scans=, tr=)`."
-    },
-    {
-      "scenario": "s09_design_only[small]",
-      "axis": "friction",
-      "detail": "Column names repeat the term (`trial_type_trial_type.face`, `base_cosine1_block_1`) where Nilearn uses `face`, `drift_1`."
-    },
-    {
-      "scenario": "s01_two_condition_t[small]",
-      "axis": "noise",
-      "detail": "1 warning(s): SelectableGroups dict interface is deprecated. Use select."
-    },
-    {
-      "scenario": "8 scenario(s)",
-      "axis": "docs",
-      "detail": "`fmrimod.dataset.constructors.fmri_dataset` lacks Examples"
-    },
-    {
-      "scenario": "8 scenario(s)",
-      "axis": "docs",
-      "detail": "`fmrimod.spec.builders.drift` lacks Parameters"
-    },
-    {
-      "scenario": "7 scenario(s)",
-      "axis": "docs",
-      "detail": "`fmrimod.glm.fmri_lm.FmriLm.contrast` lacks Examples"
-    },
-    {
-      "scenario": "5 scenario(s)",
-      "axis": "docs",
-      "detail": "`fmrimod.contrast.semantic.condition` lacks Parameters"
-    },
-    {
-      "scenario": "2 scenario(s)",
-      "axis": "docs",
-      "detail": "`fmrimod.contrast.omnibus.OmnibusContrast` lacks Examples"
-    },
-    {
-      "scenario": "1 scenario(s)",
-      "axis": "docs",
-      "detail": "`fmrimod.spec.builders.confounds` lacks Examples"
-    },
-    {
-      "scenario": "1 scenario(s)",
-      "axis": "docs",
-      "detail": "`fmrimod.hrf.generators.hrf_fir_generator` lacks Parameters + Examples"
-    },
-    {
-      "scenario": "1 scenario(s)",
-      "axis": "docs",
-      "detail": "`fmrimod.single.estimate_single_trial_from_dataset` lacks Examples"
-    },
-    {
-      "scenario": "1 scenario(s)",
-      "axis": "docs",
-      "detail": "`fmrimod.contrast.group_collection.group_dataset_from_contrasts` lacks Parameters + Examples"
-    },
-    {
-      "scenario": "1 scenario(s)",
-      "axis": "docs",
-      "detail": "`fmrimod.baseline.baseline_model.BaselineModel.column_names` lacks Examples"
-    },
-    {
-      "scenario": "1 scenario(s)",
-      "axis": "docs",
-      "detail": "`fmrimod.baseline.baseline_model.BaselineModel.design_matrix` lacks Examples"
-    },
-    {
-      "scenario": "1 scenario(s)",
-      "axis": "docs",
-      "detail": "`fmrimod.design.event_model.EventModel.to_dataframe` lacks Examples"
-    },
-    {
-      "scenario": "1 scenario(s)",
-      "axis": "docs",
-      "detail": "`fmrimod.sampling.SamplingFrame` lacks Parameters + Examples"
-    },
-    {
-      "scenario": "1 scenario(s)",
-      "axis": "docs",
-      "detail": "`fmrimod.spec._compile.compile` lacks Parameters + Examples"
+      "detail": "Column names repeat the term (`trial_type_trial_type.face`, `base_cosine1_block_1`) where Nilearn uses `face`, `drift_1`. Deferred: renaming is a public-contract change (parity receipts, BIDS export)."
     }
   ]
 }

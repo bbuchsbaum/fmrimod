@@ -42,7 +42,7 @@ def fmri_dataset(
     *,
     mask: object = None,
     tr: float | Sequence[float] | None = None,
-    events: pd.DataFrame | None = None,
+    events: pd.DataFrame | Sequence[pd.DataFrame] | None = None,
     censor: NDArray[np.bool_] | list[NDArray[np.bool_]] | None = None,
     start_time: float | Sequence[float] | None = None,
     slice_timing_offset: float | Sequence[float] | None = None,
@@ -64,7 +64,10 @@ def fmri_dataset(
     tr
         Repetition time in seconds. Required for image inputs.
     events
-        Optional event table.
+        Optional event table: one DataFrame with a ``run`` column (1-based)
+        for multi-run data, or a sequence of per-run DataFrames (BIDS
+        ``*_events.tsv`` style, onsets relative to each run's start), which
+        is stacked into one table with ``run`` filled in.
     censor
         Optional boolean censor vector(s).
     start_time, slice_timing_offset
@@ -86,6 +89,27 @@ def fmri_dataset(
         Legacy alias accepting a :class:`DatasetProtocol`-compatible object.
     event_table
         Legacy alias for ``events``.
+
+    Examples
+    --------
+    Two runs from NIfTI files with per-run BIDS event tables::
+
+        ds = fmri_dataset(
+            ["run-1_bold.nii.gz", "run-2_bold.nii.gz"],
+            mask="brain_mask.nii.gz",
+            tr=2.0,
+            events=[events_run1, events_run2],
+        )
+
+    A ``(time, voxels)`` matrix split into two runs:
+
+    >>> import numpy as np, pandas as pd
+    >>> events = pd.DataFrame({"onset": [4.0, 4.0], "duration": 1.0,
+    ...                        "trial_type": ["a", "b"], "run": [1, 2]})
+    >>> ds = fmri_dataset(np.zeros((40, 3)), tr=2.0, run_length=[20, 20],
+    ...                   events=events)
+    >>> ds.n_runs
+    2
     """
     resolved_events = _resolve_events(events, event_table)
     resolved_start_time = _resolve_start_time(start_time, slice_timing_offset)
@@ -206,12 +230,34 @@ def matrix_dataset(
 
 
 def _resolve_events(
-    events: pd.DataFrame | None,
+    events: pd.DataFrame | Sequence[pd.DataFrame] | None,
     event_table: pd.DataFrame | None,
 ) -> pd.DataFrame | None:
     if events is not None and event_table is not None and event_table is not events:
         raise ValueError("Pass `events` or `event_table`, not both")
-    return events if events is not None else event_table
+    resolved = events if events is not None else event_table
+    if resolved is None or isinstance(resolved, pd.DataFrame):
+        return resolved
+    return _stack_run_events(resolved)
+
+
+def _stack_run_events(per_run: Sequence[pd.DataFrame]) -> pd.DataFrame:
+    """Stack per-run event tables into one table with a 1-based ``run``."""
+    frames = list(per_run)
+    if not frames or not all(isinstance(f, pd.DataFrame) for f in frames):
+        raise TypeError(
+            "events must be a DataFrame or a non-empty sequence of per-run "
+            "DataFrames"
+        )
+    stacked = []
+    for run, frame in enumerate(frames, start=1):
+        if "run" in frame.columns and not (frame["run"] == run).all():
+            raise ValueError(
+                f"per-run events table {run - 1} has a `run` column that is "
+                f"not {run}; pass a single stacked table instead"
+            )
+        stacked.append(frame.assign(run=run))
+    return pd.concat(stacked, ignore_index=True)
 
 
 def _is_dataset_protocol(obj: object) -> bool:

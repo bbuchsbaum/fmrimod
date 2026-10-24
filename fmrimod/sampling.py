@@ -16,15 +16,31 @@ class SamplingFrame:
     This class represents the temporal sampling structure of an fMRI experiment,
     including the timing of acquisitions, block structure, and precision settings.
 
-    Attributes:
-        blocklens: Number of scans per block (array or scalar)
-        tr: Repetition time(s) in seconds (array or scalar)
-        start_time: Start time offset(s) in seconds (array or scalar, default TR/2)
-        precision: Fine-grid step used when a SamplingFrame drives
-            design convolution (default 0.1 s). This is intentionally
-            separate from the HRF/regressor evaluate default of 0.33 s
-            (R ``HRF$evaluate``). Pass the frame's precision into
-            evaluate/convolve when the two must match.
+    Parameters
+    ----------
+    blocklens
+        Number of scans per block/run (scalar, or one value per run).
+        ``n_scans`` is accepted as an alias.
+    tr
+        Repetition time(s) in seconds (scalar or per run). ``TR`` is
+        accepted as an alias.
+    start_time
+        Time of each run's first sample in seconds (default ``TR/2``, the
+        BOLD-midpoint convention; Nilearn/SPM frame times use ``0.0``).
+    precision
+        Fine-grid step used when a SamplingFrame drives design convolution
+        (default 0.1 s). This is intentionally separate from the
+        HRF/regressor evaluate default of 0.33 s (R ``HRF$evaluate``). Pass
+        the frame's precision into evaluate/convolve when the two must
+        match.
+
+    Examples
+    --------
+    >>> sf = SamplingFrame(blocklens=[100, 100], TR=2.0)
+    >>> sf.global_scan_times[:3]
+    array([1., 3., 5.])
+    >>> SamplingFrame(blocklens=100, TR=2.0, start_time=0.0).global_scan_times[:2]
+    array([0., 2.])
     """
 
     # Field types describe the post-__post_init__ invariant: every field is

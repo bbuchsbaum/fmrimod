@@ -30,7 +30,10 @@ def design_matrix(x: Any, **kwargs: Any) -> Array:
     Parameters
     ----------
     x : object
-        Object to extract design matrix from
+        Object to extract design matrix from: a typed spec/term (then pass
+        ``events=``, ``n_scans=``, ``tr=`` and optionally ``start_time=``;
+        see :func:`fmrimod.spec._compile.design_frame`), an EventModel, a
+        BaselineModel, or a term.
     **kwargs
         Additional arguments depending on object type
     
@@ -46,6 +49,10 @@ def design_matrix(x: Any, **kwargs: Any) -> Array:
     
     Examples
     --------
+    >>> # From a typed spec, before any data exists (named DataFrame)
+    >>> X = design_matrix(hrf("trial_type") + drift(), events=events,
+    ...                   n_scans=160, tr=2.0)
+    >>>
     >>> # From EventModel
     >>> model = event_model("condition + rating", data=df, tr=2.0, n_scans=100)
     >>> X = design_matrix(model)

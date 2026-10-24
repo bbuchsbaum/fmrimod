@@ -100,7 +100,7 @@ class GroupLmResult:
 
 
 def fmri_group_lm(
-    data: Union[NDArray[np.floating], GroupDataset],
+    data: Union[NDArray[np.floating], GroupDataset, Mapping[str, Any], Sequence[Any]],
     *,
     intercept_only: bool = True,
     formula: Optional[str] = None,
@@ -135,6 +135,11 @@ def fmri_group_lm(
           :class:`GroupDataset` internally).
         - A :class:`GroupDataset` for users who already have the
           full sample × subject × contrast layout.
+        - A mapping ``{subject_id: ContrastResult}`` (or a list of
+          ``ContrastResult``, named by ``subjects=``) straight from
+          first-level ``fit.contrast(...)`` calls; lowered with
+          :func:`fmrimod.group_dataset_from_contrasts`, which also
+          carries each subject's standard errors.
     intercept_only
         Default ``True`` — the canonical one-sample group t test
         (``formula="~ 1"``). Mutually exclusive with ``formula=``
@@ -172,6 +177,14 @@ def fmri_group_lm(
         result = fm.fmri_group_lm(per_subject_betas)
         t_map = result.t_stat()
 
+    Straight from first-level fits (subject id -> ``ContrastResult``)::
+
+        per_subject = {
+            sub: fm.fmri_lm(spec, ds).contrast("face - house")
+            for sub, ds in datasets.items()
+        }
+        t_map = fm.fmri_group_lm(per_subject).t_stat()
+
     Two-group comparison with covariate::
 
         import pandas as pd
@@ -197,7 +210,12 @@ def fmri_group_lm(
         )
 
     # Coerce ``data`` into a GroupDataset.
-    if isinstance(data, GroupDataset):
+    contrast_map = _as_contrast_mapping(data, subjects)
+    if contrast_map is not None:
+        from ..contrast.group_collection import group_dataset_from_contrasts
+
+        dataset = group_dataset_from_contrasts(contrast_map)
+    elif isinstance(data, GroupDataset):
         dataset = data
     else:
         arr = np.asarray(data, dtype=np.float64)
@@ -331,3 +349,35 @@ def _rename_predictor_assays(
         contrast_data=result_ds.contrast_data,
         metadata=new_meta,
     )
+
+
+def _as_contrast_mapping(
+    data: object, subjects: Optional[Sequence[Any]]
+) -> Optional[dict[str, Any]]:
+    """Return ``{subject: ContrastResult}`` when ``data`` holds contrast results."""
+    from ..glm.contrasts import ContrastResult
+
+    if isinstance(data, Mapping):
+        values = list(data.values())
+        if values and all(isinstance(v, ContrastResult) for v in values):
+            if subjects is not None:
+                raise ValueError(
+                    "fmri_group_lm: subjects= comes from the mapping keys; "
+                    "do not pass both"
+                )
+            return {str(k): v for k, v in data.items()}
+        return None
+    if isinstance(data, (list, tuple)) and data and all(
+        isinstance(v, ContrastResult) for v in data
+    ):
+        names = (
+            [str(s) for s in subjects]
+            if subjects is not None
+            else [f"sub-{i:02d}" for i in range(len(data))]
+        )
+        if len(names) != len(data):
+            raise ValueError(
+                f"fmri_group_lm: {len(names)} subjects for {len(data)} contrasts"
+            )
+        return dict(zip(names, data, strict=True))
+    return None

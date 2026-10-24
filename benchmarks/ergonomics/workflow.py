@@ -323,8 +323,46 @@ def _ms(seconds: float) -> str:
     return f"{seconds * 1e3:.1f}"
 
 
-def render_markdown(report: dict[str, Any]) -> str:
-    """Human-readable scorecard."""
+def render_progress(report: dict[str, Any], baseline: dict[str, Any]) -> list[str]:
+    """Markdown lines comparing fmrimod's numbers with an earlier round."""
+    before = {
+        (s["scenario_id"], s["size"]): s["fmrimod"] for s in baseline["scenarios"]
+    }
+    out = [
+        "",
+        f"## fmrimod since {baseline.get('round', 'the previous round')}",
+        "",
+        "Nilearn's bodies are unchanged between rounds; only fmrimod's moved.",
+        "",
+        "| scenario | size | tokens before → after | stmts before → after | ms before → after |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for s in report["scenarios"]:
+        prev = before.get((s["scenario_id"], s["size"]))
+        if prev is None:
+            continue
+        now = s["fmrimod"]
+        out.append(
+            f"| {s['scenario_id']} | {s['size']} "
+            f"| {prev['authoring']['tokens']} → {now['authoring']['tokens']} "
+            f"| {prev['authoring']['statements']} → {now['authoring']['statements']} "
+            f"| {_ms(prev['runtime']['warm_seconds'])} → "
+            f"{_ms(now['runtime']['warm_seconds'])} |"
+        )
+    prev_total = baseline["summary"]["total_tokens"]["fmrimod"]
+    now_total = report["summary"]["total_tokens"]["fmrimod"]
+    out.append("")
+    out.append(
+        f"Total fmrimod tokens: {prev_total} → {now_total} "
+        f"(Nilearn {report['summary']['total_tokens']['nilearn']})."
+    )
+    return out
+
+
+def render_markdown(
+    report: dict[str, Any], baseline: dict[str, Any] | None = None
+) -> str:
+    """Human-readable scorecard, with a before/after section when given a baseline."""
     out = [
         "# fmrimod vs Nilearn: ergonomics & speed scorecard",
         "",
@@ -368,6 +406,8 @@ def render_markdown(report: dict[str, Any]) -> str:
     out.append(
         f"- **total tokens (small inputs)**: fmrimod {tt['fmrimod']}, nilearn {tt['nilearn']}"
     )
+    if baseline is not None:
+        out += render_progress(report, baseline)
     out += ["", "## Deficiencies (where fmrimod should improve)", ""]
     if not report["deficiencies"]:
         out.append("None found.")
@@ -400,6 +440,12 @@ def main(argv: list[str] | None = None) -> int:
         "--scenario", action="append", help="run only these scenario ids"
     )
     parser.add_argument("--out", type=Path, default=REPORT_DIR)
+    parser.add_argument(
+        "--baseline",
+        type=Path,
+        default=REPORT_DIR / "round_1_report.json",
+        help="earlier report to show fmrimod's before/after against",
+    )
     args = parser.parse_args(argv)
 
     results = run(repeats=args.repeats, large=args.large, only=args.scenario)
@@ -408,7 +454,12 @@ def main(argv: list[str] | None = None) -> int:
     (args.out / "ergonomics_report.json").write_text(
         json.dumps(report, indent=2) + "\n"
     )
-    markdown = render_markdown(report)
+    baseline = (
+        json.loads(args.baseline.read_text()) if args.baseline.is_file() else None
+    )
+    if baseline is not None:
+        baseline.setdefault("round", args.baseline.stem.replace("_report", ""))
+    markdown = render_markdown(report, baseline)
     (args.out / "REPORT.md").write_text(markdown)
     print(markdown)
     return 0 if all(r.agrees for r in results) else 1

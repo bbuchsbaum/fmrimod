@@ -85,14 +85,23 @@ def test_cosine_drift_degree_from_cutoff() -> None:
     assert len(cosine_cols) == 8
 
 
-def test_cosine_drift_without_cutoff_errors() -> None:
-    """``drift("cosine")`` without ``cutoff=`` must fail clearly."""
+def test_cosine_drift_without_cutoff_defaults_to_spm_128s() -> None:
+    """``drift("cosine")`` without ``cutoff=`` uses SPM's 128 s high-pass."""
+    events, ds = _events_and_dataset()
+    task = hrf("trial_type", basis="spm", norm="spm")
+    default = fm.fmri_lm(task + drift("cosine"), ds)
+    explicit = fm.fmri_lm(task + drift("cosine", cutoff=128.0), ds)
+    np.testing.assert_array_equal(
+        default.model.design_matrix_array(run=0),
+        explicit.model.design_matrix_array(run=0),
+    )
+    np.testing.assert_allclose(default.betas, explicit.betas)
+
+
+def test_cosine_drift_rejects_non_positive_cutoff() -> None:
     events, ds = _events_and_dataset()
     with pytest.raises(ValueError, match="cutoff"):
-        fm.fmri_lm(
-            hrf("trial_type", basis="spm", norm="spm") + drift("cosine"),
-            ds,
-        )
+        fm.fmri_lm(hrf("trial_type") + drift("cosine", cutoff=0.0), ds)
 
 
 def test_cutoff_with_non_cosine_basis_warns() -> None:

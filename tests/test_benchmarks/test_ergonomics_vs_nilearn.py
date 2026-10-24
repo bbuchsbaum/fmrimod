@@ -6,10 +6,11 @@ Three layers:
    the authoring/speed comparison is between equivalent analyses.
 2. The measurement itself is honest: docstrings, comments and parity knobs
    are not charged, and token counts do not depend on line wrapping.
-3. Known API gaps found by the scorecard are pinned as strict xfails. When a
-   gap is fixed the probe XPASSes and fails the run: shorten the matching
-   scenario body to the new idiom, drop its friction note, regenerate the
-   report, and delete the probe.
+3. API gaps the scorecard found and that were then closed are pinned as
+   regression tests asserting the short idiom equals the long one. Pin a
+   newly found gap as a strict xfail probe; when it XPASSes, shorten the
+   scenario body, drop its friction note, regenerate the report, and turn
+   the probe into a regression test here.
 """
 
 from __future__ import annotations
@@ -18,10 +19,10 @@ import json
 import subprocess
 import sys
 import textwrap
-import warnings
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 
 pytest.importorskip("nilearn")
@@ -137,7 +138,7 @@ def test_checked_in_report_matches_scenario_bodies() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 3. known gaps (strict xfail: an XPASS means the gap closed)
+# 3. gaps closed after round 1 (each short form must equal the long form)
 # ---------------------------------------------------------------------------
 
 
@@ -146,108 +147,137 @@ def one_run():
     return make_inputs(seed=11)
 
 
-def _fit(inp, **lm_kwargs):
+def _dataset(inp, **kwargs):
     import fmrimod as fm
+
+    return fm.fmri_dataset(
+        inp.img, mask=inp.mask_img, tr=inp.tr, events=inp.events[0], **kwargs
+    )
+
+
+def test_string_level_contrast_equals_condition_refs(one_run) -> None:
+    import fmrimod as fm
+    from fmrimod.contrast import condition
     from fmrimod.spec import drift, hrf
 
-    ds = fm.fmri_dataset(inp.img, mask=inp.mask_img, tr=inp.tr, events=inp.events[0])
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        return fm.fmri_lm(
-            hrf("trial_type") + drift("cosine", cutoff=128), ds, **lm_kwargs
-        )
-
-
-@pytest.mark.xfail(
-    strict=True, raises=KeyError, reason="s01: no 'face - house' strings"
-)
-def test_gap_string_level_contrast(one_run) -> None:
-    from fmrimod.contrast import condition
-
-    fit = _fit(one_run)
-    expected = fit.contrast(
+    fit = fm.fmri_lm(hrf("trial_type", modulators=["rt"]) + drift(), _dataset(one_run))
+    typed = fit.contrast(
         condition("face", term="trial_type") - condition("house", term="trial_type")
     )
-    np.testing.assert_allclose(fit.contrast("face - house").stat, expected.stat)
+    parsed = fit.contrast("face - house")
+    np.testing.assert_allclose(parsed.stat, typed.stat)
+    assert parsed.name == "face - house"
+    slope = fit.contrast("trial_type:rt.face")
+    np.testing.assert_allclose(
+        slope.stat, fit.contrast(condition("face", term="trial_type:rt")).stat
+    )
+    with pytest.raises(KeyError, match="Unknown contrast name"):
+        fit.contrast("nonsense")
+    with pytest.raises(ValueError, match="matched no declared"):
+        fit.contrast("face - hose")
 
 
-@pytest.mark.xfail(strict=True, raises=ValueError, reason="s01: cosine needs cutoff=")
-def test_gap_cosine_drift_has_default_cutoff(one_run) -> None:
+def test_cosine_drift_default_cutoff_is_128s(one_run) -> None:
     import fmrimod as fm
     from fmrimod.spec import drift, hrf
 
-    ds = fm.fmri_dataset(
-        one_run.img, mask=one_run.mask_img, tr=one_run.tr, events=one_run.events[0]
-    )
-    fm.fmri_lm(hrf("trial_type") + drift("cosine"), ds)
+    ds = _dataset(one_run)
+    default = fm.fmri_lm(hrf("trial_type") + drift(), ds)
+    explicit = fm.fmri_lm(hrf("trial_type") + drift("cosine", cutoff=128), ds)
+    np.testing.assert_allclose(default.betas, explicit.betas)
 
 
-@pytest.mark.xfail(strict=True, reason="s01: fmri_lm needs a prebuilt dataset")
-def test_gap_fmri_lm_accepts_images(one_run) -> None:
-    import fmrimod as fm
-    from fmrimod.spec import hrf
-
-    fm.fmri_lm(
-        hrf("trial_type"),
-        one_run.img,
-        tr=one_run.tr,
-        events=one_run.events[0],
-        mask=one_run.mask_img,
-    )
-
-
-@pytest.mark.xfail(
-    strict=True,
-    raises=AttributeError,
-    reason="s02 bug: per-run event lists crash fmri_lm",
-)
-def test_gap_per_run_event_list_fits() -> None:
+def test_fmri_lm_accepts_images_directly() -> None:
     import fmrimod as fm
     from fmrimod.spec import hrf
 
     inp = make_inputs(seed=12, n_runs=2, n_scans=80)
-    ds = fm.fmri_dataset(inp.imgs, mask=inp.mask_img, tr=inp.tr, events=inp.events)
-    fm.fmri_lm(hrf("trial_type"), ds)
-
-
-@pytest.mark.xfail(
-    strict=True,
-    raises=TypeError,
-    reason="s07: typed trialwise() not accepted for single trial",
-)
-def test_gap_typed_trialwise_single_trial(one_run) -> None:
-    import fmrimod as fm
-    from fmrimod.spec import trialwise
-
-    ds = fm.fmri_dataset(
-        one_run.img, mask=one_run.mask_img, tr=one_run.tr, events=one_run.events[0]
+    shorthand = fm.fmri_lm(
+        hrf("trial_type"), inp.imgs, tr=inp.tr, events=inp.events, mask=inp.mask_img
     )
-    fm.estimate_single_trial_from_dataset(ds, trialwise(), method="lss")
+    ds = fm.fmri_dataset(inp.imgs, mask=inp.mask_img, tr=inp.tr, events=inp.events_df)
+    np.testing.assert_allclose(shorthand.betas, fm.fmri_lm(hrf("trial_type"), ds).betas)
+    with pytest.raises(ValueError, match="prebuilt dataset"):
+        fm.fmri_lm(hrf("trial_type"), ds, tr=2.0)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=TypeError,
-    reason="s08: fmri_group_lm needs group_dataset_from_contrasts first",
-)
-def test_gap_group_lm_accepts_contrast_mapping() -> None:
+def test_per_run_event_list_equals_stacked_table() -> None:
     import fmrimod as fm
-    from fmrimod.contrast import condition
+
+    inp = make_inputs(seed=12, n_runs=2, n_scans=80)
+    ds = fm.fmri_dataset(inp.imgs, mask=inp.mask_img, tr=inp.tr, events=inp.events)
+    pd.testing.assert_frame_equal(ds.event_table, inp.events_df)
+    bad = [inp.events[0].assign(run=2), inp.events[1]]
+    with pytest.raises(ValueError, match="run"):
+        fm.fmri_dataset(inp.imgs, mask=inp.mask_img, tr=inp.tr, events=bad)
+
+
+def test_confounds_take_per_run_tables_and_default_to_all_columns() -> None:
+    import fmrimod as fm
+    from fmrimod.spec import confounds, hrf
+
+    inp = make_inputs(seed=13, n_runs=2, n_scans=80, with_confounds=True)
+    ds = fm.fmri_dataset(inp.imgs, mask=inp.mask_img, tr=inp.tr, events=inp.events)
+    stacked = pd.concat(inp.confounds, ignore_index=True)
+    short = fm.fmri_lm(hrf("trial_type") + confounds(source=inp.confounds), ds)
+    long = fm.fmri_lm(
+        hrf("trial_type") + confounds(*stacked.columns, source=stacked), ds
+    )
+    np.testing.assert_allclose(short.betas, long.betas)
+
+
+def test_typed_trialwise_equals_formula_string(one_run) -> None:
+    import fmrimod as fm
+    from fmrimod.spec import drift, trialwise
+
+    ds = _dataset(one_run)
+    typed = fm.estimate_single_trial_from_dataset(ds, trialwise(), method="lss")
+    legacy = fm.estimate_single_trial_from_dataset(ds, "trialwise()", method="lss")
+    np.testing.assert_allclose(typed.betas, legacy.betas)
+    with pytest.raises(ValueError, match="baseline terms"):
+        fm.estimate_single_trial_from_dataset(ds, trialwise() + drift(), method="lss")
+
+
+def test_group_lm_accepts_contrast_results_directly() -> None:
+    import fmrimod as fm
+    from fmrimod.spec import hrf
 
     subjects = make_group_inputs(n_subjects=3, shape=(6, 6, 5), n_scans=80)
     per_subject = {
-        f"sub-{i}": _fit(sub).contrast(condition("face", term="trial_type"))
+        f"sub-{i}": fm.fmri_lm(hrf("trial_type"), _dataset(sub)).contrast("face")
         for i, sub in enumerate(subjects)
     }
-    fm.fmri_group_lm(per_subject)
+    via_dataset = fm.fmri_group_lm(fm.group_dataset_from_contrasts(per_subject))
+    np.testing.assert_allclose(
+        fm.fmri_group_lm(per_subject).t_stat(), via_dataset.t_stat()
+    )
+    as_list = fm.fmri_group_lm(list(per_subject.values()))
+    np.testing.assert_allclose(as_list.t_stat(), via_dataset.t_stat())
 
 
-@pytest.mark.skipif(
-    sys.version_info >= (3, 12),
-    reason="entry_points() no longer returns SelectableGroups",
-)
-@pytest.mark.xfail(strict=True, reason="first fit warns: SelectableGroups deprecated")
-def test_gap_first_fit_is_warning_free() -> None:
+def test_design_matrix_of_spec_equals_fitted_design(one_run) -> None:
+    import fmrimod as fm
+    from fmrimod.spec import drift, hrf
+
+    spec = hrf("trial_type") + drift()
+    fit = fm.fmri_lm(spec, _dataset(one_run))
+    X = fm.design_matrix(
+        spec, events=one_run.events[0], n_scans=one_run.img.shape[-1], tr=one_run.tr
+    )
+    pd.testing.assert_frame_equal(X, fit.model.design_matrix(run=0))
+
+
+def test_fir_span_sets_bin_width(one_run) -> None:
+    from fmrimod.hrf import hrf_fir_generator
+    from fmrimod.spec import hrf
+
+    term = hrf("trial_type", basis="fir", nbasis=8, span=16.0)
+    assert term.hrf.span == hrf_fir_generator(nbasis=8, span=16.0).span == 16.0
+    with pytest.raises(ValueError, match="flexible bases"):
+        hrf("trial_type", basis="spm", span=16.0)
+
+
+def test_first_fit_is_warning_free() -> None:
     code = textwrap.dedent(
         """
         import warnings

@@ -55,6 +55,9 @@ class FmriModel:
         self._event_model = event_model
         self._baseline_model = baseline_model
         self._dataset = dataset
+        # The components are fixed after construction, so realised design
+        # matrices are memoised per run (fitting asks for them repeatedly).
+        self._design_matrix_cache: dict[Optional[int], pd.DataFrame] = {}
 
     # -- Accessors --
 
@@ -112,11 +115,14 @@ class FmriModel:
         pd.DataFrame
             Design matrix with named columns.
         """
-        ev_dm = self._get_event_dm(run)
-        bl_dm = self._get_baseline_dm(run)
-
-        # Combine horizontally
-        return pd.concat([ev_dm, bl_dm], axis=1)
+        cached = self._design_matrix_cache.get(run)
+        if cached is None:
+            ev_dm = self._get_event_dm(run)
+            bl_dm = self._get_baseline_dm(run)
+            cached = pd.concat([ev_dm, bl_dm], axis=1)
+            self._design_matrix_cache[run] = cached
+        # Hand out a copy so callers cannot mutate the memoised frame.
+        return cached.copy()
 
     def design_matrix_array(
         self,

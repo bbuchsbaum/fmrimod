@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from difflib import get_close_matches
 from numbers import Real
@@ -263,6 +264,24 @@ def condition(
 ) -> ConditionRef:
     """Author a condition-level reference for semantic contrasts.
 
+    For most contrasts the string form is shorter:
+    ``fit.contrast("face - house")`` parses to
+    ``condition("face") - condition("house")``.
+
+    Parameters
+    ----------
+    level
+        Level label as it appears in the events table (``"face"``).
+    term
+        Term the level belongs to (``"trial_type"``, or
+        ``"trial_type:rt"`` for a parametric-modulator slope). Optional when
+        the level is unambiguous; a bare level that also appears in that
+        term's own modulator slopes means the unmodulated condition.
+    basis_ix
+        1-based basis column(s) to use for multi-basis HRFs (FIR, SPMG2/3).
+    basis
+        SPM informed-set role name instead of ``basis_ix``.
+
     ``basis=`` names an SPM informed-set role ("canonical", "derivative",
     "dispersion") so callers do not have to know the internal 1-based
     ``basis_ix`` column convention. It is a closed :data:`typing.Literal`,
@@ -439,6 +458,8 @@ def _select_condition(
     candidates = tuple(column for column in columns if column.level == ref.level)
     if ref.term is not None:
         candidates = tuple(column for column in candidates if column.term == ref.term)
+    else:
+        candidates = _prefer_unmodulated_term(candidates, ref, side=side)
     if ref.basis_ix:
         wanted = set(ref.basis_ix)
         candidates = tuple(column for column in candidates if column.basis_ix in wanted)
@@ -462,14 +483,18 @@ def _select_condition(
             f"basis_ix={ix} for {_basis_role_label(ix, shared_basis_name)}"
             for ix in basis
         )
+        omnibus_term = ref.term or next(
+            (str(c.term) for c in candidates if c.term is not None), "<term>"
+        )
         raise DesignProvenanceError(
             f"SemanticContrast {side} condition {ref.display_name!r} is "
             f"ambiguous across basis columns={basis!r}",
             weak_fields=("basis_ix",),
             repair_path=(
-                f"pass basis_ix=N to condition(...) to pin a single basis "
-                f"column ({labelled}), or use an F/omnibus contrast for "
-                f"the joint multi-basis effect."
+                f"for the joint effect across all basis columns use "
+                f"fit.contrast(OmnibusContrast(term={omnibus_term!r}, "
+                f"levels=({ref.level!r},))); to pin one column pass "
+                f"basis_ix=N to condition(...) ({labelled})."
             ),
         )
 
@@ -506,6 +531,40 @@ def _select_condition(
             ),
         )
     return candidates
+
+
+def _prefer_unmodulated_term(
+    candidates: tuple[DesignColumn, ...],
+    ref: ConditionRef,
+    *,
+    side: str,
+) -> tuple[DesignColumn, ...]:
+    """Resolve a term-less level across terms, or raise a term ambiguity.
+
+    A bare level that matches a factor term and only that factor's own
+    parametric-modulator slopes (``trial_type`` and ``trial_type:rt``) means
+    the condition itself; the slopes stay reachable with
+    ``term="trial_type:rt"``. Any other cross-term match is ambiguous and
+    raised here, before basis ambiguity, so the error names the real cause.
+    """
+    terms = {str(column.term) for column in candidates if column.term is not None}
+    if len(terms) <= 1:
+        return candidates
+    plain = [term for term in terms if ":" not in term]
+    if len(plain) == 1 and all(
+        term == plain[0] or term.split(":", 1)[0] == plain[0] for term in terms
+    ):
+        return tuple(column for column in candidates if str(column.term) == plain[0])
+    raise DesignProvenanceError(
+        f"SemanticContrast {side} condition {ref.level!r} is ambiguous "
+        f"across terms={sorted(terms)!r}",
+        weak_fields=("term",),
+        repair_path=(
+            "pass term=... to condition(...) (or write 'term.level' in a "
+            "string contrast) so the hypothesis does not depend on rendered "
+            "column names."
+        ),
+    )
 
 
 def _raise_missing_condition(
@@ -641,6 +700,122 @@ def _combine_terms(
     )
 
 
+_EXPR_TOKEN = re.compile(
+    r"\s*(?:(?P<num>\d+(?:\.\d*)?(?:[eE][-+]?\d+)?|\.\d+)"
+    r"|(?P<ref>[A-Za-z_][\w:]*(?:\.[A-Za-z_]\w*)?)"
+    r"|(?P<op>[-+*/()]))"
+)
+
+
+def parse_contrast_expression(text: str) -> LinearSemanticContrast:
+    """Parse a level expression such as ``"face - house"`` into a contrast.
+
+    The string form of :func:`condition` arithmetic, so
+    ``parse_contrast_expression("face - house")`` is
+    ``condition("face") - condition("house")`` and resolves with the same
+    provenance checks (an ambiguous level raises
+    :class:`DesignProvenanceError` with a repair path).
+
+    Grammar: ``+``, ``-``, ``*``, ``/`` and parentheses over numbers and
+    references. A reference is a bare level (``face``) or ``term.level``
+    (``trial_type.face``, ``trial_type:rt.face`` for a parametric
+    modulator). The result must be linear: scalars may multiply or divide
+    references, but constants cannot be added to them.
+
+    Examples
+    --------
+    >>> parse_contrast_expression("face - house").display_name
+    'face - house'
+    >>> [w for _, w in parse_contrast_expression("0.5 * (face + house) - tool").terms]
+    [0.5, 0.5, -1.0]
+    """
+    tokens: list[tuple[str, str]] = []
+    pos = 0
+    stripped = text.strip()
+    while pos < len(stripped):
+        match = _EXPR_TOKEN.match(stripped, pos)
+        if match is None or match.end() == pos:
+            raise ValueError(
+                f"cannot parse contrast expression {text!r} at {stripped[pos:]!r}"
+            )
+        kind = match.lastgroup or ""
+        tokens.append((kind, match.group(kind)))
+        pos = match.end()
+        while pos < len(stripped) and stripped[pos].isspace():
+            pos += 1
+    if not tokens:
+        raise ValueError("empty contrast expression")
+
+    index = 0
+    Value = float | LinearSemanticContrast
+
+    def peek() -> tuple[str, str] | None:
+        return tokens[index] if index < len(tokens) else None
+
+    def take() -> tuple[str, str]:
+        nonlocal index
+        tok = tokens[index]
+        index += 1
+        return tok
+
+    def factor() -> Value:
+        tok = peek()
+        if tok is None:
+            raise ValueError(f"unexpected end of contrast expression {text!r}")
+        kind, value = take()
+        if kind == "num":
+            return float(value)
+        if kind == "ref":
+            term, dot, level = value.rpartition(".")
+            ref = condition(level, term=term) if dot else condition(value)
+            return _as_linear(ref)
+        if value == "(":
+            inner = expr()
+            if peek() != ("op", ")"):
+                raise ValueError(f"unbalanced parentheses in {text!r}")
+            take()
+            return inner
+        if value in "+-":
+            operand = factor()
+            return operand if value == "+" else -operand
+        raise ValueError(f"unexpected {value!r} in contrast expression {text!r}")
+
+    def product() -> Value:
+        left = factor()
+        while (tok := peek()) is not None and tok[1] in ("*", "/"):
+            op = take()[1]
+            right = factor()
+            if op == "*":
+                if not isinstance(left, float) and not isinstance(right, float):
+                    raise ValueError(f"{text!r} is not linear in the levels")
+                left = left * right  # type: ignore[operator]
+            else:
+                if not isinstance(right, float):
+                    raise ValueError(f"{text!r} divides by a level")
+                left = left / right
+        return left
+
+    def expr() -> Value:
+        left = product()
+        while (tok := peek()) is not None and tok[1] in ("+", "-"):
+            op = take()[1]
+            right = product()
+            if isinstance(left, float) or isinstance(right, float):
+                raise ValueError(
+                    f"{text!r} adds a constant to a level; contrasts are "
+                    "linear combinations of levels"
+                )
+            left = left + right if op == "+" else left - right
+        return left
+
+    result = expr()
+    if index != len(tokens):
+        raise ValueError(f"unexpected {tokens[index][1]!r} in {text!r}")
+    if isinstance(result, float):
+        raise ValueError(f"{text!r} names no condition levels")
+    return result.named(stripped)
+
+
 __all__ = [
     "ConditionRef",
     "LinearSemanticContrast",
@@ -650,4 +825,5 @@ __all__ = [
     "cell",
     "condition",
     "modulator",
+    "parse_contrast_expression",
 ]

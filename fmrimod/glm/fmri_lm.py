@@ -558,6 +558,10 @@ class FmriLm:
         init=False,
         repr=False,
     )
+    _design_columns_cache: Any = field(default=None, init=False, repr=False)
+    _design_id_cache: Optional[Tuple[Optional[str]]] = field(
+        default=None, init=False, repr=False
+    )
 
     # -- Accessors --
 
@@ -607,11 +611,23 @@ class FmriLm:
         return int(self.betas.shape[0])
 
     def design_columns(self) -> Any:
-        """Return typed provenance for the fitted design columns."""
-        design_columns = getattr(self.model, "design_columns", None)
-        if not callable(design_columns):
-            raise TypeError("fitted model does not expose design_columns()")
-        return design_columns()
+        """Return typed provenance for the fitted design columns.
+
+        Computed once per fit (the fitted design is fixed) and reused by
+        every contrast.
+        """
+        if self._design_columns_cache is None:
+            design_columns = getattr(self.model, "design_columns", None)
+            if not callable(design_columns):
+                raise TypeError("fitted model does not expose design_columns()")
+            self._design_columns_cache = design_columns()
+        return self._design_columns_cache
+
+    def _design_id(self) -> Optional[str]:
+        """Content hash of the fitted design, computed once per fit."""
+        if self._design_id_cache is None:
+            self._design_id_cache = (design_id(self),)
+        return self._design_id_cache[0]
 
     def _contrast_intent_payload_fields(
         self,
@@ -621,7 +637,7 @@ class FmriLm:
         return {
             "basis_label": basis_label(self),
             "weights": weights_payload(weights),
-            "design_id": design_id(self),
+            "design_id": self._design_id(),
             "provenance_id": provenance_id(self),
         }
 
@@ -710,8 +726,11 @@ class FmriLm:
             Contrast specification. Can be:
             - A 1-D vector for a t-contrast
             - A 2-D matrix for an F-contrast
-            - A string name referring to a pre-defined contrast in
-              the event model
+            - A string: a pre-defined contrast name from the event model,
+              or a level expression such as ``"face - house"``,
+              ``"0.5 * (face + house) - tool"`` or
+              ``"trial_type:rt.face"`` (see
+              :func:`~fmrimod.contrast.semantic.parse_contrast_expression`)
             - A dict ``{"weights": array, "name": str}``
             - An :class:`~fmrimod.contrast.OmnibusContrast` typed intent
               value, resolved against the fit's :class:`DesignColumns`
@@ -726,6 +745,17 @@ class FmriLm:
         Returns
         -------
         ContrastResult
+            ``estimate``, ``stat``, ``se``, ``p_value`` per voxel, plus the
+            authored intent; ``to_nifti(path)`` writes a map when the
+            dataset came from images.
+
+        Examples
+        --------
+        ::
+
+            t = fit.contrast("face - house")                      # t
+            f = fit.contrast(OmnibusContrast(term="trial_type"))  # F
+            t.to_nifti("face_vs_house_t.nii.gz")
         """
         from fmrimod.contrast.contrast_spec import ContrastSpec
         from fmrimod.contrast.contrast_weights import contrast_weights
@@ -814,7 +844,7 @@ class FmriLm:
                 )
             cw = self._named_weights_cache
             if spec not in cw:
-                raise KeyError(f"Unknown contrast name: {spec!r}")
+                return self._contrast_from_expression(spec, name=name, named=cw)
             weights = cw[spec]
             return self._compute_contrast(
                 weights,
@@ -854,6 +884,42 @@ class FmriLm:
                 rows=int(np.atleast_2d(weights).shape[0]),
                 **self._contrast_intent_payload_fields(weights),
             ),
+        )
+
+    def _contrast_from_expression(
+        self,
+        text: str,
+        *,
+        name: Optional[str],
+        named: Dict[str, NDArray[np.float64]],
+    ) -> ContrastResult:
+        """Resolve a level expression (``"face - house"``) as a semantic contrast."""
+        from fmrimod.contrast.errors import DesignProvenanceError
+        from fmrimod.contrast.semantic import parse_contrast_expression
+
+        try:
+            semantic = parse_contrast_expression(text)
+            weights = semantic.resolve(self.design_columns())
+        except (ValueError, TypeError, DesignProvenanceError) as exc:
+            # A lone unknown word reads as a contrast *name*; keep the
+            # historical KeyError for it. Real expressions surface the
+            # provenance error, which carries the available levels.
+            # (TypeError: legacy models without typed DesignColumns.)
+            is_word = text.strip().replace("_", "").replace(".", "").isalnum()
+            if is_word and (
+                isinstance(exc, TypeError) or "matched no declared" in str(exc)
+            ):
+                raise KeyError(
+                    f"Unknown contrast name: {text!r}; named contrasts: "
+                    f"{sorted(named)!r}. ({exc})"
+                ) from exc
+            raise
+        intent_payload = semantic.intent(rows=1)
+        intent_payload.update(self._contrast_intent_payload_fields(weights))
+        return self._compute_contrast(
+            weights,
+            name=name or semantic.display_name,
+            intent=intent_payload,
         )
 
     def _compute_contrast(
@@ -1081,6 +1147,10 @@ def fmri_lm(
     config: Optional[FmriLmConfig] = None,
     ar: Optional[Union[str, "AROptions"]] = None,
     engine: EngineSelector = DEFAULT_ENGINE_OPTIONS,
+    tr: Optional[Union[float, Sequence[float]]] = None,
+    events: object = None,
+    mask: object = None,
+    slice_timing_offset: Optional[Union[float, Sequence[float]]] = None,
     **engine_kwargs: object,
 ) -> FmriLm:
     """Fit a GLM to fMRI data.
@@ -1089,6 +1159,13 @@ def fmri_lm(
 
         fit = fmri_lm(spec, dataset)
         fit = fmri_lm(spec, dataset, config=FmriLmConfig(ar="ar1"))
+
+    Image shorthand (builds the dataset with :func:`fmrimod.fmri_dataset`)::
+
+        fit = fmri_lm(spec, img, tr=2.0, events=events, mask=mask)
+
+    The noise model is OLS unless ``ar=`` (or ``config.ar``) says otherwise;
+    note that Nilearn's ``FirstLevelModel`` defaults to AR(1).
 
     Legacy form (pre-built model)::
 
@@ -1130,6 +1207,13 @@ def fmri_lm(
         :class:`~fmrimod.glm.engine.SketchEngineOptions`, and
         :class:`~fmrimod.glm.engine.ReducedRankEngineOptions`. Legacy string
         engine names remain accepted for compatibility.
+    tr, events, mask, slice_timing_offset
+        Image shorthand: when the second argument is an image source
+        (NIfTI image or path, NeuroVec, array, or a per-run sequence of
+        those) rather than an :class:`FmriDataset`, these are forwarded to
+        :func:`fmrimod.fmri_dataset` to build it. ``events`` may be one
+        table with a ``run`` column or a list of per-run tables. Not valid
+        together with a prebuilt dataset.
     **engine_kwargs
         Legacy keyword bag forwarded to the engine's ``fit()`` method when
         ``engine`` is a string. Do not mix with typed engine options.
@@ -1141,11 +1225,17 @@ def fmri_lm(
 
     Examples
     --------
-    Canonical three-line shape::
+    From images to a contrast::
+
+        >>> from fmrimod.spec import drift, hrf
+        >>> fit = fm.fmri_lm(hrf("trial_type") + drift(), img,
+        ...                  tr=2.0, events=events, mask=mask)
+        >>> fit.contrast("face - house")
+
+    With an explicit dataset (reuse it across several models)::
 
         >>> ds = fm.fmri_dataset(img, mask=mask, tr=2.0, events=events)
-        >>> fit = fm.fmri_lm("hrf(trial_type)", ds)
-        >>> fit.contrast("trial_type[listening]")
+        >>> fit = fm.fmri_lm(hrf("trial_type") + drift(), ds, ar="ar1")
 
     Pre-built realized design::
 
@@ -1168,7 +1258,13 @@ def fmri_lm(
         config = dataset_or_config
         dataset = None
     else:
-        dataset = dataset_or_config
+        dataset = _coerce_dataset(
+            dataset_or_config,
+            tr=tr,
+            events=events,
+            mask=mask,
+            slice_timing_offset=slice_timing_offset,
+        )
 
     # -- Resolve first positional: realized design vs. spec vs. model -------
     from ..design import RealizedDesign
@@ -1431,6 +1527,38 @@ def _concatenated_design_is_full_rank(fit: "FmriLm") -> bool:
 def _is_fmri_model_like(obj: object) -> bool:
     """Check for the public :class:`FmriModelLike` fitting protocol."""
     return isinstance(obj, FmriModelLike)
+
+
+def _coerce_dataset(
+    source: object,
+    *,
+    tr: object,
+    events: object,
+    mask: object,
+    slice_timing_offset: object,
+) -> object:
+    """Return ``source`` if it is a dataset, else build one from an image."""
+    shorthand = {
+        "tr": tr,
+        "events": events,
+        "mask": mask,
+        "slice_timing_offset": slice_timing_offset,
+    }
+    given = {key: value for key, value in shorthand.items() if value is not None}
+    is_dataset = source is None or (
+        hasattr(source, "get_sampling_frame") and hasattr(source, "event_table")
+    )
+    if is_dataset:
+        if given:
+            raise ValueError(
+                f"fmri_lm: {sorted(given)} build a dataset from an image and "
+                "cannot be combined with a prebuilt dataset; pass them to "
+                "fmri_dataset(...) instead."
+            )
+        return source
+    from ..dataset.constructors import fmri_dataset
+
+    return fmri_dataset(source, **given)  # type: ignore[arg-type]
 
 
 def _build_model_from_spec(

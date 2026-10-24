@@ -37,21 +37,17 @@ from benchmarks.ergonomics.inputs import Inputs, make_group_inputs, make_inputs
 
 def fmrimod_two_condition_t(inp: Inputs):
     import fmrimod as fm
-    from fmrimod.contrast import condition
     from fmrimod.spec import drift, hrf
 
-    ds = fm.fmri_dataset(
+    fit = fm.fmri_lm(
+        hrf("trial_type") + drift(),
         inp.img,
-        mask=inp.mask_img,
         tr=inp.tr,
         events=inp.events[0],
+        mask=inp.mask_img,
         slice_timing_offset=0.0,  # parity-knob
     )
-    spec = hrf("trial_type") + drift("cosine", cutoff=128)
-    fit = fm.fmri_lm(spec, ds)
-    face = condition("face", term="trial_type")
-    house = condition("house", term="trial_type")
-    return fit.contrast(face - house)
+    return fit.contrast("face - house")
 
 
 def nilearn_two_condition_t(inp: Inputs):
@@ -75,29 +71,18 @@ def nilearn_two_condition_t(inp: Inputs):
 
 
 def fmrimod_multirun_confounds(inp: Inputs):
-    import pandas as pd
-
     import fmrimod as fm
-    from fmrimod.contrast import condition
     from fmrimod.spec import confounds, drift, hrf
 
-    ds = fm.fmri_dataset(
+    fit = fm.fmri_lm(
+        hrf("trial_type") + confounds(source=inp.confounds) + drift(),
         inp.imgs,
-        mask=inp.mask_img,
         tr=inp.tr,
-        events=inp.events_df,
+        events=inp.events,
+        mask=inp.mask_img,
         slice_timing_offset=0.0,  # parity-knob
     )
-    motion = pd.concat(inp.confounds, ignore_index=True)
-    spec = (
-        hrf("trial_type")
-        + confounds(*motion.columns, source=motion)
-        + drift("cosine", cutoff=128)
-    )
-    fit = fm.fmri_lm(spec, ds)
-    face = condition("face", term="trial_type")
-    house = condition("house", term="trial_type")
-    return fit.contrast(face - house)
+    return fit.contrast("face - house")
 
 
 def nilearn_multirun_confounds(inp: Inputs):
@@ -122,21 +107,17 @@ def nilearn_multirun_confounds(inp: Inputs):
 
 def fmrimod_parametric_rt(inp: Inputs):
     import fmrimod as fm
-    from fmrimod.contrast import condition
     from fmrimod.spec import drift, hrf
 
-    ds = fm.fmri_dataset(
+    fit = fm.fmri_lm(
+        hrf("trial_type", modulators=["rt"]) + drift(),
         inp.img,
-        mask=inp.mask_img,
         tr=inp.tr,
         events=inp.events[0],
+        mask=inp.mask_img,
         slice_timing_offset=0.0,  # parity-knob
     )
-    spec = hrf("trial_type", modulators=["rt"]) + drift("cosine", cutoff=128)
-    fit = fm.fmri_lm(spec, ds)
-    face_rt = condition("face", term="trial_type:rt")
-    house_rt = condition("house", term="trial_type:rt")
-    return fit.contrast(face_rt + house_rt)
+    return fit.contrast("trial_type:rt.face + trial_type:rt.house")
 
 
 def nilearn_parametric_rt(inp: Inputs):
@@ -168,15 +149,14 @@ def fmrimod_omnibus_f(inp: Inputs):
     from fmrimod.contrast import OmnibusContrast
     from fmrimod.spec import drift, hrf
 
-    ds = fm.fmri_dataset(
+    fit = fm.fmri_lm(
+        hrf("trial_type") + drift(),
         inp.img,
-        mask=inp.mask_img,
         tr=inp.tr,
         events=inp.events[0],
+        mask=inp.mask_img,
         slice_timing_offset=0.0,  # parity-knob
     )
-    spec = hrf("trial_type") + drift("cosine", cutoff=128)
-    fit = fm.fmri_lm(spec, ds)
     return fit.contrast(OmnibusContrast(term="trial_type"))
 
 
@@ -208,19 +188,17 @@ FIR_DELAYS = 8
 def fmrimod_fir_shape(inp: Inputs):
     import fmrimod as fm
     from fmrimod.contrast import OmnibusContrast
-    from fmrimod.hrf import hrf_fir_generator
     from fmrimod.spec import drift, hrf
 
-    ds = fm.fmri_dataset(
+    fir = hrf("trial_type", basis="fir", nbasis=FIR_DELAYS, span=FIR_DELAYS * inp.tr)
+    fit = fm.fmri_lm(
+        fir + drift(),
         inp.img,
-        mask=inp.mask_img,
         tr=inp.tr,
         events=inp.events[0],
+        mask=inp.mask_img,
         slice_timing_offset=0.0,  # parity-knob
     )
-    fir = hrf_fir_generator(nbasis=FIR_DELAYS, span=FIR_DELAYS * inp.tr)
-    spec = hrf("trial_type", basis=fir) + drift("cosine", cutoff=128)
-    fit = fm.fmri_lm(spec, ds)
     return fit.contrast(OmnibusContrast(term="trial_type", levels=("face",)))
 
 
@@ -251,21 +229,18 @@ def nilearn_fir_shape(inp: Inputs):
 
 def fmrimod_ar1_t(inp: Inputs):
     import fmrimod as fm
-    from fmrimod.contrast import condition
     from fmrimod.spec import drift, hrf
 
-    ds = fm.fmri_dataset(
+    fit = fm.fmri_lm(
+        hrf("trial_type") + drift(),
         inp.img,
-        mask=inp.mask_img,
         tr=inp.tr,
         events=inp.events[0],
+        mask=inp.mask_img,
+        ar="ar1",
         slice_timing_offset=0.0,  # parity-knob
     )
-    spec = hrf("trial_type") + drift("cosine", cutoff=128)
-    fit = fm.fmri_lm(spec, ds, ar="ar1")
-    face = condition("face", term="trial_type")
-    house = condition("house", term="trial_type")
-    return fit.contrast(face - house)
+    return fit.contrast("face - house")
 
 
 def nilearn_ar1_t(inp: Inputs):
@@ -290,6 +265,7 @@ def nilearn_ar1_t(inp: Inputs):
 
 def fmrimod_lss_beta_series(inp: Inputs):
     import fmrimod as fm
+    from fmrimod.spec import trialwise
 
     ds = fm.fmri_dataset(
         inp.img,
@@ -299,7 +275,7 @@ def fmrimod_lss_beta_series(inp: Inputs):
         slice_timing_offset=0.0,  # parity-knob
     )
     return fm.estimate_single_trial_from_dataset(
-        ds, "trialwise()", method="lss", include_intercept=True
+        ds, trialwise(), method="lss", include_intercept=True
     )
 
 
@@ -333,25 +309,21 @@ def nilearn_lss_beta_series(inp: Inputs):
 
 def fmrimod_group_one_sample(subjects: list[Inputs]):
     import fmrimod as fm
-    from fmrimod.contrast import condition
     from fmrimod.spec import drift, hrf
 
-    spec = hrf("trial_type") + drift("cosine", cutoff=128)
-    face = condition("face", term="trial_type")
-    house = condition("house", term="trial_type")
-    per_subject = {}
-    for i, sub in enumerate(subjects):
-        ds = fm.fmri_dataset(
+    spec = hrf("trial_type") + drift()
+    per_subject = [
+        fm.fmri_lm(
+            spec,
             sub.img,
-            mask=sub.mask_img,
             tr=sub.tr,
             events=sub.events[0],
+            mask=sub.mask_img,
             slice_timing_offset=0.0,  # parity-knob
-        )
-        fit = fm.fmri_lm(spec, ds)
-        per_subject[f"sub-{i:02d}"] = fit.contrast(face - house)
-    group = fm.group_dataset_from_contrasts(per_subject)
-    return fm.fmri_group_lm(group)
+        ).contrast("face - house")
+        for sub in subjects
+    ]
+    return fm.fmri_group_lm(per_subject)
 
 
 def nilearn_group_one_sample(subjects: list[Inputs]):
@@ -387,24 +359,16 @@ DESIGN_SCANS = 160
 
 
 def fmrimod_design_only(inp: Inputs):
-    import pandas as pd
-
     import fmrimod as fm
-    from fmrimod.spec import compile as compile_spec
     from fmrimod.spec import drift, hrf
 
-    spec = hrf("trial_type") + drift("cosine", cutoff=128)
-    frame = fm.SamplingFrame(
-        blocklens=DESIGN_SCANS,
-        TR=inp.tr,
+    return fm.design_matrix(
+        hrf("trial_type") + drift(),
+        events=inp.events[0],
+        n_scans=DESIGN_SCANS,
+        tr=inp.tr,
         start_time=0.0,  # parity-knob
     )
-    events_model, baseline = compile_spec(
-        spec, data=inp.events[0], sampling_frame=frame
-    )
-    baseline_frame = pd.DataFrame(baseline.design_matrix, columns=baseline.column_names)
-    task_frame = events_model.to_dataframe().reset_index(drop=True)
-    return pd.concat([task_frame, baseline_frame], axis=1)
 
 
 def nilearn_design_only(inp: Inputs):
@@ -495,11 +459,9 @@ SCENARIOS: tuple[Scenario, ...] = (
         0.999,
         large_inputs=lambda: make_inputs(seed=1, shape=(34, 34, 28), n_scans=300),
         notes=(
-            "Two-step entry: Nilearn's `fit(img, events=...)` takes images directly; fmrimod needs `fmri_dataset(img, mask=, tr=, events=)` before `fmri_lm`. Candidate: let `fmri_lm(spec, img, tr=, events=, mask=)` build the dataset.",
-            "Condition contrasts need one `condition(level, term=...)` value per side plus an import; Nilearn accepts the string `'face - house'`, which `FmriLm.contrast` rejects (`KeyError: Unknown contrast name`). Candidate: parse level expressions against `DesignColumns`.",
-            "`drift('cosine')` raises without `cutoff=` and no drift is fitted unless the spec asks; Nilearn defaults to a 100 s cosine high-pass. Candidate: a documented default cutoff (SPM's 128 s).",
-            "Default noise model differs: Nilearn `FirstLevelModel` is AR(1) by default, fmrimod `fmri_lm` is OLS (aligned here with a parity knob). Worth stating in the `fmri_lm` docstring.",
+            "Default noise model differs: Nilearn `FirstLevelModel` is AR(1) by default, fmrimod `fmri_lm` is OLS (aligned here with a parity knob; now stated in the `fmri_lm` docstring).",
             "Default sampling grid is the TR midpoint (`slice_timing_offset=TR/2`); Nilearn/SPM/FitLins use frame start. Any cross-tool comparison needs `slice_timing_offset=0.0`.",
+            "Drift is opt-in: `fmri_lm` fits no high-pass unless the spec has `drift()`; Nilearn applies a 100 s cosine by default (fmrimod's `drift()` default is SPM's 128 s).",
         ),
     ),
     Scenario(
@@ -511,10 +473,6 @@ SCENARIOS: tuple[Scenario, ...] = (
         extract_fmrimod_stat,
         extract_nilearn_stat,
         0.999,
-        notes=(
-            "Bug: `fmri_dataset(imgs, events=[df_run1, df_run2, ...])` is accepted, but `fmri_lm` then fails with `AttributeError: 'list' object has no attribute 'columns'`. Users must merge events into one table with a `run` column; Nilearn takes the per-run list.",
-            "Confounds have no dataset slot: per-run tables must be concatenated and their names re-listed (`confounds(*motion.columns, source=motion)`); Nilearn takes `confounds=[df, ...]`. Candidate: `fmri_dataset(..., confounds=[...])` and `confounds()` defaulting to every column.",
-        ),
     ),
     Scenario(
         "s03_parametric_rt",
@@ -526,7 +484,7 @@ SCENARIOS: tuple[Scenario, ...] = (
         extract_nilearn_stat,
         0.999,
         notes=(
-            "Modulators are expanded per condition, so a main RT effect needs one `condition(level, term='trial_type:rt')` per level; there is no pooled-modulator spelling. Nilearn needs a hand-built duplicated event table with a `modulation` column instead, so this is roughly even.",
+            "Modulators expand per condition, so a pooled RT effect is the sum of per-level slopes (`'trial_type:rt.face + trial_type:rt.house'`); there is no single pooled-modulator spelling.",
         ),
     ),
     Scenario(
@@ -549,8 +507,7 @@ SCENARIOS: tuple[Scenario, ...] = (
         extract_nilearn_stat,
         0.99,
         notes=(
-            "`hrf(..., basis='fir', nbasis=N)` keeps a 24 s span whatever N is, so N bins are not N scans. Matching Nilearn's `fir_delays=range(N)` requires importing `fmrimod.hrf.hrf_fir_generator(nbasis=N, span=N * tr)`. Candidate: `span=` (or `delays=` in scans) on `hrf()`.",
-            "`condition('face', term=...)` raises `DesignProvenanceError` (ambiguous across basis columns) on a multi-basis term; the omnibus spelling `OmnibusContrast(term=, levels=('face',))` is the one that works, and it is not discoverable from the error message.",
+            "`hrf(..., basis='fir', nbasis=N)` without `span=` still covers 24 s whatever N is; one bin per scan needs `span=N * tr` (Nilearn's `fir_delays` are in scans).",
         ),
     ),
     Scenario(
@@ -579,7 +536,7 @@ SCENARIOS: tuple[Scenario, ...] = (
         extract_nilearn_lss,
         0.995,
         notes=(
-            "`estimate_single_trial_from_dataset` takes only the formula string `'trialwise()'`; the typed `fmrimod.spec.trialwise()` term raises `TypeError`, so the typed-spec story stops at single-trial models.",
+            "Single-trial estimation has no image shorthand: unlike `fmri_lm`, `estimate_single_trial_from_dataset` needs an explicit `fmri_dataset(...)` first.",
         ),
     ),
     Scenario(
@@ -591,9 +548,6 @@ SCENARIOS: tuple[Scenario, ...] = (
         extract_fmrimod_group,
         extract_nilearn_group,
         0.999,
-        notes=(
-            "Group stage needs two calls (`group_dataset_from_contrasts` then `fmri_group_lm`) and subject-id keys; `fmri_group_lm` does not accept a mapping of `ContrastResult`s directly (`TypeError`).",
-        ),
     ),
     Scenario(
         "s09_design_only",
@@ -605,8 +559,7 @@ SCENARIOS: tuple[Scenario, ...] = (
         extract_nilearn_design,
         0.999,
         notes=(
-            "No one-call 'spec + events + n_scans -> named design DataFrame'. `spec.compile` returns `(EventModel, BaselineModel)` separately; `EventModel.to_dataframe()` is indexed by seconds while the baseline is positional, so a naive `pd.concat(axis=1)` silently produces 240 misaligned rows instead of 160. Candidate: `fm.design_frame(spec, events, n_scans=, tr=)`.",
-            "Column names repeat the term (`trial_type_trial_type.face`, `base_cosine1_block_1`) where Nilearn uses `face`, `drift_1`.",
+            "Column names repeat the term (`trial_type_trial_type.face`, `base_cosine1_block_1`) where Nilearn uses `face`, `drift_1`. Deferred: renaming is a public-contract change (parity receipts, BIDS export).",
         ),
     ),
 )
