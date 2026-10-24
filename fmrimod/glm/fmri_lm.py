@@ -47,6 +47,7 @@ from .contrasts import (
     weights_payload,
 )
 from .engine import DEFAULT_ENGINE_OPTIONS, EngineResult, EngineSelector
+from .errors import FmriCapabilityError
 from .solver import ConditionReport, Projection, RunConditionReport
 
 # ── Fit-level reproducibility metadata (VISION.md:99-103) ────────────────
@@ -531,7 +532,8 @@ class FmriLm:
         Estimated AR parameters, shape ``(ar_order, V)`` or ``(ar_order,)``
         for global estimation.
     robust_weights : NDArray or None
-        IRLS weights from robust fitting, shape ``(n, V)``.
+        Row weights of the final robust (IRLS) solve, shape ``(n,)`` over
+        all runs; the fit is exactly the WLS fit with these weights.
     run_results : list
         Per-run fitting results (for diagnostics).
     projections : list
@@ -578,6 +580,18 @@ class FmriLm:
     def tstat(self) -> NDArray[np.float64]:
         """Return t-statistics for each coefficient, shape ``(p, V)``."""
         return _safe_t(self.betas, self.se())
+
+    def _inference_df(self) -> float:
+        """Degrees of freedom for contrast inference.
+
+        The residual df, except for a robust fit, where an observation of
+        weight ``w`` counts as ``w`` of an observation: ``sum(w) - rank``
+        summed over runs, at least 1 (fmrireg ``.robust_effective_df``).
+        """
+        if self.robust_weights is None or not self.projections:
+            return self.residual_df
+        rank = sum(int(proj.rank) for proj in self.projections)
+        return max(float(np.sum(self.robust_weights)) - rank, 1.0)
 
     @property
     def n_voxels(self) -> int:
@@ -850,12 +864,12 @@ class FmriLm:
         if weights.ndim == 1:
             result = contrast_t(
                 weights, self.betas, self.XtXinv, self.sigma,
-                self.residual_df, name=name,
+                self._inference_df(), name=name,
             )
         else:
             result = contrast_f_vectorized(
                 weights, self.betas, self.XtXinv, self.sigma,
-                self.residual_df, name=name,
+                self._inference_df(), name=name,
             )
         if intent is None:
             intent = ContrastIntent(
@@ -957,7 +971,7 @@ class FmriLm:
                 self.betas,
                 self.XtXinv,
                 self.sigma,
-                self.residual_df,
+                self._inference_df(),
                 names=t_names,
             )
             for res, weights in zip(t_results, t_weights):
@@ -982,7 +996,7 @@ class FmriLm:
                 self.betas,
                 self.XtXinv,
                 self.sigma,
-                self.residual_df,
+                self._inference_df(),
                 name=cname,
             )
             column_details = self._touched_column_details(w_arr)
@@ -1237,6 +1251,16 @@ def fmri_lm(
             "with engine='concat'. The robust path requires per-run "
             "residuals from the runwise strategy. Use the default runwise "
             "engine (drop the engine= argument or pass engine='runwise')."
+        )
+
+    # fmrireg re-estimates phi from the unwhitened robust residuals and
+    # refits; the AR path here cannot yet hand the robust refit its
+    # unwhitened run matrices, so refuse instead of ignoring the option.
+    if config.robust.enabled and config.robust.reestimate_phi and config.ar.enabled:
+        raise FmriCapabilityError(
+            feature="robust AR re-estimation (reestimate_phi=True)",
+            current_capability=("AR estimated once, then robust IRLS on the whitened run",),
+            repair="set RobustOptions(reestimate_phi=False)",
         )
 
     # Resolve and run the engine
