@@ -47,6 +47,7 @@ def fmri_dataset(
     start_time: float | Sequence[float] | None = None,
     slice_timing_offset: float | Sequence[float] | None = None,
     run_length: int | Sequence[int] | None = None,
+    confounds: pd.DataFrame | Sequence[pd.DataFrame] | None = None,
     # legacy spellings:
     data_source: DatasetProtocol | None = None,
     event_table: pd.DataFrame | None = None,
@@ -85,6 +86,11 @@ def fmri_dataset(
         2-D ndarray input; raises ``ValueError`` for any other ``img``
         type, including sequences (which already encode runs explicitly)
         and 4-D ndarrays.
+    confounds
+        Optional nuisance tables, one per run (or one table covering all
+        runs back to back). They are stored on the dataset; a spec term
+        ``confounds("trans_x", ...)`` without ``source=`` picks its columns
+        from them at fit time.
     data_source
         Legacy alias accepting a :class:`DatasetProtocol`-compatible object.
     event_table
@@ -119,7 +125,12 @@ def fmri_dataset(
             raise ValueError("Pass `img` or `data_source`, not both")
         if run_length is not None:
             raise ValueError("`run_length` is not valid with `data_source`")
-        return FmriDataset(data_source, event_table=resolved_events, censor=censor)
+        return FmriDataset(
+            data_source,
+            event_table=resolved_events,
+            censor=censor,
+            confounds=_as_frame_list(confounds),
+        )
 
     if img is None:
         raise ValueError("fmri_dataset requires `img` (or legacy `data_source`)")
@@ -133,7 +144,55 @@ def fmri_dataset(
         start_time=resolved_start_time,
         run_length=run_length,
     )
-    return FmriDataset(adapter, event_table=resolved_events, censor=censor)
+    return FmriDataset(
+        adapter,
+        event_table=resolved_events,
+        censor=censor,
+        confounds=_as_frame_list(confounds),
+    )
+
+
+def _as_frame_list(
+    confounds: pd.DataFrame | Sequence[pd.DataFrame] | None,
+) -> pd.DataFrame | list[pd.DataFrame] | None:
+    if confounds is None or isinstance(confounds, pd.DataFrame):
+        return confounds
+    return list(confounds)
+
+
+def coerce_dataset(
+    source: object,
+    *,
+    tr: object,
+    events: object,
+    mask: object,
+    slice_timing_offset: object,
+) -> object:
+    """Return ``source`` if it is a dataset, else build one from an image.
+
+    Shared by the entry points that accept either an :class:`FmriDataset` or
+    an image source plus ``tr=``/``events=``/``mask=`` shorthand
+    (:func:`fmrimod.fmri_lm`, :func:`fmrimod.estimate_single_trial_from_dataset`).
+    """
+    shorthand = {
+        "tr": tr,
+        "events": events,
+        "mask": mask,
+        "slice_timing_offset": slice_timing_offset,
+    }
+    given = {key: value for key, value in shorthand.items() if value is not None}
+    is_dataset = source is None or (
+        hasattr(source, "get_sampling_frame") and hasattr(source, "event_table")
+    )
+    if is_dataset:
+        if given:
+            raise ValueError(
+                f"{sorted(given)} build a dataset from an image and "
+                "cannot be combined with a prebuilt dataset; pass them to "
+                "fmri_dataset(...) instead."
+            )
+        return source
+    return fmri_dataset(source, **given)  # type: ignore[arg-type]
 
 
 def matrix_dataset(

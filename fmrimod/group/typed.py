@@ -18,7 +18,8 @@ the modeling pipeline. It:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, Union
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence, Union, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -28,7 +29,7 @@ from .reducers import ols_voxelwise
 from .space import VoxelSpace
 
 if TYPE_CHECKING:
-    pass
+    from ..glm.spatial import SpatialContext
 
 
 Array = NDArray[np.float64]
@@ -58,6 +59,7 @@ class GroupLmResult:
     dataset: GroupDataset
     predictor_names: tuple[str, ...]
     residual_df: float
+    spatial: Optional["SpatialContext"] = None
 
     def _assay(self, prefix: str, predictor: str) -> Array:
         """Pull a per-predictor assay array, validating the predictor name.
@@ -83,20 +85,158 @@ class GroupLmResult:
         return arr
 
     def effect(self, predictor: str = "Intercept") -> Array:
-        """Per-voxel coefficient estimate for ``predictor`` (default Intercept)."""
+        """Per-voxel coefficient estimate for ``predictor`` (default Intercept).
+
+        Parameters
+        ----------
+        predictor
+            Design column name: ``"Intercept"`` (default), a
+            ``design_matrix=`` column, or a formula term such as
+            ``"age"`` or ``"group[T.patient]"`` (see ``predictor_names``).
+
+        Examples
+        --------
+        ::
+
+            res = fm.fmri_group_lm(maps, formula="~ group + age",
+                                   covariates=participants)
+            res.effect("group[T.patient]")
+        """
         return self._assay("coef", predictor)
 
     def t_stat(self, predictor: str = "Intercept") -> Array:
-        """Per-voxel t statistic for ``predictor``."""
+        """Per-voxel t statistic for ``predictor``.
+
+        Parameters
+        ----------
+        predictor
+            Design column name: ``"Intercept"`` (default), a
+            ``design_matrix=`` column, or a formula term such as
+            ``"age"`` or ``"group[T.patient]"`` (see ``predictor_names``).
+
+        Examples
+        --------
+        ::
+
+            res = fm.fmri_group_lm(maps, formula="~ group + age",
+                                   covariates=participants)
+            res.t_stat("group[T.patient]")
+        """
         return self._assay("t_coef", predictor)
 
     def p_value(self, predictor: str = "Intercept") -> Array:
-        """Per-voxel two-sided p-value for ``predictor``."""
+        """Per-voxel two-sided p-value for ``predictor``.
+
+        Parameters
+        ----------
+        predictor
+            Design column name: ``"Intercept"`` (default), a
+            ``design_matrix=`` column, or a formula term such as
+            ``"age"`` or ``"group[T.patient]"`` (see ``predictor_names``).
+
+        Examples
+        --------
+        ::
+
+            res = fm.fmri_group_lm(maps, formula="~ group + age",
+                                   covariates=participants)
+            res.p_value("group[T.patient]")
+        """
         return self._assay("p_coef", predictor)
 
     def standard_error(self, predictor: str = "Intercept") -> Array:
-        """Per-voxel SE for ``predictor``'s coefficient."""
+        """Per-voxel SE for ``predictor``'s coefficient.
+
+        Parameters
+        ----------
+        predictor
+            Design column name: ``"Intercept"`` (default), a
+            ``design_matrix=`` column, or a formula term such as
+            ``"age"`` or ``"group[T.patient]"`` (see ``predictor_names``).
+
+        Examples
+        --------
+        ::
+
+            res = fm.fmri_group_lm(maps, formula="~ group + age",
+                                   covariates=participants)
+            res.standard_error("group[T.patient]")
+        """
         return self._assay("se_coef", predictor)
+
+    def z_score(self, predictor: str = "Intercept") -> Array:
+        """Per-voxel z-score equivalent of :meth:`t_stat`.
+
+        Parameters
+        ----------
+        predictor
+            Design column name: ``"Intercept"`` (default), a
+            ``design_matrix=`` column, or a formula term such as
+            ``"age"`` or ``"group[T.patient]"`` (see ``predictor_names``).
+
+        Examples
+        --------
+        ::
+
+            res = fm.fmri_group_lm(maps, formula="~ group + age",
+                                   covariates=participants)
+            res.z_score("group[T.patient]")
+        """
+        from ..glm.contrasts import z_from_stat
+
+        return z_from_stat(self.t_stat(predictor), self.residual_df, "t")
+
+    def to_nifti(
+        self,
+        path: Union[str, Path],
+        predictor: str = "Intercept",
+        *,
+        kind: str = "t",
+        fill: float = 0.0,
+    ) -> Path:
+        """Write one group map to disk as NIfTI.
+
+        Available when the inputs carried a spatial frame (NIfTI maps, or
+        first-level ``ContrastResult``s fitted on images).
+
+        Parameters
+        ----------
+        path
+            Output ``.nii`` / ``.nii.gz`` path.
+        predictor
+            Design column, e.g. ``"Intercept"`` or ``"group[T.patient]"``.
+        kind
+            ``"t"`` (default), ``"z"``, ``"effect"``, ``"se"`` or ``"p"``.
+        fill
+            Value written outside the mask.
+
+        Examples
+        --------
+        ::
+
+            res = fm.fmri_group_lm(paths, formula="~ group + age",
+                                   covariates=participants)
+            res.to_nifti("patient_vs_control_z.nii.gz", "group[T.patient]",
+                         kind="z")
+        """
+        if self.spatial is None:
+            raise ValueError(
+                "GroupLmResult has no spatial frame; fit it from NIfTI maps or "
+                "image-based first-level contrasts to write NIfTI."
+            )
+        getters = {
+            "t": self.t_stat,
+            "z": self.z_score,
+            "effect": self.effect,
+            "se": self.standard_error,
+            "p": self.p_value,
+        }
+        if kind not in getters:
+            raise ValueError(f"kind must be one of {sorted(getters)}; got {kind!r}")
+        vec = np.asarray(getters[kind](predictor), dtype=np.float64).ravel()
+        return self.spatial.write_nifti(
+            vec, path, label=f"{predictor}.{kind}", fill=fill
+        )
 
 
 def fmri_group_lm(
@@ -110,6 +250,8 @@ def fmri_group_lm(
     space: Optional[VoxelSpace] = None,
     n_jobs: int = 1,
     chunk_size: Optional[int] = None,
+    covariates: Optional[Any] = None,
+    mask: object = None,
 ) -> GroupLmResult:
     """Fit a group-level / second-level GLM.
 
@@ -140,6 +282,11 @@ def fmri_group_lm(
           first-level ``fit.contrast(...)`` calls; lowered with
           :func:`fmrimod.group_dataset_from_contrasts`, which also
           carries each subject's standard errors.
+        - A list of per-subject effect maps: NIfTI paths, nibabel images
+          or neuroim volumes (as Nilearn's ``SecondLevelModel.fit``).
+          Voxels are those in ``mask=`` (default: finite and non-zero in
+          every map), and the result can be written back with
+          :meth:`GroupLmResult.to_nifti`.
     intercept_only
         Default ``True`` — the canonical one-sample group t test
         (``formula="~ 1"``). Mutually exclusive with ``formula=``
@@ -163,6 +310,14 @@ def fmri_group_lm(
         ``(n_voxels, 1, 1)`` and identity affine.
     n_jobs, chunk_size
         Forwarded to :func:`ols_voxelwise`.
+    covariates
+        Subject-level table for ``formula=`` (e.g. a BIDS
+        ``participants.tsv`` with ``group`` and ``age``). Rows are matched
+        to subjects through a ``subject`` or ``participant_id`` column when
+        present (a ``sub-`` prefix is ignored), otherwise taken in input
+        order.
+    mask
+        Image-map input only: brain mask (path, image or boolean array).
 
     Returns
     -------
@@ -210,12 +365,26 @@ def fmri_group_lm(
         )
 
     # Coerce ``data`` into a GroupDataset.
+    spatial = None
     contrast_map = _as_contrast_mapping(data, subjects)
+    if contrast_map is None and _is_image_list(data):
+        data, spatial = _load_masked_maps(cast(Sequence[Any], data), mask)
+    elif mask is not None:
+        raise ValueError("fmri_group_lm: mask= applies only to image-map input")
     if contrast_map is not None:
         from ..contrast.group_collection import group_dataset_from_contrasts
 
-        dataset = group_dataset_from_contrasts(contrast_map)
+        names = list(contrast_map)
+        dataset = group_dataset_from_contrasts(
+            contrast_map, covariates=_subject_table(covariates, names)
+        )
+        spatial = getattr(next(iter(contrast_map.values())), "spatial", None)
     elif isinstance(data, GroupDataset):
+        if covariates is not None:
+            raise ValueError(
+                "fmri_group_lm: a GroupDataset carries its own col_data; "
+                "do not also pass covariates="
+            )
         dataset = data
     else:
         arr = np.asarray(data, dtype=np.float64)
@@ -232,6 +401,10 @@ def fmri_group_lm(
             if space is not None
             else VoxelSpace(shape=(n_voxels, 1, 1))
         )
+        if subjects is None:
+            # Maps/rows carry no ids: rows of the covariate table describe
+            # them in order (as a Nilearn second-level design does).
+            subjects = _ids_from_covariates(covariates, n_subjects)
         resolved_subjects = (
             list(subjects)
             if subjects is not None
@@ -245,6 +418,7 @@ def fmri_group_lm(
             space=resolved_space,
             subjects=resolved_subjects,
             contrasts=resolved_contrasts,
+            col_data=_subject_table(covariates, resolved_subjects),
         )
 
     # Resolve the design. When ``design_matrix=`` is a DataFrame, the
@@ -307,6 +481,7 @@ def fmri_group_lm(
         dataset=result_ds,
         predictor_names=predictor_names,
         residual_df=residual_df,
+        spatial=spatial,
     )
 
 
@@ -381,3 +556,114 @@ def _as_contrast_mapping(
             )
         return dict(zip(names, data, strict=True))
     return None
+
+
+def _subject_table(covariates: Any, subjects: Sequence[Any]) -> Any:
+    """Return ``covariates`` ordered like ``subjects`` with a ``subject`` column."""
+    if covariates is None:
+        return None
+    import pandas as pd
+
+    table = pd.DataFrame(covariates).copy()
+    names = [str(s) for s in subjects]
+    if "subject" not in table.columns and "participant_id" in table.columns:
+        table = table.rename(columns={"participant_id": "subject"})
+    if "subject" not in table.columns:
+        if len(table) != len(names):
+            raise ValueError(
+                f"fmri_group_lm: {len(table)} covariate rows for {len(names)} "
+                "subjects and no subject/participant_id column to match on"
+            )
+        return table.reset_index(drop=True).assign(subject=names)
+    keys = table["subject"].astype(str).str.replace(r"^sub-", "", regex=True)
+    wanted = [n.removeprefix("sub-") for n in names]
+    missing = sorted(set(wanted) - set(keys))
+    if missing:
+        raise ValueError(
+            f"fmri_group_lm: covariates have no row for subjects {missing[:5]}"
+        )
+    position = {key: i for i, key in enumerate(keys)}
+    ordered = table.iloc[[position[w] for w in wanted]].reset_index(drop=True)
+    return ordered.assign(subject=names)
+
+
+def _ids_from_covariates(covariates: Any, n_subjects: int) -> Optional[list[str]]:
+    if covariates is None:
+        return None
+    import pandas as pd
+
+    table = pd.DataFrame(covariates)
+    for column in ("subject", "participant_id"):
+        if column in table.columns and len(table) == n_subjects:
+            return [str(v) for v in table[column]]
+    return None
+
+
+def _is_image_list(data: object) -> bool:
+    if not isinstance(data, (list, tuple)) or not data:
+        return False
+    return all(
+        isinstance(item, (str, Path))
+        or hasattr(item, "dataobj")
+        or hasattr(item, "as_array")
+        for item in data
+    )
+
+
+def _read_volume(item: Any) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Return ``(3-D data, 4x4 affine)`` for a path, nibabel image or NeuroVol."""
+    if isinstance(item, (str, Path)):
+        import neuroim
+
+        item = neuroim.read_vol(str(item))
+    if hasattr(item, "as_array"):
+        return (
+            np.asarray(item.as_array(), dtype=np.float64),
+            np.asarray(item.trans, dtype=np.float64),
+        )
+    return (
+        np.asarray(np.asanyarray(item.dataobj), dtype=np.float64),
+        np.asarray(item.affine, dtype=np.float64),
+    )
+
+
+def _load_masked_maps(
+    items: Sequence[Any], mask: object
+) -> tuple[NDArray[np.float64], "SpatialContext"]:
+    """Stack per-subject maps inside a mask; return ``(n_subjects, n_voxels)``."""
+    from ..glm.spatial import SpatialContext
+
+    volumes: list[NDArray[np.float64]] = []
+    affine: Optional[NDArray[np.float64]] = None
+    for item in items:
+        data, item_affine = _read_volume(item)
+        data = np.squeeze(data)
+        if data.ndim != 3:
+            raise ValueError(
+                f"fmri_group_lm: expected 3-D maps; got shape {data.shape}"
+            )
+        if volumes and data.shape != volumes[0].shape:
+            raise ValueError(
+                f"fmri_group_lm: map shapes differ ({volumes[0].shape} vs "
+                f"{data.shape})"
+            )
+        volumes.append(data)
+        affine = item_affine if affine is None else affine
+    stack = np.stack(volumes)
+    if mask is None:
+        mask_arr = np.all(np.isfinite(stack) & (stack != 0), axis=0)
+    elif isinstance(mask, np.ndarray):
+        mask_arr = mask.astype(bool)
+    else:
+        mask_arr = _read_volume(mask)[0].astype(bool)
+    if mask_arr.shape != stack.shape[1:]:
+        raise ValueError(
+            f"fmri_group_lm: mask shape {mask_arr.shape} != map shape "
+            f"{stack.shape[1:]}"
+        )
+    spatial = SpatialContext(
+        mask=mask_arr,
+        spatial_shape=cast("tuple[int, int, int]", tuple(mask_arr.shape)),
+        affine=affine,
+    )
+    return stack[:, mask_arr], spatial

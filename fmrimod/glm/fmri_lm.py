@@ -1258,7 +1258,9 @@ def fmri_lm(
         config = dataset_or_config
         dataset = None
     else:
-        dataset = _coerce_dataset(
+        from ..dataset.constructors import coerce_dataset
+
+        dataset = coerce_dataset(
             dataset_or_config,
             tr=tr,
             events=events,
@@ -1529,36 +1531,41 @@ def _is_fmri_model_like(obj: object) -> bool:
     return isinstance(obj, FmriModelLike)
 
 
-def _coerce_dataset(
-    source: object,
-    *,
-    tr: object,
-    events: object,
-    mask: object,
-    slice_timing_offset: object,
-) -> object:
-    """Return ``source`` if it is a dataset, else build one from an image."""
-    shorthand = {
-        "tr": tr,
-        "events": events,
-        "mask": mask,
-        "slice_timing_offset": slice_timing_offset,
-    }
-    given = {key: value for key, value in shorthand.items() if value is not None}
-    is_dataset = source is None or (
-        hasattr(source, "get_sampling_frame") and hasattr(source, "event_table")
-    )
-    if is_dataset:
-        if given:
-            raise ValueError(
-                f"fmri_lm: {sorted(given)} build a dataset from an image and "
-                "cannot be combined with a prebuilt dataset; pass them to "
-                "fmri_dataset(...) instead."
-            )
-        return source
-    from ..dataset.constructors import fmri_dataset
+def _bind_dataset_confounds(spec: "Spec | Term", dataset: object) -> "Spec":
+    """Give source-less ``confounds(...)`` terms the dataset's confound tables."""
+    import dataclasses
 
-    return fmri_dataset(source, **given)  # type: ignore[arg-type]
+    from ..spec import Confounds, as_spec
+
+    typed = as_spec(spec)
+    unbound = [t for t in typed.baseline if isinstance(t, Confounds) and t.source is None]
+    if not unbound:
+        return typed
+    tables = getattr(dataset, "confounds", None)
+    if tables is None:
+        raise ValueError(
+            "confounds(...) has no source= and the dataset carries no confound "
+            "tables; pass source=... or fmri_dataset(..., confounds=[...])."
+        )
+    baseline = []
+    for term in typed.baseline:
+        if isinstance(term, Confounds) and term.source is None:
+            missing = [c for c in term.columns if c not in tables[0].columns]
+            if missing:
+                raise KeyError(
+                    f"confounds {missing} not in the dataset's confound tables "
+                    f"(columns include {list(tables[0].columns)[:8]}...)"
+                )
+            selected = [frame[list(term.columns)] for frame in tables]
+            if any(frame.isna().to_numpy().any() for frame in selected):
+                raise ValueError(
+                    f"confounds {list(term.columns)} contain missing values "
+                    "(fMRIPrep writes n/a in the first row of derivative "
+                    "columns); fill them, e.g. table.fillna(0), before use."
+                )
+            term = dataclasses.replace(term, source=selected)
+        baseline.append(term)
+    return dataclasses.replace(typed, baseline=tuple(baseline))
 
 
 def _build_model_from_spec(
@@ -1614,6 +1621,7 @@ def _build_model_from_spec(
 
     # -- Typed Spec / Term path -----------------------------------------
     if isinstance(spec, (Spec, Term)):
+        spec = _bind_dataset_confounds(spec, dataset)
         em, default_bm = _compile_spec(
             spec,
             data=events_df,

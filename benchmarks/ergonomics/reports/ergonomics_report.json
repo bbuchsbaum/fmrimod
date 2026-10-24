@@ -15,28 +15,28 @@
   },
   "summary": {
     "authoring": {
-      "fmrimod": 4,
-      "nilearn": 3,
-      "tie": 2
+      "fmrimod": 6,
+      "nilearn": 4,
+      "tie": 3
     },
     "speed": {
-      "fmrimod": 11,
+      "fmrimod": 15,
       "nilearn": 0,
       "tie": 0
     },
     "noise": {
-      "fmrimod": 11,
+      "fmrimod": 14,
       "nilearn": 0,
-      "tie": 0
+      "tie": 1
     },
     "docs": {
-      "fmrimod": 8,
+      "fmrimod": 12,
       "nilearn": 0,
       "tie": 1
     },
     "total_tokens": {
-      "fmrimod": 607,
-      "nilearn": 775
+      "fmrimod": 854,
+      "nilearn": 1109
     }
   },
   "scenarios": [
@@ -79,16 +79,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 1.3078785640000206,
-          "warm_seconds": 0.005127396000034423,
+          "first_call_seconds": 1.2556784559999414,
+          "warm_seconds": 0.00578743799997028,
           "warm_samples": [
-            0.0063454390000288186,
-            0.005656700000031378,
-            0.0052683850000221355,
-            0.005413793000002443,
-            0.005283520000034514,
-            0.0051527079999686975,
-            0.005127396000034423
+            0.007213234999994711,
+            0.0070665219999455076,
+            0.0064429209999161685,
+            0.006535714999927222,
+            0.00578743799997028,
+            0.006282736999992267,
+            0.00715470699992693
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -136,16 +136,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.5648682870000812,
-          "warm_seconds": 0.013388476000045557,
+          "first_call_seconds": 0.45406344200000603,
+          "warm_seconds": 0.010655658000018775,
           "warm_samples": [
-            0.014274619000048006,
-            0.014729255000020203,
-            0.014376731999959702,
-            0.02003885600004196,
-            0.020958694000000833,
-            0.019340552000016942,
-            0.013388476000045557
+            0.012146277000056216,
+            0.01118999800007714,
+            0.010655658000018775,
+            0.01106305300004351,
+            0.011127729999998337,
+            0.011645995999970182,
+            0.012716657999931158
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -215,16 +215,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.2711332119999952,
-          "warm_seconds": 0.07328968700005589,
+          "first_call_seconds": 0.15445692100001907,
+          "warm_seconds": 0.068357667999976,
           "warm_samples": [
-            0.09217212399994423,
-            0.08954630799996721,
-            0.07328968700005589,
-            0.07393440600003487,
-            0.07405648100007056,
-            0.07417140999996263,
-            0.074204868000038
+            0.07162457000003997,
+            0.068357667999976,
+            0.07744574200000898,
+            0.08803110000008019,
+            0.08983213200008322,
+            0.08816094899998461,
+            0.09036670099999355
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -272,16 +272,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.2765548109999827,
-          "warm_seconds": 0.1640554460000203,
+          "first_call_seconds": 0.34794318700005533,
+          "warm_seconds": 0.16163889900008144,
           "warm_samples": [
-            0.17636539099999027,
-            0.183670371000062,
-            0.7645658929999399,
-            0.1866693250000253,
-            0.17173687900003642,
-            0.16724483200005125,
-            0.1640554460000203
+            0.1876633029999084,
+            0.1776604839999436,
+            0.16163889900008144,
+            0.1658412799999951,
+            0.18081578800001807,
+            0.17097201399997175,
+            0.16493027800004256
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -348,16 +348,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.02656004400000711,
-          "warm_seconds": 0.020751365000023725,
+          "first_call_seconds": 0.02768499800004065,
+          "warm_seconds": 0.023481358000026376,
           "warm_samples": [
-            0.02271974500001761,
-            0.02153498000006948,
-            0.020751365000023725,
-            0.021258638000063,
-            0.021493311999961406,
-            0.022856755000020712,
-            0.022100057999978162
+            0.026786260999983824,
+            0.030838939999966897,
+            0.03200628599995525,
+            0.03429674500000601,
+            0.03155546499999673,
+            0.029052849000095193,
+            0.023481358000026376
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -411,16 +411,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.03017145100000107,
-          "warm_seconds": 0.030297306000079516,
+          "first_call_seconds": 0.031665224999983366,
+          "warm_seconds": 0.02999905100000433,
           "warm_samples": [
-            0.038510716000018874,
-            0.04260243700002775,
-            0.03869974600002024,
-            0.03883959799998138,
-            0.03220708999992894,
-            0.031092694999983905,
-            0.030297306000079516
+            0.031859141000040836,
+            0.030568452000011348,
+            0.030592565999995713,
+            0.030028684000058092,
+            0.02999905100000433,
+            0.030207292000000052,
+            0.030370762999950784
           ],
           "warnings_emitted": 5,
           "warning_messages": [
@@ -489,16 +489,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.007892026000035912,
-          "warm_seconds": 0.008072241999911967,
+          "first_call_seconds": 0.007826869999917108,
+          "warm_seconds": 0.007309297999995579,
           "warm_samples": [
-            0.009296847999962665,
-            0.01090735799994036,
-            0.010070165000001907,
-            0.009899475999986862,
-            0.009032747999981439,
-            0.008288785999980064,
-            0.008072241999911967
+            0.007309297999995579,
+            0.011179319999996551,
+            0.011566282999979194,
+            0.013238204000003861,
+            0.013384355999960462,
+            0.01450655399992229,
+            0.014920814999982213
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -547,16 +547,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.12672211500000685,
-          "warm_seconds": 0.028441167999972095,
+          "first_call_seconds": 0.11120030600000064,
+          "warm_seconds": 0.024844723999990492,
           "warm_samples": [
-            0.038615953000089576,
-            0.028441167999972095,
-            0.029770706000022074,
-            0.036057279000033304,
-            0.03322483200008719,
-            0.03600275700000566,
-            0.0293606909999653
+            0.024862503999997898,
+            0.02509754899995187,
+            0.024844723999990492,
+            0.02989279799999167,
+            0.03416637100008302,
+            0.027398176000019703,
+            0.031220793000102276
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -623,16 +623,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.0077255910000531,
-          "warm_seconds": 0.005808559000001878,
+          "first_call_seconds": 0.009533002000011948,
+          "warm_seconds": 0.007007447999967553,
           "warm_samples": [
-            0.006783795000046666,
-            0.005846406000046045,
-            0.007037799999920935,
-            0.006269240999927206,
-            0.007956513000067389,
-            0.005808559000001878,
-            0.005913009000096281
+            0.008957355999996253,
+            0.008983715999988817,
+            0.008221171000059257,
+            0.00843449799992868,
+            0.008700680000060856,
+            0.008213748000002852,
+            0.007007447999967553
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -686,16 +686,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.014785629000016343,
-          "warm_seconds": 0.012828548000015871,
+          "first_call_seconds": 0.013003205999893908,
+          "warm_seconds": 0.011433825000040088,
           "warm_samples": [
-            0.01337390600008348,
-            0.012828548000015871,
-            0.013363111999979083,
-            0.014378866000015478,
-            0.013440951999996287,
-            0.013475097999958052,
-            0.013907609000057164
+            0.011668111999938446,
+            0.011433825000040088,
+            0.011723384999982045,
+            0.011728765999919233,
+            0.011561314999994465,
+            0.011487295000051745,
+            0.0119542160000492
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -764,16 +764,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.008768167999960497,
-          "warm_seconds": 0.00794705900000281,
+          "first_call_seconds": 0.007481909000034648,
+          "warm_seconds": 0.006483000000002903,
           "warm_samples": [
-            0.010191308000003119,
-            0.008115354999972624,
-            0.00794705900000281,
-            0.010670882999988862,
-            0.01132097699996848,
-            0.011293935000026067,
-            0.011346242999934475
+            0.006483000000002903,
+            0.008422735000067405,
+            0.009488956000041071,
+            0.009358928999972704,
+            0.007872999000028358,
+            0.007227250000028107,
+            0.007284678000019085
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -827,16 +827,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.02959449399997993,
-          "warm_seconds": 0.016286462999914875,
+          "first_call_seconds": 0.022061516999997366,
+          "warm_seconds": 0.016913295999984257,
           "warm_samples": [
-            0.016592005999996218,
-            0.016839794000020447,
-            0.016286462999914875,
-            0.018169584000020222,
-            0.01737192899997808,
-            0.01704879199996867,
-            0.016308438999999453
+            0.023082402999989426,
+            0.019038480999938656,
+            0.019625861000008626,
+            0.01795339700004206,
+            0.01709592099996371,
+            0.016913295999984257,
+            0.01798299099993983
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -904,16 +904,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.016062622000049487,
-          "warm_seconds": 0.010878424999987146,
+          "first_call_seconds": 0.01771740599997429,
+          "warm_seconds": 0.010286140999937743,
           "warm_samples": [
-            0.01280182099992544,
-            0.01270031600006405,
-            0.012111598999922535,
-            0.01148337500001162,
-            0.010878424999987146,
-            0.011027947999991738,
-            0.011295044000007692
+            0.015119802999947751,
+            0.014477006999982223,
+            0.014006018000031872,
+            0.013258627999903183,
+            0.010511687000075653,
+            0.01044936100004179,
+            0.010286140999937743
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -961,16 +961,16 @@
           "parity_knobs": 2
         },
         "runtime": {
-          "first_call_seconds": 0.027450273999988895,
-          "warm_seconds": 0.025360859999977947,
+          "first_call_seconds": 0.024545658999954867,
+          "warm_seconds": 0.022960868000041046,
           "warm_samples": [
-            0.026715124000020296,
-            0.02569650600003115,
-            0.02599626799997168,
-            0.02678740499993637,
-            0.027091858999938268,
-            0.026011906999997336,
-            0.025360859999977947
+            0.024019872999929248,
+            0.023764045999996597,
+            0.023693261000062193,
+            0.02318081400005667,
+            0.022960868000041046,
+            0.023199990999955844,
+            0.02320316299994829
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -1038,16 +1038,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 2.52150699799995,
-          "warm_seconds": 0.8147803729999623,
+          "first_call_seconds": 2.6441120649999448,
+          "warm_seconds": 0.7947762969999985,
           "warm_samples": [
-            0.8900304109999979,
-            1.2187995550000323,
-            0.8747785690000001,
-            1.20834904000003,
-            0.8147803729999623,
-            1.2641367610000316,
-            0.9803056580000202
+            0.8067467140000417,
+            1.5652804519999108,
+            0.9685947119999128,
+            1.1694059500000549,
+            0.7947762969999985,
+            1.9629973060000339,
+            1.6477864610000097
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -1095,16 +1095,16 @@
           "parity_knobs": 2
         },
         "runtime": {
-          "first_call_seconds": 1.572140293000075,
-          "warm_seconds": 0.9711804639999855,
+          "first_call_seconds": 0.9264252870000291,
+          "warm_seconds": 0.8945720770000207,
           "warm_samples": [
-            0.971945761000029,
-            1.0052583179999601,
-            2.6191159179999204,
-            1.0248824320000267,
-            0.9711804639999855,
-            2.0410991349999676,
-            2.5852926410000237
+            2.142521926000086,
+            2.1199743850000914,
+            1.9444146249999221,
+            1.907607463999966,
+            0.9037389169999415,
+            0.8945720770000207,
+            0.9431195099999741
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -1152,16 +1152,14 @@
         "noise": "fmrimod",
         "docs": "fmrimod"
       },
-      "notes": [
-        "Single-trial estimation has no image shorthand: unlike `fmri_lm`, `estimate_single_trial_from_dataset` needs an explicit `fmri_dataset(...)` first."
-      ],
+      "notes": [],
       "fmrimod": {
         "library": "fmrimod",
         "authoring": {
-          "statements": 4,
-          "tokens": 61,
+          "statements": 3,
+          "tokens": 53,
           "lines": 11,
-          "calls": 3,
+          "calls": 2,
           "keyword_args": 5,
           "imports": 2,
           "imported_names": [
@@ -1171,27 +1169,21 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.014436692000003859,
-          "warm_seconds": 0.01092466299996886,
+          "first_call_seconds": 0.012616220000040812,
+          "warm_seconds": 0.010901392000050691,
           "warm_samples": [
-            0.012982683000018369,
-            0.013967468000032568,
-            0.01369944599991868,
-            0.011085992999937844,
-            0.01092466299996886,
-            0.011915503999944121,
-            0.012287332000028073
+            0.01244076499995117,
+            0.011541520999912791,
+            0.01160184900004424,
+            0.011019650999969599,
+            0.011315214000092055,
+            0.010901392000050691,
+            0.012050705999968159
           ],
           "warnings_emitted": 0,
           "warning_messages": []
         },
         "docs": [
-          {
-            "qualname": "fmrimod.dataset.constructors.fmri_dataset",
-            "has_docstring": true,
-            "has_parameters": true,
-            "has_examples": true
-          },
           {
             "qualname": "fmrimod.single.estimate_single_trial_from_dataset",
             "has_docstring": true,
@@ -1222,16 +1214,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.31735131999994337,
-          "warm_seconds": 0.3099847730001102,
+          "first_call_seconds": 0.36099576599997363,
+          "warm_seconds": 0.2800689110000576,
           "warm_samples": [
-            0.38592405899998994,
-            0.5346181149999438,
-            0.3099969859999874,
-            0.3099847730001102,
-            0.3465871219999599,
-            0.4285767469998518,
-            0.4558056979999492
+            0.31728299000008064,
+            0.3197617170000058,
+            0.2800689110000576,
+            0.3845145189999357,
+            0.2832232440000553,
+            0.2929095749999533,
+            0.32643942400000014
           ],
           "warnings_emitted": 56,
           "warning_messages": [
@@ -1297,16 +1289,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.06468253499997445,
-          "warm_seconds": 0.050525404000154595,
+          "first_call_seconds": 0.05253965499991864,
+          "warm_seconds": 0.045652947999997195,
           "warm_samples": [
-            0.09000980900009381,
-            0.0631708250000429,
-            0.05208066599993799,
-            0.052572054999927786,
-            0.054262071000039214,
-            0.050525404000154595,
-            0.06921394000005421
+            0.050665503999994144,
+            0.04898902799993721,
+            0.04848363500002506,
+            0.0482123289999663,
+            0.04935972499993113,
+            0.04905628399990292,
+            0.045652947999997195
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -1350,16 +1342,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.17441834999999628,
-          "warm_seconds": 0.09711658200012607,
+          "first_call_seconds": 0.1011338450000494,
+          "warm_seconds": 0.08970988199996555,
           "warm_samples": [
-            0.1011791280000125,
-            0.09912709199988967,
-            0.09711658200012607,
-            0.10079436199998781,
-            0.103007259999913,
-            0.10222788700002639,
-            0.10552129100005914
+            0.10213280200002828,
+            0.11032283599990933,
+            0.08970988199996555,
+            0.12770364499999687,
+            0.1324245460000384,
+            0.1263490379999439,
+            0.11899734600001466
           ],
           "warnings_emitted": 16,
           "warning_messages": [
@@ -1445,16 +1437,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.002753770000026634,
-          "warm_seconds": 0.0022041400000034628,
+          "first_call_seconds": 0.0030244440000615214,
+          "warm_seconds": 0.0021171650000724185,
           "warm_samples": [
-            0.0024889149999580695,
-            0.002279647000023033,
-            0.0022432760001720453,
-            0.0022652190000371775,
-            0.0022041400000034628,
-            0.002246250000098371,
-            0.0022227440001643117
+            0.0027009280000811486,
+            0.0024151220000021567,
+            0.002429613000003883,
+            0.002617256999997153,
+            0.0022432499999922584,
+            0.0022224809999897843,
+            0.0021171650000724185
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -1490,16 +1482,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.005799687999797243,
-          "warm_seconds": 0.004454695000049469,
+          "first_call_seconds": 0.005717069000070296,
+          "warm_seconds": 0.004597020000005614,
           "warm_samples": [
-            0.005319976999999199,
-            0.005843228999992789,
-            0.004693184999950972,
-            0.004560880000099132,
-            0.004529905000026702,
-            0.004511722999950507,
-            0.004454695000049469
+            0.005214848999912647,
+            0.0049398380000411635,
+            0.0050594839999575925,
+            0.005494083999906252,
+            0.005186153000067861,
+            0.004809290000025612,
+            0.004597020000005614
           ],
           "warnings_emitted": 1,
           "warning_messages": [
@@ -1515,6 +1507,521 @@
           }
         ],
         "docs_score": 1.0
+      }
+    },
+    {
+      "scenario_id": "s10_zmap_to_nifti",
+      "title": "z-map of a t contrast written to NIfTI",
+      "size": "small",
+      "agreement": {
+        "correlation": 0.9999931497162131,
+        "min_correlation": 0.999,
+        "max_abs_delta": 0.10326759274946617,
+        "relative_max_delta": 0.008416778135509777,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "nilearn",
+        "speed": "fmrimod",
+        "noise": "fmrimod",
+        "docs": "fmrimod"
+      },
+      "notes": [
+        "Remaining gap is the Nilearn default: `compute_contrast(...)` returns a z image, while fmrimod returns a `ContrastResult` and z is one explicit `kind=\"z\"` away (`.z` / `to_nifti(path, kind=\"z\")`)."
+      ],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 5,
+          "tokens": 76,
+          "lines": 11,
+          "calls": 5,
+          "keyword_args": 4,
+          "imports": 2,
+          "imported_names": [
+            "fm",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.008284477999950468,
+          "warm_seconds": 0.008121436000010362,
+          "warm_samples": [
+            0.008662420999939968,
+            0.008121436000010362,
+            0.009036627000000408,
+            0.010595179000006283,
+            0.010683776999940164,
+            0.009449840000002041,
+            0.008960395000030985
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": []
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.glm.contrasts.ContrastResult.to_nifti",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 6,
+          "tokens": 66,
+          "lines": 10,
+          "calls": 4,
+          "keyword_args": 4,
+          "imports": 1,
+          "imported_names": [
+            "FirstLevelModel"
+          ],
+          "parity_knobs": 3
+        },
+        "runtime": {
+          "first_call_seconds": 0.015848807999987002,
+          "warm_seconds": 0.013966102000040337,
+          "warm_samples": [
+            0.015107543999988593,
+            0.01501376999999593,
+            0.014941308000061326,
+            0.014667806000034034,
+            0.014743421999924067,
+            0.014825954999992064,
+            0.013966102000040337
+          ],
+          "warnings_emitted": 2,
+          "warning_messages": [
+            "The following unexpected columns in events data will be ignored: rt",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ]
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          }
+        ],
+        "docs_score": 0.6666666666666666
+      }
+    },
+    {
+      "scenario_id": "s11_many_contrasts",
+      "title": "Six named contrasts from one fit",
+      "size": "small",
+      "agreement": {
+        "correlation": 0.9999846160210784,
+        "min_correlation": 0.999,
+        "max_abs_delta": 0.3296542688690849,
+        "relative_max_delta": 0.012821720216063905,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "tie",
+        "speed": "fmrimod",
+        "noise": "fmrimod",
+        "docs": "fmrimod"
+      },
+      "notes": [],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 4,
+          "tokens": 68,
+          "lines": 10,
+          "calls": 4,
+          "keyword_args": 3,
+          "imports": 2,
+          "imported_names": [
+            "fm",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.008686530999966635,
+          "warm_seconds": 0.006690198000001146,
+          "warm_samples": [
+            0.0078051530000493585,
+            0.007134415999985322,
+            0.007084297999995215,
+            0.007116592999977911,
+            0.007086657000058949,
+            0.006937141000094016,
+            0.006690198000001146
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": []
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 4,
+          "tokens": 65,
+          "lines": 10,
+          "calls": 3,
+          "keyword_args": 5,
+          "imports": 1,
+          "imported_names": [
+            "FirstLevelModel"
+          ],
+          "parity_knobs": 3
+        },
+        "runtime": {
+          "first_call_seconds": 0.020689505000063946,
+          "warm_seconds": 0.020712628999945082,
+          "warm_samples": [
+            0.021005722999916543,
+            0.021341066999980285,
+            0.02098179799997979,
+            0.021291318999942632,
+            0.021384932999922057,
+            0.021154021999905126,
+            0.020712628999945082
+          ],
+          "warnings_emitted": 2,
+          "warning_messages": [
+            "The following unexpected columns in events data will be ignored: rt",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ]
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          }
+        ],
+        "docs_score": 0.6666666666666666
+      }
+    },
+    {
+      "scenario_id": "s12_group_covariate",
+      "title": "Second level from effect maps on disk: group + age",
+      "size": "small",
+      "agreement": {
+        "correlation": 1.0,
+        "min_correlation": 0.999,
+        "max_abs_delta": 1.2434497875801753e-14,
+        "relative_max_delta": 1.5475807583671229e-15,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "fmrimod",
+        "speed": "fmrimod",
+        "noise": "tie",
+        "docs": "fmrimod"
+      },
+      "notes": [
+        "Formula predictors use treatment-coded names (`group[T.patient]`), not the plain column name a hand-built Nilearn design gives you."
+      ],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 3,
+          "tokens": 32,
+          "lines": 7,
+          "calls": 2,
+          "keyword_args": 2,
+          "imports": 1,
+          "imported_names": [
+            "fm"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.05775589799998215,
+          "warm_seconds": 0.05056871299996146,
+          "warm_samples": [
+            0.05945215700000972,
+            0.058141105000004245,
+            0.05565782900009708,
+            0.052494417999923826,
+            0.05129902800001673,
+            0.05056871299996146,
+            0.051672608999979275
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": []
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.group.typed.GroupLmResult.t_stat",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.group.typed.fmri_group_lm",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 5,
+          "tokens": 81,
+          "lines": 11,
+          "calls": 5,
+          "keyword_args": 2,
+          "imports": 1,
+          "imported_names": [
+            "SecondLevelModel"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.260314411999957,
+          "warm_seconds": 0.2576466509999591,
+          "warm_samples": [
+            0.26110083800006123,
+            0.3673598980000179,
+            0.32285417599996435,
+            0.29822317100001783,
+            0.36660645800009206,
+            0.3070446570000058,
+            0.2576466509999591
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": []
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.second_level.second_level.SecondLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.second_level.second_level.SecondLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.second_level.second_level.SecondLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          }
+        ],
+        "docs_score": 0.6666666666666666
+      }
+    },
+    {
+      "scenario_id": "s13_bids_first_level",
+      "title": "First level for every subject of a BIDS + fMRIPrep dataset",
+      "size": "small",
+      "agreement": {
+        "correlation": 0.9998641851411791,
+        "min_correlation": 0.999,
+        "max_abs_delta": 0.5308198086811728,
+        "relative_max_delta": 0.031119948523571722,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "fmrimod",
+        "speed": "fmrimod",
+        "noise": "fmrimod",
+        "docs": "fmrimod"
+      },
+      "notes": [
+        "`fm.bids_datasets` covers the fMRIPrep first-level layout only (preproc BOLD, events, sidecar TR, brain mask, confounds); no BIDS Stats Model or pybids query language."
+      ],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 5,
+          "tokens": 79,
+          "lines": 12,
+          "calls": 7,
+          "keyword_args": 1,
+          "imports": 2,
+          "imported_names": [
+            "fm",
+            "confounds",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.07615226999996594,
+          "warm_seconds": 0.07821512399993935,
+          "warm_samples": [
+            0.08448276399997212,
+            0.10135836099993867,
+            0.09081878800009235,
+            0.08628170500003307,
+            0.08765005199995812,
+            0.08719193600006747,
+            0.07821512399993935
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": []
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.dataset.bids_fs.bids_datasets",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.confounds",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 7,
+          "tokens": 122,
+          "lines": 16,
+          "calls": 5,
+          "keyword_args": 7,
+          "imports": 1,
+          "imported_names": [
+            "first_level_from_bids"
+          ],
+          "parity_knobs": 4
+        },
+        "runtime": {
+          "first_call_seconds": 0.12795368499996584,
+          "warm_seconds": 0.12750138800004152,
+          "warm_samples": [
+            0.13704238200000418,
+            0.13901267500000358,
+            0.1319814700000279,
+            0.12902531700001418,
+            0.13142712499995923,
+            0.12750138800004152,
+            0.17398303299989948
+          ],
+          "warnings_emitted": 14,
+          "warning_messages": [
+            "'StartTime' not found in file /tmp/bids-n2vhy4g3/derivatives/fmriprep/sub-01/func/sub-01_task-faces_run-1_space-MNI152NLin2009cAsym_desc-preproc_bold.json.",
+            "'slice_time_ref' not provided and cannot be inferred from metadata.",
+            "The following unexpected columns in events data will be ignored: rt",
+            "The same contrast will be used for all 2 runs. If the design matrices are not the same for all runs, (for example with different column names or column order ac",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ]
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.first_level_from_bids",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 0.7777777777777778
       }
     }
   ],
@@ -1533,6 +2040,11 @@
       "scenario": "s09_design_only[small]",
       "axis": "authoring",
       "detail": "46 tokens / 3 statements vs Nilearn 37 / 3"
+    },
+    {
+      "scenario": "s10_zmap_to_nifti[small]",
+      "axis": "authoring",
+      "detail": "76 tokens / 5 statements vs Nilearn 66 / 6"
     },
     {
       "scenario": "s01_two_condition_t[small]",
@@ -1565,14 +2077,24 @@
       "detail": "AR(1) estimators differ (fmrimod's pooled estimate vs Nilearn's quantised voxelwise AR(1)), so agreement is r\u22480.996 rather than exact. Parity of the AR path itself is tier_a_ar1_prewhitening's job."
     },
     {
-      "scenario": "s07_lss_beta_series[small]",
-      "axis": "friction",
-      "detail": "Single-trial estimation has no image shorthand: unlike `fmri_lm`, `estimate_single_trial_from_dataset` needs an explicit `fmri_dataset(...)` first."
-    },
-    {
       "scenario": "s09_design_only[small]",
       "axis": "friction",
       "detail": "Column names repeat the term (`trial_type_trial_type.face`, `base_cosine1_block_1`) where Nilearn uses `face`, `drift_1`. Deferred: renaming is a public-contract change (parity receipts, BIDS export)."
+    },
+    {
+      "scenario": "s10_zmap_to_nifti[small]",
+      "axis": "friction",
+      "detail": "Remaining gap is the Nilearn default: `compute_contrast(...)` returns a z image, while fmrimod returns a `ContrastResult` and z is one explicit `kind=\"z\"` away (`.z` / `to_nifti(path, kind=\"z\")`)."
+    },
+    {
+      "scenario": "s12_group_covariate[small]",
+      "axis": "friction",
+      "detail": "Formula predictors use treatment-coded names (`group[T.patient]`), not the plain column name a hand-built Nilearn design gives you."
+    },
+    {
+      "scenario": "s13_bids_first_level[small]",
+      "axis": "friction",
+      "detail": "`fm.bids_datasets` covers the fMRIPrep first-level layout only (preproc BOLD, events, sidecar TR, brain mask, confounds); no BIDS Stats Model or pybids query language."
     }
   ]
 }

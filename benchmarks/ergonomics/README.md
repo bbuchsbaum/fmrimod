@@ -11,10 +11,9 @@ exactly what to fix.
 ```
 
 Results: [`reports/REPORT.md`](reports/REPORT.md) (human) and
-`reports/ergonomics_report.json` (machine). `reports/round_1_report.json` is
-the first scorecard, kept as the baseline that the report's
-"fmrimod since round_1" section compares against (`--baseline` picks
-another).
+`reports/ergonomics_report.json` (machine). `reports/round_N_report.json`
+keeps each earlier round; the report's "fmrimod since ..." section compares
+against the latest one (`--baseline` picks another).
 
 ## Rounds so far
 
@@ -28,8 +27,19 @@ another).
   `fm.design_matrix(spec, events=..., n_scans=..., tr=...)`, cached design
   columns. fmrimod is now 607 tokens against Nilearn's 775 and faster in
   every small-input row; the ~25k-voxel AR(1) row is close enough that
-  repeated runs score it a tie or a narrow win. Open items are listed at
-  the end of `REPORT.md`.
+  repeated runs score it a tie or a narrow win.
+- **Round 3** added four critic scenarios fmrimod had never been tested on
+  — z-map to NIfTI, a batch of contrasts, a second level from effect maps
+  on disk with group + age, and first level straight from a BIDS/fMRIPrep
+  tree. On the round-2 API they put fmrimod back behind (1199 vs 1109
+  tokens; 153 vs 66 for the z-map, 129 vs 81 for maps-on-disk, 242 vs 122
+  for BIDS). Fixes: `ContrastResult.z` / `to_nifti(kind="z")`,
+  `fmri_group_lm(paths, formula=, covariates=, mask=)` with
+  `GroupLmResult.to_nifti`, `fm.bids_datasets`, confound tables carried
+  on the dataset (`fmri_dataset(confounds=[...])` + `confounds("trans_x",
+  ...)`), and the image shorthand on single-trial estimation. Now 854 vs
+  1109 tokens, faster in all 15 timed rows. Open items are listed at the
+  end of `REPORT.md`.
 
 ## How a scenario is built
 
@@ -78,7 +88,7 @@ should be pinned as **strict xfail** probes in
 3. regenerate the report (`test_checked_in_report_matches_scenario_bodies`
    fails until you do);
 4. turn the probe into a regression test asserting the short form equals
-   the long one (section 3 of that file holds round 2's).
+   the long one (sections 3 and 4 of that file hold rounds 2 and 3).
 
 ## Adding a scenario
 

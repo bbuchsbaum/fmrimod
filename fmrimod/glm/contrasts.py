@@ -384,6 +384,35 @@ def _f_upper_tail_pvalue(
     return cast("NDArray[np.float64]", sp_special.fdtrc(df1, df2, fstat))
 
 
+def z_from_stat(
+    stat: NDArray[np.float64],
+    df: float | tuple[object, ...],
+    stat_type: str,
+) -> NDArray[np.float64]:
+    """Convert t or F statistics to standard-normal z with the same tail mass.
+
+    ``t``: signed, ``z = Phi^-1(T_df(t))`` evaluated through whichever tail
+    is small, so large |t| keeps full precision. ``F``: one-sided,
+    ``z = Phi^-1(1 - p)`` from the upper-tail p-value. This is the
+    convention of Nilearn's ``output_type="z_score"`` and SPM.
+    """
+    values = np.asarray(stat, dtype=np.float64)
+    if stat_type == "F":
+        if not isinstance(df, tuple) or len(df) != 2:
+            raise ValueError(f"F statistics need df=(df1, df2); got {df!r}")
+        df1 = np.asarray(df[0], dtype=np.float64)
+        df2 = np.asarray(df[1], dtype=np.float64)
+        upper = sp_special.fdtrc(df1, df2, values)
+        return cast("NDArray[np.float64]", -sp_special.ndtri(upper))
+    dof = np.asarray(df, dtype=np.float64)
+    upper = sp_special.stdtr(dof, -values)  # P(T > t)
+    lower = sp_special.stdtr(dof, values)  # P(T < t)
+    return cast(
+        "NDArray[np.float64]",
+        np.where(values > 0, -sp_special.ndtri(upper), sp_special.ndtri(lower)),
+    )
+
+
 @dataclass
 class ContrastResult:
     """Result of evaluating a contrast on GLM output.
@@ -405,6 +434,9 @@ class ContrastResult:
         Degrees of freedom.  Scalar for t-tests, ``(df1, df2)`` for F-tests.
     stat_type : str
         ``"t"`` or ``"F"``.
+
+    The z-score equivalent of ``stat`` is available as :attr:`z` and as
+    ``kind="z"`` in :meth:`to_nifti` / :meth:`to_neurovol`.
     """
 
     name: str
@@ -477,10 +509,17 @@ class ContrastResult:
 
     # -- Reverse converters --
 
+    @property
+    def z(self) -> NDArray[np.float64]:
+        """z-score equivalent of :attr:`stat` (see :func:`z_from_stat`)."""
+        return z_from_stat(self.stat, self.df, self.stat_type).ravel()
+
     def _vector_for(self, kind: str) -> NDArray[np.float64]:
         """Return a 1-D ``(n_voxels,)`` vector for the requested statistic."""
         if kind in ("stat", "t", "F"):
             return np.asarray(self.stat, dtype=np.float64).ravel()
+        if kind in ("z", "z_score"):
+            return self.z
         if kind in ("estimate", "effect", "effect_size", "beta"):
             est = np.asarray(self.estimate, dtype=np.float64)
             if est.ndim == 2:
@@ -499,7 +538,8 @@ class ContrastResult:
         if kind in ("p_value", "p", "pvalue"):
             return np.asarray(self.p_value, dtype=np.float64).ravel()
         raise ValueError(
-            f"Unknown kind={kind!r}. Choose from: 'stat', 'estimate', 'se', 'p_value'."
+            f"Unknown kind={kind!r}. Choose from: 'stat', 'z', 'estimate', "
+            "'se', 'p_value'."
         )
 
     def _require_spatial(self) -> SpatialContext:
@@ -523,7 +563,7 @@ class ContrastResult:
         Parameters
         ----------
         kind : str
-            One of ``"stat"`` (default), ``"estimate"``, ``"se"``,
+            One of ``"stat"`` (default), ``"z"``, ``"estimate"``, ``"se"``,
             ``"p_value"``.
         fill : float
             Value placed at non-mask voxels. Defaults to 0.0 so the volume
@@ -587,7 +627,27 @@ class ContrastResult:
     ) -> Path:
         """Write one statistic to disk as a NIfTI volume.
 
-        Returns the resolved :class:`pathlib.Path`.
+        Parameters
+        ----------
+        path
+            Output file (``.nii`` or ``.nii.gz``); parent directories must
+            exist.
+        kind
+            ``"stat"`` (t or F, default), ``"z"``, ``"estimate"``, ``"se"``
+            or ``"p_value"``.
+        fill
+            Value written outside the mask.
+
+        Returns
+        -------
+        Path
+            The resolved output path.
+
+        Examples
+        --------
+        ::
+
+            fit.contrast("face - house").to_nifti("face_vs_house_z.nii.gz", kind="z")
         """
         ctx = self._require_spatial()
         return ctx.write_nifti(

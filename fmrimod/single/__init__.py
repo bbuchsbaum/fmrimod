@@ -14,6 +14,7 @@ The primary entry point is :func:`estimate_single_trial`.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -21,12 +22,12 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ._prewhiten import PrewhitenConfig
+from ._project import NuisanceProjector, build_nuisance_projector
 from ._trial_design import (
     PreparedTrialDesign,
     canonicalize_trial_major,
     prepare_trialwise_design,
 )
-from ._project import NuisanceProjector, build_nuisance_projector
 from ._types import (
     LssExtras,
     MixedExtras,
@@ -62,11 +63,11 @@ from .item import (
     item_slice_fold,
 )
 from .lsa import lsa_single_trial
-from .typed import fmri_lss
 from .lss import lss_single_trial
 from .mixed import mixed_single_trial
 from .oasis import oasis_single_trial
 from .sbhm.lwu_grid import LwuGrid, create_lwu_grid
+from .typed import fmri_lss
 from .voxel_hrf import estimate_hrf, estimate_voxel_hrf, lss_with_voxel_hrf
 
 if TYPE_CHECKING:
@@ -313,6 +314,10 @@ def estimate_single_trial_from_dataset(
     sbhm_library: SbhmLibrary | None = None,
     include_intercept: bool = False,
     n_basis: int | None = None,
+    tr: float | Sequence[float] | None = None,
+    events: object = None,
+    mask: object = None,
+    slice_timing_offset: float | Sequence[float] | None = None,
 ) -> SingleTrialResult:
     """Estimate per-trial betas from an FmriDataset and trialwise spec.
 
@@ -324,8 +329,11 @@ def estimate_single_trial_from_dataset(
 
     Parameters
     ----------
-    dataset : FmriDataset
-        Typed dataset carrying time-series data and an event table.
+    dataset : FmriDataset or image source
+        Typed dataset carrying time-series data and an event table, or an
+        image source (NIfTI path/image, per-run list, array) together with
+        ``tr=``, ``events=`` and optionally ``mask=`` /
+        ``slice_timing_offset=``, as in :func:`fmrimod.fmri_lm`.
     spec : trialwise() term, Spec, str, list of Term or EventModelBuilder
         Trialwise specification. Accepts whatever
         :func:`fmrimod.event_model` accepts: a string formula such as
@@ -363,9 +371,9 @@ def estimate_single_trial_from_dataset(
     One LSS beta map per trial, straight from images::
 
         >>> from fmrimod.spec import trialwise
-        >>> ds = fm.fmri_dataset(img, mask=mask, tr=2.0, events=events)
         >>> betas = fm.estimate_single_trial_from_dataset(
-        ...     ds, trialwise(), method="lss", include_intercept=True
+        ...     img, trialwise(), tr=2.0, events=events, mask=mask,
+        ...     method="lss", include_intercept=True,
         ... )
         >>> betas.betas.shape          # (n_trials, n_voxels)
     """
@@ -376,8 +384,16 @@ def estimate_single_trial_from_dataset(
     # established design entry point is the working path for Slice 1.
     # Imports are local to avoid a fmrimod.single → fmrimod.design import
     # cycle at module load.
+    from ..dataset.constructors import coerce_dataset
     from ..design.event_model import event_model as _build_event_model
 
+    dataset = coerce_dataset(
+        dataset,
+        tr=tr,
+        events=events,
+        mask=mask,
+        slice_timing_offset=slice_timing_offset,
+    )
     events_df = getattr(dataset, "event_table", None)
     if events_df is None:
         raise ValueError(

@@ -296,3 +296,135 @@ def test_first_fit_is_warning_free() -> None:
         """
     )
     subprocess.run([sys.executable, "-c", code], check=True, capture_output=True)
+
+
+# ---------------------------------------------------------------------------
+# 4. gaps closed after round 3 (critic scenarios s10-s13)
+# ---------------------------------------------------------------------------
+
+
+def test_contrast_z_matches_reference_conversion(one_run) -> None:
+    import nibabel as nib
+    from scipy import stats
+
+    import fmrimod as fm
+    from fmrimod.contrast import OmnibusContrast
+    from fmrimod.glm.contrasts import z_from_stat
+    from fmrimod.spec import drift, hrf
+
+    fit = fm.fmri_lm(hrf("trial_type") + drift(), _dataset(one_run))
+    t = fit.contrast("face - house")
+    np.testing.assert_allclose(t.z, stats.norm.isf(stats.t.sf(t.stat, t.df)))
+    f = fit.contrast(OmnibusContrast(term="trial_type"))
+    np.testing.assert_allclose(f.z, stats.norm.isf(stats.f.sf(f.stat, *f.df)))
+    # Extreme statistics keep full precision through the small tail.
+    np.testing.assert_allclose(
+        z_from_stat(np.array([40.0, -40.0]), 100, "t"), [16.799, -16.799], atol=1e-3
+    )
+    path = t.to_nifti(one_run.out_dir / "z.nii.gz", kind="z")
+    written = nib.load(path)
+    np.testing.assert_allclose(written.affine, one_run.img.affine)
+    np.testing.assert_allclose(
+        np.asarray(written.dataobj)[one_run.mask], t.z, rtol=1e-6, atol=1e-6
+    )
+
+
+def test_single_trial_accepts_images_directly(one_run) -> None:
+    import fmrimod as fm
+    from fmrimod.spec import trialwise
+
+    short = fm.estimate_single_trial_from_dataset(
+        one_run.img,
+        trialwise(),
+        tr=one_run.tr,
+        events=one_run.events[0],
+        mask=one_run.mask_img,
+    )
+    long = fm.estimate_single_trial_from_dataset(_dataset(one_run), trialwise())
+    np.testing.assert_allclose(short.betas, long.betas)
+
+
+def test_group_lm_reads_nifti_maps_with_covariates() -> None:
+    import nibabel as nib
+
+    import fmrimod as fm
+    from benchmarks.ergonomics.inputs import make_group_map_inputs
+
+    maps = make_group_map_inputs(n_per_group=6)
+    data = np.stack([np.asarray(nib.load(p).dataobj)[maps.mask] for p in maps.paths])
+    table = maps.participants
+    design = pd.DataFrame(
+        {
+            "Intercept": 1.0,
+            "patient": (table["group"] == "patient").astype(float),
+            "age": table["age"],
+        }
+    )
+    reference = fm.fmri_group_lm(data, intercept_only=False, design_matrix=design)
+    from_files = fm.fmri_group_lm(
+        maps.paths, formula="~ group + age", covariates=table, mask=maps.mask_img
+    )
+    np.testing.assert_allclose(
+        from_files.t_stat("group[T.patient]"), reference.t_stat("patient")
+    )
+    # Rows are matched on participant_id, not position.
+    shuffled = fm.fmri_group_lm(
+        maps.paths,
+        formula="~ group + age",
+        covariates=table.sample(frac=1.0, random_state=1),
+        subjects=list(table["participant_id"]),
+    )
+    np.testing.assert_allclose(
+        shuffled.t_stat("group[T.patient]"), reference.t_stat("patient")
+    )
+    out = from_files.to_nifti(
+        Path(maps.paths[0]).with_name("group_z.nii.gz"), "group[T.patient]", kind="z"
+    )
+    assert nib.load(out).shape == maps.mask.shape
+
+
+def test_dataset_confounds_feed_sourceless_confounds_terms() -> None:
+    import fmrimod as fm
+    from benchmarks.ergonomics.inputs import MOTION
+    from fmrimod.spec import confounds, hrf
+
+    inp = make_inputs(seed=14, n_runs=2, n_scans=80, with_confounds=True)
+    tables = [c.assign(fd=np.r_[np.nan, np.ones(len(c) - 1)]) for c in inp.confounds]
+    ds = fm.fmri_dataset(
+        inp.imgs, mask=inp.mask_img, tr=inp.tr, events=inp.events, confounds=tables
+    )
+    bound = fm.fmri_lm(hrf("trial_type") + confounds(*MOTION), ds)
+    explicit = fm.fmri_lm(hrf("trial_type") + confounds(source=inp.confounds), ds)
+    np.testing.assert_allclose(bound.betas, explicit.betas)
+    with pytest.raises(ValueError, match="missing values"):
+        fm.fmri_lm(hrf("trial_type") + confounds("fd"), ds)
+    with pytest.raises(KeyError, match="not in the dataset"):
+        fm.fmri_lm(hrf("trial_type") + confounds("nope"), ds)
+    with pytest.raises(ValueError, match="rows"):
+        fm.fmri_dataset(
+            inp.imgs,
+            mask=inp.mask_img,
+            tr=inp.tr,
+            events=inp.events,
+            confounds=[tables[0].iloc[:10], tables[1]],
+        )
+
+
+def test_bids_datasets_loads_fmriprep_layout() -> None:
+    import fmrimod as fm
+    from benchmarks.ergonomics.inputs import make_bids_inputs
+
+    bids = make_bids_inputs(n_subjects=2, n_runs=2, shape=(6, 6, 5), n_scans=60)
+    datasets = fm.bids_datasets(bids.root, bids.task, space=bids.space)
+    assert list(datasets) == ["01", "02"]
+    ds = datasets["01"]
+    assert ds.n_runs == 2
+    assert list(ds.event_table["run"].unique()) == [1, 2]
+    assert ds.n_voxels == int(bids.mask.sum())
+    assert "global_signal" in ds.confounds[0].columns
+    one = fm.bids_datasets(bids.root, bids.task, subjects=["sub-02"])
+    assert list(one) == ["02"]
+    with pytest.raises(FileNotFoundError, match="03"):
+        fm.bids_datasets(bids.root, bids.task, subjects=["03"])
+    with pytest.raises(FileNotFoundError):
+        fm.bids_datasets(bids.root, "nosuchtask")

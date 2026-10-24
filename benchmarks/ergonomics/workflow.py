@@ -443,7 +443,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--baseline",
         type=Path,
-        default=REPORT_DIR / "round_1_report.json",
+        default=REPORT_DIR / "round_2_report.json",
         help="earlier report to show fmrimod's before/after against",
     )
     args = parser.parse_args(argv)

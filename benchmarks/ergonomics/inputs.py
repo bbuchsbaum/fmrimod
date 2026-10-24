@@ -9,8 +9,11 @@ used to make the data it is then asked to recover.
 
 from __future__ import annotations
 
+import json
+import tempfile
 from dataclasses import dataclass, field
 from math import gamma as gamma_fn
+from pathlib import Path
 
 import nibabel as nib
 import numpy as np
@@ -31,6 +34,9 @@ class Inputs:
     events: list[pd.DataFrame]
     confounds: list[pd.DataFrame] = field(default_factory=list)
     tr: float = TR
+    out_dir: Path = field(
+        default_factory=lambda: Path(tempfile.mkdtemp(prefix="fm-out-"))
+    )
 
     @property
     def img(self) -> nib.Nifti1Image:
@@ -174,3 +180,148 @@ def make_group_inputs(
 ) -> list[Inputs]:
     """One single-run :class:`Inputs` per subject, with independent noise."""
     return [make_inputs(seed=seed + s, **kwargs) for s in range(n_subjects)]
+
+
+@dataclass(frozen=True)
+class BidsInputs:
+    """A raw BIDS dataset with an fMRIPrep-style derivatives tree on disk."""
+
+    root: Path
+    task: str
+    space: str
+    subjects: tuple[str, ...]
+    mask_img: nib.Nifti1Image
+    derivatives: str = "derivatives/fmriprep"
+
+    @property
+    def mask(self) -> NDArray[np.bool_]:
+        return np.asarray(self.mask_img.dataobj).astype(bool)
+
+
+def make_bids_inputs(
+    root: Path | None = None,
+    *,
+    n_subjects: int = 3,
+    n_runs: int = 2,
+    task: str = "faces",
+    space: str = "MNI152NLin2009cAsym",
+    seed: int = 300,
+    **kwargs: object,
+) -> BidsInputs:
+    """Write ``n_subjects`` x ``n_runs`` synthetic runs as BIDS + fMRIPrep.
+
+    Raw tree: ``sub-XX/func/sub-XX_task-<task>_run-N_events.tsv``.
+    Derivatives: preprocessed BOLD, brain mask, a JSON sidecar with
+    ``RepetitionTime`` and a confounds TSV whose motion columns sit among
+    other fMRIPrep columns (with the ``n/a`` first row fMRIPrep writes for
+    derivative columns).
+    """
+    root = Path(root) if root is not None else Path(tempfile.mkdtemp(prefix="bids-"))
+    deriv = root / "derivatives" / "fmriprep"
+    (root / "dataset_description.json").write_text(
+        json.dumps({"Name": "synthetic", "BIDSVersion": "1.8.0"})
+    )
+    deriv.mkdir(parents=True, exist_ok=True)
+    (deriv / "dataset_description.json").write_text(
+        json.dumps(
+            {
+                "Name": "fMRIPrep",
+                "BIDSVersion": "1.8.0",
+                "DatasetType": "derivative",
+                "GeneratedBy": [{"Name": "fMRIPrep"}],
+            }
+        )
+    )
+    subjects = []
+    mask_img = None
+    for s in range(n_subjects):
+        sub = f"{s + 1:02d}"
+        subjects.append(sub)
+        inp = make_inputs(seed=seed + s, n_runs=n_runs, with_confounds=True, **kwargs)
+        mask_img = inp.mask_img
+        raw_func = root / f"sub-{sub}" / "func"
+        der_func = deriv / f"sub-{sub}" / "func"
+        raw_func.mkdir(parents=True, exist_ok=True)
+        der_func.mkdir(parents=True, exist_ok=True)
+        for r, (img, ev, conf) in enumerate(
+            zip(inp.imgs, inp.events, inp.confounds, strict=True), start=1
+        ):
+            stem = f"sub-{sub}_task-{task}_run-{r}"
+            ev.to_csv(raw_func / f"{stem}_events.tsv", sep="\t", index=False)
+            prefix = der_func / f"{stem}_space-{space}"
+            nib.save(img, f"{prefix}_desc-preproc_bold.nii.gz")
+            nib.save(inp.mask_img, f"{prefix}_desc-brain_mask.nii.gz")
+            (der_func / f"{stem}_space-{space}_desc-preproc_bold.json").write_text(
+                json.dumps({"RepetitionTime": TR, "SkullStripped": True})
+            )
+            table = conf.assign(
+                global_signal=np.linspace(0, 1, len(conf)),
+                framewise_displacement=np.r_[np.nan, np.full(len(conf) - 1, 0.1)],
+            )
+            table.to_csv(
+                der_func / f"{stem}_desc-confounds_timeseries.tsv",
+                sep="\t",
+                index=False,
+                na_rep="n/a",
+            )
+    assert mask_img is not None
+    return BidsInputs(
+        root=root, task=task, space=space, subjects=tuple(subjects), mask_img=mask_img
+    )
+
+
+@dataclass(frozen=True)
+class GroupMapInputs:
+    """Per-subject first-level effect maps on disk plus a participants table."""
+
+    paths: list[str]
+    participants: pd.DataFrame
+    mask_img: nib.Nifti1Image
+
+    @property
+    def mask(self) -> NDArray[np.bool_]:
+        return np.asarray(self.mask_img.dataobj).astype(bool)
+
+
+def make_group_map_inputs(
+    n_per_group: int = 10,
+    *,
+    shape: tuple[int, int, int] = (10, 10, 8),
+    seed: int = 500,
+) -> GroupMapInputs:
+    """Effect maps for two groups with an age effect, written as NIfTI files.
+
+    Active voxels (first half of the mask) carry a patient > control
+    difference of 0.8 and an age slope of 0.03 per year.
+    """
+    rng = np.random.default_rng(seed)
+    mask = np.zeros(shape, dtype=bool)
+    mask[1:-1, 1:-1, 1:-1] = True
+    n_vox = int(mask.sum())
+    active = np.arange(n_vox) < n_vox // 2
+    n = 2 * n_per_group
+    group = np.repeat(["control", "patient"], n_per_group)
+    age = rng.uniform(20, 70, n)
+    out = Path(tempfile.mkdtemp(prefix="group-maps-"))
+    affine = np.diag([3.0, 3.0, 3.0, 1.0])
+    paths = []
+    for i in range(n):
+        effect = 1.0 + 0.8 * (group[i] == "patient") + 0.03 * (age[i] - 45)
+        values = effect * active + rng.normal(scale=0.5, size=n_vox)
+        vol = np.zeros(shape, dtype=np.float32)
+        vol[mask] = values
+        path = out / f"sub-{i + 1:02d}_contrast-faceVsHouse_stat-effect.nii.gz"
+        nib.save(nib.Nifti1Image(vol, affine), path)
+        paths.append(str(path))
+    participants = pd.DataFrame(
+        {
+            "participant_id": [f"sub-{i + 1:02d}" for i in range(n)],
+            "group": group,
+            "age": age,
+        }
+    )
+    return GroupMapInputs(
+        paths=paths,
+        participants=participants,
+        mask_img=nib.Nifti1Image(mask.astype(np.uint8), affine),
+    )

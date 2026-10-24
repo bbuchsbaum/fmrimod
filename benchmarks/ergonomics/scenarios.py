@@ -27,8 +27,18 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
-from benchmarks.ergonomics.inputs import Inputs, make_group_inputs, make_inputs
+from benchmarks.ergonomics.inputs import (
+    MOTION,
+    BidsInputs,
+    GroupMapInputs,
+    Inputs,
+    make_bids_inputs,
+    make_group_inputs,
+    make_group_map_inputs,
+    make_inputs,
+)
 
 # --------------------------------------------------------------------------
 # S01  two-condition t contrast, one run
@@ -267,15 +277,15 @@ def fmrimod_lss_beta_series(inp: Inputs):
     import fmrimod as fm
     from fmrimod.spec import trialwise
 
-    ds = fm.fmri_dataset(
+    return fm.estimate_single_trial_from_dataset(
         inp.img,
-        mask=inp.mask_img,
+        trialwise(),
         tr=inp.tr,
         events=inp.events[0],
+        mask=inp.mask_img,
+        method="lss",
+        include_intercept=True,
         slice_timing_offset=0.0,  # parity-knob
-    )
-    return fm.estimate_single_trial_from_dataset(
-        ds, trialwise(), method="lss", include_intercept=True
     )
 
 
@@ -384,6 +394,162 @@ def nilearn_design_only(inp: Inputs):
 
 
 # --------------------------------------------------------------------------
+# S10  z-map written to NIfTI (Nilearn's default output is a z image)
+# --------------------------------------------------------------------------
+
+
+def fmrimod_zmap_to_nifti(inp: Inputs):
+    import fmrimod as fm
+    from fmrimod.spec import drift, hrf
+
+    fit = fm.fmri_lm(
+        hrf("trial_type") + drift(),
+        inp.img,
+        tr=inp.tr,
+        events=inp.events[0],
+        mask=inp.mask_img,
+        slice_timing_offset=0.0,  # parity-knob
+    )
+    path = inp.out_dir / "face_vs_house_z.nii.gz"
+    return fit.contrast("face - house").to_nifti(path, kind="z")
+
+
+def nilearn_zmap_to_nifti(inp: Inputs):
+    from nilearn.glm.first_level import FirstLevelModel
+
+    model = FirstLevelModel(
+        t_r=inp.tr,
+        mask_img=inp.mask_img,
+        hrf_model="spm",
+        noise_model="ols",  # parity-knob
+        high_pass=1 / 128,  # parity-knob
+        signal_scaling=False,  # parity-knob
+    )
+    model.fit(inp.img, events=inp.events[0])
+    path = inp.out_dir / "face_vs_house_z.nii.gz"
+    model.compute_contrast("face - house").to_filename(path)
+    return path
+
+
+# --------------------------------------------------------------------------
+# S11  a batch of named contrasts from one fit
+# --------------------------------------------------------------------------
+
+CONTRASTS = ("face", "house", "tool", "face - house", "face - tool", "house - tool")
+
+
+def fmrimod_many_contrasts(inp: Inputs):
+    import fmrimod as fm
+    from fmrimod.spec import drift, hrf
+
+    fit = fm.fmri_lm(
+        hrf("trial_type") + drift(),
+        inp.img,
+        tr=inp.tr,
+        events=inp.events[0],
+        mask=inp.mask_img,
+        slice_timing_offset=0.0,  # parity-knob
+    )
+    return {name: fit.contrast(name) for name in CONTRASTS}
+
+
+def nilearn_many_contrasts(inp: Inputs):
+    from nilearn.glm.first_level import FirstLevelModel
+
+    model = FirstLevelModel(
+        t_r=inp.tr,
+        mask_img=inp.mask_img,
+        hrf_model="spm",
+        noise_model="ols",  # parity-knob
+        high_pass=1 / 128,  # parity-knob
+        signal_scaling=False,  # parity-knob
+    )
+    model.fit(inp.img, events=inp.events[0])
+    return {
+        name: model.compute_contrast(name, output_type="stat") for name in CONTRASTS
+    }
+
+
+# --------------------------------------------------------------------------
+# S12  second level from effect maps on disk: two groups + age covariate
+# --------------------------------------------------------------------------
+
+
+def fmrimod_group_covariate(maps: GroupMapInputs):
+    import fmrimod as fm
+
+    result = fm.fmri_group_lm(
+        maps.paths,
+        formula="~ group + age",
+        covariates=maps.participants,
+        mask=maps.mask_img,  # parity-knob
+    )
+    return result.t_stat("group[T.patient]")
+
+
+def nilearn_group_covariate(maps: GroupMapInputs):
+    from nilearn.glm.second_level import SecondLevelModel
+
+    table = maps.participants
+    design = pd.DataFrame(
+        {
+            "intercept": 1.0,
+            "patient": (table["group"] == "patient").astype(float),
+            "age": table["age"] - table["age"].mean(),
+        }
+    )
+    model = SecondLevelModel(mask_img=maps.mask_img)  # parity-knob
+    model.fit(maps.paths, design_matrix=design)
+    return model.compute_contrast("patient", output_type="stat")
+
+
+# --------------------------------------------------------------------------
+# S13  first level for every subject of a BIDS + fMRIPrep dataset
+# --------------------------------------------------------------------------
+
+
+def fmrimod_bids_first_level(bids: BidsInputs):
+    import fmrimod as fm
+    from fmrimod.spec import confounds, drift, hrf
+
+    datasets = fm.bids_datasets(
+        bids.root,
+        bids.task,
+        space=bids.space,
+        slice_timing_offset=0.0,  # parity-knob
+    )
+    spec = hrf("trial_type") + confounds(*MOTION) + drift()
+    return {
+        sub: fm.fmri_lm(spec, ds).contrast("face - house")
+        for sub, ds in datasets.items()
+    }
+
+
+def nilearn_bids_first_level(bids: BidsInputs):
+    from nilearn.glm.first_level import first_level_from_bids
+
+    models, imgs, events, confounds = first_level_from_bids(
+        bids.root,
+        bids.task,
+        space_label=bids.space,
+        derivatives_folder=bids.derivatives,
+        img_filters=[("desc", "preproc")],
+        hrf_model="spm",
+        mask_img=bids.mask_img,  # parity-knob
+        noise_model="ols",  # parity-knob
+        high_pass=1 / 128,  # parity-knob
+        signal_scaling=False,  # parity-knob
+    )
+    maps = {}
+    for model, img, ev, conf in zip(models, imgs, events, confounds):  # noqa: B905
+        model.fit(img, events=ev, confounds=[c[list(MOTION)] for c in conf])
+        maps[model.subject_label] = model.compute_contrast(
+            "face - house", output_type="stat"
+        )
+    return maps
+
+
+# --------------------------------------------------------------------------
 # Unmeasured adapters: natural result -> masked float array
 # --------------------------------------------------------------------------
 
@@ -424,6 +590,44 @@ def extract_fmrimod_design(result: Any, inp: Inputs) -> np.ndarray:
 
 def extract_nilearn_design(result: Any, inp: Inputs) -> np.ndarray:
     return np.asarray(result[["face", "house"]], dtype=np.float64).ravel()
+
+
+def extract_fmrimod_zmap(result: Any, inp: Inputs) -> np.ndarray:
+    import nibabel as nib
+
+    return _masked(nib.load(result), inp)
+
+
+extract_nilearn_zmap = extract_fmrimod_zmap
+
+
+def extract_fmrimod_many(result: Any, inp: Inputs) -> np.ndarray:
+    return np.concatenate([np.asarray(result[c].stat).ravel() for c in CONTRASTS])
+
+
+def extract_nilearn_many(result: Any, inp: Inputs) -> np.ndarray:
+    return np.concatenate([_masked(result[c], inp) for c in CONTRASTS])
+
+
+def extract_fmrimod_group_map(result: Any, maps: GroupMapInputs) -> np.ndarray:
+    if hasattr(result, "get_fdata"):
+        return np.asarray(result.get_fdata(), dtype=np.float64)[maps.mask]
+    return np.asarray(result, dtype=np.float64).ravel()
+
+
+extract_nilearn_group_map = extract_fmrimod_group_map
+
+
+def extract_fmrimod_bids(result: Any, bids: BidsInputs) -> np.ndarray:
+    return np.concatenate(
+        [np.asarray(result[s].stat, dtype=np.float64).ravel() for s in bids.subjects]
+    )
+
+
+def extract_nilearn_bids(result: Any, bids: BidsInputs) -> np.ndarray:
+    return np.concatenate(
+        [np.asarray(result[s].get_fdata())[bids.mask] for s in bids.subjects]
+    )
 
 
 # --------------------------------------------------------------------------
@@ -535,9 +739,6 @@ SCENARIOS: tuple[Scenario, ...] = (
         extract_fmrimod_lss,
         extract_nilearn_lss,
         0.995,
-        notes=(
-            "Single-trial estimation has no image shorthand: unlike `fmri_lm`, `estimate_single_trial_from_dataset` needs an explicit `fmri_dataset(...)` first.",
-        ),
     ),
     Scenario(
         "s08_group_one_sample",
@@ -560,6 +761,55 @@ SCENARIOS: tuple[Scenario, ...] = (
         0.999,
         notes=(
             "Column names repeat the term (`trial_type_trial_type.face`, `base_cosine1_block_1`) where Nilearn uses `face`, `drift_1`. Deferred: renaming is a public-contract change (parity receipts, BIDS export).",
+        ),
+    ),
+    Scenario(
+        "s10_zmap_to_nifti",
+        "z-map of a t contrast written to NIfTI",
+        fmrimod_zmap_to_nifti,
+        nilearn_zmap_to_nifti,
+        lambda: make_inputs(seed=10),
+        extract_fmrimod_zmap,
+        extract_nilearn_zmap,
+        0.999,
+        notes=(
+            'Remaining gap is the Nilearn default: `compute_contrast(...)` returns a z image, while fmrimod returns a `ContrastResult` and z is one explicit `kind="z"` away (`.z` / `to_nifti(path, kind="z")`).',
+        ),
+    ),
+    Scenario(
+        "s11_many_contrasts",
+        "Six named contrasts from one fit",
+        fmrimod_many_contrasts,
+        nilearn_many_contrasts,
+        lambda: make_inputs(seed=11, conditions=("face", "house", "tool"), spacing=9.0),
+        extract_fmrimod_many,
+        extract_nilearn_many,
+        0.999,
+    ),
+    Scenario(
+        "s12_group_covariate",
+        "Second level from effect maps on disk: group + age",
+        fmrimod_group_covariate,
+        nilearn_group_covariate,
+        make_group_map_inputs,
+        extract_fmrimod_group_map,
+        extract_nilearn_group_map,
+        0.999,
+        notes=(
+            "Formula predictors use treatment-coded names (`group[T.patient]`), not the plain column name a hand-built Nilearn design gives you.",
+        ),
+    ),
+    Scenario(
+        "s13_bids_first_level",
+        "First level for every subject of a BIDS + fMRIPrep dataset",
+        fmrimod_bids_first_level,
+        nilearn_bids_first_level,
+        lambda: make_bids_inputs(n_subjects=3, shape=(8, 8, 6), n_scans=120),
+        extract_fmrimod_bids,
+        extract_nilearn_bids,
+        0.999,
+        notes=(
+            "`fm.bids_datasets` covers the fMRIPrep first-level layout only (preproc BOLD, events, sidecar TR, brain mask, confounds); no BIDS Stats Model or pybids query language.",
         ),
     ),
 )
