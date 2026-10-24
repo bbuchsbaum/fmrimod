@@ -276,8 +276,13 @@ def _build_subject_dataset(
         event_frame = _read_frame(scan_group, "events") if row["has_events"] else None
         if event_frame is not None and len(event_frame) > 0:
             event_frame = event_frame.copy()
-            event_frame["run"] = row["run"]
+            # The BIDS ``run`` entity is a within-session label (two sessions
+            # can both hold run-1), so the ``run`` column that ``fmri_lm``
+            # picks as the block is the scan's 1-based position; the label is
+            # kept as ``bids_run`` (R 52439b2, ADR-004).
+            event_frame["run"] = run_id
             event_frame["run_id"] = run_id
+            event_frame["bids_run"] = row["run"]
             event_frame["subject_id"] = subject_id
             event_frame["task"] = row["task"]
             if row["session"]:
