@@ -25,6 +25,35 @@ def _rss_needs_direct_residual(
     return cast("NDArray[np.bool_]", rss <= threshold)
 
 
+def _lean_rss(
+    X: NDArray[np.float64],
+    Y: NDArray[np.float64],
+    betas: NDArray[np.float64],
+    proj: Projection,
+) -> NDArray[np.float64]:
+    """RSS of a full-rank fit without forming the ``(n, V)`` residuals.
+
+    With the QR basis this is ``y'y - ||Q'y||^2`` (the exact RSS of the same
+    factor that produced the betas). On the Cholesky path it is
+    ``y'y - b'X'y`` with ``X'y`` formed from the data: substituting
+    ``X'X b`` for ``X'y`` would let any error in ``b`` leak into the RSS.
+    Voxels where the difference cancels are recomputed from residuals.
+    """
+    yTy = np.sum(Y * Y, axis=0)
+    if proj.Q is not None:
+        QtY = proj.Q.T @ Y
+        fitted_ss = np.sum(QtY * QtY, axis=0)
+    else:
+        fitted_ss = np.einsum("ij,ij->j", betas, X.T @ Y)
+    rss = yTy - fitted_ss
+    unstable = _rss_needs_direct_residual(rss, yTy, fitted_ss)
+    if np.any(unstable):
+        residuals = Y[:, unstable] - X @ betas[:, unstable]
+        rss = rss.copy()
+        rss[unstable] = np.sum(residuals ** 2, axis=0)
+    return cast("NDArray[np.float64]", np.maximum(rss, 0.0))
+
+
 def _resolve_compute_dtype(dtype: object) -> "np.dtype[Any]":
     """Normalize and validate solver compute dtype."""
     dt = np.dtype(cast(Any, dtype))
@@ -58,8 +87,14 @@ class Projection:
         Whether the design was routed through the SVD path due rank
         deficiency or poor conditioning.
     XtX : NDArray or None
-        Optional cached Gram matrix ``X'X`` used by fast RSS evaluation.
-        Present for stable full-rank projections.
+        Optional cached Gram matrix ``X'X`` (used to pool runs). Present for
+        stable full-rank projections.
+    aliased_indices : tuple of int
+        Columns the pivoted QR treats as linearly dependent on the others.
+    Q : NDArray or None
+        Orthonormal basis of the column space, shape ``(n, p)``, from the
+        pivoted QR that solved a full-rank design outside the Cholesky fast
+        path. :func:`fast_lm_matrix` takes the RSS from it.
     """
 
     Pinv: NDArray[np.float64]
@@ -70,6 +105,7 @@ class Projection:
     ill_conditioned: bool
     XtX: Optional[NDArray[np.float64]] = None
     aliased_indices: tuple[int, ...] = ()
+    Q: NDArray[np.float64] | None = None
 
 
 @dataclass(frozen=True)
@@ -141,8 +177,11 @@ def fast_preproject(
     This computes the components needed to solve ``Y = X @ B + E``
     efficiently for many columns of ``Y`` simultaneously.
 
-    For full-rank X, uses Cholesky decomposition of X'X.
-    For rank-deficient X, falls back to SVD-based pseudoinverse.
+    A well-conditioned full-rank X (``cond(X) <= eps**-0.25``, about 1e4 in
+    float64) uses the Cholesky decomposition of ``X'X``. Any other full-rank
+    X is solved from a pivoted QR of X itself, whose error grows with
+    ``cond(X)`` rather than ``cond(X)**2`` (fmrireg a369e95). Rank-deficient
+    or numerically singular X falls back to an SVD-based pseudoinverse.
 
     Parameters
     ----------
@@ -194,10 +233,14 @@ def fast_preproject(
         )
 
     cond_threshold = 1.0 / np.sqrt(eps)
+    # The normal equations lose digits like cond(X)**2: keep the Cholesky
+    # fast path only while that error stays below sqrt(eps).
+    cholesky_cond_threshold = eps ** -0.25
     used_cholesky = False
     ill_conditioned = False
     rank = p
     XtX_cached: Optional[NDArray[np.float64]] = None
+    Q_basis: NDArray[np.float64] | None = None
 
     # Fast path: attempt full-rank Cholesky first.
     try:
@@ -205,7 +248,7 @@ def fast_preproject(
         L = linalg.cholesky(XtX, lower=True, check_finite=False)
         cond_xtx = np.linalg.cond(XtX) if p > 0 else 1.0
         cond_est = np.sqrt(cond_xtx) if np.isfinite(cond_xtx) else np.inf
-        if np.isfinite(cond_est) and cond_est <= cond_threshold:
+        if np.isfinite(cond_est) and cond_est <= cholesky_cond_threshold:
             XtXinv = linalg.cho_solve(
                 (L, True),
                 np.eye(p, dtype=dtype),
@@ -219,10 +262,10 @@ def fast_preproject(
 
     aliased_indices: tuple[int, ...] = ()
     if not used_cholesky:
-        # Fallback: rank-revealing QR + SVD when needed. The QR pivot tells
-        # us which columns the decomposition treats as redundant — used
-        # below to surface aliased-column names in the rank diagnostic.
-        _Q, R, pivot = linalg.qr(X, pivoting=True, mode="economic", check_finite=False)
+        # Rank-revealing pivoted QR. The pivot tells us which columns the
+        # decomposition treats as redundant (surfaced in the rank
+        # diagnostic); a full-rank design is solved from the same factor.
+        Q, R, pivot = linalg.qr(X, pivoting=True, mode="economic", check_finite=False)
 
         diag_R = np.abs(np.diag(R))
         tol = max(n, p) * eps * (
@@ -255,16 +298,18 @@ def fast_preproject(
             # XtXinv = V @ diag(1/s^2) @ V'
             XtXinv = (Vt.T * (s_inv ** 2)[np.newaxis, :]) @ Vt
         else:
+            # X[:, pivot] = Q R, so Pinv[pivot] = R^-1 Q' and
+            # XtXinv[pivot][:, pivot] = R^-1 R^-T.
             ill_conditioned = False
-            XtX = X.T @ X
-            L = linalg.cholesky(XtX, lower=True, check_finite=False)
-            XtXinv = linalg.cho_solve(
-                (L, True),
-                np.eye(p, dtype=dtype),
-                check_finite=False,
+            R_inv = linalg.solve_triangular(
+                R[:p, :p], np.eye(p, dtype=dtype), check_finite=False
             )
-            Pinv = XtXinv @ X.T
-            XtX_cached = XtX
+            Pinv = np.empty((p, n), dtype=dtype)
+            Pinv[pivot] = R_inv @ Q.T
+            XtXinv = np.empty((p, p), dtype=dtype)
+            XtXinv[np.ix_(pivot, pivot)] = R_inv @ R_inv.T
+            XtX_cached = X.T @ X
+            Q_basis = Q
 
     return Projection(
         Pinv=Pinv,
@@ -281,6 +326,7 @@ def fast_preproject(
         ill_conditioned=ill_conditioned,
         XtX=XtX_cached,
         aliased_indices=aliased_indices,
+        Q=Q_basis,
     )
 
 
@@ -384,20 +430,7 @@ def fast_lm_matrix(
         )
     else:
         # Memory-efficient: compute RSS without materialising residuals.
-        # RSS = Y'Y - B' X'Y
-        if proj.XtX is not None:
-            XtY = proj.XtX @ betas
-        else:
-            XtY = X.T @ Y
-        yTy = np.sum(Y * Y, axis=0)
-        fitted_ss = np.einsum("ij,ij->j", betas, XtY)
-        rss = yTy - fitted_ss
-        unstable = _rss_needs_direct_residual(rss, yTy, fitted_ss)
-        if np.any(unstable):
-            residuals = Y[:, unstable] - X @ betas[:, unstable]
-            rss = rss.copy()
-            rss[unstable] = np.sum(residuals ** 2, axis=0)
-        rss = np.maximum(rss, 0.0)
+        rss = _lean_rss(X, Y, betas, proj)
         fitted = None
 
     sigma2 = rss / proj.dfres if proj.dfres > 0 else np.full_like(rss, np.nan)

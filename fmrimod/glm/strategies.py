@@ -28,7 +28,7 @@ from .preprocess import (
 from .solver import (
     LmResult,
     Projection,
-    _rss_needs_direct_residual,
+    _lean_rss,
     fast_lm_matrix,
     fast_preproject,
 )
@@ -662,19 +662,11 @@ def _fit_chunked_lm(
     ]:
         y_chunk = Y_fit[:, start:end]
         beta_chunk = proj.Pinv @ y_chunk
-        if proj.XtX is not None:
-            xty_chunk = proj.XtX @ beta_chunk
+        if proj.is_full_rank and not proj.ill_conditioned:
+            rss_chunk = _lean_rss(X_fit, y_chunk, beta_chunk, proj)
         else:
-            xty_chunk = X_fit.T @ y_chunk
-        yty_chunk = np.sum(y_chunk * y_chunk, axis=0)
-        fitted_ss = np.einsum("ij,ij->j", beta_chunk, xty_chunk)
-        rss_chunk = yty_chunk - fitted_ss
-        unstable = _rss_needs_direct_residual(rss_chunk, yty_chunk, fitted_ss)
-        if np.any(unstable):
-            residuals = y_chunk[:, unstable] - X_fit @ beta_chunk[:, unstable]
-            rss_chunk = rss_chunk.copy()
-            rss_chunk[unstable] = np.sum(residuals ** 2, axis=0)
-        rss_chunk = np.maximum(rss_chunk, 0.0)
+            residuals = y_chunk - X_fit @ beta_chunk
+            rss_chunk = np.sum(residuals ** 2, axis=0)
         sigma2_chunk = (
             rss_chunk / proj.dfres if proj.dfres > 0 else np.full_like(rss_chunk, np.nan)
         )
