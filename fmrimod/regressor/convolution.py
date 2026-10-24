@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import warnings
+from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
 import scipy.signal
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 
 from ..hrf import HRF
 from ..utils.cache import cached_hrf_eval
@@ -289,6 +290,37 @@ def _convolve(
     )
 
 
+@dataclass
+class _SupportHRF(HRF):
+    """``base`` truncated to the finite kernel support ``[0, span]``.
+
+    The conv engine samples each kernel on ``0..span`` only. The per-event
+    path must use the same finite kernel, and must truncate *before* block
+    integration: a block near the end of the span mixes supported and
+    unsupported lags (R ``eval_loop`` ``bounded()``, fmrihrf ``daca7ba``).
+    """
+
+    name: str = ""
+    nbasis: int = 1
+    span: float = 24.0
+    base: HRF | None = None
+
+    def __post_init__(self) -> None:
+        if self.base is None:
+            raise ValueError("_SupportHRF requires `base`")
+        self.name = self.base.name
+        self.nbasis = self.base.nbasis
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        assert self.base is not None  # for type checkers; __post_init__ guarantees
+        t = np.asarray(t, dtype=np.float64)
+        values = np.array(self.base(t), dtype=np.float64)
+        outside = (t < 0) | (t > self.span)
+        if np.any(outside):
+            values[outside] = 0.0
+        return values
+
+
 def convolve_hrf_per_event(
     grid: NDArray[np.float64],
     onsets: NDArray[np.float64],
@@ -310,7 +342,7 @@ def convolve_hrf_per_event(
         durations: Per-event durations.
         amplitudes: Per-event amplitudes.
         hrfs: List of HRF objects, one per event.
-        span: Maximum HRF span.
+        span: Kernel support; every HRF is truncated to ``[0, span]``.
         precision: Fine-grid resolution.
         summate: Sum overlapping responses if True.
 
@@ -331,9 +363,11 @@ def convolve_hrf_per_event(
         if not np.any(mask):
             continue
 
-        # Evaluate the HRF at relative times for the affected grid points
+        # Evaluate the span-truncated HRF at relative times for the affected
+        # grid points, so a block integrates the same finite kernel the conv
+        # path samples.
         t_eval = rel_times[mask]
-        hrf_vals = hrf.evaluate(
+        hrf_vals = _SupportHRF(base=hrf, span=span).evaluate(
             t_eval, duration=dur, precision=precision, summate=summate
         )
 
