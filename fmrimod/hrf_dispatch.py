@@ -425,7 +425,8 @@ def weighted_hrf_gen(
             w = np.asarray(weights, dtype=np.float64)
             if normalize:
                 if method == "constant":
-                    denom = float(np.sum(w[:-1]))
+                    # Every weight covers its own bin (fmrihrf 18d418f).
+                    denom = float(np.sum(w))
                     if abs(denom) > 1e-10:
                         w = w / denom
                 else:  # linear

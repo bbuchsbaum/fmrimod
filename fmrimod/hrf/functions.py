@@ -891,6 +891,31 @@ def boxcar_hrf(
     return np.where((t >= 0) & (t < width), amplitude, 0.0)
 
 
+def _weighted_times(
+    n_weights: int, width: float, method: str
+) -> NDArray[np.float64]:
+    """Times of ``n_weights`` weights spread over ``width`` (R ``hrf_weighted``).
+
+    ``"constant"`` splits ``[0, width)`` into ``n_weights`` equal bins and
+    returns their starts; ``"linear"`` places the weights at evenly spaced
+    points from 0 to ``width``.
+    """
+    if method == "constant":
+        return np.linspace(0.0, float(width), n_weights + 1)[:-1]
+    return np.linspace(0.0, float(width), n_weights)
+
+
+def _weighted_edges(times: ArrayLike) -> NDArray[np.float64]:
+    """Right-open bin edges of the ``"constant"`` method.
+
+    Weight ``i`` covers ``[times[i], times[i + 1])`` and the last bin is as
+    wide as the one before it, so with ``width`` the window closes exactly at
+    ``width``.
+    """
+    times_arr = np.asarray(times, dtype=np.float64)
+    return np.append(times_arr, times_arr[-1] + (times_arr[-1] - times_arr[-2]))
+
+
 def weighted_hrf(
     t: ArrayLike,
     weights: Sequence[float],
@@ -904,8 +929,15 @@ def weighted_hrf(
     Creates a flexible HRF that maps weights to time points with no
     built-in hemodynamic delay.  Two specification modes are supported:
 
-    * ``width + weights``: weights are evenly spaced from 0 to *width*.
-    * ``times + weights``: explicit time points for each weight.
+    * ``width + weights``: with ``"constant"`` the weights fill ``n`` equal
+      bins covering ``[0, width)``; with ``"linear"`` they sit at evenly
+      spaced points from 0 to *width*.
+    * ``times + weights``: explicit time points for each weight. With
+      ``"constant"`` weight ``i`` covers ``[times[i], times[i + 1])`` and the
+      last bin is as wide as the one before it.
+
+    Constant bins are right-open, so the end of the window carries no stray
+    sample.
 
     Args:
         t: Time points in seconds at which to evaluate.
@@ -943,7 +975,7 @@ def weighted_hrf(
     elif width is not None:
         if width <= 0:
             raise ValueError("`width` must be positive.")
-        times_arr = np.linspace(0, width, len(weights_arr))
+        times_arr = _weighted_times(len(weights_arr), width, method)
     else:
         raise ValueError("Either `width` or `times` must be provided.")
 
@@ -953,11 +985,16 @@ def weighted_hrf(
             "scale weights explicitly or use normalize(weighted_generator(...), mode)."
         )
 
-    # Build interpolation function and evaluate
     t = np.asarray(t, dtype=np.float64)
-    kind = "zero" if method == "constant" else "linear"
+    if method == "constant":
+        # Weight i on [edges[i], edges[i + 1]); zero outside (NaN -> 0).
+        idx = np.searchsorted(_weighted_edges(times_arr), t, side="right") - 1
+        inside = (idx >= 0) & (idx < len(weights_arr))
+        values = weights_arr[np.clip(idx, 0, len(weights_arr) - 1)]
+        return np.where(inside, values, 0.0)
+
     interp_func = interpolate.interp1d(
-        times_arr, weights_arr, kind=kind, bounds_error=False, fill_value=0.0
+        times_arr, weights_arr, kind="linear", bounds_error=False, fill_value=0.0
     )
     result = interp_func(t)
     # Ensure zero outside the domain
