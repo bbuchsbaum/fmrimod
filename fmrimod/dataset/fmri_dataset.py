@@ -13,7 +13,7 @@ import pandas as pd
 from numpy.typing import NDArray
 
 from ..sampling import SamplingFrame
-from .backend_protocol import BackendDims
+from .backend_protocol import BackendDims, _normalize_indices
 from .protocols import DatasetProtocol
 
 
@@ -66,10 +66,12 @@ class FmriDataset:
         """
         if rows is not None or cols is not None:
             mat = self.get_all_data()
-            if rows is not None:
-                mat = mat[np.asarray(rows, dtype=np.intp), :]
-            if cols is not None:
-                mat = mat[:, np.asarray(cols, dtype=np.intp)]
+            row_idx = _normalize_indices(rows, mat.shape[0], "rows")
+            col_idx = _normalize_indices(cols, mat.shape[1], "cols")
+            if row_idx is not None:
+                mat = mat[row_idx, :]
+            if col_idx is not None:
+                mat = mat[:, col_idx]
             return mat
         if run is None:
             return self.get_all_data()

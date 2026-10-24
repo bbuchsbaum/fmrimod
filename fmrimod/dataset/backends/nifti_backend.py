@@ -9,7 +9,11 @@ from typing import Any, cast
 import numpy as np
 from numpy.typing import NDArray
 
-from fmrimod.dataset.backend_protocol import BackendDims, StorageBackend
+from fmrimod.dataset.backend_protocol import (
+    BackendDims,
+    StorageBackend,
+    _normalize_indices,
+)
 from fmrimod.dataset.errors import BackendIOError, ConfigError
 
 
@@ -21,30 +25,6 @@ def _as_paths(source: str | Path | Sequence[str | Path]) -> list[Path]:
     if not paths:
         raise ConfigError("source must contain at least one path", parameter="source")
     return paths
-
-
-def _normalize_indices(
-    indices: NDArray[np.intp] | Sequence[int] | int | None,
-    upper: int,
-    name: str,
-) -> NDArray[np.intp]:
-    if indices is None:
-        return np.arange(upper, dtype=np.intp)
-
-    arr = np.atleast_1d(np.asarray(indices))
-    if arr.dtype == np.bool_:
-        if arr.size != upper:
-            raise ValueError(
-                f"{name} boolean mask length ({arr.size}) must equal {upper}"
-            )
-        arr = np.nonzero(arr)[0]
-    elif not np.issubdtype(arr.dtype, np.integer):
-        raise ValueError(f"{name} indices must be integers")
-
-    out = arr.astype(np.intp, copy=False)
-    if np.any(out < 0) or np.any(out >= upper):
-        raise ValueError(f"{name} indices must be within [0, {upper - 1}]")
-    return cast("NDArray[np.intp]", out)
 
 
 class NiftiBackend(StorageBackend):
@@ -153,11 +133,11 @@ class NiftiBackend(StorageBackend):
 
         data = self._data
         assert self._dims is not None and self._mask_vec is not None
-        if rows is not None:
-            row_idx = _normalize_indices(rows, self._dims.time, "rows")
+        row_idx = _normalize_indices(rows, self._dims.time, "rows")
+        col_idx = _normalize_indices(cols, int(self._mask_vec.sum()), "cols")
+        if row_idx is not None:
             data = data[row_idx, :]
-        if cols is not None:
-            col_idx = _normalize_indices(cols, int(self._mask_vec.sum()), "cols")
+        if col_idx is not None:
             data = data[:, col_idx]
         return np.asarray(data, dtype=np.float64)
 
@@ -181,8 +161,13 @@ class NiftiBackend(StorageBackend):
         if self._mask_vec is None or self._dims is None:
             raise BackendIOError("Backend not opened", operation="read")
 
+        n_cols = int(self._mask_vec.sum())
         row_idx = _normalize_indices(rows, self._dims.time, "rows")
-        col_idx = _normalize_indices(cols, int(self._mask_vec.sum()), "cols")
+        if row_idx is None:
+            row_idx = np.arange(self._dims.time, dtype=np.intp)
+        col_idx = _normalize_indices(cols, n_cols, "cols")
+        if col_idx is None:
+            col_idx = np.arange(n_cols, dtype=np.intp)
         voxel_idx = np.flatnonzero(self._mask_vec)[col_idx]
         result = np.empty((len(row_idx), len(voxel_idx)), dtype=np.float64)
 

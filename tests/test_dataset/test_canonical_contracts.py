@@ -86,6 +86,42 @@ def test_get_data_uses_rows_cols_matrix_slicing() -> None:
     )
 
 
+def test_boolean_selectors_act_as_masks() -> None:
+    """Logical row/column selectors are masks, not 0/1 positions.
+
+    R ``ec6efd3`` (ADR-010 selection algebra, ``R/axis-selection.R``): a
+    logical selector must match the axis length and act as a mask; numeric
+    positions must be whole.
+    """
+    mat = np.arange(40, dtype=np.float64).reshape(8, 5)
+    ds = dataset.matrix_dataset(mat, tr=2.0)
+    keep_rows = np.zeros(8, dtype=bool)
+    keep_rows[[5, 7]] = True
+    keep_cols = np.array([False, True, False, False, True])
+
+    np.testing.assert_array_equal(
+        ds.get_data(rows=keep_rows), ds.get_data(rows=[5, 7])
+    )
+    np.testing.assert_array_equal(
+        ds.get_data(cols=keep_cols), ds.get_data(cols=[1, 4])
+    )
+    backend = ds.storage_backend
+    np.testing.assert_array_equal(
+        backend.get_data(rows=keep_rows), mat[[5, 7]]
+    )
+    np.testing.assert_array_equal(
+        backend.get_data(cols=keep_cols), mat[:, [1, 4]]
+    )
+    with pytest.raises(ValueError, match="boolean mask length"):
+        ds.get_data(rows=keep_rows[:4])
+    with pytest.raises(ValueError, match="integers"):
+        ds.get_data(rows=np.array([2.7]))
+    with pytest.raises(ValueError, match="integers"):
+        backend.get_data(rows=np.array([2.7]))
+    # Python's negative-index and repeat semantics are kept.
+    np.testing.assert_array_equal(ds.get_data(rows=[-1, -1]), mat[[7, 7]])
+
+
 def test_run_access_uses_explicit_method() -> None:
     mat = np.arange(40, dtype=np.float64).reshape(20, 2)
     ds = fm.matrix_dataset(mat, tr=2.0, run_length=[8, 12])

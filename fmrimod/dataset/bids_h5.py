@@ -14,6 +14,7 @@ from numpy.typing import NDArray
 
 from fmrimod.sampling import SamplingFrame
 
+from .backend_protocol import _normalize_indices
 from .backends.bids_h5_backend import (
     BidsH5ScanBackend,
     CompressionMode,
@@ -352,10 +353,12 @@ class BidsH5StudyDataset:
         cols: NDArray[np.intp] | None = None,
     ) -> NDArray[np.float64]:
         data = np.vstack([dataset.get_data_matrix() for dataset in self.datasets])
-        if rows is not None:
-            data = data[np.asarray(rows, dtype=np.intp), :]
-        if cols is not None:
-            data = data[:, np.asarray(cols, dtype=np.intp)]
+        row_idx = _normalize_indices(rows, data.shape[0], "rows")
+        col_idx = _normalize_indices(cols, data.shape[1], "cols")
+        if row_idx is not None:
+            data = data[row_idx, :]
+        if col_idx is not None:
+            data = data[:, col_idx]
         return data
 
     def get_data(
@@ -470,10 +473,12 @@ class BidsH5StudyDataset:
                 dtype=np.float64,
             )
             data = data + offset[np.newaxis, :]
-        if rows is not None:
-            data = data[np.asarray(rows, dtype=np.intp), :]
-        if voxels is not None:
-            data = data[:, np.asarray(voxels, dtype=np.intp)]
+        row_idx = _normalize_indices(rows, data.shape[0], "rows")
+        voxel_idx = _normalize_indices(voxels, data.shape[1], "voxels")
+        if row_idx is not None:
+            data = data[row_idx, :]
+        if voxel_idx is not None:
+            data = data[:, voxel_idx]
         return data
 
     def encoding_info(self) -> dict[str, object] | None:
