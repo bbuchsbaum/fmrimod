@@ -6,6 +6,7 @@ Provides Yule-Walker estimation of AR coefficients, either globally
 
 from __future__ import annotations
 
+import numbers
 from typing import Any, Optional, cast
 import warnings
 
@@ -357,7 +358,9 @@ def fit_noise(
     method : str
         ``"ar"`` or ``"arma"``.
     p : int or ``"auto"``
-        AR order (``"auto"`` triggers BIC selection for AR).
+        AR order (``"auto"`` triggers BIC selection for AR). An explicit
+        order must be a non-negative whole number and is honoured even
+        when it exceeds ``p_max``.
     q : int
         MA order (only used when ``method="arma"``).
     p_max : int
@@ -446,6 +449,21 @@ def fit_noise(
         )
     if exact_first not in ("ar1", "none"):
         exact_first = "ar1" if exact_first else "none"
+    if not (isinstance(p, str) and p == "auto"):
+        if (
+            isinstance(p, (bool, np.bool_))
+            or not isinstance(p, numbers.Real)
+            or not np.isfinite(p)
+            or p < 0
+            or p != int(p)
+        ):
+            raise ValueError(
+                "'p' must be \"auto\" or a single non-negative whole number"
+            )
+        p = int(p)
+        # An explicit order is honoured as given; p_max bounds only the
+        # automatic search (fmriAR 617bd87).
+        p_max = max(int(p_max), p)
 
     # Resolve multiscale mode
     ms_modes = ("pacf_weighted", "acvf_pooled")
