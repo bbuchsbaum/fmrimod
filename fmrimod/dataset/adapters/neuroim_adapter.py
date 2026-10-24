@@ -51,6 +51,14 @@ def _extract_4d(vec: object) -> NDArray:
     return np.asarray(cast(Any, vec)[:])
 
 
+def _require_same_space(ref: Any, other: Any, what: str) -> None:
+    """Raise ``ValueError`` naming ``what`` unless ``other`` matches ``ref``'s grid."""
+    try:
+        ref.compatible_with(other)
+    except ValueError as exc:
+        raise ValueError(f"{what} is not in run 0's spatial space: {exc}") from exc
+
+
 class NeuroVecAdapter:
     """Adapt ``neuroim.NeuroVec`` instances to :class:`DatasetProtocol`.
 
@@ -124,6 +132,10 @@ class NeuroVecAdapter:
                     f"Run {i} spatial shape {other} != run 0 spatial shape "
                     f"{spatial_shape}"
                 )
+            # Spatial identity is the space, not the shape (fmridataset 7cb121e).
+            _require_same_space(first.space, v.space, f"Run {i}")
+        if _is_neurovol(mask):
+            _require_same_space(first.space, cast(Any, mask).space, "Mask")
 
         self._mask = self._resolve_mask(mask)
         if self._mask.shape != spatial_shape:
