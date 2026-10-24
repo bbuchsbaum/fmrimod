@@ -240,7 +240,7 @@ snapshot of `4f14a19`, so their status column is not edited.
 | Lane | Rows fixed | Commits | Left open |
 | --- | --- | --- | --- |
 | 1a Noise model | AR-01 to AR-12; the AR part of REG-A-07 | `10d528c`..`241adf4` | none |
-| 1b First-level AR routing | in progress | | REG-A-02, REG-A-03, REG-A-04, REG-A-12 |
+| 1b First-level AR routing | REG-A-02, REG-A-03, REG-A-04, REG-A-12; `fmri_lm` AR now runs through `fit_noise` / `whiten_apply` | `f0d99b1`..`8753bd1` | REG-A-14 (ARMA, wave 2) |
 | 1c First-level composition and numerics | REG-A-01, REG-A-05 to REG-A-11, REG-B-06, REG-B-07 | `6926e95`..`0827a57` | REG-A-13 (D4) |
 | 1d HRF | HRF-01 to HRF-05, HRF-07, HRF-08; also the FIR basis end-of-span defect (same root as HRF-02) | `e61683a`..`1e74d43` | none |
 | 1e Design and contrasts | DES-01 to DES-09 | `e5756be`..`7ad6c03` | DES-10 (D3) |
@@ -265,6 +265,16 @@ Partly fixed rows:
 - **DS-02**: subjects are routed by voxel id through each subject's mask;
   the emitted space stays `SampleLabelSpace` (the `VoxelSpace` part is S2).
 
+First-level AR (lane 1b) keeps fmrimod's scrub semantics for censored
+volumes (decision D4) and differs from R in three places, recorded in its
+commits: zero-weight volumes are left out of the AR residual df (R uses
+n - rank), global phi is estimated from the preprocessed residuals (R uses
+raw OLS residuals), and `reestimate_phi` with global pooling is refused
+(R ignores it). The older public `fmrimod.ar.iterative_ar_gls` is
+untouched apart from following the new `AROptions.pooling` default; it
+still re-reads raw run data (decision D9, and REG-A-14 proposes routing
+ARMA through it).
+
 Also fixed while integrating: the top-level `fmrimod.matrix_dataset`
 facade dropped `censor`, `start_time` and `slice_timing_offset`
 (`d8f31aa`), and v1 is registered in both contract audits (`97c769c`).
@@ -275,7 +285,11 @@ prewhitened single-trial fits use aggregate-trial residuals by default;
 voxel HRFs have unit positive peaks; B-spline, tent and FIR bases are
 zero at both ends of the span; `p="auto"` AR order selection counts
 effective voxels and selects higher orders on large independent-voxel
-data; factorial interaction contrast rows follow R's order; a zero SE
+data; first-level AR phi is estimated with fmriAR's residual-bias
+correction (larger phi, so betas and t move), `AROptions.pooling`
+defaults to R's `"run"` (what `fmri_lm` already did), `iter_gls` above 1
+gives the same fit as 1, `pooling="parcel"` and voxelwise AR outside
+R's narrow contract raise; factorial interaction contrast rows follow R's order; a zero SE
 gives t = 0, p = 1 everywhere; and BIDS-HDF5 event `run` is an integer
 scan position.
 
