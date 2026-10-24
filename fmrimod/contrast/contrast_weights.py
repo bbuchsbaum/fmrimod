@@ -1409,105 +1409,171 @@ def _(x: ContrastSet, term: Any, **kwargs: object) -> Dict[str, Contrast]:
 def _contrast_weights_event_model(model: Any, **kwargs: object) -> Dict[str, Any]:
     """Compute contrast weights for an EventModel.
 
-    Extracts contrasts from each term's contrast_specs attribute and maps
-    local term weights to full design matrix space.
+    Collects the contrasts attached to each term (``term.contrast_specs``
+    or the ``contrasts=`` of ``hrf()`` / ``fmrimod.spec.hrf()``), computes
+    them on the term's event term and embeds the term-level rows into the
+    full design by name (R ``.embed_term_weights``): a base condition
+    covers every basis column of that condition, a ``_b##`` row its one
+    basis column. Same-named terms are resolved by position, never by
+    name.
 
     Parameters
     ----------
     model : EventModel
-        Event model with terms that may have contrast_specs
+        Event model with terms that may carry contrasts
     **kwargs
         Additional arguments passed to contrast_weights
 
     Returns
     -------
     dict
-        Nested dictionary: {term_name: {contrast_name: Contrast}}
-        where Contrast objects have offset_weights in full design matrix space
+        Nested dictionary: ``{term_key: {contrast_name: Contrast}}`` where
+        Contrast objects have ``offset_weights`` in full design-matrix
+        space. ``term_key`` is the term name, or the term's column tag
+        (``cond#1``) when several terms share that name.
     """
-    from ..utils import term_indices
+    event_terms = model._create_event_terms()
+    facts = model.column_facts
+    ncol = len(facts)
+    # The model's own term keys (a repeated name is keyed by its column tag)
+    key_of = {tuple(cols): key for key, cols in model.column_indices.items()}
 
-    # Get term indices mapping
-    term_idx_map = term_indices(model)
-    ncond = model.design_matrix.shape[1]
+    # Result structure: {term_key: {contrast_name: Contrast}}
+    result: dict[str, dict[str, Contrast]] = {}
 
-    # Result structure: {term_name: {contrast_name: Contrast}}
-    result = {}
-
-    # Process each term
-    for term in model.terms:
-        term_name = term.name
-
-        # Check if term has contrast_specs
-        if not hasattr(term, 'contrast_specs') or term.contrast_specs is None:
+    for index, (term, event_term) in enumerate(zip(model.terms, event_terms, strict=True)):
+        specs = _term_contrast_specs(term)
+        if not specs:
             continue
 
-        # Get the EventTerm object for this term
-        event_terms = model._create_event_terms()
-        event_term = None
-        for i, t in enumerate(model.terms):
-            if t.name == term_name:
-                event_term = event_terms[i]
-                break
+        term_facts = [f for f in facts if f["term_index"] == index + 1]
+        layout = _TermColumns(term_facts, _get_conditions(event_term, expand_basis=False))
+        key = key_of.get(tuple(layout.indices), str(term.name))
 
-        if event_term is None:
-            warnings.warn(f"Could not find event term for '{term_name}'")
-            continue
-
-        # Get term indices in full design matrix
-        if term_name not in term_idx_map:
-            warnings.warn(f"Term '{term_name}' not found in term indices")
-            continue
-
-        term_indices_list = term_idx_map[term_name]
-
-        # Compute contrasts for this term
         term_contrasts = {}
-
-        # Handle both single ContrastSpec and ContrastSet
-        contrast_specs = term.contrast_specs
-        if not isinstance(contrast_specs, (list, ContrastSet)):
-            contrast_specs = [contrast_specs]
-
-        for contrast_spec in contrast_specs:
+        for contrast_spec in specs:
             try:
-                # Compute local weights for this term
                 local_contrast = contrast_weights(contrast_spec, event_term, **kwargs)
-
-                # Map local weights to full design matrix space
-                offset_weights = np.zeros((ncond, local_contrast.weights.shape[1]))
-
-                # Place local weights at appropriate indices
-                for i, idx in enumerate(term_indices_list):
-                    if i < local_contrast.weights.shape[0]:
-                        offset_weights[idx, :] = local_contrast.weights[i, :]
-
-                # Create new Contrast with offset weights
-                full_contrast = Contrast(
-                    term=term,
-                    name=local_contrast.name,
-                    weights=offset_weights,
-                    condnames=model.column_names,
-                    contrast_spec=contrast_spec
-                )
-
-                # Store the offset weights as an attribute for access
-                cast(Any, full_contrast).offset_weights = offset_weights
-                cast(Any, full_contrast).local_weights = local_contrast.weights
-
-                term_contrasts[local_contrast.name] = full_contrast
-
+                offset_weights = layout.embed(local_contrast, ncol, key)
             except Exception as e:
                 warnings.warn(
                     f"Failed to compute contrast '{contrast_spec.name}' "
-                    f"for term '{term_name}': {e}"
+                    f"for term '{key}': {e}",
+                    stacklevel=2,
                 )
+                continue
+
+            full_contrast = Contrast(
+                term=term,
+                name=local_contrast.name,
+                weights=offset_weights,
+                condnames=model.column_names,
+                contrast_spec=contrast_spec
+            )
+            # Store the offset weights as an attribute for access
+            cast(Any, full_contrast).offset_weights = offset_weights
+            cast(Any, full_contrast).local_weights = local_contrast.weights
+            cast(Any, full_contrast).term_indices = layout.indices
+            term_contrasts[local_contrast.name] = full_contrast
 
         if term_contrasts:
-            result[term_name] = term_contrasts
+            result[key] = term_contrasts
 
     return result
 
+
+def _term_contrast_specs(term: Any) -> list[ContrastSpec]:
+    """Contrast specs attached to a model term, flattened.
+
+    Reads ``term.contrast_specs`` and the ``contrasts=`` that the functional
+    and spec-layer ``hrf()`` store in ``term._kwargs``. Accepts a spec, a
+    sequence or ``ContrastSet`` (possibly nested) or a ``{name: spec}``
+    mapping; anything else is an error rather than silently skipped.
+    """
+    declared = [getattr(term, "contrast_specs", None)]
+    declared.append((getattr(term, "_kwargs", None) or {}).get("contrasts"))
+    specs: list[ContrastSpec] = []
+
+    def collect(item: object) -> None:
+        if isinstance(item, ContrastSpec):
+            specs.append(item)
+        elif isinstance(item, Mapping):
+            for value in item.values():
+                collect(value)
+        elif isinstance(item, (list, tuple)):
+            for value in item:
+                collect(value)
+        else:
+            raise TypeError(
+                f"Term '{term.name}': contrasts must be ContrastSpec objects; "
+                f"got {type(item).__name__}"
+            )
+
+    for item in declared:
+        if item is not None:
+            collect(item)
+    return specs
+
+
+class _TermColumns:
+    """The realized columns of one model term, addressable by condition name.
+
+    Built from the term's ``column_facts`` (``condition``, ``basis_ix``,
+    ``index``). Term-level row names are the event term's base condition
+    names; where the realized condition tags differ (factor-by-modulator
+    terms tag their columns ``cond:rt_1``, ...), the two lists are paired
+    in order, which the convolver and ``conditions()`` share.
+    """
+
+    def __init__(self, term_facts: list[dict[str, Any]], base_condnames: list[str]) -> None:
+        self.indices = [int(f["index"]) for f in term_facts]
+        self.by_name = {str(f["name"]): int(f["index"]) for f in term_facts}
+        self.columns: dict[str, dict[int, int]] = {}
+        for fact in term_facts:
+            basis_ix = int(fact["basis_ix"] or 1)
+            self.columns.setdefault(str(fact["condition"]), {})[basis_ix] = int(fact["index"])
+        self.alias: dict[str, str] = {}
+        realized = list(self.columns)
+        if not set(base_condnames) <= set(realized) and len(base_condnames) == len(realized):
+            self.alias = dict(zip(base_condnames, realized, strict=True))
+
+    def resolve(self, label: str) -> list[int] | None:
+        """Design columns a term-level row name stands for, or ``None``."""
+        condition = self.alias.get(label, label)
+        if condition in self.columns:
+            return [self.columns[condition][b] for b in sorted(self.columns[condition])]
+        match = re.match(r"^(.*)_b(\d+)$", label)
+        if match:
+            condition = self.alias.get(match.group(1), match.group(1))
+            basis_ix = int(match.group(2))
+            if basis_ix in self.columns.get(condition, {}):
+                return [self.columns[condition][basis_ix]]
+        if label in self.by_name:
+            return [self.by_name[label]]
+        return None
+
+    def embed(self, local: Contrast, ncol: int, term_key: str) -> NDArray[np.float64]:
+        """Place a term-level contrast into the full design (R ``.embed_term_weights``)."""
+        local_weights = _as_weight_matrix(local.weights)
+        if local_weights.shape[0] != len(local.condnames):
+            raise ValueError(
+                f"contrast '{local.name}' has {local_weights.shape[0]} weight rows "
+                f"but {len(local.condnames)} row names"
+            )
+        out = np.zeros((ncol, local_weights.shape[1]))
+        unmatched = []
+        for row, label in zip(local_weights, local.condnames, strict=True):
+            targets = self.resolve(str(label))
+            if targets is None:
+                unmatched.append(str(label))
+            else:
+                out[targets, :] = row
+        if unmatched:
+            raise ValueError(
+                f"rows {unmatched} of contrast '{local.name}' match no column of "
+                f"term '{term_key}' (conditions: {list(self.columns)})"
+            )
+        return out
 
 def _register_event_model_contrast_weights() -> None:
     """Register EventModel handler after module load to avoid circular imports."""

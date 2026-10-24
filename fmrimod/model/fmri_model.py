@@ -187,19 +187,43 @@ class FmriModel:
     # -- Contrast weights --
 
     def contrast_weights(self, **kwargs: object) -> dict[str, Any]:
-        """Extract contrast weight specifications from the event model.
+        """Weights of the contrasts attached to the event model's terms.
+
+        Keys are ``"<term>#<contrast>"`` (R ``contrast_weights.event_model``),
+        so ``fit.contrast("cond#A_vs_B")`` finds a contrast declared with
+        ``hrf("cond", contrasts=[...])``. Weights span the full design
+        (baseline columns get zero): a vector for a t-contrast, an
+        ``(n_contrasts, n_columns)`` matrix for an F-contrast.
 
         Returns
         -------
         dict
-            Contrast specifications.
+            Contrast weights keyed by name.
         """
         if hasattr(self._event_model, "contrast_weights"):
             return cast(
                 "dict[str, Any]",
                 self._event_model.contrast_weights(**cast("dict[str, Any]", kwargs)),
             )
-        return {}
+        from fmrimod.design.event_model import EventModel
+
+        if not isinstance(self._event_model, EventModel):
+            return {}
+        from fmrimod.contrast.contrast_weights import contrast_weights
+
+        attached = cast(
+            "dict[str, dict[str, Any]]",
+            contrast_weights(self._event_model, **kwargs),
+        )
+        out: dict[str, Any] = {}
+        event_columns = self.event_column_indices
+        for term_key, term_contrasts in attached.items():
+            for name, contrast in term_contrasts.items():
+                event_weights = np.asarray(contrast.offset_weights, dtype=np.float64)
+                full = np.zeros((self.n_columns, event_weights.shape[1]))
+                full[event_columns, :] = event_weights
+                out[f"{term_key}#{name}"] = full[:, 0] if full.shape[1] == 1 else full.T
+        return out
 
     # -- Internal helpers --
 
