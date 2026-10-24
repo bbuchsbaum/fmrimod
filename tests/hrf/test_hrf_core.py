@@ -50,6 +50,20 @@ def _clamped_interior_bspline(t, n_basis, degree, span):
     return basis[:, 1:-1]
 
 
+def _r_fir_basis(t, n_basis, span):
+    """Transcribed R ``hrf_fir_generator()`` (``R/hrf.R:918-946``).
+
+    One-hot indicator of the bin ``[k * w, (k + 1) * w)`` holding each
+    ``0 <= t < span``; zero elsewhere, including at ``t == span``.
+    """
+    t = np.asarray(t, dtype=float)
+    width = span / n_basis
+    out = np.zeros((len(t), n_basis))
+    inside = np.flatnonzero(~np.isnan(t) & (t >= 0) & (t < span))
+    out[inside, np.minimum(np.floor(t[inside] / width), n_basis - 1).astype(int)] = 1.0
+    return out
+
+
 class TestHRFBase:
     """Test base HRF functionality."""
     
@@ -169,6 +183,29 @@ class TestHRFBase:
         with pytest.raises(ValueError, match="at least 2"):
             bspline_hrf(np.arange(0, 24.0, 1.0), n_basis=1, degree=3)
         assert bspline_hrf(np.array([]), n_basis=5).shape == (0, 5)
+
+    @pytest.mark.parametrize("n_basis,span", [(12, 24.0), (12, 20.0), (7, 24.0)])
+    def test_fir_bins_are_right_open_at_span(self, n_basis, span):
+        """FIR bins are ``[k w, (k + 1) w)``; ``t == span`` is outside every bin.
+
+        R ``hrf_fir_generator()`` keeps only ``0 <= t < span`` (unchanged
+        since the v1 pin), so the last FIR column is not 1 at the end of
+        the span.
+        """
+        from fmrimod.hrf.functions import fir_basis
+
+        t = np.concatenate([np.arange(-1.0, span + 1.0001, 0.25), [np.nan]])
+        np.testing.assert_array_equal(
+            fir_basis(t, n_basis=n_basis, span=span), _r_fir_basis(t, n_basis, span)
+        )
+
+    def test_fir_regressor_is_zero_at_span_end(self):
+        """A point event's FIR response ends before ``t == span``."""
+        from fmrimod.hrf.library import FIR_HRF
+        from fmrimod.regressor import regressor
+
+        y = regressor([0.0], hrf=FIR_HRF).evaluate(np.array([23.9, 24.0]), precision=0.1)
+        np.testing.assert_allclose(y[:, -1], [1.0, 0.0], rtol=0, atol=1e-12)
 
     def test_evaluate_with_duration(self):
         """Test HRF evaluation with block duration."""
