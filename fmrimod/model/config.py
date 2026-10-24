@@ -84,15 +84,27 @@ class AROptions:
     p : int or None
         AR order when *struct* is ``"arp"``.
     iter_gls : int
-        Number of GLS iterations.
+        Maximum number of GLS iterations. ``fmri_lm`` estimates the AR model
+        once, from the OLS residuals with fmriAR's residual-bias correction
+        for the design, and holds it fixed for the GLS solve (fmrireg
+        23c275f), so any value >= 1 gives the same fit; ``0`` fits OLS.
     global_ar : bool
-        If ``True``, estimate a single global AR parameter set.
+        Alias for ``pooling="global"`` (fmrireg ``ar_options$global``).
     voxelwise : bool
-        If ``True``, estimate AR parameters per voxel.
+        If ``True``, estimate AR parameters per voxel and solve each voxel's
+        GLS with its own whitened design. ``fmri_lm`` supports this only with
+        ``pooling="run"``, ``iter_gls=1``, no censoring, no volume weights,
+        soft projection or robust fitting (fmrireg 3c2a9c2).
     exact_first : bool
-        If ``True``, use exact likelihood for the first *p* observations.
+        If ``True``, start every run and censoring segment with the exact
+        stationary initialisation of the AR model when whitening.
     censor : array-like or "auto" or None
         Timepoints to exclude from AR estimation.
+    pooling : {"run", "global", "parcel"}
+        Scope of a shared AR model: ``"run"`` (default) estimates one AR
+        model per run and ``"global"`` one model pooled across runs
+        (fmrireg ``noise_spec(pooling=)``). ``fmri_lm`` does not support
+        ``"parcel"``.
     """
 
     struct: Literal["iid", "ar1", "ar2", "arp", "arma"] = "iid"
@@ -105,7 +117,7 @@ class AROptions:
     method: Literal["ar", "arma", "afni"] = "ar"
     q: int = 0
     p_max: int = 6
-    pooling: Literal["global", "run", "parcel"] = "global"
+    pooling: Literal["global", "run", "parcel"] = "run"
     convergence_tol: float = 5e-3
     parcels: Optional[NDArray[Any]] = None
     noise_pools: Optional[int] = None
@@ -122,7 +134,7 @@ class AROptions:
         method: Literal["ar", "arma", "afni"] = "ar",
         q: int = 0,
         p_max: int = 6,
-        pooling: Literal["global", "run", "parcel"] = "global",
+        pooling: Literal["global", "run", "parcel"] = "run",
         convergence_tol: float = 5e-3,
         parcels: Optional[NDArray[Any]] = None,
         noise_pools: Optional[int] = None,
@@ -207,6 +219,14 @@ class AROptions:
         ):
             if not isinstance(value, (bool, np.bool_)):
                 raise ValueError(f"{key} must be a boolean scalar")
+        # ``global_ar`` is the R-compat spelling of ``pooling="global"``.
+        if self.global_ar and self.pooling == "run":
+            self.pooling = "global"
+        elif self.global_ar and self.pooling != "global":
+            raise ValueError(
+                f"global_ar=True conflicts with pooling={self.pooling!r}"
+            )
+        self.global_ar = self.pooling == "global"
         if self.censor is not None:
             if isinstance(self.censor, str):
                 if self.censor != "auto":
@@ -258,7 +278,8 @@ class VolumeWeightOptions:
     threshold : float
         DVARS threshold for weighting.
     weights : NDArray or None
-        Pre-computed weight vector (overrides method/threshold).
+        Pre-computed weight vector (overrides method/threshold). Supplying
+        it turns weighting on, as fmrireg ``weights_spec(values = w)``.
     """
 
     enabled: bool = False
@@ -286,6 +307,7 @@ class VolumeWeightOptions:
             if np.any(w < 0):
                 raise ValueError("weights must be non-negative")
             self.weights = w
+            self.enabled = True
 
 
 @dataclass

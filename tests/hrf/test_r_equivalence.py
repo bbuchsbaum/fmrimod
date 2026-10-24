@@ -356,15 +356,12 @@ class TestWeightedHRFEquivalence:
     def test_width_weights_constant(self):
         """R: hrf_weighted(width=6, weights=c(0.2,0.5,0.8,0.3), method='constant')."""
         from fmrimod.hrf.functions import weighted_hrf
-        # R generates times = seq(0, 6, length.out=4) = [0, 2, 4, 6]
-        # approxfun(method='constant') gives step function
+        # R (18d418f) splits [0, 6) into 4 equal bins starting at
+        # seq(0, 6, length.out = 5)[1:4] = [0, 1.5, 3, 4.5].
         t = np.array([0, 1, 2, 3, 4, 5, 6])
         y = weighted_hrf(t, weights=[0.2, 0.5, 0.8, 0.3], width=6.0,
                          method="constant")
-        # At t=0 -> 0.2, t=1 -> 0.2 (still in first bin), t=2 -> 0.5, etc.
-        assert y[0] == pytest.approx(0.2)
-        assert y[2] == pytest.approx(0.5)
-        assert y[4] == pytest.approx(0.8)
+        np.testing.assert_allclose(y, [0.2, 0.2, 0.5, 0.8, 0.8, 0.3, 0.0])
 
     def test_times_weights_linear(self):
         """R: hrf_weighted(times=c(0,1,3,5,6), weights=c(0.1,0.5,0.8,0.5,0.1), method='linear')."""
@@ -375,7 +372,7 @@ class TestWeightedHRFEquivalence:
         np.testing.assert_allclose(y, [0.1, 0.8, 0.1], atol=1e-10)
 
     def test_weighted_span(self):
-        """R: span = max(times)."""
+        """R: constant span is the last bin edge (``width`` here)."""
         from fmrimod.hrf.generators import weighted_generator
         hrf = weighted_generator(weights=[1, 2, 1], width=8.0)
         assert hrf.span == 8.0

@@ -15,6 +15,55 @@ from fmrimod.hrf.library import (
 )
 
 
+def _clamped_interior_bspline(t, n_basis, degree, span):
+    """Transcribed R ``hrf_bspline()`` reference, via Cox-de Boor recursion.
+
+    Builds the clamped ``n_basis + 2`` basis on ``[0, span]`` with evenly
+    spaced interior knots and drops the first and last functions. ``t ==
+    span`` takes the limit from the left, as ``splines::bs`` does.
+    """
+    t = np.asarray(t, dtype=float)
+    n_interior = n_basis + 1 - degree
+    knots = np.concatenate(
+        [
+            np.zeros(degree + 1),
+            np.linspace(0.0, span, n_interior + 2)[1:-1],
+            np.full(degree + 1, float(span)),
+        ]
+    )
+    last = np.flatnonzero(knots[:-1] < knots[1:])[-1]
+    basis = np.zeros((len(t), len(knots) - 1))
+    for i in range(len(knots) - 1):
+        closed = (i == last) & (t == knots[i + 1])
+        basis[:, i] = (knots[i] <= t) & ((t < knots[i + 1]) | closed)
+    for k in range(1, degree + 1):
+        nxt = np.zeros((len(t), len(knots) - 1 - k))
+        for i in range(len(knots) - 1 - k):
+            left = knots[i + k] - knots[i]
+            right = knots[i + k + 1] - knots[i + 1]
+            if left > 0:
+                nxt[:, i] += (t - knots[i]) / left * basis[:, i]
+            if right > 0:
+                nxt[:, i] += (knots[i + k + 1] - t) / right * basis[:, i + 1]
+        basis = nxt
+    basis[(t < 0) | (t > span)] = 0.0
+    return basis[:, 1:-1]
+
+
+def _r_fir_basis(t, n_basis, span):
+    """Transcribed R ``hrf_fir_generator()`` (``R/hrf.R:918-946``).
+
+    One-hot indicator of the bin ``[k * w, (k + 1) * w)`` holding each
+    ``0 <= t < span``; zero elsewhere, including at ``t == span``.
+    """
+    t = np.asarray(t, dtype=float)
+    width = span / n_basis
+    out = np.zeros((len(t), n_basis))
+    inside = np.flatnonzero(~np.isnan(t) & (t >= 0) & (t < span))
+    out[inside, np.minimum(np.floor(t[inside] / width), n_basis - 1).astype(int)] = 1.0
+    return out
+
+
 class TestHRFBase:
     """Test base HRF functionality."""
     
@@ -88,10 +137,76 @@ class TestHRFBase:
         """Test B-spline HRF."""
         assert BSPLINE_HRF.name == "bspline"
         assert BSPLINE_HRF.nbasis == 5
-        
+
         result = BSPLINE_HRF(time_grid)
         assert result.shape == (len(time_grid), 5)
-    
+
+    @pytest.mark.parametrize("degree", [1, 2, 3])
+    def test_bspline_basis_is_interior_of_clamped_basis(self, degree):
+        """B-spline functions vanish at 0 and at ``span`` (fmrihrf ``18d418f``).
+
+        ``R/hrf-functions.R:48-87``: the N functions are the interior ones of
+        a clamped N+2 basis with evenly spaced knots on ``[0, span]``.
+        """
+        from fmrimod.hrf.functions import bspline_hrf
+
+        t = np.arange(0, 24.0001, 0.1)
+        basis = bspline_hrf(t, n_basis=6, degree=degree, span=24.0)
+        assert basis.shape == (len(t), 6)
+        np.testing.assert_array_equal(basis[0], np.zeros(6))
+        np.testing.assert_allclose(basis[-1], np.zeros(6), rtol=0, atol=1e-12)
+        np.testing.assert_allclose(
+            basis, _clamped_interior_bspline(t, 6, degree, 24.0), rtol=0, atol=1e-12
+        )
+
+    def test_tent_basis_peaks_at_evenly_spaced_knots(self):
+        """The degree-1 (tent) basis peaks at the interior knots."""
+        from fmrimod.hrf.generators import hrf_tent_generator
+
+        t = np.arange(0, 24.001, 0.01)
+        peaks = t[np.argmax(hrf_tent_generator(nbasis=5, span=24)(t), axis=0)]
+        np.testing.assert_allclose(peaks, [4.0, 8.0, 12.0, 16.0, 20.0], atol=1e-9)
+
+    def test_bspline_regressor_has_no_step_at_span_end(self):
+        """R test_hrf.R: a regressor from HRF_BSPLINE has no end-of-span step."""
+        from fmrimod.regressor import regressor
+
+        y = regressor([0.0], hrf=BSPLINE_HRF).evaluate(
+            np.arange(23, 25.0001, 0.1), precision=0.1
+        )
+        assert np.max(np.abs(np.diff(y, axis=0))) < 0.05
+
+    def test_bspline_rejects_too_few_functions(self):
+        """A cubic basis needs at least ``degree - 1`` interior functions."""
+        from fmrimod.hrf.functions import bspline_hrf
+
+        with pytest.raises(ValueError, match="at least 2"):
+            bspline_hrf(np.arange(0, 24.0, 1.0), n_basis=1, degree=3)
+        assert bspline_hrf(np.array([]), n_basis=5).shape == (0, 5)
+
+    @pytest.mark.parametrize("n_basis,span", [(12, 24.0), (12, 20.0), (7, 24.0)])
+    def test_fir_bins_are_right_open_at_span(self, n_basis, span):
+        """FIR bins are ``[k w, (k + 1) w)``; ``t == span`` is outside every bin.
+
+        R ``hrf_fir_generator()`` keeps only ``0 <= t < span`` (unchanged
+        since the v1 pin), so the last FIR column is not 1 at the end of
+        the span.
+        """
+        from fmrimod.hrf.functions import fir_basis
+
+        t = np.concatenate([np.arange(-1.0, span + 1.0001, 0.25), [np.nan]])
+        np.testing.assert_array_equal(
+            fir_basis(t, n_basis=n_basis, span=span), _r_fir_basis(t, n_basis, span)
+        )
+
+    def test_fir_regressor_is_zero_at_span_end(self):
+        """A point event's FIR response ends before ``t == span``."""
+        from fmrimod.hrf.library import FIR_HRF
+        from fmrimod.regressor import regressor
+
+        y = regressor([0.0], hrf=FIR_HRF).evaluate(np.array([23.9, 24.0]), precision=0.1)
+        np.testing.assert_allclose(y[:, -1], [1.0, 0.0], rtol=0, atol=1e-12)
+
     def test_evaluate_with_duration(self):
         """Test HRF evaluation with block duration."""
         t = np.arange(0, 20, 0.2)

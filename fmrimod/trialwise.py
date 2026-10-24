@@ -43,7 +43,8 @@ def trialwise(
     lag : float, default=0.0
         Temporal offset in seconds added to onset before convolution
     nbasis : int, default=1
-        Number of basis functions (for HRFs that support variable bases)
+        Number of basis functions (for HRFs that support variable bases,
+        e.g. ``basis="fir", nbasis=6``); 1 keeps the basis' own size
     add_sum : bool, default=False
         If True, append a column that is the average of all trialwise columns.
         This serves as a conventional main effect regressor.
@@ -103,9 +104,15 @@ def trialwise(
     term_dyn._lag = lag
     term_dyn._nbasis = nbasis
 
-    # New parameters - store in _kwargs
+    # HRF options live in _kwargs, where the event model resolves them
+    # (R trialwise() passes basis/lag/nbasis straight to hrf()). As in the
+    # functional hrf(), nbasis=1 means "the basis' own size".
     if not hasattr(term, '_kwargs') or term._kwargs is None:
         term._kwargs = {}
+    if nbasis != 1:
+        term._kwargs['nbasis'] = int(nbasis)
+    if lag:
+        term._kwargs['lag'] = float(lag)
     if durations is not None:
         term._kwargs['durations'] = durations
     if normalize:

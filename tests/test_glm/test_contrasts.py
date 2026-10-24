@@ -487,3 +487,47 @@ class TestContrastF:
         assert np.all(np.isfinite(res_loop.stat))
         assert np.all(res_loop.stat >= 0.0)
         np.testing.assert_allclose(res_loop.stat, res_vec.stat, rtol=1e-8, atol=1e-8)
+
+
+class TestPerVoxelCovariance:
+    """One ``(X'X)^-1`` per voxel (voxelwise AR whitens each voxel's design)."""
+
+    @pytest.fixture
+    def per_voxel(self, rng):
+        n, V = 80, 5
+        X = np.column_stack([np.ones(n), rng.standard_normal((n, 3))])
+        Y = X @ rng.standard_normal((4, V)) + rng.standard_normal((n, V))
+        betas, sigma, covs = [], [], []
+        for v in range(V):
+            # A different row scaling per voxel stands in for its whitening.
+            Xv = X * rng.uniform(0.5, 2.0, n)[:, None]
+            proj = fast_preproject(Xv)
+            fit = fast_lm_matrix(Xv, Y[:, [v]], proj)
+            betas.append(fit.betas[:, 0])
+            sigma.append(np.sqrt(fit.sigma2[0]))
+            covs.append(proj.XtXinv)
+        return np.column_stack(betas), np.array(sigma), np.stack(covs), float(n - 4)
+
+    def test_t_contrasts_use_each_voxels_covariance(self, per_voxel):
+        betas, sigma, covs, df = per_voxel
+        con = np.array([0.0, 1.0, -1.0, 0.0])
+        res = contrast_t(con, betas, covs, sigma, df)
+        batch = contrast_t_batch(np.vstack([con, np.eye(4)[3]]), betas, covs, sigma, df)
+        for v in range(betas.shape[1]):
+            one = contrast_t(con, betas[:, [v]], covs[v], sigma[[v]], df)
+            np.testing.assert_allclose(res.se[v], one.se[0], rtol=1e-12)
+            np.testing.assert_allclose(res.stat[v], one.stat[0], rtol=1e-12)
+            np.testing.assert_allclose(batch[0].stat[v], one.stat[0], rtol=1e-12)
+            last = contrast_t(np.eye(4)[3], betas[:, [v]], covs[v], sigma[[v]], df)
+            np.testing.assert_allclose(batch[1].se[v], last.se[0], rtol=1e-12)
+
+    @pytest.mark.parametrize("rows", [1, 2])
+    def test_f_contrasts_use_each_voxels_covariance(self, per_voxel, rows):
+        betas, sigma, covs, df = per_voxel
+        con = np.eye(4)[1 : 1 + rows]
+        res = contrast_f(con, betas, covs, sigma, df)
+        for v in range(betas.shape[1]):
+            one = contrast_f(con, betas[:, [v]], covs[v], sigma[[v]], df)
+            np.testing.assert_allclose(res.stat[v], one.stat[0], rtol=1e-10)
+            np.testing.assert_allclose(res.p_value[v], one.p_value[0], rtol=1e-10)
+        assert res.df == (float(rows), df)

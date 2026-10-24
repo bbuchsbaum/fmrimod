@@ -90,6 +90,79 @@ def test_derive_can_compute_se_from_var() -> None:
     np.testing.assert_allclose(out.assay("z"), np.array([[[0.5]]]))
 
 
+def _t_df_dataset(t: list[float], df: float):
+    t_arr = np.asarray(t, dtype=np.float64).reshape(1, -1, 1)
+    return group_dataset(
+        {"t": t_arr, "df": np.full_like(t_arr, df)},
+        space=SampleLabelSpace(["a"]),
+        subjects=[f"s{i + 1}" for i in range(t_arr.shape[1])],
+        contrasts=["c1"],
+    )
+
+
+def test_derive_z_and_p_from_t_use_the_t_distribution() -> None:
+    # fmrigds 7c7ecae, R/derive-stats.R and tests/testthat/test-review-numeric.R:120-147.
+    # df = 5 and t = 12 (df = 100) rule out treating t as z.
+    from scipy import stats as sp_stats
+
+    out = derive(_t_df_dataset([12.0, 1.0, 1.0, -12.0, 60.0], 100.0), ["z", "p"])
+    np.testing.assert_allclose(
+        out.assay("z")[0, :4, 0],
+        [9.4227301, 0.9950249, 0.9950249, -9.4227301],
+        rtol=1e-7,
+    )
+    assert np.isfinite(out.assay("z")[0, 4, 0])
+    np.testing.assert_allclose(
+        out.assay("p")[0, :, 0],
+        2.0 * sp_stats.t.sf([12.0, 1.0, 1.0, 12.0, 60.0], 100.0),
+        rtol=1e-12,
+    )
+
+    p_df5 = derive(_t_df_dataset([2.5], 5.0), "p").assay("p")
+    np.testing.assert_allclose(p_df5[0, 0, 0], 0.0544900, rtol=1e-5)
+    assert "z" not in derive(_t_df_dataset([2.5], 5.0), "p").assays
+
+
+def test_stouffer_on_z_derived_from_t_keeps_far_tail_subjects() -> None:
+    # fmrigds test-review-numeric.R:135: sum(z_i) / sqrt(3) with z_i from t, df = 100.
+    ds = derive(_t_df_dataset([12.0, 1.0, 1.0], 100.0), "z")
+    out = reduce(ds, method="combine:stouffer")
+    np.testing.assert_allclose(out.assay("z_g")[0, 0, 0], 6.589172, rtol=1e-6)
+
+
+def test_derive_p_from_t_without_df_is_refused() -> None:
+    ds = group_dataset(
+        {"t": np.array([[[2.0]]])},
+        space=SampleLabelSpace(["a"]),
+        subjects=["s1"],
+        contrasts=["c1"],
+    )
+    with pytest.raises(AdapterContractError, match="df"):
+        derive(ds, "p")
+
+
+def test_derive_signed_z_from_p_needs_beta() -> None:
+    p = np.array([[[1e-20], [0.05]]])
+    ds = group_dataset(
+        {"p": p, "beta": np.array([[[-1.0], [2.0]]])},
+        space=SampleLabelSpace(["a"]),
+        subjects=["s1", "s2"],
+        contrasts=["c1"],
+    )
+    from scipy import stats as sp_stats
+
+    z = derive(ds, "z_from_p").assay("z")
+    np.testing.assert_allclose(
+        z[0, :, 0], [-sp_stats.norm.isf(5e-21), sp_stats.norm.isf(0.025)], rtol=1e-12
+    )
+
+    no_beta = group_dataset(
+        {"p": p}, space=SampleLabelSpace(["a"]), subjects=["s1", "s2"], contrasts=["c1"]
+    )
+    with pytest.raises(AdapterContractError, match="beta"):
+        derive(no_beta, "z_from_p")
+
+
 def test_derive_rejects_unknown_target() -> None:
     with pytest.raises(UnsupportedGroupFeatureError, match="not supported"):
         derive(_dataset(), "cohens_d")

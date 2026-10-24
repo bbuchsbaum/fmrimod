@@ -50,7 +50,15 @@ def test_main_effects_in_two_factor_design_use_kronecker_blocks():
 def test_interaction_contrast_matches_kronecker_of_difference_blocks():
     des = _design_4x3()
     out = generate_interaction_contrast(des, ["A", "B"])
-    expected = np.kron(_diff_block(4), _diff_block(3))
+    # Rows follow ``des`` (A slowest here); columns put the first factor's
+    # contrast index fastest (fmrireg 91bb402, R/gen_contrast.R:56-66), i.e.
+    # column jB * 3 + jA holds D4[a, jA] * D3[b, jB].
+    expected = (
+        np.kron(_diff_block(4), _diff_block(3))
+        .reshape(12, 3, 2)
+        .transpose(0, 2, 1)
+        .reshape(12, 6)
+    )
     assert out.shape == (12, 6)
     assert np.array_equal(out, expected)
 

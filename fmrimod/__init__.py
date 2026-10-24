@@ -202,6 +202,9 @@ def matrix_dataset(
     *,
     event_table: "Optional[pd.DataFrame]" = None,
     mask: "Optional[NDArray[np.bool_]]" = None,
+    censor: "Union[NDArray[np.bool_], list[NDArray[np.bool_]], None]" = None,
+    start_time: "Union[float, Sequence[float], None]" = None,
+    slice_timing_offset: "Union[float, Sequence[float], None]" = None,
     TR: "Union[float, list[float], None]" = None,
 ) -> "FmriDataset":
     """Construct an in-memory FmriDataset from numpy matrix data.
@@ -218,6 +221,8 @@ def matrix_dataset(
         Event table attached to the resulting dataset.
     mask : ndarray, optional
         Spatial mask passed to the numpy adapter.
+    censor, start_time, slice_timing_offset, TR
+        Forwarded to :func:`fmrimod.dataset.matrix_dataset`.
     """
     from .dataset import matrix_dataset as _matrix_dataset
 
@@ -227,6 +232,9 @@ def matrix_dataset(
         run_length=run_length,
         event_table=event_table,
         mask=mask,
+        censor=censor,
+        start_time=start_time,
+        slice_timing_offset=slice_timing_offset,
         TR=TR,
     )
 

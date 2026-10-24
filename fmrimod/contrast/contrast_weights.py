@@ -7,13 +7,19 @@ numerical weights for different types of contrast specifications.
 from __future__ import annotations
 
 import ast
+import contextlib
 import re
 import warnings
+from collections.abc import Callable
 from functools import singledispatch
+from itertools import product
 from typing import Any, Dict, List, Mapping, Optional, Sequence, cast
 
 import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
+
+from fmrimod.naming import continuous_token, level_token, make_cond_tag
 
 from ..types import Array
 from .basis_filter import apply_basis_filter
@@ -402,6 +408,208 @@ def _get_cells(term: object) -> object:
         return pd.DataFrame()
 
 
+def _formula_expr(formula: object) -> str:
+    """Expression text of a contrast formula, without a leading ``~``."""
+    expr = str(getattr(formula, "expr", formula)).strip()
+    return expr[1:].strip() if expr.startswith("~") else expr
+
+
+def _formula_variables(formula: object) -> list[str]:
+    """Variable names of a formula in order of appearance (R ``all.vars``).
+
+    ``a * b``, ``a:b`` and ``~ a + b`` all give ``["a", "b"]``; names inside
+    string literals are not variables.
+    """
+    expr = _formula_expr(formula).replace(":", "*")
+    try:
+        tree = ast.parse(expr, mode="eval")
+    except SyntaxError:
+        return []
+    names = sorted(
+        (node for node in ast.walk(tree) if isinstance(node, ast.Name)),
+        key=lambda node: (node.lineno, node.col_offset),
+    )
+    return list(dict.fromkeys(node.id for node in names))
+
+
+def _condition_cells(
+    term: Any, condnames: Sequence[str]
+) -> tuple[pd.DataFrame, NDArray[np.bool_], dict[str, list[str]]] | None:
+    """Categorical cell of each base condition of an event term.
+
+    Rebuilds the condition grid the way ``conditions(expand_basis=False)``
+    does (R ``.condition_cell_tags``), so a factor-by-modulator condition
+    such as ``cond.A_rt`` is tied to its cell ``cond = A``.
+
+    Returns ``(cells, observed, levels)``: a frame aligned with
+    ``condnames`` holding each condition's level of every categorical
+    variable, whether that cell has any events, and each factor's levels in
+    order. ``None`` when the term has no categorical events (mock terms,
+    realized-column terms) or the grid does not reproduce ``condnames``.
+    """
+    events = getattr(term, "events", None)
+    if not isinstance(events, (list, tuple)) or not events:
+        return None
+    cat_events = [e for e in events if getattr(e, "event_type", None) == "categorical"]
+    if not cat_events:
+        return None
+
+    token_lists: list[list[tuple[str, tuple[str, str] | None]]] = []
+    for event in events:
+        if event.event_type == "categorical":
+            token_lists.append(
+                [(level_token(event.name, lev), (event.name, str(lev))) for lev in event.levels]
+            )
+        elif event.event_type == "matrix":
+            token_lists.append([(continuous_token(col), None) for col in event.column_names])
+        else:
+            token_lists.append([(continuous_token(event.name), None)])
+
+    names: list[str] = []
+    rows: list[dict[str, str]] = []
+    for combo in product(*token_lists):
+        tokens = [token for token, _ in combo]
+        names.append(tokens[0] if len(tokens) == 1 else make_cond_tag(tokens))
+        rows.append(dict(level for _, level in combo if level is not None))
+    if names != [str(name) for name in condnames]:
+        return None
+
+    factor_names = [event.name for event in cat_events]
+    cells = pd.DataFrame(rows, columns=factor_names)
+    seen = set(zip(*(np.asarray(e.values).astype(str) for e in cat_events), strict=True))
+    observed = np.array(
+        [tuple(row[f] for f in factor_names) in seen for row in rows], dtype=bool
+    )
+    levels = {event.name: [str(lev) for lev in event.levels] for event in cat_events}
+    return cells, observed, levels
+
+
+def _eval_cell_predicate(
+    predicate: object, cells: pd.DataFrame, what: str, contrast_name: str
+) -> NDArray[np.bool_]:
+    """Evaluate a ``where``-style predicate (string, dict or callable) per cell.
+
+    Factor levels are strings; like an R factor compared with a number, a
+    predicate that matches nothing on the strings is retried with numeric
+    levels converted to numbers (so ``{"block": 1}`` finds level ``"1"``).
+    """
+    fn = getattr(predicate, "_fn", None)
+    expr = _formula_expr(predicate)
+
+    def evaluate(frame: pd.DataFrame) -> NDArray[np.bool_]:
+        try:
+            result = fn(frame) if fn is not None else frame.eval(expr, engine="python")
+        except Exception as exc:
+            raise ValueError(
+                f"Contrast '{contrast_name}': cannot evaluate {what} {expr!r} on the "
+                f"term's cells (variables: {list(frame.columns)}): {exc}"
+            ) from exc
+        mask = np.asarray(result, dtype=bool)
+        if mask.shape != (len(frame),):
+            raise ValueError(
+                f"Contrast '{contrast_name}': {what} {expr!r} gave {mask.shape} "
+                f"values for {len(frame)} cells"
+            )
+        return mask
+
+    mask = evaluate(cells)
+    if not mask.any():
+        numeric = cells.copy()
+        for col in numeric.columns:
+            with contextlib.suppress(TypeError, ValueError):
+                numeric[col] = pd.to_numeric(numeric[col])
+        if not numeric.equals(cells):
+            mask = evaluate(numeric)
+    return mask
+
+
+def _where_mask(
+    spec: ContrastSpec,
+    term: Any,
+    condnames: Sequence[str],
+    cell_info: tuple[pd.DataFrame, NDArray[np.bool_], dict[str, list[str]]] | None = None,
+) -> NDArray[np.bool_] | None:
+    """Conditions whose cell satisfies the contrast's ``where`` (R ``.contrast_where_cells``).
+
+    ``None`` when the contrast has no ``where``. Raises when the term has no
+    categorical cells to evaluate it on, or when it selects none of them.
+    """
+    where = getattr(spec, "where", None)
+    if where is None:
+        return None
+    info = cell_info if cell_info is not None else _condition_cells(term, condnames)
+    if info is None:
+        raise ValueError(
+            f"Contrast '{spec.name}': where={_formula_expr(where)!r} needs a term "
+            "with categorical cells to select from"
+        )
+    mask = _eval_cell_predicate(where, info[0], "where", spec.name)
+    if not mask.any():
+        raise ValueError(
+            f"Contrast '{spec.name}': where={_formula_expr(where)!r} selects none "
+            "of the term's cells"
+        )
+    return mask
+
+
+def _r_helmert(n_levels: int) -> NDArray[np.float64]:
+    """R ``contr.helmert(n_levels)``: level ``j`` against the mean of the earlier ones."""
+    coding = np.zeros((n_levels, max(n_levels - 1, 0)))
+    for j in range(n_levels - 1):
+        coding[: j + 1, j] = -1.0
+        coding[j + 1, j] = j + 1
+    return coding
+
+
+def _helmert_cells(values: Sequence[str], levels: Sequence[str]) -> NDArray[np.float64]:
+    """Helmert coding of one factor per cell, over the levels present (R ``.helmert_cells``)."""
+    present = [lev for lev in levels if lev in set(values)]
+    return _r_helmert(len(present))[[present.index(v) for v in values]]
+
+
+def _r_poly(values: NDArray[np.float64], degree: int) -> NDArray[np.float64]:
+    """Orthonormal polynomial columns of ``values`` (R ``stats::poly``)."""
+    centred = values - values.mean()
+    q, r = np.linalg.qr(np.vander(centred, degree + 1, increasing=True))
+    z = q * np.diag(r)
+    z = z / np.sqrt(np.sum(z**2, axis=0))
+    return cast(NDArray[np.float64], z[:, 1:])
+
+
+def _cell_contrast(
+    spec: ContrastSpec,
+    term: Any,
+    condnames: Sequence[str],
+    build: Callable[[pd.DataFrame, dict[str, list[str]]], NDArray[np.float64]],
+) -> NDArray[np.float64] | None:
+    """Weights per base condition from per-cell weights (R ``.factorial_cell_weights``).
+
+    The term's observed cells, restricted to ``where``, are passed once each
+    to ``build``; every condition takes the row of its cell (a modulated
+    term repeats it on each modulator column) and other conditions get
+    zero. ``None`` when the term has no categorical cells.
+    """
+    info = _condition_cells(term, condnames)
+    if info is None:
+        return None
+    cells, observed, levels = info
+    keep = observed.copy()
+    where = _where_mask(spec, term, condnames, info)
+    if where is not None:
+        keep &= where
+    if not keep.any():
+        raise ValueError(f"Contrast '{spec.name}': no observed cells to contrast")
+
+    keys = [tuple(row) for row in cells.itertuples(index=False)]
+    unique_keys = list(dict.fromkeys(key for key, k in zip(keys, keep, strict=True) if k))
+    cell_weights = build(pd.DataFrame(unique_keys, columns=cells.columns), levels)
+    row_of = {key: i for i, key in enumerate(unique_keys)}
+    weights = np.zeros((len(condnames), cell_weights.shape[1]))
+    for i in np.flatnonzero(keep):
+        weights[i] = cell_weights[row_of[keys[i]]]
+    return weights
+
+
 def _parse_formula_condition(formula_expr: str) -> tuple[Optional[str], Optional[str]]:
     """Parse a formula expression to extract factor name and level.
 
@@ -516,6 +724,10 @@ def _(x: UnitContrastSpec, term: Any, **kwargs: object) -> Contrast:
         # No formula - select all conditions
         mask_A = np.ones(len(all_condnames), dtype=bool)
 
+    where_mask = _where_mask(x, term, all_condnames)
+    if where_mask is not None:
+        mask_A = mask_A & where_mask
+
     # Calculate weights - unit contrast sums to 1
     # For unit contrast, B_mask should be None (not a pairwise contrast)
     nA: int = int(np.sum(mask_A))
@@ -565,6 +777,11 @@ def _(x: PairContrastSpec, term: Any, **kwargs: object) -> Contrast:
         mask_B = _match_conditions_to_formula(base_condnames, formula_B_expr)
     else:
         mask_B = np.zeros(len(base_condnames), dtype=bool)
+
+    where_mask = _where_mask(x, term, base_condnames)
+    if where_mask is not None:
+        mask_A = mask_A & where_mask
+        mask_B = mask_B & where_mask
 
     # Calculate weights
     try:
@@ -670,8 +887,13 @@ def _(x: ColumnContrastSpec, term: Any, **kwargs: object) -> Contrast:
 
 @contrast_weights.register(PolyContrastSpec)
 def _(x: PolyContrastSpec, term: Any, **kwargs: object) -> Contrast:
-    """Compute polynomial contrast weights."""
-    # Get condition names
+    """Compute polynomial contrast weights (R ``stats::poly`` over level values).
+
+    Each observed cell's level of ``A`` is mapped through ``value_map`` (or
+    read as a number), and the cells get the orthonormal polynomial columns
+    of those values. Terms without categorical cells fall back to equally
+    spaced condition positions.
+    """
     all_condnames = _get_conditions(term, expand_basis=False)
 
     if not all_condnames:
@@ -679,41 +901,19 @@ def _(x: PolyContrastSpec, term: Any, **kwargs: object) -> Contrast:
         weights = np.zeros((0, x.degree))
         return Contrast(term, x.name, weights, [], x)
 
-    # Number of conditions
-    n_cond = len(all_condnames)
+    def build(cells: pd.DataFrame, levels: dict[str, list[str]]) -> NDArray[np.float64]:
+        values = _poly_cell_values(x, cells)
+        n_unique = len(np.unique(values))
+        if n_unique <= x.degree:
+            raise ValueError(
+                f"Polynomial degree ({x.degree}) is too high for the number of "
+                f"unique points ({n_unique}) in contrast '{x.name}'."
+            )
+        return _r_poly(values, x.degree)
 
-    if n_cond <= x.degree:
-        raise ValueError(
-            f"Polynomial degree ({x.degree}) is too high for "
-            f"number of conditions ({n_cond}). Need at least {x.degree + 1} levels."
-        )
-
-    # Generate orthogonal polynomial contrasts using Legendre polynomials
-    # Map conditions to numeric values 0, 1, 2, ..., n_cond-1
-    vals = np.arange(n_cond)
-
-    # Use Legendre polynomials for orthogonal basis
-    from numpy.polynomial.legendre import legvander
-
-    # Scale values to [-1, 1] interval for better numerical stability
-    if n_cond > 1:
-        vals_scaled = 2 * (vals - vals.min()) / (vals.max() - vals.min()) - 1
-    else:
-        vals_scaled = vals
-
-    # Generate Vandermonde matrix up to degree x.degree
-    # legvander generates columns [1, L_1(x), L_2(x), ..., L_degree(x)]
-    # We want columns 1 through degree (skip the constant column 0)
-    vander = cast(NDArray[Any], cast(Any, legvander)(vals_scaled, x.degree))
-
-    # Take columns 1 through degree (skip constant term)
-    poly_matrix = vander[:, 1:(x.degree + 1)]
-
-    # Orthonormalize the columns
-    Q, R = np.linalg.qr(poly_matrix)
-
-    # Each column of Q is an orthogonal polynomial contrast
-    weights = Q
+    weights = _cell_contrast(x, term, all_condnames, build)
+    if weights is None:
+        weights = _positional_poly(x, len(all_condnames))
 
     return Contrast(
         term=term,
@@ -724,12 +924,60 @@ def _(x: PolyContrastSpec, term: Any, **kwargs: object) -> Contrast:
     )
 
 
+def _poly_cell_values(x: PolyContrastSpec, cells: pd.DataFrame) -> NDArray[np.float64]:
+    """Numeric value of ``x.A`` for each cell, via ``value_map`` or the levels."""
+    expr = _formula_expr(x.A)
+    fn = getattr(x.A, "_fn", None)
+    if fn is not None:
+        raw = fn(cells)
+    elif expr in cells.columns:
+        raw = cells[expr]
+    else:
+        try:
+            raw = cells.eval(expr, engine="python")
+        except Exception as exc:
+            raise ValueError(
+                f"Contrast '{x.name}': cannot evaluate {expr!r} on the term's cells "
+                f"(variables: {list(cells.columns)}): {exc}"
+            ) from exc
+    labels = [str(v) for v in np.asarray(raw).ravel()]
+
+    if x.value_map is not None:
+        value_map = {str(k): float(v) for k, v in x.value_map.items()}
+        missing = sorted(set(labels) - set(value_map))
+        if missing:
+            raise ValueError(
+                f"Contrast '{x.name}': value_map does not cover all factor levels "
+                f"present in the cells; missing {missing}"
+            )
+        return np.array([value_map[label] for label in labels])
+    try:
+        return np.array([float(label) for label in labels])
+    except ValueError as exc:
+        raise ValueError(
+            f"Contrast '{x.name}': the levels of {expr!r} are not numbers; pass "
+            "value_map= to give each level its value"
+        ) from exc
+
+
+def _positional_poly(x: PolyContrastSpec, n_cond: int) -> NDArray[np.float64]:
+    """Orthonormal trend over equally spaced condition positions."""
+    if n_cond <= x.degree:
+        raise ValueError(
+            f"Polynomial degree ({x.degree}) is too high for "
+            f"number of conditions ({n_cond}). Need at least {x.degree + 1} levels."
+        )
+    return _r_poly(np.arange(n_cond, dtype=float), x.degree)
+
+
 @contrast_weights.register(OnewayContrastSpec)
 def _(x: OnewayContrastSpec, term: Any, **kwargs: object) -> Contrast:
     """Compute one-way contrast weights (main effect).
 
-    Generates k-1 Helmert contrasts for k conditions.
-    Each contrast i compares condition i+1 against the mean of conditions 0..i.
+    Helmert-codes the factor named in ``A`` over the term's observed cells
+    (R ``generate_main_effect_contrast``): k levels give k-1 columns, constant
+    across the term's other factors. Terms without categorical cells fall
+    back to Helmert contrasts over all conditions.
     """
     all_condnames = _get_conditions(term, expand_basis=False)
 
@@ -737,6 +985,22 @@ def _(x: OnewayContrastSpec, term: Any, **kwargs: object) -> Contrast:
         warnings.warn(f"No conditions found for term {term}")
         weights = np.zeros((0, 0))
         return Contrast(term, x.name, weights, [], x)
+
+    def build(cells: pd.DataFrame, levels: dict[str, list[str]]) -> NDArray[np.float64]:
+        factor = _named_factors(x, cells, minimum=1)[0]
+        values = list(cells[factor])
+        n_present = len(set(values))
+        if n_present < 2:
+            warnings.warn(
+                f"Factor has only {n_present} level(s), cannot create contrast",
+                stacklevel=2,
+            )
+            return np.zeros((len(cells), 0))
+        return _helmert_cells(values, levels[factor])
+
+    cell_weights = _cell_contrast(x, term, all_condnames, build)
+    if cell_weights is not None:
+        return Contrast(term, x.name, cell_weights, all_condnames, x)
 
     k = len(all_condnames)
 
@@ -765,14 +1029,46 @@ def _(x: OnewayContrastSpec, term: Any, **kwargs: object) -> Contrast:
     )
 
 
+def _named_factors(x: ContrastSpec, cells: pd.DataFrame, minimum: int) -> list[str]:
+    """Factors named in ``x.A``, checked against the term's cells.
+
+    A one-way contrast (``minimum=1``) uses the first factor, warning when
+    more are named (as R does).
+    """
+    factors = _formula_variables(x.A)
+    if len(factors) < minimum:
+        raise ValueError(
+            f"Contrast '{x.name}': "
+            + ("an interaction contrast requires at least two factors"
+               if minimum > 1 else "a one-way contrast requires a factor")
+            + f"; got {_formula_expr(x.A)!r}"
+        )
+    if minimum == 1 and len(factors) > 1:
+        warnings.warn(
+            f"Contrast '{x.name}': one-way contrast names {len(factors)} factors "
+            f"({', '.join(factors)}); using the first, {factors[0]}",
+            stacklevel=2,
+        )
+        factors = factors[:1]
+    missing = [f for f in factors if f not in cells.columns]
+    if missing:
+        raise ValueError(
+            f"Contrast '{x.name}': factor(s) {missing} not found in the term's "
+            f"cells (factors: {list(cells.columns)})"
+        )
+    return factors
+
+
 @contrast_weights.register(InteractionContrastSpec)
 def _(x: InteractionContrastSpec, term: Any, **kwargs: object) -> Contrast:
     """Compute interaction contrast weights.
 
-    For a term with n conditions representing a factorial design,
-    generates interaction contrast matrix using Kronecker products.
-    For 2x2: [1, -1, -1, 1]
-    For larger designs, uses Kronecker product of component contrasts.
+    The highest-order interaction of every factor named in ``A``: per cell,
+    the product of the factors' Helmert codings (R
+    ``generate_interaction_contrast``), so ``a * b * c`` with 3, 2 and 2
+    levels gives 2 columns orthogonal to all lower-order effects. Terms
+    without categorical cells fall back to guessing the factorial layout
+    from the number of conditions.
     """
     all_condnames = _get_conditions(term, expand_basis=False)
 
@@ -780,6 +1076,23 @@ def _(x: InteractionContrastSpec, term: Any, **kwargs: object) -> Contrast:
         warnings.warn(f"No conditions found for term {term}")
         weights = np.zeros((0, 0))
         return Contrast(term, x.name, weights, [], x)
+
+    def build(cells: pd.DataFrame, levels: dict[str, list[str]]) -> NDArray[np.float64]:
+        out = np.ones((len(cells), 1))
+        for factor in _named_factors(x, cells, minimum=2):
+            values = list(cells[factor])
+            if len(set(values)) < 2:
+                raise ValueError(
+                    f"Contrast '{x.name}': factor {factor!r} needs at least 2 "
+                    "levels for an interaction"
+                )
+            coding = _helmert_cells(values, levels[factor])
+            out = np.einsum("ni,nj->nij", out, coding).reshape(len(cells), -1)
+        return out
+
+    cell_weights = _cell_contrast(x, term, all_condnames, build)
+    if cell_weights is not None:
+        return Contrast(term, x.name, cell_weights, all_condnames, x)
 
     n = len(all_condnames)
 
@@ -859,6 +1172,7 @@ def _(x: ContrastFormulaSpec, term: Any, **kwargs: object) -> Contrast:
 
     # Get the formula expression
     formula_expr = x.A.expr if x.A is not None and hasattr(x.A, 'expr') else str(x.A)
+    where_mask = _where_mask(x, term, all_condnames)
 
     # Parse and evaluate the formula
     try:
@@ -869,6 +1183,8 @@ def _(x: ContrastFormulaSpec, term: Any, **kwargs: object) -> Contrast:
             "Using zero weights."
         )
         weights_vec = np.zeros(len(all_condnames))
+    if where_mask is not None:
+        weights_vec = np.where(where_mask, weights_vec, 0.0)
 
     weights = weights_vec.reshape(-1, 1)
 
@@ -1093,105 +1409,171 @@ def _(x: ContrastSet, term: Any, **kwargs: object) -> Dict[str, Contrast]:
 def _contrast_weights_event_model(model: Any, **kwargs: object) -> Dict[str, Any]:
     """Compute contrast weights for an EventModel.
 
-    Extracts contrasts from each term's contrast_specs attribute and maps
-    local term weights to full design matrix space.
+    Collects the contrasts attached to each term (``term.contrast_specs``
+    or the ``contrasts=`` of ``hrf()`` / ``fmrimod.spec.hrf()``), computes
+    them on the term's event term and embeds the term-level rows into the
+    full design by name (R ``.embed_term_weights``): a base condition
+    covers every basis column of that condition, a ``_b##`` row its one
+    basis column. Same-named terms are resolved by position, never by
+    name.
 
     Parameters
     ----------
     model : EventModel
-        Event model with terms that may have contrast_specs
+        Event model with terms that may carry contrasts
     **kwargs
         Additional arguments passed to contrast_weights
 
     Returns
     -------
     dict
-        Nested dictionary: {term_name: {contrast_name: Contrast}}
-        where Contrast objects have offset_weights in full design matrix space
+        Nested dictionary: ``{term_key: {contrast_name: Contrast}}`` where
+        Contrast objects have ``offset_weights`` in full design-matrix
+        space. ``term_key`` is the term name, or the term's column tag
+        (``cond#1``) when several terms share that name.
     """
-    from ..utils import term_indices
+    event_terms = model._create_event_terms()
+    facts = model.column_facts
+    ncol = len(facts)
+    # The model's own term keys (a repeated name is keyed by its column tag)
+    key_of = {tuple(cols): key for key, cols in model.column_indices.items()}
 
-    # Get term indices mapping
-    term_idx_map = term_indices(model)
-    ncond = model.design_matrix.shape[1]
+    # Result structure: {term_key: {contrast_name: Contrast}}
+    result: dict[str, dict[str, Contrast]] = {}
 
-    # Result structure: {term_name: {contrast_name: Contrast}}
-    result = {}
-
-    # Process each term
-    for term in model.terms:
-        term_name = term.name
-
-        # Check if term has contrast_specs
-        if not hasattr(term, 'contrast_specs') or term.contrast_specs is None:
+    for index, (term, event_term) in enumerate(zip(model.terms, event_terms, strict=True)):
+        specs = _term_contrast_specs(term)
+        if not specs:
             continue
 
-        # Get the EventTerm object for this term
-        event_terms = model._create_event_terms()
-        event_term = None
-        for i, t in enumerate(model.terms):
-            if t.name == term_name:
-                event_term = event_terms[i]
-                break
+        term_facts = [f for f in facts if f["term_index"] == index + 1]
+        layout = _TermColumns(term_facts, _get_conditions(event_term, expand_basis=False))
+        key = key_of.get(tuple(layout.indices), str(term.name))
 
-        if event_term is None:
-            warnings.warn(f"Could not find event term for '{term_name}'")
-            continue
-
-        # Get term indices in full design matrix
-        if term_name not in term_idx_map:
-            warnings.warn(f"Term '{term_name}' not found in term indices")
-            continue
-
-        term_indices_list = term_idx_map[term_name]
-
-        # Compute contrasts for this term
         term_contrasts = {}
-
-        # Handle both single ContrastSpec and ContrastSet
-        contrast_specs = term.contrast_specs
-        if not isinstance(contrast_specs, (list, ContrastSet)):
-            contrast_specs = [contrast_specs]
-
-        for contrast_spec in contrast_specs:
+        for contrast_spec in specs:
             try:
-                # Compute local weights for this term
                 local_contrast = contrast_weights(contrast_spec, event_term, **kwargs)
-
-                # Map local weights to full design matrix space
-                offset_weights = np.zeros((ncond, local_contrast.weights.shape[1]))
-
-                # Place local weights at appropriate indices
-                for i, idx in enumerate(term_indices_list):
-                    if i < local_contrast.weights.shape[0]:
-                        offset_weights[idx, :] = local_contrast.weights[i, :]
-
-                # Create new Contrast with offset weights
-                full_contrast = Contrast(
-                    term=term,
-                    name=local_contrast.name,
-                    weights=offset_weights,
-                    condnames=model.column_names,
-                    contrast_spec=contrast_spec
-                )
-
-                # Store the offset weights as an attribute for access
-                cast(Any, full_contrast).offset_weights = offset_weights
-                cast(Any, full_contrast).local_weights = local_contrast.weights
-
-                term_contrasts[local_contrast.name] = full_contrast
-
+                offset_weights = layout.embed(local_contrast, ncol, key)
             except Exception as e:
                 warnings.warn(
                     f"Failed to compute contrast '{contrast_spec.name}' "
-                    f"for term '{term_name}': {e}"
+                    f"for term '{key}': {e}",
+                    stacklevel=2,
                 )
+                continue
+
+            full_contrast = Contrast(
+                term=term,
+                name=local_contrast.name,
+                weights=offset_weights,
+                condnames=model.column_names,
+                contrast_spec=contrast_spec
+            )
+            # Store the offset weights as an attribute for access
+            cast(Any, full_contrast).offset_weights = offset_weights
+            cast(Any, full_contrast).local_weights = local_contrast.weights
+            cast(Any, full_contrast).term_indices = layout.indices
+            term_contrasts[local_contrast.name] = full_contrast
 
         if term_contrasts:
-            result[term_name] = term_contrasts
+            result[key] = term_contrasts
 
     return result
 
+
+def _term_contrast_specs(term: Any) -> list[ContrastSpec]:
+    """Contrast specs attached to a model term, flattened.
+
+    Reads ``term.contrast_specs`` and the ``contrasts=`` that the functional
+    and spec-layer ``hrf()`` store in ``term._kwargs``. Accepts a spec, a
+    sequence or ``ContrastSet`` (possibly nested) or a ``{name: spec}``
+    mapping; anything else is an error rather than silently skipped.
+    """
+    declared = [getattr(term, "contrast_specs", None)]
+    declared.append((getattr(term, "_kwargs", None) or {}).get("contrasts"))
+    specs: list[ContrastSpec] = []
+
+    def collect(item: object) -> None:
+        if isinstance(item, ContrastSpec):
+            specs.append(item)
+        elif isinstance(item, Mapping):
+            for value in item.values():
+                collect(value)
+        elif isinstance(item, (list, tuple)):
+            for value in item:
+                collect(value)
+        else:
+            raise TypeError(
+                f"Term '{term.name}': contrasts must be ContrastSpec objects; "
+                f"got {type(item).__name__}"
+            )
+
+    for item in declared:
+        if item is not None:
+            collect(item)
+    return specs
+
+
+class _TermColumns:
+    """The realized columns of one model term, addressable by condition name.
+
+    Built from the term's ``column_facts`` (``condition``, ``basis_ix``,
+    ``index``). Term-level row names are the event term's base condition
+    names; where the realized condition tags differ (factor-by-modulator
+    terms tag their columns ``cond:rt_1``, ...), the two lists are paired
+    in order, which the convolver and ``conditions()`` share.
+    """
+
+    def __init__(self, term_facts: list[dict[str, Any]], base_condnames: list[str]) -> None:
+        self.indices = [int(f["index"]) for f in term_facts]
+        self.by_name = {str(f["name"]): int(f["index"]) for f in term_facts}
+        self.columns: dict[str, dict[int, int]] = {}
+        for fact in term_facts:
+            basis_ix = int(fact["basis_ix"] or 1)
+            self.columns.setdefault(str(fact["condition"]), {})[basis_ix] = int(fact["index"])
+        self.alias: dict[str, str] = {}
+        realized = list(self.columns)
+        if not set(base_condnames) <= set(realized) and len(base_condnames) == len(realized):
+            self.alias = dict(zip(base_condnames, realized, strict=True))
+
+    def resolve(self, label: str) -> list[int] | None:
+        """Design columns a term-level row name stands for, or ``None``."""
+        condition = self.alias.get(label, label)
+        if condition in self.columns:
+            return [self.columns[condition][b] for b in sorted(self.columns[condition])]
+        match = re.match(r"^(.*)_b(\d+)$", label)
+        if match:
+            condition = self.alias.get(match.group(1), match.group(1))
+            basis_ix = int(match.group(2))
+            if basis_ix in self.columns.get(condition, {}):
+                return [self.columns[condition][basis_ix]]
+        if label in self.by_name:
+            return [self.by_name[label]]
+        return None
+
+    def embed(self, local: Contrast, ncol: int, term_key: str) -> NDArray[np.float64]:
+        """Place a term-level contrast into the full design (R ``.embed_term_weights``)."""
+        local_weights = _as_weight_matrix(local.weights)
+        if local_weights.shape[0] != len(local.condnames):
+            raise ValueError(
+                f"contrast '{local.name}' has {local_weights.shape[0]} weight rows "
+                f"but {len(local.condnames)} row names"
+            )
+        out = np.zeros((ncol, local_weights.shape[1]))
+        unmatched = []
+        for row, label in zip(local_weights, local.condnames, strict=True):
+            targets = self.resolve(str(label))
+            if targets is None:
+                unmatched.append(str(label))
+            else:
+                out[targets, :] = row
+        if unmatched:
+            raise ValueError(
+                f"rows {unmatched} of contrast '{local.name}' match no column of "
+                f"term '{term_key}' (conditions: {list(self.columns)})"
+            )
+        return out
 
 def _register_event_model_contrast_weights() -> None:
     """Register EventModel handler after module load to avoid circular imports."""

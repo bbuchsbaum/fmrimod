@@ -39,6 +39,7 @@ from ._types import (
     SingleTrialMethodLike,
     SingleTrialResult,
     SpatialDescriptor,
+    VoxelHrfExtras,
     VoxelHrfResult,
 )
 from .item import (
@@ -137,24 +138,6 @@ def estimate_single_trial(
     -------
     SingleTrialResult
     """
-    # Optional prewhitening. Routes through fmrimod.ar.fit_noise +
-    # whiten_apply (the same engine the GLM solver uses) so Y, X,
-    # baseline_regressors, and confounds share one plan.
-    whitening_plan = None
-    if prewhiten is not None and prewhiten.method != "none":
-        from ._prewhiten import prewhiten_matrices
-
-        pw = prewhiten_matrices(
-            Y,
-            X,
-            confounds,
-            prewhiten,
-            baseline_regressors=baseline_regressors,
-        )
-        Y, X, confounds = pw.Y, pw.X, pw.confounds
-        baseline_regressors = pw.baseline_regressors
-        whitening_plan = pw.plan
-
     try:
         method_enum = (
             method
@@ -185,6 +168,65 @@ def estimate_single_trial(
             "only for method='lss' or method='lsa'."
         )
 
+    oasis_cfg: OasisConfig | None = None
+    if method_enum is SingleTrialMethod.OASIS:
+        if oasis_config is None:
+            oasis_cfg = (
+                OasisConfig(
+                    return_se=True,
+                    K=resolved_k,
+                    ridge_mode="none",
+                    ridge_x=0.0,
+                    ridge_b=0.0,
+                )
+                if return_se
+                else OasisConfig(K=resolved_k)
+            )
+        else:
+            oasis_cfg = oasis_config
+            if oasis_cfg.K == 1 and resolved_k > 1:
+                oasis_cfg = replace(oasis_cfg, K=resolved_k)
+            if return_se and not oasis_cfg.return_se:
+                oasis_cfg = replace(oasis_cfg, return_se=True)
+
+    # Optional prewhitening. Routes through fmrimod.ar.fit_noise +
+    # whiten_apply (the same engine the GLM solver uses) so Y, X,
+    # baseline_regressors, and confounds share one plan. The aggregate
+    # noise model sums trials per basis function (fmrilss a9d816e).
+    whitening_plan = None
+    intercept_whitened = False
+    if prewhiten is not None and prewhiten.method != "none":
+        from ._prewhiten import aggregate_trials, prewhiten_matrices
+
+        if include_intercept:
+            # Whiten the intercept with the same plan as the other baseline
+            # regressors (R lss() whitens Z, an intercept by default); adding
+            # it after whitening would leave an unwhitened mean regressor.
+            ones = np.ones((np.shape(X)[0], 1), dtype=np.float64)
+            baseline_regressors = (
+                ones
+                if baseline_regressors is None
+                else np.column_stack([ones, baseline_regressors])
+            )
+            include_intercept = False
+            intercept_whitened = True
+        noise_k = 1
+        if oasis_cfg is not None:
+            noise_k = oasis_cfg.K
+        elif method_enum is SingleTrialMethod.SBHM and sbhm_library is not None:
+            noise_k = int(sbhm_library.B.shape[1])
+        pw = prewhiten_matrices(
+            Y,
+            X,
+            confounds,
+            prewhiten,
+            baseline_regressors=baseline_regressors,
+            noise_trials=aggregate_trials(X, noise_k),
+        )
+        Y, X, confounds = pw.Y, pw.X, pw.confounds
+        baseline_regressors = pw.baseline_regressors
+        whitening_plan = pw.plan
+
     if method_enum is SingleTrialMethod.LSS:
         result = lss_single_trial(
             Y,
@@ -208,24 +250,7 @@ def estimate_single_trial(
             include_intercept=include_intercept,
         )
     elif method_enum is SingleTrialMethod.OASIS:
-        if oasis_config is None:
-            oasis_cfg = (
-                OasisConfig(
-                    return_se=True,
-                    K=resolved_k,
-                    ridge_mode="none",
-                    ridge_x=0.0,
-                    ridge_b=0.0,
-                )
-                if return_se
-                else OasisConfig(K=resolved_k)
-            )
-        else:
-            oasis_cfg = oasis_config
-            if oasis_cfg.K == 1 and resolved_k > 1:
-                oasis_cfg = replace(oasis_cfg, K=resolved_k)
-            if return_se and not oasis_cfg.return_se:
-                oasis_cfg = replace(oasis_cfg, return_se=True)
+        assert oasis_cfg is not None
         result = oasis_single_trial(
             Y,
             X,
@@ -263,6 +288,8 @@ def estimate_single_trial(
     else:
         raise ValueError(f"Unknown method: {method!r}")
 
+    if intercept_whitened and isinstance(result.extra, LssExtras):
+        result.extra = replace(result.extra, include_intercept=True)
     if whitening_plan is not None:
         result.extra = replace(result.extra, whitening_plan=whitening_plan)
     return result
@@ -311,7 +338,9 @@ def estimate_single_trial_from_dataset(
         Estimator selector; see :func:`estimate_single_trial`.
     confounds, return_se, prewhiten, nuisance_projector, chunk_size,
         oasis_config, sbhm_config, sbhm_library, include_intercept
-        Forwarded to :func:`estimate_single_trial`.
+        Forwarded to :func:`estimate_single_trial`. When ``prewhiten.runs``
+        is unset it is filled from the dataset's sampling-frame runs;
+        supplied runs must match the frame's run boundaries.
     block, durations, precision
         Forwarded to :func:`fmrimod.event_model`. ``block`` and ``durations``
         default to event-table column auto-detection (``run``/``block`` and
@@ -347,6 +376,11 @@ def estimate_single_trial_from_dataset(
         )
 
     sampling_frame = cast(Any, dataset).get_sampling_frame()
+    if prewhiten is not None:
+        from ._prewhiten import with_frame_runs
+
+        # AR estimation and filtering must not span the frame's runs.
+        prewhiten = with_frame_runs(prewhiten, sampling_frame.blockids)
 
     resolved_block = block
     if resolved_block is None:
@@ -584,6 +618,7 @@ __all__ = [
     "OasisExtras",
     "MixedExtras",
     "SbhmExtras",
+    "VoxelHrfExtras",
     "SingleTrialMethod",
     "SingleTrialMethodLike",
     "SpatialDescriptor",

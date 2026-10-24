@@ -338,10 +338,12 @@ class Regressor:
                 return csr_matrix(result if result.ndim == 2 else result[:, np.newaxis])
             return result
 
-        # Filter events based on grid boundaries
-        onset_min = grid[0] - self.span
-        onset_max = grid[-1]
-        keep = (self.onsets >= onset_min) & (self.onsets <= onset_max)
+        # Keep events whose response can reach the grid. A block can begin
+        # before the point-event bound and still overlap the grid through its
+        # duration, so filter on the end of the neural input, not only on its
+        # onset (R prep_reg_inputs).
+        event_ends = self.onsets + np.maximum(self.duration, 0.0)
+        keep = (event_ends >= grid[0] - self.span) & (self.onsets <= grid[-1])
 
         if not np.any(keep):
             result = np.zeros((len(grid), nb))

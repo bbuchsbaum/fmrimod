@@ -245,6 +245,141 @@ if _USE_NUMBA_ARMA:
         return out
 
 
+# Rows of the exact start-up factor this close to the stationary limit
+# (1, theta_1, ..., theta_q, 0, ...) are treated as converged.
+_EXACT_FACTOR_TOL = 1e-14
+
+
+def _arma_acvf_unit(
+    phi: NDArray[np.float64], theta: NDArray[np.float64], max_lag: int
+) -> NDArray[np.float64] | None:
+    """Unit-innovation ARMA autocovariance at lags ``0..max_lag``.
+
+    Solves the exact linear system of Brockwell & Davis (1991, sec. 3.3), as
+    fmriAR_whiten.cpp ``arma_acvf_unit`` does. ``None`` when the system is
+    singular or ``gamma_0 <= 0``, i.e. the AR part is not stationary.
+    """
+    p, q = phi.size, theta.size
+    th = np.concatenate([[1.0], theta])
+    psi = np.zeros(q + 1)
+    psi[0] = 1.0
+    for j in range(1, q + 1):
+        psi[j] = th[j] + sum(phi[k - 1] * psi[j - k] for k in range(1, min(j, p) + 1))
+    rhs = np.array(
+        [float(np.dot(th[k:], psi[: q + 1 - k])) if k <= q else 0.0
+         for k in range(max(max_lag, p) + 1)]
+    )
+    A = np.eye(p + 1)
+    for k in range(p + 1):
+        for j in range(1, p + 1):
+            A[k, abs(k - j)] -= phi[j - 1]
+    try:
+        g = np.linalg.solve(A, rhs[: p + 1])
+    except np.linalg.LinAlgError:
+        return None
+    if not np.all(np.isfinite(g)) or not g[0] > 0:
+        return None
+    gamma = np.zeros(rhs.size)
+    gamma[: p + 1] = g
+    for k in range(p + 1, rhs.size):
+        gamma[k] = rhs[k] + float(np.dot(phi, gamma[k - 1 :: -1][:p]))
+    return gamma[: max_lag + 1]
+
+
+def _exact_factor(
+    phi: NDArray[np.float64], theta: NDArray[np.float64], n: int
+) -> NDArray[np.float64] | None:
+    """Banded Cholesky factor for exact stationary start-up (Ansley 1979).
+
+    With ``m = max(p, q)``, ``z_t = y_t`` for ``t < m`` and ``phi(B) y_t``
+    afterwards. ``Cov(z)`` is banded with half-bandwidth ``m`` and ``z = A y``
+    with ``A`` unit lower triangular, so its Cholesky factor ``L`` satisfies
+    ``L^-1 z = chol(Sigma)^-1 y``: exact GLS whitening of a stationary segment.
+    Row ``t`` holds ``L[t, t - d]`` at column ``d``. A shorter segment's factor
+    is the leading block of a longer one's, so one factor serves every
+    segment. Rows stop once they reach the stationary limit
+    ``(1, theta_1, ..., theta_q, 0, ...)``; later rows follow it. ``None``
+    when the AR part is not stationary (fmriAR_whiten.cpp
+    ``build_exact_factor``).
+    """
+    p, q = phi.size, theta.size
+    m = max(p, q)
+    gamma = _arma_acvf_unit(phi, theta, m + p)
+    if gamma is None:
+        return None
+    th = np.concatenate([[1.0], theta])
+    # Cov(z_i, z_j), i <= j, by band offset d = j - i: both in the start-up
+    # block, the start-up row against a filtered one, and two filtered rows.
+    cross = np.array(
+        [gamma[d] - sum(phi[k - 1] * gamma[abs(d - k)] for k in range(1, p + 1))
+         for d in range(m + 1)]
+    )
+    ma_cov = np.array(
+        [float(np.dot(th[: q + 1 - d], th[d:])) if d <= q else 0.0
+         for d in range(m + 1)]
+    )
+    limit = np.zeros(m + 1)
+    limit[0] = 1.0
+    limit[1 : q + 1] = theta
+    tol = _EXACT_FACTOR_TOL * max(1.0, float(np.max(np.abs(limit))))
+    F = np.zeros((n, m + 1))
+    for t in range(n):
+        j0 = max(0, t - m)
+        for j in range(j0, t + 1):
+            d = t - j
+            if t < m:
+                s = gamma[d]
+            elif j < m:
+                s = cross[d]
+            else:
+                s = ma_cov[d]
+            for k in range(max(j0, j - m), j):
+                s -= F[t, t - k] * F[j, j - k]
+            if j == t:
+                if not (s > 0 and np.isfinite(s)):
+                    return None
+                F[t, 0] = np.sqrt(s)
+            else:
+                F[t, d] = s / F[j, 0]
+        if t >= m and np.max(np.abs(F[t] - limit)) <= tol:
+            return F[:t]
+    return F
+
+
+def _filter_exact(
+    seg: NDArray[np.float64],
+    phi: NDArray[np.float64],
+    theta: NDArray[np.float64],
+    factor: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """Exact stationary-start whitening of one segment, all columns at once."""
+    n_seg = seg.shape[0]
+    p, q = phi.size, theta.size
+    m = factor.shape[1] - 1
+    z = seg.copy()
+    if n_seg > m:
+        for k in range(1, p + 1):
+            z[m:] -= phi[k - 1] * seg[m - k : n_seg - k]
+    out = np.empty_like(seg)
+    n_rows = min(n_seg, factor.shape[0])
+    for t in range(n_rows):
+        acc = z[t].copy()
+        for d in range(1, min(t, m) + 1):
+            acc -= factor[t, d] * out[t - d]
+        out[t] = acc / factor[t, 0]
+    # Converged rows follow the limit: out_t = z_t - sum_d theta_d out_{t-d},
+    # the conditional MA recursion seeded with the exact outputs so far.
+    if q == 0:
+        out[n_rows:] = z[n_rows:]
+    else:
+        for t in range(n_rows, n_seg):
+            acc = z[t].copy()
+            for d in range(1, q + 1):
+                acc -= theta[d - 1] * out[t - d]
+            out[t] = acc
+    return out
+
+
 def arma_whiten_segments(
     y: NDArray[np.float64],
     phi: NDArray[np.float64],
@@ -268,8 +403,12 @@ def arma_whiten_segments(
     seg_starts : NDArray[np.float64]
         0-based segment start indices (must include 0).
     exact_first_ar1 : bool
-        If ``True`` and ``p == 1, q == 0``, multiply the first sample
-        of each segment by ``sqrt(1 - phi[0]**2)``.
+        If ``True``, start every segment with the exact stationary
+        initialisation of the AR/ARMA model (fmriAR 617bd87), so the
+        result is exact GLS whitening within each segment. For AR(1) this
+        is the Prais-Winsten ``sqrt(1 - phi[0]**2)`` scaling of the first
+        sample. A non-stationary AR part falls back to the conditional
+        filter. The name is historical.
 
     Returns
     -------
@@ -293,12 +432,24 @@ def arma_whiten_segments(
 
     out = np.empty_like(y)
 
+    if exact_first_ar1 and (p > 0 or q_ord > 0) and n > 0:
+        max_len = int(np.max(seg_ends - seg_starts))
+        factor = _exact_factor(phi, theta, max_len)
+        if factor is not None:
+            for s_start, s_end in zip(seg_starts, seg_ends, strict=True):
+                if s_end > s_start:
+                    out[s_start:s_end] = _filter_exact(
+                        y[s_start:s_end], phi, theta, factor
+                    )
+            return out.ravel() if was_1d else out
+        # Non-stationary AR part: there is no stationary start-up, so use the
+        # conditional recursion (fmriAR_whiten.cpp:248-254).
+
     # Build filter coefficients: b = [1, -phi_1, ...], a = [1, theta_1, ...]
     b = np.concatenate([[1.0], -phi]) if p > 0 else np.array([1.0])
     a = np.concatenate([[1.0], theta]) if q_ord > 0 else np.array([1.0])
 
-    do_exact = exact_first_ar1 and p == 1 and q_ord == 0
-    exact_scale = np.sqrt(max(1.0 - phi[0] ** 2, 0.0)) if do_exact else 1.0
+    do_exact = False
 
     # ARMA path: prefer numba when available. On the benchmark gate workload,
     # numba avoids ctypes boundary overhead and is faster than the C shim.
@@ -344,10 +495,6 @@ def arma_whiten_segments(
         else:
             # General ARMA case: use scipy lfilter along time axis.
             out[s_start:s_end, :] = lfilter(b, a, seg, axis=0)
-
-        # Exact first-sample scaling
-        if do_exact:
-            out[s_start] *= exact_scale
 
     if was_1d:
         return out.ravel()
@@ -405,7 +552,8 @@ def whiten_apply(
     runs : NDArray[np.float64], optional
         Run labels (overrides plan's runs).
     censor : NDArray[np.float64], optional
-        0-based censor indices (overrides plan's censor).
+        0-based censor indices, or a boolean mask with one entry per row
+        (overrides plan's censor).
     parcels : NDArray[np.float64], optional
         Parcel labels (overrides plan's parcels).
 
@@ -413,7 +561,7 @@ def whiten_apply(
     -------
     WhitenResult
     """
-    from .acvf import parcel_codes, run_codes, run_sets
+    from .acvf import _normalize_censor, parcel_codes, run_codes, run_sets
     from .plan import WhitenResult
 
     X = np.array(X, dtype=np.float64, copy=True)
@@ -437,9 +585,9 @@ def whiten_apply(
     else:
         run_codes(runs, n)
 
-    # Resolve censor
-    if censor is None:
-        censor = plan.censor
+    # Resolve censor: None inherits the plan's set, an explicit empty one
+    # means no censoring; a boolean mask must not be cast to 0/1 indices.
+    censor_idx = _normalize_censor(plan.censor if censor is None else censor, n)
 
     # --- Parcel plan ---
     if plan.pooling == "parcel":
@@ -448,7 +596,7 @@ def whiten_apply(
             raise ValueError("Parcel labels required for parcel plan")
         parcels_vec = parcel_codes(parcels_vec)
 
-        run_starts_vec = _full_run_starts(runs, censor, n)
+        run_starts_vec = _full_run_starts(runs, censor_idx, n)
         phi_by = plan.phi_by_parcel or {}
         theta_by = plan.theta_by_parcel or {}
 
@@ -514,11 +662,10 @@ def whiten_apply(
 
     # Split censor by run
     censor_by_run = [np.array([], dtype=np.intp) for _ in rsplits]
-    if censor is not None and len(censor) > 0:
-        censor = np.asarray(censor, dtype=np.intp)
+    if censor_idx is not None:
         for ri, idx in enumerate(rsplits):
             start = idx[0]
-            c_in = np.intersect1d(censor, idx)
+            c_in = np.intersect1d(censor_idx, idx)
             if len(c_in):
                 censor_by_run[ri] = c_in - start
 
@@ -589,7 +736,7 @@ def whiten(
     runs : NDArray[np.float64], optional
         Run labels.
     censor : NDArray[np.float64], optional
-        0-based censor indices.
+        0-based censor indices, or a boolean mask with one entry per row.
     **fit_kwargs
         Additional arguments passed to ``fit_noise()``.
 

@@ -50,6 +50,7 @@ from ._reducers_kernels import (
     _max_abs_null,
     _max_tail_null,
     _pack_upper_tri,
+    _perm_first_row_is_identity,
     _perm_tail_count,
     _perm_tail_score,
     _safe_inverse,
@@ -64,6 +65,7 @@ from ._reducers_lmm import (
     _fit_mixedlm_feature,
     _is_expected_lmm_fit_failure,
     _lmm_beta_matrix,
+    _lmm_coef_df,
     _lmm_failure_metadata,
     _lmm_fixed_design,
     _lmm_not_available,
@@ -335,7 +337,7 @@ def combine_lancaster(
     clamped = _clamp_cpp_p_values(p)
     w3 = weights.reshape(1, dataset.n_subjects, 1)
     with np.errstate(divide="ignore", invalid="ignore"):
-        chi_terms = sp_stats.chi2.ppf(1.0 - clamped, df=2.0 * w3)
+        chi_terms = sp_stats.chi2.isf(clamped, df=2.0 * w3)
     chi2 = np.sum(np.where(finite, chi_terms, 0.0), axis=1, keepdims=True)
     df = 2.0 * np.sum(np.where(finite, w3, 0.0), axis=1, keepdims=True)
     p_g = sp_stats.chi2.sf(chi2, df)
@@ -359,15 +361,25 @@ def meta_fe_reg(
     formula: str = "~ 1",
     X: NDArray[np.float64] | None = None,
     eps: float = 1e-12,
+    min_subjects: int = 2,
 ) -> GroupDataset:
-    """Fixed-effects meta-regression reducer."""
+    """Fixed-effects meta-regression reducer.
+
+    A subject enters a feature's fit only if its beta and variance are
+    finite, the variance is positive and its design row is finite
+    (fmrigds ``meta:fe_reg``); variances below ``eps`` are floored.
+    """
     beta, var = _beta_and_var(dataset, method="meta:fe_reg")
     if beta.shape != var.shape:
         raise AdapterContractError("beta and var/se assays must have matching shapes")
     if eps <= 0:
         raise AdapterContractError("eps must be > 0")
+    if min_subjects < 1:
+        raise AdapterContractError("min_subjects must be >= 1")
     X_mat, predictor_names = _design_matrix(dataset, X=X, formula=formula)
     pcols = X_mat.shape[1]
+    required = max(int(min_subjects), pcols + 1)
+    finite_design = np.all(np.isfinite(X_mat), axis=1)
     beta_2d = _flatten_feature_axis(beta)
     var_2d = _flatten_feature_axis(var)
     n_features = beta_2d.shape[1]
@@ -380,10 +392,11 @@ def meta_fe_reg(
     for feature_idx in range(n_features):
         y = beta_2d[:, feature_idx]
         v = var_2d[:, feature_idx]
-        w = 1.0 / np.maximum(v, eps)
-        ok = np.isfinite(y) & np.isfinite(w)
-        if np.sum(ok) < (pcols + 1):
+        with np.errstate(invalid="ignore"):
+            ok = np.isfinite(y) & np.isfinite(v) & (v > 0) & finite_design
+        if np.sum(ok) < required:
             continue
+        w = 1.0 / np.maximum(np.where(ok, v, 1.0), eps)
         Xok = X_mat[ok, :]
         wok = w[ok]
         yok = y[ok]
@@ -430,7 +443,11 @@ def meta_fe_reg(
         dataset,
         assays,
         method="meta:fe_reg",
-        metadata={"formula": formula, "predictor_names": tuple(predictor_names)},
+        metadata={
+            "formula": formula,
+            "predictor_names": tuple(predictor_names),
+            "min_subjects": int(min_subjects),
+        },
     )
 
 
@@ -440,15 +457,25 @@ def meta_re_reg(
     formula: str = "~ 1",
     X: NDArray[np.float64] | None = None,
     eps: float = 1e-12,
+    min_subjects: int = 2,
 ) -> GroupDataset:
-    """DerSimonian-Laird random-effects meta-regression reducer."""
+    """DerSimonian-Laird random-effects meta-regression reducer.
+
+    Uses the same subject validity rule as :func:`meta_fe_reg`, and skips
+    a feature whose design is rank-deficient on its valid subjects or
+    whose ``tr(P)`` is not positive (fmrigds ``.meta_re_reg_dl_r``).
+    """
     beta, var = _beta_and_var(dataset, method="meta:re_reg")
     if beta.shape != var.shape:
         raise AdapterContractError("beta and var/se assays must have matching shapes")
     if eps <= 0:
         raise AdapterContractError("eps must be > 0")
+    if min_subjects < 1:
+        raise AdapterContractError("min_subjects must be >= 1")
     X_mat, predictor_names = _design_matrix(dataset, X=X, formula=formula)
     pcols = X_mat.shape[1]
+    required = max(int(min_subjects), pcols + 1)
+    finite_design = np.all(np.isfinite(X_mat), axis=1)
     beta_2d = _flatten_feature_axis(beta)
     var_2d = _flatten_feature_axis(var)
     n_features = beta_2d.shape[1]
@@ -462,13 +489,16 @@ def meta_re_reg(
     for feature_idx in range(n_features):
         y = beta_2d[:, feature_idx]
         v = var_2d[:, feature_idx]
-        w = 1.0 / np.maximum(v, eps)
-        ok = np.isfinite(y) & np.isfinite(w)
-        if np.sum(ok) < (pcols + 1):
+        with np.errstate(invalid="ignore"):
+            ok = np.isfinite(y) & np.isfinite(v) & (v > 0) & finite_design
+        if np.sum(ok) < required:
             continue
+        w = 1.0 / np.maximum(np.where(ok, v, 1.0), eps)
         Xok = X_mat[ok, :]
         wok = w[ok]
         yok = y[ok]
+        if np.linalg.matrix_rank(Xok) < pcols:
+            continue
         Xw = Xok * np.sqrt(wok)[:, np.newaxis]
         gram = Xw.T @ Xw
         gram_inv = _safe_inverse(gram)
@@ -479,8 +509,10 @@ def meta_re_reg(
         q_val = float(np.sum(wok * resid * resid))
         x_a_x = np.sum((Xok @ gram_inv) * Xok, axis=1)
         c_term = float(np.sum(wok) - np.sum((wok**2) * x_a_x))
+        if not np.isfinite(c_term) or c_term <= 0:
+            continue
         df_val = float(np.sum(ok) - pcols)
-        tau_val = max((q_val - df_val) / max(c_term, eps), 0.0)
+        tau_val = max((q_val - df_val) / c_term, 0.0)
 
         w_star = 1.0 / ((1.0 / wok) + tau_val)
         Xws = Xok * np.sqrt(w_star)[:, np.newaxis]
@@ -534,6 +566,7 @@ def meta_re_reg(
             "formula": formula,
             "predictor_names": tuple(predictor_names),
             "tau2": "DL",
+            "min_subjects": int(min_subjects),
         },
     )
 
@@ -634,6 +667,14 @@ def perm_onesample(
             raise AdapterContractError("signs must have shape n_perm x n_subjects")
         if not np.all(np.isin(sign_mat, [-1, 1])):
             raise AdapterContractError("signs must contain only -1 and 1")
+    n_perm_rows = int(sign_mat.shape[0])
+    if _perm_first_row_is_identity(
+        sign_mat,
+        np.ones(dataset.n_subjects, dtype=np.int8),
+        generated=signs is None,
+        include_observed=include_observed,
+    ):
+        sign_mat = sign_mat[1:]
 
     beta_2d = _flatten_feature_axis(beta)
     n_features = beta_2d.shape[1]
@@ -775,7 +816,8 @@ def perm_onesample(
         assays,
         method="perm:onesample",
         metadata={
-            "n_perm": int(sign_mat.shape[0]),
+            "n_perm": n_perm_rows,
+            "n_null": int(sign_mat.shape[0]),
             "min_subjects": int(min_subjects),
             "alternative": alternative,
             "weights": weights,
@@ -838,6 +880,14 @@ def perm_twosample(
             raise AdapterContractError("group_mat must have shape n_perm x n_subjects")
         if not np.all(np.isin(perm_mat, [0, 1])):
             raise AdapterContractError("group_mat must encode groups as 0/1")
+    n_perm_rows = int(perm_mat.shape[0])
+    if _perm_first_row_is_identity(
+        perm_mat,
+        group_codes,
+        generated=group_mat is None,
+        include_observed=include_observed,
+    ):
+        perm_mat = perm_mat[1:]
 
     beta_2d = _flatten_feature_axis(beta)
     n_features = beta_2d.shape[1]
@@ -913,8 +963,8 @@ def perm_twosample(
             for perm_idx, labels in enumerate(perm_mat[:, ok]):
                 _, _, perm_t, _ = two_sample_t(y_ok, labels)
                 null_chunk[perm_idx, local_idx] = perm_t
-            count = _perm_tail_count(null_chunk[1:, local_idx], obs_t, alternative)
-            p_perm_chunk[local_idx] = (count + 1.0) / float(perm_mat.shape[0])
+            count = _perm_tail_count(null_chunk[:, local_idx], obs_t, alternative)
+            p_perm_chunk[local_idx] = (count + 1.0) / (perm_mat.shape[0] + 1.0)
 
         return (
             start,
@@ -959,11 +1009,11 @@ def perm_twosample(
     for feature_idx in range(n_features):
         score = obs_score[feature_idx]
         count = (
-            float(np.sum(np.isfinite(max_null[1:]) & (max_null[1:] >= score)))
+            float(np.sum(np.isfinite(max_null) & (max_null >= score)))
             if np.isfinite(score)
             else np.nan
         )
-        p_fwer[feature_idx] = (count + 1.0) / float(perm_mat.shape[0])
+        p_fwer[feature_idx] = (count + 1.0) / (perm_mat.shape[0] + 1.0)
 
     assays = {
         "beta_g": _unflatten_feature_axis(
@@ -993,7 +1043,8 @@ def perm_twosample(
         assays,
         method="perm:twosample",
         metadata={
-            "n_perm": int(perm_mat.shape[0]),
+            "n_perm": n_perm_rows,
+            "n_null": int(perm_mat.shape[0]),
             "variance": variance,
             "min_group": int(min_group),
             "alternative": alternative,
@@ -1217,6 +1268,7 @@ def lmm_ri(
     groups = obs["subject"].to_numpy()
     exog_re = np.ones((n_obs, 1), dtype=np.float64)
     df_val = float(max(n_obs - pcols, 1))
+    df_coef = _lmm_coef_df(X, groups, df_val)
 
     coef = np.full((pcols, n_samples), np.nan, dtype=np.float64)
     se_coef = np.full((pcols, n_samples), np.nan, dtype=np.float64)
@@ -1252,7 +1304,7 @@ def lmm_ri(
         se = np.asarray(result.bse_fe, dtype=np.float64)
         with np.errstate(divide="ignore", invalid="ignore"):
             t_val = fe / se
-            p_val = 2.0 * sp_stats.t.sf(np.abs(t_val), df_val)
+            p_val = 2.0 * sp_stats.t.sf(np.abs(t_val), df_coef)
         scale = float(result.scale)
         cov_re = np.asarray(result.cov_re, dtype=np.float64)
         vc_i = float(cov_re[0, 0]) if cov_re.size else np.nan
@@ -1288,6 +1340,9 @@ def lmm_ri(
         assays[f"se_coef:{name}"] = _flat_lmm(se_coef[pred_idx])
         assays[f"t_coef:{name}"] = _flat_lmm(t_coef[pred_idx])
         assays[f"p_coef:{name}"] = _flat_lmm(p_coef[pred_idx])
+        assays[f"df_coef:{name}"] = _flat_lmm(
+            np.where(np.isfinite(coef[pred_idx]), df_coef[pred_idx], np.nan)
+        )
 
     return _lmm_result_dataset(
         dataset,
@@ -1348,6 +1403,7 @@ def lmm_ri_slope1(
     groups = obs["subject"].to_numpy()
     exog_re = np.column_stack([np.ones(n_obs, dtype=np.float64), slope_values])
     df_val = float(max(n_obs - pcols, 1))
+    df_coef = _lmm_coef_df(X, groups, df_val)
 
     coef = np.full((pcols, n_samples), np.nan, dtype=np.float64)
     se_coef = np.full((pcols, n_samples), np.nan, dtype=np.float64)
@@ -1389,7 +1445,7 @@ def lmm_ri_slope1(
         se = np.asarray(result.bse_fe, dtype=np.float64)
         with np.errstate(divide="ignore", invalid="ignore"):
             t_val = fe / se
-            p_val = 2.0 * sp_stats.t.sf(np.abs(t_val), df_val)
+            p_val = 2.0 * sp_stats.t.sf(np.abs(t_val), df_coef)
         scale = float(result.scale)
         cov_re = np.asarray(result.cov_re, dtype=np.float64)
         vc_i = float(cov_re[0, 0])
@@ -1438,6 +1494,9 @@ def lmm_ri_slope1(
         assays[f"se_coef:{name}"] = _flat_lmm(se_coef[pred_idx])
         assays[f"t_coef:{name}"] = _flat_lmm(t_coef[pred_idx])
         assays[f"p_coef:{name}"] = _flat_lmm(p_coef[pred_idx])
+        assays[f"df_coef:{name}"] = _flat_lmm(
+            np.where(np.isfinite(coef[pred_idx]), df_coef[pred_idx], np.nan)
+        )
 
     return _lmm_result_dataset(
         dataset,

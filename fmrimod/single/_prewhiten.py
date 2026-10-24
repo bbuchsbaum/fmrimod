@@ -8,17 +8,19 @@ used here, so single-trial prewhitening picks up run-aware pooling,
 parcel pooling, ARMA, and exact-first scaling without a parallel
 estimator implementation.
 
-Per R's ``fmrilss::.prewhiten_data``, the combined design used to
-compute AR residuals is ``cbind(Z, X, Nuisance)`` where ``Z`` is the
-baseline / experimental design, ``X`` is the trial regressor matrix,
-and ``Nuisance`` is the confound matrix. All four — ``Y``, ``X``,
-``Z``, ``Nuisance`` — are whitened with the same plan so the
-downstream LSS solve operates on a fully whitened system.
+Per R's ``fmrilss::.prewhiten_data``, the noise model is fitted to the
+OLS residuals of ``cbind(Z, X_model, Nuisance)`` where ``Z`` is the
+baseline / experimental design, ``Nuisance`` is the confound matrix and
+``X_model`` depends on ``residual_model``: by default one summed trial
+regressor (one sum per basis function for multi-basis designs), or the
+full trial regressor matrix ``X`` for ``"full"`` / ``"corrected"``. All
+four of ``Y``, ``X``, ``Z``, ``Nuisance`` are whitened with the same
+plan so the downstream solve operates on a fully whitened system.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -31,6 +33,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 PrewhitenMethod = Literal["ar", "arma", "none"]
 PoolingMode = Literal["global", "voxel", "run", "parcel"]
 ExactFirstMode = Literal["ar1", "none"]
+ResidualModel = Literal["aggregate", "full", "corrected"]
 ArOrder = Union[int, Literal["auto"]]
 
 
@@ -70,6 +73,17 @@ class PrewhitenConfig:
         with ``design``.
     correction_max_lag : int
         Lag budget used when ``design`` is supplied (default 25).
+    residual_model : str or None
+        Design whose residuals feed the noise model (fmrilss ``a9d816e``).
+        ``"aggregate"`` uses the baseline and confound regressors plus one
+        summed trial regressor (one sum per basis function for multi-basis
+        designs), which avoids the downward AR bias that many trial columns
+        cause in rapid designs. ``"full"`` uses the full trial-wise (LSA)
+        design. ``"corrected"`` is ``"full"`` plus the residual-ACVF bias
+        correction for that design, built automatically (``method="ar"``
+        with global or run pooling only). ``None`` (default) resolves to
+        ``"full"`` when ``design`` or ``acvf_correction`` is supplied and to
+        ``"aggregate"`` otherwise; see :attr:`resolved_residual_model`.
     """
 
     method: PrewhitenMethod = "ar"
@@ -85,6 +99,7 @@ class PrewhitenConfig:
         Union[NDArray[np.float64], Sequence[NDArray[np.float64]]]
     ] = None
     correction_max_lag: int = 25
+    residual_model: ResidualModel | None = None
 
     def __post_init__(self) -> None:
         if self.method not in {"ar", "arma", "none"}:
@@ -120,6 +135,37 @@ class PrewhitenConfig:
         object.__setattr__(self, "q", int(self.q))
         object.__setattr__(self, "p_max", int(self.p_max))
         object.__setattr__(self, "correction_max_lag", int(self.correction_max_lag))
+        # R ``.resolve_prewhiten_options`` (fmrilss ``R/prewhitening.R:155-183``).
+        if self.residual_model not in {None, "aggregate", "full", "corrected"}:
+            raise ValueError(
+                "residual_model must be one of: aggregate, full, corrected"
+            )
+        explicit_correction = (
+            self.design is not None or self.acvf_correction is not None
+        )
+        if explicit_correction and self.residual_model not in {None, "full"}:
+            raise ValueError(
+                "residual-bias correction via design/acvf_correction requires "
+                "residual_model='full' (residual_model='corrected' builds the "
+                "correction automatically; do not also supply design or "
+                "acvf_correction)"
+            )
+        if explicit_correction or self.residual_model == "corrected":
+            if self.method != "ar":
+                raise ValueError("residual-bias correction requires method='ar'")
+            if self.pooling not in {"global", "run"}:
+                raise ValueError(
+                    "residual-bias correction requires pooling='global' or 'run'"
+                )
+
+    @property
+    def resolved_residual_model(self) -> ResidualModel:
+        """``residual_model`` with the R default applied."""
+        if self.residual_model is not None:
+            return self.residual_model
+        if self.design is not None or self.acvf_correction is not None:
+            return "full"
+        return "aggregate"
 
 
 def _validate_acvf_correction(
@@ -157,6 +203,47 @@ def _validate_acvf_correction(
     return mats
 
 
+def with_frame_runs(
+    config: PrewhitenConfig, blockids: NDArray[Any]
+) -> PrewhitenConfig:
+    """Fill or check prewhitening run labels against a sampling frame.
+
+    Mirrors fmrilss ``6a2588b`` (``.sbhm_run_safe_prewhiten``) and
+    ``lss_design``: without ``runs`` the frame's block ids are used, so AR
+    estimation and filtering never span a run boundary; supplied ``runs``
+    must have the frame's boundaries (labels themselves may differ).
+    """
+
+    if config.method == "none":
+        return config
+    blocks = np.asarray(blockids)
+    if config.runs is None:
+        return replace(config, runs=blocks)
+
+    import pandas as pd
+
+    runs = np.asarray(config.runs)
+    if runs.shape != blocks.shape or bool(np.any(pd.isna(runs))):
+        raise ValueError(
+            "PrewhitenConfig.runs must contain one complete run label per scan "
+            f"of the sampling frame ({blocks.size} scans)"
+        )
+    if not np.array_equal(_first_seen_codes(runs), _first_seen_codes(blocks)):
+        raise ValueError(
+            "PrewhitenConfig.runs must match the sampling-frame run boundaries"
+        )
+    return config
+
+
+def _first_seen_codes(labels: NDArray[Any]) -> NDArray[np.intp]:
+    """Integer codes in order of first appearance (R ``match(x, unique(x))``)."""
+
+    _, first, inverse = np.unique(labels, return_index=True, return_inverse=True)
+    rank = np.empty(first.size, dtype=np.intp)
+    rank[np.argsort(first)] = np.arange(first.size)
+    return rank[inverse.reshape(-1)]
+
+
 @dataclass(frozen=True)
 class PrewhitenResult:
     """Whitened matrices plus the plan that produced them."""
@@ -191,6 +278,44 @@ def _resolve_pooling_and_parcels(
     return "parcel", np.arange(n_voxels, dtype=np.intp)
 
 
+def aggregate_trials(
+    X: NDArray[np.float64], n_basis: int = 1
+) -> NDArray[np.float64]:
+    """Low-dimensional trial summary for noise-model residuals.
+
+    Mirrors R ``fmrilss:::.aggregate_trials``: one summed regressor for a
+    single-basis design, or one sum per basis function for a trial-major
+    ``(n, n_trials * n_basis)`` design (``R/oasis_backend.R:245-252``).
+    """
+
+    X = np.asarray(X, dtype=np.float64)
+    return np.column_stack([X[:, k::n_basis].sum(axis=1) for k in range(n_basis)])
+
+
+def _with_intercept(design: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Append an intercept unless the constant is already in ``design``'s span."""
+
+    n = design.shape[0]
+    ones = np.ones((n, 1), dtype=np.float64)
+    Q, _ = np.linalg.qr(design, mode="reduced")
+    resid_ones = ones - Q @ (Q.T @ ones)
+    in_span = float(np.linalg.norm(resid_ones)) < 1e-8 * np.sqrt(n)
+    return design if in_span else np.hstack([design, ones])
+
+
+def _noise_basis(design: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Orthonormal basis of the noise-estimation design, intercept included.
+
+    Mirrors R ``fmrilss:::.noise_basis``. Rank-revealing, so collinear
+    columns (for example run dummies beside an intercept) are dropped.
+    """
+
+    aug = _with_intercept(design)
+    U, s, _ = np.linalg.svd(aug, full_matrices=False)
+    tol = max(aug.shape) * np.finfo(np.float64).eps * s[0]
+    return U[:, s > tol]
+
+
 def _residuals_for_ar_estimation(
     Y: NDArray[np.float64],
     design_full: NDArray[np.float64],
@@ -204,13 +329,7 @@ def _residuals_for_ar_estimation(
     residuals are mean-zero and AR estimation isn't biased by Y's mean.
     """
 
-    n = Y.shape[0]
-    ones = np.ones((n, 1), dtype=np.float64)
-    Q, _ = np.linalg.qr(design_full, mode="reduced")
-    proj_ones = Q @ (Q.T @ ones)
-    resid_ones = ones - proj_ones
-    in_span = float(np.linalg.norm(resid_ones)) < 1e-8 * np.sqrt(n)
-    aug = design_full if in_span else np.hstack([design_full, ones])
+    aug = _with_intercept(design_full)
     coef, *_ = np.linalg.lstsq(aug, Y, rcond=None)
     return Y - aug @ coef
 
@@ -243,6 +362,7 @@ def prewhiten_matrices(
     config: PrewhitenConfig,
     *,
     baseline_regressors: Optional[NDArray[np.float64]] = None,
+    noise_trials: NDArray[np.float64] | None = None,
 ) -> PrewhitenResult:
     """Estimate AR parameters and whiten all design / data matrices.
 
@@ -260,6 +380,11 @@ def prewhiten_matrices(
         Baseline / experimental regressors (R's ``Z``). Whitened with the
         same plan as the rest of the design so the downstream LSS
         adjustment is consistent with the whitened Y / X / confounds.
+    noise_trials : (n, G) array or None
+        Trial summary that replaces ``X`` in the noise-model residual
+        design when the resolved ``residual_model`` is ``"aggregate"``,
+        for example the per-basis sums of a multi-basis design (see
+        :func:`aggregate_trials`). Defaults to the row sum of ``X``.
 
     Returns
     -------
@@ -285,28 +410,44 @@ def prewhiten_matrices(
     has_confounds = confounds is not None
 
     # Compose Z (baseline), X (trial), Nuisance (confounds) the same way
-    # R does (``design_full <- cbind(Z, X, Nuisance)``). The combined
-    # matrix is used both for AR residual estimation and as the design
-    # we whiten so the per-block slicing afterwards is exact.
-    blocks: list[NDArray[np.float64]] = []
-    if baseline_regressors is not None:
-        blocks.append(np.asarray(baseline_regressors, dtype=np.float64))
-    blocks.append(X)
-    if confounds is not None:
-        blocks.append(np.asarray(confounds, dtype=np.float64))
-    design_full = np.hstack(blocks)
+    # R does (``cbind(Z, X, Nuisance)``). This combined matrix is the
+    # design we whiten, so the per-block slicing afterwards is exact. The
+    # noise model sees the same blocks with X replaced by its aggregate
+    # summary unless full trial-wise residuals were requested.
+    def _compose(trials: NDArray[np.float64]) -> NDArray[np.float64]:
+        blocks: list[NDArray[np.float64]] = []
+        if baseline_regressors is not None:
+            blocks.append(np.asarray(baseline_regressors, dtype=np.float64))
+        blocks.append(trials)
+        if confounds is not None:
+            blocks.append(np.asarray(confounds, dtype=np.float64))
+        return np.hstack(blocks)
+
+    design_full = _compose(X)
+    residual_model = config.resolved_residual_model
+    if residual_model == "aggregate":
+        summary = aggregate_trials(X) if noise_trials is None else noise_trials
+        noise_design = _compose(np.asarray(summary, dtype=np.float64))
+    else:
+        noise_design = design_full
+    correction_design = config.design
+    if residual_model == "corrected":
+        # fmriAR corrects the residual autocovariance for projection onto
+        # this design; the orthonormal basis spans exactly the projected
+        # space, intercept included (R ``.fit_noise_plan``).
+        correction_design = _noise_basis(noise_design)
 
     pooling, parcels = _resolve_pooling_and_parcels(config, Y.shape[1])
     exact_first = config.exact_first
 
     # R's ``fmrilss::.prewhiten_data`` augments the residual-estimation
-    # design with an intercept when the constant is not already in the
-    # span of (baseline + X + confounds). Without this, AR estimation
-    # picks up the data's mean as low-frequency AR structure. The
-    # augmentation is for *residual computation only* — the whitening
-    # operator is a function of phi, not of the design that produced it,
-    # so the matrices we hand to ``whiten_apply`` stay un-augmented.
-    resid = _residuals_for_ar_estimation(Y, design_full)
+    # design with an intercept when the constant is not already in its
+    # span. Without this, AR estimation picks up the data's mean as
+    # low-frequency AR structure. The augmentation is for *residual
+    # computation only* — the whitening operator is a function of phi,
+    # not of the design that produced it, so the matrices we hand to
+    # ``whiten_apply`` stay un-augmented.
+    resid = _residuals_for_ar_estimation(Y, noise_design)
 
     plan = fit_noise(
         resid=resid,
@@ -318,7 +459,7 @@ def prewhiten_matrices(
         exact_first=exact_first,
         pooling=pooling,
         parcels=parcels,
-        design=config.design,
+        design=correction_design,
         acvf_correction=config.acvf_correction,
         correction_max_lag=config.correction_max_lag,
     )

@@ -28,10 +28,12 @@ class NibabelAdapter:
     mask : Nifti1Image or NDArray[bool], optional
         Brain mask.  If ``None``, all non-zero voxels in the first
         volume of the first run are used.
-    tr : float
-        Repetition time in seconds.
-    start_time : float
-        Onset time of the first volume (default 0).
+    tr : float or sequence of float
+        Repetition time in seconds, or one value per run.
+    start_time : float, sequence of float, or None
+        Onset time of the first volume (default 0), or one value per run.
+        ``None`` applies the :class:`SamplingFrame` default of ``TR/2`` per
+        run.
 
     Examples
     --------
@@ -45,8 +47,8 @@ class NibabelAdapter:
         self,
         images: Sequence[Any],
         mask: Optional[object] = None,
-        tr: float = 2.0,
-        start_time: float = 0.0,
+        tr: float | Sequence[float] = 2.0,
+        start_time: float | Sequence[float] | None = 0.0,
     ) -> None:
         try:
             __import__("nibabel")
@@ -72,12 +74,13 @@ class NibabelAdapter:
             # Assume nibabel image
             self._mask = np.asarray(cast(Any, mask).get_fdata(), dtype=bool)
 
-        self._tr = tr
-        self._start_time = start_time
         self._n_voxels = int(self._mask.sum())
 
         # Cache time-point counts
         self._n_timepoints = [img.shape[-1] for img in self._images]
+        self._sampling_frame = SamplingFrame(
+            blocklens=self._n_timepoints, tr=tr, start_time=start_time
+        )
 
         # Affine from first image
         self._affine = self._images[0].affine
@@ -99,11 +102,7 @@ class NibabelAdapter:
 
     def get_sampling_frame(self) -> SamplingFrame:
         """Return the sampling frame for this dataset."""
-        return SamplingFrame(
-            blocklens=self._n_timepoints,
-            tr=self._tr,
-            start_time=self._start_time,
-        )
+        return self._sampling_frame
 
     @property
     def n_runs(self) -> int:

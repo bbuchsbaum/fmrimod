@@ -23,6 +23,7 @@ from scipy import interpolate
 from ..hrf_dispatch import SimpleHRF
 from .core import HRF, HrfParamValue
 from .functions import (
+    _weighted_edges,
     boxcar_hrf,
     bspline_hrf,
     fir_basis,
@@ -363,7 +364,10 @@ class WeightedHRF(HRF):
         self.weights = tuple(float(x) for x in weights)
         self.times = tuple(float(x) for x in times)
         if self.span == 0.0:
-            self.span = float(times[-1])
+            # A constant weight covers its whole right-open bin, so the
+            # response ends at the last bin edge, not at the last time.
+            last = _weighted_edges(times)[-1] if self.method == "constant" else times[-1]
+            self.span = float(last)
         if not self.name:
             self.name = f"weighted[w={self.span:.2g}, {len(self.weights)} wts]"
 

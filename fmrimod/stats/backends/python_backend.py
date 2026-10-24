@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import Any, cast
 
 import numpy as np
@@ -299,6 +300,13 @@ def _combine_options(
         options["min_subjects"] = int(merged_options["min_subjects"])
 
     weights = _custom_subject_weights(request, n_subjects)
+    if combine_method == "combine:stouffer" and request.weights == "ivw":
+        warnings.warn(
+            "weights='ivw' needs subject-level variances, which z/t/p "
+            "combination does not use; combining with equal weights",
+            UserWarning,
+            stacklevel=5,
+        )
     if weights is not None and combine_method == "combine:fisher":
         raise ValueError("combine='fisher' does not support custom weights")
     if combine_method == "combine:stouffer" and weights is not None:

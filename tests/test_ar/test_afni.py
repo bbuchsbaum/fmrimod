@@ -75,3 +75,42 @@ class TestAfniRestrictedPlan:
         resid = rng.randn(200, 10)
         with pytest.raises(ValueError, match="p must be 3 or 5"):
             afni_restricted_plan(resid, p=4, roots={"a": 0.5, "r1": 0.5, "t1": 1.0})
+
+
+class TestAfniMa1FromVoxels:
+    """fmriAR 617bd87 + 5f5fc32 (test-audit-regressions.R:255-266), row AR-11.
+
+    Cheap pass disqualified: returning theta = 0 passes the first fixture
+    only; the second has a true MA(1) of 0.4 after the AR(3) filter.
+    """
+
+    def test_shared_component_does_not_leak_into_the_ma_term(self):
+        from scipy.signal import lfilter
+
+        rng = np.random.default_rng(9115)
+        n, v = 300, 100
+        # Weak shared component: negligible in each voxel, dominant in the mean.
+        shared = lfilter([1.0], [1.0, -0.95], rng.standard_normal(n))
+        R = rng.standard_normal((n, v)) + 0.05 * shared[:, None]
+        plan = afni_restricted_plan(R, p=3, roots={"a": 0, "r1": 0, "t1": 0})
+        assert abs(plan.theta[0][0]) < 0.06
+        pplan = afni_restricted_plan(R, p=3, roots={"a": 0, "r1": 0, "t1": 0},
+                                     parcels=np.repeat([1, 2], 50))
+        for th in pplan.theta_by_parcel.values():
+            assert abs(th[0]) < 0.08
+
+    def test_recovers_the_ma1_left_by_the_ar_filter_in_every_run(self):
+        from scipy.signal import lfilter
+
+        rng = np.random.default_rng(4)
+        phi = afni_phi_ar3(0.5, 0.6, 1.0)
+        runs = np.repeat([1, 2], 150)
+        # ARMA(3, 1) per run: the AR(3) filter leaves an exact MA(1) of 0.4.
+        R = np.vstack([
+            lfilter([1.0, 0.4], np.r_[1.0, -phi],
+                    rng.standard_normal((350, 40)), axis=0)[200:]
+            for _ in (1, 2)
+        ])
+        plan = afni_restricted_plan(R, p=3, roots={"a": 0.5, "r1": 0.6, "t1": 1.0},
+                                    runs=runs)
+        assert abs(plan.theta[0][0] - 0.4) < 0.05

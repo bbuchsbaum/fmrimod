@@ -18,7 +18,7 @@ from numpy.typing import NDArray
 from scipy import optimize
 
 from ..model.config import FmriLmConfig
-from .contrasts import ContrastResult, contrast_f_vectorized, contrast_t_batch
+from .contrasts import ContrastResult, _safe_t, contrast_f_vectorized, contrast_t_batch
 from .fmri_lm import FmriLm, fmri_lm
 from .matrix import _design_matrix_from_model, _MatrixModel
 from .solver import fast_lm_matrix, fast_preproject
@@ -355,7 +355,7 @@ def compute_lm_contrasts_from_suffstats(
     B = XtXinv @ XtS_arr
     if sigma is None and sigma2 is None:
         sse = np.maximum(StS_arr - np.sum(B * XtS_arr, axis=0), 0.0)
-        sigma2 = np.maximum(sse / float(df), np.finfo(np.float64).eps)
+        sigma2 = sse / float(df)
     return compute_lm_contrasts(
         B,
         XtXinv,
@@ -454,8 +454,7 @@ def fmri_ols_fit(
         lm = fast_lm_matrix(X_arr, Y_arr, proj)
         sigma = np.sqrt(lm.sigma2)
         se = sigma[np.newaxis, :] * np.sqrt(np.maximum(np.diag(proj.XtXinv), 0.0))[:, np.newaxis]
-        with np.errstate(divide="ignore", invalid="ignore"):
-            t_full = np.where(se > 1e-15, lm.betas / se, 0.0)
+        t_full = _safe_t(lm.betas, se)
         return {"beta": lm.betas, "se": se, "t": t_full, "df": lm.dfres, "XtXinv": proj.XtXinv}
 
     C = np.asarray(voxelwise, dtype=np.float64)
@@ -475,8 +474,7 @@ def fmri_ols_fit(
         sev = sigma[np.newaxis, :] * np.sqrt(np.maximum(np.diag(proj.XtXinv), 0.0))[:, np.newaxis]
         beta.append(lm.betas[:, 0])
         se.append(sev[:, 0])
-        with np.errstate(divide="ignore", invalid="ignore"):
-            t.append(np.where(sev[:, 0] > 1e-15, lm.betas[:, 0] / sev[:, 0], 0.0))
+        t.append(_safe_t(lm.betas[:, 0], sev[:, 0]))
         dfs.append(lm.dfres)
     names = [f"coef_{idx}" for idx in range(X_arr.shape[1])] + [voxel_name]
     return {
@@ -636,17 +634,29 @@ def hrf_smoothing_kernel(
     em = event_model(form, data=data, sampling_frame=sf, durations=tr)
     design = getattr(em, "design_matrix")
     X = np.asarray(design() if callable(design) else design, dtype=np.float64)
-    if method == "gram":
-        K = X @ X.T
-    else:
-        norms = np.sqrt(np.sum(X * X, axis=0))
-        Xn = X / np.where(norms > 0, norms, 1.0)
-        K = Xn @ Xn.T
-    if normalize:
-        diag = np.diag(K)
-        K = K / np.where(diag[:, np.newaxis] != 0, diag[:, np.newaxis], 1.0)
+    # Similarity between scans (rows of X); "cosine" is the scan cosine, i.e.
+    # the Gram matrix scaled symmetrically to unit diagonal (fmrireg 7c2a985).
+    K = X @ X.T
+    if method == "cosine" or normalize:
+        K = _unit_diagonal(K)
     keep = slice(n_buf, n_buf + int(length))
     return K[keep, keep]
+
+
+def _unit_diagonal(K: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Scale a Gram matrix to ``K[i, j] / sqrt(K[i, i] K[j, j])``.
+
+    A scan with no signal (``K[i, i] == 0``) is similar only to itself: its
+    row and column are 0 with a 1 on the diagonal, rather than NaN.
+    """
+    d = np.diag(K)
+    s = np.zeros_like(d)
+    signal = d > 0
+    s[signal] = 1.0 / np.sqrt(d[signal])
+    K = K * np.outer(s, s)
+    K = (K + K.T) / 2.0
+    np.fill_diagonal(K, 1.0)
+    return K
 
 
 def estimate(*args: object, **kwargs: object) -> None:

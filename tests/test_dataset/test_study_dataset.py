@@ -222,3 +222,54 @@ def test_study_dataset_rejects_missing_or_misaligned_contrasts() -> None:
                 "s2": _contrast("task", [1.0], [0.1]),
             }
         )
+
+
+def test_study_lowering_routes_voxel_estimates_through_subject_masks() -> None:
+    """Voxel estimates are matched by voxel id, never by position.
+
+    R ``e998bd4`` (``3ae565e:R/study_backend.R:120-198``): under ``intersect``
+    each subject's columns are routed through its own mask, non-identical
+    masks are refused under ``identical``, and masks over different grids are
+    refused.
+    """
+    m1 = np.array([1, 1, 1, 1, 0, 0], dtype=bool)
+    m2 = np.array([0, 0, 1, 1, 1, 1], dtype=bool)
+    rng = np.random.default_rng(0)
+    d1 = matrix_dataset(rng.normal(size=(10, 6)), tr=2.0, mask=m1)
+    d2 = matrix_dataset(rng.normal(size=(10, 6)), tr=2.0, mask=m2)
+    # Each estimate encodes the voxel id it belongs to.
+    est1 = np.flatnonzero(m1).astype(float)
+    est2 = np.flatnonzero(m2).astype(float) + 1000
+    results = {
+        "s1": _contrast("c", est1.tolist(), (est1 + 1).tolist()),
+        "s2": _contrast("c", est2.tolist(), (est2 + 1).tolist()),
+    }
+    table = pd.DataFrame({"subject_id": ["s1", "s2"], "dataset": [d1, d2]})
+
+    group = study_dataset(table, mask_strategy="intersect").to_group_dataset(results)
+    beta = group.assay("beta")[:, :, 0]
+    assert group.shape == (2, 2, 1)
+    np.testing.assert_array_equal(beta[:, 0], [2, 3])
+    np.testing.assert_array_equal(beta[:, 1] - 1000, [2, 3])
+    np.testing.assert_array_equal(group.assay("se")[:, 1, 0] - 1000, [3, 4])
+    assert group.row_data["voxel_index"].tolist() == [2, 3]
+
+    union = study_dataset(table, mask_strategy="union").to_group_dataset(results)
+    beta_u = union.assay("beta")[:, :, 0]
+    assert union.shape == (6, 2, 1)
+    np.testing.assert_array_equal(beta_u[:, 0], [0, 1, 2, 3, np.nan, np.nan])
+    np.testing.assert_array_equal(beta_u[:, 1] - 1000, [np.nan, np.nan, 2, 3, 4, 5])
+
+    with pytest.raises(FmriDatasetError, match="masks differ"):
+        study_dataset(table, mask_strategy="subject_specific").to_group_dataset(
+            results
+        )
+
+    other_grid = matrix_dataset(
+        rng.normal(size=(10, 8)), tr=2.0, mask=np.repeat([True, False], 4)
+    )
+    mixed = pd.DataFrame({"subject_id": ["s1", "s3"], "dataset": [d1, other_grid]})
+    with pytest.raises(FmriDatasetError, match="grid"):
+        study_dataset(mixed, mask_strategy="intersect").to_group_dataset(
+            {"s1": results["s1"], "s3": results["s1"]}
+        )

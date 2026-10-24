@@ -214,3 +214,91 @@ def test_spatial_descriptor_rejects_negative_dims():
         SpatialDescriptor(n_voxels=-1, mask_shape=(4,), mask_n_true=0)
     with pytest.raises(ValueError, match="mask_n_true"):
         SpatialDescriptor(n_voxels=4, mask_shape=(4,), mask_n_true=-1)
+
+
+# --- fmrilss 6a2588b (LSS-03): prewhitening runs from the sampling frame ---
+
+
+def _two_run_dataset():
+    """Two 100-scan runs, each with its own AR(1) noise and offset."""
+    rng = np.random.default_rng(7)
+    n_run, n_voxels = 100, 5
+    onsets = np.array([10.0, 50.0, 90.0, 130.0])
+    events = pd.DataFrame(
+        {
+            "onset": np.r_[onsets, onsets],
+            "duration": 0.0,
+            "run": np.repeat([1, 2], onsets.size),
+        }
+    )
+    blocks = []
+    for offset in (0.0, 25.0):
+        e = rng.standard_normal((n_run, n_voxels))
+        for t in range(1, n_run):
+            e[t] += 0.5 * e[t - 1]
+        blocks.append(e + offset)
+    ds = fm.fmri_dataset(
+        np.vstack(blocks), tr=2.0, events=events, run_length=[n_run, n_run]
+    )
+    runs = np.repeat([1, 2], n_run)
+    run_dummies = np.column_stack([(runs == r).astype(float) for r in (1, 2)])
+    return ds, runs, run_dummies
+
+
+def test_wrapper_infers_prewhitening_runs_from_sampling_frame():
+    """Without runs, AR estimation and filtering must not span runs.
+
+    Cheap pass disqualified: filling runs only for pooling='run' fails this
+    global-pooling fixture.
+    """
+    from fmrimod.single import PrewhitenConfig
+
+    ds, runs, run_dummies = _two_run_dataset()
+    inferred = estimate_single_trial_from_dataset(
+        ds, "trialwise()", confounds=run_dummies, prewhiten=PrewhitenConfig(p=1)
+    )
+    explicit = estimate_single_trial_from_dataset(
+        ds,
+        "trialwise()",
+        confounds=run_dummies,
+        prewhiten=PrewhitenConfig(p=1, runs=runs),
+    )
+
+    plan = inferred.extra.whitening_plan
+    assert plan is not None and plan.runs is not None
+    _, codes = np.unique(np.asarray(plan.runs), return_inverse=True)
+    np.testing.assert_array_equal(codes, np.repeat([0, 1], 100))
+    np.testing.assert_allclose(
+        np.asarray(plan.phi[0]), np.asarray(explicit.extra.whitening_plan.phi[0])
+    )
+    np.testing.assert_allclose(inferred.betas, explicit.betas, atol=1e-12, rtol=0)
+
+
+def test_wrapper_rejects_runs_that_disagree_with_sampling_frame():
+    """Supplied runs are checked, not overwritten."""
+    from fmrimod.single import PrewhitenConfig
+
+    ds, _, run_dummies = _two_run_dataset()
+    shifted = np.repeat([1, 2, 3], [50, 100, 50])
+    with pytest.raises(ValueError, match="sampling-frame run boundaries"):
+        estimate_single_trial_from_dataset(
+            ds,
+            "trialwise()",
+            confounds=run_dummies,
+            prewhiten=PrewhitenConfig(p=1, runs=shifted),
+        )
+    with pytest.raises(ValueError, match="one complete run label per scan"):
+        estimate_single_trial_from_dataset(
+            ds,
+            "trialwise()",
+            confounds=run_dummies,
+            prewhiten=PrewhitenConfig(p=1, runs=np.ones(150)),
+        )
+    # Relabelled runs with the frame's boundaries are accepted.
+    relabelled = estimate_single_trial_from_dataset(
+        ds,
+        "trialwise()",
+        confounds=run_dummies,
+        prewhiten=PrewhitenConfig(p=1, runs=np.repeat(["b", "a"], 100)),
+    )
+    assert relabelled.extra.whitening_plan is not None

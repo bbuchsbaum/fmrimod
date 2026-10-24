@@ -260,3 +260,171 @@ class TestWhitenConvenience:
         assert isinstance(wr, WhitenResult)
         assert wr.X.shape == X.shape
         assert wr.Y.shape == Y.shape
+
+
+class TestLogicalCensorMask:
+    """fmriAR 617bd87 (test-audit-regressions.R:45-61), row AR-06.
+
+    Cheap pass disqualified: converting the mask only inside ``whiten()``
+    leaves the direct ``whiten_apply`` assertions red, and the parcel branch
+    builds its segment starts separately from the global/run branch.
+    """
+
+    def _fixture(self):
+        rng = np.random.default_rng(9103)
+        R = _sim_ar1(200, 0.5, V=4, seed=9103)
+        X = np.column_stack([np.ones(200), rng.standard_normal(200)])
+        mask = np.zeros(200, dtype=bool)
+        mask[[49, 119, 120]] = True
+        return X, R, mask
+
+    def test_whiten_apply_mask_equals_indices(self):
+        X, R, mask = self._fixture()
+        plan = fit_noise(R, p=1, censor=mask)
+        np.testing.assert_array_equal(plan.censor, np.flatnonzero(mask))
+        a = whiten_apply(plan, X, R, censor=mask)
+        b = whiten_apply(plan, X, R, censor=np.flatnonzero(mask))
+        np.testing.assert_array_equal(a.Y, b.Y)
+        np.testing.assert_array_equal(a.X, b.X)
+        with pytest.raises(ValueError, match="one entry per timepoint"):
+            whiten_apply(plan, X, R, censor=mask[1:])
+
+    def test_parcel_plan_mask_equals_indices(self):
+        X, R, mask = self._fixture()
+        parcels = np.array([1, 1, 2, 2])
+        plan = fit_noise(R, p=1, censor=mask, pooling="parcel", parcels=parcels)
+        a = whiten_apply(plan, X, R, censor=mask)
+        b = whiten_apply(plan, X, R, censor=np.flatnonzero(mask))
+        np.testing.assert_array_equal(a.Y, b.Y)
+        for key in b.X_by:
+            np.testing.assert_array_equal(a.X_by[key], b.X_by[key])
+
+    def test_explicit_empty_censor_overrides_the_plan_set(self):
+        X, R, mask = self._fixture()
+        plan = fit_noise(R, p=1, censor=mask)
+        inherited = whiten_apply(plan, X, R)
+        np.testing.assert_array_equal(
+            inherited.Y, whiten_apply(plan, X, R, censor=mask).Y
+        )
+        none = whiten_apply(plan, X, R, censor=np.array([], dtype=int))
+        np.testing.assert_array_equal(
+            none.Y, whiten_apply(plan, X, R, censor=np.zeros(200, dtype=bool)).Y
+        )
+        assert not np.allclose(none.Y, inherited.Y)
+
+    def test_whiten_forwards_mask_to_both_steps(self):
+        X, R, mask = self._fixture()
+        w1 = whiten(X, R, censor=mask, p=1)
+        w2 = whiten(X, R, censor=np.flatnonzero(mask), p=1)
+        np.testing.assert_array_equal(w1.Y, w2.Y)
+
+    def test_wrong_length_mask_is_refused_when_fitting(self):
+        X, R, mask = self._fixture()
+        with pytest.raises(ValueError, match="one entry per timepoint"):
+            fit_noise(R, p=1, censor=mask[:-1])
+        from fmrimod.ar.acvf import noise_acvf
+
+        with pytest.raises(ValueError, match="one entry per timepoint"):
+            noise_acvf(R, censor=mask[:-1])
+
+
+def _arma_acvf_oracle(phi, theta, max_lag, n_ma=5000):
+    """Unit-innovation ARMA autocovariance from the MA(inf) weights."""
+    from scipy.signal import lfilter
+
+    imp = np.zeros(n_ma)
+    imp[0] = 1.0
+    psi = lfilter(
+        np.concatenate([[1.0], np.asarray(theta, dtype=float)]),
+        np.concatenate([[1.0], -np.asarray(phi, dtype=float)]),
+        imp,
+    )
+    return np.array([psi[: n_ma - k] @ psi[k:] for k in range(max_lag + 1)])
+
+
+def _gls_oracle(y, phi, theta):
+    """Exact GLS whitening: forward-solve with chol of the stationary Sigma."""
+    n = len(y)
+    g = _arma_acvf_oracle(phi, theta, n - 1)
+    S = g[np.abs(np.subtract.outer(np.arange(n), np.arange(n)))]
+    return np.linalg.solve(np.linalg.cholesky(S), y)
+
+
+class TestExactStationaryStart:
+    """fmriAR 617bd87: Ansley exact start-up (test-audit-regressions.R:118-180).
+
+    Row AR-02. Cheap pass disqualified: rescaling only the first sample by a
+    variance ratio leaves samples 1..m-1 and the MA tail wrong, which the
+    dense-Cholesky GLS oracle catches.
+    """
+
+    CASES = [
+        ([0.5], []),
+        ([1.2, -0.5], []),
+        ([0.3, 0.2, 0.1], []),
+        ([0.5], [0.4]),
+        ([0.6, 0.2], [0.3, -0.2]),
+        ([], [0.7]),
+        ([0.3, 0.2, 0.1], [0.8]),
+    ]
+
+    def test_matches_dense_cholesky_gls_per_segment(self):
+        rng = np.random.default_rng(9108)
+        starts = [0, 30, 33]  # includes a 3-frame segment
+        for phi, theta in self.CASES:
+            y = rng.standard_normal(70)
+            out = arma_whiten_segments(
+                y, np.array(phi), np.array(theta), np.array(starts),
+                exact_first_ar1=True,
+            )
+            ref = np.concatenate(
+                [_gls_oracle(y[a:b], phi, theta)
+                 for a, b in zip(starts, starts[1:] + [70], strict=True)]
+            )
+            np.testing.assert_allclose(out, ref, rtol=0, atol=1e-10,
+                                       err_msg=f"phi={phi} theta={theta}")
+
+    def test_columns_are_whitened_independently(self):
+        rng = np.random.default_rng(1)
+        Y = rng.standard_normal((300, 4))
+        phi, theta = np.array([0.6, 0.2]), np.array([0.3, -0.2])
+        starts = np.array([0, 120, 121, 200])
+        joint = arma_whiten_segments(Y, phi, theta, starts, exact_first_ar1=True)
+        for j in range(Y.shape[1]):
+            np.testing.assert_allclose(
+                joint[:, j],
+                arma_whiten_segments(Y[:, j], phi, theta, starts, exact_first_ar1=True),
+                rtol=0, atol=1e-12,
+            )
+        # Long segments go past the factor's converged rows.
+        ref = _gls_oracle(Y[200:, 0], phi, theta)
+        np.testing.assert_allclose(joint[200:, 0], ref, rtol=0, atol=1e-10)
+
+    def test_ar1_start_is_prais_winsten(self):
+        rng = np.random.default_rng(9109)
+        y = rng.standard_normal(50)
+        out = arma_whiten_segments(y, np.array([0.7]), np.array([]), np.array([0]),
+                                   exact_first_ar1=True)
+        np.testing.assert_allclose(out[0], y[0] * np.sqrt(1 - 0.49), rtol=1e-14)
+        np.testing.assert_allclose(out[1:], y[1:] - 0.7 * y[:-1], rtol=0, atol=1e-14)
+
+    def test_whitened_noise_has_unit_variance_at_run_starts(self):
+        from scipy.signal import lfilter
+
+        from fmrimod.ar.plan import plan_from_phi
+
+        rng = np.random.default_rng(9110)
+        for phi, theta in (([1.2, -0.5], []), ([0.6], [0.5])):
+            e = rng.standard_normal((230, 3000))
+            Y = lfilter(np.r_[1.0, theta], np.r_[1.0, -np.asarray(phi)], e, axis=0)[200:]
+            plan = plan_from_phi(np.array(phi), np.array(theta), exact_first=True)
+            W = whiten_apply(plan, np.ones((30, 1)), Y).Y
+            v = W.var(axis=1, ddof=1)
+            assert np.all(np.abs(v - 1) < 0.1), np.round(v[:4], 2)
+            assert abs(np.corrcoef(W[0], W[1])[0, 1]) < 0.06
+
+    def test_nonstationary_filter_falls_back_to_conditional_recursion(self):
+        y = np.arange(1.0, 6.0)
+        out = arma_whiten_segments(y, np.array([1.0]), np.array([]), np.array([0]),
+                                   exact_first_ar1=True)
+        np.testing.assert_allclose(out, np.ones(5))

@@ -37,6 +37,7 @@ from ..model.config import AROptions, FmriLmConfig
 from .contrasts import (
     ContrastIntent,
     ContrastResult,
+    _safe_t,
     basis_label,
     contrast_f_vectorized,
     contrast_t,
@@ -519,7 +520,9 @@ class FmriLm:
     residual_df : float
         Residual degrees of freedom.
     XtXinv : NDArray
-        ``(X'X)^{-1}`` matrix, shape ``(p, p)``.
+        ``(X'X)^{-1}`` matrix, shape ``(p, p)``; for voxelwise AR one matrix
+        per voxel, shape ``(V, p, p)``, since every voxel's design is
+        whitened with its own AR coefficients.
     model : object
         The :class:`~fmrimod.model.FmriModel` that was fitted.
     config : FmriLmConfig
@@ -530,7 +533,8 @@ class FmriLm:
         Estimated AR parameters, shape ``(ar_order, V)`` or ``(ar_order,)``
         for global estimation.
     robust_weights : NDArray or None
-        IRLS weights from robust fitting, shape ``(n, V)``.
+        Row weights of the final robust (IRLS) solve, shape ``(n,)`` over
+        all runs; the fit is exactly the WLS fit with these weights.
     run_results : list
         Per-run fitting results (for diagnostics).
     projections : list
@@ -564,21 +568,33 @@ class FmriLm:
     def se(self) -> NDArray[np.float64]:
         """Return standard errors for each coefficient, shape ``(p, V)``.
 
-        ``SE_{j,v} = sigma_v * sqrt(XtXinv_{j,j})``
+        ``SE_{j,v} = sigma_v * sqrt(XtXinv_{j,j})``, with voxel ``v``'s own
+        ``XtXinv`` for a voxelwise AR fit.
         """
-        diag_XtXinv = np.diag(self.XtXinv)
+        if self.XtXinv.ndim == 3:
+            diag_XtXinv = np.einsum("vjj->jv", self.XtXinv)
+        else:
+            diag_XtXinv = np.diag(self.XtXinv)[:, np.newaxis]
         return np.asarray(
-            self.sigma[np.newaxis, :] * np.sqrt(
-                np.maximum(diag_XtXinv, 0.0)
-            )[:, np.newaxis],
+            self.sigma[np.newaxis, :] * np.sqrt(np.maximum(diag_XtXinv, 0.0)),
             dtype=np.float64,
         )
 
     def tstat(self) -> NDArray[np.float64]:
         """Return t-statistics for each coefficient, shape ``(p, V)``."""
-        se_vals = self.se()
-        with np.errstate(divide="ignore", invalid="ignore"):
-            return np.where(se_vals > 1e-15, self.betas / se_vals, 0.0)
+        return _safe_t(self.betas, self.se())
+
+    def _inference_df(self) -> float:
+        """Degrees of freedom for contrast inference.
+
+        The residual df, except for a robust fit, where an observation of
+        weight ``w`` counts as ``w`` of an observation: ``sum(w) - rank``
+        summed over runs, at least 1 (fmrireg ``.robust_effective_df``).
+        """
+        if self.robust_weights is None or not self.projections:
+            return self.residual_df
+        rank = sum(int(proj.rank) for proj in self.projections)
+        return max(float(np.sum(self.robust_weights)) - rank, 1.0)
 
     @property
     def n_voxels(self) -> int:
@@ -851,12 +867,12 @@ class FmriLm:
         if weights.ndim == 1:
             result = contrast_t(
                 weights, self.betas, self.XtXinv, self.sigma,
-                self.residual_df, name=name,
+                self._inference_df(), name=name,
             )
         else:
             result = contrast_f_vectorized(
                 weights, self.betas, self.XtXinv, self.sigma,
-                self.residual_df, name=name,
+                self._inference_df(), name=name,
             )
         if intent is None:
             intent = ContrastIntent(
@@ -958,7 +974,7 @@ class FmriLm:
                 self.betas,
                 self.XtXinv,
                 self.sigma,
-                self.residual_df,
+                self._inference_df(),
                 names=t_names,
             )
             for res, weights in zip(t_results, t_weights):
@@ -983,7 +999,7 @@ class FmriLm:
                 self.betas,
                 self.XtXinv,
                 self.sigma,
-                self.residual_df,
+                self._inference_df(),
                 name=cname,
             )
             column_details = self._touched_column_details(w_arr)
@@ -1240,6 +1256,10 @@ def fmri_lm(
             "engine (drop the engine= argument or pass engine='runwise')."
         )
 
+    from fmrimod.ar.integration import validate_ar_config
+
+    validate_ar_config(model, config)
+
     # Resolve and run the engine
     eng, fit_kwargs = resolve_engine(engine, engine_kwargs)
     eng.preflight(model, config)
@@ -1247,12 +1267,13 @@ def fmri_lm(
 
     # Handle AR modeling if configured
     ar_params = fit_result.ar_params
+    ols_fit: dict[str, Any] | None = None
     if ar_params is None and config.ar.enabled:
         from ..ar.integration import iterative_gls
 
         # Build a dict compatible with the legacy interface
-        legacy = _engine_result_to_dict(fit_result)
-        legacy, ar_params = iterative_gls(model, config, legacy)
+        ols_fit = _engine_result_to_dict(fit_result)
+        legacy, ar_params = iterative_gls(model, config, ols_fit)
         fit_result = _dict_to_engine_result(legacy, fit_result)
 
     # Handle robust fitting if configured
@@ -1262,6 +1283,18 @@ def fmri_lm(
 
         legacy = _engine_result_to_dict(fit_result)
         legacy, robust_weights = robust_refit(model, config, legacy)
+        if (
+            config.robust.reestimate_phi
+            and ols_fit is not None
+            and ar_params is not None
+            and ar_params.size > 0
+        ):
+            # fmrireg process_run_ar_robust: re-estimate phi from the
+            # unwhitened robust residuals, re-whiten, and redo the IRLS.
+            from fmrimod.ar.integration import reestimate_ar_gls
+
+            legacy, ar_params = reestimate_ar_gls(model, config, ols_fit, legacy)
+            legacy, robust_weights = robust_refit(model, config, legacy)
         fit_result = _dict_to_engine_result(legacy, fit_result)
 
     fit = FmriLm(

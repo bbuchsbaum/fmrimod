@@ -173,7 +173,7 @@ def fit_glm_from_suffstats(
     XtXinv = np.linalg.pinv(XtX_arr)
     betas = XtXinv @ XtS_arr
     sse = np.maximum(StS_arr - np.sum(betas * XtS_arr, axis=0), 0.0)
-    sigma = np.sqrt(np.maximum(sse / float(df), np.finfo(np.float64).eps))
+    sigma = np.sqrt(sse / float(df))
     fit = FmriLm(
         betas=betas,
         sigma=sigma,

@@ -520,3 +520,57 @@ class TestRegressorDesign:
         """Test error on invalid input type."""
         with pytest.raises(TypeError, match="regressors must be"):
             regressor_design("not a regressor", [0, 1, 2])
+
+
+def _box_hrf() -> HRF:
+    """Flat kernel ``1[0 <= t <= 1]`` with span 1."""
+    from fmrimod.hrf import as_hrf
+
+    return as_hrf(
+        lambda t: np.where((np.asarray(t) >= 0) & (np.asarray(t) <= 1), 1.0, 0.0),
+        span=1.0,
+        name="box",
+    )
+
+
+class TestConvolutionWindowEdge:
+    """fmrihrf ``b901bca`` (``src/neural_input.cpp:24-40,114``, test_regressor.R
+    "a block at the start of the convolution window keeps its mass")."""
+
+    def test_block_at_window_start_keeps_its_mass(self):
+        # The fine window starts one span before the first grid point; a
+        # block starting on that edge used to gain half a fine bin of mass.
+        reg = regressor([0.0], hrf=_box_hrf(), duration=0.5)
+        at_edge = reg.evaluate(np.array([1.0, 2.0, 3.0]), precision=0.1)
+        inside = reg.evaluate(np.array([0.5, 1.0, 2.0, 3.0]), precision=0.1)[1:]
+        np.testing.assert_allclose(at_edge, inside, rtol=0, atol=1e-10)
+        assert at_edge[0] == pytest.approx(0.5, abs=1e-10)
+
+    def test_block_starting_before_window_is_kept(self):
+        # Starts half a fine bin before the window but overlaps it through
+        # its duration, so the event filter must use onset + duration.
+        reg = regressor([0.0], hrf=_box_hrf(), duration=0.5)
+        at_edge = reg.evaluate(np.array([1.05, 2.05]), precision=0.1)
+        inside = reg.evaluate(np.array([0.55, 1.05, 2.05]), precision=0.1)[1:]
+        np.testing.assert_allclose(at_edge, inside, rtol=0, atol=1e-10)
+        assert at_edge[0] > 0.4
+
+
+class TestPerEventKernelSupport:
+    """fmrihrf ``daca7ba`` (``R/evaluate-helpers.R:119-131``,
+    test_spmg_correctness.R "loop block support agrees with an independent
+    finite-kernel integral")."""
+
+    def test_list_hrf_truncates_kernel_at_span_before_integration(self):
+        from fmrimod.hrf import as_hrf
+
+        # Non-zero past its span: only the regressor's [0, span] support counts.
+        h = as_hrf(lambda t: (np.asarray(t) >= 0) * 1.0, span=2.0, name="flat_tail")
+        grid = np.arange(6.0)
+        expected = np.array([0.0, 1.0, 2.0, 1.0, 0.0, 0.0])  # box * box
+
+        per_event = regressor([0.0], hrf=[h], duration=2.0).evaluate(grid, precision=0.001)
+        conv = regressor([0.0], hrf=h, duration=2.0).evaluate(grid, precision=0.001)
+        assert np.max(np.abs(per_event - expected)) < 2e-3
+        assert np.max(np.abs(conv - expected)) < 2e-3
+        assert np.max(np.abs(per_event - conv)) < 2e-3

@@ -289,6 +289,9 @@ def _solve_meta_wls(
     weight_mode: MetaWeights,
     weight_custom: Optional[NDArray[np.float64]] = None,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64], float]:
+    if weight_mode != "ivw":
+        return _solve_relative_wls(y, X, weight_mode, weight_custom)
+
     tau2 = 0.0
     if method in ("dl", "pm", "reml"):
         intercept_only = X.shape[1] == 1 and np.allclose(X[:, 0], 1.0)
@@ -309,16 +312,45 @@ def _solve_meta_wls(
                 "intercept-only formula (~ 1)."
             )
 
-    base_w = 1.0 / (v + tau2)
-    if weight_mode == "ivw":
-        w = base_w
-    elif weight_mode == "equal":
-        w = np.ones_like(base_w)
+    beta, XtWX_inv = _wls_fit(y, X, 1.0 / (v + tau2))
+    se = np.sqrt(np.clip(np.diag(XtWX_inv), 0.0, np.inf))
+    return beta, se, tau2
+
+
+def _solve_relative_wls(
+    y: NDArray[np.float64],
+    X: NDArray[np.float64],
+    weight_mode: MetaWeights,
+    weight_custom: NDArray[np.float64] | None,
+) -> tuple[NDArray[np.float64], NDArray[np.float64], float]:
+    """WLS with *relative* weights, ``Var(y_i) = sigma^2 / w_i``.
+
+    Port of fmrireg ``.meta_fit_core`` (``R/meta_fit.R``): the residual
+    scale is estimated per feature as ``lm(weights = w)`` does, so equal
+    weights give the one-sample / OLS group t. The sampling variances
+    and ``method`` are not used, and ``tau2`` is undefined (NaN).
+    """
+    if weight_mode == "equal":
+        w = np.ones(y.shape[0], dtype=np.float64)
     else:
         if weight_custom is None:
             raise ValueError("Custom weights requested but no weights were provided")
         w = weight_custom
 
+    beta, XtWX_inv = _wls_fit(y, X, w)
+    n, p = X.shape
+    resid = y - X @ beta
+    sigma2 = float(np.sum(w * resid * resid)) / (n - p) if n > p else np.nan
+    se = np.sqrt(np.clip(np.diag(XtWX_inv), 0.0, np.inf) * sigma2)
+    return beta, se, np.nan
+
+
+def _wls_fit(
+    y: NDArray[np.float64],
+    X: NDArray[np.float64],
+    w: NDArray[np.float64],
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Weighted least squares; returns ``(beta, (X'WX)^{-1})``."""
     if np.any(w <= 0) or not np.all(np.isfinite(w)):
         raise ValueError("Weights must be finite and > 0")
 
@@ -332,13 +364,11 @@ def _solve_meta_wls(
         warnings.warn(
             "Design is rank-deficient; using pseudo-inverse for meta-regression covariance",
             UserWarning,
-            stacklevel=2,
+            stacklevel=3,
         )
         XtWX_inv = np.linalg.pinv(XtWX)
 
-    beta = XtWX_inv @ XtWy
-    se = np.sqrt(np.clip(np.diag(XtWX_inv), 0.0, np.inf))
-    return beta, se, tau2
+    return XtWX_inv @ XtWy, XtWX_inv
 
 
 def _coerce_group_data(
@@ -396,6 +426,14 @@ def fmri_meta(
     Notes
     -----
     This initial implementation targets CSV-backed effect-size data.
+
+    ``weights="ivw"`` takes the subject-level variances as known and
+    ``method`` chooses the between-subject variance estimator.
+    ``weights="equal"`` and ``"custom"`` are *relative* weights: the model
+    is ``Var(y_i) = sigma^2 / w_i`` with ``sigma^2`` estimated per feature
+    (as R's ``lm(weights=w)`` does), so equal weights give the one-sample
+    t statistic, ``method`` and the variances are not used, and ``tau2``
+    is NaN.
     """
     data = _coerce_group_data(data, effect_cols)
     if robust != "none":

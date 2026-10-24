@@ -12,7 +12,7 @@ Nothing here is part of the public API.
 
 from __future__ import annotations
 
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -81,6 +81,25 @@ def _perm_tail_count(
 
 def _max_abs_null(null_stats: NDArray[np.float64]) -> NDArray[np.float64]:
     return _max_tail_null(null_stats, "two.sided")
+
+
+def _perm_first_row_is_identity(
+    mat: NDArray[np.integer[Any]],
+    identity_row: NDArray[np.integer[Any]],
+    *,
+    generated: bool,
+    include_observed: bool,
+) -> bool:
+    """Whether row 0 of a permutation matrix is the observed relabelling.
+
+    The observed statistic is computed from the true labelling, so an
+    identity row must be left out of the null set or it is counted twice:
+    p = (1 + #null >= obs) / (1 + n_null) (fmrigds
+    ``.perm_first_row_is_identity``).
+    """
+    if generated:
+        return bool(include_observed)
+    return mat.shape[0] >= 1 and bool(np.array_equal(mat[0], identity_row))
 
 
 def _max_tail_null(

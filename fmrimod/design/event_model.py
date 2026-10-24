@@ -96,6 +96,42 @@ def _default_precision_from_sframe(sampling_info: object) -> float:
     return float(np.min(tr_arr) / DEFAULT_PRECISION_OVERSAMPLING)
 
 
+def _term_key(name: str | None, tag: str | None, taken: Mapping[str, object]) -> str:
+    """Key of a term in name-keyed maps: its name, or its column tag once taken."""
+    key = str(name)
+    if key in taken and tag:
+        key = tag
+    return key
+
+
+def _plain_function_hrf(fn: Any) -> HRF:
+    """Wrap a plain function of time as an HRF (R ``gen_hrf(fn)``).
+
+    Like fmrihrf's ``.detect_nbasis()``, the basis width is the number of
+    columns ``fn`` returns on ``t = 1..10`` (1, with a warning, when that
+    evaluation fails). The HRF is named after the function; a lambda is
+    ``"custom"``.
+    """
+    from fmrimod.hrf.core import as_hrf
+
+    name = getattr(fn, "__name__", None)
+    if not name or name == "<lambda>":
+        name = "custom"
+    try:
+        probe = np.asarray(fn(np.arange(1.0, 11.0)))
+    except Exception as exc:
+        warnings.warn(
+            f"Could not determine nbasis for function {name} - defaulting to "
+            f"1. Evaluation failed: {exc}",
+            UserWarning,
+            stacklevel=3,
+        )
+        nbasis = 1
+    else:
+        nbasis = int(probe.shape[1]) if probe.ndim == 2 else 1
+    return as_hrf(fn, name=name, nbasis=nbasis)
+
+
 class EventModel(ModelProtocol):  # type: ignore[misc]
     """Event model for fMRI design matrix construction.
 
@@ -627,7 +663,13 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         if hasattr(hrf, "nbasis") and hasattr(hrf, "evaluate"):
             if self._is_valid_fmrimod_hrf(hrf, fmrimod):
                 return hrf
-        return fmrimod.SPM_CANONICAL
+            return fmrimod.SPM_CANONICAL
+        if callable(hrf):
+            return _plain_function_hrf(hrf)
+        raise TypeError(
+            "HRF basis must be a basis name, an HRF object or a function of "
+            f"time; got {type(hrf).__name__} {hrf!r}"
+        )
 
     def _resolve_hrf_for_term(self, term: Term) -> Any:
         """Resolve a term HRF while honoring term-local HRF options."""
@@ -743,7 +785,17 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         for i, (term, event_term) in enumerate(zip(self.terms, event_terms)):
             # Compute design matrix columns for this term
             if isinstance(term, CovariateTerm):
-                X_term = event_term.design_matrix(self.sampling_points)
+                # One unconvolved column per variable (R covariate(x, y)),
+                # not the elementwise product an interaction term builds.
+                n_samples = len(self.sampling_points)
+                X_term = np.hstack(
+                    [
+                        np.asarray(
+                            event.design_matrix(self.sampling_points), dtype=float
+                        ).reshape(n_samples, -1)
+                        for event in event_term.events
+                    ]
+                )
             elif term.hrf is not None:
                 # Use proper fmrimod-based convolution
                 X_term = self._convolve_term(event_term, term)
@@ -767,7 +819,6 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
             # Track column indices for this term
             n_cols = X_term.shape[1]
             term_indices = list(range(current_col, current_col + n_cols))
-            column_indices[term.name] = term_indices
             current_col += n_cols
 
             # Generate term tag
@@ -788,6 +839,9 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
                 )
             if term_tag:
                 existing_tags.append(term_tag)
+            # A later term reusing a name is keyed by its de-duplicated tag
+            # (``cond#1``) instead of overwriting the earlier term's columns.
+            column_indices[_term_key(term.name, term_tag, column_indices)] = term_indices
 
             # Generate condition tags
             cond_tags = self._get_condition_tags(event_term)
@@ -1851,6 +1905,10 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         trialwise_cond = getattr(event_term, "_trialwise_conditions", None)
         if trialwise_cond is not None:
             return [str(c) for c in trialwise_cond]
+
+        if getattr(event_term, "_is_covariate", False):
+            # Covariates contribute one column per variable.
+            return [continuous_token(event.name) for event in event_term.events]
 
         cond_tags = []
 

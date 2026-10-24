@@ -114,3 +114,12 @@ class TestWhitenResult:
         wr = WhitenResult(X=None, Y=Y, X_by=X_by)
         assert wr.X is None
         assert len(wr.X_by) == 2
+
+
+def test_repr_names_the_segment_start_rule():
+    """fmriAR 617bd87 relabels the start-up as "exact stationary" (AR-02)."""
+    from fmrimod.ar.plan import plan_from_phi
+
+    assert "Segment start: exact stationary" in repr(plan_from_phi(np.array([0.5])))
+    plain = plan_from_phi(np.array([0.5]), exact_first=False)
+    assert "Segment start: none" in repr(plain)

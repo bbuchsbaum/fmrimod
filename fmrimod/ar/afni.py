@@ -79,6 +79,41 @@ def afni_phi_ar5(
     return np.array([p1, p2, p3, p4, p5], dtype=np.float64)
 
 
+def _afni_ma1_pooled(
+    resid_cols: NDArray[np.float64],
+    phi: NDArray[np.float64],
+    run_starts0: NDArray[np.intp],
+) -> NDArray[np.float64] | None:
+    """MA(1) for AFNI's additive white noise, from the AR-filtered voxels.
+
+    Pooled Hannan-Rissanen over the voxels of every run (fmriAR 617bd87,
+    5f5fc32 ``.afni_ma1_pooled``). The filtered voxel-mean series it
+    replaces measures what the voxels share rather than the voxel noise
+    being whitened. The first ``p`` frames of each run have no AR
+    pre-sample and are dropped; runs with fewer than 10 frames left are
+    skipped. ``None`` when no estimate can be made.
+    """
+    import warnings
+
+    from .hr_arma import _hr_arma_pooled
+    from .whitening import arma_whiten_segments
+
+    n = resid_cols.shape[0]
+    filt = arma_whiten_segments(resid_cols, phi, np.array([]), run_starts0)
+    ends = np.append(run_starts0[1:], n)
+    units = [
+        (filt[s + phi.size : e], np.array([0], dtype=np.intp))
+        for s, e in zip(run_starts0, ends, strict=True)
+        if e - (s + phi.size) >= 10
+    ]
+    if not units:
+        return None
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        est = _hr_arma_pooled(units, 0, 1)
+    return est.theta if est.ok else None
+
+
 def afni_restricted_plan(
     resid: NDArray[np.float64],
     *,
@@ -106,9 +141,11 @@ def afni_restricted_plan(
     parcels : NDArray, optional
         Parcel labels (triggers parcel-level plan).
     estimate_ma1 : bool
-        Estimate MA(1) on AR-filtered residuals.
+        Estimate an MA(1) term, standing in for AFNI's additive white
+        noise, by Hannan-Rissanen pooled over the AR-filtered voxels of
+        each run (per parcel for parcel plans).
     exact_first : bool
-        Apply exact first-sample AR(1) scaling.
+        Exact stationary start-up at each segment start.
 
     Returns
     -------
@@ -129,6 +166,14 @@ def afni_restricted_plan(
             return afni_phi_ar5(spec["a"], spec["r1"], spec["t1"],
                                 spec["r2"], spec["t2"])
 
+    if runs is None:
+        run_starts0 = np.array([0], dtype=np.intp)
+    else:
+        from .acvf import run_codes
+
+        codes = run_codes(runs, n)
+        run_starts0 = np.flatnonzero(np.diff(codes, prepend=codes[0] - 1))
+
     if parcels is None:
         # Global plan
         if not isinstance(roots, dict) or "a" not in roots:
@@ -137,14 +182,9 @@ def afni_restricted_plan(
         theta = np.array([], dtype=np.float64)
 
         if estimate_ma1:
-            from .hr_arma import _arma_innovations, hr_arma
-            ymean = resid.mean(axis=1)
-            ar_resid = _arma_innovations(ymean, phi, np.array([]))
-            try:
-                est = hr_arma(ar_resid, p=0, q=1, n_iter=0)
-                theta = est["theta"]
-            except Exception:
-                theta = np.array([], dtype=np.float64)
+            th = _afni_ma1_pooled(resid, phi, run_starts0)
+            if th is not None:
+                theta = th
 
         order_q = len(theta)
         return WhiteningPlan(
@@ -176,18 +216,11 @@ def afni_restricted_plan(
         phi = _as_phi(cast("dict[str, Any]", spec))
         phi_by[key] = phi
 
+        theta_by[key] = np.array([], dtype=np.float64)
         if estimate_ma1:
-            from .hr_arma import _arma_innovations, hr_arma
-            cols = np.where(parcels == pid)[0]
-            ymean = resid[:, cols].mean(axis=1) if len(cols) > 1 else resid[:, cols[0]]
-            ar_resid = _arma_innovations(ymean, phi, np.array([]))
-            try:
-                est = hr_arma(ar_resid, p=0, q=1, n_iter=0)
-                theta_by[key] = est["theta"]
-            except Exception:
-                theta_by[key] = np.array([], dtype=np.float64)
-        else:
-            theta_by[key] = np.array([], dtype=np.float64)
+            th = _afni_ma1_pooled(resid[:, parcels == pid], phi, run_starts0)
+            if th is not None:
+                theta_by[key] = th
 
     order_q = 1 if estimate_ma1 else 0
 

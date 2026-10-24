@@ -149,12 +149,15 @@ def estimate_pi0(
     Returns
     -------
     float
-        Estimated proportion of true nulls.
+        Estimated proportion of true nulls. Missing p-values are not
+        counted, and a group with none left gives 1.
     """
-    m = len(p_values)
+    p = np.asarray(p_values, dtype=np.float64)
+    p = p[np.isfinite(p)]
+    m = len(p)
     if m == 0:
         return 1.0
-    n_above: float = float(np.sum(p_values > tau))
+    n_above: float = float(np.sum(p > tau))
     pi0 = n_above / (m * (1.0 - tau))
     return float(np.clip(pi0, min_pi0, 1.0))
 
@@ -194,15 +197,16 @@ def smooth_pi0(
 ) -> NDArray[np.float64]:
     """Smooth pi0 across spatial neighbours.
 
-    Replaces each group's pi0 with a weighted average of itself
-    (weight ``1-lam``) and the mean of its neighbours (weight ``lam``).
+    One step of ``(pi0_g + lam * mean_{N(g)} pi0) / (1 + lam)`` over the
+    finite neighbours of each group (fmrigds ``sabha_pi0_smooth_cpp``).
 
     Parameters
     ----------
     pi0_raw : NDArray, shape ``(n_groups,)``
     neighbors : list of list of int
     lam : float
-        Smoothing strength in ``[0, 1]``.
+        Non-negative smoothing strength; ``lam = 1`` averages a group with
+        its neighbours' mean.
 
     Returns
     -------
@@ -213,21 +217,44 @@ def smooth_pi0(
 
     pi0_smooth = pi0_raw.copy()
     for g in range(len(pi0_raw)):
-        nbrs = neighbors[g]
-        if nbrs:
-            nbr_mean = np.mean(pi0_raw[nbrs])
-            pi0_smooth[g] = (1.0 - lam) * pi0_raw[g] + lam * nbr_mean
+        nbr_vals = pi0_raw[[j for j in neighbors[g] if j != g]]
+        nbr_vals = nbr_vals[np.isfinite(nbr_vals)]
+        if np.isfinite(pi0_raw[g]) and nbr_vals.size:
+            pi0_smooth[g] = (pi0_raw[g] + lam * nbr_vals.mean()) / (1.0 + lam)
     return pi0_smooth
 
 
 # -- Weighted BH ---------------------------------------------------------------
+
+def _normalise_weights(
+    p_values: NDArray[np.float64],
+    weights: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """Weights scaled to sum to the number of finite p-values.
+
+    Tests with a missing p get weight 0; non-positive or non-finite
+    weights become a small positive value (fmrigds ``sabha_weighted_bh_cpp``).
+    """
+    finite = np.isfinite(p_values)
+    w = np.asarray(weights, dtype=np.float64)
+    w = np.where(np.isfinite(w) & (w > 0), w, 1e-8)
+    w = np.where(finite, w, 0.0)
+    total = float(w.sum())
+    if total > 0:
+        w = w * (float(finite.sum()) / total)
+    return w
+
 
 def weighted_bh(
     p_values: NDArray[np.float64],
     weights: NDArray[np.float64],
     alpha: float = 0.05,
 ) -> tuple[NDArray[np.bool_], NDArray[np.float64], float]:
-    """Weighted Benjamini-Hochberg procedure.
+    """Weighted Benjamini-Hochberg procedure (Genovese, Roeder & Wasserman 2006).
+
+    Weights are normalised to sum to the number of finite p-values, which
+    is what the procedure's FDR guarantee assumes. Missing p-values get
+    a missing q-value, are never rejected and do not count as tests.
 
     Parameters
     ----------
@@ -242,41 +269,36 @@ def weighted_bh(
     reject : NDArray[bool]
     qvalues : NDArray[float]
     threshold : float
-        The BH threshold on the weighted scale.
+        The BH threshold on the weighted scale ``p / w``.
     """
-    V = len(p_values)
-    if V == 0:
-        return (
-            np.array([], dtype=bool),
-            np.array([], dtype=np.float64),
-            0.0,
-        )
+    p = np.asarray(p_values, dtype=np.float64)
+    reject = np.zeros(p.shape, dtype=bool)
+    qvalues = np.full(p.shape, np.nan, dtype=np.float64)
+    finite = np.isfinite(p)
+    n = int(finite.sum())
+    if n == 0:
+        return reject, qvalues, 0.0
 
     # Weighted p-values: p_w = p / w  (lower weight → inflate p)
-    w_safe = np.maximum(weights, 1e-15)
-    p_weighted = p_values / w_safe
+    w = _normalise_weights(p, weights)
+    p_weighted = p[finite] / w[finite]
 
     # Standard BH on weighted p-values
     sorted_idx = np.argsort(p_weighted)
     sorted_pw = p_weighted[sorted_idx]
-    ranks = np.arange(1, V + 1, dtype=np.float64)
+    ranks = np.arange(1, n + 1, dtype=np.float64)
 
-    # BH adjusted p-values
-    adjusted = sorted_pw * V / ranks
+    adjusted = sorted_pw * n / ranks
     adjusted = np.minimum.accumulate(adjusted[::-1])[::-1]
     adjusted = np.clip(adjusted, 0.0, 1.0)
+    q_finite = np.empty(n, dtype=np.float64)
+    q_finite[sorted_idx] = adjusted
+    qvalues[finite] = q_finite
 
-    qvalues = np.empty(V, dtype=np.float64)
-    qvalues[sorted_idx] = adjusted
-
-    # Find threshold
-    below = sorted_pw <= alpha * ranks / V
-    if np.any(below):
-        threshold = float(sorted_pw[np.max(np.where(below))])
-    else:
-        threshold = 0.0
-
-    reject = p_weighted <= threshold
+    below = np.nonzero(sorted_pw <= alpha * ranks / n)[0]
+    threshold = float(alpha * (below.max() + 1) / n) if below.size else 0.0
+    if below.size:
+        reject[finite] = p_weighted <= threshold
 
     return reject, qvalues, threshold
 
@@ -289,7 +311,7 @@ def spatial_fdr(
     mask: Optional[NDArray[np.bool_]] = None,
     alpha: float = 0.05,
     tau: float = 0.5,
-    smooth_lambda: float = 0.5,
+    smooth_lambda: float = 1.0,
     block_size: int = 5,
     min_pi0: float = 0.05,
 ) -> SpatialFdrResult:
@@ -311,11 +333,12 @@ def spatial_fdr(
     tau : float
         Threshold for Storey's pi0 estimator.
     smooth_lambda : float
-        Spatial smoothing of pi0 across neighbours.
+        Spatial smoothing of pi0 across neighbours, one step of
+        ``(pi0 + lam * mean_neighbours) / (1 + lam)``.
     block_size : int
         Block edge length for automatic grouping.
     min_pi0 : float
-        Minimum pi0 per group.
+        Lower bound for the smoothed pi0 of each group.
 
     Returns
     -------
@@ -365,21 +388,18 @@ def spatial_fdr(
         if not neighbors:
             neighbors = [[] for _ in range(n_groups)]
 
-    # 1. Estimate pi0 per group
+    # 1. Estimate pi0 per group from its finite p-values (bounded to [0, 1])
     pi0_raw = estimate_pi0_grouped(
-        p_values, group_ids, n_groups, tau=tau, min_pi0=min_pi0,
+        p_values, group_ids, n_groups, tau=tau, min_pi0=0.0,
     )
 
-    # 2. Smooth pi0 across neighbours
-    pi0_smooth = smooth_pi0(pi0_raw, neighbors, lam=smooth_lambda)
+    # 2. Smooth pi0 across neighbours, then apply the lower bound
+    pi0_smooth = np.clip(smooth_pi0(pi0_raw, neighbors, lam=smooth_lambda), min_pi0, 1.0)
 
-    # 3. Compute adaptive weights: w_g = 1 / pi0_g
-    group_weights = 1.0 / np.maximum(pi0_smooth, 1e-10)
-    # Normalise weights to have mean 1
-    group_weights /= group_weights.mean() + 1e-15
-
-    # Map group weights to voxels
-    voxel_weights = group_weights[group_ids]
+    # 3. Adaptive weights w = 1 / pi0 per voxel, normalised over the tested voxels
+    voxel_weights = _normalise_weights(
+        p_values, 1.0 / np.maximum(pi0_smooth, 1e-10)[group_ids]
+    )
 
     # 4. Weighted BH
     reject, qvalues, threshold = weighted_bh(p_values, voxel_weights, alpha)

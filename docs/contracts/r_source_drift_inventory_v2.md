@@ -6,11 +6,13 @@ turning it into a mechanical port.
 **Predecessor:** [`r_source_drift_inventory_v1.md`](r_source_drift_inventory_v1.md)
 (2026-08-19; waves 1 to 3 ported in `3c6fc84`).
 **fmrimod HEAD audited:** `4f14a19`.
-**Board source / epic / wave beads:** not filed yet. `mote` was not installed
-in the container that produced this audit, so no board post or bead exists.
-[§ Proposed beads](#proposed-beads) lists what to file; use
-`python scripts/mote_new.py "<title>" -p <n> --from-bead bd-01M0DQSE2QBF4TZ6G9DKYY8G2W`
-(the v1 epic) so the tracker records the lineage.
+**Epic:** `bd-01M5PS5JM4J8A2JKZX9WHN96QS`, filed from the v1 epic
+`bd-01M0DQSE2QBF4TZ6G9DKYY8G2W`. `mote` was not available in the container
+that produced this audit and wave 1, so the epic and its 40 child beads are
+declared with fixed ids in
+[`r_source_drift_v2/file_beads.py`](r_source_drift_v2/file_beads.py); run it
+once from the repository root on a machine with mote (`--dry-run` first).
+No board post exists.
 
 The R behaviour is the spec; the Python surface is not a mechanical
 translation. Rows record what changed upstream, what fmrimod does today, and
@@ -229,6 +231,82 @@ kept), REG-B-11, REG-B-13, REG-B-15, REG-B-16, AR-17, AR-23, AR-26, LSS-05,
 LSS-08, LSS-09, the `VoxelSpace` part of DS-02, DS-15 to DS-19, DS-25.
 The decisions they need are grouped below.
 
+## Wave 1 status
+
+Branch `claude/r-source-drift-v2`, 2026-10-24. Every fix below started
+from its row's red check, failing before the fix and passing after; the
+commit bodies cite the R commit and say which existing tests had pinned
+the old behaviour and were updated. The detail files remain the audit
+snapshot of `4f14a19`, so their status column is not edited.
+
+| Lane | Rows fixed | Commits | Left open |
+| --- | --- | --- | --- |
+| 1a Noise model | AR-01 to AR-12; the AR part of REG-A-07 | `2cc2f60`..`6f1bff0` | none |
+| 1b First-level AR routing | REG-A-02, REG-A-03, REG-A-04, REG-A-12; `fmri_lm` AR now runs through `fit_noise` / `whiten_apply` | `fc83a9b`..`abd5113` | REG-A-14 (ARMA, wave 2) |
+| 1c First-level composition and numerics | REG-A-01, REG-A-05 to REG-A-11, REG-B-06, REG-B-07 | `a75b60f`..`8054393` | REG-A-13 (D4) |
+| 1d HRF | HRF-01 to HRF-05, HRF-07, HRF-08; also the FIR basis end-of-span defect (same root as HRF-02) | `dbdabea`..`71a3e3c` | none |
+| 1e Design and contrasts | DES-01 to DES-09 | `f7562ce`..`d932541` | DES-10 (D3) |
+| 1f Single-trial | LSS-01 to LSS-04, P-1 | `537cbcb`..`6a147d0` | none |
+| 1g Group and meta | REG-B-01 to REG-B-05, GDS-01 to GDS-07 | `fbe6cee`..`b197d6f` | see below |
+| 1h Dataset | DS-01 to DS-06 | `5bc0bbd`..`3913893` | see below |
+
+Partly fixed rows:
+
+- **REG-B-02**: tau2 and Q_fe use the regression forms. The packed
+  covariance order (`cov_tri` lower vs R's row-major upper) is unchanged
+  because it alters a public output layout (S2).
+- **REG-B-05**: t-only Fisher and Stouffer now use the t distribution.
+  The Fisher statistic stays chi2 rather than R's signed z, which would
+  change `group_fit`'s result contract.
+- **GDS-06**: the wrong-result parts are fixed (missing p, weight
+  normalisation, smoothing formula, `min_pi0` placement). z input with an
+  empirical null and the `fdr:sabha` post-hoc registration are wave 3.
+- **DS-01**: BIDS-HDF5 events now carry the scan position as `run` and
+  the BIDS label as `bids_run`. A subject whose first scan has no events
+  still shifts later runs, through P-2 (decision D10).
+- **DS-02**: subjects are routed by voxel id through each subject's mask;
+  the emitted space stays `SampleLabelSpace` (the `VoxelSpace` part is S2).
+
+First-level AR (lane 1b) keeps fmrimod's scrub semantics for censored
+volumes (decision D4) and differs from R in three places, recorded in its
+commits: zero-weight volumes are left out of the AR residual df (R uses
+n - rank), global phi is estimated from the preprocessed residuals (R uses
+raw OLS residuals), and `reestimate_phi` with global pooling is refused
+(R ignores it). The older public `fmrimod.ar.iterative_ar_gls` is
+untouched apart from following the new `AROptions.pooling` default; it
+still re-reads raw run data (decision D9, and REG-A-14 proposes routing
+ARMA through it).
+
+Also fixed while integrating: the top-level `fmrimod.matrix_dataset`
+facade dropped `censor`, `start_time` and `slice_timing_offset`
+(`5e75ccf`), and v1 is registered in both contract audits (`97c769c`).
+
+Behaviour changes users will notice are listed in each commit body. The
+largest are: equal and custom meta weights are relative (tau2 is NaN);
+prewhitened single-trial fits use aggregate-trial residuals by default;
+voxel HRFs have unit positive peaks; B-spline, tent and FIR bases are
+zero at both ends of the span; `p="auto"` AR order selection counts
+effective voxels and selects higher orders on large independent-voxel
+data; first-level AR phi is estimated with fmriAR's residual-bias
+correction (larger phi, so betas and t move), `AROptions.pooling`
+defaults to R's `"run"` (what `fmri_lm` already did), `iter_gls` above 1
+gives the same fit as 1, `pooling="parcel"` and voxelwise AR outside
+R's narrow contract raise; factorial interaction contrast rows follow R's order; a zero SE
+gives t = 0, p = 1 everywhere; and BIDS-HDF5 event `run` is an integer
+scan position.
+
+New follow-ups found during wave 1 (not inventory rows):
+
+- `get_hrf("spmg1", n_basis=6)` reports `nbasis=6` but evaluates one
+  column; a lagged HRF is truncated at the unlagged span; `trialwise()`
+  ignores durations.
+- `golden_tests/specs/core/hrf_bspline_basis.xml` still describes the
+  old B-spline basis (no test runs it).
+- For parcel pooling with `p="auto"`, fmriAR defaults to
+  `pacf_weighted` multiscale pooling; fmrimod defaults to none.
+- `cross_testing/test_tier_d_showcase` expects case ids that no longer
+  exist (fails at `4f14a19` too).
+
 ## Steward decisions
 
 - **D1. fmridataset direction** (DS-15 to DS-19, DS-25, DS-02). The R spec
@@ -275,6 +353,18 @@ The decisions they need are grouped below.
 - **D9. First-level AR routing** (lane 1b). Routing `fmri_lm` through
   `fit_noise` is internal but spans `ar/` and `glm/`. Grade it as S1 with a
   co-sign, or S2 under the multi-module refactor escalator.
+- **D10. Run numbering for event-free runs** (P-2, rest of DS-01).
+  `event_model` numbers block labels by first appearance among the
+  events, so when a run has no events the later runs' events are
+  convolved in the wrong run's window. fmridesign does the same
+  (`canonicalize_blockids`, `match(x, unique(x))`), so this is a shared
+  hazard, not drift. Keeping integer labels as given is ambiguous: labels
+  `[1, 2]` could be 1-based runs 1 and 2 or 0-based runs 2 and 3, and a
+  wrong guess misplaces events the other way. Options: map labels against
+  the sampling frame's run ids when the caller supplies them; warn when
+  the events name fewer runs than the frame has; or report it upstream
+  and keep R's rule. Recommendation: the first two together, raised with
+  the fmridesign maintainer.
 
 ## Pre-existing fmrimod bugs found (not drift)
 
@@ -321,8 +411,12 @@ passed and 7 failed. None of the failures comes from this audit.
 
 ## Proposed beads
 
-Priorities follow mote (0 highest). Provenance for all:
-`--from-bead bd-01M0DQSE2QBF4TZ6G9DKYY8G2W`.
+This was the plan at audit time. The beads actually filed, with their ids,
+priorities and bodies, are in
+[`r_source_drift_v2/file_beads.py`](r_source_drift_v2/file_beads.py): the
+epic hangs off the v1 epic, every other bead off the v2 epic, and the
+wave 1 lane beads are filed closed with their commits. Priorities follow
+mote (0 highest).
 
 | Proposed title | Pri | Rows | Red check home |
 | --- | --- | --- | --- |
@@ -340,7 +434,7 @@ Priorities follow mote (0 highest). Provenance for all:
 | Dataset timing, run identity and selectors | 1 | DS-01 to DS-06, P-2, P-3 | `tests/test_dataset/` |
 | Contracts, one bead per package | 2 | wave 2 table | per package |
 | Features, one bead each | 3 | wave 3 list | per row |
-| Steward decision note D1 to D9 | 1 | S2 list | `docs/contracts/decisions/` |
+| Steward decision note D1 to D10 | 1 | S2 list | `docs/contracts/decisions/` |
 | Pre-existing bugs P-4 to P-12 | 2 | pre-existing table | per row |
 | SPM-auditory benchmark deletes its checked-in report when the download fails | 3 | baseline failure | `tests/test_benchmarks/test_parity_receipts.py` |
 | Regenerate `internal_any_audit.json` | 3 | baseline failure | `tests/test_public_api/test_api_inventory.py` |
