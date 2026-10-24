@@ -231,69 +231,57 @@ def bspline_hrf(
 ) -> NDArray[np.float64]:
     """B-spline basis set for HRF.
 
-    Interior knots are placed at quantiles of a uniform grid over ``[0, span]``,
-    matching R ``hrf_bspline()``. They are a function of ``span`` alone, so the
-    basis does not change with the grid the caller passes.
+    The ``n_basis`` functions are the interior functions of a clamped
+    B-spline basis of ``n_basis + 2`` functions on ``[0, span]`` with evenly
+    spaced knots, matching R ``hrf_bspline()``. The two boundary functions
+    are dropped, so every basis function (and every fitted HRF) is zero at
+    onset and at ``span``. The knots depend on ``span`` alone, never on the
+    grid the caller passes.
 
     Args:
         t: Time points in seconds
-        n_basis: Number of basis functions
+        n_basis: Number of basis functions (at least ``max(1, degree - 1)``)
         degree: Degree of B-splines (3 for cubic)
         span: Temporal span of the basis set
 
     Returns:
-        Matrix of B-spline basis functions evaluated at t
+        Matrix of B-spline basis functions evaluated at t (zero outside
+        ``[0, span]``)
+
+    Raises:
+        ValueError: If ``n_basis < max(1, degree - 1)``.
     """
+    n_basis = int(n_basis)
+    degree = int(degree)
+    min_basis = max(1, degree - 1)
+    if n_basis < min_basis:
+        raise ValueError(
+            f"n_basis must be at least {min_basis} for degree = {degree}"
+        )
+
     t = np.atleast_1d(np.asarray(t, dtype=np.float64))
+    out = np.zeros((len(t), n_basis), dtype=np.float64)
 
     # Evaluate only inside [0, span] and keep zeros outside.
     valid = (t >= 0) & (t <= span)
     if not np.any(valid):
-        return np.zeros((len(t), int(n_basis)), dtype=np.float64)
+        return out
 
-    t_valid = t[valid]
-    ord_ = degree + 1
-    n_interior = max(0, int(n_basis) - ord_ + 1)
-
-    if n_interior > 0:
-        # Interior knots come from `span`, not from the caller's `t`. Deriving
-        # them from `t` (what splines::bs() does when `knots` is omitted) made
-        # the basis a function of the evaluation grid: the same experiment
-        # analysed on two grids got two different bases, and a grid of one or
-        # two points collapsed the knots onto those points. Mirrors R
-        # hrf_bspline(): quantiles of seq(0, span).
-        probs = np.arange(1, n_interior + 1, dtype=np.float64) / (n_interior + 1)
-        ref_grid = np.arange(0.0, np.floor(float(span)) + 1.0)
-        interior_knots = np.quantile(ref_grid, probs)
-    else:
-        interior_knots = np.array([], dtype=np.float64)
-
+    # Clamped basis with n_basis + 2 functions; only the first and last are
+    # non-zero at t = 0 and t = span, so dropping them leaves n_basis
+    # functions that vanish at both ends.
+    n_interior = n_basis + 1 - degree
+    interior_knots = np.linspace(0.0, float(span), n_interior + 2)[1:-1]
     knots = np.concatenate(
         [
-            np.repeat(0.0, ord_),
-            interior_knots.astype(np.float64),
-            np.repeat(float(span), ord_),
+            np.repeat(0.0, degree + 1),
+            interior_knots,
+            np.repeat(float(span), degree + 1),
         ]
     )
-
-    # Build the full basis then drop the first column (intercept=FALSE),
-    # matching splines::bs(..., intercept = FALSE).
-    n_basis_full = len(knots) - degree - 1
-    basis_full = np.zeros((len(t_valid), n_basis_full), dtype=np.float64)
-
-    for i in range(n_basis_full):
-        c = np.zeros(n_basis_full, dtype=np.float64)
-        c[i] = 1.0
-        bspl = interpolate.BSpline(knots, c, degree, extrapolate=False)
-        basis_full[:, i] = np.nan_to_num(bspl(t_valid), nan=0.0)
-
-    if n_basis_full > int(n_basis):
-        basis_valid = basis_full[:, 1 : (int(n_basis) + 1)]
-    else:
-        basis_valid = basis_full
-
-    out = np.zeros((len(t), int(n_basis)), dtype=np.float64)
-    out[valid, : basis_valid.shape[1]] = basis_valid
+    n_full = n_basis + 2
+    full = interpolate.BSpline(knots, np.eye(n_full), degree, extrapolate=False)
+    out[valid] = np.nan_to_num(full(t[valid]), nan=0.0)[:, 1:-1]
     return out
 
 
