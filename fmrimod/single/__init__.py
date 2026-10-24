@@ -39,6 +39,7 @@ from ._types import (
     SingleTrialMethodLike,
     SingleTrialResult,
     SpatialDescriptor,
+    VoxelHrfExtras,
     VoxelHrfResult,
 )
 from .item import (
@@ -610,6 +611,7 @@ __all__ = [
     "OasisExtras",
     "MixedExtras",
     "SbhmExtras",
+    "VoxelHrfExtras",
     "SingleTrialMethod",
     "SingleTrialMethodLike",
     "SpatialDescriptor",
