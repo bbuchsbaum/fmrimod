@@ -390,8 +390,10 @@ def test_perm_onesample_uses_supplied_sign_matrix() -> None:
 
     y = np.array([1.0, 2.0, 3.0])
     expected_t = np.mean(y) / (np.std(y, ddof=1) / np.sqrt(3))
+    # Row 0 is the identity relabelling, so it is left out of the null set
+    # (fmrigds .perm_first_row_is_identity; it would count the observed t twice).
     null_t = []
-    for s in signs:
+    for s in signs[1:]:
         sy = s * y
         null_t.append(np.mean(sy) / (np.std(sy, ddof=1) / np.sqrt(3)))
     expected_perm = (np.sum(np.abs(null_t) >= abs(expected_t)) + 1.0) / (
@@ -436,6 +438,86 @@ def test_perm_twosample_uses_supplied_group_matrix() -> None:
     np.testing.assert_allclose(out.assay("se_g")[0, 0, 0], expected_se)
     np.testing.assert_allclose(out.assay("t_g")[0, 0, 0], expected_t)
     assert out.metadata["reduce_method"] == "perm:twosample"
+
+
+def _perm_fixture():
+    rng = np.random.default_rng(22)
+    beta = rng.normal(0.3, 1.0, size=(8, 2))
+    ds = group_dataset(
+        {"beta": beta.T.reshape(2, 8, 1)},
+        space=SampleLabelSpace(["r1", "r2"]),
+        subjects=[f"s{i}" for i in range(8)],
+        contrasts=["c1"],
+    )
+    return ds, beta, rng
+
+
+def _one_sample_t(y: np.ndarray) -> float:
+    return float(np.mean(y) / (np.std(y, ddof=1) / np.sqrt(y.size)))
+
+
+def _welch_t(y: np.ndarray, g: np.ndarray) -> float:
+    a, b = y[g == 1], y[g == 0]
+    return float((a.mean() - b.mean()) / np.sqrt(a.var(ddof=1) / a.size + b.var(ddof=1) / b.size))
+
+
+@pytest.mark.parametrize("identity_first", [True, False])
+def test_perm_onesample_counts_the_observed_statistic_once(identity_first: bool) -> None:
+    # fmrigds 7c7ecae (.perm_first_row_is_identity, test-review-numeric.R:65-94):
+    # p = (1 + #null >= obs) / (1 + n_null), with an identity row 1 left out.
+    ds, beta, rng = _perm_fixture()
+    signs = rng.choice(np.array([-1, 1], dtype=np.int8), size=(20, 8))
+    signs[0, :] = 1 if identity_first else signs[0, :]
+    if not identity_first:
+        signs[0, 0] = -1
+    null_rows = signs[1:] if identity_first else signs
+
+    out = perm_onesample(ds, signs=signs)
+
+    for j in range(2):
+        t_obs = _one_sample_t(beta[:, j])
+        t_null = np.array([_one_sample_t(s * beta[:, j]) for s in null_rows])
+        expected = (1 + np.sum(np.abs(t_null) >= abs(t_obs))) / (1 + t_null.size)
+        np.testing.assert_allclose(out.assay("p_perm")[j, 0, 0], expected)
+
+    t_obs = np.array([_one_sample_t(beta[:, j]) for j in range(2)])
+    max_null = np.array([max(abs(_one_sample_t(s * beta[:, j])) for j in range(2)) for s in null_rows])
+    expected_fwer = (1 + np.sum(max_null[:, None] >= np.abs(t_obs), axis=0)) / (1 + max_null.size)
+    np.testing.assert_allclose(out.assay("p_fwer")[:, 0, 0], expected_fwer)
+
+
+def test_perm_onesample_generated_identity_row_follows_include_observed() -> None:
+    ds, beta, _ = _perm_fixture()
+    with_obs = perm_onesample(ds, n_perm=50, seed=8, include_observed=True)
+    rng = np.random.default_rng(8)
+    signs = rng.choice(np.array([-1, 1], dtype=np.int8), size=(50, 8))
+    t_obs = _one_sample_t(beta[:, 0])
+    t_null = np.array([_one_sample_t(s * beta[:, 0]) for s in signs[1:]])
+    np.testing.assert_allclose(
+        with_obs.assay("p_perm")[0, 0, 0],
+        (1 + np.sum(np.abs(t_null) >= abs(t_obs))) / (1 + t_null.size),
+    )
+
+
+@pytest.mark.parametrize("observed_first", [True, False])
+def test_perm_twosample_drops_row_one_only_when_it_is_the_observed_grouping(
+    observed_first: bool,
+) -> None:
+    ds, beta, rng = _perm_fixture()
+    group = np.repeat([0, 1], 4)
+    gmat = np.vstack([rng.permutation(group) for _ in range(15)]).astype(np.int8)
+    if observed_first:
+        gmat[0] = group
+    elif np.array_equal(gmat[0], group):
+        gmat[0] = gmat[0][::-1]
+    null_rows = gmat[1:] if observed_first else gmat
+
+    out = perm_twosample(ds, group=group, group_mat=gmat)
+
+    t_obs = _welch_t(beta[:, 0], group)
+    t_null = np.array([_welch_t(beta[:, 0], g) for g in null_rows])
+    expected = (1 + np.sum(np.abs(t_null) >= abs(t_obs) - 1e-12)) / (1 + t_null.size)
+    np.testing.assert_allclose(out.assay("p_perm")[0, 0, 0], expected)
 
 
 def test_permutation_reducers_dispatch_from_registry() -> None:

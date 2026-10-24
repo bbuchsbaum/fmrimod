@@ -50,6 +50,7 @@ from ._reducers_kernels import (
     _max_abs_null,
     _max_tail_null,
     _pack_upper_tri,
+    _perm_first_row_is_identity,
     _perm_tail_count,
     _perm_tail_score,
     _safe_inverse,
@@ -666,6 +667,14 @@ def perm_onesample(
             raise AdapterContractError("signs must have shape n_perm x n_subjects")
         if not np.all(np.isin(sign_mat, [-1, 1])):
             raise AdapterContractError("signs must contain only -1 and 1")
+    n_perm_rows = int(sign_mat.shape[0])
+    if _perm_first_row_is_identity(
+        sign_mat,
+        np.ones(dataset.n_subjects, dtype=np.int8),
+        generated=signs is None,
+        include_observed=include_observed,
+    ):
+        sign_mat = sign_mat[1:]
 
     beta_2d = _flatten_feature_axis(beta)
     n_features = beta_2d.shape[1]
@@ -807,7 +816,8 @@ def perm_onesample(
         assays,
         method="perm:onesample",
         metadata={
-            "n_perm": int(sign_mat.shape[0]),
+            "n_perm": n_perm_rows,
+            "n_null": int(sign_mat.shape[0]),
             "min_subjects": int(min_subjects),
             "alternative": alternative,
             "weights": weights,
@@ -870,6 +880,14 @@ def perm_twosample(
             raise AdapterContractError("group_mat must have shape n_perm x n_subjects")
         if not np.all(np.isin(perm_mat, [0, 1])):
             raise AdapterContractError("group_mat must encode groups as 0/1")
+    n_perm_rows = int(perm_mat.shape[0])
+    if _perm_first_row_is_identity(
+        perm_mat,
+        group_codes,
+        generated=group_mat is None,
+        include_observed=include_observed,
+    ):
+        perm_mat = perm_mat[1:]
 
     beta_2d = _flatten_feature_axis(beta)
     n_features = beta_2d.shape[1]
@@ -945,8 +963,8 @@ def perm_twosample(
             for perm_idx, labels in enumerate(perm_mat[:, ok]):
                 _, _, perm_t, _ = two_sample_t(y_ok, labels)
                 null_chunk[perm_idx, local_idx] = perm_t
-            count = _perm_tail_count(null_chunk[1:, local_idx], obs_t, alternative)
-            p_perm_chunk[local_idx] = (count + 1.0) / float(perm_mat.shape[0])
+            count = _perm_tail_count(null_chunk[:, local_idx], obs_t, alternative)
+            p_perm_chunk[local_idx] = (count + 1.0) / (perm_mat.shape[0] + 1.0)
 
         return (
             start,
@@ -991,11 +1009,11 @@ def perm_twosample(
     for feature_idx in range(n_features):
         score = obs_score[feature_idx]
         count = (
-            float(np.sum(np.isfinite(max_null[1:]) & (max_null[1:] >= score)))
+            float(np.sum(np.isfinite(max_null) & (max_null >= score)))
             if np.isfinite(score)
             else np.nan
         )
-        p_fwer[feature_idx] = (count + 1.0) / float(perm_mat.shape[0])
+        p_fwer[feature_idx] = (count + 1.0) / (perm_mat.shape[0] + 1.0)
 
     assays = {
         "beta_g": _unflatten_feature_axis(
@@ -1025,7 +1043,8 @@ def perm_twosample(
         assays,
         method="perm:twosample",
         metadata={
-            "n_perm": int(perm_mat.shape[0]),
+            "n_perm": n_perm_rows,
+            "n_null": int(perm_mat.shape[0]),
             "variance": variance,
             "min_group": int(min_group),
             "alternative": alternative,

@@ -131,8 +131,10 @@ def test_onesample_fwer_matches_tail_oracle() -> None:
                 for j in range(2)
             ]
         )
-        null = np.empty((signs.shape[0], 2))
-        for i, row in enumerate(signs):
+        # Row 0 of ``signs`` is the identity relabelling and is not a null draw.
+        null_signs = signs[1:]
+        null = np.empty((null_signs.shape[0], 2))
+        for i, row in enumerate(null_signs):
             for j in range(2):
                 null[i, j] = _weighted_onesample_stats(
                     row.astype(np.float64) * beta[:, j],
@@ -145,12 +147,12 @@ def test_onesample_fwer_matches_tail_oracle() -> None:
         expected_perm = np.array(
             [
                 (_perm_tail_count(null[:, j], observed[j], alternative) + 1.0)
-                / (signs.shape[0] + 1.0)
+                / (null_signs.shape[0] + 1.0)
                 for j in range(2)
             ]
         )
         expected_fwer = (np.sum(max_null[:, None] >= obs_score, axis=0) + 1.0) / (
-            signs.shape[0] + 1.0
+            null_signs.shape[0] + 1.0
         )
         out = perm_onesample(
             ds,
