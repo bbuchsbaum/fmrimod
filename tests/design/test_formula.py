@@ -250,3 +250,37 @@ class TestFormulaParser:
         assert len(terms) == 1
         assert terms[0].events == ["condition", "block"]
         assert terms[0].is_interaction
+
+    def test_event_model_mode_multi_variable_hrf_crosses_variables(self):
+        """``hrf(a, b)`` crosses its variables like ``hrf(a:b)`` (R ``hrf(...)``).
+
+        DES-06: the parser kept only the first positional variable, so
+        ``hrf(cond, task)`` silently became ``hrf(cond)``.
+        """
+        from fmrimod import event_model
+
+        df = pd.DataFrame({
+            'onset': np.arange(8) * 6.0 + 2.0,
+            'cond': ['A', 'B'] * 4,
+            'task': ['x', 'x', 'y', 'y'] * 2,
+            'Time': np.arange(8, dtype=float) + 1.0,
+        })
+        crossed = event_model("onset ~ hrf(cond, task)", data=df, tr=2.0, n_scans=40)
+        colon = event_model("onset ~ hrf(cond:task)", data=df, tr=2.0, n_scans=40)
+        assert crossed.column_names == colon.column_names
+        assert len(crossed.column_names) == 4
+        np.testing.assert_allclose(crossed.design_matrix, colon.design_matrix)
+
+        # Continuous first: hrf(Time, cond) must not collapse to Time alone.
+        mixed = event_model("onset ~ hrf(Time, cond)", data=df, tr=2.0, n_scans=40)
+        mixed_colon = event_model("onset ~ hrf(Time:cond)", data=df, tr=2.0, n_scans=40)
+        assert mixed.column_names == mixed_colon.column_names
+        np.testing.assert_allclose(mixed.design_matrix, mixed_colon.design_matrix)
+
+        terms = parse_formula("onset ~ hrf(cond, task:Time)", for_event_model=True)
+        assert terms[0].events == ["cond", "task", "Time"]
+
+    def test_event_model_mode_hrf_rejects_non_variable_positional(self):
+        """A non-name positional argument to hrf() is an error, not dropped."""
+        with pytest.raises(ValueError, match="hrf"):
+            parse_formula("onset ~ hrf(cond, 3)", for_event_model=True)

@@ -103,9 +103,15 @@ def trialwise(
     term_dyn._lag = lag
     term_dyn._nbasis = nbasis
 
-    # New parameters - store in _kwargs
+    # HRF options live in _kwargs, where the event model resolves them
+    # (R trialwise() passes basis/lag/nbasis straight to hrf()). As in the
+    # functional hrf(), nbasis=1 means "the basis' own size".
     if not hasattr(term, '_kwargs') or term._kwargs is None:
         term._kwargs = {}
+    if nbasis != 1:
+        term._kwargs['nbasis'] = int(nbasis)
+    if lag:
+        term._kwargs['lag'] = float(lag)
     if durations is not None:
         term._kwargs['durations'] = durations
     if normalize:

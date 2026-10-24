@@ -364,15 +364,15 @@ class FormulaEvaluator:
         if not term.arguments:
             raise ValueError("hrf() requires at least one argument")
         
-        # First argument is the event specification
-        event_arg = term.arguments[0]
-        
+        # Positional arguments are the event variables; several cross.
+        variables = _hrf_variables(term)
+        event_arg = variables[0]
+
         # Handle interaction terms
-        if isinstance(event_arg, str) and ':' in event_arg:
-            parts = event_arg.split(':')
+        if len(variables) > 1:
             event_spec = {
                 'type': 'interaction',
-                'factors': [self._resolve_variable(p.strip()) for p in parts]
+                'factors': [self._resolve_variable(p) for p in variables]
             }
         else:
             # Single variable
@@ -409,6 +409,24 @@ class FormulaEvaluator:
             Variable value
         """
         return self.context.get(name)
+
+
+def _hrf_variables(ft: FormulaTerm) -> list[str]:
+    """Return the event variables of an ``hrf(...)`` term, in order.
+
+    Every positional argument names a variable; ``a:b`` inside one argument
+    is split into its parts, so ``hrf(a, b)`` and ``hrf(a:b)`` give the same
+    crossing. Anything else (a number, a list) is rejected rather than
+    dropped.
+    """
+    variables: list[str] = []
+    for arg in ft.arguments:
+        if not isinstance(arg, str):
+            raise ValueError(
+                f"hrf() positional arguments must be variable names; got {arg!r}"
+            )
+        variables.extend(part.strip() for part in arg.split(':'))
+    return variables
 
 
 def parse_formula(
@@ -466,13 +484,12 @@ def parse_formula(
                 # Simple variable like 'condition'
                 term = Term(cast(str, ft.arguments[0]))
             elif ft.function == 'hrf' and ft.arguments:
-                # HRF function like hrf(condition)
-                event_name = ft.arguments[0]
-                event_arg: Union[str, list[str]]
-                if isinstance(event_name, str) and ':' in event_name:
-                    event_arg = [part.strip() for part in event_name.split(':')]
-                else:
-                    event_arg = cast(str, event_name)
+                # HRF function like hrf(condition). Several positional
+                # variables cross like ``a:b`` (R ``hrf(...)``).
+                variables = _hrf_variables(ft)
+                event_arg: str | list[str] = (
+                    variables[0] if len(variables) == 1 else variables
+                )
                 # Accept both hrf=... and basis=... for compatibility.
                 hrf = ft.kwargs.get('hrf', ft.kwargs.get('basis', 'simple'))
                 extra = {
@@ -496,6 +513,8 @@ def parse_formula(
                     nbasis=cast(int, ft.kwargs.get('nbasis', 1)),
                     add_sum=cast(bool, ft.kwargs.get('add_sum', False)),
                     label=cast(str, ft.kwargs.get('label', 'trial')),
+                    durations=ft.kwargs.get('durations'),
+                    normalize=cast(bool, ft.kwargs.get('normalize', False)),
                 )
             elif ft.function and ft.arguments:
                 # Other function with args - treat first arg as event
