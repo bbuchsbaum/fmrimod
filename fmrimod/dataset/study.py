@@ -147,6 +147,27 @@ def _route_samples(
     return common.n_samples, routes, np.asarray(common.mask_idx, dtype=np.intp)
 
 
+def _subject_key(value: object, column: str) -> str:
+    """Canonical string key for a subject id (fmridataset e5ae9b8, 57ff4a2).
+
+    Missing ids are refused before stringifying (``str(nan)`` is ``"nan"``);
+    whole-number floats format exactly (``100000.0`` -> ``"100000"``) and
+    fractional numbers are refused. Strings are kept as given.
+    """
+    if value is None or (not isinstance(value, str) and pd.isna(value)):
+        raise FmriDatasetError(f"subject id column '{column}' has missing ids")
+    if isinstance(value, (bool, np.bool_)):
+        raise FmriDatasetError(f"subject id column '{column}' holds a boolean")
+    if isinstance(value, (float, np.floating)):
+        if not float(value).is_integer():
+            raise FmriDatasetError(
+                f"subject id column '{column}' must hold whole numbers or "
+                f"strings; got {value!r}"
+            )
+        return str(int(value))
+    return str(value)
+
+
 class _ContrastResultLike(Protocol):
     """Duck-typed view of fmrimod.glm.ContrastResult for study lowering.
 
@@ -241,8 +262,8 @@ class StudyDataset:
             )
 
         frame = self.subjects.copy()
-        ids = frame[self.id].map(str)
-        if ids.isna().any() or (ids == "").any():
+        ids = frame[self.id].map(lambda value: _subject_key(value, self.id))
+        if (ids == "").any():
             raise FmriDatasetError(f"subject id column '{self.id}' must be non-empty")
         if ids.duplicated().any():
             dupes = ", ".join(ids[ids.duplicated()].unique())

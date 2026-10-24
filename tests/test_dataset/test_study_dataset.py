@@ -273,3 +273,19 @@ def test_study_lowering_routes_voxel_estimates_through_subject_masks() -> None:
         study_dataset(mixed, mask_strategy="intersect").to_group_dataset(
             {"s1": results["s1"], "s3": results["s1"]}
         )
+
+
+def test_study_subject_ids_are_canonical_keys() -> None:
+    # fmridataset e5ae9b8 / 57ff4a2: whole numbers format exactly, fractional
+    # numbers and missing keys are refused. Inventory v2 DS-13. The fractional
+    # case rules out a blanket str(int(v)).
+    ds = _dataset()
+    study = study_dataset(pd.DataFrame({"subject_id": [100000.0, 2.0], "dataset": [ds, ds]}))
+    assert study.subject_ids == ("100000", "2")
+    with pytest.raises(FmriDatasetError, match="missing"):
+        study_dataset(pd.DataFrame({"subject_id": [100000.0, np.nan], "dataset": [ds, ds]}))
+    with pytest.raises(FmriDatasetError, match="whole"):
+        study_dataset(pd.DataFrame({"subject_id": [1.5], "dataset": [ds]}))
+    assert study_dataset(
+        pd.DataFrame({"subject_id": ["sub-01", "01"], "dataset": [ds, ds]})
+    ).subject_ids == ("sub-01", "01")
