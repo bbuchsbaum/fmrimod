@@ -387,3 +387,21 @@ def test_whitening_reduces_autocorrelation():
     out = whiten_apply(plan, X, resid)
     assert _lag1(resid) > 0.4
     assert abs(_lag1(out.Y)) < 0.08
+
+
+def test_explicit_p_above_p_max_is_honoured():
+    """fmriAR 617bd87 (test-audit-regressions.R:21-30), row AR-07.
+
+    Cheap pass disqualified: raising the default ``p_max`` would also give
+    order 8, so the fit keeps the default ``p_max=6``.
+    """
+    resid = _ar_sim(400, [0.3, 0.1, 0, 0, 0, 0, 0, 0.1], nvox=10, seed=9101)
+    plan = fit_noise(resid, p=8)
+    assert plan.order == (8, 0)
+    assert _plan_phi(plan).size == 8
+    plan_par = fit_noise(resid, p=8, pooling="parcel", parcels=np.tile([1, 2], 5))
+    assert plan_par.order[0] == 8
+    for bad in (1.5, -1, True, "two"):
+        with pytest.raises(ValueError, match="whole number"):
+            fit_noise(resid, p=bad)
+    assert fit_noise(resid, p=2.0).order == (2, 0)
