@@ -8,6 +8,25 @@ from typing import Any, Optional, Union, cast
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+# Seconds compare with relative tolerance sqrt(eps), as fmridataset does
+# (cce6a44), so 0.1 * 3 and 0.3 name the same TR.
+_SECONDS_RTOL = float(np.sqrt(np.finfo(np.float64).eps))
+
+
+def same_seconds(a: ArrayLike, b: ArrayLike) -> bool:
+    """True when two timing values (scalars or per-run vectors) agree.
+
+    Shapes must broadcast; values are compared with relative tolerance
+    ``sqrt(eps)`` and no absolute slack, so ``0`` only matches ``0``.
+    """
+    x = np.atleast_1d(np.asarray(a, dtype=np.float64))
+    y = np.atleast_1d(np.asarray(b, dtype=np.float64))
+    try:
+        np.broadcast_shapes(x.shape, y.shape)
+    except ValueError:
+        return False
+    return bool(np.allclose(x, y, rtol=_SECONDS_RTOL, atol=0.0))
+
 
 @dataclass(init=False)
 class SamplingFrame:
@@ -51,15 +70,8 @@ class SamplingFrame:
             blocklens = n_scans
         if tr is None and TR is not None:
             tr = TR
-        if tr is not None and TR is not None:
-            tr_cmp = np.atleast_1d(np.asarray(tr, dtype=float))
-            tr_alias_cmp = np.atleast_1d(np.asarray(TR, dtype=float))
-            same_shape = tr_cmp.shape == tr_alias_cmp.shape
-            same_values = same_shape and np.allclose(tr_cmp, tr_alias_cmp)
-            if not same_values:
-                raise TypeError(
-                    "cannot provide both `tr` and `TR` with different values"
-                )
+        if tr is not None and TR is not None and not same_seconds(tr, TR):
+            raise TypeError("cannot provide both `tr` and `TR` with different values")
         if blocklens is None or tr is None:
             raise TypeError(
                 "SamplingFrame requires blocklens (or n_scans) and tr (or TR)"
@@ -81,8 +93,8 @@ class SamplingFrame:
         # Validate inputs
         if np.any(self.blocklens <= 0):
             raise ValueError("blocklens must be positive")
-        if np.any(self.tr <= 0):
-            raise ValueError("tr must be positive")
+        if not np.all(np.isfinite(self.tr)) or np.any(self.tr <= 0):
+            raise ValueError("tr must be positive and finite")
         if self.precision <= 0:
             raise ValueError("precision must be positive")
 
@@ -107,6 +119,8 @@ class SamplingFrame:
             self.start_time = (self.tr / 2.0).astype(np.float64)
         else:
             self.start_time = np.atleast_1d(self.start_time).astype(np.float64)
+            if not np.all(np.isfinite(self.start_time)):
+                raise ValueError("start_time must be finite")
             if len(self.start_time) == 1 and n_blocks > 1:
                 self.start_time = np.repeat(self.start_time, n_blocks)
             elif len(self.start_time) != n_blocks:

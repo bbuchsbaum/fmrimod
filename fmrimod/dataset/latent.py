@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import ArrayLike, NDArray
 
-from fmrimod.sampling import SamplingFrame
+from fmrimod.sampling import SamplingFrame, same_seconds
 
 from .backend_protocol import StorageBackend
 from .backends.latent_backend import InMemoryLatentBackend, LatentBackend
@@ -266,7 +266,7 @@ def get_component_info(dataset: LatentDataset) -> dict[str, object]:
 def _resolve_tr(tr: float, TR: float | None) -> float:  # noqa: N803
     if TR is None:
         return float(tr)
-    if tr != 1.0 and not np.isclose(float(tr), float(TR)):
+    if tr != 1.0 and not same_seconds(tr, TR):
         raise ValueError("tr and TR must agree when both are supplied")
     return float(TR)
 
