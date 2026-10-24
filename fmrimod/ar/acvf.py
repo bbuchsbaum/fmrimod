@@ -17,10 +17,13 @@ import warnings
 import numpy as np
 from numpy.linalg import eigvalsh
 from numpy.typing import NDArray
+from scipy import linalg as scipy_linalg
 
 from .numhelpers import enforce_stationary_ar, levinson_durbin
 
 ACVF_RCOND_MIN = 1e-6
+# R qr()'s default rank tolerance.
+_QR_RANK_TOL = 1e-7
 
 
 @dataclass
@@ -406,10 +409,14 @@ def acvf_bias_matrix(
     if np.any(~np.isfinite(design)):
         raise ValueError("'design' contains NA")
     run_vec = run_codes(runs, n)
-    q, r = np.linalg.qr(design, mode="reduced")
-    rank = int(np.sum(np.abs(np.diag(r)) > 1e-12 * np.max(np.abs(np.diag(r)))))
-    Q = q[:, : max(rank, 1)]
-    df = n - Q.shape[1]
+    # The map depends only on the column space, so take Q[:, :rank] from a
+    # pivoted QR (R qr(), dqrdc2). Without pivoting a dependent column that is
+    # not last puts an arbitrary direction into the leading rank columns.
+    q, r, _ = scipy_linalg.qr(design, mode="economic", pivoting=True)
+    d = np.abs(np.diag(r))
+    rank = int(np.sum(d > _QR_RANK_TOL * d[0])) if d.size and d[0] > 0 else 0
+    Q = q[:, :rank]
+    df = n - rank
     max_lag = int(max_lag)
     if df < max_lag + 1:
         capped = max(1, df - 1)
