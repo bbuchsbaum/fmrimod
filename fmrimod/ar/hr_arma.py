@@ -402,7 +402,8 @@ def _hr_arma_pooled(
             return failure("too few usable timepoints", p, q)
         # Voxels are replicates but not independent ones.
         n_bic = rows * _effective_voxels(prepared)
-        best: tuple[float, int, int] = (np.inf, p, q)
+        # R which.min(): the first candidate (p fastest) unless one is finite.
+        best: tuple[float, int, int] = (np.inf, p_grid[0], q_grid[0])
         for qq in q_grid:
             for pp in p_grid:
                 cols = list(range(pp)) + [p + j for j in range(qq)]
