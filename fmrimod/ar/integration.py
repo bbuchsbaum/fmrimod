@@ -31,7 +31,7 @@ from numpy.typing import NDArray
 from scipy import linalg
 
 from fmrimod.dataset.data_access import get_run_data
-from fmrimod.glm.errors import UnsupportedEngineConfiguration
+from fmrimod.glm.errors import FmriCapabilityError, UnsupportedEngineConfiguration
 from fmrimod.glm.solver import LmResult, Projection, fast_lm_matrix, fast_preproject
 from fmrimod.model.config import AROptions, FmriLmConfig
 
@@ -110,6 +110,14 @@ def validate_ar_config(model: object, config: FmriLmConfig) -> None:
             feature="AR pooling='parcel'",
             repair="use AROptions(pooling='run') or pooling='global'",
             current_capability=("pooling='run'", "pooling='global'"),
+        )
+    if config.robust.enabled and config.robust.reestimate_phi and ar.pooling == "global":
+        # fmrireg skips the re-estimation when one phi is held fixed across
+        # runs; refuse rather than silently ignore the option.
+        raise FmriCapabilityError(
+            feature="robust AR re-estimation (reestimate_phi=True) with pooling='global'",
+            current_capability=("reestimate_phi with pooling='run'",),
+            repair="set AROptions(pooling='run') or RobustOptions(reestimate_phi=False)",
         )
     if not ar.voxelwise:
         return
@@ -191,6 +199,32 @@ def iterative_gls(
     fit = _solve_shared(runs, phis, ar_opts.exact_first, config.solver)
     single = len(phis) == 1 or ar_opts.pooling == "global"
     return fit, phis[0] if single else np.stack(phis)
+
+
+def reestimate_ar_gls(
+    model: object,  # FmriModel
+    config: FmriLmConfig,
+    initial_fit: dict[str, Any],
+    robust_fit: dict[str, Any],
+) -> tuple[dict[str, Any], NDArray[np.float64]]:
+    """Re-estimate phi after a robust AR fit and solve the GLS again.
+
+    fmrireg ``process_run_ar_robust`` with ``reestimate_phi = TRUE``: phi is
+    re-estimated from the *unwhitened* residuals of the robust fit,
+    ``Y - X b_robust`` on the run matrices the OLS fit solved (whitened
+    residuals carry almost no autocorrelation), without a design correction,
+    since these are not OLS residuals. The caller reruns the robust IRLS on
+    the returned GLS fit. Run pooling only (see :func:`validate_ar_config`).
+    """
+    ar_opts = config.ar
+    runs = _run_matrices(model, initial_fit)
+    order = ar_opts.ar_order
+    phis = []
+    for rm, robust in zip(runs, robust_fit["run_results"], strict=True):
+        resid = rm.Y - rm.X @ robust.betas
+        phis.append(_estimate_phi([rm.on_grid(resid)], order, censor=rm.censor))
+    fit = _solve_shared(runs, phis, ar_opts.exact_first, config.solver)
+    return fit, phis[0] if len(phis) == 1 else np.stack(phis)
 
 
 # -- Run matrices ------------------------------------------------------------

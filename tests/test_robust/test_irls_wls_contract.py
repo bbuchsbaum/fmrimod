@@ -14,6 +14,9 @@ import pandas as pd
 import pytest
 
 import fmrimod as fm
+from fmrimod.ar.estimation import fit_noise
+from fmrimod.ar.whitening import ar_whiten_matrix
+from fmrimod.dataset.data_access import get_run_data
 from fmrimod.design import RealizedDesign
 from fmrimod.glm.errors import FmriCapabilityError
 from fmrimod.model.config import AROptions, FmriLmConfig, RobustOptions
@@ -165,10 +168,45 @@ def test_ar_plus_robust_weights_the_whitened_data():
     assert huber.residual_df == int(np.sum(huber.robust_weights > 0)) - ranks
 
 
-def test_reestimate_phi_with_ar_is_refused_rather_than_ignored():
+def test_reestimate_phi_refits_with_phi_from_unwhitened_robust_residuals():
+    # fmrireg process_run_ar_robust (reestimate_phi = TRUE): phi is
+    # re-estimated from Y - X b_robust on the unwhitened run, without a design
+    # correction; the run is re-whitened and the IRLS redone on it.
+    n = 150
+    ds = _ar1_two_run(n=n)
+    once = fm.fmri_lm(
+        "hrf(condition)",
+        ds,
+        config=FmriLmConfig(ar=AROptions(struct="ar1"), robust=RobustOptions(type="huber")),
+    )
+    fit = fm.fmri_lm(
+        "hrf(condition)",
+        ds,
+        config=FmriLmConfig(
+            ar=AROptions(struct="ar1"),
+            robust=RobustOptions(type="huber", reestimate_phi=True),
+        ),
+    )
+    assert not np.allclose(fit.ar_params, once.ar_params)
+    for r in range(2):
+        X = fit.model.design_matrix_array(run=r)
+        Y = get_run_data(ds, r)
+        resid = Y - X @ once.run_results[r].betas
+        phi = fit_noise(resid, method="ar", p=1, p_max=1).phi[0]
+        np.testing.assert_allclose(fit.ar_params[r], phi, rtol=0, atol=1e-12)
+        Xw, Yw = ar_whiten_matrix(X, Y, phi)
+        w = fit.robust_weights[r * n : (r + 1) * n]
+        np.testing.assert_allclose(
+            fit.run_results[r].betas, _wls(Xw, Yw, w), rtol=0, atol=1e-8
+        )
+
+
+def test_reestimate_phi_with_global_ar_is_refused():
+    # Global pooling holds one phi fixed across runs; fmrireg skips the
+    # re-estimation there, which would silently ignore the option.
     ds = _ar1_two_run(n=60, V=4)
     cfg = FmriLmConfig(
-        ar=AROptions(struct="ar1"),
+        ar=AROptions(struct="ar1", pooling="global"),
         robust=RobustOptions(type="huber", reestimate_phi=True),
     )
     with pytest.raises(FmriCapabilityError, match="reestimate_phi"):
