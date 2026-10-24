@@ -697,6 +697,52 @@ def test_lmm_ri_slope1_voxelwise_full_covariance_runs_natively() -> None:
     np.testing.assert_allclose(out.assay("corr_intercept_slope")[:, 0, 0], 0.0)
 
 
+def _lmm_group_by_condition_dataset():
+    # fmrigds tests/testthat/test-review-numeric.R:287-325 (7c7ecae): 20
+    # subjects x 4 conditions, ~ group * condition.
+    rng = np.random.default_rng(91)
+    n_sub, n_rep = 20, 4
+    subjects = [f"s{i:02d}" for i in range(n_sub)]
+    contrasts = [f"c{i}" for i in range(n_rep)]
+    group = np.repeat(["A", "B"], n_sub // 2)
+    condition = np.arange(n_rep, dtype=np.float64)
+    u = rng.normal(scale=0.7, size=n_sub)
+    mu = 0.5 * (group == "B")[:, None] + 0.3 * condition[None, :] + u[:, None]
+    beta = mu[None, :, :] + rng.normal(scale=0.3, size=(2, n_sub, n_rep))
+    return group_dataset(
+        {"beta": beta},
+        space=SampleLabelSpace(["a", "b"]),
+        subjects=subjects,
+        contrasts=contrasts,
+        col_data=pd.DataFrame({"group": group}, index=subjects),
+        contrast_data=pd.DataFrame({"condition": condition}, index=contrasts),
+    )
+
+
+@pytest.mark.parametrize("reducer", ["ri", "ri_slope1"])
+def test_lmm_between_subject_terms_use_subject_level_df(reducer: str) -> None:
+    from scipy import stats as sp_stats
+
+    ds = _lmm_group_by_condition_dataset()
+    if reducer == "ri":
+        out = lmm_ri(ds, formula="~ group * condition", theta_mode="voxelwise")
+    else:
+        out = lmm_ri_slope1(
+            ds, formula="~ group * condition", slope="condition", theta_mode="voxelwise"
+        )
+
+    # Between-subject columns (constant within every subject): N - rank(X_between)
+    # = 20 - 2. Within-subject columns keep N*K - p = 80 - 4.
+    expected = {"Intercept": 18, "group[T.B]": 18, "condition": 76, "group[T.B]:condition": 76}
+    for name, df in expected.items():
+        np.testing.assert_array_equal(out.assay(f"df_coef:{name}")[:, 0, 0], df)
+        t = out.assay(f"t_coef:{name}")[:, 0, 0]
+        np.testing.assert_allclose(
+            out.assay(f"p_coef:{name}")[:, 0, 0], 2.0 * sp_stats.t.sf(np.abs(t), df), rtol=1e-12
+        )
+    np.testing.assert_array_equal(out.assay("df_res")[:, 0, 0], 76)
+
+
 def test_lmm_ri_records_partial_voxelwise_fit_failures(monkeypatch) -> None:
     ds = _lmm_repeated_dataset()
     calls = []

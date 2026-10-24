@@ -64,6 +64,7 @@ from ._reducers_lmm import (
     _fit_mixedlm_feature,
     _is_expected_lmm_fit_failure,
     _lmm_beta_matrix,
+    _lmm_coef_df,
     _lmm_failure_metadata,
     _lmm_fixed_design,
     _lmm_not_available,
@@ -1217,6 +1218,7 @@ def lmm_ri(
     groups = obs["subject"].to_numpy()
     exog_re = np.ones((n_obs, 1), dtype=np.float64)
     df_val = float(max(n_obs - pcols, 1))
+    df_coef = _lmm_coef_df(X, groups, df_val)
 
     coef = np.full((pcols, n_samples), np.nan, dtype=np.float64)
     se_coef = np.full((pcols, n_samples), np.nan, dtype=np.float64)
@@ -1252,7 +1254,7 @@ def lmm_ri(
         se = np.asarray(result.bse_fe, dtype=np.float64)
         with np.errstate(divide="ignore", invalid="ignore"):
             t_val = fe / se
-            p_val = 2.0 * sp_stats.t.sf(np.abs(t_val), df_val)
+            p_val = 2.0 * sp_stats.t.sf(np.abs(t_val), df_coef)
         scale = float(result.scale)
         cov_re = np.asarray(result.cov_re, dtype=np.float64)
         vc_i = float(cov_re[0, 0]) if cov_re.size else np.nan
@@ -1288,6 +1290,9 @@ def lmm_ri(
         assays[f"se_coef:{name}"] = _flat_lmm(se_coef[pred_idx])
         assays[f"t_coef:{name}"] = _flat_lmm(t_coef[pred_idx])
         assays[f"p_coef:{name}"] = _flat_lmm(p_coef[pred_idx])
+        assays[f"df_coef:{name}"] = _flat_lmm(
+            np.where(np.isfinite(coef[pred_idx]), df_coef[pred_idx], np.nan)
+        )
 
     return _lmm_result_dataset(
         dataset,
@@ -1348,6 +1353,7 @@ def lmm_ri_slope1(
     groups = obs["subject"].to_numpy()
     exog_re = np.column_stack([np.ones(n_obs, dtype=np.float64), slope_values])
     df_val = float(max(n_obs - pcols, 1))
+    df_coef = _lmm_coef_df(X, groups, df_val)
 
     coef = np.full((pcols, n_samples), np.nan, dtype=np.float64)
     se_coef = np.full((pcols, n_samples), np.nan, dtype=np.float64)
@@ -1389,7 +1395,7 @@ def lmm_ri_slope1(
         se = np.asarray(result.bse_fe, dtype=np.float64)
         with np.errstate(divide="ignore", invalid="ignore"):
             t_val = fe / se
-            p_val = 2.0 * sp_stats.t.sf(np.abs(t_val), df_val)
+            p_val = 2.0 * sp_stats.t.sf(np.abs(t_val), df_coef)
         scale = float(result.scale)
         cov_re = np.asarray(result.cov_re, dtype=np.float64)
         vc_i = float(cov_re[0, 0])
@@ -1438,6 +1444,9 @@ def lmm_ri_slope1(
         assays[f"se_coef:{name}"] = _flat_lmm(se_coef[pred_idx])
         assays[f"t_coef:{name}"] = _flat_lmm(t_coef[pred_idx])
         assays[f"p_coef:{name}"] = _flat_lmm(p_coef[pred_idx])
+        assays[f"df_coef:{name}"] = _flat_lmm(
+            np.where(np.isfinite(coef[pred_idx]), df_coef[pred_idx], np.nan)
+        )
 
     return _lmm_result_dataset(
         dataset,
