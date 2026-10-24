@@ -54,8 +54,9 @@ def estimate_ar_yule_walker(
         else:
             autocorr[k] = np.mean(np.sum(residuals[k:] * residuals[:-k], axis=0))
 
-    # Normalise to correlation
-    if autocorr[0] < 1e-15:
+    # Normalise to correlation. Only zero variance is degenerate: an absolute
+    # floor left data in small units unwhitened (fmrireg 0f9138b).
+    if not autocorr[0] > 0:
         return np.zeros(order, dtype=np.float64)
     rho = autocorr / autocorr[0]
 
@@ -111,7 +112,7 @@ def estimate_ar_voxelwise(
                 for k in range(order + 1)
             ]
         )
-        if autocorr[0] < 1e-15:
+        if not autocorr[0] > 0:
             continue
         rho = autocorr / autocorr[0]
 
