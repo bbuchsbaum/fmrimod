@@ -151,3 +151,41 @@ class TestFitNoise:
             y[t] += 0.5 * y[t - 1]
         plan = fit_noise(resid=y, method="ar", p=1)
         assert plan.order[0] == 1
+
+
+class TestYuleWalkerScaleInvariance:
+    """REG-A-07 (fmrireg 0f9138b, C7): no absolute variance floor.
+
+    ``estimate_ar_yule_walker`` / ``estimate_ar_voxelwise`` returned phi = 0
+    whenever the lag-0 sum fell below 1e-15, so data in small units were
+    left unwhitened. Cheap pass disqualified: s = 1e-4 already passes at the
+    old floor; s = 1e-9 is the scale that bites.
+    """
+
+    def test_global_and_voxelwise_estimates_ignore_the_data_scale(self):
+        from fmrimod.ar.estimation import (
+            estimate_ar_voxelwise,
+            estimate_ar_yule_walker,
+        )
+
+        resid = _sim_ar2(200, [0.5, 0.2], V=8, seed=11)
+        ref = estimate_ar_yule_walker(resid, 2)
+        ref_vox = estimate_ar_voxelwise(resid, 2)
+        assert np.all(np.abs(ref) > 0.1)
+        for s in (1e-9, 1e-4, 1e4):
+            np.testing.assert_allclose(
+                estimate_ar_yule_walker(resid * s, 2), ref, rtol=1e-10
+            )
+            np.testing.assert_allclose(
+                estimate_ar_voxelwise(resid * s, 2), ref_vox, rtol=1e-10
+            )
+
+    def test_zero_variance_still_gives_white_noise(self):
+        from fmrimod.ar.estimation import (
+            estimate_ar_voxelwise,
+            estimate_ar_yule_walker,
+        )
+
+        flat = np.zeros((50, 3))
+        np.testing.assert_array_equal(estimate_ar_yule_walker(flat, 2), [0.0, 0.0])
+        np.testing.assert_array_equal(estimate_ar_voxelwise(flat, 1), [[0.0, 0.0, 0.0]])
