@@ -427,6 +427,7 @@ _LAZY_ATTRS: dict[str, tuple[str, str]] = {
         "create_design_matrix_from_benchmark",
     ),
     "data_chunks": ("fmrimod.dataset", "data_chunks"),
+    "bids_datasets": ("fmrimod.dataset.bids_fs", "bids_datasets"),
     "design_matrix": ("fmrimod.design.design_matrix", "design_matrix"),
     "design_plot": ("fmrimod.dataset", "design_plot"),
     "detect_group_data_format": ("fmrimod.dataset", "detect_group_data_format"),
@@ -754,6 +755,7 @@ __all__ = [
     "build_nuisance_projector",
     "estimate_single_trial",
     "estimate_single_trial_from_dataset",
+    "bids_datasets",
     "lss_single_trial",
     "lsa_single_trial",
     # Bootstrap

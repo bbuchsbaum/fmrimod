@@ -42,11 +42,12 @@ def fmri_dataset(
     *,
     mask: object = None,
     tr: float | Sequence[float] | None = None,
-    events: pd.DataFrame | None = None,
+    events: pd.DataFrame | Sequence[pd.DataFrame] | None = None,
     censor: NDArray[np.bool_] | list[NDArray[np.bool_]] | None = None,
     start_time: float | Sequence[float] | None = None,
     slice_timing_offset: float | Sequence[float] | None = None,
     run_length: int | Sequence[int] | None = None,
+    confounds: pd.DataFrame | Sequence[pd.DataFrame] | None = None,
     # legacy spellings:
     data_source: DatasetProtocol | None = None,
     event_table: pd.DataFrame | None = None,
@@ -64,7 +65,10 @@ def fmri_dataset(
     tr
         Repetition time in seconds. Required for image inputs.
     events
-        Optional event table.
+        Optional event table: one DataFrame with a ``run`` column (1-based)
+        for multi-run data, or a sequence of per-run DataFrames (BIDS
+        ``*_events.tsv`` style, onsets relative to each run's start), which
+        is stacked into one table with ``run`` filled in.
     censor
         Optional boolean censor vector(s).
     start_time, slice_timing_offset
@@ -82,10 +86,36 @@ def fmri_dataset(
         2-D ndarray input; raises ``ValueError`` for any other ``img``
         type, including sequences (which already encode runs explicitly)
         and 4-D ndarrays.
+    confounds
+        Optional nuisance tables, one per run (or one table covering all
+        runs back to back). They are stored on the dataset; a spec term
+        ``confounds("trans_x", ...)`` without ``source=`` picks its columns
+        from them at fit time.
     data_source
         Legacy alias accepting a :class:`DatasetProtocol`-compatible object.
     event_table
         Legacy alias for ``events``.
+
+    Examples
+    --------
+    Two runs from NIfTI files with per-run BIDS event tables::
+
+        ds = fmri_dataset(
+            ["run-1_bold.nii.gz", "run-2_bold.nii.gz"],
+            mask="brain_mask.nii.gz",
+            tr=2.0,
+            events=[events_run1, events_run2],
+        )
+
+    A ``(time, voxels)`` matrix split into two runs:
+
+    >>> import numpy as np, pandas as pd
+    >>> events = pd.DataFrame({"onset": [4.0, 4.0], "duration": 1.0,
+    ...                        "trial_type": ["a", "b"], "run": [1, 2]})
+    >>> ds = fmri_dataset(np.zeros((40, 3)), tr=2.0, run_length=[20, 20],
+    ...                   events=events)
+    >>> ds.n_runs
+    2
     """
     resolved_events = _resolve_events(events, event_table)
     resolved_start_time = _resolve_start_time(start_time, slice_timing_offset)
@@ -95,7 +125,12 @@ def fmri_dataset(
             raise ValueError("Pass `img` or `data_source`, not both")
         if run_length is not None:
             raise ValueError("`run_length` is not valid with `data_source`")
-        return FmriDataset(data_source, event_table=resolved_events, censor=censor)
+        return FmriDataset(
+            data_source,
+            event_table=resolved_events,
+            censor=censor,
+            confounds=_as_frame_list(confounds),
+        )
 
     if img is None:
         raise ValueError("fmri_dataset requires `img` (or legacy `data_source`)")
@@ -109,7 +144,55 @@ def fmri_dataset(
         start_time=resolved_start_time,
         run_length=run_length,
     )
-    return FmriDataset(adapter, event_table=resolved_events, censor=censor)
+    return FmriDataset(
+        adapter,
+        event_table=resolved_events,
+        censor=censor,
+        confounds=_as_frame_list(confounds),
+    )
+
+
+def _as_frame_list(
+    confounds: pd.DataFrame | Sequence[pd.DataFrame] | None,
+) -> pd.DataFrame | list[pd.DataFrame] | None:
+    if confounds is None or isinstance(confounds, pd.DataFrame):
+        return confounds
+    return list(confounds)
+
+
+def coerce_dataset(
+    source: object,
+    *,
+    tr: object,
+    events: object,
+    mask: object,
+    slice_timing_offset: object,
+) -> object:
+    """Return ``source`` if it is a dataset, else build one from an image.
+
+    Shared by the entry points that accept either an :class:`FmriDataset` or
+    an image source plus ``tr=``/``events=``/``mask=`` shorthand
+    (:func:`fmrimod.fmri_lm`, :func:`fmrimod.estimate_single_trial_from_dataset`).
+    """
+    shorthand = {
+        "tr": tr,
+        "events": events,
+        "mask": mask,
+        "slice_timing_offset": slice_timing_offset,
+    }
+    given = {key: value for key, value in shorthand.items() if value is not None}
+    is_dataset = source is None or (
+        hasattr(source, "get_sampling_frame") and hasattr(source, "event_table")
+    )
+    if is_dataset:
+        if given:
+            raise ValueError(
+                f"{sorted(given)} build a dataset from an image and "
+                "cannot be combined with a prebuilt dataset; pass them to "
+                "fmri_dataset(...) instead."
+            )
+        return source
+    return fmri_dataset(source, **given)  # type: ignore[arg-type]
 
 
 def matrix_dataset(
@@ -206,12 +289,34 @@ def matrix_dataset(
 
 
 def _resolve_events(
-    events: pd.DataFrame | None,
+    events: pd.DataFrame | Sequence[pd.DataFrame] | None,
     event_table: pd.DataFrame | None,
 ) -> pd.DataFrame | None:
     if events is not None and event_table is not None and event_table is not events:
         raise ValueError("Pass `events` or `event_table`, not both")
-    return events if events is not None else event_table
+    resolved = events if events is not None else event_table
+    if resolved is None or isinstance(resolved, pd.DataFrame):
+        return resolved
+    return _stack_run_events(resolved)
+
+
+def _stack_run_events(per_run: Sequence[pd.DataFrame]) -> pd.DataFrame:
+    """Stack per-run event tables into one table with a 1-based ``run``."""
+    frames = list(per_run)
+    if not frames or not all(isinstance(f, pd.DataFrame) for f in frames):
+        raise TypeError(
+            "events must be a DataFrame or a non-empty sequence of per-run "
+            "DataFrames"
+        )
+    stacked = []
+    for run, frame in enumerate(frames, start=1):
+        if "run" in frame.columns and not (frame["run"] == run).all():
+            raise ValueError(
+                f"per-run events table {run - 1} has a `run` column that is "
+                f"not {run}; pass a single stacked table instead"
+            )
+        stacked.append(frame.assign(run=run))
+    return pd.concat(stacked, ignore_index=True)
 
 
 def _is_dataset_protocol(obj: object) -> bool:

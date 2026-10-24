@@ -143,7 +143,12 @@ def _lower_hrf_term(term: HrfTerm) -> list[EventModelTerm]:
     base_id = term.id or main.name
     lowered: list[EventModelTerm] = [main]
     for modulator in term.modulators:
-        param_events = list(term.variables) + [modulator]
+        # Pooled: the modulator alone, so one column spans every level.
+        param_events = (
+            [modulator]
+            if term.pool_modulators
+            else list(term.variables) + [modulator]
+        )
         param_name = f"{base_id}:{modulator}" if base_id else None
         param = EventModelTerm(
             param_events,
@@ -279,6 +284,11 @@ def compile_events(
     return build_event_model(lowered_terms, **kwargs)
 
 
+# SPM's default high-pass period. Nilearn's FirstLevelModel default is 100 s
+# (``high_pass=0.01``); pass ``drift("cosine", cutoff=100)`` to match it.
+DEFAULT_COSINE_CUTOFF = 128.0
+
+
 def _cosine_degree_from_cutoff(drift_term: Drift, sampling_frame: SamplingFrame) -> int:
     """Compute the SPM DCT cosine-basis count from a high-pass cutoff.
 
@@ -290,12 +300,9 @@ def _cosine_degree_from_cutoff(drift_term: Drift, sampling_frame: SamplingFrame)
     number of drift columns; shorter blocks then carry the same
     DCT-II frequencies sampled over their own length.
     """
-    if drift_term.cutoff is None:
-        raise ValueError(
-            "drift(basis='cosine') requires cutoff= (high-pass period "
-            "in seconds, e.g. cutoff=128.0); none was supplied."
-        )
-    cutoff = float(drift_term.cutoff)
+    cutoff = float(
+        DEFAULT_COSINE_CUTOFF if drift_term.cutoff is None else drift_term.cutoff
+    )
     if cutoff <= 0:
         raise ValueError(
             f"drift(basis='cosine'): cutoff must be positive, got {cutoff!r}"
@@ -322,8 +329,9 @@ def _cosine_degree_from_cutoff(drift_term: Drift, sampling_frame: SamplingFrame)
     high_pass_hz = 1.0 / cutoff
     n_basis = int(np.floor(2.0 * T * high_pass_hz))
     if n_basis < 1:
+        source = " (the default)" if drift_term.cutoff is None else ""
         raise ValueError(
-            f"drift(basis='cosine', cutoff={cutoff!r}): high-pass period "
+            f"drift(basis='cosine', cutoff={cutoff!r}{source}): high-pass period "
             f"is longer than the run duration ({T:.1f} s); no cosine "
             f"basis functions would be generated. Reduce cutoff or use "
             f"a different drift basis."
@@ -501,7 +509,42 @@ def compile(
     durations: object = None,
     precision: float | None = None,
 ) -> tuple[EventModel | None, BaselineModel]:
-    """Lower a Spec or single Term to ``(EventModel, BaselineModel)``."""
+    """Lower a Spec or single Term to ``(EventModel, BaselineModel)``.
+
+    The low-level lowering step. For a named design matrix use
+    ``fmrimod.design_matrix(spec, events=..., n_scans=..., tr=...)``; to fit,
+    pass the spec to :func:`fmrimod.fmri_lm`.
+
+    Parameters
+    ----------
+    spec
+        Typed spec (``hrf(...) + drift(...)``) or a single term.
+    data
+        Events table (``onset``, ``duration``, condition columns, ``run``).
+    sampling_frame
+        :class:`~fmrimod.sampling.SamplingFrame` giving run lengths and TR.
+    block, durations, precision
+        Run labels (column name or array), event durations (column name,
+        scalar or array) and HRF convolution precision in seconds.
+
+    Returns
+    -------
+    tuple
+        ``(EventModel | None, BaselineModel)``; the event model is ``None``
+        for a baseline-only spec.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> from fmrimod import SamplingFrame
+    >>> from fmrimod.spec import drift, hrf
+    >>> events = pd.DataFrame({"onset": [4.0, 20.0], "duration": 1.0,
+    ...                        "trial_type": ["a", "b"]})
+    >>> em, bm = compile(hrf("trial_type") + drift(), events,
+    ...                  SamplingFrame(blocklens=40, TR=2.0))
+    >>> em.design_matrix.shape, len(bm.column_names)
+    ((40, 2), 2)
+    """
     if isinstance(spec, Term):
         from .terms import as_spec
 
@@ -516,3 +559,140 @@ def compile(
     )
     bm = compile_baseline(spec, sampling_frame)
     return em, bm
+
+
+def _auto_block_durations(
+    events: pd.DataFrame, block: object, durations: object
+) -> tuple[object, object]:
+    """Default ``block`` to a run/block column and ``durations`` to ``duration``."""
+    if block is None:
+        if "run" in events.columns:
+            block = "run"
+        elif "block" in events.columns:
+            block = "block"
+        else:
+            block = np.ones(len(events), dtype=int)
+    if durations is None:
+        durations = "duration" if "duration" in events.columns else 0
+    return block, durations
+
+
+def design_frame(
+    spec: Spec | Term,
+    *,
+    events: pd.DataFrame,
+    n_scans: int | Sequence[int],
+    tr: float,
+    start_time: float | None = None,
+    block: object = None,
+    durations: object = None,
+    precision: float | None = None,
+    names: Literal["long", "short"] = "long",
+) -> pd.DataFrame:
+    """Realise a spec as a named design-matrix DataFrame, without data.
+
+    Reached as ``fmrimod.design_matrix(spec, events=..., n_scans=..., tr=...)``.
+    Columns are the event regressors followed by the baseline (drift,
+    intercepts, confounds), exactly as :func:`fmrimod.fmri_lm` would fit
+    them; rows are scans with a positional index (matching
+    ``fit.model.design_matrix()``).
+
+    Parameters
+    ----------
+    spec
+        Typed spec or term.
+    events
+        Events table; include a 1-based ``run`` column for several runs.
+    n_scans
+        Scans per run (an int, or one int per run).
+    tr
+        Repetition time in seconds.
+    start_time
+        Time of the first sample within each run. ``None`` is the dataset
+        default (``TR/2``); pass ``0.0`` for Nilearn/SPM frame times.
+    block, durations, precision
+        As for :func:`compile`; ``block``/``durations`` default to the
+        ``run`` and ``duration`` columns when present.
+    names
+        ``"long"`` (default): the canonical R ``fmridesign`` column names.
+        ``"short"``: compact display labels (``face``, ``rt:face``,
+        ``drift1``); see :attr:`fmrimod.design.columns.DesignColumns.short_names`.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> import fmrimod as fm
+    >>> from fmrimod.spec import drift, hrf
+    >>> events = pd.DataFrame({"onset": [4.0, 20.0], "duration": 1.0,
+    ...                        "trial_type": ["face", "house"]})
+    >>> X = fm.design_matrix(hrf("trial_type") + drift(), events=events,
+    ...                      n_scans=40, tr=2.0)
+    >>> X.shape
+    (40, 4)
+    """
+    from ..sampling import SamplingFrame
+
+    frame = SamplingFrame(blocklens=n_scans, TR=tr, start_time=start_time)
+    block, durations = _auto_block_durations(events, block, durations)
+    em, bm = compile(
+        spec,
+        events,
+        frame,
+        block=block,
+        durations=durations,
+        precision=precision,
+    )
+    parts = []
+    if em is not None:
+        parts.append(pd.DataFrame(np.asarray(em.design_matrix), columns=em.column_names))
+    parts.append(pd.DataFrame(np.asarray(bm.design_matrix), columns=bm.column_names))
+    frame = pd.concat(parts, axis=1)
+    if names == "short":
+        frame.columns = list(_short_names_for(em, bm))
+    elif names != "long":
+        raise ValueError(f"names must be 'long' or 'short'; got {names!r}")
+    return frame
+
+
+def _short_names_for(em: object, bm: object) -> tuple[str, ...]:
+    from ..design.columns import DesignColumns
+
+    class _Parts:
+        event_model = em
+        baseline_model = bm
+
+    return DesignColumns.from_model(_Parts()).short_names
+
+
+def _register_design_matrix() -> None:
+    from ..design.design_matrix import design_matrix
+
+    def _spec_design_matrix(
+        x: Spec | Term,
+        *,
+        events: pd.DataFrame,
+        n_scans: int | Sequence[int],
+        tr: float,
+        start_time: float | None = None,
+        block: object = None,
+        durations: object = None,
+        precision: float | None = None,
+        names: Literal["long", "short"] = "long",
+    ) -> pd.DataFrame:
+        return design_frame(
+            x,
+            events=events,
+            n_scans=n_scans,
+            tr=tr,
+            start_time=start_time,
+            block=block,
+            durations=durations,
+            precision=precision,
+            names=names,
+        )
+
+    design_matrix.register(Spec)(_spec_design_matrix)
+    design_matrix.register(Term)(_spec_design_matrix)
+
+
+_register_design_matrix()

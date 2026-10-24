@@ -92,6 +92,11 @@ class FmriDataset:
     sampling_frame : SamplingFrame, optional
         Run structure of the rows. Required with a bare backend; otherwise
         it overrides the adapter's own frame.
+    confounds : list of pd.DataFrame, optional
+        Per-run nuisance tables (e.g. fMRIPrep ``*_desc-confounds_timeseries``),
+        one row per scan. Nothing is modelled from them by default; a
+        ``confounds("trans_x", ...)`` spec term without ``source=`` selects
+        columns from these tables when the model is fitted.
     """
 
     def __init__(
@@ -101,6 +106,7 @@ class FmriDataset:
         censor: Optional[Union[NDArray[np.bool_], List[NDArray[np.bool_]]]] = None,
         *,
         sampling_frame: Optional[SamplingFrame] = None,
+        confounds: Optional[Union[pd.DataFrame, List[pd.DataFrame]]] = None,
     ):
         backend, frame = _resolve_source(data_source, sampling_frame)
         check_run_lengths(backend, frame)
@@ -111,6 +117,7 @@ class FmriDataset:
         self._run_starts = starts
         self._event_table = event_table
         self._censor = self._validate_censor(censor)
+        self._confounds = self._validate_confounds(confounds)
 
     # -- Data access --
 
@@ -231,7 +238,45 @@ class FmriDataset:
             event_table=event_table,
             censor=self._censor,
             sampling_frame=self._frame,
+            confounds=self._confounds,
         )
+
+    # -- Confounds --
+
+    @property
+    def confounds(self) -> Optional[List[pd.DataFrame]]:
+        """Per-run nuisance tables attached to the dataset, or *None*."""
+        return self._confounds
+
+    def _validate_confounds(
+        self, confounds: Optional[Union[pd.DataFrame, List[pd.DataFrame]]]
+    ) -> Optional[List[pd.DataFrame]]:
+        if confounds is None:
+            return None
+        lengths = [int(n) for n in self.run_lengths]
+        if isinstance(confounds, pd.DataFrame):
+            if len(confounds) != sum(lengths):
+                raise ValueError(
+                    f"confounds has {len(confounds)} rows; the dataset has "
+                    f"{sum(lengths)} scans"
+                )
+            bounds = np.cumsum([0, *lengths])
+            return [
+                confounds.iloc[bounds[i] : bounds[i + 1]].reset_index(drop=True)
+                for i in range(len(lengths))
+            ]
+        frames = list(confounds)
+        if len(frames) != len(lengths):
+            raise ValueError(
+                f"{len(frames)} confounds tables for {len(lengths)} runs"
+            )
+        for run, (frame, n) in enumerate(zip(frames, lengths, strict=True)):
+            if len(frame) != n:
+                raise ValueError(
+                    f"confounds table for run {run + 1} has {len(frame)} rows; "
+                    f"the run has {n} scans"
+                )
+        return [frame.reset_index(drop=True) for frame in frames]
 
     # -- Censoring --
 

@@ -14,6 +14,7 @@ The primary entry point is :func:`estimate_single_trial`.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -21,12 +22,12 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ._prewhiten import PrewhitenConfig
+from ._project import NuisanceProjector, build_nuisance_projector
 from ._trial_design import (
     PreparedTrialDesign,
     canonicalize_trial_major,
     prepare_trialwise_design,
 )
-from ._project import NuisanceProjector, build_nuisance_projector
 from ._types import (
     LssExtras,
     MixedExtras,
@@ -62,11 +63,11 @@ from .item import (
     item_slice_fold,
 )
 from .lsa import lsa_single_trial
-from .typed import fmri_lss
 from .lss import lss_single_trial
 from .mixed import mixed_single_trial
 from .oasis import oasis_single_trial
 from .sbhm.lwu_grid import LwuGrid, create_lwu_grid
+from .typed import fmri_lss
 from .voxel_hrf import estimate_hrf, estimate_voxel_hrf, lss_with_voxel_hrf
 
 if TYPE_CHECKING:
@@ -313,6 +314,10 @@ def estimate_single_trial_from_dataset(
     sbhm_library: SbhmLibrary | None = None,
     include_intercept: bool = False,
     n_basis: int | None = None,
+    tr: float | Sequence[float] | None = None,
+    events: object = None,
+    mask: object = None,
+    slice_timing_offset: float | Sequence[float] | None = None,
 ) -> SingleTrialResult:
     """Estimate per-trial betas from an FmriDataset and trialwise spec.
 
@@ -324,16 +329,19 @@ def estimate_single_trial_from_dataset(
 
     Parameters
     ----------
-    dataset : FmriDataset
-        Typed dataset carrying time-series data and an event table.
-    spec : str or list of Term or EventModelBuilder
-        Trialwise specification. Slice 1 accepts whatever
+    dataset : FmriDataset or image source
+        Typed dataset carrying time-series data and an event table, or an
+        image source (NIfTI path/image, per-run list, array) together with
+        ``tr=``, ``events=`` and optionally ``mask=`` /
+        ``slice_timing_offset=``, as in :func:`fmrimod.fmri_lm`.
+    spec : trialwise() term, Spec, str, list of Term or EventModelBuilder
+        Trialwise specification. Accepts whatever
         :func:`fmrimod.event_model` accepts: a string formula such as
         ``"trialwise()"`` or ``"trialwise(add_sum=True)"``, a list of
         :class:`~fmrimod.formula.base.Term` objects, or a builder.
-        Routing typed :class:`~fmrimod.spec.Spec`/``Term`` trees through this
-        wrapper waits on the typed compile path learning the trialwise
-        placeholder lowering (separate follow-on slice).
+        A typed :func:`fmrimod.spec.trialwise` term (or a ``Spec`` holding
+        only event terms) is also accepted and lowered through
+        :func:`fmrimod.spec.compile_events`.
     method : SingleTrialMethod or literal string
         Estimator selector; see :func:`estimate_single_trial`.
     confounds, return_se, prewhiten, nuisance_projector, chunk_size,
@@ -357,6 +365,17 @@ def estimate_single_trial_from_dataset(
         (the capability label describing the voxel space the betas live
         in). Matrix-first :func:`estimate_single_trial` callers continue
         to leave all four metadata fields ``None``.
+
+    Examples
+    --------
+    One LSS beta map per trial, straight from images::
+
+        >>> from fmrimod.spec import trialwise
+        >>> betas = fm.estimate_single_trial_from_dataset(
+        ...     img, trialwise(), tr=2.0, events=events, mask=mask,
+        ...     method="lss", include_intercept=True,
+        ... )
+        >>> betas.betas.shape          # (n_trials, n_voxels)
     """
     # Build the EventModel via the design module directly. The typed
     # fmrimod.spec compile path does not yet special-case trialwise() terms
@@ -365,8 +384,16 @@ def estimate_single_trial_from_dataset(
     # established design entry point is the working path for Slice 1.
     # Imports are local to avoid a fmrimod.single → fmrimod.design import
     # cycle at module load.
+    from ..dataset.constructors import coerce_dataset
     from ..design.event_model import event_model as _build_event_model
 
+    dataset = coerce_dataset(
+        dataset,
+        tr=tr,
+        events=events,
+        mask=mask,
+        slice_timing_offset=slice_timing_offset,
+    )
     events_df = getattr(dataset, "event_table", None)
     if events_df is None:
         raise ValueError(
@@ -395,14 +422,35 @@ def estimate_single_trial_from_dataset(
     if resolved_durations is None and "duration" in events_df.columns:
         resolved_durations = "duration"
 
-    event_model = _build_event_model(
-        formula=cast(Any, spec),
-        data=events_df,
-        block=cast(Any, resolved_block),
-        sampling_frame=sampling_frame,
-        durations=cast(Any, resolved_durations),
-        precision=precision,
-    )
+    from ..spec import Spec, Term, as_spec, compile_events
+
+    if isinstance(spec, (Spec, Term)):
+        typed = as_spec(spec)
+        if typed.baseline:
+            raise ValueError(
+                "estimate_single_trial_from_dataset: the typed spec carries "
+                "baseline terms (drift/intercept/confounds), which the "
+                "single-trial estimators do not take from the spec; pass "
+                "trialwise() alone and supply nuisance regressors via "
+                "confounds= (and include_intercept=True)."
+            )
+        event_model = compile_events(
+            typed,
+            data=events_df,
+            sampling_frame=sampling_frame,
+            block=resolved_block,
+            durations=resolved_durations,
+            precision=precision,
+        )
+    else:
+        event_model = _build_event_model(
+            formula=cast(Any, spec),
+            data=events_df,
+            block=cast(Any, resolved_block),
+            sampling_frame=sampling_frame,
+            durations=cast(Any, resolved_durations),
+            precision=precision,
+        )
 
     from ._trial_design import prepare_trialwise_design
 

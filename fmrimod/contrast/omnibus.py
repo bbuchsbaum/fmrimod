@@ -45,6 +45,16 @@ class OmnibusContrast:
         interest.
     name
         Optional contrast name; defaults to ``"<term>_omnibus"``.
+
+    Examples
+    --------
+    Any effect of a three-level factor (2-df F)::
+
+        fit.contrast(OmnibusContrast(term="trial_type"))
+
+    Shape of one condition's FIR response (F over its basis columns)::
+
+        fit.contrast(OmnibusContrast(term="trial_type", levels=("face",)))
     """
 
     term: str

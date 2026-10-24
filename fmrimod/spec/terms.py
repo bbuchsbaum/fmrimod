@@ -105,6 +105,12 @@ class HrfTerm(Term):
         ``center_modulators=False`` for exact R ``fmridesign`` parity
         (which historically did not center) or for the rare case where
         the modulator's absolute scale carries the analytic meaning.
+    pool_modulators
+        If True, each modulator becomes one regressor across all levels of
+        the term (centered over all its events) instead of one regressor
+        per level. This is the model Nilearn builds from a ``modulation``
+        column, and the one to use when the modulator's effect is assumed
+        common to all conditions.
     durations
         Per-event duration; either a column name in the event table or a
         scalar.  ``None`` defers to the spec-level default.
@@ -135,6 +141,7 @@ class HrfTerm(Term):
     contrasts: Tuple[ContrastSpec, ...] = ()
     modulators: Tuple[str, ...] = ()
     center_modulators: bool = True
+    pool_modulators: bool = False
     durations: Union[str, float, None] = None
     lag: float = 0.0
     subset: Optional[Predicate] = None

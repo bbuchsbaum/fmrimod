@@ -135,6 +135,8 @@ def _encode_hrf_term(term: HrfTerm) -> dict[str, object]:
         "hrf": term.hrf,
         "nbasis": term.nbasis,
         "modulators": list(term.modulators),
+        # Emitted only when set so Spec/v1 payloads without it are unchanged.
+        **({"pool_modulators": True} if term.pool_modulators else {}),
         "durations": term.durations,
         "lag": term.lag,
         "subset": _encode_subset(term),
@@ -272,6 +274,7 @@ def _decode_hrf_term(payload: Mapping[str, object]) -> HrfTerm:
         hrf=hrf_value,
         contrasts=(),  # Spec/v1 never round-trips contrasts; load-time empty.
         modulators=modulators,
+        pool_modulators=bool(payload.get("pool_modulators", False)),
         nbasis=cast(Optional[int], payload.get("nbasis")),
         durations=cast("str | float | None", payload.get("durations")),
         lag=float(cast(Any, payload.get("lag", 0.0))),

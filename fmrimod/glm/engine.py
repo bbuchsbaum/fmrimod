@@ -465,16 +465,11 @@ def _load_entry_points() -> None:
     _ENTRY_POINTS_LOADED = True
 
     try:
-        # Python 3.9 compat
         from importlib.metadata import entry_points as _ep
 
-        eps = _ep()
-        # Python 3.12+ returns a SelectableGroups; 3.9 returns a dict
-        engine_eps: Iterable[Any]
-        if isinstance(eps, dict):
-            engine_eps = eps.get("fmrimod.engines", [])
-        else:
-            engine_eps = eps.select(group="fmrimod.engines")
+        # ``group=`` exists on every supported Python (>=3.10); the dict-style
+        # ``entry_points().get(...)`` emits a DeprecationWarning on 3.10/3.11.
+        engine_eps: Iterable[Any] = _ep(group="fmrimod.engines")
 
         for ep in engine_eps:
             if ep.name not in _ENGINES:

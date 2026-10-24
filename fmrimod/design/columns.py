@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Iterable, Iterator, Literal, Mapping, cast
 
@@ -51,6 +53,19 @@ class DesignColumns:
 
     def __getitem__(self, index: int) -> DesignColumn:
         return self.columns[index]
+
+    @property
+    def short_names(self) -> tuple[str, ...]:
+        """Compact, Nilearn-style display names (``face``, ``rt:face``, ``drift1``).
+
+        The rendered :attr:`names` follow R ``fmridesign`` and stay the
+        canonical identifiers (contrasts, receipts and BIDS export use them).
+        These labels are for reading and plotting: task columns are named
+        from their typed term/level/basis facts; baseline columns compact
+        their rendered names, adding ``_run<k>`` only for multi-run designs.
+        Any label that would collide falls back to the canonical name.
+        """
+        return short_column_names(self.columns)
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -410,3 +425,73 @@ def _int_or_none(value: object) -> int | None:
     if pd.isna(cast(Any, value)):
         return None
     return int(cast(Any, value))
+
+
+_BASELINE_PATTERNS = (
+    (re.compile(r"^base_([a-z]+?)(\d+)_block_(\d+)$"), "drift"),
+    (re.compile(r"^constant_(\d+)$"), "intercept"),
+    (re.compile(r"^constant_global$"), "intercept"),
+    (re.compile(r"^nuis_run(\d+)_(.+)$"), "confound"),
+)
+
+
+def _task_label(column: DesignColumn, ambiguous_levels: set[str]) -> str:
+    term = str(column.term)
+    level = str(column.level)
+    if ":" in term:
+        factor, modulator = term.split(":", 1)
+        label = modulator if level == modulator else f"{modulator}:{level}"
+    elif level in ambiguous_levels:
+        label = f"{term}.{level}"
+    else:
+        label = level
+    if (column.basis_total or 1) > 1 and column.basis_ix is not None:
+        label = f"{label}_b{column.basis_ix}"
+    return label
+
+
+def _baseline_label(name: str, multi_run: bool) -> str:
+    for pattern, kind in _BASELINE_PATTERNS:
+        match = pattern.match(name)
+        if match is None:
+            continue
+        if kind == "drift":
+            basis, order, run = match.groups()
+            label = "constant" if basis == "constant" else f"drift{order}"
+        elif kind == "intercept":
+            run = match.group(1) if match.groups() else None
+            label = "constant"
+        else:
+            run, label = match.group(1), match.group(2)
+        if multi_run and run is not None:
+            label = f"{label}_run{run}"
+        return label
+    return name
+
+
+def short_column_names(columns: Iterable[DesignColumn]) -> tuple[str, ...]:
+    """Display labels for design columns; see :attr:`DesignColumns.short_names`."""
+    cols = list(columns)
+    task = [c for c in cols if c.role == "task" and c.term is not None and c.level]
+    plain_terms: dict[str, set[str]] = {}
+    for c in task:
+        if ":" not in str(c.term):
+            plain_terms.setdefault(str(c.level), set()).add(str(c.term))
+    ambiguous = {level for level, terms in plain_terms.items() if len(terms) > 1}
+    runs = set()
+    for c in cols:
+        for token in re.findall(r"(?:block_|run|constant_)(\d+)", c.name):
+            runs.add(token)
+    multi_run = len(runs) > 1
+    task_ids = {id(c) for c in task}
+    labels = [
+        _task_label(c, ambiguous)
+        if id(c) in task_ids
+        else _baseline_label(c.name, multi_run)
+        for c in cols
+    ]
+    counts = Counter(labels)
+    return tuple(
+        label if counts[label] == 1 else c.name
+        for label, c in zip(labels, cols, strict=True)
+    )

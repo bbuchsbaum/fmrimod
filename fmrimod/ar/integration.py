@@ -394,6 +394,59 @@ def _shared_phi(runs: list[_RunMatrices], ar_opts: AROptions) -> list[NDArray[np
     ]
 
 
+def _voxelwise_yule_walker(
+    resid: NDArray[np.float64], order: int, finite: NDArray[np.bool_]
+) -> tuple[NDArray[np.float64], NDArray[np.bool_]]:
+    """Vectorised AR(``order``) Yule-Walker for every voxel at once.
+
+    Reproduces :func:`_estimate_phi` on a single voxel with no censoring or
+    design correction (the voxelwise path): demeaned series, unbiased
+    autocovariance ``sum x_t x_{t-k} / (n - k)``, Yule-Walker via
+    Levinson-Durbin. Returns ``(phi, ok)``; ``ok`` is False wherever the
+    reference estimator would repair the estimate (autocovariance not
+    comfortably positive definite, a partial autocorrelation at or beyond
+    the 0.99 clamp, a root near the unit circle) or the series is
+    degenerate, and those voxels must use the reference estimator.
+    """
+    n, V = resid.shape
+    phi = np.zeros((order, V), dtype=np.float64)
+    ok = finite.copy()
+    if order < 1 or n <= order + 1 or not np.any(ok):
+        return phi, np.zeros(V, dtype=bool)
+    x = np.where(finite, resid, 0.0)
+    x = x - x.mean(axis=0, keepdims=True)
+    gamma = np.stack(
+        [np.einsum("tv,tv->v", x[k:], x[: n - k]) / (n - k) for k in range(order + 1)]
+    )
+    g0 = gamma[0]
+    ok &= np.isfinite(g0) & (g0 > 1e-12 * max(float(np.nanmax(np.abs(g0))), 1e-300))
+    safe_g0 = np.where(ok, g0, 1.0)
+    rho = gamma / safe_g0
+    # Levinson-Durbin, vectorised over voxels.
+    a = np.zeros((order, V), dtype=np.float64)
+    err = np.ones(V, dtype=np.float64)
+    max_kappa = np.zeros(V, dtype=np.float64)
+    for k in range(1, order + 1):
+        acc = (
+            rho[k] - np.einsum("jv,jv->v", a[: k - 1], rho[k - 1 : 0 : -1])
+            if k > 1
+            else rho[1].copy()
+        )
+        with np.errstate(divide="ignore", invalid="ignore"):
+            kappa = acc / err
+        max_kappa = np.maximum(max_kappa, np.abs(np.nan_to_num(kappa, nan=np.inf)))
+        if k > 1:
+            a[: k - 1] = a[: k - 1] - kappa * a[k - 2 :: -1][: k - 1]
+        a[k - 1] = kappa
+        err = err * (1.0 - kappa**2)
+    # Comfortably inside the 0.99 PACF clamp, and a positive-definite
+    # autocovariance (positive prediction error at every order).
+    ok &= np.isfinite(max_kappa) & (max_kappa < 0.98) & (err > 1e-4)
+    ok &= np.all(np.isfinite(a), axis=0)
+    phi[:, ok] = a[:, ok]
+    return phi, ok
+
+
 def _voxelwise_phi(
     rm: _RunMatrices, order: int, noise_pools: int | None
 ) -> NDArray[np.float64]:
@@ -406,7 +459,11 @@ def _voxelwise_phi(
     V = rm.resid.shape[1]
     phi = np.zeros((order, V), dtype=np.float64)
     finite = np.all(np.isfinite(rm.resid), axis=0)
-    for v in np.flatnonzero(finite):
+    fast_phi, fast_ok = _voxelwise_yule_walker(rm.resid, order, finite)
+    phi[:, fast_ok] = fast_phi[:, fast_ok]
+    # Voxels near a repair threshold (PD shrink, stationarity clamp) take the
+    # reference per-voxel estimator, so results are unchanged.
+    for v in np.flatnonzero(finite & ~fast_ok):
         phi[:, v] = _estimate_phi([rm.resid[:, v : v + 1]], order)
     if noise_pools is not None and int(noise_pools) > 1 and np.any(finite):
         phi[:, finite] = _quantise_to_noise_pools(phi[:, finite], int(noise_pools))
@@ -490,6 +547,91 @@ def _solve_shared(
     }
 
 
+_BATCH_MIN_GROUPS = 32
+
+
+def _solve_voxelwise_batched(
+    rm: _RunMatrices, phi: NDArray[np.float64]
+) -> tuple[NDArray[np.bool_], tuple[NDArray[np.float64], ...]] | None:
+    """All voxels' GLS in one batched solve (AR whitening without exact-first).
+
+    Whitening ``Z -> Z + sum_k phi_k op_k(Z)`` is linear in ``phi``, so each
+    voxel's whitened Gram matrix and cross-products are quadratic forms in
+    ``(1, phi_1, ..., phi_p)`` over a few shared products, and one batched
+    ``solve`` replaces a per-voxel whitening + factorisation. Applies to
+    full-rank designs and finite voxels; returns ``None`` (or leaves voxels
+    out of the ``done`` mask) where the per-voxel path must run instead.
+    Linearity is checked on the run's own design before use.
+    """
+    order, V = phi.shape
+    n, p_full = rm.X.shape
+    # Columns that are identically zero in this run (other runs' intercepts
+    # and drift) get zero coefficients and covariance, as the pseudo-inverse
+    # of the per-voxel path gives them; the rest must be full rank.
+    live = np.flatnonzero(np.any(rm.X != 0, axis=0))
+    p = live.size
+    if order == 0 or p == 0 or rm.rank != p:
+        return None
+    finite = np.all(np.isfinite(rm.Y), axis=0)
+    if not np.any(finite):
+        return None
+    ph = phi[:, finite]
+    # A handful of shared coefficients (noise pools) is cheaper per group.
+    if np.unique(ph.T, axis=0).shape[0] <= _BATCH_MIN_GROUPS:
+        return None
+    Y = rm.Y[:, finite]
+
+    def whiten_with(
+        coeffs: NDArray[np.float64], Z: NDArray[np.float64]
+    ) -> NDArray[np.float64]:
+        plan = plan_from_phi(coeffs, exact_first=False)
+        wr = whiten_apply(plan, rm.X, Z, runs=cast(Any, rm.segments))
+        assert wr.Y is not None
+        return wr.Y
+
+    X = rm.X[:, live]
+    ops_X = [X]
+    ops_Y = [Y]
+    for k in range(order):
+        unit = np.zeros(order, dtype=np.float64)
+        unit[k] = 1.0
+        ops_X.append(whiten_with(unit, X) - X)
+        ops_Y.append(whiten_with(unit, Y) - Y)
+    # Self-check: the operator must be linear in phi on this run's layout.
+    probe = np.linspace(0.3, -0.2, order)
+    direct = whiten_with(probe, X)
+    combined = X + sum(probe[k] * ops_X[k + 1] for k in range(order))
+    if not np.allclose(direct, combined, rtol=1e-12, atol=1e-12):
+        return None
+
+    c = np.vstack([np.ones((1, ph.shape[1])), ph])  # (order + 1, V')
+    m = order + 1
+    G = np.zeros((ph.shape[1], p, p), dtype=np.float64)
+    rhs = np.zeros((ph.shape[1], p), dtype=np.float64)
+    for j in range(m):
+        for k in range(m):
+            w = c[j] * c[k]
+            G += w[:, None, None] * (ops_X[j].T @ ops_X[k])[None]
+            rhs += (w * (ops_X[j].T @ ops_Y[k])).T
+    try:
+        betas = np.linalg.solve(G, rhs[..., None])[..., 0].T  # (p, V')
+        cov = np.linalg.inv(G)
+    except np.linalg.LinAlgError:
+        return None
+    resid = sum(c[j] * (ops_Y[j] - ops_X[j] @ betas) for j in range(m))
+    rss = np.einsum("tv,tv->v", resid, resid)
+    if p < p_full:
+        nv = betas.shape[1]
+        full_betas = np.zeros((p_full, nv))
+        full_betas[live] = betas
+        full_cov = np.zeros((nv, p_full, p_full))
+        full_cov[np.ix_(np.arange(nv), live, live)] = cov
+        full_gram = np.zeros((nv, p_full, p_full))
+        full_gram[np.ix_(np.arange(nv), live, live)] = G
+        betas, cov, G = full_betas, full_cov, full_gram
+    return finite, (betas, rss, cov, G, resid)
+
+
 def _solve_voxelwise(
     runs: list[_RunMatrices],
     phis: list[NDArray[np.float64]],
@@ -516,10 +658,21 @@ def _solve_voxelwise(
         cov = np.full((V, p, p), np.nan)
         gram = np.full((V, p, p), np.nan)
         resid = np.full((n, V), np.nan)
-        groups, inverse = np.unique(phi.T, axis=0, return_inverse=True)
+        batched = None if exact_first else _solve_voxelwise_batched(rm, phi)
+        if batched is not None:
+            done, (b_betas, b_rss, b_cov, b_gram, b_resid) = batched
+            betas[:, done] = b_betas
+            rss[done] = b_rss
+            cov[done] = b_cov
+            gram[done] = b_gram
+            resid[:, done] = b_resid
+        else:
+            done = np.zeros(V, dtype=bool)
+        remaining = np.flatnonzero(~done)
+        groups, inverse = np.unique(phi[:, remaining].T, axis=0, return_inverse=True)
         inverse = np.asarray(inverse).ravel()
         for g, phi_g in enumerate(groups):
-            cols = np.flatnonzero(inverse == g)
+            cols = remaining[inverse == g]
             Xw, Yw = _whiten(rm, phi_g, exact_first, cols)
             proj = fast_preproject(Xw, check_finite=False, method=solver)
             result = fast_lm_matrix(Xw, Yw, proj, return_fitted=True, check_finite=False)
