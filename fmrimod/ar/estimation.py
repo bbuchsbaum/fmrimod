@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import numbers
 from typing import Any, Optional, cast
-import warnings
 
 import numpy as np
 from numpy.typing import NDArray
@@ -416,7 +415,9 @@ def fit_noise(
         0-based indices of censored timepoints, or a boolean mask with one
         entry per timepoint.
     method : str
-        ``"ar"`` or ``"arma"``.
+        ``"ar"`` or ``"arma"``. ARMA is estimated by a Hannan-Rissanen
+        regression pooled over voxels, with every lag kept inside a
+        contiguous run/censor segment.
     p : int or ``"auto"``
         AR order (``"auto"`` triggers BIC selection for AR). An explicit
         order must be a non-negative whole number and is honoured even
@@ -449,7 +450,9 @@ def fit_noise(
     hr_iter : int
         Hannan-Rissanen refinement iterations.
     step1 : str
-        Preliminary fit method for HR: ``"burg"`` or ``"yw"``.
+        Accepted for compatibility and ignored, as in fmriAR 0.4: the
+        pooled Hannan-Rissanen estimator fits its long AR by Yule-Walker on
+        the pooled, segment-respecting autocovariance.
     design : ndarray, optional
         Design whose projection produced ``resid``. Opt-in residual ACVF
         bias correction (fmriAR 0.3.3); global/run AR only.
@@ -865,6 +868,10 @@ def fit_noise(
         )
 
     # --- Per-run estimation ---
+    from .hr_arma import _hr_arma_pooled
+
+    arma_order = (min(2, int(p_max)) if p == "auto" else int(cast(Any, p)), int(q))
+
     def _est_run(
         mat: NDArray[Any],
         censor_rel: NDArray[Any],
@@ -887,34 +894,28 @@ def fit_noise(
         }
 
         if method == "arma":
-            if (
-                len(censor_rel) > 0
-                and valid_idx.size > 1
-                and np.any(np.diff(valid_idx) > 1)
-            ):
-                warnings.warn(
-                    "fit_noise: method='arma' estimates across censoring gaps; "
-                    "AR and MA coefficients will be biased. Prefer method='ar' "
-                    "when censoring is present.",
-                    UserWarning,
-                    stacklevel=2,
-                )
-            mat_valid = mat[valid_idx]
-            y_mean = mat_valid.mean(axis=1)
-            from .hr_arma import hr_arma
-
-            pp = min(2, p_max) if p == "auto" else int(cast(Any, p))
-            qq = int(q)
-            fit = hr_arma(y_mean, p=pp, q=qq, n_iter=hr_iter, step1=step1)
+            # Pooled, segment-aware Hannan-Rissanen over this run's valid
+            # frames; no lag product spans a censoring gap.
+            pp, qq = arma_order
+            mat_valid = mat if valid_idx.size == n_run else mat[valid_idx]
             seg_id_ma = np.cumsum(
                 np.concatenate([[1], (np.diff(valid_idx) > 1).astype(np.intp)])
             )
+            unit = (mat_valid, np.flatnonzero(np.diff(seg_id_ma, prepend=0)))
             lag_ma = max(1, pp + qq)
             pooled_ma = pooled_acvf_segments(mat_valid, seg_id_ma, lag_ma)
             g_ma, _ = acvf_from_pooled(pooled_ma, order=lag_ma)
-            fit["gamma"] = g_ma
-            fit["sigma2"] = float("nan")
-            return fit
+            if pooling == "global":
+                # Estimated once over every run's segments below.
+                return dict(empty, order=(pp, qq), gamma=g_ma, unit=unit)
+            fit = _hr_arma_pooled([unit], pp, qq, n_iter=hr_iter)
+            return {
+                "phi": fit.phi,
+                "theta": fit.theta,
+                "order": fit.order,
+                "gamma": g_ma,
+                "sigma2": fit.sigma2,
+            }
 
         if method != "ar":
             raise ValueError(f"Unknown estimation method: {method!r}")
@@ -1030,7 +1031,15 @@ def fit_noise(
             if len(theta_e):
                 Th[i, : len(theta_e)] = theta_e
 
-        phi_avg = _ar_from_pooled_runs(estimates, lens, p) if method == "ar" else None
+        theta_avg: NDArray[np.float64] | None = None
+        arma_sigma2 = float("nan")
+        if method == "arma":
+            # One pooled Hannan-Rissanen fit over every run's segments.
+            units = [e["unit"] for e in estimates if e.get("unit") is not None]
+            fit = _hr_arma_pooled(units, *arma_order, n_iter=hr_iter)
+            phi_avg, theta_avg, arma_sigma2 = fit.phi, fit.theta, fit.sigma2
+        else:
+            phi_avg = _ar_from_pooled_runs(estimates, lens, p)
         if phi_avg is None:
             # Fallback: length-weighted coefficient average, re-constrained.
             phi_avg = (
@@ -1040,11 +1049,12 @@ def fit_noise(
             )
             if phi_avg.size:
                 phi_avg = enforce_stationary_ar(phi_avg, 0.99)
-        theta_avg = (
-            (w @ Th)[:qmax_len] if qmax_len > 0 else np.array([], dtype=np.float64)
-        )
-        if theta_avg.size:
-            theta_avg = enforce_invertible_ma(theta_avg)
+        if theta_avg is None:
+            theta_avg = (
+                (w @ Th)[:qmax_len] if qmax_len > 0 else np.array([], dtype=np.float64)
+            )
+            if theta_avg.size:
+                theta_avg = enforce_invertible_ma(theta_avg)
         phi_list = [phi_avg]
         theta_list = [theta_avg]
 
@@ -1064,7 +1074,7 @@ def fit_noise(
         else:
             gamma_list = [np.array([], dtype=np.float64)]
         if method == "arma":
-            sigma2_list = [float("nan")]
+            sigma2_list = [arma_sigma2]
         else:
             sigma2_list = [sigma2_from_gamma_phi(gamma_list[0], phi_avg)]
     else:
@@ -1075,7 +1085,7 @@ def fit_noise(
             for e in estimates
         ]
         if method == "arma":
-            sigma2_list = [float("nan") for _ in estimates]
+            sigma2_list = [float(e.get("sigma2", float("nan"))) for e in estimates]
         else:
             sigma2_list = [
                 sigma2_from_gamma_phi(g, ph)
