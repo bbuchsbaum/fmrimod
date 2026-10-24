@@ -104,3 +104,65 @@ class TestHRArma:
         y = rng.randn(200)
         result = hr_arma(y, p=1, q=0)
         assert result["sigma2"] > 0
+
+
+class TestPooledOrderGrid:
+    """``_hr_arma_pooled`` candidate-grid BIC (fmriAR a75a5de, hr_pooled.R)."""
+
+    @staticmethod
+    def _sim(phi, theta, rng, n=240, v=30):
+        from scipy.signal import lfilter
+
+        e = rng.standard_normal((n + 200, v))
+        return lfilter(np.r_[1.0, theta], np.r_[1.0, -np.asarray(phi)], e, axis=0)[200:]
+
+    def test_selects_white_and_ar1_orders(self):
+        from fmrimod.ar.hr_arma import _hr_arma_pooled
+
+        rng = np.random.default_rng(9126)
+        for phi, truth in (([], (0, 0)), ([0.5], (1, 0))):
+            for _ in range(3):
+                R = self._sim(phi, [], rng)
+                fit = _hr_arma_pooled([(R, np.array([0]))], range(7), range(3))
+                assert fit.order == truth
+                assert (fit.phi.size, fit.theta.size) == truth
+
+    def test_selection_is_the_bic_argmin_of_the_common_row_regression(self):
+        """Brute-force check: each candidate refit by least squares on the
+        same rows, BIC on N = rows x effective voxels."""
+        from fmrimod.ar.acvf import acvf_from_pooled, pooled_acvf_segments
+        from fmrimod.ar.hr_arma import (
+            _arma_unit,
+            _effective_voxels,
+            _hr_arma_pooled,
+        )
+        from fmrimod.ar.numhelpers import levinson_durbin
+
+        R = self._sim([0.5], [0.4], np.random.default_rng(3))
+        fit = _hr_arma_pooled([(R, np.array([0]))], range(4), range(3))
+        unit = _arma_unit(R, np.array([0]))
+        Y = unit.mat
+        n, V = Y.shape
+        p_big = min(max(8, 3 + 2 + 5, int(np.ceil(10 * np.log10(n)))), 40)
+        g, _ = acvf_from_pooled(pooled_acvf_segments(Y, np.ones(n), p_big), order=p_big)
+        phi_big, _ = levinson_durbin(g, p_big)
+        E = np.column_stack([_arma_innovations(Y[:, j], phi_big, np.array([]))
+                             for j in range(V)])
+        start = max(3, p_big + 2)
+        rows = np.arange(start, n)
+        n_bic = rows.size * _effective_voxels([unit])
+        best = None
+        for qq in range(3):
+            for pp in range(4):
+                cols = [Y[rows - a].ravel(order="F") for a in range(1, pp + 1)]
+                cols += [E[rows - a].ravel(order="F") for a in range(1, qq + 1)]
+                y = Y[rows].ravel(order="F")
+                rss = float(y @ y)
+                if cols:
+                    Z = np.column_stack(cols)
+                    resid = y - Z @ np.linalg.lstsq(Z, y, rcond=None)[0]
+                    rss = float(resid @ resid)
+                bic = n_bic * np.log(rss / (rows.size * V)) + (pp + qq) * np.log(n_bic)
+                if best is None or bic < best[0]:
+                    best = (bic, pp, qq)
+        assert fit.order == (best[1], best[2])
