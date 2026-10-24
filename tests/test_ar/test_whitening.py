@@ -299,6 +299,19 @@ class TestLogicalCensorMask:
         for key in b.X_by:
             np.testing.assert_array_equal(a.X_by[key], b.X_by[key])
 
+    def test_explicit_empty_censor_overrides_the_plan_set(self):
+        X, R, mask = self._fixture()
+        plan = fit_noise(R, p=1, censor=mask)
+        inherited = whiten_apply(plan, X, R)
+        np.testing.assert_array_equal(
+            inherited.Y, whiten_apply(plan, X, R, censor=mask).Y
+        )
+        none = whiten_apply(plan, X, R, censor=np.array([], dtype=int))
+        np.testing.assert_array_equal(
+            none.Y, whiten_apply(plan, X, R, censor=np.zeros(200, dtype=bool)).Y
+        )
+        assert not np.allclose(none.Y, inherited.Y)
+
     def test_whiten_forwards_mask_to_both_steps(self):
         X, R, mask = self._fixture()
         w1 = whiten(X, R, censor=mask, p=1)

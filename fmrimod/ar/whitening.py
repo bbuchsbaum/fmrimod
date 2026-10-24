@@ -585,10 +585,11 @@ def whiten_apply(
     else:
         run_codes(runs, n)
 
-    # Resolve censor; a boolean mask must not be cast to 0/1 indices.
-    censor = _normalize_censor(censor, n)
+    # Resolve censor: None inherits the plan's set, an explicit empty one
+    # means no censoring; a boolean mask must not be cast to 0/1 indices.
     if censor is None:
-        censor = _normalize_censor(plan.censor, n)
+        censor = plan.censor
+    censor = _normalize_censor(censor, n)
 
     # --- Parcel plan ---
     if plan.pooling == "parcel":
