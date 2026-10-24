@@ -426,7 +426,10 @@ def fit_noise(
     p_max : int
         Maximum AR order for BIC selection.
     exact_first : str
-        ``"ar1"`` to apply exact first-sample scaling, ``"none"`` otherwise.
+        ``"ar1"`` (the name is historical) to start every run/censor segment
+        with the exact stationary initialisation of the fitted AR/ARMA
+        model, i.e. exact GLS whitening within segments; ``"none"`` for the
+        conditional filter with a zero pre-sample.
     pooling : str
         ``"global"``, ``"run"``, or ``"parcel"``.
     parcels : NDArray, optional
