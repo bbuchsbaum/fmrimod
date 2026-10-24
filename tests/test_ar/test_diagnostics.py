@@ -112,3 +112,67 @@ class TestSandwichSEs:
         beta = np.linalg.lstsq(Xw, Yw, rcond=None)[0]
         result = sandwich_from_whitened_resid(Xw, Yw, beta=beta, type="iid")
         assert result["se"].shape == (2, 3)
+
+
+class TestAcorrAggregatesPerVoxel:
+    """fmriAR 617bd87 (test-audit-regressions.R:337-355), row AR-09.
+
+    Cheap pass disqualified: averaging per-voxel values while keeping the
+    pair-count normalisation and PSD shrink fails the ``runs`` assertion.
+    """
+
+    @staticmethod
+    def _per_voxel_acf(R, max_lag):
+        """``stats::acf`` per column: biased, demeaned."""
+        Rc = R - R.mean(axis=0)
+        den = np.sum(Rc * Rc, axis=0)
+        return np.vstack([np.sum(Rc[k:] * Rc[:-k], axis=0) / den
+                          for k in range(1, max_lag + 1)])
+
+    def test_aggregates_per_voxel_autocorrelations(self):
+        from scipy.signal import lfilter
+
+        rng = np.random.default_rng(9121)
+        n, v = 300, 50
+        shared = lfilter([1.0], [1.0, -0.9], rng.standard_normal(n))
+        R = rng.standard_normal((n, v)) + 0.5 * shared[:, None]
+        per_vox = self._per_voxel_acf(R, 3)
+        np.testing.assert_allclose(
+            acorr_diagnostics(R, max_lag=3, aggregate="none")["acf"], per_vox,
+            rtol=0, atol=1e-12,
+        )
+        np.testing.assert_allclose(acorr_diagnostics(R, max_lag=3)["acf"],
+                                   per_vox.mean(axis=1), rtol=0, atol=1e-12)
+        np.testing.assert_allclose(
+            acorr_diagnostics(R, max_lag=3, aggregate="median")["acf"],
+            np.median(per_vox, axis=1), rtol=0, atol=1e-12,
+        )
+
+    def test_runs_use_biased_within_run_normalisation(self):
+        rng = np.random.default_rng(5)
+        n, v = 60, 4
+        runs = np.repeat([1, 2], 30)
+        R = rng.standard_normal((n, v)) + np.where(runs == 1, -5.0, 5.0)[:, None]
+        Rc = R.copy()
+        for r in (1, 2):
+            Rc[runs == r] -= Rc[runs == r].mean(axis=0)
+        den = np.sum(Rc * Rc, axis=0)
+        ref = []
+        for k in (1, 2):
+            ok = runs[k:] == runs[:-k]
+            ref.append(np.sum(Rc[k:][ok] * Rc[:-k][ok], axis=0) / den)
+        out = acorr_diagnostics(R, runs=runs, max_lag=2, aggregate="none")["acf"]
+        np.testing.assert_allclose(out, np.vstack(ref), rtol=0, atol=1e-12)
+        # Two independent constant-offset runs of white noise: no lag-1 structure.
+        W = rng.standard_normal((300, 50)) + np.repeat([-5.0, 5.0], 150)[:, None]
+        honoured = acorr_diagnostics(W, runs=np.repeat([1, 2], 150), max_lag=1)
+        assert abs(honoured["acf"][0]) < 0.02
+
+    def test_zero_variance_voxels_are_missing_not_zero(self):
+        rng = np.random.default_rng(6)
+        R = rng.standard_normal((100, 3))
+        R[:, 1] = 2.0
+        out = acorr_diagnostics(R, max_lag=2, aggregate="none")["acf"]
+        assert np.all(np.isnan(out[:, 1]))
+        mean = acorr_diagnostics(R, max_lag=2)["acf"]
+        np.testing.assert_allclose(mean, out[:, [0, 2]].mean(axis=1), atol=1e-12)
