@@ -75,12 +75,19 @@ class TestSmoothPi0:
         result = smooth_pi0(pi0, [[], [], []], lam=0.0)
         np.testing.assert_array_equal(result, pi0)
 
-    def test_smoothing_averages(self):
-        pi0 = np.array([0.2, 0.8])
-        neighbors = [[1], [0]]
-        result = smooth_pi0(pi0, neighbors, lam=1.0)
-        # Full smoothing: each gets neighbour's value
-        np.testing.assert_allclose(result, [0.8, 0.2])
+    @pytest.mark.parametrize("lam", [1.0, 2.0])
+    def test_smoothing_is_one_step_of_r_sabha(self, lam):
+        # fmrigds sabha_pi0_smooth_cpp: (pi0 + lam * mean_neighbours) / (1 + lam).
+        # lam = 1 and lam = 2 tell this apart from (1 - lam) * pi0 + lam * mean.
+        pi0 = np.array([0.2, 0.8, 0.5])
+        neighbors = [[1, 2], [0], [0, 1]]
+        result = smooth_pi0(pi0, neighbors, lam=lam)
+        expected = [
+            (0.2 + lam * 0.65) / (1 + lam),
+            (0.8 + lam * 0.2) / (1 + lam),
+            (0.5 + lam * 0.5) / (1 + lam),
+        ]
+        np.testing.assert_allclose(result, expected, rtol=1e-12)
 
 
 class TestWeightedBH:
@@ -193,3 +200,77 @@ class TestSpatialFdr:
         zero = spatial_fdr(p_vals, group_ids=groups, smooth_lambda=0.0)
         np.testing.assert_array_equal(neg.reject, zero.reject)
         np.testing.assert_allclose(neg.qvalues, zero.qvalues, atol=1e-12)
+
+
+def _r_sabha_p(p, group, alpha=0.05, tau=0.5, min_pi0=0.05):
+    """fmrigds spatial_fdr_sabha (p input, no neighbours), R/posthoc-fdr-sabha.R."""
+    p = np.asarray(p, float)
+    _, gid = np.unique(group, return_inverse=True)
+    G = int(gid.max()) + 1
+    fin = np.isfinite(p)
+    m_g = np.bincount(gid[fin], minlength=G)
+    tail = np.bincount(gid[fin & (np.nan_to_num(p, nan=0.0) > tau)], minlength=G)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        pi0_raw = np.where(m_g > 0, np.clip(tail / ((1 - tau) * m_g), 0, 1), 1.0)
+    w = np.where(fin, (1 / np.clip(pi0_raw, min_pi0, 1.0))[gid], 0.0)
+    n = int(fin.sum())
+    w = w * n / w[fin].sum()
+    pw = p[fin] / w[fin]
+    order = np.argsort(pw)
+    adj = np.minimum.accumulate((pw[order] * n / np.arange(1, n + 1))[::-1])[::-1].clip(0, 1)
+    q = np.full(p.shape, np.nan)
+    q_fin = np.empty(n)
+    q_fin[order] = adj
+    q[fin] = q_fin
+    below = np.nonzero(np.sort(pw) <= alpha * np.arange(1, n + 1) / n)[0]
+    reject = np.zeros(p.shape, bool)
+    if below.size:
+        reject[fin] = pw <= alpha * (below.max() + 1) / n
+    return pi0_raw, w, q, reject
+
+
+class TestSpatialFdrRParity:
+    """inventory v2 REG-B-03, REG-B-04, GDS-06 (fmrireg c8c6021/af12983, fmrigds sabha)."""
+
+    def test_missing_p_values_are_left_out_of_pi0_and_bh(self):
+        rng = np.random.default_rng(3)
+        grp = np.repeat([0, 1, 2, 3], 250)
+        p = rng.uniform(size=1000)
+        p[grp == 0] = rng.uniform(0, 0.02, size=250)
+        p[250:400] = np.nan  # 60% missing in a pure-null group
+
+        res = spatial_fdr(p, group_ids=grp, smooth_lambda=0.0)
+        pi0_raw, w, q, reject = _r_sabha_p(p, grp)
+
+        np.testing.assert_allclose(res.pi0_raw, pi0_raw, rtol=1e-12)
+        assert res.pi0_raw[1] > 0.8
+        np.testing.assert_array_equal(np.isfinite(res.qvalues), np.isfinite(p))
+        np.testing.assert_allclose(res.qvalues, q, rtol=1e-12)
+        np.testing.assert_array_equal(res.reject, reject)
+        assert not res.reject[np.isnan(p)].any()
+
+    def test_weights_are_normalised_over_features(self):
+        # Equal-sized groups cannot tell group-mean from feature-sum normalisation.
+        rng = np.random.default_rng(3)
+        grp = np.concatenate([np.zeros(900, int), np.ones(100, int)])
+        p = rng.uniform(size=1000)
+        p[900:] = rng.uniform(0, 0.01, size=100)
+        p[:60] = rng.uniform(0, 0.002, size=60)
+
+        res = spatial_fdr(p, group_ids=grp, smooth_lambda=0.0)
+        _, w, q, reject = _r_sabha_p(p, grp)
+
+        assert res.weights.mean() == pytest.approx(1.0, rel=1e-12)
+        np.testing.assert_allclose(res.weights, w, rtol=1e-12)
+        np.testing.assert_allclose(res.qvalues, q, rtol=1e-12)
+        np.testing.assert_array_equal(res.reject, reject)
+
+    def test_min_pi0_is_applied_after_smoothing(self):
+        # Two adjacent one-voxel blocks: raw pi0 0 (signal) and 1 (null).
+        mask = np.zeros((2, 1, 1), dtype=bool)
+        mask[:] = True
+        res = spatial_fdr(
+            np.array([1e-6, 0.9]), mask=mask, block_size=1, smooth_lambda=1.0, min_pi0=0.05
+        )
+        np.testing.assert_allclose(res.pi0_raw, [0.0, 1.0])
+        np.testing.assert_allclose(res.pi0_smooth, [0.5, 0.5])
