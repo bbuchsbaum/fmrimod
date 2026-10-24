@@ -109,3 +109,67 @@ def test_typed_hrf_prefix_controls_realized_column_names() -> None:
     ]
     assert task_names
     assert all(name.startswith("stim_") for name in task_names)
+
+
+def _boxcar_4s(t):
+    t = np.asarray(t, dtype=np.float64)
+    return ((t >= 0.0) & (t < 4.0)).astype(np.float64)
+
+
+def test_plain_function_basis_is_wrapped_not_replaced() -> None:
+    """``basis=<plain function of t>`` is that function as the HRF.
+
+    DES-08: R wraps a plain function with ``gen_hrf()`` (453c62a); fmrimod
+    silently substituted SPM canonical. A 4 s boxcar tells the two apart.
+    """
+    from fmrimod.design_colmap import design_colmap
+    from fmrimod.hrf.core import as_hrf
+    from fmrimod.sampling import SamplingFrame
+    from fmrimod.spec import as_spec, compile_events
+
+    sf = SamplingFrame(blocklens=[60], tr=1.0)
+    events = pd.DataFrame({"onset": [5.0, 30.0], "cond": ["A", "A"], "run": 1})
+
+    def realise(term: object) -> object:
+        return compile_events(
+            as_spec(term), events, sf, block="run", durations=None, precision=None
+        )
+
+    em_fun = realise(hrf("cond", basis=_boxcar_4s))
+    x_fun = np.asarray(em_fun.design_matrix)
+    x_obj = np.asarray(
+        realise(hrf("cond", basis=as_hrf(_boxcar_4s, name="_boxcar_4s"))).design_matrix
+    )
+    x_spm = np.asarray(realise(hrf("cond")).design_matrix)
+
+    np.testing.assert_allclose(x_fun, x_obj, atol=1e-12)
+    assert not np.allclose(x_fun, x_spm)
+    # The boxcar response lives in [onset, onset + 4 s] (plus one sample of
+    # convolution smear), nowhere near the canonical HRF's 30 s tail.
+    nz = np.flatnonzero(np.abs(x_fun[:, 0]) > 1e-8)
+    assert set(nz) <= set(range(5, 11)) | set(range(30, 36))
+    assert design_colmap(em_fun).basis_name.tolist() == ["_boxcar_4s"]
+
+
+def test_plain_function_basis_detects_basis_width() -> None:
+    """A plain function returning a matrix declares one basis per column."""
+
+    def two_boxcars(t):
+        t = np.asarray(t, dtype=np.float64)
+        return np.column_stack(
+            [((t >= 0) & (t < 4)).astype(float), ((t >= 4) & (t < 8)).astype(float)]
+        )
+
+    fit = fm.fmri_lm(
+        hrf("trial_type", basis=two_boxcars), _zero_dataset(_two_level_events())
+    )
+    x = np.asarray(fit.model.event_model.design_matrix)
+    assert x.shape == (N_SCANS, 4)
+
+
+def test_non_hrf_basis_value_raises() -> None:
+    """A basis that is neither a name, an HRF nor a function is an error."""
+    import pytest
+
+    with pytest.raises(TypeError, match="basis"):
+        fm.fmri_lm(hrf("trial_type", basis=3.0), _zero_dataset(_two_level_events()))
