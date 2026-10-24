@@ -120,14 +120,14 @@ def fmrimod_parametric_rt(inp: Inputs):
     from fmrimod.spec import drift, hrf
 
     fit = fm.fmri_lm(
-        hrf("trial_type", modulators=["rt"]) + drift(),
+        hrf("trial_type", modulators=["rt"], pool_modulators=True) + drift(),
         inp.img,
         tr=inp.tr,
         events=inp.events[0],
         mask=inp.mask_img,
         slice_timing_offset=0.0,  # parity-knob
     )
-    return fit.contrast("trial_type:rt.face + trial_type:rt.house")
+    return fit.contrast("rt")
 
 
 def nilearn_parametric_rt(inp: Inputs):
@@ -247,7 +247,7 @@ def fmrimod_ar1_t(inp: Inputs):
         tr=inp.tr,
         events=inp.events[0],
         mask=inp.mask_img,
-        ar="ar1",
+        ar="ar1_voxelwise",
         slice_timing_offset=0.0,  # parity-knob
     )
     return fit.contrast("face - house")
@@ -484,7 +484,7 @@ def fmrimod_group_covariate(maps: GroupMapInputs):
         covariates=maps.participants,
         mask=maps.mask_img,  # parity-knob
     )
-    return result.t_stat("group[T.patient]")
+    return result.t_stat("patient")
 
 
 def nilearn_group_covariate(maps: GroupMapInputs):
@@ -547,6 +547,61 @@ def nilearn_bids_first_level(bids: BidsInputs):
             "face - house", output_type="stat"
         )
     return maps
+
+
+# --------------------------------------------------------------------------
+# S14  BIDS dataset -> first level per subject -> group effect of age
+# --------------------------------------------------------------------------
+
+
+def fmrimod_bids_to_group(bids: BidsInputs):
+    import fmrimod as fm
+    from fmrimod.spec import confounds, drift, hrf
+
+    datasets = fm.bids_datasets(
+        bids.root,
+        bids.task,
+        space=bids.space,
+        slice_timing_offset=0.0,  # parity-knob
+    )
+    spec = hrf("trial_type") + confounds(*MOTION) + drift()
+    maps = {
+        sub: fm.fmri_lm(spec, ds).contrast("face - house")
+        for sub, ds in datasets.items()
+    }
+    group = fm.fmri_group_lm(
+        maps, formula="~ age", covariates=bids.root / "participants.tsv"
+    )
+    return group.t_stat("age")
+
+
+def nilearn_bids_to_group(bids: BidsInputs):
+    from nilearn.glm.first_level import first_level_from_bids
+    from nilearn.glm.second_level import SecondLevelModel
+
+    models, imgs, events, confounds = first_level_from_bids(
+        bids.root,
+        bids.task,
+        space_label=bids.space,
+        derivatives_folder=bids.derivatives,
+        img_filters=[("desc", "preproc")],
+        hrf_model="spm",
+        mask_img=bids.mask_img,  # parity-knob
+        noise_model="ols",  # parity-knob
+        high_pass=1 / 128,  # parity-knob
+        signal_scaling=False,  # parity-knob
+    )
+    maps = []
+    for model, img, ev, conf in zip(models, imgs, events, confounds):  # noqa: B905
+        model.fit(img, events=ev, confounds=[c[list(MOTION)] for c in conf])
+        maps.append(model.compute_contrast("face - house", output_type="effect_size"))
+    participants = pd.read_csv(bids.root / "participants.tsv", sep="\t")
+    subjects = [f"sub-{m.subject_label}" for m in models]
+    ages = participants.set_index("participant_id").loc[subjects, "age"]
+    design = pd.DataFrame({"intercept": 1.0, "age": ages.to_numpy()})
+    group = SecondLevelModel(mask_img=bids.mask_img)  # parity-knob
+    group.fit(maps, design_matrix=design)
+    return group.compute_contrast("age", output_type="stat")
 
 
 # --------------------------------------------------------------------------
@@ -630,6 +685,12 @@ def extract_nilearn_bids(result: Any, bids: BidsInputs) -> np.ndarray:
     )
 
 
+def extract_bids_group(result: Any, bids: BidsInputs) -> np.ndarray:
+    if hasattr(result, "get_fdata"):
+        return np.asarray(result.get_fdata(), dtype=np.float64)[bids.mask]
+    return np.asarray(result, dtype=np.float64).ravel()
+
+
 # --------------------------------------------------------------------------
 # Registry
 # --------------------------------------------------------------------------
@@ -663,9 +724,9 @@ SCENARIOS: tuple[Scenario, ...] = (
         0.999,
         large_inputs=lambda: make_inputs(seed=1, shape=(34, 34, 28), n_scans=300),
         notes=(
-            "Default noise model differs: Nilearn `FirstLevelModel` is AR(1) by default, fmrimod `fmri_lm` is OLS (aligned here with a parity knob; now stated in the `fmri_lm` docstring).",
-            "Default sampling grid is the TR midpoint (`slice_timing_offset=TR/2`); Nilearn/SPM/FitLins use frame start. Any cross-tool comparison needs `slice_timing_offset=0.0`.",
-            "Drift is opt-in: `fmri_lm` fits no high-pass unless the spec has `drift()`; Nilearn applies a 100 s cosine by default (fmrimod's `drift()` default is SPM's 128 s).",
+            "By design: the default noise model is OLS (R fmrireg's `iid`), where Nilearn's `FirstLevelModel` uses AR(1); pass `ar=\"ar1_voxelwise\"` for Nilearn's model.",
+            "By design: the sampling grid starts at TR/2 (R fmrihrf #94); Nilearn/SPM/FitLins use frame start, so cross-tool comparisons pass `slice_timing_offset=0.0`.",
+            "By design: drift is opt-in (`+ drift()`, SPM's 128 s); Nilearn high-passes at 100 s by default. Fitting drift implicitly would change every existing fit.",
         ),
     ),
     Scenario(
@@ -687,9 +748,6 @@ SCENARIOS: tuple[Scenario, ...] = (
         extract_fmrimod_stat,
         extract_nilearn_stat,
         0.999,
-        notes=(
-            "Modulators expand per condition, so a pooled RT effect is the sum of per-level slopes (`'trial_type:rt.face + trial_type:rt.house'`); there is no single pooled-modulator spelling.",
-        ),
     ),
     Scenario(
         "s04_omnibus_f",
@@ -711,7 +769,7 @@ SCENARIOS: tuple[Scenario, ...] = (
         extract_nilearn_stat,
         0.99,
         notes=(
-            "`hrf(..., basis='fir', nbasis=N)` without `span=` still covers 24 s whatever N is; one bin per scan needs `span=N * tr` (Nilearn's `fir_delays` are in scans).",
+            "By design: `hrf(..., basis='fir', nbasis=N)` keeps R fmrihrf's 24 s span; one bin per scan (Nilearn's `fir_delays`) is `span=N * tr`.",
         ),
     ),
     Scenario(
@@ -722,12 +780,12 @@ SCENARIOS: tuple[Scenario, ...] = (
         lambda: make_inputs(seed=6, ar=0.4),
         extract_fmrimod_stat,
         extract_nilearn_stat,
-        0.99,
+        0.9999,
         large_inputs=lambda: make_inputs(
             seed=6, ar=0.4, shape=(34, 34, 28), n_scans=300
         ),
         notes=(
-            "AR(1) estimators differ (fmrimod's pooled estimate vs Nilearn's quantised voxelwise AR(1)), so agreement is r≈0.996 rather than exact. Parity of the AR path itself is tier_a_ar1_prewhitening's job.",
+            'Uses `ar="ar1_voxelwise"` (Nilearn\'s model, r>0.9999). Round 4 found that path 10-33x slower than Nilearn; vectorised AR estimation plus one batched GLS solve (identical to ~1e-12) closed the gap. The pooled default `ar="ar1"` agrees only to r~0.996.',
         ),
     ),
     Scenario(
@@ -760,7 +818,7 @@ SCENARIOS: tuple[Scenario, ...] = (
         extract_nilearn_design,
         0.999,
         notes=(
-            "Column names repeat the term (`trial_type_trial_type.face`, `base_cosine1_block_1`) where Nilearn uses `face`, `drift_1`. Deferred: renaming is a public-contract change (parity receipts, BIDS export).",
+            'By design: canonical column names follow R fmridesign (`trial_type_trial_type.face`); `names="short"` gives display labels (`face`, `rt:face`, `drift1`).',
         ),
     ),
     Scenario(
@@ -773,7 +831,7 @@ SCENARIOS: tuple[Scenario, ...] = (
         extract_nilearn_zmap,
         0.999,
         notes=(
-            'Remaining gap is the Nilearn default: `compute_contrast(...)` returns a z image, while fmrimod returns a `ContrastResult` and z is one explicit `kind="z"` away (`.z` / `to_nifti(path, kind="z")`).',
+            'By design: a contrast returns a `ContrastResult` holding t, z, effect, SE and p; writing z is `to_nifti(path, kind="z")`, where Nilearn\'s default output is a z image.',
         ),
     ),
     Scenario(
@@ -795,9 +853,6 @@ SCENARIOS: tuple[Scenario, ...] = (
         extract_fmrimod_group_map,
         extract_nilearn_group_map,
         0.999,
-        notes=(
-            "Formula predictors use treatment-coded names (`group[T.patient]`), not the plain column name a hand-built Nilearn design gives you.",
-        ),
     ),
     Scenario(
         "s13_bids_first_level",
@@ -810,6 +865,19 @@ SCENARIOS: tuple[Scenario, ...] = (
         0.999,
         notes=(
             "`fm.bids_datasets` covers the fMRIPrep first-level layout only (preproc BOLD, events, sidecar TR, brain mask, confounds); no BIDS Stats Model or pybids query language.",
+        ),
+    ),
+    Scenario(
+        "s14_bids_to_group",
+        "BIDS dataset to group effect of age from participants.tsv",
+        fmrimod_bids_to_group,
+        nilearn_bids_to_group,
+        lambda: make_bids_inputs(n_subjects=6, shape=(8, 8, 6), n_scans=100, seed=400),
+        extract_bids_group,
+        extract_bids_group,
+        0.99,
+        notes=(
+            "Agreement gate is r>=0.99, not 0.999: first-level estimates agree at r>=0.9997 (with a constant 1.20 HRF-normalisation scale) and the group stage is exact, but six subjects' age t in null voxels amplifies that last 0.03%.",
         ),
     ),
 )

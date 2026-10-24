@@ -128,6 +128,7 @@ def make_inputs(
     trial_effects: bool = False,
     noise_sd: float = 1.0,
     ar: float = 0.0,
+    effect_scale: float = 1.0,
 ) -> Inputs:
     """Build synthetic runs with a known per-condition effect pattern.
 
@@ -141,7 +142,10 @@ def make_inputs(
     mask[1:-1, 1:-1, 1:-1] = True
     n_vox = int(mask.sum())
     active = np.arange(n_vox) < n_vox // 2
-    base_amp = dict(zip(conditions, [2.0, 1.0] + [1.5] * 8, strict=False))
+    base_amp = {
+        c: effect_scale * a
+        for c, a in zip(conditions, [2.0, 1.0] + [1.5] * 8, strict=False)
+    }
 
     imgs, events, confounds = [], [], []
     for _ in range(n_runs):
@@ -234,10 +238,18 @@ def make_bids_inputs(
     )
     subjects = []
     mask_img = None
+    # Older participants get a larger face > house effect (+2% per year).
+    ages = np.random.default_rng(seed).uniform(20, 70, n_subjects)
     for s in range(n_subjects):
         sub = f"{s + 1:02d}"
         subjects.append(sub)
-        inp = make_inputs(seed=seed + s, n_runs=n_runs, with_confounds=True, **kwargs)
+        inp = make_inputs(
+            seed=seed + s,
+            n_runs=n_runs,
+            with_confounds=True,
+            effect_scale=1.0 + 0.02 * (ages[s] - 45.0),
+            **kwargs,
+        )
         mask_img = inp.mask_img
         raw_func = root / f"sub-{sub}" / "func"
         der_func = deriv / f"sub-{sub}" / "func"
@@ -264,6 +276,13 @@ def make_bids_inputs(
                 index=False,
                 na_rep="n/a",
             )
+    pd.DataFrame(
+        {
+            "participant_id": [f"sub-{s}" for s in subjects],
+            "age": ages.round(1),
+            "handedness": ["R"] * (len(subjects) - 1) + ["n/a"],
+        }
+    ).to_csv(root / "participants.tsv", sep="\t", index=False)
     assert mask_img is not None
     return BidsInputs(
         root=root, task=task, space=space, subjects=tuple(subjects), mask_img=mask_img

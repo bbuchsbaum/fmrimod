@@ -38,8 +38,18 @@ against the latest one (`--baseline` picks another).
   `GroupLmResult.to_nifti`, `fm.bids_datasets`, confound tables carried
   on the dataset (`fmri_dataset(confounds=[...])` + `confounds("trans_x",
   ...)`), and the image shorthand on single-trial estimation. Now 854 vs
-  1109 tokens, faster in all 15 timed rows. Open items are listed at the
-  end of `REPORT.md`.
+  1109 tokens, faster in all 15 timed rows.
+- **Round 4** worked through the open notes without changing any default
+  (OLS noise, TR/2 grid, opt-in drift, R column names and the 24 s FIR span
+  are recorded as "By design" notes). Additions: `ar="ar1_voxelwise"`,
+  `hrf(..., pool_modulators=True)` (Nilearn's pooled-modulator model),
+  `names="short"` design-matrix labels, group accessors taking a bare level
+  (`t_stat("patient")`), `covariates=` as a `participants.tsv` path, and a
+  BIDS-to-group scenario (s14). Using Nilearn's AR(1) model in s06 exposed
+  voxelwise AR 10-33x slower than Nilearn; a vectorised Yule-Walker plus a
+  batched GLS solve (identical to ~1e-12) made it faster on small inputs and
+  2.2x slower at ~25k voxels (Nilearn bins coefficients; fmrimod stays
+  exact). fmrimod 965 vs Nilearn 1316 tokens over 14 scenarios.
 
 ## How a scenario is built
 
@@ -88,7 +98,7 @@ should be pinned as **strict xfail** probes in
 3. regenerate the report (`test_checked_in_report_matches_scenario_bodies`
    fails until you do);
 4. turn the probe into a regression test asserting the short form equals
-   the long one (sections 3 and 4 of that file hold rounds 2 and 3).
+   the long one (sections 3-5 of that file hold rounds 2-4).
 
 ## Adding a scenario
 

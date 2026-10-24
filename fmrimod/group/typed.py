@@ -68,11 +68,7 @@ class GroupLmResult:
         layout into a flat ``(n_voxels,)`` array for the common case;
         when ``contrasts > 1`` the result keeps the contrast axis.
         """
-        if predictor not in self.predictor_names:
-            raise KeyError(
-                f"GroupLmResult: predictor {predictor!r} not in "
-                f"{self.predictor_names!r}"
-            )
+        predictor = self.resolve_predictor(predictor)
         key = f"{prefix}:{predictor}"
         arr = np.asarray(self.dataset.assay(key), dtype=np.float64)
         # Default shape from ``ols_voxelwise`` is
@@ -84,6 +80,25 @@ class GroupLmResult:
             arr = arr[..., 0]
         return arr
 
+    def resolve_predictor(self, name: str) -> str:
+        """Map ``name`` to a design column in :attr:`predictor_names`.
+
+        Exact names win. Otherwise a factor level resolves to its
+        treatment-coded column when exactly one column codes it, so
+        ``"patient"`` finds ``"group[T.patient]"`` (the first-level rule
+        that lets ``"face"`` mean ``trial_type.face``).
+        """
+        if name in self.predictor_names:
+            return name
+        matches = [p for p in self.predictor_names if p.endswith(f"[T.{name}]")]
+        if len(matches) == 1:
+            return matches[0]
+        hint = f"; {name!r} matches {matches!r}" if matches else ""
+        raise KeyError(
+            f"GroupLmResult: predictor {name!r} not in "
+            f"{self.predictor_names!r}{hint}"
+        )
+
     def effect(self, predictor: str = "Intercept") -> Array:
         """Per-voxel coefficient estimate for ``predictor`` (default Intercept).
 
@@ -93,6 +108,7 @@ class GroupLmResult:
             Design column name: ``"Intercept"`` (default), a
             ``design_matrix=`` column, or a formula term such as
             ``"age"`` or ``"group[T.patient]"`` (see ``predictor_names``).
+            An unambiguous factor level (``"patient"``) also works.
 
         Examples
         --------
@@ -100,7 +116,7 @@ class GroupLmResult:
 
             res = fm.fmri_group_lm(maps, formula="~ group + age",
                                    covariates=participants)
-            res.effect("group[T.patient]")
+            res.effect("patient")  # same as "group[T.patient]"
         """
         return self._assay("coef", predictor)
 
@@ -113,6 +129,7 @@ class GroupLmResult:
             Design column name: ``"Intercept"`` (default), a
             ``design_matrix=`` column, or a formula term such as
             ``"age"`` or ``"group[T.patient]"`` (see ``predictor_names``).
+            An unambiguous factor level (``"patient"``) also works.
 
         Examples
         --------
@@ -120,7 +137,7 @@ class GroupLmResult:
 
             res = fm.fmri_group_lm(maps, formula="~ group + age",
                                    covariates=participants)
-            res.t_stat("group[T.patient]")
+            res.t_stat("patient")  # same as "group[T.patient]"
         """
         return self._assay("t_coef", predictor)
 
@@ -133,6 +150,7 @@ class GroupLmResult:
             Design column name: ``"Intercept"`` (default), a
             ``design_matrix=`` column, or a formula term such as
             ``"age"`` or ``"group[T.patient]"`` (see ``predictor_names``).
+            An unambiguous factor level (``"patient"``) also works.
 
         Examples
         --------
@@ -140,7 +158,7 @@ class GroupLmResult:
 
             res = fm.fmri_group_lm(maps, formula="~ group + age",
                                    covariates=participants)
-            res.p_value("group[T.patient]")
+            res.p_value("patient")  # same as "group[T.patient]"
         """
         return self._assay("p_coef", predictor)
 
@@ -153,6 +171,7 @@ class GroupLmResult:
             Design column name: ``"Intercept"`` (default), a
             ``design_matrix=`` column, or a formula term such as
             ``"age"`` or ``"group[T.patient]"`` (see ``predictor_names``).
+            An unambiguous factor level (``"patient"``) also works.
 
         Examples
         --------
@@ -160,7 +179,7 @@ class GroupLmResult:
 
             res = fm.fmri_group_lm(maps, formula="~ group + age",
                                    covariates=participants)
-            res.standard_error("group[T.patient]")
+            res.standard_error("patient")  # same as "group[T.patient]"
         """
         return self._assay("se_coef", predictor)
 
@@ -173,6 +192,7 @@ class GroupLmResult:
             Design column name: ``"Intercept"`` (default), a
             ``design_matrix=`` column, or a formula term such as
             ``"age"`` or ``"group[T.patient]"`` (see ``predictor_names``).
+            An unambiguous factor level (``"patient"``) also works.
 
         Examples
         --------
@@ -180,7 +200,7 @@ class GroupLmResult:
 
             res = fm.fmri_group_lm(maps, formula="~ group + age",
                                    covariates=participants)
-            res.z_score("group[T.patient]")
+            res.z_score("patient")  # same as "group[T.patient]"
         """
         from ..glm.contrasts import z_from_stat
 
@@ -311,8 +331,9 @@ def fmri_group_lm(
     n_jobs, chunk_size
         Forwarded to :func:`ols_voxelwise`.
     covariates
-        Subject-level table for ``formula=`` (e.g. a BIDS
-        ``participants.tsv`` with ``group`` and ``age``). Rows are matched
+        Subject-level table for ``formula=``: a DataFrame or the path of a
+        TSV/CSV file such as a BIDS ``participants.tsv`` (``n/a`` read as
+        missing). Rows are matched
         to subjects through a ``subject`` or ``participant_id`` column when
         present (a ``sub-`` prefix is ignored), otherwise taken in input
         order.
@@ -562,9 +583,7 @@ def _subject_table(covariates: Any, subjects: Sequence[Any]) -> Any:
     """Return ``covariates`` ordered like ``subjects`` with a ``subject`` column."""
     if covariates is None:
         return None
-    import pandas as pd
-
-    table = pd.DataFrame(covariates).copy()
+    table = _read_covariates(covariates).copy()
     names = [str(s) for s in subjects]
     if "subject" not in table.columns and "participant_id" in table.columns:
         table = table.rename(columns={"participant_id": "subject"})
@@ -587,12 +606,21 @@ def _subject_table(covariates: Any, subjects: Sequence[Any]) -> Any:
     return ordered.assign(subject=names)
 
 
+def _read_covariates(covariates: Any) -> Any:
+    """A DataFrame from a frame, mapping, or TSV/CSV path (BIDS ``n/a`` aware)."""
+    import pandas as pd
+
+    if isinstance(covariates, (str, Path)):
+        path = Path(covariates)
+        sep = "," if path.suffix.lower() == ".csv" else "\t"
+        return pd.read_csv(path, sep=sep, na_values="n/a")
+    return pd.DataFrame(covariates)
+
+
 def _ids_from_covariates(covariates: Any, n_subjects: int) -> Optional[list[str]]:
     if covariates is None:
         return None
-    import pandas as pd
-
-    table = pd.DataFrame(covariates)
+    table = _read_covariates(covariates)
     for column in ("subject", "participant_id"):
         if column in table.columns and len(table) == n_subjects:
             return [str(v) for v in table[column]]

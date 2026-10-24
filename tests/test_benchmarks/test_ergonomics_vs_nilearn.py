@@ -428,3 +428,150 @@ def test_bids_datasets_loads_fmriprep_layout() -> None:
         fm.bids_datasets(bids.root, bids.task, subjects=["03"])
     with pytest.raises(FileNotFoundError):
         fm.bids_datasets(bids.root, "nosuchtask")
+
+
+# ---------------------------------------------------------------------------
+# 5. proposal items after round 3 (additive; no default changed)
+# ---------------------------------------------------------------------------
+
+
+def test_ar1_voxelwise_shorthand_equals_aroptions() -> None:
+    import fmrimod as fm
+    from fmrimod.model.config import AROptions
+    from fmrimod.spec import drift, hrf
+
+    inp = make_inputs(seed=15, ar=0.4, n_scans=100)
+    ds = _dataset(inp)
+    spec = hrf("trial_type") + drift()
+    short = fm.fmri_lm(spec, ds, ar="ar1_voxelwise")
+    long = fm.fmri_lm(spec, ds, ar=AROptions(struct="ar1", voxelwise=True))
+    np.testing.assert_allclose(short.betas, long.betas)
+    pooled = fm.fmri_lm(spec, ds, ar="ar1")
+    assert not np.allclose(pooled.betas, short.betas)
+    with pytest.raises(ValueError, match="unknown ar"):
+        fm.fmri_lm(spec, ds, ar="ar1_global")
+
+
+def test_group_accessors_resolve_unambiguous_levels() -> None:
+    import fmrimod as fm
+    from benchmarks.ergonomics.inputs import make_group_map_inputs
+
+    maps = make_group_map_inputs(n_per_group=5)
+    res = fm.fmri_group_lm(
+        maps.paths, formula="~ group + age", covariates=maps.participants
+    )
+    np.testing.assert_array_equal(res.t_stat("patient"), res.t_stat("group[T.patient]"))
+    np.testing.assert_array_equal(res.effect("patient"), res.effect("group[T.patient]"))
+    with pytest.raises(KeyError, match="control"):
+        res.t_stat("control")
+
+
+def test_group_covariates_read_from_participants_tsv(tmp_path) -> None:
+    import fmrimod as fm
+    from benchmarks.ergonomics.inputs import make_group_map_inputs
+
+    maps = make_group_map_inputs(n_per_group=5)
+    table = maps.participants.assign(handedness=["R"] * 9 + ["n/a"])
+    path = tmp_path / "participants.tsv"
+    table.to_csv(path, sep="\t", index=False)
+    from_path = fm.fmri_group_lm(maps.paths, formula="~ group + age", covariates=path)
+    from_frame = fm.fmri_group_lm(maps.paths, formula="~ group + age", covariates=table)
+    np.testing.assert_allclose(from_path.t_stat("age"), from_frame.t_stat("age"))
+
+
+def test_pool_modulators_gives_one_shared_slope(one_run) -> None:
+    import fmrimod as fm
+    from fmrimod.spec import as_spec, hrf
+    from fmrimod.spec.serialize import from_dict, to_dict
+
+    pooled = hrf("trial_type", modulators=["rt"], pool_modulators=True)
+    fit = fm.fmri_lm(pooled, _dataset(one_run))
+    slopes = fit.design_columns().where(term="trial_type:rt").columns
+    assert len(slopes) == 1 and slopes[0].level == "rt"
+    events = one_run.events[0]
+    X = fit.model.design_matrix(run=0).to_numpy()
+    per_level = fm.fmri_lm(
+        hrf("trial_type", modulators=["rt"]), _dataset(one_run)
+    ).model.design_matrix(run=0)
+    assert per_level.shape[1] == X.shape[1] + events["trial_type"].nunique() - 1
+    assert fit.contrast("rt").stat.shape == (one_run.n_voxels,)
+    payload = to_dict(as_spec(pooled))
+    assert from_dict(payload).events[0].pool_modulators is True
+    plain = to_dict(as_spec(hrf("trial_type", modulators=["rt"])))
+    assert "pool_modulators" not in str(plain)  # Spec/v1 payloads unchanged
+
+
+def test_short_column_names_view(one_run) -> None:
+    import fmrimod as fm
+    from fmrimod.spec import confounds, drift, hrf
+
+    inp = make_inputs(seed=16, n_runs=2, n_scans=80, with_confounds=True)
+    spec = (
+        hrf("trial_type", modulators=["rt"]) + confounds(source=inp.confounds) + drift()
+    )
+    fit = fm.fmri_lm(spec, inp.imgs, tr=inp.tr, events=inp.events, mask=inp.mask_img)
+    short = fit.model.design_matrix(names="short")
+    long = fit.model.design_matrix()
+    np.testing.assert_array_equal(short.to_numpy(), long.to_numpy())
+    assert list(short.columns[:4]) == ["face", "house", "rt:face", "rt:house"]
+    assert {"drift1_run1", "constant_run2", "trans_x_run2"} <= set(short.columns)
+    assert short.columns.is_unique
+    frame = fm.design_matrix(
+        spec, events=inp.events_df, n_scans=[80, 80], tr=inp.tr, names="short"
+    )
+    assert list(frame.columns) == list(short.columns)
+    one = fm.design_matrix(
+        hrf("trial_type") + drift(),
+        events=one_run.events[0],
+        n_scans=160,
+        tr=one_run.tr,
+        names="short",
+    )
+    assert list(one.columns[:2]) == ["face", "house"]
+    assert "constant" in one.columns
+
+
+@pytest.mark.parametrize("struct", ["ar1", "ar2"])
+@pytest.mark.parametrize("n_runs", [1, 2])
+def test_voxelwise_ar_fast_paths_equal_per_voxel_reference(
+    monkeypatch, struct, n_runs
+) -> None:
+    import fmrimod as fm
+    import fmrimod.ar.integration as integration
+    from fmrimod.model.config import AROptions
+    from fmrimod.spec import drift, hrf
+
+    inp = make_inputs(seed=17, ar=0.4, n_runs=n_runs, n_scans=100, shape=(8, 8, 6))
+    ds = fm.fmri_dataset(inp.imgs, mask=inp.mask_img, tr=inp.tr, events=inp.events)
+    spec = hrf("trial_type") + drift()
+    ar = AROptions(struct=struct, voxelwise=True)
+    fast = fm.fmri_lm(spec, ds, ar=ar)
+
+    def per_voxel_phi(rm, order, noise_pools):
+        phi = np.zeros((order, rm.resid.shape[1]))
+        for v in range(rm.resid.shape[1]):
+            phi[:, v] = integration._estimate_phi([rm.resid[:, v : v + 1]], order)
+        return phi
+
+    monkeypatch.setattr(integration, "_voxelwise_phi", per_voxel_phi)
+    monkeypatch.setattr(integration, "_solve_voxelwise_batched", lambda rm, phi: None)
+    reference = fm.fmri_lm(spec, ds, ar=ar)
+    np.testing.assert_allclose(fast.betas, reference.betas, rtol=1e-9, atol=1e-9)
+    a, b = fast.contrast("face - house"), reference.contrast("face - house")
+    np.testing.assert_allclose(a.stat, b.stat, rtol=1e-9, atol=1e-9)
+    assert a.df == b.df
+
+
+def test_voxelwise_yule_walker_defers_degenerate_voxels() -> None:
+    from fmrimod.ar.integration import _estimate_phi, _voxelwise_yule_walker
+
+    rng = np.random.default_rng(3)
+    x = rng.normal(size=(120, 50))
+    x[:, 0] = 0.0  # no variance
+    x[:, 1] = np.arange(120.0)  # trend: PACF at the clamp
+    x[:, 2] = np.nan
+    finite = np.all(np.isfinite(x), axis=0)
+    phi, ok = _voxelwise_yule_walker(x, 1, finite)
+    assert not ok[:3].any() and ok[3:].all()
+    reference = np.array([_estimate_phi([x[:, v : v + 1]], 1)[0] for v in range(3, 50)])
+    np.testing.assert_allclose(phi[0, 3:], reference, atol=1e-13)

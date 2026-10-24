@@ -53,6 +53,7 @@ def hrf(
     contrasts: Sequence[ContrastSpec] = (),
     modulators: Sequence[str] = (),
     center_modulators: bool = True,
+    pool_modulators: bool = False,
     durations: str | float | None = None,
     lag: float = 0.0,
     subset: Optional[Predicate] = None,
@@ -85,6 +86,11 @@ def hrf(
         unmodulated boxcar scaled by the modulator's per-event value.
         Listing order is irrelevant — fmrimod does not orthogonalize
         modulators against each other.
+    pool_modulators
+        If True, each modulator is one regressor across all levels of the
+        term (centered over all its events), contrasted as ``"rt"``; if
+        False (default), one slope per level (``"trial_type:rt.face"``).
+        Pooling is the model Nilearn builds from a ``modulation`` column.
     center_modulators
         Mean-center each modulator at the input-variable level (on
         the raw per-event scalar that becomes the boxcar amplitude),
@@ -144,6 +150,7 @@ def hrf(
     >>> hrf("trial_type", "block", subset={"task": "memory"})
     >>> hrf("trial_type", modulators=("rt", "accuracy"))  # auto-centered
     >>> hrf("trial_type", modulators=("rt",), center_modulators=False)
+    >>> hrf("trial_type", modulators=("rt",), pool_modulators=True)  # one rt column
     """
     if not variables:
         raise ValueError("hrf() requires at least one variable name")
@@ -159,6 +166,7 @@ def hrf(
         contrasts=tuple(contrasts),
         modulators=tuple(modulators),
         center_modulators=bool(center_modulators),
+        pool_modulators=bool(pool_modulators),
         durations=durations,
         lag=lag,
         subset=subset,

@@ -143,7 +143,12 @@ def _lower_hrf_term(term: HrfTerm) -> list[EventModelTerm]:
     base_id = term.id or main.name
     lowered: list[EventModelTerm] = [main]
     for modulator in term.modulators:
-        param_events = list(term.variables) + [modulator]
+        # Pooled: the modulator alone, so one column spans every level.
+        param_events = (
+            [modulator]
+            if term.pool_modulators
+            else list(term.variables) + [modulator]
+        )
         param_name = f"{base_id}:{modulator}" if base_id else None
         param = EventModelTerm(
             param_events,
@@ -582,6 +587,7 @@ def design_frame(
     block: object = None,
     durations: object = None,
     precision: float | None = None,
+    names: Literal["long", "short"] = "long",
 ) -> pd.DataFrame:
     """Realise a spec as a named design-matrix DataFrame, without data.
 
@@ -607,6 +613,10 @@ def design_frame(
     block, durations, precision
         As for :func:`compile`; ``block``/``durations`` default to the
         ``run`` and ``duration`` columns when present.
+    names
+        ``"long"`` (default): the canonical R ``fmridesign`` column names.
+        ``"short"``: compact display labels (``face``, ``rt:face``,
+        ``drift1``); see :attr:`fmrimod.design.columns.DesignColumns.short_names`.
 
     Examples
     --------
@@ -636,7 +646,22 @@ def design_frame(
     if em is not None:
         parts.append(pd.DataFrame(np.asarray(em.design_matrix), columns=em.column_names))
     parts.append(pd.DataFrame(np.asarray(bm.design_matrix), columns=bm.column_names))
-    return pd.concat(parts, axis=1)
+    frame = pd.concat(parts, axis=1)
+    if names == "short":
+        frame.columns = list(_short_names_for(em, bm))
+    elif names != "long":
+        raise ValueError(f"names must be 'long' or 'short'; got {names!r}")
+    return frame
+
+
+def _short_names_for(em: object, bm: object) -> tuple[str, ...]:
+    from ..design.columns import DesignColumns
+
+    class _Parts:
+        event_model = em
+        baseline_model = bm
+
+    return DesignColumns.from_model(_Parts()).short_names
 
 
 def _register_design_matrix() -> None:
@@ -652,6 +677,7 @@ def _register_design_matrix() -> None:
         block: object = None,
         durations: object = None,
         precision: float | None = None,
+        names: Literal["long", "short"] = "long",
     ) -> pd.DataFrame:
         return design_frame(
             x,
@@ -662,6 +688,7 @@ def _register_design_matrix() -> None:
             block=block,
             durations=durations,
             precision=precision,
+            names=names,
         )
 
     design_matrix.register(Spec)(_spec_design_matrix)

@@ -101,6 +101,7 @@ class FmriModel:
     def design_matrix(
         self,
         run: Optional[int] = None,
+        names: str = "long",
     ) -> pd.DataFrame:
         """Build the combined event + baseline design matrix.
 
@@ -109,6 +110,10 @@ class FmriModel:
         run : int, optional
             If given, return the design matrix for a single run only.
             If *None*, return the concatenated design for all runs.
+        names : {"long", "short"}
+            ``"long"`` (default) keeps the canonical R ``fmridesign`` names;
+            ``"short"`` relabels with
+            :attr:`~fmrimod.design.columns.DesignColumns.short_names`.
 
         Returns
         -------
@@ -122,7 +127,12 @@ class FmriModel:
             cached = pd.concat([ev_dm, bl_dm], axis=1)
             self._design_matrix_cache[run] = cached
         # Hand out a copy so callers cannot mutate the memoised frame.
-        return cached.copy()
+        frame = cached.copy()
+        if names == "short":
+            frame.columns = list(self.design_columns().short_names)
+        elif names != "long":
+            raise ValueError(f"names must be 'long' or 'short'; got {names!r}")
+        return frame
 
     def design_matrix_array(
         self,

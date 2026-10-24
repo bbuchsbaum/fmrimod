@@ -15,28 +15,28 @@
   },
   "summary": {
     "authoring": {
-      "fmrimod": 6,
+      "fmrimod": 7,
       "nilearn": 4,
       "tie": 3
     },
     "speed": {
       "fmrimod": 15,
-      "nilearn": 0,
+      "nilearn": 1,
       "tie": 0
     },
     "noise": {
-      "fmrimod": 14,
+      "fmrimod": 15,
       "nilearn": 0,
       "tie": 1
     },
     "docs": {
-      "fmrimod": 12,
+      "fmrimod": 13,
       "nilearn": 0,
       "tie": 1
     },
     "total_tokens": {
-      "fmrimod": 854,
-      "nilearn": 1109
+      "fmrimod": 965,
+      "nilearn": 1316
     }
   },
   "scenarios": [
@@ -58,9 +58,9 @@
         "docs": "fmrimod"
       },
       "notes": [
-        "Default noise model differs: Nilearn `FirstLevelModel` is AR(1) by default, fmrimod `fmri_lm` is OLS (aligned here with a parity knob; now stated in the `fmri_lm` docstring).",
-        "Default sampling grid is the TR midpoint (`slice_timing_offset=TR/2`); Nilearn/SPM/FitLins use frame start. Any cross-tool comparison needs `slice_timing_offset=0.0`.",
-        "Drift is opt-in: `fmri_lm` fits no high-pass unless the spec has `drift()`; Nilearn applies a 100 s cosine by default (fmrimod's `drift()` default is SPM's 128 s)."
+        "By design: the default noise model is OLS (R fmrireg's `iid`), where Nilearn's `FirstLevelModel` uses AR(1); pass `ar=\"ar1_voxelwise\"` for Nilearn's model.",
+        "By design: the sampling grid starts at TR/2 (R fmrihrf #94); Nilearn/SPM/FitLins use frame start, so cross-tool comparisons pass `slice_timing_offset=0.0`.",
+        "By design: drift is opt-in (`+ drift()`, SPM's 128 s); Nilearn high-passes at 100 s by default. Fitting drift implicitly would change every existing fit."
       ],
       "fmrimod": {
         "library": "fmrimod",
@@ -79,16 +79,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 1.2556784559999414,
-          "warm_seconds": 0.00578743799997028,
+          "first_call_seconds": 1.256787544999952,
+          "warm_seconds": 0.005542461999993975,
           "warm_samples": [
-            0.007213234999994711,
-            0.0070665219999455076,
-            0.0064429209999161685,
-            0.006535714999927222,
-            0.00578743799997028,
-            0.006282736999992267,
-            0.00715470699992693
+            0.006787328999962483,
+            0.006390059999830555,
+            0.006206231000078333,
+            0.005815053000105763,
+            0.005763442999977997,
+            0.0063492920000953745,
+            0.005542461999993975
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -136,16 +136,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.45406344200000603,
-          "warm_seconds": 0.010655658000018775,
+          "first_call_seconds": 0.46768154300002607,
+          "warm_seconds": 0.011757737000152702,
           "warm_samples": [
-            0.012146277000056216,
-            0.01118999800007714,
-            0.010655658000018775,
-            0.01106305300004351,
-            0.011127729999998337,
-            0.011645995999970182,
-            0.012716657999931158
+            0.011757737000152702,
+            0.012210277000122005,
+            0.012232018000077005,
+            0.014566679999916232,
+            0.01187854799991328,
+            0.011929245000146693,
+            0.013119464000055814
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -194,9 +194,9 @@
         "docs": "n/a"
       },
       "notes": [
-        "Default noise model differs: Nilearn `FirstLevelModel` is AR(1) by default, fmrimod `fmri_lm` is OLS (aligned here with a parity knob; now stated in the `fmri_lm` docstring).",
-        "Default sampling grid is the TR midpoint (`slice_timing_offset=TR/2`); Nilearn/SPM/FitLins use frame start. Any cross-tool comparison needs `slice_timing_offset=0.0`.",
-        "Drift is opt-in: `fmri_lm` fits no high-pass unless the spec has `drift()`; Nilearn applies a 100 s cosine by default (fmrimod's `drift()` default is SPM's 128 s)."
+        "By design: the default noise model is OLS (R fmrireg's `iid`), where Nilearn's `FirstLevelModel` uses AR(1); pass `ar=\"ar1_voxelwise\"` for Nilearn's model.",
+        "By design: the sampling grid starts at TR/2 (R fmrihrf #94); Nilearn/SPM/FitLins use frame start, so cross-tool comparisons pass `slice_timing_offset=0.0`.",
+        "By design: drift is opt-in (`+ drift()`, SPM's 128 s); Nilearn high-passes at 100 s by default. Fitting drift implicitly would change every existing fit."
       ],
       "fmrimod": {
         "library": "fmrimod",
@@ -215,16 +215,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.15445692100001907,
-          "warm_seconds": 0.068357667999976,
+          "first_call_seconds": 0.21467192799991608,
+          "warm_seconds": 0.06632684199985306,
           "warm_samples": [
-            0.07162457000003997,
-            0.068357667999976,
-            0.07744574200000898,
-            0.08803110000008019,
-            0.08983213200008322,
-            0.08816094899998461,
-            0.09036670099999355
+            0.07674040500000956,
+            0.07626576699999532,
+            0.07323062699992988,
+            0.06965512100009619,
+            0.06835028699993018,
+            0.06721828199988522,
+            0.06632684199985306
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -272,16 +272,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.34794318700005533,
-          "warm_seconds": 0.16163889900008144,
+          "first_call_seconds": 0.4031194909998703,
+          "warm_seconds": 0.15690893400005734,
           "warm_samples": [
-            0.1876633029999084,
-            0.1776604839999436,
-            0.16163889900008144,
-            0.1658412799999951,
-            0.18081578800001807,
-            0.17097201399997175,
-            0.16493027800004256
+            0.17891744600001402,
+            0.15690893400005734,
+            0.5038482150000618,
+            0.1841635129999304,
+            0.17520204699985698,
+            0.1681756339999083,
+            0.167993597000077
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -348,16 +348,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.02768499800004065,
-          "warm_seconds": 0.023481358000026376,
+          "first_call_seconds": 0.029940622000140138,
+          "warm_seconds": 0.021585370999900988,
           "warm_samples": [
-            0.026786260999983824,
-            0.030838939999966897,
-            0.03200628599995525,
-            0.03429674500000601,
-            0.03155546499999673,
-            0.029052849000095193,
-            0.023481358000026376
+            0.024394992999987153,
+            0.022390770000129123,
+            0.022676297999851158,
+            0.021788150000020323,
+            0.022066988999995374,
+            0.021913788000119894,
+            0.021585370999900988
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -411,16 +411,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.031665224999983366,
-          "warm_seconds": 0.02999905100000433,
+          "first_call_seconds": 0.030399047999935647,
+          "warm_seconds": 0.02753910100000212,
           "warm_samples": [
-            0.031859141000040836,
-            0.030568452000011348,
-            0.030592565999995713,
-            0.030028684000058092,
-            0.02999905100000433,
-            0.030207292000000052,
-            0.030370762999950784
+            0.02753910100000212,
+            0.028375058999927205,
+            0.027934632000096826,
+            0.02928396399988742,
+            0.028320289000021148,
+            0.02768202500010375,
+            0.027587141000140036
           ],
           "warnings_emitted": 5,
           "warning_messages": [
@@ -457,10 +457,10 @@
       "title": "Parametric modulation by reaction time",
       "size": "small",
       "agreement": {
-        "correlation": 0.9999381522725544,
+        "correlation": 0.9999867060925223,
         "min_correlation": 0.999,
-        "max_abs_delta": 0.8032678314833568,
-        "relative_max_delta": 0.04149066152157431,
+        "max_abs_delta": 0.2082030314347012,
+        "relative_max_delta": 0.010754173348471589,
         "agrees": true
       },
       "verdicts": {
@@ -469,17 +469,15 @@
         "noise": "fmrimod",
         "docs": "fmrimod"
       },
-      "notes": [
-        "Modulators expand per condition, so a pooled RT effect is the sum of per-level slopes (`'trial_type:rt.face + trial_type:rt.house'`); there is no single pooled-modulator spelling."
-      ],
+      "notes": [],
       "fmrimod": {
         "library": "fmrimod",
         "authoring": {
           "statements": 4,
-          "tokens": 66,
+          "tokens": 70,
           "lines": 10,
           "calls": 4,
-          "keyword_args": 4,
+          "keyword_args": 5,
           "imports": 2,
           "imported_names": [
             "fm",
@@ -489,16 +487,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.007826869999917108,
-          "warm_seconds": 0.007309297999995579,
+          "first_call_seconds": 0.0068563120000817435,
+          "warm_seconds": 0.006566553000084241,
           "warm_samples": [
-            0.007309297999995579,
-            0.011179319999996551,
-            0.011566282999979194,
-            0.013238204000003861,
-            0.013384355999960462,
-            0.01450655399992229,
-            0.014920814999982213
+            0.0083564970000225,
+            0.007140194999919913,
+            0.007262431000071956,
+            0.006818327000019053,
+            0.007130932000109169,
+            0.006597303000035026,
+            0.006566553000084241
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -547,16 +545,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.11120030600000064,
-          "warm_seconds": 0.024844723999990492,
+          "first_call_seconds": 0.09946644599995125,
+          "warm_seconds": 0.026051557999835495,
           "warm_samples": [
-            0.024862503999997898,
-            0.02509754899995187,
-            0.024844723999990492,
-            0.02989279799999167,
-            0.03416637100008302,
-            0.027398176000019703,
-            0.031220793000102276
+            0.02995629900010499,
+            0.026674469999989014,
+            0.02639097899987064,
+            0.026051557999835495,
+            0.04004833399994823,
+            0.029213346999995338,
+            0.030591580000191243
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -623,16 +621,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.009533002000011948,
-          "warm_seconds": 0.007007447999967553,
+          "first_call_seconds": 0.007425563999959195,
+          "warm_seconds": 0.006894465999948807,
           "warm_samples": [
-            0.008957355999996253,
-            0.008983715999988817,
-            0.008221171000059257,
-            0.00843449799992868,
-            0.008700680000060856,
-            0.008213748000002852,
-            0.007007447999967553
+            0.008757555000102002,
+            0.007172362000119392,
+            0.007701644000007946,
+            0.006894465999948807,
+            0.007639029000074515,
+            0.007518961000187119,
+            0.007122006999907171
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -686,16 +684,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.013003205999893908,
-          "warm_seconds": 0.011433825000040088,
+          "first_call_seconds": 0.021530157000142935,
+          "warm_seconds": 0.01229992300000049,
           "warm_samples": [
-            0.011668111999938446,
-            0.011433825000040088,
-            0.011723384999982045,
-            0.011728765999919233,
-            0.011561314999994465,
-            0.011487295000051745,
-            0.0119542160000492
+            0.017904886999986047,
+            0.013169015999892508,
+            0.014063305000036053,
+            0.013381488000050012,
+            0.01340943199988942,
+            0.012624217000166027,
+            0.01229992300000049
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -744,7 +742,7 @@
         "docs": "fmrimod"
       },
       "notes": [
-        "`hrf(..., basis='fir', nbasis=N)` without `span=` still covers 24 s whatever N is; one bin per scan needs `span=N * tr` (Nilearn's `fir_delays` are in scans)."
+        "By design: `hrf(..., basis='fir', nbasis=N)` keeps R fmrihrf's 24 s span; one bin per scan (Nilearn's `fir_delays`) is `span=N * tr`."
       ],
       "fmrimod": {
         "library": "fmrimod",
@@ -764,16 +762,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.007481909000034648,
-          "warm_seconds": 0.006483000000002903,
+          "first_call_seconds": 0.00762868099991465,
+          "warm_seconds": 0.0063813179999669956,
           "warm_samples": [
-            0.006483000000002903,
-            0.008422735000067405,
-            0.009488956000041071,
-            0.009358928999972704,
-            0.007872999000028358,
-            0.007227250000028107,
-            0.007284678000019085
+            0.007464280000021972,
+            0.006850758999917161,
+            0.006566030000158207,
+            0.0070419889998447616,
+            0.0063813179999669956,
+            0.006663937999974223,
+            0.00725223300014477
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -827,16 +825,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.022061516999997366,
-          "warm_seconds": 0.016913295999984257,
+          "first_call_seconds": 0.016912385000068753,
+          "warm_seconds": 0.013415922999911345,
           "warm_samples": [
-            0.023082402999989426,
-            0.019038480999938656,
-            0.019625861000008626,
-            0.01795339700004206,
-            0.01709592099996371,
-            0.016913295999984257,
-            0.01798299099993983
+            0.015003891999867847,
+            0.015459811000027912,
+            0.013415922999911345,
+            0.015898211999910927,
+            0.01492139800006953,
+            0.017974762999983795,
+            0.016669259000082093
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -872,10 +870,10 @@
       "title": "AR(1) prewhitened t contrast",
       "size": "small",
       "agreement": {
-        "correlation": 0.9958390782541918,
-        "min_correlation": 0.99,
-        "max_abs_delta": 2.6239841912427675,
-        "relative_max_delta": 0.1982726568455053,
+        "correlation": 0.9999778782383592,
+        "min_correlation": 0.9999,
+        "max_abs_delta": 0.1510633102738641,
+        "relative_max_delta": 0.011414597686920614,
         "agrees": true
       },
       "verdicts": {
@@ -885,7 +883,7 @@
         "docs": "fmrimod"
       },
       "notes": [
-        "AR(1) estimators differ (fmrimod's pooled estimate vs Nilearn's quantised voxelwise AR(1)), so agreement is r\u22480.996 rather than exact. Parity of the AR path itself is tier_a_ar1_prewhitening's job."
+        "Uses `ar=\"ar1_voxelwise\"` (Nilearn's model, r>0.9999). Round 4 found that path 10-33x slower than Nilearn; vectorised AR estimation plus one batched GLS solve (identical to ~1e-12) closed the gap. The pooled default `ar=\"ar1\"` agrees only to r~0.996."
       ],
       "fmrimod": {
         "library": "fmrimod",
@@ -904,16 +902,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.01771740599997429,
-          "warm_seconds": 0.010286140999937743,
+          "first_call_seconds": 0.013776851000102397,
+          "warm_seconds": 0.011282848000064405,
           "warm_samples": [
-            0.015119802999947751,
-            0.014477006999982223,
-            0.014006018000031872,
-            0.013258627999903183,
-            0.010511687000075653,
-            0.01044936100004179,
-            0.010286140999937743
+            0.012412666000045647,
+            0.012041520000138917,
+            0.011431038999944576,
+            0.011500684999873556,
+            0.011804079000057754,
+            0.011282848000064405,
+            0.011760337999930925
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -961,16 +959,16 @@
           "parity_knobs": 2
         },
         "runtime": {
-          "first_call_seconds": 0.024545658999954867,
-          "warm_seconds": 0.022960868000041046,
+          "first_call_seconds": 0.02987123900015831,
+          "warm_seconds": 0.026638170000069294,
           "warm_samples": [
-            0.024019872999929248,
-            0.023764045999996597,
-            0.023693261000062193,
-            0.02318081400005667,
-            0.022960868000041046,
-            0.023199990999955844,
-            0.02320316299994829
+            0.036269338000010976,
+            0.02911423000000468,
+            0.02827359200000501,
+            0.02968925400000444,
+            0.026869202000170844,
+            0.028854325999873254,
+            0.026638170000069294
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -1006,20 +1004,20 @@
       "title": "AR(1) prewhitened t contrast",
       "size": "large",
       "agreement": {
-        "correlation": 0.9975260226449024,
-        "min_correlation": 0.99,
-        "max_abs_delta": 3.9332813652388765,
-        "relative_max_delta": 0.19625223380914997,
+        "correlation": 0.9999865100760991,
+        "min_correlation": 0.9999,
+        "max_abs_delta": 0.20350310714963982,
+        "relative_max_delta": 0.010153847552880088,
         "agrees": true
       },
       "verdicts": {
         "authoring": "n/a",
-        "speed": "fmrimod",
+        "speed": "nilearn",
         "noise": "fmrimod",
         "docs": "n/a"
       },
       "notes": [
-        "AR(1) estimators differ (fmrimod's pooled estimate vs Nilearn's quantised voxelwise AR(1)), so agreement is r\u22480.996 rather than exact. Parity of the AR path itself is tier_a_ar1_prewhitening's job."
+        "Uses `ar=\"ar1_voxelwise\"` (Nilearn's model, r>0.9999). Round 4 found that path 10-33x slower than Nilearn; vectorised AR estimation plus one batched GLS solve (identical to ~1e-12) closed the gap. The pooled default `ar=\"ar1\"` agrees only to r~0.996."
       ],
       "fmrimod": {
         "library": "fmrimod",
@@ -1038,16 +1036,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 2.6441120649999448,
-          "warm_seconds": 0.7947762969999985,
+          "first_call_seconds": 3.8490664299999935,
+          "warm_seconds": 1.8360149759998876,
           "warm_samples": [
-            0.8067467140000417,
-            1.5652804519999108,
-            0.9685947119999128,
-            1.1694059500000549,
-            0.7947762969999985,
-            1.9629973060000339,
-            1.6477864610000097
+            2.061401229000012,
+            1.8360149759998876,
+            2.5540043830001196,
+            1.8607944319999206,
+            2.475544075000016,
+            1.8498989140000504,
+            3.6109529840000505
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -1095,16 +1093,16 @@
           "parity_knobs": 2
         },
         "runtime": {
-          "first_call_seconds": 0.9264252870000291,
-          "warm_seconds": 0.8945720770000207,
+          "first_call_seconds": 0.9051739139999881,
+          "warm_seconds": 0.8266978510000627,
           "warm_samples": [
-            2.142521926000086,
-            2.1199743850000914,
-            1.9444146249999221,
-            1.907607463999966,
-            0.9037389169999415,
-            0.8945720770000207,
-            0.9431195099999741
+            1.1982318499999565,
+            0.8266978510000627,
+            1.0356499329998314,
+            0.869075463000172,
+            1.5996523710000474,
+            0.8588737659999879,
+            0.9647337379999499
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -1169,16 +1167,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.012616220000040812,
-          "warm_seconds": 0.010901392000050691,
+          "first_call_seconds": 0.015591075999964232,
+          "warm_seconds": 0.009475353999960134,
           "warm_samples": [
-            0.01244076499995117,
-            0.011541520999912791,
-            0.01160184900004424,
-            0.011019650999969599,
-            0.011315214000092055,
-            0.010901392000050691,
-            0.012050705999968159
+            0.014414576000035595,
+            0.011393575000056444,
+            0.009475353999960134,
+            0.015499885000053837,
+            0.012906829999792535,
+            0.011400921999893399,
+            0.013086000000157583
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -1214,16 +1212,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.36099576599997363,
-          "warm_seconds": 0.2800689110000576,
+          "first_call_seconds": 0.333818471000086,
+          "warm_seconds": 0.29489058700005444,
           "warm_samples": [
-            0.31728299000008064,
-            0.3197617170000058,
-            0.2800689110000576,
-            0.3845145189999357,
-            0.2832232440000553,
-            0.2929095749999533,
-            0.32643942400000014
+            0.3118881139998848,
+            0.29489058700005444,
+            0.37260087399999975,
+            0.32267423600001166,
+            0.34794023099993865,
+            0.36914070800003174,
+            0.337821004000034
           ],
           "warnings_emitted": 56,
           "warning_messages": [
@@ -1289,16 +1287,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.05253965499991864,
-          "warm_seconds": 0.045652947999997195,
+          "first_call_seconds": 0.056562584999937826,
+          "warm_seconds": 0.050707810999938374,
           "warm_samples": [
-            0.050665503999994144,
-            0.04898902799993721,
-            0.04848363500002506,
-            0.0482123289999663,
-            0.04935972499993113,
-            0.04905628399990292,
-            0.045652947999997195
+            0.05395716399993944,
+            0.051414024999985486,
+            0.05110595600012857,
+            0.05189993399994819,
+            0.052127252999980556,
+            0.05140284000003703,
+            0.050707810999938374
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -1342,16 +1340,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.1011338450000494,
-          "warm_seconds": 0.08970988199996555,
+          "first_call_seconds": 0.10976027000015165,
+          "warm_seconds": 0.115043538000009,
           "warm_samples": [
-            0.10213280200002828,
-            0.11032283599990933,
-            0.08970988199996555,
-            0.12770364499999687,
-            0.1324245460000384,
-            0.1263490379999439,
-            0.11899734600001466
+            0.12059298999997736,
+            0.1162571620000108,
+            0.11572337000006883,
+            0.15259311299996625,
+            0.13874905100010437,
+            0.11700278699981936,
+            0.115043538000009
           ],
           "warnings_emitted": 16,
           "warning_messages": [
@@ -1418,7 +1416,7 @@
         "docs": "tie"
       },
       "notes": [
-        "Column names repeat the term (`trial_type_trial_type.face`, `base_cosine1_block_1`) where Nilearn uses `face`, `drift_1`. Deferred: renaming is a public-contract change (parity receipts, BIDS export)."
+        "By design: canonical column names follow R fmridesign (`trial_type_trial_type.face`); `names=\"short\"` gives display labels (`face`, `rt:face`, `drift1`)."
       ],
       "fmrimod": {
         "library": "fmrimod",
@@ -1437,16 +1435,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.0030244440000615214,
-          "warm_seconds": 0.0021171650000724185,
+          "first_call_seconds": 0.0028876100000161387,
+          "warm_seconds": 0.0023926459998619976,
           "warm_samples": [
-            0.0027009280000811486,
-            0.0024151220000021567,
-            0.002429613000003883,
-            0.002617256999997153,
-            0.0022432499999922584,
-            0.0022224809999897843,
-            0.0021171650000724185
+            0.002487068000164072,
+            0.002646997000056217,
+            0.0023926459998619976,
+            0.0026890460001141037,
+            0.002849777999927028,
+            0.0028714760001093964,
+            0.0024950500001068576
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -1482,16 +1480,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.005717069000070296,
-          "warm_seconds": 0.004597020000005614,
+          "first_call_seconds": 0.007734652999943137,
+          "warm_seconds": 0.005445387999998275,
           "warm_samples": [
-            0.005214848999912647,
-            0.0049398380000411635,
-            0.0050594839999575925,
-            0.005494083999906252,
-            0.005186153000067861,
-            0.004809290000025612,
-            0.004597020000005614
+            0.006377580999924248,
+            0.005961051999975098,
+            0.0062389090001033765,
+            0.005893143999855965,
+            0.005540003999840337,
+            0.0060857800001485884,
+            0.005445387999998275
           ],
           "warnings_emitted": 1,
           "warning_messages": [
@@ -1527,7 +1525,7 @@
         "docs": "fmrimod"
       },
       "notes": [
-        "Remaining gap is the Nilearn default: `compute_contrast(...)` returns a z image, while fmrimod returns a `ContrastResult` and z is one explicit `kind=\"z\"` away (`.z` / `to_nifti(path, kind=\"z\")`)."
+        "By design: a contrast returns a `ContrastResult` holding t, z, effect, SE and p; writing z is `to_nifti(path, kind=\"z\")`, where Nilearn's default output is a z image."
       ],
       "fmrimod": {
         "library": "fmrimod",
@@ -1546,16 +1544,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.008284477999950468,
-          "warm_seconds": 0.008121436000010362,
+          "first_call_seconds": 0.009702255000092919,
+          "warm_seconds": 0.008908704999839756,
           "warm_samples": [
-            0.008662420999939968,
-            0.008121436000010362,
-            0.009036627000000408,
-            0.010595179000006283,
-            0.010683776999940164,
-            0.009449840000002041,
-            0.008960395000030985
+            0.010593335999828923,
+            0.009061169000005975,
+            0.009141382999814596,
+            0.009295723999912298,
+            0.009333774999959132,
+            0.009217175999992833,
+            0.008908704999839756
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -1609,16 +1607,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.015848807999987002,
-          "warm_seconds": 0.013966102000040337,
+          "first_call_seconds": 0.015923092000093675,
+          "warm_seconds": 0.014498449000029723,
           "warm_samples": [
-            0.015107543999988593,
-            0.01501376999999593,
-            0.014941308000061326,
-            0.014667806000034034,
-            0.014743421999924067,
-            0.014825954999992064,
-            0.013966102000040337
+            0.015536314000200946,
+            0.01482571800011101,
+            0.014596954999888112,
+            0.015175867999914772,
+            0.014921414000127697,
+            0.014850533000071664,
+            0.014498449000029723
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -1684,16 +1682,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.008686530999966635,
-          "warm_seconds": 0.006690198000001146,
+          "first_call_seconds": 0.008034840000163967,
+          "warm_seconds": 0.00739154600000802,
           "warm_samples": [
-            0.0078051530000493585,
-            0.007134415999985322,
-            0.007084297999995215,
-            0.007116592999977911,
-            0.007086657000058949,
-            0.006937141000094016,
-            0.006690198000001146
+            0.008307950000016717,
+            0.007479486000192992,
+            0.008229913999912242,
+            0.008112694999908854,
+            0.00761141799989673,
+            0.007472652000160451,
+            0.00739154600000802
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -1735,16 +1733,16 @@
           "parity_knobs": 3
         },
         "runtime": {
-          "first_call_seconds": 0.020689505000063946,
-          "warm_seconds": 0.020712628999945082,
+          "first_call_seconds": 0.021548488000007637,
+          "warm_seconds": 0.020045271999833858,
           "warm_samples": [
-            0.021005722999916543,
-            0.021341066999980285,
-            0.02098179799997979,
-            0.021291318999942632,
-            0.021384932999922057,
-            0.021154021999905126,
-            0.020712628999945082
+            0.022077076999948986,
+            0.021019067999986873,
+            0.020045271999833858,
+            0.0222459379999691,
+            0.02221863299996585,
+            0.02205320300004132,
+            0.02034187300000667
           ],
           "warnings_emitted": 2,
           "warning_messages": [
@@ -1786,9 +1784,7 @@
         "noise": "tie",
         "docs": "fmrimod"
       },
-      "notes": [
-        "Formula predictors use treatment-coded names (`group[T.patient]`), not the plain column name a hand-built Nilearn design gives you."
-      ],
+      "notes": [],
       "fmrimod": {
         "library": "fmrimod",
         "authoring": {
@@ -1804,16 +1800,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.05775589799998215,
-          "warm_seconds": 0.05056871299996146,
+          "first_call_seconds": 0.05615912500002196,
+          "warm_seconds": 0.05111925099981818,
           "warm_samples": [
-            0.05945215700000972,
-            0.058141105000004245,
-            0.05565782900009708,
-            0.052494417999923826,
-            0.05129902800001673,
-            0.05056871299996146,
-            0.051672608999979275
+            0.05404766399988148,
+            0.0523022200000014,
+            0.053112248999923395,
+            0.05498482999996668,
+            0.05111925099981818,
+            0.051651345999971454,
+            0.05505025399997976
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -1849,16 +1845,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.260314411999957,
-          "warm_seconds": 0.2576466509999591,
+          "first_call_seconds": 0.2502855499999441,
+          "warm_seconds": 0.2843590560000848,
           "warm_samples": [
-            0.26110083800006123,
-            0.3673598980000179,
-            0.32285417599996435,
-            0.29822317100001783,
-            0.36660645800009206,
-            0.3070446570000058,
-            0.2576466509999591
+            0.2843590560000848,
+            0.2844724750000296,
+            0.37012220399992657,
+            0.3219598579999001,
+            0.3186696089999259,
+            0.33909817899984773,
+            0.2972906590000548
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -1891,10 +1887,10 @@
       "title": "First level for every subject of a BIDS + fMRIPrep dataset",
       "size": "small",
       "agreement": {
-        "correlation": 0.9998641851411791,
+        "correlation": 0.9998803564910718,
         "min_correlation": 0.999,
-        "max_abs_delta": 0.5308198086811728,
-        "relative_max_delta": 0.031119948523571722,
+        "max_abs_delta": 0.5581392122440825,
+        "relative_max_delta": 0.02840118955585678,
         "agrees": true
       },
       "verdicts": {
@@ -1924,16 +1920,16 @@
           "parity_knobs": 1
         },
         "runtime": {
-          "first_call_seconds": 0.07615226999996594,
-          "warm_seconds": 0.07821512399993935,
+          "first_call_seconds": 0.09020272199995816,
+          "warm_seconds": 0.08166288699999313,
           "warm_samples": [
-            0.08448276399997212,
-            0.10135836099993867,
-            0.09081878800009235,
-            0.08628170500003307,
-            0.08765005199995812,
-            0.08719193600006747,
-            0.07821512399993935
+            0.08724263299995982,
+            0.08697890899998129,
+            0.08552866700006234,
+            0.08652478799990604,
+            0.0945970049999687,
+            0.08166288699999313,
+            0.09100061499998446
           ],
           "warnings_emitted": 0,
           "warning_messages": []
@@ -1981,20 +1977,20 @@
           "parity_knobs": 4
         },
         "runtime": {
-          "first_call_seconds": 0.12795368499996584,
-          "warm_seconds": 0.12750138800004152,
+          "first_call_seconds": 0.26451136499986205,
+          "warm_seconds": 0.12549842899989017,
           "warm_samples": [
-            0.13704238200000418,
-            0.13901267500000358,
-            0.1319814700000279,
-            0.12902531700001418,
-            0.13142712499995923,
-            0.12750138800004152,
-            0.17398303299989948
+            0.1321471680000741,
+            0.13175052399992637,
+            0.15955474600013986,
+            0.12549842899989017,
+            0.1292052449998664,
+            0.12647589200014409,
+            0.14215163200015013
           ],
           "warnings_emitted": 14,
           "warning_messages": [
-            "'StartTime' not found in file /tmp/bids-n2vhy4g3/derivatives/fmriprep/sub-01/func/sub-01_task-faces_run-1_space-MNI152NLin2009cAsym_desc-preproc_bold.json.",
+            "'StartTime' not found in file /tmp/bids-thsesk3f/derivatives/fmriprep/sub-01/func/sub-01_task-faces_run-1_space-MNI152NLin2009cAsym_desc-preproc_bold.json.",
             "'slice_time_ref' not provided and cannot be inferred from metadata.",
             "The following unexpected columns in events data will be ignored: rt",
             "The same contrast will be used for all 2 runs. If the design matrices are not the same for all runs, (for example with different column names or column order ac",
@@ -2023,9 +2019,183 @@
         ],
         "docs_score": 0.7777777777777778
       }
+    },
+    {
+      "scenario_id": "s14_bids_to_group",
+      "title": "BIDS dataset to group effect of age from participants.tsv",
+      "size": "small",
+      "agreement": {
+        "correlation": 0.9917309538943899,
+        "min_correlation": 0.99,
+        "max_abs_delta": 6.7868608943767725,
+        "relative_max_delta": 0.18296801406542648,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "fmrimod",
+        "speed": "fmrimod",
+        "noise": "fmrimod",
+        "docs": "fmrimod"
+      },
+      "notes": [
+        "Agreement gate is r>=0.99, not 0.999: first-level estimates agree at r>=0.9997 (with a constant 1.20 HRF-normalisation scale) and the group stage is exact, but six subjects' age t in null voxels amplifies that last 0.03%."
+      ],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 7,
+          "tokens": 107,
+          "lines": 16,
+          "calls": 9,
+          "keyword_args": 3,
+          "imports": 2,
+          "imported_names": [
+            "fm",
+            "confounds",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.18581889899996895,
+          "warm_seconds": 0.17604353799993078,
+          "warm_samples": [
+            0.17604353799993078,
+            0.1808066940000117,
+            0.23450441800014232,
+            0.19688894600017193,
+            0.18158167499996125,
+            0.18243841700018493,
+            0.17883044700010942
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": []
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.dataset.bids_fs.bids_datasets",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.group.typed.GroupLmResult.t_stat",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.group.typed.fmri_group_lm",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.confounds",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 13,
+          "tokens": 207,
+          "lines": 20,
+          "calls": 12,
+          "keyword_args": 10,
+          "imports": 2,
+          "imported_names": [
+            "first_level_from_bids",
+            "SecondLevelModel"
+          ],
+          "parity_knobs": 5
+        },
+        "runtime": {
+          "first_call_seconds": 0.28360701299993707,
+          "warm_seconds": 0.23936097199998585,
+          "warm_samples": [
+            0.2746520650000548,
+            0.2982262099999389,
+            0.2728048519998083,
+            0.292060784999876,
+            0.26315480199991725,
+            0.2583489629998894,
+            0.23936097199998585
+          ],
+          "warnings_emitted": 26,
+          "warning_messages": [
+            "'StartTime' not found in file /tmp/bids-ijhzs32n/derivatives/fmriprep/sub-01/func/sub-01_task-faces_run-1_space-MNI152NLin2009cAsym_desc-preproc_bold.json.",
+            "'slice_time_ref' not provided and cannot be inferred from metadata.",
+            "The following unexpected columns in events data will be ignored: rt",
+            "The same contrast will be used for all 2 runs. If the design matrices are not the same for all runs, (for example with different column names or column order ac",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ]
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.first_level_from_bids",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "nilearn.glm.second_level.second_level.SecondLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.second_level.second_level.SecondLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.second_level.second_level.SecondLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          }
+        ],
+        "docs_score": 0.7222222222222222
+      }
     }
   ],
   "deficiencies": [
+    {
+      "scenario": "s06_ar1_t[large]",
+      "axis": "speed",
+      "detail": "1836.0 ms vs Nilearn 826.7 ms"
+    },
     {
       "scenario": "s01_two_condition_t[small]",
       "axis": "authoring",
@@ -2049,52 +2219,47 @@
     {
       "scenario": "s01_two_condition_t[small]",
       "axis": "friction",
-      "detail": "Default noise model differs: Nilearn `FirstLevelModel` is AR(1) by default, fmrimod `fmri_lm` is OLS (aligned here with a parity knob; now stated in the `fmri_lm` docstring)."
+      "detail": "By design: the default noise model is OLS (R fmrireg's `iid`), where Nilearn's `FirstLevelModel` uses AR(1); pass `ar=\"ar1_voxelwise\"` for Nilearn's model."
     },
     {
       "scenario": "s01_two_condition_t[small]",
       "axis": "friction",
-      "detail": "Default sampling grid is the TR midpoint (`slice_timing_offset=TR/2`); Nilearn/SPM/FitLins use frame start. Any cross-tool comparison needs `slice_timing_offset=0.0`."
+      "detail": "By design: the sampling grid starts at TR/2 (R fmrihrf #94); Nilearn/SPM/FitLins use frame start, so cross-tool comparisons pass `slice_timing_offset=0.0`."
     },
     {
       "scenario": "s01_two_condition_t[small]",
       "axis": "friction",
-      "detail": "Drift is opt-in: `fmri_lm` fits no high-pass unless the spec has `drift()`; Nilearn applies a 100 s cosine by default (fmrimod's `drift()` default is SPM's 128 s)."
-    },
-    {
-      "scenario": "s03_parametric_rt[small]",
-      "axis": "friction",
-      "detail": "Modulators expand per condition, so a pooled RT effect is the sum of per-level slopes (`'trial_type:rt.face + trial_type:rt.house'`); there is no single pooled-modulator spelling."
+      "detail": "By design: drift is opt-in (`+ drift()`, SPM's 128 s); Nilearn high-passes at 100 s by default. Fitting drift implicitly would change every existing fit."
     },
     {
       "scenario": "s05_fir_shape[small]",
       "axis": "friction",
-      "detail": "`hrf(..., basis='fir', nbasis=N)` without `span=` still covers 24 s whatever N is; one bin per scan needs `span=N * tr` (Nilearn's `fir_delays` are in scans)."
+      "detail": "By design: `hrf(..., basis='fir', nbasis=N)` keeps R fmrihrf's 24 s span; one bin per scan (Nilearn's `fir_delays`) is `span=N * tr`."
     },
     {
       "scenario": "s06_ar1_t[small]",
       "axis": "friction",
-      "detail": "AR(1) estimators differ (fmrimod's pooled estimate vs Nilearn's quantised voxelwise AR(1)), so agreement is r\u22480.996 rather than exact. Parity of the AR path itself is tier_a_ar1_prewhitening's job."
+      "detail": "Uses `ar=\"ar1_voxelwise\"` (Nilearn's model, r>0.9999). Round 4 found that path 10-33x slower than Nilearn; vectorised AR estimation plus one batched GLS solve (identical to ~1e-12) closed the gap. The pooled default `ar=\"ar1\"` agrees only to r~0.996."
     },
     {
       "scenario": "s09_design_only[small]",
       "axis": "friction",
-      "detail": "Column names repeat the term (`trial_type_trial_type.face`, `base_cosine1_block_1`) where Nilearn uses `face`, `drift_1`. Deferred: renaming is a public-contract change (parity receipts, BIDS export)."
+      "detail": "By design: canonical column names follow R fmridesign (`trial_type_trial_type.face`); `names=\"short\"` gives display labels (`face`, `rt:face`, `drift1`)."
     },
     {
       "scenario": "s10_zmap_to_nifti[small]",
       "axis": "friction",
-      "detail": "Remaining gap is the Nilearn default: `compute_contrast(...)` returns a z image, while fmrimod returns a `ContrastResult` and z is one explicit `kind=\"z\"` away (`.z` / `to_nifti(path, kind=\"z\")`)."
-    },
-    {
-      "scenario": "s12_group_covariate[small]",
-      "axis": "friction",
-      "detail": "Formula predictors use treatment-coded names (`group[T.patient]`), not the plain column name a hand-built Nilearn design gives you."
+      "detail": "By design: a contrast returns a `ContrastResult` holding t, z, effect, SE and p; writing z is `to_nifti(path, kind=\"z\")`, where Nilearn's default output is a z image."
     },
     {
       "scenario": "s13_bids_first_level[small]",
       "axis": "friction",
       "detail": "`fm.bids_datasets` covers the fMRIPrep first-level layout only (preproc BOLD, events, sidecar TR, brain mask, confounds); no BIDS Stats Model or pybids query language."
+    },
+    {
+      "scenario": "s14_bids_to_group[small]",
+      "axis": "friction",
+      "detail": "Agreement gate is r>=0.99, not 0.999: first-level estimates agree at r>=0.9997 (with a constant 1.20 HRF-normalisation scale) and the group stage is exact, but six subjects' age t in null voxels amplifies that last 0.03%."
     }
   ]
 }
