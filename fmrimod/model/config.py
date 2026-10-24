@@ -258,7 +258,8 @@ class VolumeWeightOptions:
     threshold : float
         DVARS threshold for weighting.
     weights : NDArray or None
-        Pre-computed weight vector (overrides method/threshold).
+        Pre-computed weight vector (overrides method/threshold). Supplying
+        it turns weighting on, as fmrireg ``weights_spec(values = w)``.
     """
 
     enabled: bool = False
@@ -286,6 +287,7 @@ class VolumeWeightOptions:
             if np.any(w < 0):
                 raise ValueError("weights must be non-negative")
             self.weights = w
+            self.enabled = True
 
 
 @dataclass

@@ -356,6 +356,9 @@ class LmResult:
     fitted : NDArray or None
         Fitted values ``X @ B``, shape ``(n, V)``.  Only present when
         ``return_fitted=True``.
+    obs_weights : NDArray or None
+        Prior observation (volume) weights already applied to the rows of
+        ``X`` and ``Y``; a zero-weight row is not an observation.
     """
 
     betas: NDArray[np.float64]
@@ -364,6 +367,7 @@ class LmResult:
     dfres: float
     rank: int
     fitted: Optional[NDArray[np.float64]] = None
+    obs_weights: NDArray[np.float64] | None = None
 
 
 def fast_lm_matrix(
