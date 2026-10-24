@@ -260,3 +260,56 @@ class TestWhitenConvenience:
         assert isinstance(wr, WhitenResult)
         assert wr.X.shape == X.shape
         assert wr.Y.shape == Y.shape
+
+
+class TestLogicalCensorMask:
+    """fmriAR 617bd87 (test-audit-regressions.R:45-61), row AR-06.
+
+    Cheap pass disqualified: converting the mask only inside ``whiten()``
+    leaves the direct ``whiten_apply`` assertions red, and the parcel branch
+    builds its segment starts separately from the global/run branch.
+    """
+
+    def _fixture(self):
+        rng = np.random.default_rng(9103)
+        R = _sim_ar1(200, 0.5, V=4, seed=9103)
+        X = np.column_stack([np.ones(200), rng.standard_normal(200)])
+        mask = np.zeros(200, dtype=bool)
+        mask[[49, 119, 120]] = True
+        return X, R, mask
+
+    def test_whiten_apply_mask_equals_indices(self):
+        X, R, mask = self._fixture()
+        plan = fit_noise(R, p=1, censor=mask)
+        np.testing.assert_array_equal(plan.censor, np.flatnonzero(mask))
+        a = whiten_apply(plan, X, R, censor=mask)
+        b = whiten_apply(plan, X, R, censor=np.flatnonzero(mask))
+        np.testing.assert_array_equal(a.Y, b.Y)
+        np.testing.assert_array_equal(a.X, b.X)
+        with pytest.raises(ValueError, match="one entry per timepoint"):
+            whiten_apply(plan, X, R, censor=mask[1:])
+
+    def test_parcel_plan_mask_equals_indices(self):
+        X, R, mask = self._fixture()
+        parcels = np.array([1, 1, 2, 2])
+        plan = fit_noise(R, p=1, censor=mask, pooling="parcel", parcels=parcels)
+        a = whiten_apply(plan, X, R, censor=mask)
+        b = whiten_apply(plan, X, R, censor=np.flatnonzero(mask))
+        np.testing.assert_array_equal(a.Y, b.Y)
+        for key in b.X_by:
+            np.testing.assert_array_equal(a.X_by[key], b.X_by[key])
+
+    def test_whiten_forwards_mask_to_both_steps(self):
+        X, R, mask = self._fixture()
+        w1 = whiten(X, R, censor=mask, p=1)
+        w2 = whiten(X, R, censor=np.flatnonzero(mask), p=1)
+        np.testing.assert_array_equal(w1.Y, w2.Y)
+
+    def test_wrong_length_mask_is_refused_when_fitting(self):
+        X, R, mask = self._fixture()
+        with pytest.raises(ValueError, match="one entry per timepoint"):
+            fit_noise(R, p=1, censor=mask[:-1])
+        from fmrimod.ar.acvf import noise_acvf
+
+        with pytest.raises(ValueError, match="one entry per timepoint"):
+            noise_acvf(R, censor=mask[:-1])
