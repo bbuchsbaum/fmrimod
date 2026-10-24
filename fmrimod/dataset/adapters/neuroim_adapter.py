@@ -64,9 +64,11 @@ class NeuroVecAdapter:
         volume. If ``None``, a default mask is built from non-zero voxels of
         the first volume of the first run.
     tr
-        Repetition time in seconds.
+        Repetition time in seconds, or one value per run.
     start_time
-        Onset of the first volume (defaults to 0.0).
+        Onset of the first volume (defaults to 0.0), or one value per run.
+        ``None`` applies the :class:`SamplingFrame` default of ``TR/2`` per
+        run.
 
     Examples
     --------
@@ -83,8 +85,8 @@ class NeuroVecAdapter:
         vecs: Union["neuroim.NeuroVec", Sequence["neuroim.NeuroVec"]],
         *,
         mask: object = None,
-        tr: float,
-        start_time: float = 0.0,
+        tr: float | Sequence[float],
+        start_time: float | Sequence[float] | None = 0.0,
     ) -> None:
         try:
             import neuroim  # noqa: F401  # type: ignore[import-not-found]
@@ -129,9 +131,11 @@ class NeuroVecAdapter:
                 f"Mask shape {self._mask.shape} != spatial shape {spatial_shape}"
             )
 
-        self._tr = float(tr)
-        self._start_time = float(start_time)
         self._n_timepoints = [int(v.space.dim[3]) for v in self._vecs]
+        # Per-run TR and start_time pass straight through (R 99d19fe, #94).
+        self._sampling_frame = SamplingFrame(
+            blocklens=self._n_timepoints, tr=tr, start_time=start_time
+        )
         self._n_voxels = int(self._mask.sum())
         # ``NeuroVec`` has a 4-D ``NeuroSpace``, whose full transform may be
         # 5x5.  DatasetProtocol.get_affine() is specifically the 4x4 spatial
@@ -157,11 +161,7 @@ class NeuroVecAdapter:
 
     def get_sampling_frame(self) -> SamplingFrame:
         """Return the sampling frame for all runs."""
-        return SamplingFrame(
-            blocklens=self._n_timepoints,
-            tr=self._tr,
-            start_time=self._start_time,
-        )
+        return self._sampling_frame
 
     @property
     def n_runs(self) -> int:
@@ -187,8 +187,8 @@ class NeuroVecAdapter:
         paths: Union[str, Path, Sequence[Union[str, Path]]],
         *,
         mask: object = None,
-        tr: float,
-        start_time: float = 0.0,
+        tr: float | Sequence[float],
+        start_time: float | Sequence[float] | None = 0.0,
     ) -> "NeuroVecAdapter":
         """Load NIfTI files via :func:`neuroim.read_vec` and wrap them."""
         try:
@@ -215,8 +215,8 @@ class NeuroVecAdapter:
         spacing: Optional[Sequence[float]] = None,
         origin: Optional[Sequence[float]] = None,
         mask: object = None,
-        tr: float,
-        start_time: float = 0.0,
+        tr: float | Sequence[float],
+        start_time: float | Sequence[float] | None = 0.0,
     ) -> "NeuroVecAdapter":
         """Wrap a 4-D ndarray as a single-run NeuroVecAdapter."""
         try:

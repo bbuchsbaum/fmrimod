@@ -70,6 +70,42 @@ def test_fmri_dataset_mismatched_offsets_error_clearly() -> None:
         )
 
 
+def test_fmri_dataset_keeps_per_run_start_time_and_tr_default() -> None:
+    """Per-run ``start_time`` and the per-run ``TR/2`` default survive.
+
+    R ``99d19fe`` (#94): ``start_time`` is constant within a run and may
+    differ between runs; it is passed through to
+    ``fmrihrf::sampling_frame(start_time=)``, whose default is ``TR/2`` per
+    run.
+    """
+    mat = np.zeros((20, 3))
+    ds = fm.dataset.fmri_dataset(
+        mat, tr=2.0, run_length=[10, 10], start_time=[1.0, 0.25]
+    )
+    np.testing.assert_allclose(ds.sampling_frame.start_time, [1.0, 0.25])
+
+    ds_tr = fm.dataset.fmri_dataset(mat, tr=[1.5, 2.0], run_length=[10, 10])
+    np.testing.assert_allclose(ds_tr.sampling_frame.start_time, [0.75, 1.0])
+
+    ni = pytest.importorskip("neuroim")
+    space = ni.NeuroSpace(
+        dim=(2, 2, 2, 10), spacing=(1, 1, 1, 1), origin=(0, 0, 0, 0)
+    )
+    rng = np.random.default_rng(1)
+    vecs = [
+        ni.DenseNeuroVec(rng.normal(size=(2, 2, 2, 10)) + 5, space)
+        for _ in range(2)
+    ]
+    ds_vec = fm.dataset.fmri_dataset(vecs, tr=2.0, start_time=[1.0, 0.25])
+    np.testing.assert_allclose(ds_vec.sampling_frame.start_time, [1.0, 0.25])
+    np.testing.assert_allclose(
+        ds_vec.sampling_frame.block_samples(1), 0.25 + np.arange(10) * 2.0
+    )
+    ds_vec_tr = fm.dataset.fmri_dataset(vecs, tr=[1.5, 2.0])
+    np.testing.assert_allclose(ds_vec_tr.sampling_frame.tr, [1.5, 2.0])
+    np.testing.assert_allclose(ds_vec_tr.sampling_frame.start_time, [0.75, 1.0])
+
+
 def test_matrix_dataset_slice_timing_offset_zero() -> None:
     """``matrix_dataset`` honors ``slice_timing_offset=0.0``."""
     ds = matrix_dataset(
