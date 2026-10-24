@@ -441,7 +441,12 @@ mote (0 highest).
 
 ## Not checked
 
-- No R code was run; `cross_testing/` was not run against R.
+- No R code was run for the audit or wave 1; `cross_testing/` was not run
+  against R. One exception came after wave 1 merged: the ARMA path (AR-03,
+  pooled Hannan-Rissanen with censoring, both poolings, `hr_iter` and the
+  order grid) agrees with fmriAR 0.4.2 (`bb0789c`, R 4.3.3) to 2.5e-11 in
+  `cross_testing/test_fmriar_arma_parity.py`. The rest of fmriAR and the
+  other six packages are still unchecked against R.
 - GitHub issues and pull requests of the R packages were not read, only
   their git history, NEWS and tests.
 - `pybids` is not installed, so the BIDS-directory `space=` filter path is
