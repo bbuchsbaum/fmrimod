@@ -82,3 +82,17 @@ def test_group_fit_spatial_rejects_non_integer_group_ids():
                 group_ids=np.array([0.0, 1.5, 2.0], dtype=np.float64),
             )
         )
+
+
+def test_fdr_correction_ignores_missing_p_values():
+    # inventory v2 GDS-07: one NaN p must not blank the map. Like R's
+    # p.adjust, n counts the finite p-values and NaN stays NaN.
+    p = np.array([0.001, 0.01, 0.02, np.nan, 0.5])
+    reject, q = fdr_correction(p)
+    np.testing.assert_allclose(q, [0.004, 0.02, 0.02666666666666667, np.nan, 0.5])
+    np.testing.assert_array_equal(reject, [True, True, True, False, False])
+
+    _, q_by = fdr_correction(p, method="by")
+    c_4 = 1.0 + 1.0 / 2 + 1.0 / 3 + 1.0 / 4
+    np.testing.assert_allclose(q_by[:3], np.minimum(np.array([0.004, 0.02, 0.02666666666666667]) * c_4, 1.0))
+    assert np.isnan(q_by[3])
