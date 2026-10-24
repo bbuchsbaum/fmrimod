@@ -862,25 +862,30 @@ def _pool_run_results(
     # se_{r,j,v}^2 = sigma2_{r,v} * XtXinv_{r,j,j}
     wsum = np.zeros((p_dim, V), dtype=np.float64)
     wbeta = np.zeros((p_dim, V), dtype=np.float64)
+    n_exact = np.zeros((p_dim, V), dtype=np.float64)
+    exact_beta = np.zeros((p_dim, V), dtype=np.float64)
     beta_mean = np.zeros((p_dim, V), dtype=np.float64)
-    eps: float = float(np.finfo(np.float64).eps)
 
     for r, proj in zip(results, projections):
         beta_mean += r.betas
-        diag_xtxinv = np.maximum(np.diag(proj.XtXinv), 0.0)[:, np.newaxis]  # (p,1)
-        se2 = diag_xtxinv * r.sigma2[np.newaxis, :]  # (p,V)
-        # Use np.divide with where= so columns that contribute no
-        # information in this run (zero se2 — happens on orthogonal
-        # multi-run designs where each run's design block is zero for
-        # the other run's columns) get weight 0 without raising
-        # RuntimeWarning: divide by zero.
-        w = np.divide(
-            1.0, se2,
-            out=np.zeros_like(se2),
-            where=se2 > eps,
-        )
+        diag_xtxinv = np.maximum(np.diag(proj.XtXinv), 0.0)
+        # A column the run does not estimate carries no information there:
+        # on full-width multi-run designs each run's design block is zero
+        # for the other runs' columns, which the pivoted QR reports as
+        # aliased. This is a property of the design, not of the data scale.
+        estimated = diag_xtxinv > 0.0
+        estimated[list(proj.aliased_indices)] = False
+        se2 = diag_xtxinv[:, np.newaxis] * r.sigma2[np.newaxis, :]  # (p,V)
+        positive = estimated[:, np.newaxis] & (se2 > 0.0)
+        exact = estimated[:, np.newaxis] & (se2 == 0.0)
+        w = np.divide(1.0, se2, out=np.zeros_like(se2), where=positive)
         wsum += w
         wbeta += w * r.betas
+        # A zero-variance run has infinite precision: in the limit it takes
+        # all the weight, shared equally with any other zero-variance run
+        # (fmrireg do_fixef, 1733791).
+        n_exact += exact
+        exact_beta += np.where(exact, r.betas, 0.0)
 
     beta_mean /= float(len(results))
     betas_pooled = np.divide(
@@ -888,6 +893,12 @@ def _pool_run_results(
         wsum,
         out=beta_mean,
         where=wsum > 0.0,
+    )
+    betas_pooled = np.divide(
+        exact_beta,
+        n_exact,
+        out=betas_pooled,
+        where=n_exact > 0.0,
     )
 
     # Keep a pooled XtXinv for downstream contrasts/SE interfaces.

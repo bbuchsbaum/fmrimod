@@ -18,7 +18,7 @@ from numpy.typing import NDArray
 from scipy import optimize
 
 from ..model.config import FmriLmConfig
-from .contrasts import ContrastResult, contrast_f_vectorized, contrast_t_batch
+from .contrasts import ContrastResult, _safe_t, contrast_f_vectorized, contrast_t_batch
 from .fmri_lm import FmriLm, fmri_lm
 from .matrix import _design_matrix_from_model, _MatrixModel
 from .solver import fast_lm_matrix, fast_preproject
@@ -355,7 +355,7 @@ def compute_lm_contrasts_from_suffstats(
     B = XtXinv @ XtS_arr
     if sigma is None and sigma2 is None:
         sse = np.maximum(StS_arr - np.sum(B * XtS_arr, axis=0), 0.0)
-        sigma2 = np.maximum(sse / float(df), np.finfo(np.float64).eps)
+        sigma2 = sse / float(df)
     return compute_lm_contrasts(
         B,
         XtXinv,
@@ -454,8 +454,7 @@ def fmri_ols_fit(
         lm = fast_lm_matrix(X_arr, Y_arr, proj)
         sigma = np.sqrt(lm.sigma2)
         se = sigma[np.newaxis, :] * np.sqrt(np.maximum(np.diag(proj.XtXinv), 0.0))[:, np.newaxis]
-        with np.errstate(divide="ignore", invalid="ignore"):
-            t_full = np.where(se > 1e-15, lm.betas / se, 0.0)
+        t_full = _safe_t(lm.betas, se)
         return {"beta": lm.betas, "se": se, "t": t_full, "df": lm.dfres, "XtXinv": proj.XtXinv}
 
     C = np.asarray(voxelwise, dtype=np.float64)
@@ -475,8 +474,7 @@ def fmri_ols_fit(
         sev = sigma[np.newaxis, :] * np.sqrt(np.maximum(np.diag(proj.XtXinv), 0.0))[:, np.newaxis]
         beta.append(lm.betas[:, 0])
         se.append(sev[:, 0])
-        with np.errstate(divide="ignore", invalid="ignore"):
-            t.append(np.where(sev[:, 0] > 1e-15, lm.betas[:, 0] / sev[:, 0], 0.0))
+        t.append(_safe_t(lm.betas[:, 0], sev[:, 0]))
         dfs.append(lm.dfres)
     names = [f"coef_{idx}" for idx in range(X_arr.shape[1])] + [voxel_name]
     return {

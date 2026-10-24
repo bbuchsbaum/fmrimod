@@ -37,6 +37,7 @@ from ..model.config import AROptions, FmriLmConfig
 from .contrasts import (
     ContrastIntent,
     ContrastResult,
+    _safe_t,
     basis_label,
     contrast_f_vectorized,
     contrast_t,
@@ -576,9 +577,7 @@ class FmriLm:
 
     def tstat(self) -> NDArray[np.float64]:
         """Return t-statistics for each coefficient, shape ``(p, V)``."""
-        se_vals = self.se()
-        with np.errstate(divide="ignore", invalid="ignore"):
-            return np.where(se_vals > 1e-15, self.betas / se_vals, 0.0)
+        return _safe_t(self.betas, self.se())
 
     @property
     def n_voxels(self) -> int:

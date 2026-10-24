@@ -288,6 +288,27 @@ def _t_two_sided_pvalue(
     return cast("NDArray[np.float64]", 2.0 * sp_special.stdtr(dfres, -np.abs(tstat)))
 
 
+def _safe_t(
+    estimate: NDArray[np.float64],
+    se: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """``estimate / se`` with an exactly zero standard error giving 0.
+
+    The one t rule of the GLM paths (fmrireg ``.safe_tstat``, 0f9138b): an
+    exactly zero SE (a perfect fit) gives t = 0, hence p = 1, even for a
+    non-zero estimate; a NaN SE gives NaN. There is deliberately no absolute
+    tolerance on ``se``, which would zero valid statistics whenever the data
+    are on a small scale.
+    """
+    estimate_arr, se_arr = np.broadcast_arrays(
+        np.asarray(estimate, dtype=np.float64),
+        np.asarray(se, dtype=np.float64),
+    )
+    with np.errstate(divide="ignore", invalid="ignore"):
+        tstat = estimate_arr / se_arr
+    return cast("NDArray[np.float64]", np.where(se_arr == 0.0, 0.0, tstat))
+
+
 def _t_statistic(
     estimate: NDArray[np.float64],
     se: NDArray[np.float64],
@@ -302,17 +323,8 @@ def _t_statistic(
     if not np.isfinite(dfres) or dfres <= 0.0:
         return tstat
 
-    valid = np.isfinite(estimate_arr) & np.isfinite(se_arr) & (se_arr > 0.0)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        np.divide(estimate_arr, se_arr, out=tstat, where=valid)
-
-    zero_contrast = (
-        np.isfinite(estimate_arr)
-        & np.isfinite(se_arr)
-        & (se_arr == 0.0)
-        & (estimate_arr == 0.0)
-    )
-    tstat[zero_contrast] = 0.0
+    finite = np.isfinite(estimate_arr) & np.isfinite(se_arr)
+    tstat[finite] = _safe_t(estimate_arr[finite], se_arr[finite])
     return tstat
 
 
@@ -723,9 +735,11 @@ def contrast_f(
 
     CB, numer, df1 = _f_quadratic_form_terms(con_mat, betas, XtXinv)
     sigma2 = np.square(sigma, dtype=np.float64)
+    # Only an exactly zero residual variance is special (F = 0, p = 1, as
+    # the t rule); no absolute tolerance that would depend on the data scale.
     with np.errstate(divide="ignore", invalid="ignore"):
         fstat = np.where(
-            sigma2 > 1e-15,
+            sigma2 > 0.0,
             numer / (df1 * sigma2),
             0.0,
         )
