@@ -131,3 +131,67 @@ class TestMsCombineToFine:
         for key in ["1", "2", "3", "4"]:
             assert key in result
             assert len(result[key]) == 1
+
+
+def _ar_cols(n, v, phi, rng):
+    from scipy.signal import lfilter
+
+    e = rng.standard_normal((n + 200, v))
+    return lfilter([1.0], np.r_[1.0, -np.asarray(phi, dtype=float)], e, axis=0)[200:]
+
+
+class TestMultiscaleFitNoise:
+    """fmriAR 617bd87 (test-audit-regressions.R:296-321, :799-807), row AR-10."""
+
+    def test_pooling_is_invariant_to_the_units_of_the_data(self):
+        """Cheap pass disqualified: unit-free dispersion alone does not fix
+        the white-noise order below, and a raw-variance MAD moves phi."""
+        from fmrimod.ar.estimation import fit_noise
+
+        rng = np.random.default_rng(9118)
+        n, v = 200, 64
+        R = _ar_cols(n, v, [0.4], rng) * rng.uniform(0.5, 2.0, v)[None, :]
+        ps = {
+            "coarse": np.repeat([1, 2], 32),
+            "medium": np.repeat([1, 2, 3, 4], 16),
+            "fine": np.repeat(np.arange(1, 9), 8),
+        }
+        for mode in ("pacf_weighted", "acvf_pooled"):
+            a = fit_noise(R, pooling="parcel", parcels=ps["fine"], parcel_sets=ps,
+                          p=1, multiscale=mode)
+            b = fit_noise(R * 100, pooling="parcel", parcels=ps["fine"],
+                          parcel_sets=ps, p=1, multiscale=mode)
+            for k in a.phi_by_parcel:
+                np.testing.assert_allclose(b.phi_by_parcel[k], a.phi_by_parcel[k],
+                                           rtol=0, atol=1e-8, err_msg=mode)
+
+    def test_acvf_pooled_auto_fits_the_selected_order(self):
+        from fmrimod.ar.estimation import fit_noise
+
+        ps = {
+            "coarse": np.repeat([1, 2], 16),
+            "medium": np.repeat([1, 2, 3, 4], 8),
+            "fine": np.repeat(np.arange(1, 9), 4),
+        }
+        white = np.random.default_rng(9310).standard_normal((300, 32))
+        pl = fit_noise(white, pooling="parcel", parcels=ps["fine"], parcel_sets=ps,
+                       p="auto", multiscale="acvf_pooled")
+        assert pl.order == (0, 0)
+        assert all(len(v) == 0 for v in pl.phi_by_parcel.values())
+        ar1 = _ar_cols(300, 32, [0.5], np.random.default_rng(9119))
+        pl1 = fit_noise(ar1, pooling="parcel", parcels=ps["fine"], parcel_sets=ps,
+                        p="auto", p_max=6, multiscale="acvf_pooled")
+        assert pl1.order[0] < 6
+        # Without parcel_sets the same rule applies.
+        pl2 = fit_noise(white, pooling="parcel", parcels=ps["fine"], p="auto",
+                        multiscale="acvf_pooled")
+        assert pl2.order == (0, 0)
+
+    def test_dispersion_is_relative_to_the_median_voxel_variance(self):
+        rng = np.random.default_rng(3)
+        resid = rng.standard_normal((100, 6)) * np.array([1, 2, 1, 3, 1, 1.5])
+        parcels = np.array([1, 1, 2, 2, 3, 3])
+        d1 = ms_dispersion(resid, parcels)
+        d2 = ms_dispersion(resid * 10, parcels)
+        for k in d1:
+            assert d1[k] == pytest.approx(d2[k], rel=1e-12)

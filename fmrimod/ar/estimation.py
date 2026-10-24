@@ -676,11 +676,21 @@ def fit_noise(
                 out[:take] = x[:take]
             return out
 
+        def _yw_order(*phi_maps: dict[str, NDArray[Any]]) -> int:
+            # acvf_pooled solves Yule-Walker at the pooling target for an
+            # explicit p; under "auto" at the largest order selected at any
+            # scale, so the selection is not discarded (fmriAR 617bd87).
+            if p != "auto":
+                return int(target)
+            sel = [len(ph) for m in phi_maps for ph in m.values()]
+            return min(int(target), max(sel) if sel else 0)
+
         if parcel_sets is None:
             if multiscale_mode is None or target == 0:
                 phi_parcel = {k: v for k, v in est_f["phi"].items()}
             elif multiscale_mode == "acvf_pooled":
                 shrink = 0.6
+                yw_order = _yw_order(est_f["phi"])
                 acvf_list = {
                     k: _pad_vec(g, target + 1) for k, g in est_f["acvf"].items()
                 }
@@ -690,8 +700,11 @@ def fit_noise(
                     avg_g = np.zeros(target + 1)
                 phi_parcel = {}
                 for k, g_pad in acvf_list.items():
+                    if yw_order == 0:
+                        phi_parcel[k] = np.array([], dtype=np.float64)
+                        continue
                     g_mix = (1 - shrink) * g_pad + shrink * avg_g
-                    phi_try, _ = yw_from_acvf(g_mix, target)
+                    phi_try, _ = yw_from_acvf(g_mix, yw_order)
                     phi_parcel[k] = enforce_stationary_ar(phi_try)
             else:
                 from .numhelpers import ar_to_pacf, pacf_to_ar
@@ -793,6 +806,7 @@ def fit_noise(
                     disp_list=disp_list,
                     p_target=target,
                     mode=multiscale_mode,
+                    yw_order=_yw_order(est_c["phi"], est_m["phi"], est_f["phi"]),
                 )
 
         if multiscale_mode is None and p_target is not None and target > 0:
