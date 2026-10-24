@@ -6,6 +6,7 @@ from typing import Dict, Optional
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
+from scipy import optimize as sp_opt
 from scipy import stats as sp_stats
 
 from .meta import (
@@ -43,13 +44,67 @@ def _validate_yvx(
     return Y_arr, V_arr, X_arr
 
 
-def _tau2_for(method: str, y: NDArray[np.float64], v: NDArray[np.float64]) -> float:
+def _q_regression(
+    y: NDArray[np.float64],
+    v: NDArray[np.float64],
+    X: NDArray[np.float64],
+    tau2: float,
+) -> tuple[float, NDArray[np.float64]]:
+    """Weighted residual Q of the meta-regression at ``tau2``, and ``(X'WX)^{-1}``."""
+    w = 1.0 / (v + tau2)
+    inv = np.linalg.pinv((X.T * w) @ X)
+    resid = y - X @ (inv @ (X.T @ (w * y)))
+    return float(np.sum(w * resid * resid)), inv
+
+
+def _dl_tau2_regression(
+    y: NDArray[np.float64], v: NDArray[np.float64], X: NDArray[np.float64]
+) -> float:
+    """DerSimonian-Laird with ``C = sum(w) - sum(w^2 x_i' (X'WX)^{-1} x_i)``.
+
+    fmrireg ``src/meta_kernels.cpp`` ``tau2_DL``; equal to the intercept-only
+    DL when ``X`` is a column of ones.
+    """
+    w0 = 1.0 / v
+    q0, inv0 = _q_regression(y, v, X, 0.0)
+    t = np.einsum("ij,jk,ik->i", X, inv0, X)
+    denom = float(np.sum(w0) - np.sum(w0 * w0 * t))
+    tau2 = (q0 - (y.size - X.shape[1])) / denom if denom > 0 else 0.0
+    return max(tau2, 0.0) if np.isfinite(tau2) else 0.0
+
+
+def _pm_tau2_regression(
+    y: NDArray[np.float64], v: NDArray[np.float64], X: NDArray[np.float64]
+) -> float:
+    """Paule-Mandel: the root of ``Q(tau2) = m - p`` (``tau2_PM``)."""
+    df = y.size - X.shape[1]
+
+    def f(tau: float) -> float:
+        return _q_regression(y, v, X, tau)[0] - df
+
+    if df <= 0 or f(0.0) <= 0:
+        return 0.0
+    hi = max(1.0, 1000.0 * float(np.median(v)))
+    while f(hi) > 0 and hi < 1e12:
+        hi *= 2.0
+    if f(hi) > 0:
+        return float(hi)
+    return float(sp_opt.brentq(f, 0.0, hi, xtol=1e-14))
+
+
+def _tau2_for(
+    method: str,
+    y: NDArray[np.float64],
+    v: NDArray[np.float64],
+    X: NDArray[np.float64],
+) -> float:
     if method == "fe":
         return 0.0
+    intercept_only = X.shape[1] == 1 and np.allclose(X[:, 0], 1.0)
     if method == "dl":
-        return float(_dl_tau2_intercept(y, v))
+        return float(_dl_tau2_intercept(y, v) if intercept_only else _dl_tau2_regression(y, v, X))
     if method == "pm":
-        return float(_pm_tau2_intercept(y, v))
+        return float(_pm_tau2_intercept(y, v) if intercept_only else _pm_tau2_regression(y, v, X))
     if method == "reml":
         return float(_reml_tau2_intercept(y, v))
     raise ValueError("method must be one of: pm, dl, fe, reml")
@@ -61,7 +116,7 @@ def _fit_feature(
     X: NDArray[np.float64],
     method: str,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64], float, float, float, bool]:
-    tau2 = _tau2_for(method, y, v)
+    tau2 = _tau2_for(method, y, v, X)
     w = 1.0 / (v + tau2)
     XtW = X.T * w[np.newaxis, :]
     XtWX = XtW @ X
@@ -77,9 +132,8 @@ def _fit_feature(
     with np.errstate(divide="ignore", invalid="ignore"):
         z = np.where(se > 0, beta / se, 0.0)
 
-    w_fe = 1.0 / v
-    mu_fe = float(np.sum(w_fe * y) / np.sum(w_fe))
-    q_fe = float(np.sum(w_fe * (y - mu_fe) ** 2))
+    # Residual Q of the fixed-effects regression (fmrireg meta_kernels.cpp).
+    q_fe = _q_regression(y, v, X, 0.0)[0]
     df = max(int(y.size - X.shape[1]), 0)
     i2 = max((q_fe - df) / q_fe, 0.0) if q_fe > 0 and df > 0 else 0.0
     return beta, se, z, tau2, q_fe, i2, ok
