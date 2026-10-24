@@ -289,3 +289,50 @@ def test_study_subject_ids_are_canonical_keys() -> None:
     assert study_dataset(
         pd.DataFrame({"subject_id": ["sub-01", "01"], "dataset": [ds, ds]})
     ).subject_ids == ("sub-01", "01")
+
+
+def test_study_lowering_emits_the_common_voxel_space_for_image_data() -> None:
+    # Inventory v2 DS-02 (the VoxelSpace part; steward decision D1, approved
+    # 2026-10-24). Voxel-routed estimates of datasets with a known affine
+    # lower to the subjects' common packed VoxelSpace, so group results keep
+    # their grid and world transform. Matrix data has no geometry and keeps
+    # sample labels, as do explicit sample_labels.
+    neuroim = pytest.importorskip("neuroim")
+    from fmrimod.dataset import fmri_dataset
+    from fmrimod.group import SampleLabelSpace, VoxelSpace
+
+    shape = (3, 2, 1)
+    affine = np.array([[-2.0, 0, 0, 6.0], [0, 2.0, 0, 0], [0, 0, 2.0, 0], [0, 0, 0, 1]])
+    rng = np.random.default_rng(1)
+
+    def subject(mask):
+        vec = neuroim.DenseNeuroVec(rng.normal(size=shape + (8,)) + 5,
+                                    neuroim.NeuroSpace.from_affine(affine, shape + (8,)))
+        return fmri_dataset(vec, mask=mask.reshape(shape), tr=2.0)
+
+    m1 = np.array([1, 1, 1, 1, 0, 0], dtype=bool)
+    m2 = np.array([0, 0, 1, 1, 1, 1], dtype=bool)
+    table = pd.DataFrame({"subject_id": ["s1", "s2"], "dataset": [subject(m1), subject(m2)]})
+    results = {
+        "s1": _contrast("c", np.flatnonzero(m1).astype(float).tolist(), [1.0] * 4),
+        "s2": _contrast("c", (np.flatnonzero(m2) + 1000.0).tolist(), [1.0] * 4),
+    }
+
+    group = study_dataset(table, mask_strategy="intersect").to_group_dataset(results)
+    assert isinstance(group.space, VoxelSpace)
+    assert tuple(group.space.shape) == shape
+    np.testing.assert_array_equal(group.space.mask_idx, [2, 3])
+    np.testing.assert_allclose(group.space.affine, affine)
+    np.testing.assert_array_equal(group.assay("beta")[:, 1, 0] - 1000, [2, 3])
+
+    labelled = study_dataset(table, mask_strategy="intersect").to_group_dataset(
+        results, sample_labels=["a", "b"]
+    )
+    assert isinstance(labelled.space, SampleLabelSpace)
+
+    flat = pd.DataFrame({"subject_id": ["s1", "s2"], "dataset": [
+        matrix_dataset(rng.normal(size=(8, 6)), tr=2.0, mask=m1),
+        matrix_dataset(rng.normal(size=(8, 6)), tr=2.0, mask=m2),
+    ]})
+    no_geometry = study_dataset(flat, mask_strategy="intersect").to_group_dataset(results)
+    assert isinstance(no_geometry.space, SampleLabelSpace)
