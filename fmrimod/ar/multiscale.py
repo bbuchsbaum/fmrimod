@@ -198,9 +198,15 @@ def ms_estimate_scale(
     Parameters
     ----------
     M : dict
-        Parcel means: ``{parcel_id: time_series}``.
+        ``{parcel_id: data}``, where ``data`` is a parcel's ``(n, V_k)``
+        block of voxel residuals or a single ``(n,)`` series. A block's
+        autocovariance is pooled over its voxels; ``fit_noise`` passes
+        blocks, since a parcel-mean series is dominated by what its voxels
+        share rather than by the voxel noise being whitened (fmriAR
+        5f5fc32).
     estimator : callable
-        ``estimator(y) -> {"phi": NDArray[Any], "order": (p, q)}``.
+        ``estimator(data) -> {"phi": NDArray[Any], "order": (p, q)}``,
+        called with each value of ``M`` as given.
     run_starts : NDArray[Any], optional
         0-based run start indices in the *passed* series.
     lag_max : int
@@ -220,22 +226,22 @@ def ms_estimate_scale(
 
     phi_by = {}
     acvf_by = {}
-    for pid, y_col in M.items():
-        y_col = np.asarray(y_col, dtype=np.float64).ravel()
-        fit = estimator(y_col)
+    for pid, data in M.items():
+        data = np.asarray(data, dtype=np.float64)
+        if data.ndim != 2:
+            data = data.ravel()
+        fit = estimator(data)
         phi_by[pid] = np.asarray(fit["phi"], dtype=np.float64)
         order_p = int(fit["order"][0]) if "order" in fit else len(fit["phi"])
         lag_id = max(int(lag_max), order_p, 1)
-        n = y_col.size
+        n = data.shape[0]
         starts = np.asarray(run_starts, dtype=np.intp)
         is_start = np.zeros(n, dtype=bool)
         is_start[starts[starts < n]] = True
         if n:
             is_start[0] = True
         seg_id = np.cumsum(is_start.astype(np.intp))
-        pooled = pooled_acvf_segments(
-            y_col[:, np.newaxis], seg_id, lag_id, center_id=center_id
-        )
+        pooled = pooled_acvf_segments(data, seg_id, lag_id, center_id=center_id)
         g, _ = acvf_from_pooled(pooled, order=lag_id)
         acvf_by[pid] = g
 

@@ -621,3 +621,35 @@ def test_global_pooling_is_invariant_to_per_run_scale():
     a = fit_noise(R, runs=runs, p=2).phi[0]
     b = fit_noise(R2, runs=runs, p=2).phi[0]
     np.testing.assert_allclose(a, b, rtol=0, atol=1e-10)
+
+
+def test_parcel_pooling_estimates_from_voxels_not_the_parcel_mean():
+    """fmriAR 5f5fc32 (test-audit-regressions.R:493-508), row AR-04.
+
+    A parcel-mean series is dominated by what its voxels share, so its phi
+    tracked the shared component (0.82-0.91), not the voxel noise the plan
+    is applied to.
+    """
+    rng = np.random.default_rng(9201)
+    n = 300
+    pf = np.repeat([1, 2, 3, 4], 20)
+    R = _arma_sim(n, pf.size, [0.3], rng=rng)
+    for k in range(1, 5):
+        R[:, pf == k] += 0.5 * lfilter([1.0], [1.0, -0.9], rng.standard_normal(n))[:, None]
+    plan = fit_noise(R, pooling="parcel", parcels=pf, p=1)
+    est = np.array([plan.phi_by_parcel[str(k)][0] for k in range(1, 5)])
+    vox = np.array([_lag1(R[:, pf == k]) for k in range(1, 5)])
+    mean_series = np.array([_lag1(R[:, pf == k].mean(1, keepdims=True)) for k in range(1, 5)])
+    assert np.max(np.abs(est - vox)) < 0.03
+    assert np.all(mean_series - vox > 0.2)
+
+
+def test_single_all_voxel_parcel_reproduces_global_pooling():
+    """R test-audit-regressions.R:510-518. Cheap pass disqualified: any
+    rescaling of the parcel-mean autocovariance breaks this identity."""
+    R = _arma_sim(250, 12, [0.5, 0.2], rng=np.random.default_rng(9202))
+    cens = np.array([29, 30, 139])
+    for pp in (2, "auto"):
+        g = fit_noise(R, p=pp, censor=cens)
+        pc = fit_noise(R, p=pp, censor=cens, pooling="parcel", parcels=np.ones(12, int))
+        np.testing.assert_allclose(pc.phi_by_parcel["1"], g.phi[0], rtol=0, atol=1e-10)
