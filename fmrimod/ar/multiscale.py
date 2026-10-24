@@ -61,7 +61,12 @@ def parcel_means(
 
 
 def ms_dispersion(resid: NDArray[Any], parcels: NDArray[Any]) -> Dict[str, float]:
-    """Compute voxel-variance dispersion (MAD) within each parcel.
+    """Compute relative voxel-variance dispersion (MAD) within each parcel.
+
+    Voxel variances are divided by the median variance of all voxels before
+    the MAD is taken. The raw MAD is in squared data units, so the weights
+    ``1 / (1 + disp)``, and with them phi, changed when the data were merely
+    rescaled (fmriAR 617bd87).
 
     Parameters
     ----------
@@ -77,6 +82,10 @@ def ms_dispersion(resid: NDArray[Any], parcels: NDArray[Any]) -> Dict[str, float
     """
     parcels = np.asarray(parcels, dtype=np.intp)
     vvar = np.var(resid, axis=0)
+    scale = float(np.median(vvar)) if vvar.size else 1.0
+    if not np.isfinite(scale) or scale <= 0:
+        scale = 1.0
+    vvar = vvar / scale
     ids = np.unique(parcels)
     result = {}
     for pid in ids:
@@ -266,6 +275,7 @@ def ms_combine_to_fine(
     p_target: int = 6,
     mode: str = "pacf_weighted",
     kappa_clip: float = 0.99,
+    yw_order: int | None = None,
 ) -> Dict[str, NDArray[np.float64]]:
     """Combine AR estimates across spatial scales for each fine parcel.
 
@@ -287,6 +297,11 @@ def ms_combine_to_fine(
         ``"pacf_weighted"`` or ``"acvf_pooled"``.
     kappa_clip : float
         PACF clipping bound.
+    yw_order : int, optional
+        Order of the Yule-Walker solve in ``"acvf_pooled"`` mode (default
+        ``p_target``); ``0`` gives white filters. ``fit_noise`` passes the
+        largest order selected at any scale under ``p="auto"``, so the
+        order selection is not discarded (fmriAR 617bd87).
 
     Returns
     -------
@@ -350,7 +365,11 @@ def ms_combine_to_fine(
             g_f = _pad(acvf_by_fine.get(key_f, np.array([0.0])), p_target + 1)
 
             g = w[0] * g_c + w[1] * g_m + w[2] * g_f
-            phi_est, _ = levinson_durbin(g, p_target)
-            out_phi[key_f] = enforce_stationary_ar(phi_est)
+            order = int(p_target if yw_order is None else yw_order)
+            if order == 0:
+                out_phi[key_f] = np.array([], dtype=np.float64)
+            else:
+                phi_est, _ = levinson_durbin(g[: order + 1], order)
+                out_phi[key_f] = enforce_stationary_ar(phi_est)
 
     return out_phi
