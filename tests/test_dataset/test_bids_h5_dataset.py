@@ -491,3 +491,90 @@ def test_bids_h5_archive_without_start_time_defaults_to_half_tr(
     np.testing.assert_allclose(frame.tr, [2.0, 2.0])
     np.testing.assert_allclose(frame.start_time, [1.0, 1.0])
 
+
+def _write_run_label_archive(path, scans) -> None:
+    """Hand-write a one-subject parcellated archive.
+
+    ``scans`` holds ``(scan_name, session, run_label, n_time, events)`` rows,
+    where ``events`` is ``None`` or an ``(onsets, trial_types)`` pair.
+    """
+    with h5py.File(path, "w") as handle:
+        handle.attrs["format"] = "bids_h5_study"
+        handle.attrs["version"] = "1.0"
+        handle.attrs["compression_mode"] = "parcellated"
+        index = handle.create_group("scan_index")
+        _write_str_array(index, "scan_name", [s[0] for s in scans])
+        _write_str_array(index, "subject", ["sub-01"] * len(scans))
+        _write_str_array(index, "task", ["go"] * len(scans))
+        _write_str_array(index, "session", [s[1] for s in scans])
+        _write_str_array(index, "run", [s[2] for s in scans])
+        index.create_dataset("n_time", data=np.asarray([s[3] for s in scans]))
+        index.create_dataset(
+            "has_events", data=np.asarray([s[4] is not None for s in scans])
+        )
+        index.create_dataset("has_confounds", data=np.zeros(len(scans), dtype=bool))
+        handle.create_group("parcellation").create_dataset(
+            "cluster_ids", data=np.asarray([1, 2])
+        )
+        rng = np.random.default_rng(5)
+        for name, _ses, _run, n_time, events in scans:
+            scan = handle.create_group(f"scans/{name}")
+            scan.create_group("data").create_dataset(
+                "summary_data", data=rng.normal(size=(n_time, 2))
+            )
+            scan.create_group("metadata").create_dataset("tr", data=2.0)
+            if events is not None:
+                onsets, trial_types = events
+                group = scan.create_group("events")
+                group.create_dataset("onset", data=np.asarray(onsets, dtype=float))
+                group.create_dataset("duration", data=np.ones(len(onsets)))
+                _write_str_array(group, "trial_type", list(trial_types))
+
+
+def test_bids_run_label_is_not_the_block_identity(tmp_path) -> None:
+    """Two sessions that both hold ``run-1`` are two blocks, not one.
+
+    R ``52439b2`` (ADR-004 temporal contract, ``test-temporal-schema.R``):
+    the BIDS ``run`` entity is a within-session label; guessing it as the run
+    identity merges two acquisitions.
+    """
+    import fmrimod as fm
+    from fmrimod.spec import hrf
+
+    path = tmp_path / "sessions.h5"
+    _write_run_label_archive(
+        path,
+        [
+            ("sub-01_ses-01_task-go_run-1", "01", "1", 20, ([4.0], ["a"])),
+            ("sub-01_ses-02_task-go_run-1", "02", "1", 20, ([10.0], ["b"])),
+        ],
+    )
+    subject = bids_h5_dataset(path).datasets[0]
+    events = subject.event_table
+    assert events["run"].tolist() == [1, 2]
+    assert events["bids_run"].tolist() == ["1", "1"]
+    assert events["session"].tolist() == ["01", "02"]
+
+    # Build the model exactly as ``fmri_lm(spec, dataset)`` does (block=None).
+    fit = fm.fmri_lm(hrf("trial_type"), subject)
+    design = fit.model.event_design_matrix()
+    (col_b,) = [c for c in design.columns if c.endswith("b")]
+    values = design[col_b].to_numpy()
+    assert np.all(values[:20] == 0)
+    assert np.any(values[20:] != 0)
+
+    # A scan without events still owns its position: the event rows of the
+    # second and third scans carry runs 2 and 3, not 1 and 2.
+    path3 = tmp_path / "three.h5"
+    _write_run_label_archive(
+        path3,
+        [
+            ("sub-01_task-go_run-1", "", "1", 10, None),
+            ("sub-01_task-go_run-2", "", "2", 10, ([2.0], ["a"])),
+            ("sub-01_task-go_run-3", "", "3", 10, ([2.0], ["b"])),
+        ],
+    )
+    events3 = bids_h5_dataset(path3).datasets[0].event_table
+    assert events3["run"].tolist() == [2, 3]
+    assert events3["run_id"].tolist() == [2, 3]
+    assert events3["bids_run"].tolist() == ["2", "3"]
