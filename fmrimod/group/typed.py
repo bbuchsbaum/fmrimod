@@ -30,6 +30,7 @@ from .space import VoxelSpace
 
 if TYPE_CHECKING:
     from ..glm.spatial import SpatialContext
+    from ..glm.thresholding import ThresholdedMap
 
 
 Array = NDArray[np.float64]
@@ -205,6 +206,43 @@ class GroupLmResult:
         from ..glm.contrasts import z_from_stat
 
         return z_from_stat(self.t_stat(predictor), self.residual_df, "t")
+
+    def threshold(
+        self,
+        predictor: str = "Intercept",
+        alpha: float = 0.05,
+        *,
+        method: str = "fdr",
+        height: Optional[float] = None,
+        cluster_size: int = 0,
+        two_sided: bool = True,
+    ) -> "ThresholdedMap":
+        """Threshold ``predictor``'s z map by height and cluster extent.
+
+        Same rules as :meth:`fmrimod.glm.contrasts.ContrastResult.threshold`
+        (Nilearn's ``threshold_stats_img``); clusters and NIfTI output need
+        a spatial frame (image-map or image-based first-level input).
+
+        Examples
+        --------
+        ::
+
+            res = fm.fmri_group_lm(maps, formula="~ age", covariates=table)
+            res.threshold("age", 0.05, cluster_size=20).clusters()
+        """
+        from ..glm.thresholding import threshold_map
+
+        name = self.resolve_predictor(predictor)
+        return threshold_map(
+            self.z_score(name),
+            self.spatial,
+            alpha=alpha,
+            method=method,  # type: ignore[arg-type]
+            height=height,
+            cluster_size=cluster_size,
+            two_sided=two_sided,
+            name=name,
+        )
 
     def to_nifti(
         self,

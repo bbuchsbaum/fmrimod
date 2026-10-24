@@ -1206,8 +1206,10 @@ def fmri_lm(
         :class:`~fmrimod.model.config.AROptions`. AR coefficients are pooled
         per run by default; add ``"_voxelwise"`` (``"ar1_voxelwise"``) to
         estimate them voxel by voxel, which reproduces Nilearn's
-        ``noise_model="ar1"`` (r > 0.9999 on t maps) at roughly 1.5x the
-        cost.
+        ``noise_model="ar1"`` (r > 0.9999 on t maps), or ``"_binned"``
+        (``"ar1_binned"``) to also truncate them onto Nilearn's 0.01 grid
+        (``AROptions(voxelwise=True, bin_width=0.01)``), which is faster on
+        large images and matches Nilearn's AR(1) procedure step for step.
     engine
         Typed engine options object. Built-ins are
         :class:`~fmrimod.glm.engine.RunwiseEngineOptions`,
@@ -1320,12 +1322,15 @@ def fmri_lm(
         from ..model.config import AROptions as _AROptions
         if isinstance(ar, str):
             struct, _, mode = ar.partition("_")
-            if mode not in ("", "voxelwise"):
+            if mode not in ("", "voxelwise", "binned"):
                 raise ValueError(
-                    f"fmri_lm: unknown ar={ar!r}; use 'ar1', 'ar1_voxelwise', ..."
+                    f"fmri_lm: unknown ar={ar!r}; use 'ar1', 'ar1_voxelwise', "
+                    "'ar1_binned', ..."
                 )
             resolved_ar = _AROptions(  # type: ignore[arg-type]
-                struct=struct, voxelwise=mode == "voxelwise"
+                struct=struct,
+                voxelwise=mode in ("voxelwise", "binned"),
+                bin_width=0.01 if mode == "binned" else None,
             )
         elif isinstance(ar, _AROptions):
             resolved_ar = ar

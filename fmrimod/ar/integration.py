@@ -190,7 +190,12 @@ def iterative_gls(
     runs = _run_matrices(model, initial_fit)
     order = ar_opts.ar_order
     if ar_opts.voxelwise:
-        phis = [_voxelwise_phi(rm, order, ar_opts.noise_pools) for rm in runs]
+        phis = [
+            _voxelwise_phi(
+                rm, order, ar_opts.noise_pools, getattr(ar_opts, "bin_width", None)
+            )
+            for rm in runs
+        ]
         fit = _solve_voxelwise(runs, phis, ar_opts.exact_first, config.solver)
         params = phis[0] if len(phis) == 1 else np.stack(phis)
         return fit, params
@@ -448,7 +453,10 @@ def _voxelwise_yule_walker(
 
 
 def _voxelwise_phi(
-    rm: _RunMatrices, order: int, noise_pools: int | None
+    rm: _RunMatrices,
+    order: int,
+    noise_pools: int | None,
+    bin_width: float | None = None,
 ) -> NDArray[np.float64]:
     """phi of every voxel, shape ``(order, V)``.
 
@@ -467,6 +475,9 @@ def _voxelwise_phi(
         phi[:, v] = _estimate_phi([rm.resid[:, v : v + 1]], order)
     if noise_pools is not None and int(noise_pools) > 1 and np.any(finite):
         phi[:, finite] = _quantise_to_noise_pools(phi[:, finite], int(noise_pools))
+    if bin_width is not None:
+        # Nilearn's rule: truncate toward zero onto the bin grid.
+        phi = np.trunc(phi / bin_width) * bin_width
     return phi
 
 
@@ -618,7 +629,14 @@ def _solve_voxelwise_batched(
         cov = np.linalg.inv(G)
     except np.linalg.LinAlgError:
         return None
-    resid = sum(c[j] * (ops_Y[j] - ops_X[j] @ betas) for j in range(m))
+    # Accumulate in place: the residual matrix is (n, V), so temporaries
+    # dominate the cost at full-brain voxel counts.
+    resid = ops_Y[0] - ops_X[0] @ betas
+    for j in range(1, m):
+        term = ops_X[j] @ betas
+        np.subtract(ops_Y[j], term, out=term)
+        term *= c[j]
+        resid += term
     rss = np.einsum("tv,tv->v", resid, resid)
     if p < p_full:
         nv = betas.shape[1]

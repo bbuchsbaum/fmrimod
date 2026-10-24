@@ -729,7 +729,7 @@
       "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
-      "compatibility_status": "compat",
+      "compatibility_status": "spine",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -740,7 +740,7 @@
       "owner_module": "fmrimod.dataset.bids_fs",
       "runtime_signature": "(root: 'str | Path', task: 'str', *, space: 'str | None' = None, subjects: 'Sequence[str] | None' = None, derivatives: 'str | Path' = 'derivatives/fmriprep', desc: 'str' = 'preproc', slice_timing_offset: 'float | None' = None) -> 'dict[str, FmriDataset]'",
       "signature_source": "inspect.signature",
-      "tier": "compat",
+      "tier": "spine",
       "used_by_public_seam_artifact": "review_pending"
     },
     {

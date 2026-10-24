@@ -240,6 +240,16 @@ class NiftiBackend(StorageBackend):
                 continue
 
             img = self._image(src)
+            if len(img.shape) > 3 and local_rows.size * 2 >= n_time:
+                # Most of the run is wanted: read it once in its stored
+                # dtype, mask, and convert only the masked voxels. The
+                # per-volume loop below casts every full volume to float64.
+                stored = np.asanyarray(img.dataobj).reshape(-1, n_time)
+                block = stored[voxel_idx]
+                if local_rows.size != n_time or np.any(local_rows != np.arange(n_time)):
+                    block = block[:, local_rows]
+                result[positions, :] = block.T
+                continue
             source_rows: list[NDArray[np.float64]] = []
             for row in local_rows:
                 if len(img.shape) > 3:

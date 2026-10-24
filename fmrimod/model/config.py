@@ -105,6 +105,17 @@ class AROptions:
         model per run and ``"global"`` one model pooled across runs
         (fmrireg ``noise_spec(pooling=)``). ``fmri_lm`` does not support
         ``"parcel"``.
+    noise_pools : int or None
+        Voxelwise only: quantise the AR estimates into this many
+        equal-frequency pools, one GLS solve per pool.
+    bin_width : float or None
+        Voxelwise only: truncate each AR coefficient toward zero onto a grid
+        of this width before whitening, so voxels sharing a bin share one
+        solve. ``0.01`` is Nilearn's ``run_glm(noise_model="ar1", bins=100)``
+        rule (for AR(p > 1) the truncation applies per coefficient, where
+        Nilearn clusters with k-means instead). Trades a little accuracy
+        (|phi error| < width) for speed at large voxel counts; ``None``
+        (default) keeps the exact per-voxel estimates.
     """
 
     struct: Literal["iid", "ar1", "ar2", "arp", "arma"] = "iid"
@@ -121,6 +132,7 @@ class AROptions:
     convergence_tol: float = 5e-3
     parcels: Optional[NDArray[Any]] = None
     noise_pools: Optional[int] = None
+    bin_width: Optional[float] = None
 
     def __init__(
         self,
@@ -138,6 +150,7 @@ class AROptions:
         convergence_tol: float = 5e-3,
         parcels: Optional[NDArray[Any]] = None,
         noise_pools: Optional[int] = None,
+        bin_width: Optional[float] = None,
         **kwargs: object,
     ) -> None:
         # R-compat alias: ar_options$global -> global_ar
@@ -163,6 +176,7 @@ class AROptions:
         self.convergence_tol = convergence_tol
         self.parcels = parcels
         self.noise_pools = noise_pools
+        self.bin_width = bin_width
         self.__post_init__()
 
     def __post_init__(self) -> None:
@@ -219,6 +233,18 @@ class AROptions:
         ):
             if not isinstance(value, (bool, np.bool_)):
                 raise ValueError(f"{key} must be a boolean scalar")
+        if self.bin_width is not None:
+            if isinstance(self.bin_width, (bool, np.bool_)) or not isinstance(
+                self.bin_width, (int, float, np.integer, np.floating)
+            ):
+                raise ValueError("bin_width must be a positive number or None")
+            self.bin_width = float(self.bin_width)
+            if not 0 < self.bin_width < 1:
+                raise ValueError("bin_width must be in (0, 1)")
+            if not self.voxelwise:
+                raise ValueError("bin_width requires voxelwise=True")
+            if self.noise_pools is not None:
+                raise ValueError("pass bin_width or noise_pools, not both")
         # ``global_ar`` is the R-compat spelling of ``pooling="global"``.
         if self.global_ar and self.pooling == "run":
             self.pooling = "global"

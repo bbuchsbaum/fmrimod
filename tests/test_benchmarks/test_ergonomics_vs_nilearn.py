@@ -547,7 +547,7 @@ def test_voxelwise_ar_fast_paths_equal_per_voxel_reference(
     ar = AROptions(struct=struct, voxelwise=True)
     fast = fm.fmri_lm(spec, ds, ar=ar)
 
-    def per_voxel_phi(rm, order, noise_pools):
+    def per_voxel_phi(rm, order, noise_pools, bin_width=None):
         phi = np.zeros((order, rm.resid.shape[1]))
         for v in range(rm.resid.shape[1]):
             phi[:, v] = integration._estimate_phi([rm.resid[:, v : v + 1]], order)
@@ -575,3 +575,118 @@ def test_voxelwise_yule_walker_defers_degenerate_voxels() -> None:
     assert not ok[:3].any() and ok[3:].all()
     reference = np.array([_estimate_phi([x[:, v : v + 1]], 1)[0] for v in range(3, 50)])
     np.testing.assert_allclose(phi[0, 3:], reference, atol=1e-13)
+
+
+# ---------------------------------------------------------------------------
+# 6. round 5: thresholding, binned AR, spine promotion
+# ---------------------------------------------------------------------------
+
+
+def test_height_thresholds_match_nilearn_rules() -> None:
+    from nilearn.glm import fdr_threshold
+    from scipy import stats
+
+    from fmrimod.glm.thresholding import height_threshold
+
+    rng = np.random.default_rng(5)
+    z = np.concatenate([rng.normal(size=900), rng.normal(4.0, 1.0, size=100)])
+    ours = height_threshold(z, alpha=0.05, method="fdr", height=None, two_sided=True)
+    assert ours == pytest.approx(fdr_threshold(np.abs(z), 0.025), abs=1e-9)
+    bonf = height_threshold(
+        z, alpha=0.05, method="bonferroni", height=None, two_sided=True
+    )
+    assert bonf == pytest.approx(stats.norm.isf(0.025 / z.size))
+    null = height_threshold(
+        rng.normal(size=50), alpha=0.001, method="fdr", height=None, two_sided=True
+    )
+    assert null == np.inf
+    with pytest.raises(ValueError, match="height"):
+        height_threshold(z, alpha=0.05, method="none", height=None, two_sided=True)
+
+
+def test_contrast_threshold_matches_nilearn_threshold_stats_img() -> None:
+    from benchmarks.ergonomics.scenarios import (
+        _masked,
+        fmrimod_fdr_clusters,
+        nilearn_fdr_clusters,
+    )
+
+    inp = make_inputs(seed=15, shape=(14, 14, 10), noise_sd=2.0)
+    ours, table = fmrimod_fdr_clusters(inp)
+    theirs, their_table = nilearn_fdr_clusters(inp)
+    reference = _masked(theirs, inp)
+    np.testing.assert_array_equal(ours.z != 0, reference != 0)
+    # Values differ only by the small HRF-sampling gap between the designs.
+    assert np.corrcoef(ours.z, reference)[0, 1] > 0.9999
+    np.testing.assert_allclose(ours.z, reference, rtol=0.02)
+    top = their_table.iloc[0]
+    assert (
+        table.loc[0, ["x", "y", "z"]].to_numpy() == top[["X", "Y", "Z"]].to_numpy()
+    ).all()
+    assert table.loc[0, "volume_mm3"] == pytest.approx(float(top["Cluster Size (mm3)"]))
+
+
+def test_threshold_cluster_extent_and_one_sided_f(one_run) -> None:
+    import nibabel as nib
+
+    import fmrimod as fm
+    from fmrimod.contrast import OmnibusContrast
+    from fmrimod.spec import drift, hrf
+
+    fit = fm.fmri_lm(hrf("trial_type") + drift(), _dataset(one_run))
+    t = fit.contrast("face - house")
+    loose = t.threshold(method="none", height=1.0)
+    strict = t.threshold(method="none", height=1.0, cluster_size=40)
+    assert strict.n_suprathreshold <= loose.n_suprathreshold
+    assert (strict.clusters()["size"] >= 40).all()
+    f = fit.contrast(OmnibusContrast(term="trial_type")).threshold(0.05)
+    assert f.two_sided is False and (f.z >= 0).all()
+    out = strict.to_nifti(one_run.out_dir / "thr.nii.gz")
+    assert nib.load(out).shape == one_run.mask.shape
+
+
+def test_group_threshold_uses_group_z() -> None:
+    import fmrimod as fm
+    from benchmarks.ergonomics.inputs import make_group_map_inputs
+
+    maps = make_group_map_inputs(n_per_group=8)
+    res = fm.fmri_group_lm(
+        maps.paths, formula="~ group + age", covariates=maps.participants
+    )
+    hits = res.threshold("patient", 0.05)
+    expected = np.abs(res.z_score("patient")) > hits.threshold
+    np.testing.assert_array_equal(hits.z != 0, expected)
+    assert not hits.clusters().empty
+
+
+def test_binned_ar_truncates_onto_nilearn_grid(monkeypatch) -> None:
+    import fmrimod as fm
+    import fmrimod.ar.integration as integration
+    from fmrimod.model.config import AROptions
+    from fmrimod.spec import drift, hrf
+
+    seen = []
+    original = integration._voxelwise_phi
+
+    def spy(*args, **kwargs):
+        phi = original(*args, **kwargs)
+        seen.append(phi)
+        return phi
+
+    monkeypatch.setattr(integration, "_voxelwise_phi", spy)
+    inp = make_inputs(seed=18, ar=0.4, n_scans=100, shape=(8, 8, 6))
+    ds = _dataset(inp)
+    binned = fm.fmri_lm(hrf("trial_type") + drift(), ds, ar="ar1_binned")
+    phi = seen[-1]
+    np.testing.assert_allclose(phi * 100, np.round(phi * 100), atol=1e-9)
+    assert np.unique(phi).size < phi.size
+    explicit = fm.fmri_lm(
+        hrf("trial_type") + drift(),
+        ds,
+        ar=AROptions(struct="ar1", voxelwise=True, bin_width=0.01),
+    )
+    np.testing.assert_allclose(binned.betas, explicit.betas)
+    with pytest.raises(ValueError, match="voxelwise"):
+        AROptions(struct="ar1", bin_width=0.01)
+    with pytest.raises(ValueError, match="not both"):
+        AROptions(struct="ar1", voxelwise=True, bin_width=0.01, noise_pools=10)
