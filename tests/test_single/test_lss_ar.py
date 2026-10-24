@@ -194,6 +194,64 @@ class TestAr1BiasRecovery:
         )
 
 
+class TestIncludeInterceptWhitened:
+    """``include_intercept=True`` must be whitened with the same plan.
+
+    R ``lss()`` whitens ``Z`` (an intercept by default) alongside ``Y``
+    and ``X``. Adding a raw column of ones after whitening leaves an
+    unwhitened mean regressor that biases betas when the data have a large
+    mean (``repro/fmrilss_intercept_whiten.py``).
+    """
+
+    @staticmethod
+    def _fixture() -> tuple[np.ndarray, np.ndarray, PrewhitenConfig]:
+        rng = np.random.default_rng(1)
+        n, n_trials, v = 200, 12, 4
+        X = np.zeros((n, n_trials))
+        h = np.exp(-0.5 * ((np.arange(16) - 5) / 2.0) ** 2)
+        for j, onset in enumerate(np.linspace(5, 180, n_trials).astype(int)):
+            X[onset : onset + 16, j] = h[: max(0, min(16, n - onset))]
+        e = rng.standard_normal((n, v))
+        for t in range(1, n):
+            e[t] += 0.5 * e[t - 1]
+        Y = 100 + X @ rng.normal(1, 0.3, (n_trials, v)) + e
+        cfg = PrewhitenConfig(p=1, runs=np.repeat([1, 2], n // 2))
+        return Y, X, cfg
+
+    @pytest.mark.parametrize("method", ["lss", "lsa"])
+    def test_include_intercept_matches_whitened_ones(self, method: str) -> None:
+        Y, X, cfg = self._fixture()
+        n = Y.shape[0]
+        via_flag = estimate_single_trial(
+            Y, X, method=method, prewhiten=cfg, include_intercept=True
+        )
+        via_baseline = estimate_single_trial(
+            Y, X, method=method, prewhiten=cfg, baseline_regressors=np.ones((n, 1))
+        )
+        assert_allclose(via_flag.betas, via_baseline.betas, atol=1e-10, rtol=0)
+
+    def test_include_intercept_composes_with_baseline(self) -> None:
+        Y, X, cfg = self._fixture()
+        n = Y.shape[0]
+        drift = np.linspace(-1.0, 1.0, n)
+        via_flag = estimate_single_trial(
+            Y,
+            X,
+            prewhiten=cfg,
+            baseline_regressors=drift,
+            include_intercept=True,
+        )
+        via_baseline = estimate_single_trial(
+            Y,
+            X,
+            prewhiten=cfg,
+            baseline_regressors=np.column_stack([np.ones(n), drift]),
+        )
+        assert_allclose(via_flag.betas, via_baseline.betas, atol=1e-10, rtol=0)
+        assert via_flag.extra.include_intercept is True
+        assert via_flag.extra.whitening_plan is not None
+
+
 class TestPrewhitenScopeBoundaries:
     def test_voxel_pooling_with_explicit_parcels_rejected(
         self, rng: np.random.Generator

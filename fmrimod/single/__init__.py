@@ -193,9 +193,22 @@ def estimate_single_trial(
     # baseline_regressors, and confounds share one plan. The aggregate
     # noise model sums trials per basis function (fmrilss a9d816e).
     whitening_plan = None
+    intercept_whitened = False
     if prewhiten is not None and prewhiten.method != "none":
         from ._prewhiten import aggregate_trials, prewhiten_matrices
 
+        if include_intercept:
+            # Whiten the intercept with the same plan as the other baseline
+            # regressors (R lss() whitens Z, an intercept by default); adding
+            # it after whitening would leave an unwhitened mean regressor.
+            ones = np.ones((np.shape(X)[0], 1), dtype=np.float64)
+            baseline_regressors = (
+                ones
+                if baseline_regressors is None
+                else np.column_stack([ones, baseline_regressors])
+            )
+            include_intercept = False
+            intercept_whitened = True
         noise_k = 1
         if oasis_cfg is not None:
             noise_k = oasis_cfg.K
@@ -274,6 +287,8 @@ def estimate_single_trial(
     else:
         raise ValueError(f"Unknown method: {method!r}")
 
+    if intercept_whitened and isinstance(result.extra, LssExtras):
+        result.extra = replace(result.extra, include_intercept=True)
     if whitening_plan is not None:
         result.extra = replace(result.extra, whitening_plan=whitening_plan)
     return result
