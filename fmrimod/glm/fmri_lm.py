@@ -47,7 +47,6 @@ from .contrasts import (
     weights_payload,
 )
 from .engine import DEFAULT_ENGINE_OPTIONS, EngineResult, EngineSelector
-from .errors import FmriCapabilityError
 from .solver import ConditionReport, Projection, RunConditionReport
 
 # ── Fit-level reproducibility metadata (VISION.md:99-103) ────────────────
@@ -1257,16 +1256,6 @@ def fmri_lm(
             "engine (drop the engine= argument or pass engine='runwise')."
         )
 
-    # fmrireg re-estimates phi from the unwhitened robust residuals and
-    # refits; the AR path here cannot yet hand the robust refit its
-    # unwhitened run matrices, so refuse instead of ignoring the option.
-    if config.robust.enabled and config.robust.reestimate_phi and config.ar.enabled:
-        raise FmriCapabilityError(
-            feature="robust AR re-estimation (reestimate_phi=True)",
-            current_capability=("AR estimated once, then robust IRLS on the whitened run",),
-            repair="set RobustOptions(reestimate_phi=False)",
-        )
-
     from fmrimod.ar.integration import validate_ar_config
 
     validate_ar_config(model, config)
@@ -1278,12 +1267,13 @@ def fmri_lm(
 
     # Handle AR modeling if configured
     ar_params = fit_result.ar_params
+    ols_fit: dict[str, Any] | None = None
     if ar_params is None and config.ar.enabled:
         from ..ar.integration import iterative_gls
 
         # Build a dict compatible with the legacy interface
-        legacy = _engine_result_to_dict(fit_result)
-        legacy, ar_params = iterative_gls(model, config, legacy)
+        ols_fit = _engine_result_to_dict(fit_result)
+        legacy, ar_params = iterative_gls(model, config, ols_fit)
         fit_result = _dict_to_engine_result(legacy, fit_result)
 
     # Handle robust fitting if configured
@@ -1293,6 +1283,18 @@ def fmri_lm(
 
         legacy = _engine_result_to_dict(fit_result)
         legacy, robust_weights = robust_refit(model, config, legacy)
+        if (
+            config.robust.reestimate_phi
+            and ols_fit is not None
+            and ar_params is not None
+            and ar_params.size > 0
+        ):
+            # fmrireg process_run_ar_robust: re-estimate phi from the
+            # unwhitened robust residuals, re-whiten, and redo the IRLS.
+            from fmrimod.ar.integration import reestimate_ar_gls
+
+            legacy, ar_params = reestimate_ar_gls(model, config, ols_fit, legacy)
+            legacy, robust_weights = robust_refit(model, config, legacy)
         fit_result = _dict_to_engine_result(legacy, fit_result)
 
     fit = FmriLm(
