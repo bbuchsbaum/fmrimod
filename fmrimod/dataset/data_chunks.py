@@ -100,6 +100,9 @@ def data_chunks(
 
     nchunks = _validate_nchunks(nchunks)
     n_voxels = int(dataset.n_voxels)
+    if n_voxels == 0:
+        # An empty feature axis plans zero chunks (fmridataset a814330).
+        return ChunkIterator(0, _no_chunk)
     if nchunks > n_voxels:
         warnings.warn(
             f"requested {nchunks} chunks but only {n_voxels} voxels; "
@@ -195,6 +198,10 @@ def _runwise_chunks(dataset: FmriDataset) -> ChunkIterator:
         )
 
     return ChunkIterator(dataset.n_runs, get_chunk)
+
+
+def _no_chunk(chunk_num: int) -> DataChunk:
+    raise IndexError(f"chunk {chunk_num} requested from an empty plan")
 
 
 def _dataset_voxel_indices(dataset: FmriDataset) -> NDArray[np.intp]:

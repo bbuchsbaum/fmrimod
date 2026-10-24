@@ -28,7 +28,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from fmrimod.sampling import SamplingFrame
+from fmrimod.sampling import SamplingFrame, same_seconds
 
 from .adapters import BackendAdapter
 from .adapters.neuroim_adapter import _is_neurovec
@@ -403,7 +403,7 @@ def _resolve_tr(
     if tr is None and TR is None:
         raise ValueError("matrix_dataset requires tr or TR")
     if tr is not None and TR is not None:
-        if not np.array_equal(np.asarray(tr), np.asarray(TR)):
+        if not same_seconds(tr, TR):
             raise ValueError("tr and TR must agree when both are supplied")
     resolved = TR if tr is None else tr
     assert resolved is not None
@@ -424,15 +424,17 @@ def _resolve_start_time(
     if start_time is None and slice_timing_offset is None:
         return None
     if start_time is not None and slice_timing_offset is not None:
-        if not np.array_equal(
-            np.asarray(start_time, dtype=float),
-            np.asarray(slice_timing_offset, dtype=float),
-        ):
+        if not same_seconds(start_time, slice_timing_offset):
             raise ValueError(
                 "start_time and slice_timing_offset must agree when both "
                 "are supplied"
             )
-    return slice_timing_offset if start_time is None else start_time
+    resolved = slice_timing_offset if start_time is None else start_time
+    # A dataset's first-volume offset is a time since the run began
+    # (fmridataset 99d19fe); SamplingFrame itself stays permissive.
+    if np.any(np.asarray(resolved, dtype=np.float64) < 0):
+        raise ValueError("start_time must be non-negative")
+    return resolved
 
 
 def _normalize_run_lengths(

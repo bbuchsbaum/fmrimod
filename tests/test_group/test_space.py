@@ -110,3 +110,24 @@ def test_common_mask_returns_sample_indices_and_common_space() -> None:
     np.testing.assert_array_equal(right_idx, np.array([0, 1]))
     np.testing.assert_array_equal(union_space.mask_idx, np.array([0, 1, 2]))
 
+
+
+def test_subset_restricts_parcel_membership_and_basis_projector() -> None:
+    # fmridataset 7cb121e: restrict_space keeps and subsets operators instead
+    # of dropping them. Inventory v2 DS-14. Columns index parcels/components
+    # (R's convention); shapes are checked so an unsubsetted operator fails.
+    from fmrimod.group import BasisSpace, ParcelSpace
+
+    M = np.arange(15, dtype=float).reshape(5, 3)  # 5 voxels x 3 parcels
+    sub = ParcelSpace(["a", "b", "c"], membership=M).subset([0, 2])
+    np.testing.assert_array_equal(sub.membership, M[:, [0, 2]])
+    assert sub.labels == ("a", "c") or list(sub.labels) == ["a", "c"]
+
+    P = np.arange(12, dtype=float).reshape(4, 3)  # 4 voxels x 3 components
+    bsub = BasisSpace(3, projector=P).subset([1])
+    np.testing.assert_array_equal(bsub.projector, P[:, [1]])
+
+    with pytest.raises(GroupSpaceError, match="membership"):
+        ParcelSpace(["a", "b"], membership=M)
+    with pytest.raises(GroupSpaceError, match="projector"):
+        BasisSpace(2, projector=P)

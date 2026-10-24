@@ -253,7 +253,8 @@ def test_fit_provenance_records_explicit_flat_mask_mode() -> None:
 def test_fit_provenance_records_volume_mask_mode() -> None:
     """A 3-D dataset mask is recorded as volume masking."""
     rng = np.random.default_rng(5)
-    bold = rng.standard_normal((60, 4)).astype(np.float64)
+    # One column per in-mask voxel: the mask selects three.
+    bold = rng.standard_normal((60, 3)).astype(np.float64)
     mask = np.array([[[True], [False]], [[True], [True]]], dtype=bool)
     adapter = NumpyAdapter(
         bold,

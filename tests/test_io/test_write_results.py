@@ -37,7 +37,7 @@ class _DesignColumns:
         return tuple(column.name for column in self.columns)
 
 
-class _DummySource:
+class _DummyDataset:
     def __init__(self, affine=None):
         self._affine = (
             np.eye(4, dtype=np.float64)
@@ -47,11 +47,6 @@ class _DummySource:
 
     def get_affine(self):
         return self._affine
-
-
-class _DummyDataset:
-    def __init__(self, affine=None):
-        self._source = _DummySource(affine)
 
     def get_mask(self):
         return np.ones((2, 2, 2), dtype=bool)
