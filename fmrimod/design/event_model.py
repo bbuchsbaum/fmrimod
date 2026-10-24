@@ -96,6 +96,14 @@ def _default_precision_from_sframe(sampling_info: object) -> float:
     return float(np.min(tr_arr) / DEFAULT_PRECISION_OVERSAMPLING)
 
 
+def _term_key(name: str | None, tag: str | None, taken: Mapping[str, object]) -> str:
+    """Key of a term in name-keyed maps: its name, or its column tag once taken."""
+    key = str(name)
+    if key in taken and tag:
+        key = tag
+    return key
+
+
 def _plain_function_hrf(fn: Any) -> HRF:
     """Wrap a plain function of time as an HRF (R ``gen_hrf(fn)``).
 
@@ -811,7 +819,6 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
             # Track column indices for this term
             n_cols = X_term.shape[1]
             term_indices = list(range(current_col, current_col + n_cols))
-            column_indices[term.name] = term_indices
             current_col += n_cols
 
             # Generate term tag
@@ -832,6 +839,9 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
                 )
             if term_tag:
                 existing_tags.append(term_tag)
+            # A later term reusing a name is keyed by its de-duplicated tag
+            # (``cond#1``) instead of overwriting the earlier term's columns.
+            column_indices[_term_key(term.name, term_tag, column_indices)] = term_indices
 
             # Generate condition tags
             cond_tags = self._get_condition_tags(event_term)
