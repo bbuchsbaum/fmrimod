@@ -121,6 +121,27 @@ def _read_scan_index(handle: Any) -> pd.DataFrame:
     return manifest
 
 
+def _read_scan_timing(
+    handle: Any,
+    scan_name: str,
+    default_tr: float,
+) -> tuple[float, float]:
+    """Return one scan's ``(tr, start_time)``.
+
+    TR is per scan (R ``52439b2``/``cce6a44``). A scan without
+    ``metadata/tr`` falls back to the archive TR, and one without
+    ``metadata/start_time`` to ``TR/2``, so archives written before per-scan
+    timing was recorded read as before.
+    """
+    tr_value = _read_optional_scalar(handle, f"scans/{scan_name}/metadata/tr")
+    tr = default_tr if tr_value is None else float(cast(Any, tr_value))
+    start_value = _read_optional_scalar(
+        handle, f"scans/{scan_name}/metadata/start_time"
+    )
+    start_time = tr / 2.0 if start_value is None else float(cast(Any, start_value))
+    return tr, start_time
+
+
 def _read_frame(group: Any, subgroup_name: str) -> pd.DataFrame | None:
     if subgroup_name not in group:
         return None
@@ -210,14 +231,15 @@ def _make_scan_backends(
 ) -> dict[str, BidsH5ScanBackend]:
     out: dict[str, BidsH5ScanBackend] = {}
     for row in manifest.to_dict("records"):
+        name = str(row["scan_name"])
+        scan_tr, _start_time = _read_scan_timing(connection.handle, name, tr)
         metadata = {
             "subject": row["subject"],
             "task": row["task"],
             "session": row["session"] if row["session"] else None,
             "run": row["run"],
-            "tr": tr,
+            "tr": scan_tr,
         }
-        name = str(row["scan_name"])
         out[name] = bids_h5_scan_backend(
             h5_connection=connection,
             scan_group_path=f"/scans/{name}",
@@ -239,12 +261,17 @@ def _build_subject_dataset(
     events: list[pd.DataFrame | None] = []
     censors: list[NDArray[np.bool_]] = []
     run_lengths: list[int] = []
+    run_trs: list[float] = []
+    start_times: list[float] = []
 
     for run_id, row in enumerate(scan_rows.to_dict("records"), start=1):
         scan_name = str(row["scan_name"])
         scan_group = handle[f"scans/{scan_name}"]
         n_time = int(row["n_time"])
         run_lengths.append(n_time)
+        scan_tr, start_time = _read_scan_timing(handle, scan_name, tr)
+        run_trs.append(scan_tr)
+        start_times.append(start_time)
 
         event_frame = _read_frame(scan_group, "events") if row["has_events"] else None
         if event_frame is not None and len(event_frame) > 0:
@@ -259,7 +286,7 @@ def _build_subject_dataset(
         censors.append(_read_censor(scan_group, n_time))
 
     backends = [scan_backends[str(name)] for name in scan_rows["scan_name"]]
-    frame = SamplingFrame(blocklens=run_lengths, tr=tr)
+    frame = SamplingFrame(blocklens=run_lengths, tr=run_trs, start_time=start_times)
     adapter = _BidsSubjectAdapter(backends, frame)
     return FmriDataset(
         adapter,

@@ -556,8 +556,14 @@ def compress_bids_study(
                     )
                     n_features_out = n_features
 
+                # Per-scan timing (R 52439b2/cce6a44); ``start_time`` is an
+                # additive v1 field that readers default to TR/2 when absent.
+                frame = dataset.sampling_frame
                 metadata = scan_group.create_group("metadata")
-                metadata.create_dataset("tr", data=dataset.sampling_frame.TR)
+                metadata.create_dataset("tr", data=float(frame.tr[run_index]))
+                metadata.create_dataset(
+                    "start_time", data=float(frame.start_time[run_index])
+                )
                 scan_group.create_dataset(
                     "censor",
                     data=_scan_censor(dataset, run_index, n_time),
