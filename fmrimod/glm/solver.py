@@ -222,6 +222,12 @@ def fast_preproject(
     if method == "pinv":
         Pinv, rank = linalg.pinv(X, return_rank=True, check_finite=False)
         XtXinv = Pinv @ Pinv.T
+        pinv_aliased: tuple[int, ...] = ()
+        if rank < p:
+            # Name the dependent columns as the auto path does (run pooling
+            # gives them no weight).
+            pivot = linalg.qr(X, pivoting=True, mode="r", check_finite=False)[1]
+            pinv_aliased = tuple(int(idx) for idx in pivot[rank:])
         return Projection(
             Pinv=Pinv,
             XtXinv=XtXinv,
@@ -230,6 +236,7 @@ def fast_preproject(
             is_full_rank=(int(rank) == p),
             ill_conditioned=(int(rank) != p),
             XtX=None,
+            aliased_indices=pinv_aliased,
         )
 
     cond_threshold = 1.0 / np.sqrt(eps)
