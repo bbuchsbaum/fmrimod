@@ -219,18 +219,25 @@ def pooled_acvf_segments(
         mat = mat - mu[inv]
 
     seg = np.asarray(seg_id)
-    num[0] = float(np.sum(mat * mat) / nc)
+    mat = np.ascontiguousarray(mat)
+    num[0] = float(np.vdot(mat, mat) / nc)
     pairs[0] = float(nv)
     for lg in range(1, max_lag + 1):
         if nv <= lg:
             break
-        hi = np.arange(lg, nv)
-        lo = np.arange(0, nv - lg)
-        ok = seg[hi] == seg[lo]
-        if not np.any(ok):
+        ok = seg[lg:] == seg[:-lg]
+        n_ok = int(np.sum(ok))
+        if n_ok == 0:
             continue
-        num[lg] = float(np.sum(mat[hi[ok]] * mat[lo[ok]]) / nc)
-        pairs[lg] = float(np.sum(ok))
+        # One dot product per run of consecutive usable pairs, on contiguous
+        # row slices, so no full-size copy is made per lag.
+        edges = np.diff(np.concatenate([[0], ok.astype(np.int8), [0]]))
+        total = 0.0
+        for a, b in zip(np.flatnonzero(edges == 1), np.flatnonzero(edges == -1),
+                        strict=True):
+            total += float(np.vdot(mat[a + lg : b + lg], mat[a:b]))
+        num[lg] = total / nc
+        pairs[lg] = float(n_ok)
     return PooledAcvf(num=num, pairs=pairs)
 
 
