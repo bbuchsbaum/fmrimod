@@ -110,6 +110,33 @@ def _lmm_fixed_design(
     return obs, X, list(design.columns)
 
 
+def _lmm_coef_df(
+    X: NDArray[np.float64],
+    groups: NDArray[Any],
+    df_res: float,
+) -> NDArray[np.float64]:
+    """Per-coefficient between/within ("containment") degrees of freedom.
+
+    Port of fmrigds ``.lmm_between_within_df`` (``R/reducers-lmm.R``,
+    ``7c7ecae``). A fixed-effect column that is constant within every
+    subject is a between-subject term: its information comes from
+    subject-level variation only, so it uses ``N - rank(X_between)``, with
+    ``X_between`` the between-subject columns (intercept included) at one
+    row per subject. Every other column keeps the residual df. Using the
+    residual df for between-subject terms is anti-conservative.
+    """
+    df_coef = np.full(X.shape[1], float(df_res), dtype=np.float64)
+    tol = 1e-10 * np.maximum(1.0, np.max(np.abs(X), axis=0))
+    spread = pd.DataFrame(X).groupby(np.asarray(groups)).agg(lambda c: c.max() - c.min())
+    between = np.all(spread.to_numpy() <= tol, axis=0)
+    if not np.any(between):
+        return df_coef
+    _, first_rows = np.unique(np.asarray(groups), return_index=True)
+    df_between = float(first_rows.size - np.linalg.matrix_rank(X[first_rows][:, between]))
+    df_coef[between] = df_between if df_between >= 1 else np.nan
+    return df_coef
+
+
 def _lmm_beta_matrix(dataset: GroupDataset) -> NDArray[np.float64]:
     beta = dataset.assay("beta")
     return beta.reshape(dataset.n_samples, dataset.n_subjects * dataset.n_contrasts).T
