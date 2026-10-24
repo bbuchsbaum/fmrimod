@@ -6,11 +6,13 @@ turning it into a mechanical port.
 **Predecessor:** [`r_source_drift_inventory_v1.md`](r_source_drift_inventory_v1.md)
 (2026-08-19; waves 1 to 3 ported in `3c6fc84`).
 **fmrimod HEAD audited:** `4f14a19`.
-**Board source / epic / wave beads:** not filed yet. `mote` was not installed
-in the container that produced this audit, so no board post or bead exists.
-[§ Proposed beads](#proposed-beads) lists what to file; use
-`python scripts/mote_new.py "<title>" -p <n> --from-bead bd-01M0DQSE2QBF4TZ6G9DKYY8G2W`
-(the v1 epic) so the tracker records the lineage.
+**Epic:** `bd-01M5PS5JM4J8A2JKZX9WHN96QS`, filed from the v1 epic
+`bd-01M0DQSE2QBF4TZ6G9DKYY8G2W`. `mote` was not available in the container
+that produced this audit and wave 1, so the epic and its 40 child beads are
+declared with fixed ids in
+[`r_source_drift_v2/file_beads.py`](r_source_drift_v2/file_beads.py); run it
+once from the repository root on a machine with mote (`--dry-run` first).
+No board post exists.
 
 The R behaviour is the spec; the Python surface is not a mechanical
 translation. Rows record what changed upstream, what fmrimod does today, and
@@ -409,8 +411,12 @@ passed and 7 failed. None of the failures comes from this audit.
 
 ## Proposed beads
 
-Priorities follow mote (0 highest). Provenance for all:
-`--from-bead bd-01M0DQSE2QBF4TZ6G9DKYY8G2W`.
+This was the plan at audit time. The beads actually filed, with their ids,
+priorities and bodies, are in
+[`r_source_drift_v2/file_beads.py`](r_source_drift_v2/file_beads.py): the
+epic hangs off the v1 epic, every other bead off the v2 epic, and the
+wave 1 lane beads are filed closed with their commits. Priorities follow
+mote (0 highest).
 
 | Proposed title | Pri | Rows | Red check home |
 | --- | --- | --- | --- |
