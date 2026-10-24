@@ -636,17 +636,29 @@ def hrf_smoothing_kernel(
     em = event_model(form, data=data, sampling_frame=sf, durations=tr)
     design = getattr(em, "design_matrix")
     X = np.asarray(design() if callable(design) else design, dtype=np.float64)
-    if method == "gram":
-        K = X @ X.T
-    else:
-        norms = np.sqrt(np.sum(X * X, axis=0))
-        Xn = X / np.where(norms > 0, norms, 1.0)
-        K = Xn @ Xn.T
-    if normalize:
-        diag = np.diag(K)
-        K = K / np.where(diag[:, np.newaxis] != 0, diag[:, np.newaxis], 1.0)
+    # Similarity between scans (rows of X); "cosine" is the scan cosine, i.e.
+    # the Gram matrix scaled symmetrically to unit diagonal (fmrireg 7c2a985).
+    K = X @ X.T
+    if method == "cosine" or normalize:
+        K = _unit_diagonal(K)
     keep = slice(n_buf, n_buf + int(length))
     return K[keep, keep]
+
+
+def _unit_diagonal(K: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Scale a Gram matrix to ``K[i, j] / sqrt(K[i, i] K[j, j])``.
+
+    A scan with no signal (``K[i, i] == 0``) is similar only to itself: its
+    row and column are 0 with a 1 on the diagonal, rather than NaN.
+    """
+    d = np.diag(K)
+    s = np.zeros_like(d)
+    signal = d > 0
+    s[signal] = 1.0 / np.sqrt(d[signal])
+    K = K * np.outer(s, s)
+    K = (K + K.T) / 2.0
+    np.fill_diagonal(K, 1.0)
+    return K
 
 
 def estimate(*args: object, **kwargs: object) -> None:

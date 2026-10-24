@@ -259,3 +259,58 @@ def test_hrf_smoothing_kernel_and_deprecated_estimate():
 
     with pytest.raises(RuntimeError, match="estimate_betas"):
         fmrimod.estimate()
+
+
+_GAUSSIAN_TRIALWISE = "onset ~ trialwise(basis='gaussian')"
+
+
+@pytest.mark.parametrize("method", ["gram", "cosine"])
+@pytest.mark.parametrize("buffer_scans", [0, 3])
+def test_hrf_smoothing_kernel_normalised_is_symmetric_correlation(method, buffer_scans):
+    # fmrireg 7c2a985 (review C6): K[i, j] / sqrt(K[i, i] K[j, j]); a scan
+    # with no signal (buffer 0) maps to an identity row/column, not NaN.
+    K = fmrimod.hrf_smoothing_kernel(
+        30,
+        tr=1.5,
+        form=_GAUSSIAN_TRIALWISE,
+        method=method,
+        buffer_scans=buffer_scans,
+        normalize=True,
+    )
+
+    assert np.all(np.isfinite(K))
+    np.testing.assert_allclose(K, K.T, rtol=0.0, atol=1e-12)
+    np.testing.assert_allclose(np.diag(K), np.ones(30), rtol=0.0, atol=1e-12)
+    assert np.max(np.abs(K)) <= 1.0 + 1e-12
+
+
+def test_hrf_smoothing_kernel_gram_and_scan_cosine_match_reference():
+    from fmrimod import SamplingFrame, event_model
+
+    length, buf, tr = 25, 2, 2.0
+    sf = SamplingFrame(blocklens=length + 2 * buf, tr=tr)
+    data = pd.DataFrame({"onset": sf.sample_times(), "block": 1})
+    em = event_model(_GAUSSIAN_TRIALWISE, data=data, sampling_frame=sf, durations=tr)
+    design = em.design_matrix
+    X = np.asarray(design() if callable(design) else design, dtype=np.float64)
+    keep = slice(buf, buf + length)
+
+    G = X @ X.T
+    d = np.sqrt(np.diag(G))
+    ref = G / np.outer(d, d)
+
+    def kernel(**kwargs):
+        return fmrimod.hrf_smoothing_kernel(
+            length, tr=tr, form=_GAUSSIAN_TRIALWISE, buffer_scans=buf, **kwargs
+        )
+
+    np.testing.assert_allclose(
+        kernel(normalize=False, method="gram"), G[keep, keep], rtol=0.0, atol=1e-12
+    )
+    np.testing.assert_allclose(
+        kernel(normalize=True, method="gram"), ref[keep, keep], rtol=0.0, atol=1e-12
+    )
+    # "cosine" is the scan (row) cosine, i.e. the same symmetric scaling.
+    np.testing.assert_allclose(
+        kernel(normalize=False, method="cosine"), ref[keep, keep], rtol=0.0, atol=1e-12
+    )
