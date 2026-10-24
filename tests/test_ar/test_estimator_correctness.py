@@ -304,17 +304,86 @@ def test_enforce_stationary_ar_margin():
     assert _min_root(clamp_only) < 1.0 + margin / 2
 
 
-def test_arma_warns_across_censoring_gaps():
-    rng = np.random.RandomState(1)
-    resid = np.column_stack([rng.randn(300) for _ in range(10)])
-    for t in range(1, 300):
-        resid[t] += 0.5 * resid[t - 1]
-    cens = np.arange(9, 290, 10)
-    with pytest.warns(UserWarning, match="censoring gaps"):
-        fit_noise(resid, method="arma", p=1, q=1, pooling="global", censor=cens)
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        fit_noise(resid, method="arma", p=1, q=1, pooling="global")
+def _arma11_rho1(phi: float, theta: float) -> float:
+    return (1 + phi * theta) * (phi + theta) / (1 + 2 * phi * theta + theta**2)
+
+
+def test_arma_is_estimated_from_voxels_not_their_mean():
+    """fmriAR 617bd87 (test-audit-regressions.R:207-222), row AR-03.
+
+    Near-white voxels plus a weak shared slow signal: the voxel-mean series
+    is dominated by the shared component. Cheap pass disqualified: keeping
+    the voxel-mean Hannan-Rissanen fit fails the lag-1 match (phi ~0.89).
+    """
+    rng = np.random.default_rng(9112)
+    n, v = 400, 200
+    shared = lfilter([1.0], [1.0, -0.9], rng.standard_normal(n))
+    R = rng.standard_normal((n, v)) + 0.3 * shared[:, None]
+    plan = fit_noise(R, method="arma", p=1, q=1)
+    rho1 = _arma11_rho1(plan.phi[0][0], plan.theta[0][0])
+    assert abs(rho1 - _lag1(R)) < 0.05
+    W = whiten_apply(plan, np.ones((n, 1)), R).Y
+    assert abs(_lag1(W)) < 0.03
+
+
+def test_arma_respects_censoring_gaps_instead_of_splicing_them():
+    """Lags stay inside contiguous segments (R estimator-correctness :678-697).
+
+    This replaces the wave 1 warning that ``method="arma"`` is biased under
+    censoring: the pooled estimator no longer is, so fmriAR removed it.
+    """
+    rng = np.random.default_rng(6861)
+    est = []
+    for _ in range(20):
+        resid = _arma_sim(300, 20, [0.5], [0.4], rng=rng)
+        cens = np.sort(rng.choice(300, 75, replace=False))
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            plan = fit_noise(resid, method="arma", p=1, q=1, censor=cens)
+        est.append([plan.phi[0][0], plan.theta[0][0]])
+    est = np.array(est)
+    assert abs(est[:, 0].mean() - 0.5) < 0.05
+    assert abs(est[:, 1].mean() - 0.4) < 0.05
+
+
+def test_pooled_arma_recovers_parameters_and_voxel_scale_sigma2():
+    """R test-audit-regressions.R:224-237, :818-825 and :808-816."""
+    rng = np.random.default_rng(9113)
+    R = _arma_sim(400, 30, [0.5], [0.4], rng=rng)
+    runs = np.repeat([1, 2], 200)
+    pg = fit_noise(R, runs=runs, method="arma", p=1, q=1)
+    pr = fit_noise(R, runs=runs, method="arma", p=1, q=1, pooling="run")
+    assert abs(pg.phi[0][0] - 0.5) < 0.1
+    assert abs(pg.theta[0][0] - 0.4) < 0.1
+    for i in range(2):
+        assert abs(pr.phi[i][0] - pg.phi[0][0]) < 0.1
+        assert abs(pr.theta[i][0] - pg.theta[0][0]) < 0.1
+        assert abs(pr.sigma2[i] - 1) < 0.15
+    # Innovation variance at voxel scale, not the voxel-mean's.
+    assert abs(pg.sigma2[0] - 1) < 0.1
+    # Refinement iterations change theta and stay accurate.
+    p2 = fit_noise(R, method="arma", p=1, q=1, hr_iter=2)
+    assert not np.allclose(p2.theta[0], fit_noise(R, method="arma", p=1, q=1).theta[0])
+    assert abs(p2.phi[0][0] - 0.5) < 0.08
+    assert abs(p2.theta[0][0] - 0.4) < 0.08
+    # ARMA(0, 0) is a white plan carrying the voxel variance.
+    W = 2.0 * rng.standard_normal((300, 10))
+    p0 = fit_noise(W, method="arma", p=0, q=0)
+    assert p0.order == (0, 0)
+    assert abs(p0.sigma2[0] - 4) < 0.4
+    np.testing.assert_array_equal(whiten_apply(p0, np.ones((300, 1)), W).Y, W)
+
+
+def test_pooled_arma_falls_back_to_white_noise_with_a_warning():
+    """R test-audit-regressions.R:742-747."""
+    from fmrimod.ar.hr_arma import _hr_arma_pooled
+
+    units = [(np.random.default_rng(1).standard_normal((3, 2)), np.array([0]))]
+    with pytest.warns(UserWarning, match="white-noise"):
+        fit = _hr_arma_pooled(units, 1, 1)
+    assert not fit.ok
+    np.testing.assert_array_equal(fit.phi, [0.0])
+    np.testing.assert_array_equal(fit.theta, [0.0])
 
 
 def test_character_parcel_labels_are_refused():
