@@ -198,6 +198,29 @@ def test_combine_lancaster_uses_subject_weights() -> None:
     assert out.metadata["reduce_method"] == "combine:lancaster"
 
 
+def test_combine_lancaster_stays_finite_for_tiny_p_values() -> None:
+    # fmrigds test-review-numeric.R ("Lancaster combiner stays finite"): the
+    # upper-tail quantile qchisq(p, df, lower.tail = FALSE), not qchisq(1 - p).
+    from scipy import stats as sp_stats
+
+    ds = group_dataset(
+        {"p": np.array([[[1e-17], [0.5]], [[1e-30], [0.5]]])},
+        space=SampleLabelSpace(["r1", "r2"]),
+        subjects=["s1", "s2"],
+        contrasts=["c1"],
+    )
+
+    out = combine_lancaster(ds, dfw=[1.0, 1.0])
+
+    for row, p_small in enumerate([1e-17, 1e-30]):
+        chi2 = sp_stats.chi2.isf(p_small, 2) + sp_stats.chi2.isf(0.5, 2)
+        np.testing.assert_allclose(out.assay("chi2")[row, 0, 0], chi2, rtol=1e-10)
+        np.testing.assert_allclose(
+            out.assay("p_g")[row, 0, 0], sp_stats.chi2.sf(chi2, 4), rtol=1e-10
+        )
+    assert out.assay("p_g")[0, 0, 0] > 0.0
+
+
 def test_combiner_registry_dispatch() -> None:
     ds = group_dataset(
         {"p": np.array([[[0.01], [0.20]]])},
