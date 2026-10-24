@@ -369,14 +369,43 @@ def _filter_exact(
         out[t] = acc / factor[t, 0]
     # Converged rows follow the limit: out_t = z_t - sum_d theta_d out_{t-d},
     # the conditional MA recursion seeded with the exact outputs so far.
-    if q == 0:
-        out[n_rows:] = z[n_rows:]
-    else:
+    out[n_rows:] = z[n_rows:]
+    if q:
         for t in range(n_rows, n_seg):
-            acc = z[t].copy()
+            row = out[t]
             for d in range(1, q + 1):
-                acc -= theta[d - 1] * out[t - d]
-            out[t] = acc
+                row -= theta[d - 1] * out[t - d]
+    return out
+
+
+# At and above this AR order a blocked banded matmul beats the
+# shifted-subtraction loop on multi-column input (about 7x at order 25).
+_FIR_MATMUL_MIN_ORDER = 8
+_FIR_BLOCK = 256
+
+
+def _ar_fir_blocked(
+    seg: NDArray[np.float64], phi: NDArray[np.float64]
+) -> NDArray[np.float64]:
+    """``seg_t - sum_k phi_k seg_{t-k}`` with a zero pre-sample, by matmul.
+
+    Every block of ``_FIR_BLOCK`` output rows is the product of one slice
+    of the same lower-triangular Toeplitz matrix with the block's rows and
+    the ``p`` before it, so the work stays linear in the segment length.
+    """
+    n = seg.shape[0]
+    p = phi.size
+    size = min(n, _FIR_BLOCK) + p
+    col = np.zeros(size)
+    col[0] = 1.0
+    col[1 : p + 1] = -phi
+    T = np.tril(linalg.toeplitz(col))
+    out = np.empty_like(seg)
+    for b0 in range(0, n, _FIR_BLOCK):
+        b1 = min(n, b0 + _FIR_BLOCK)
+        lo = max(0, b0 - p)
+        r = b0 - lo
+        out[b0:b1] = T[r : r + (b1 - b0), : b1 - lo] @ seg[lo:b1]
     return out
 
 
@@ -485,8 +514,11 @@ def arma_whiten_segments(
             continue
 
         # Pure AR case (q=0): apply FIR filter directly with vectorized
-        # shifted subtraction, avoiding scipy lfilter overhead.
-        if q_ord == 0 and p > 0:
+        # shifted subtraction, avoiding scipy lfilter overhead. Long orders
+        # (the Hannan-Rissanen long AR) go through BLAS instead.
+        if q_ord == 0 and p >= _FIR_MATMUL_MIN_ORDER and seg.shape[1] > 1:
+            out[s_start:s_end, :] = _ar_fir_blocked(seg, phi)
+        elif q_ord == 0 and p > 0:
             seg_out = seg.copy()
             for k in range(1, p + 1):
                 if seg_len > k:

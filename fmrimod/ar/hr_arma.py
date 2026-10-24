@@ -225,7 +225,6 @@ class _ArmaUnit:
 
     mat: NDArray[np.float64]
     starts0: NDArray[np.intp]
-    rel: NDArray[np.intp]
     seg_id: NDArray[np.intp]
     seg_len: NDArray[np.intp]
 
@@ -241,9 +240,8 @@ def _arma_unit(mat: NDArray[Any], starts0: NDArray[Any]) -> _ArmaUnit:
     if starts.size == 0:
         starts = np.array([0], dtype=np.intp)
     seg_len = np.diff(np.append(starts, mat.shape[0]))
-    rel = np.concatenate([np.arange(k, dtype=np.intp) for k in seg_len])
     seg_id = np.repeat(np.arange(1, seg_len.size + 1, dtype=np.intp), seg_len)
-    return _ArmaUnit(mat=mat, starts0=starts, rel=rel, seg_id=seg_id, seg_len=seg_len)
+    return _ArmaUnit(mat=mat, starts0=starts, seg_id=seg_id, seg_len=seg_len)
 
 
 def _effective_voxels(units: Sequence[_ArmaUnit]) -> float:
@@ -272,19 +270,27 @@ def _hr_normal_eq(
     Rows whose position in their segment is at least ``start`` regress
     ``y_t`` on ``y_{t-1..t-p}`` and ``E_{t-1..t-q}``, so no lag crosses a
     segment start (fmriAR ``hr_normal_eq_cpp``). Returns ``(G, b, y'y, rows)``.
+    Those rows are contiguous within each segment, so every lag is a view.
     """
-    rows = np.flatnonzero(unit.rel >= start)
-    Yt = unit.mat[rows]
-    Z = [unit.mat[rows - a] for a in range(1, p + 1)]
-    Z += [E[rows - a] for a in range(1, q + 1)]
     k = p + q
-    G = np.empty((k, k))
-    b = np.empty(k)
-    for i in range(k):
-        b[i] = np.vdot(Z[i], Yt)
-        for j in range(i, k):
-            G[i, j] = G[j, i] = np.vdot(Z[i], Z[j])
-    return G, b, float(np.vdot(Yt, Yt)), int(rows.size)
+    G = np.zeros((k, k))
+    b = np.zeros(k)
+    yy, rows = 0.0, 0
+    for s0, n_s in zip(unit.starts0, unit.seg_len, strict=True):
+        lo, hi = int(s0) + start, int(s0 + n_s)
+        if hi <= lo:
+            continue
+        Yt = unit.mat[lo:hi]
+        Z = [unit.mat[lo - a : hi - a] for a in range(1, p + 1)]
+        Z += [E[lo - a : hi - a] for a in range(1, q + 1)]
+        for i in range(k):
+            b[i] += np.vdot(Z[i], Yt)
+            for j in range(i, k):
+                G[i, j] += np.vdot(Z[i], Z[j])
+        yy += float(np.vdot(Yt, Yt))
+        rows += hi - lo
+    G = np.triu(G) + np.triu(G, 1).T
+    return G, b, yy, rows
 
 
 def _hr_arma_pooled(
