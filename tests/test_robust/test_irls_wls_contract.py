@@ -12,8 +12,10 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
+from scipy import stats as sp_stats
 
 import fmrimod as fm
+from fmrimod.accessors import p_values
 from fmrimod.ar.estimation import fit_noise
 from fmrimod.ar.whitening import ar_whiten_matrix
 from fmrimod.dataset.data_access import get_run_data
@@ -86,6 +88,16 @@ def test_robust_contrast_df_is_sum_of_weights_minus_rank():
     con = fit.contrast(np.array([1.0, 0.0, 0.0]), name="a")
     np.testing.assert_allclose(con.df, float(np.sum(w)) - 3, rtol=1e-12)
     assert fit.residual_df == int(np.sum(w > 0)) - 3
+
+
+def test_estimate_p_values_use_the_robust_inference_df():
+    X, Y, ds = _spike_fixture()
+    fit = _fit(ds, X, type="huber", max_iter=3)
+    df = float(np.sum(fit.robust_weights)) - 3
+    expected = 2.0 * sp_stats.t.sf(np.abs(fit.tstat()), df=df)
+    np.testing.assert_allclose(p_values(fit), expected, rtol=1e-12)
+    con = fit.contrast(np.array([1.0, 0.0, 0.0]), name="a")
+    np.testing.assert_allclose(p_values(fit)[0], con.p_value, rtol=1e-10)
 
 
 @pytest.mark.parametrize("scope", ["run", "voxel", "global"])
