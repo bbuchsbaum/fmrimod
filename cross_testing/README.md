@@ -85,7 +85,7 @@ python cross_testing/benchmark_fmrimod_levers.py \
 python cross_testing/benchmark_arma_paths.py \
   --output cross_testing/reports/fmrimod_arma_benchmark.json
 
-# Threshold check for CI gating
+# Threshold report (CI passes --report-only: tracked, not gated)
 python cross_testing/check_arma_benchmark_thresholds.py \
   --report cross_testing/reports/fmrimod_arma_benchmark.json
 
@@ -345,7 +345,9 @@ The cross-tests run automatically on:
 
 Results are posted as PR comments and artifacts are uploaded for inspection.
 
-AR/ARMA performance gating is tracked via dedicated workflows:
+AR/ARMA performance is tracked, not gated, by dedicated workflows. They run
+the threshold check with `--report-only`, which warns on a miss and keeps the
+timings in the uploaded artifact:
 - `.github/workflows/arma-benchmark.yml` (native backend enabled)
 - `.github/workflows/arma-benchmark-fallback.yml` (`FMRIMOD_DISABLE_C_ARMA=1`)
 
