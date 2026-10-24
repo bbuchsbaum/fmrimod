@@ -559,8 +559,11 @@ def poly_contrast(
     degree : int, default=1
         Polynomial degree
     value_map : dict, optional
-        Mapping from factor levels to numeric values
-        
+        Mapping from factor levels to numeric values. The trend is fitted
+        to these values (``stats::poly``), so unequal spacing is honoured.
+        Required unless the levels are themselves numbers; it must cover
+        every level present.
+
     Returns
     -------
     PolyContrastSpec
@@ -568,7 +571,7 @@ def poly_contrast(
         
     Examples
     --------
-    >>> # Linear trend across time points
+    >>> # Linear trend across numeric time points ("1", "2", "4", ...)
     >>> pcon = poly_contrast(~ time, name="linear_time", degree=1)
     >>> 
     >>> # Cubic trend with custom spacing
