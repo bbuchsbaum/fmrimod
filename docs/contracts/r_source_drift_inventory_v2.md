@@ -239,14 +239,14 @@ snapshot of `4f14a19`, so their status column is not edited.
 
 | Lane | Rows fixed | Commits | Left open |
 | --- | --- | --- | --- |
-| 1a Noise model | AR-01 to AR-12; the AR part of REG-A-07 | `10d528c`..`241adf4` | none |
-| 1b First-level AR routing | REG-A-02, REG-A-03, REG-A-04, REG-A-12; `fmri_lm` AR now runs through `fit_noise` / `whiten_apply` | `f0d99b1`..`8753bd1` | REG-A-14 (ARMA, wave 2) |
-| 1c First-level composition and numerics | REG-A-01, REG-A-05 to REG-A-11, REG-B-06, REG-B-07 | `6926e95`..`0827a57` | REG-A-13 (D4) |
-| 1d HRF | HRF-01 to HRF-05, HRF-07, HRF-08; also the FIR basis end-of-span defect (same root as HRF-02) | `e61683a`..`1e74d43` | none |
-| 1e Design and contrasts | DES-01 to DES-09 | `e5756be`..`7ad6c03` | DES-10 (D3) |
-| 1f Single-trial | LSS-01 to LSS-04, P-1 | `bdaa2d9`..`7cc2991` | none |
-| 1g Group and meta | REG-B-01 to REG-B-05, GDS-01 to GDS-07 | `9503648`..`21af5e9` | see below |
-| 1h Dataset | DS-01 to DS-06 | `65f606d`..`637b449` | see below |
+| 1a Noise model | AR-01 to AR-12; the AR part of REG-A-07 | `2cc2f60`..`6f1bff0` | none |
+| 1b First-level AR routing | REG-A-02, REG-A-03, REG-A-04, REG-A-12; `fmri_lm` AR now runs through `fit_noise` / `whiten_apply` | `fc83a9b`..`abd5113` | REG-A-14 (ARMA, wave 2) |
+| 1c First-level composition and numerics | REG-A-01, REG-A-05 to REG-A-11, REG-B-06, REG-B-07 | `a75b60f`..`8054393` | REG-A-13 (D4) |
+| 1d HRF | HRF-01 to HRF-05, HRF-07, HRF-08; also the FIR basis end-of-span defect (same root as HRF-02) | `dbdabea`..`71a3e3c` | none |
+| 1e Design and contrasts | DES-01 to DES-09 | `f7562ce`..`d932541` | DES-10 (D3) |
+| 1f Single-trial | LSS-01 to LSS-04, P-1 | `537cbcb`..`6a147d0` | none |
+| 1g Group and meta | REG-B-01 to REG-B-05, GDS-01 to GDS-07 | `fbe6cee`..`b197d6f` | see below |
+| 1h Dataset | DS-01 to DS-06 | `5bc0bbd`..`3913893` | see below |
 
 Partly fixed rows:
 
@@ -277,7 +277,7 @@ ARMA through it).
 
 Also fixed while integrating: the top-level `fmrimod.matrix_dataset`
 facade dropped `censor`, `start_time` and `slice_timing_offset`
-(`d8f31aa`), and v1 is registered in both contract audits (`97c769c`).
+(`5e75ccf`), and v1 is registered in both contract audits (`97c769c`).
 
 Behaviour changes users will notice are listed in each commit body. The
 largest are: equal and custom meta weights are relative (tau2 is NaN);
