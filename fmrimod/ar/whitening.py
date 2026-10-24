@@ -587,9 +587,7 @@ def whiten_apply(
 
     # Resolve censor: None inherits the plan's set, an explicit empty one
     # means no censoring; a boolean mask must not be cast to 0/1 indices.
-    if censor is None:
-        censor = plan.censor
-    censor = _normalize_censor(censor, n)
+    censor_idx = _normalize_censor(plan.censor if censor is None else censor, n)
 
     # --- Parcel plan ---
     if plan.pooling == "parcel":
@@ -598,7 +596,7 @@ def whiten_apply(
             raise ValueError("Parcel labels required for parcel plan")
         parcels_vec = parcel_codes(parcels_vec)
 
-        run_starts_vec = _full_run_starts(runs, censor, n)
+        run_starts_vec = _full_run_starts(runs, censor_idx, n)
         phi_by = plan.phi_by_parcel or {}
         theta_by = plan.theta_by_parcel or {}
 
@@ -664,10 +662,10 @@ def whiten_apply(
 
     # Split censor by run
     censor_by_run = [np.array([], dtype=np.intp) for _ in rsplits]
-    if censor is not None:
+    if censor_idx is not None:
         for ri, idx in enumerate(rsplits):
             start = idx[0]
-            c_in = np.intersect1d(censor, idx)
+            c_in = np.intersect1d(censor_idx, idx)
             if len(c_in):
                 censor_by_run[ri] = c_in - start
 

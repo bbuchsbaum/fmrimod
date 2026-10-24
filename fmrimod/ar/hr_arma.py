@@ -261,7 +261,7 @@ def _effective_voxels(units: Sequence[_ArmaUnit]) -> float:
     if not vbar > 0:
         return 1.0
     rbar = min(max((V * vmean / vbar - 1.0) / (V - 1.0), 0.0), 1.0)
-    return max(1.0, min(float(V), V / (1.0 + (V - 1.0) * rbar)))
+    return float(max(1.0, min(float(V), V / (1.0 + (V - 1.0) * rbar))))
 
 
 def _hr_normal_eq(
@@ -289,8 +289,8 @@ def _hr_normal_eq(
 
 def _hr_arma_pooled(
     units: Sequence[tuple[NDArray[Any], NDArray[Any]]],
-    p: int | Sequence[int],
-    q: int | Sequence[int],
+    p_orders: int | Sequence[int],
+    q_orders: int | Sequence[int],
     n_iter: int = 0,
     p_big: int | None = None,
     ar_bound: float = 0.99,
@@ -308,14 +308,14 @@ def _hr_arma_pooled(
     poor innovation proxies.
 
     ``units`` are ``(valid-frame residuals (rows x voxels), 0-based segment
-    starts)`` pairs; columns are centred per unit. ``p`` and ``q`` may be
-    candidate grids, chosen by BIC on the full-lag regression with
-    N = rows x effective voxels. ``sigma2`` is the voxel-scale mean squared
-    exact-whitened residual. A fit that cannot be made warns and returns
-    white noise with ``ok=False``.
+    starts)`` pairs; columns are centred per unit. ``p_orders`` and
+    ``q_orders`` are an AR and an MA order, or candidate grids chosen by BIC
+    on the full-lag regression with N = rows x effective voxels. ``sigma2``
+    is the voxel-scale mean squared exact-whitened residual. A fit that
+    cannot be made warns and returns white noise with ``ok=False``.
     """
-    p_grid = sorted({int(v) for v in np.atleast_1d(p)})
-    q_grid = sorted({int(v) for v in np.atleast_1d(q)})
+    p_grid = sorted({int(v) for v in np.atleast_1d(p_orders)})
+    q_grid = sorted({int(v) for v in np.atleast_1d(q_orders)})
     if min(p_grid) < 0 or min(q_grid) < 0:
         raise ValueError("ARMA orders must be non-negative")
     p, q = p_grid[-1], q_grid[-1]

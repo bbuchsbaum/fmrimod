@@ -289,7 +289,7 @@ def _qr_solve(a: NDArray[np.float64], b: NDArray[np.float64]) -> NDArray[np.floa
     if rank != min(nr, nc):
         raise np.linalg.LinAlgError("singular matrix 'a' in solve")
     if nr >= nc:
-        return np.linalg.lstsq(a, b, rcond=None)[0]
+        return np.asarray(np.linalg.lstsq(a, b, rcond=None)[0], dtype=np.float64)
     x = np.zeros(nc, dtype=np.float64)
     x[:nr] = np.linalg.solve(a[:, :nr], b)
     return x
@@ -317,16 +317,16 @@ def _solve_correction(
     """
     L = A.shape[1]
     if L < 8:
-        return np.linalg.solve(A, g)
+        return np.asarray(np.linalg.solve(A, g), dtype=np.float64)
     U, d, Vt = np.linalg.svd(A)
     keep = d > sv_tol * np.median(d)
     if np.all(keep):
-        return np.linalg.solve(A, g)
+        return np.asarray(np.linalg.solve(A, g), dtype=np.float64)
     V = Vt.T
     x0 = V[:, keep] @ ((U[:, keep].T @ g) / d[keep])
     N = V[:, ~keep]
     tail = slice(L - int(np.ceil(tail_frac * L)), L)
-    return x0 + N @ _qr_solve(N[tail], -x0[tail])
+    return np.asarray(x0 + N @ _qr_solve(N[tail], -x0[tail]), dtype=np.float64)
 
 
 def apply_acvf_correction(
