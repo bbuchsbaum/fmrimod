@@ -20,7 +20,7 @@ plan so the downstream solve operates on a fully whitened system.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -201,6 +201,47 @@ def _validate_acvf_correction(
                 "acvf_correction must contain finite square numeric matrices"
             )
     return mats
+
+
+def with_frame_runs(
+    config: PrewhitenConfig, blockids: NDArray[Any]
+) -> PrewhitenConfig:
+    """Fill or check prewhitening run labels against a sampling frame.
+
+    Mirrors fmrilss ``6a2588b`` (``.sbhm_run_safe_prewhiten``) and
+    ``lss_design``: without ``runs`` the frame's block ids are used, so AR
+    estimation and filtering never span a run boundary; supplied ``runs``
+    must have the frame's boundaries (labels themselves may differ).
+    """
+
+    if config.method == "none":
+        return config
+    blocks = np.asarray(blockids)
+    if config.runs is None:
+        return replace(config, runs=blocks)
+
+    import pandas as pd
+
+    runs = np.asarray(config.runs)
+    if runs.shape != blocks.shape or bool(np.any(pd.isna(runs))):
+        raise ValueError(
+            "PrewhitenConfig.runs must contain one complete run label per scan "
+            f"of the sampling frame ({blocks.size} scans)"
+        )
+    if not np.array_equal(_first_seen_codes(runs), _first_seen_codes(blocks)):
+        raise ValueError(
+            "PrewhitenConfig.runs must match the sampling-frame run boundaries"
+        )
+    return config
+
+
+def _first_seen_codes(labels: NDArray[Any]) -> NDArray[np.intp]:
+    """Integer codes in order of first appearance (R ``match(x, unique(x))``)."""
+
+    _, first, inverse = np.unique(labels, return_index=True, return_inverse=True)
+    rank = np.empty(first.size, dtype=np.intp)
+    rank[np.argsort(first)] = np.arange(first.size)
+    return rank[inverse.reshape(-1)]
 
 
 @dataclass(frozen=True)
