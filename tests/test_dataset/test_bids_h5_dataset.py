@@ -447,3 +447,47 @@ def test_compress_bids_study_bids_dir_requires_configured_pybids(
 
     with pytest.raises(ConfigError, match="pybids is required"):
         compress_bids_study(bids_root, tmp_path / "missing_deps.h5")
+
+
+def test_compress_bids_study_keeps_per_scan_tr_and_start_time(tmp_path) -> None:
+    """TR and ``start_time`` are per scan and survive the archive round trip.
+
+    R ``52439b2``/``cce6a44``: TR is per run and may differ between runs
+    (``read_bids_bold`` validates a TR per file); ``start_time`` defaults to
+    ``TR/2`` only when the archive does not record one.
+    """
+    rng = np.random.default_rng(2)
+    tr2 = matrix_dataset(rng.normal(size=(20, 3)), TR=2.0)
+    tr15 = matrix_dataset(rng.normal(size=(20, 3)), TR=1.5)
+    out = compress_bids_study({"sub-01": tr2, "sub-02": tr15}, tmp_path / "tr.h5")
+    np.testing.assert_allclose(out.datasets[0].sampling_frame.tr, [2.0])
+    np.testing.assert_allclose(out.datasets[1].sampling_frame.tr, [1.5])
+    np.testing.assert_allclose(out.datasets[1].sampling_frame.start_time, [0.75])
+
+    frame_start = matrix_dataset(rng.normal(size=(20, 3)), TR=2.0, start_time=0.0)
+    out = compress_bids_study({"sub-01": frame_start}, tmp_path / "st.h5")
+    np.testing.assert_allclose(out.datasets[0].sampling_frame.start_time, [0.0])
+
+    mixed = matrix_dataset(
+        rng.normal(size=(20, 3)),
+        tr=[2.0, 1.5],
+        run_length=[10, 10],
+        start_time=[0.0, 0.5],
+    )
+    out = compress_bids_study({"sub-01": mixed}, tmp_path / "mixed.h5")
+    frame = out.datasets[0].sampling_frame
+    np.testing.assert_allclose(frame.tr, [2.0, 1.5])
+    np.testing.assert_allclose(frame.start_time, [0.0, 0.5])
+    np.testing.assert_allclose(
+        subset_bids_h5(out, run="2").datasets[0].sampling_frame.tr, [1.5]
+    )
+
+
+def test_bids_h5_archive_without_start_time_defaults_to_half_tr(
+    parcellated_bids_h5,
+) -> None:
+    path, _matrices = parcellated_bids_h5
+    frame = bids_h5_dataset(path).datasets[0].sampling_frame
+    np.testing.assert_allclose(frame.tr, [2.0, 2.0])
+    np.testing.assert_allclose(frame.start_time, [1.0, 1.0])
+
