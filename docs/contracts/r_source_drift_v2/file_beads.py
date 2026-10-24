@@ -225,7 +225,8 @@ BEADS: list[Bead] = [
         "S2 keyword additions; AR-23 approved and landed); D6 group semantics (REML, weighted "
         "perm_onesample, cov_tri order); D7 single-trial scope (k-means, "
         "R1-GLM, GLMsingle); D8 neural_input semantics; D9 first-level AR "
-        "routing scope; D10 run numbering for event-free runs.\n\n"
+        "routing scope; D10 run numbering for event-free runs. D1 is decided "
+        "(c) in docs/contracts/decisions/0004-dataset-storage-and-space.md.\n\n"
         "Deliverable: a decision note under docs/contracts/decisions/ that "
         "rules on each, and child beads for the work each ruling creates.",
         ("drift-v2", "steward", "S2"),
@@ -258,7 +259,7 @@ BEADS: list[Bead] = [
         "Parts of wave 1 rows held because they change a public output "
         "layout or result contract: REG-B-02 cov_tri packing (lower vs R's "
         "row-major upper triangle); REG-B-05 Fisher statistic as a signed z "
-        "instead of chi2; DS-02 study lowering emitting VoxelSpace; REG-B-08 "
+        "instead of chi2; REG-B-08 "
         "keep real REML (needs a caveat) or run Paule-Mandel as R does. "
         "Each waits on D5/D6.",
         ("drift-v2", "S2"),
@@ -336,10 +337,13 @@ BEADS: list[Bead] = [
         2,
         "DS-07 to DS-14 (spatial identity, timing validation, TR tolerance, "
         "run_length per file, NIfTI spatial metadata, empty-mask chunking, "
-        "subject ids, space restriction). DS-07 may need a neuroim-python "
-        "helper; DS-11 suggests routing the NIfTI backend through the "
-        "neuroim adapter. " + _red("fmridataset.md", "DS-07 to DS-14"),
+        "subject ids, space restriction). " + _red("fmridataset.md", "DS-07 to DS-14"),
         ("drift-v2", "wave2", "fmridataset"),
+        closed=(
+            "Fixed on branch claude/dataset-correctness-and-space: DS-07 9b7b795, "
+            "DS-08/DS-09 3b6218f, DS-12 939828e, DS-13 d5d007e, DS-14 404a2c1, "
+            "DS-10/DS-11 84708b4 (one storage contract, decision 0004)."
+        ),
     ),
     # -- Bugs and follow-ups found during the work ----------------------------
     Bead(

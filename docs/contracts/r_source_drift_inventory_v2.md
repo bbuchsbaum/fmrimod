@@ -203,7 +203,7 @@ Suggested starting order, by reach and size:
 | fmriAR | AR-14 to AR-16, AR-18 to AR-22 (AR-13 done, see "After wave 1") |
 | fmrilss | LSS-04 (with LSS-01) |
 | fmrigds | GDS-08 to GDS-12 (GDS-12 is R-bridge only) |
-| fmridataset | DS-07 to DS-14 (DS-07 may need a helper in neuroim-python; DS-11 suggests routing the NIfTI backend through the neuroim adapter) |
+| fmridataset | DS-07 to DS-14: done, see "After wave 1" |
 
 ### Wave 3: features without an S2 tag
 
@@ -316,6 +316,23 @@ New follow-ups found during wave 1 (not inventory rows):
   `q="auto"` (`q_max=2`). AR-23's signature change was approved by the
   maintainer on 2026-10-24 (D5). Twenty cases agree with fmriAR, seven of
   them with automatic orders, including the selected order.
+- **DS-07 to DS-14 and D1** (branch `claude/dataset-correctness-and-space`).
+  The six standalone fixes:
+  - DS-07: runs and a mask must share run 0's space (`9b7b795`);
+  - DS-08 and DS-09: finite timing, non-negative dataset `start_time`,
+    seconds compared at `sqrt(eps)` (`3b6218f`);
+  - DS-12: an empty mask plans zero chunks (`939828e`);
+  - DS-13: canonical subject ids (`d5d007e`);
+  - DS-14: subsetting keeps parcel membership and basis projectors
+    (`404a2c1`).
+
+  D1 is decided as (c), recorded in
+  [`decisions/0004-dataset-storage-and-space.md`](decisions/0004-dataset-storage-and-space.md).
+  `FmriDataset` now reads through one `StorageBackend` with a typed
+  `VolumeSpace` (`84708b4`), which fixes DS-10 (per-file run lengths) and
+  DS-11 (NIfTI-backed datasets keep their space). Voxel-routed study
+  estimates of image data lower to the common `VoxelSpace` (`1118e19`),
+  closing DS-02's S2 part.
 
 ## Steward decisions
 
@@ -325,7 +342,9 @@ New follow-ups found during wave 1 (not inventory rows):
   R's frame, array-source, feature-space and entity architecture; (c) keep
   the `fmrimod.dataset` API and adopt individual frame ideas where they fix
   real defects, such as spatial identity for DS-02 and DS-07. Recommendation:
-  (c). Wave 1h and wave 2 do not depend on the choice.
+  (c). Wave 1h and wave 2 do not depend on the choice. **Decided (c)** on
+  2026-10-24; see
+  [`decisions/0004-dataset-storage-and-space.md`](decisions/0004-dataset-storage-and-space.md).
 - **D2. SPMG conventions** (HRF-09). Replace or retire `spmg1-x10-scale`;
   choose the undershoot ratio (Nilearn 0.167 or exact 1/6), the span (32 or
   24) and SPMG2's second column (onset-shift derivative like Nilearn and SPM,
