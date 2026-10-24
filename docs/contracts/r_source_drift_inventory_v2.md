@@ -229,6 +229,68 @@ kept), REG-B-11, REG-B-13, REG-B-15, REG-B-16, AR-17, AR-23, AR-26, LSS-05,
 LSS-08, LSS-09, the `VoxelSpace` part of DS-02, DS-15 to DS-19, DS-25.
 The decisions they need are grouped below.
 
+## Wave 1 status
+
+Branch `claude/r-source-drift-v2`, 2026-10-24. Every fix below started
+from its row's red check, failing before the fix and passing after; the
+commit bodies cite the R commit and say which existing tests had pinned
+the old behaviour and were updated. The detail files remain the audit
+snapshot of `4f14a19`, so their status column is not edited.
+
+| Lane | Rows fixed | Commits | Left open |
+| --- | --- | --- | --- |
+| 1a Noise model | AR-01 to AR-12; the AR part of REG-A-07 | `10d528c`..`241adf4` | none |
+| 1b First-level AR routing | in progress | | REG-A-02, REG-A-03, REG-A-04, REG-A-12 |
+| 1c First-level composition and numerics | REG-A-01, REG-A-05 to REG-A-11, REG-B-06, REG-B-07 | `6926e95`..`0827a57` | REG-A-13 (D4) |
+| 1d HRF | HRF-01 to HRF-05, HRF-07, HRF-08; also the FIR basis end-of-span defect (same root as HRF-02) | `e61683a`..`1e74d43` | none |
+| 1e Design and contrasts | DES-01 to DES-09 | `e5756be`..`7ad6c03` | DES-10 (D3) |
+| 1f Single-trial | LSS-01 to LSS-04, P-1 | `bdaa2d9`..`7cc2991` | none |
+| 1g Group and meta | REG-B-01 to REG-B-05, GDS-01 to GDS-07 | `9503648`..`21af5e9` | see below |
+| 1h Dataset | DS-01 to DS-06 | `65f606d`..`637b449` | see below |
+
+Partly fixed rows:
+
+- **REG-B-02**: tau2 and Q_fe use the regression forms. The packed
+  covariance order (`cov_tri` lower vs R's row-major upper) is unchanged
+  because it alters a public output layout (S2).
+- **REG-B-05**: t-only Fisher and Stouffer now use the t distribution.
+  The Fisher statistic stays chi2 rather than R's signed z, which would
+  change `group_fit`'s result contract.
+- **GDS-06**: the wrong-result parts are fixed (missing p, weight
+  normalisation, smoothing formula, `min_pi0` placement). z input with an
+  empirical null and the `fdr:sabha` post-hoc registration are wave 3.
+- **DS-01**: BIDS-HDF5 events now carry the scan position as `run` and
+  the BIDS label as `bids_run`. A subject whose first scan has no events
+  still shifts later runs, through P-2 (decision D10).
+- **DS-02**: subjects are routed by voxel id through each subject's mask;
+  the emitted space stays `SampleLabelSpace` (the `VoxelSpace` part is S2).
+
+Also fixed while integrating: the top-level `fmrimod.matrix_dataset`
+facade dropped `censor`, `start_time` and `slice_timing_offset`
+(`d8f31aa`), and v1 is registered in both contract audits (`97c769c`).
+
+Behaviour changes users will notice are listed in each commit body. The
+largest are: equal and custom meta weights are relative (tau2 is NaN);
+prewhitened single-trial fits use aggregate-trial residuals by default;
+voxel HRFs have unit positive peaks; B-spline, tent and FIR bases are
+zero at both ends of the span; `p="auto"` AR order selection counts
+effective voxels and selects higher orders on large independent-voxel
+data; factorial interaction contrast rows follow R's order; a zero SE
+gives t = 0, p = 1 everywhere; and BIDS-HDF5 event `run` is an integer
+scan position.
+
+New follow-ups found during wave 1 (not inventory rows):
+
+- `get_hrf("spmg1", n_basis=6)` reports `nbasis=6` but evaluates one
+  column; a lagged HRF is truncated at the unlagged span; `trialwise()`
+  ignores durations.
+- `golden_tests/specs/core/hrf_bspline_basis.xml` still describes the
+  old B-spline basis (no test runs it).
+- For parcel pooling with `p="auto"`, fmriAR defaults to
+  `pacf_weighted` multiscale pooling; fmrimod defaults to none.
+- `cross_testing/test_tier_d_showcase` expects case ids that no longer
+  exist (fails at `4f14a19` too).
+
 ## Steward decisions
 
 - **D1. fmridataset direction** (DS-15 to DS-19, DS-25, DS-02). The R spec
@@ -275,6 +337,18 @@ The decisions they need are grouped below.
 - **D9. First-level AR routing** (lane 1b). Routing `fmri_lm` through
   `fit_noise` is internal but spans `ar/` and `glm/`. Grade it as S1 with a
   co-sign, or S2 under the multi-module refactor escalator.
+- **D10. Run numbering for event-free runs** (P-2, rest of DS-01).
+  `event_model` numbers block labels by first appearance among the
+  events, so when a run has no events the later runs' events are
+  convolved in the wrong run's window. fmridesign does the same
+  (`canonicalize_blockids`, `match(x, unique(x))`), so this is a shared
+  hazard, not drift. Keeping integer labels as given is ambiguous: labels
+  `[1, 2]` could be 1-based runs 1 and 2 or 0-based runs 2 and 3, and a
+  wrong guess misplaces events the other way. Options: map labels against
+  the sampling frame's run ids when the caller supplies them; warn when
+  the events name fewer runs than the frame has; or report it upstream
+  and keep R's rule. Recommendation: the first two together, raised with
+  the fmridesign maintainer.
 
 ## Pre-existing fmrimod bugs found (not drift)
 
@@ -340,7 +414,7 @@ Priorities follow mote (0 highest). Provenance for all:
 | Dataset timing, run identity and selectors | 1 | DS-01 to DS-06, P-2, P-3 | `tests/test_dataset/` |
 | Contracts, one bead per package | 2 | wave 2 table | per package |
 | Features, one bead each | 3 | wave 3 list | per row |
-| Steward decision note D1 to D9 | 1 | S2 list | `docs/contracts/decisions/` |
+| Steward decision note D1 to D10 | 1 | S2 list | `docs/contracts/decisions/` |
 | Pre-existing bugs P-4 to P-12 | 2 | pre-existing table | per row |
 | SPM-auditory benchmark deletes its checked-in report when the download fails | 3 | baseline failure | `tests/test_benchmarks/test_parity_receipts.py` |
 | Regenerate `internal_any_audit.json` | 3 | baseline failure | `tests/test_public_api/test_api_inventory.py` |
