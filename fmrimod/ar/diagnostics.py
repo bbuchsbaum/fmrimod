@@ -30,63 +30,66 @@ def acorr_diagnostics(
     max_lag : int
         Maximum lag to evaluate.
     aggregate : str
-        ``"mean"``, ``"median"``, or ``"none"``.
+        How the per-voxel autocorrelations are combined, lag by lag:
+        ``"mean"``, ``"median"``, or ``"none"`` (a lags x voxels matrix).
 
     Returns
     -------
     dict
         ``{"lags": NDArray, "acf": NDArray, "ci": float}``
+
+    Notes
+    -----
+    Each voxel's autocorrelation is ``sum_t y_t y_{t-k} / sum_t y_t^2``
+    with the voxel centred per run (or overall), so without runs it is
+    ``stats::acf``. Zero-variance voxels are NaN and skipped when
+    aggregating. Aggregating per-voxel values rather than taking the
+    autocorrelation of the voxel-mean series (fmriAR 617bd87) matters: the
+    mean measures what the voxels share, so individually white voxels with
+    a weak common signal looked strongly autocorrelated.
     """
     resid = np.asarray(resid, dtype=np.float64)
     if resid.ndim == 1:
         resid = resid[:, np.newaxis]
     n = resid.shape[0]
     ci = 1.96 / np.sqrt(n)
-    seg_id = None
-    if runs is not None:
+    if runs is None:
+        seg_id = np.ones(n, dtype=np.intp)
+    else:
         from .acvf import run_codes
 
         seg_id = run_codes(runs, n)
 
-    def _acf_one(y: NDArray[Any]) -> NDArray[Any]:
-        if seg_id is None:
-            y = y - y.mean()
-            var: float = float(np.sum(y**2))
-            if var < 1e-15:
-                return np.zeros(max_lag)
-            acf = np.zeros(max_lag)
-            for lag in range(1, max_lag + 1):
-                if lag >= n:
-                    break
-                acf[lag - 1] = np.sum(y[: n - lag] * y[lag:]) / var
-            return acf
-        from .acvf import acvf_from_pooled, pooled_acvf_segments
+    _, inv = np.unique(seg_id, return_inverse=True)
+    counts = np.bincount(inv).astype(np.float64)
+    mu = np.zeros((counts.size, resid.shape[1]))
+    np.add.at(mu, inv, resid)
+    Rc = resid - (mu / counts[:, np.newaxis])[inv]
+    den = np.sum(Rc * Rc, axis=0)
+    usable = den > 0
+    safe_den = np.where(usable, den, 1.0)
+    A = np.full((max_lag, resid.shape[1]), np.nan)
+    for k in range(1, max_lag + 1):
+        if k >= n:
+            break
+        ok = seg_id[k:] == seg_id[:-k]
+        A[k - 1] = np.sum(Rc[k:][ok] * Rc[:-k][ok], axis=0) / safe_den
+    A[:, ~usable] = np.nan
 
-        pooled = pooled_acvf_segments(
-            np.asarray(y, dtype=np.float64).reshape(-1, 1),
-            seg_id,
-            max_lag,
-            center_id=seg_id,
-        )
-        gamma, _ = acvf_from_pooled(pooled, order=max_lag)
-        if gamma.size < 1 or not np.isfinite(gamma[0]) or gamma[0] <= 0:
-            return np.full(max_lag, np.nan)
-        acf = np.zeros(max_lag)
-        n_copy = min(max_lag, gamma.size - 1)
-        acf[:n_copy] = gamma[1 : 1 + n_copy] / gamma[0]
-        return acf
-
+    lags = np.arange(1, max_lag + 1)
     if aggregate == "none":
-        A = np.column_stack([_acf_one(resid[:, j]) for j in range(resid.shape[1])])
-        return {"lags": np.arange(1, max_lag + 1), "acf": A, "ci": ci}
-
+        return {"lags": lags, "acf": A, "ci": ci}
+    finite = np.isfinite(A)
     if aggregate == "median":
-        ybar = np.median(resid, axis=1)
+        a = np.array(
+            [np.median(row[keep]) if keep.any() else np.nan
+             for row, keep in zip(A, finite, strict=True)]
+        )
     else:
-        ybar = resid.mean(axis=1)
-
-    a = _acf_one(ybar)
-    return {"lags": np.arange(1, max_lag + 1), "acf": a, "ci": ci}
+        cnt = finite.sum(axis=1)
+        a = np.where(finite, A, 0.0).sum(axis=1) / np.maximum(cnt, 1)
+        a[cnt == 0] = np.nan
+    return {"lags": lags, "acf": a, "ci": ci}
 
 
 def sandwich_from_whitened_resid(
