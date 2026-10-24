@@ -402,7 +402,9 @@ def fit_noise(
     WhiteningPlan
     """
     from .acvf import (
+        _bic_n,
         _normalize_censor,
+        _select_ar_order,
         acvf_bias_matrix,
         acvf_from_pooled,
         acvf_max_lag,
@@ -869,7 +871,8 @@ def fit_noise(
             lag_budget = p_cap
         else:
             lag_budget = min(max(p_cap, int(np.asarray(corr).shape[0]) - 1), n_eff - 1)
-        pooled = pooled_acvf_segments(mat[valid_idx], seg_id, lag_budget)
+        mat_valid = mat if n_eff == n_run else mat[valid_idx]
+        pooled = pooled_acvf_segments(mat_valid, seg_id, lag_budget)
         gamma0, _ = acvf_from_pooled(pooled, order=0, correction=corr)
         if gamma0.size == 0 or not np.isfinite(gamma0[0]) or gamma0[0] <= 0:
             return empty
@@ -904,26 +907,12 @@ def fit_noise(
                 "sigma2": sigma2,
             }
 
-        n_eff_log = np.log(n_eff)
-        sigma0 = max(float(gamma0[0]), 1e-12)
-        best_bic = 2.0 * n_eff * np.log(sigma0) + n_eff_log
-        best_phi = np.array([], dtype=np.float64)
-        best_p = 0
-        best_sigma2 = sigma0
-        p_sel = min(p_cap, int(np.floor(n_eff / 5.0)))
-        for pp in range(1, max(p_sel, 0) + 1):
-            phi_pp, sigma2 = _fit_order(pp)
-            if not np.isfinite(sigma2):
-                continue
-            bic = 2.0 * n_eff * np.log(sigma2) + (pp + 1) * n_eff_log
-            if not np.isfinite(bic) or bic >= best_bic:
-                continue
-            if phi_pp.size != pp or not np.all(np.isfinite(phi_pp)):
-                continue
-            best_bic = bic
-            best_phi = phi_pp
-            best_p = pp
-            best_sigma2 = sigma2
+        # Bound the order BIC may select by the data; an explicit p is honoured.
+        p_sel = min(p_cap, n_eff // 5)
+        n_bic = _bic_n(mat_valid, n_eff, vbar=pooled.num[0])
+        best_phi, best_p, best_sigma2 = _select_ar_order(
+            _fit_order, float(gamma0[0]), p_sel, n_bic
+        )
         return {
             "phi": best_phi,
             "theta": np.array([], dtype=np.float64),

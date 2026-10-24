@@ -10,6 +10,7 @@ not force lag-1 correlation to -1.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Optional, Sequence
 import warnings
@@ -483,6 +484,79 @@ def yw_from_acvf(
     return levinson_durbin(gamma[: p + 1], p)
 
 
+def _bic_n(
+    mat: NDArray[np.float64],
+    n_frames: float,
+    groups: NDArray[Any] | None = None,
+    vbar: float | None = None,
+) -> float:
+    """BIC sample size of a pooled fit: frames times effective voxels.
+
+    The effective count is the Kish design effect ``V / (1 + (V - 1) rbar)``,
+    with the mean inter-voxel correlation ``rbar`` read off the variance of
+    the voxel mean (fmriAR 61b89ff ``.bic_n``). Frames alone treat pooled
+    voxels as one series and under-select; every voxel over-selects when
+    they share fluctuations. ``groups`` labels rows centred separately
+    (runs); ``vbar`` is the pooled lag-0 sum the caller already holds.
+    """
+    mat = np.asarray(mat, dtype=np.float64)
+    if mat.ndim == 1:
+        mat = mat[:, np.newaxis]
+    n_rows, V = mat.shape
+    if V <= 1 or n_rows < 2:
+        return float(n_frames)
+    if groups is None:
+        inv = np.zeros(n_rows, dtype=np.intp)
+    else:
+        inv = np.unique(np.asarray(groups), return_inverse=True)[1].ravel()
+    counts = np.bincount(inv).astype(np.float64)
+    rm = mat.mean(axis=1)
+    rm_c = rm - (np.bincount(inv, weights=rm) / counts)[inv]
+    vmean = float(np.dot(rm_c, rm_c))
+    if vbar is None:
+        mu = np.zeros((counts.size, V), dtype=np.float64)
+        np.add.at(mu, inv, mat)
+        centred = mat - (mu / counts[:, np.newaxis])[inv]
+        vbar = float(np.sum(centred * centred)) / V
+    if not vbar > 0:
+        return float(n_frames)
+    rbar = min(max((V * vmean / vbar - 1.0) / (V - 1.0), 0.0), 1.0)
+    return float(n_frames * max(1.0, min(V, V / (1.0 + (V - 1.0) * rbar))))
+
+
+def _select_ar_order(
+    fit_order: Callable[[int], tuple[NDArray[np.float64], float]],
+    gamma0: float,
+    p_sel: int,
+    n_bic: float,
+) -> tuple[NDArray[np.float64], int, float]:
+    """BIC order search shared by the run, global and parcel estimators.
+
+    ``BIC = N log(sigma2) + k log(N)`` with ``N = n_bic``: -2 log L of a
+    Gaussian AR is ``N log(sigma2)`` up to a constant, and the doubled fit
+    term ported from fmriAR 0.3.3 halved the penalty (fmriAR 617bd87).
+    ``fit_order(p)`` returns the stationarity-enforced coefficients and the
+    floored innovation variance. Returns ``(phi, p, sigma2)``.
+    """
+    log_n = float(np.log(n_bic))
+    sigma0 = max(float(gamma0), 1e-12)
+    best_bic = n_bic * np.log(sigma0) + log_n
+    best: tuple[NDArray[np.float64], int, float] = (
+        np.array([], dtype=np.float64),
+        0,
+        sigma0,
+    )
+    for pp in range(1, max(int(p_sel), 0) + 1):
+        phi, sigma2 = fit_order(pp)
+        if not np.isfinite(sigma2) or phi.size != pp or not np.all(np.isfinite(phi)):
+            continue
+        bic = n_bic * np.log(sigma2) + (pp + 1) * log_n
+        if np.isfinite(bic) and bic < best_bic:
+            best_bic = bic
+            best = (phi, pp, sigma2)
+    return best
+
+
 def estimate_ar_series(
     y: NDArray[np.float64],
     p_max: int,
@@ -542,27 +616,13 @@ def estimate_ar_series(
             "sigma2": sigma2,
         }
 
-    n_eff = float(n)
-    n_eff_log = np.log(n_eff)
-    sigma0 = max(float(gamma0[0]), 1e-12)
-    best_bic = 2.0 * n_eff * np.log(sigma0) + n_eff_log
-    best_phi = np.array([], dtype=np.float64)
-    best_p = 0
-    best_sigma2 = sigma0
-    p_sel = min(p_cap, int(np.floor(n_eff / 5.0)))
-    for pp in range(1, max(p_sel, 0) + 1):
-        phi_pp, sigma2 = fit_order(pp)
-        if not np.isfinite(sigma2):
-            continue
-        bic = 2.0 * n_eff * np.log(sigma2) + (pp + 1) * n_eff_log
-        if not np.isfinite(bic) or bic >= best_bic:
-            continue
-        if phi_pp.size != pp or not np.all(np.isfinite(phi_pp)):
-            continue
-        best_bic = bic
-        best_phi = phi_pp
-        best_p = pp
-        best_sigma2 = sigma2
+    # Selection on a handful of points would choose AR(8) from 11 frames, so
+    # the search (not an explicit p) is bounded by the data.
+    p_sel = min(p_cap, n // 5)
+    n_bic = _bic_n(y[:, np.newaxis], n, groups=center_id, vbar=pooled.num[0])
+    best_phi, best_p, best_sigma2 = _select_ar_order(
+        fit_order, float(gamma0[0]), p_sel, n_bic
+    )
     return {
         "phi": best_phi,
         "order": (best_p, 0),

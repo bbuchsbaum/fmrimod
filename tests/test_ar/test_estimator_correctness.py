@@ -11,8 +11,10 @@ import warnings
 
 import numpy as np
 import pytest
+from scipy.signal import lfilter
 
 from fmrimod.ar.acvf import (
+    _bic_n,
     acvf_from_pooled,
     pooled_acvf_segments,
     sigma2_from_gamma_phi,
@@ -22,6 +24,15 @@ from fmrimod.ar.estimation import fit_noise
 from fmrimod.ar.numhelpers import ar_to_pacf, enforce_stationary_ar, pacf_to_ar
 from fmrimod.ar.plan import plan_from_phi
 from fmrimod.ar.whitening import whiten_apply
+
+
+def _arma_sim(n: int, nvox: int, phi=(), theta=(), rng=None, burn: int = 200):
+    """``arima.sim`` analogue: ARMA(phi, theta) columns, unit innovations."""
+    rng = np.random.default_rng() if rng is None else rng
+    e = rng.standard_normal((n + burn, nvox))
+    b = np.concatenate([[1.0], np.asarray(theta, dtype=np.float64)])
+    a = np.concatenate([[1.0], -np.asarray(phi, dtype=np.float64)])
+    return lfilter(b, a, e, axis=0)[burn:]
 
 
 def _ar_sim(n: int, phi, nvox: int = 1, sd: float = 1.0, seed: int | None = None):
@@ -405,3 +416,52 @@ def test_explicit_p_above_p_max_is_honoured():
         with pytest.raises(ValueError, match="whole number"):
             fit_noise(resid, p=bad)
     assert fit_noise(resid, p=2.0).order == (2, 0)
+
+
+def test_bic_uses_the_standard_penalty_on_frames_times_effective_voxels():
+    """fmriAR 617bd87 + 61b89ff (test-audit-regressions.R:32-43, :827-845).
+
+    BIC = N log sigma2 + k log N with N = frames x V_eff (Kish design
+    effect). Row AR-01. Cheap pass disqualified: fixing only 2n -> n passes
+    (a) but under-selects in (b), because frames-only N is the 0.4.1 bug;
+    counting every voxel (V instead of V_eff) passes (b) but fails (c).
+    """
+    rng = np.random.default_rng(9102)
+    # (a) one voxel, true AR(1): the halved penalty over-selected 18% of the time.
+    sel1 = [len(fit_noise(_arma_sim(200, 1, [0.5], rng=rng), p="auto").phi[0])
+            for _ in range(300)]
+    assert np.mean(np.array(sel1) > 1) < 0.08
+    # The parcel series estimator scores BIC the same way.
+    sel1p = [
+        fit_noise(_arma_sim(200, 1, [0.5], rng=rng), p="auto", pooling="parcel",
+                  parcels=np.array([1])).order[0]
+        for _ in range(100)
+    ]
+    assert np.mean(np.array(sel1p) > 1) < 0.08
+    # (b) pooled voxels with a weak second lag: frames-only N under-selects.
+    sel2 = [len(fit_noise(_arma_sim(300, 30, [0.5, -0.1], rng=rng), p="auto").phi[0])
+            for _ in range(20)]
+    assert np.mean(np.array(sel2) == 2) >= 0.9
+    # (c) identical voxels carry one series' worth of evidence.
+    same = np.tile(rng.standard_normal((300, 1)), (1, 40))
+    assert _bic_n(same, 300) == pytest.approx(300.0)
+
+
+def test_bic_n_matches_the_reference_design_effect():
+    """``_bic_n`` equals frames x V_eff, with or without the ``vbar`` shortcut."""
+    rng = np.random.default_rng(9312)
+    M = rng.standard_normal((300, 40)) + 0.7 * rng.standard_normal((300, 1))
+    g = np.repeat([1, 2], 150)
+    vbar = vmean = 0.0
+    for r in (1, 2):
+        m = M[g == r] - M[g == r].mean(axis=0)
+        vbar += float(np.sum(m * m)) / 40
+        vmean += float(np.sum(m.mean(axis=1) ** 2))
+    rbar = min(max((40 * vmean / vbar - 1) / 39, 0.0), 1.0)
+    v_eff = max(1.0, min(40.0, 40 / (1 + 39 * rbar)))
+    assert _bic_n(M, 1000, groups=g) == pytest.approx(1000 * v_eff, rel=1e-12)
+    pooled = pooled_acvf_segments(M, g, 0, center_id=g)
+    assert _bic_n(M, 1000, groups=g, vbar=pooled.num[0]) == pytest.approx(
+        1000 * v_eff, rel=1e-12
+    )
+    assert _bic_n(M[:, :1], 1000) == 1000
