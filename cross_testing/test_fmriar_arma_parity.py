@@ -5,11 +5,11 @@ Inventory v2 row AR-03 ported fmriAR's ``.hr_arma_pooled`` (``617bd87``,
 run/censor segments, and ``sigma2`` is the mean squared exact-whitened
 residual. These cases run ``fit_noise`` + ``whiten_apply`` on identical data
 in both packages and compare coefficients, ``sigma2`` and the whitened
-matrices; the order-selection grid is compared on the private fitters.
+matrices; the order-selection grid is also compared on the private fitters.
 
-``fit_noise(method="arma", p="auto")`` and ``q="auto"`` are not compared:
-fmrimod still fixes AR order 2 under ``p="auto"`` and has no ``q="auto"``
-(inventory v2 AR-13 and AR-23, both open).
+Under ``p="auto"`` / ``q="auto"`` (AR-13, AR-23) both packages choose the
+order by BIC over ``0..p_max`` x ``0..q_max`` on the pooled regression, so
+those cases also compare the selected order.
 """
 
 from __future__ import annotations
@@ -115,36 +115,48 @@ def _dataset(name):
 
 
 CASES = [
-    # (data, p, q, pooling, censor, hr_iter)
-    ("d1", 2, 1, "run", False, 0),
-    ("d1", 2, 1, "global", False, 0),
-    ("d1", 2, 1, "run", True, 0),
-    ("d1", 2, 1, "global", True, 0),
-    ("d1", 2, 1, "global", False, 1),
-    ("d2", 1, 1, "run", False, 0),
-    ("d2", 1, 1, "global", True, 0),
-    ("d2", 0, 2, "global", False, 0),
-    ("d1", 3, 2, "run", True, 2),
+    # (data, p, q, pooling, censor, hr_iter, search bounds)
+    ("d1", 2, 1, "run", False, 0, {}),
+    ("d1", 2, 1, "global", False, 0, {}),
+    ("d1", 2, 1, "run", True, 0, {}),
+    ("d1", 2, 1, "global", True, 0, {}),
+    ("d1", 2, 1, "global", False, 1, {}),
+    ("d2", 1, 1, "run", False, 0, {}),
+    ("d2", 1, 1, "global", True, 0, {}),
+    ("d2", 0, 2, "global", False, 0, {}),
+    ("d1", 3, 2, "run", True, 2, {}),
+    ("d1", "auto", "auto", "global", False, 0, {}),
+    ("d1", "auto", "auto", "run", True, 0, {}),
+    ("d2", "auto", "auto", "global", True, 1, {}),
+    ("d2", "auto", 1, "run", False, 0, {}),
+    ("d1", 2, "auto", "global", True, 0, {}),
+    ("d1", "auto", "auto", "global", False, 0, {"p_max": 3, "q_max": 1}),
+    ("d2", "auto", "auto", "run", True, 0, {"p_max": 1, "q_max": 3}),
 ]
 
 
-@pytest.mark.parametrize(("data", "p", "q", "pooling", "use_censor", "hr_iter"), CASES)
-def test_fit_noise_arma_matches_fmriar(r_call, data, p, q, pooling, use_censor, hr_iter):
+@pytest.mark.parametrize(
+    ("data", "p", "q", "pooling", "use_censor", "hr_iter", "bounds"), CASES
+)
+def test_fit_noise_arma_matches_fmriar(
+    r_call, data, p, q, pooling, use_censor, hr_iter, bounds
+):
     R, X, runs, censor = _dataset(data)
     cen = censor if use_censor else None
 
     r_plan = r_call(
         "fmriAR::fit_noise", resid=R, runs=runs, censor=cen, method="arma",
-        p=p, q=q, pooling=pooling, hr_iter=hr_iter,
+        p=p, q=q, pooling=pooling, hr_iter=hr_iter, **bounds,
     )
     r_white = r_call("fmriAR::whiten_apply", r_plan, X, R, runs=runs, censor=cen)
 
     plan = fit_noise(
         resid=R, runs=runs, censor=cen, method="arma", p=p, q=q,
-        pooling=pooling, hr_iter=hr_iter,
+        pooling=pooling, hr_iter=hr_iter, **bounds,
     )
     white = whiten_apply(plan, X, R, runs=runs, censor=cen)
 
+    assert plan.order == tuple(int(v) for v in r_call.field(r_plan, "order"))
     r_phi = r_call.field(r_plan, "phi")
     r_theta = r_call.field(r_plan, "theta")
     assert len(plan.phi) == len(r_phi)

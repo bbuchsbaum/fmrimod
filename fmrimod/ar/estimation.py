@@ -374,6 +374,22 @@ def _ar_from_pooled_runs(
     return _select_ar_order(fit_order, float(gamma[0]), p_sel, n_bic)[0]
 
 
+def _order_arg(value: object, name: str, allow_auto: bool = True) -> int | str:
+    """``"auto"`` or a single non-negative whole number, as fmriAR checks p and q."""
+    if allow_auto and isinstance(value, str) and value == "auto":
+        return "auto"
+    num = float(value) if isinstance(value, numbers.Real) else float("nan")
+    if (
+        isinstance(value, (bool, np.bool_))
+        or not np.isfinite(num)
+        or num < 0
+        or num != int(num)
+    ):
+        what = '"auto" or a single' if allow_auto else "a single"
+        raise ValueError(f"'{name}' must be {what} non-negative whole number")
+    return int(num)
+
+
 def fit_noise(
     resid: Optional[NDArray[np.float64]] = None,
     Y: Optional[NDArray[np.float64]] = None,
@@ -382,8 +398,9 @@ def fit_noise(
     censor: Optional[NDArray[Any]] = None,
     method: str = "ar",
     p: object = "auto",
-    q: int = 0,
+    q: int | str = 0,
     p_max: int = 6,
+    q_max: int = 2,
     exact_first: str = "ar1",
     pooling: str = "global",
     parcels: Optional[NDArray[Any]] = None,
@@ -419,13 +436,18 @@ def fit_noise(
         regression pooled over voxels, with every lag kept inside a
         contiguous run/censor segment.
     p : int or ``"auto"``
-        AR order (``"auto"`` triggers BIC selection for AR). An explicit
-        order must be a non-negative whole number and is honoured even
-        when it exceeds ``p_max``.
-    q : int
-        MA order (only used when ``method="arma"``).
+        AR order. ``"auto"`` selects it by BIC: over ``0..p_max`` for AR,
+        and for ARMA jointly with ``q`` on the pooled Hannan-Rissanen
+        regression. An explicit order must be a non-negative whole number
+        and is honoured even when it exceeds ``p_max``.
+    q : int or ``"auto"``
+        MA order (only used when ``method="arma"``). ``"auto"`` searches
+        ``0..q_max`` by BIC jointly with ``p`` and requires
+        ``method="arma"``.
     p_max : int
         Maximum AR order for BIC selection.
+    q_max : int
+        Maximum MA order searched under ``q="auto"``.
     exact_first : str
         ``"ar1"`` (the name is historical) to start every run/censor segment
         with the exact stationary initialisation of the fitted AR/ARMA
@@ -517,21 +539,16 @@ def fit_noise(
         )
     if exact_first not in ("ar1", "none"):
         exact_first = "ar1" if exact_first else "none"
-    if not (isinstance(p, str) and p == "auto"):
-        p_num = float(p) if isinstance(p, numbers.Real) else float("nan")
-        if (
-            isinstance(p, (bool, np.bool_))
-            or not np.isfinite(p_num)
-            or p_num < 0
-            or p_num != int(p_num)
-        ):
-            raise ValueError(
-                "'p' must be \"auto\" or a single non-negative whole number"
-            )
+    p = _order_arg(p, "p")
+    if p != "auto":
         # An explicit order is honoured as given; p_max bounds only the
         # automatic search (fmriAR 617bd87).
-        p = int(p_num)
-        p_max = max(int(p_max), int(p_num))
+        p_max = max(int(p_max), int(p))
+    q = _order_arg(q, "q")
+    if q == "auto":
+        if method != "arma":
+            raise ValueError('q = "auto" requires method = "arma"')
+        q_max = int(_order_arg(q_max, "q_max", allow_auto=False))
 
     # Resolve multiscale mode
     ms_modes = ("pacf_weighted", "acvf_pooled")
@@ -876,7 +893,11 @@ def fit_noise(
     # --- Per-run estimation ---
     from .hr_arma import _hr_arma_pooled
 
-    arma_order = (min(2, int(p_max)) if p == "auto" else int(cast(Any, p)), int(q))
+    # Candidate ARMA orders: "auto" searches 0..p_max (AR) and 0..q_max (MA)
+    # by BIC on the pooled Hannan-Rissanen regression; a number fixes the
+    # order (fmriAR a75a5de).
+    arma_p = range(int(p_max) + 1) if p == "auto" else [int(cast(Any, p))]
+    arma_q = range(int(q_max) + 1) if q == "auto" else [int(cast(Any, q))]
 
     def _est_run(
         mat: NDArray[Any],
@@ -902,19 +923,20 @@ def fit_noise(
         if method == "arma":
             # Pooled, segment-aware Hannan-Rissanen over this run's valid
             # frames; no lag product spans a censoring gap.
-            pp, qq = arma_order
             mat_valid = mat if valid_idx.size == n_run else mat[valid_idx]
             seg_id_ma = np.cumsum(
                 np.concatenate([[1], (np.diff(valid_idx) > 1).astype(np.intp)])
             )
             unit = (mat_valid, np.flatnonzero(np.diff(seg_id_ma, prepend=0)))
-            lag_ma = max(1, pp + qq)
+            lag_ma = max(1, max(arma_p) + max(arma_q))
             pooled_ma = pooled_acvf_segments(mat_valid, seg_id_ma, lag_ma)
             g_ma, _ = acvf_from_pooled(pooled_ma, order=lag_ma)
             if pooling == "global":
                 # Estimated once over every run's segments below.
-                return dict(empty, order=(pp, qq), gamma=g_ma, unit=unit)
-            fit = _hr_arma_pooled([unit], pp, qq, n_iter=hr_iter)
+                return dict(
+                    empty, order=(max(arma_p), max(arma_q)), gamma=g_ma, unit=unit
+                )
+            fit = _hr_arma_pooled([unit], arma_p, arma_q, n_iter=hr_iter)
             return {
                 "phi": fit.phi,
                 "theta": fit.theta,
@@ -1043,7 +1065,7 @@ def fit_noise(
         if method == "arma":
             # One pooled Hannan-Rissanen fit over every run's segments.
             units = [e["unit"] for e in estimates if e.get("unit") is not None]
-            fit = _hr_arma_pooled(units, *arma_order, n_iter=hr_iter)
+            fit = _hr_arma_pooled(units, arma_p, arma_q, n_iter=hr_iter)
             phi_avg, theta_avg, arma_sigma2 = fit.phi, fit.theta, fit.sigma2
         else:
             phi_avg = _ar_from_pooled_runs(estimates, lens, p)
