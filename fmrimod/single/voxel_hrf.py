@@ -7,19 +7,32 @@ reconstructed from the estimated shapes.
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING, Literal, Optional, Protocol, runtime_checkable
 
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 
 from ._project import project_nuisance
-from ._types import SingleTrialMethod, SingleTrialResult, VoxelHrfResult
+from ._types import (
+    SingleTrialMethod,
+    SingleTrialResult,
+    VoxelHrfExtras,
+    VoxelHrfResult,
+)
 from .lss import _lss_beta_vec
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import pandas as pd
 
+    from fmrimod.hrf import HRF
     from ..sampling import SamplingFrame
+
+# R ``.normalize_voxel_hrf_coefficients`` defaults (fmrilss ``0d97c8b``).
+_WAVEFORM_PRECISION = 0.05
+_PEAK_TOLERANCE = 0.05
 
 
 @runtime_checkable
@@ -33,12 +46,110 @@ class HrfEstimationDataset(Protocol):
     def get_all_data(self) -> NDArray[np.float64]: ...
 
 
+def _sample_hrf(
+    hrf: Callable[[NDArray[np.float64]], ArrayLike], times: NDArray[np.float64]
+) -> NDArray[np.float64]:
+    """Evaluate an HRF (or callable of time) as a ``(len(times), K)`` matrix."""
+    return np.asarray(hrf(times), dtype=np.float64).reshape(times.size, -1)
+
+
+def _voxel_hrf_waveforms(
+    basis: object, ref_hrf: HRF | ArrayLike | None
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Basis and reference waveforms, baseline-subtracted.
+
+    Mirrors R ``.voxhrf_waveforms``: an fmrimod HRF basis is evaluated on a
+    0.05 s grid over its span. An ``(L, K)`` array has no time axis, so it
+    is used on its own rows and the reference is sampled at 1 s row spacing
+    unless ``ref_hrf`` is itself a length-``L`` waveform on those rows.
+    """
+    from fmrimod.hrf import HRF, HRF_SPMG1
+
+    if isinstance(basis, HRF):
+        times = np.arange(
+            0.0, float(basis.span) + _WAVEFORM_PRECISION / 2, _WAVEFORM_PRECISION
+        )
+        H = _sample_hrf(basis, times)
+    else:
+        try:
+            H = np.asarray(basis, dtype=np.float64)
+        except (TypeError, ValueError):
+            H = np.empty((0, 0))
+        if H.ndim == 1:
+            H = H[:, np.newaxis]
+        if H.ndim != 2 or H.shape[0] < 2:
+            raise TypeError(
+                "basis must be an fmrimod HRF or an (L, K) array of basis "
+                "samples; its waveforms define the HRF shape normalization"
+            )
+        times = np.arange(H.shape[0], dtype=np.float64)
+
+    if ref_hrf is None:
+        ref_hrf = HRF_SPMG1
+    if callable(ref_hrf):
+        ref = _sample_hrf(ref_hrf, times)[:, 0]
+    else:
+        ref = np.asarray(ref_hrf, dtype=np.float64).reshape(-1)
+        if ref.size != times.size:
+            raise ValueError(
+                f"ref_hrf samples must match the {times.size} basis waveform rows"
+            )
+    if not (np.all(np.isfinite(H)) and np.all(np.isfinite(ref))):
+        raise ValueError("basis and ref_hrf waveforms must be finite")
+    return H - H[0], ref - ref[0]
+
+
+def _normalize_voxel_hrf_coefficients(
+    coefficients: NDArray[np.float64],
+    waveform_basis: NDArray[np.float64],
+    ref: NDArray[np.float64],
+    peak_tolerance: float = _PEAK_TOLERANCE,
+) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.bool_]]:
+    """Orient and peak-normalize voxel HRF coefficients.
+
+    Mirrors R ``.normalize_voxel_hrf_coefficients`` (fmrilss ``0d97c8b``,
+    ``6a2588b``): each voxel's waveform is oriented to correlate positively
+    with ``ref`` and divided by its positive peak. A waveform whose positive
+    peak is below ``peak_tolerance`` times its largest absolute deflection is
+    *degenerate*: it is scaled by that deflection instead (left unscaled when
+    identically zero) and flagged rather than failing the fit.
+
+    Returns the normalized coefficients, the signed scale removed from each
+    voxel (``amplitude_scale``) and the ``degenerate`` flags.
+    """
+    waveforms = waveform_basis @ coefficients
+    orientation = np.sign(ref @ waveforms)
+    orientation[~np.isfinite(orientation) | (orientation == 0)] = 1.0
+    peak = (waveforms * orientation).max(axis=0)
+    amp = np.abs(waveforms).max(axis=0)
+    degenerate = ~np.isfinite(peak) | ~(peak >= peak_tolerance * amp) | (amp <= 0)
+    peak = np.where(degenerate, amp, peak)
+    peak = np.where(np.isfinite(peak) & (peak > 0), peak, 1.0)
+    scale = orientation * peak
+    return coefficients / scale, scale, degenerate
+
+
+def _warn_degenerate_hrf(degenerate: NDArray[np.bool_]) -> None:
+    """Warn once about voxels without an identifiable positive HRF peak."""
+    n_bad = int(np.sum(degenerate))
+    if n_bad:
+        warnings.warn(
+            f"{n_bad} of {degenerate.size} voxel(s) have no identifiable "
+            "positive HRF peak; their shapes are scaled by the largest absolute "
+            "response and flagged in `degenerate`, so their amplitudes are not "
+            "in peak-response units",
+            RuntimeWarning,
+            stacklevel=3,
+        )
+
+
 def estimate_voxel_hrf(
     Y: NDArray[np.float64],
     X_trials: NDArray[np.float64],
     basis: object,
     confounds: Optional[NDArray[np.float64]] = None,
     K: Optional[int] = None,
+    ref_hrf: HRF | ArrayLike | None = None,
 ) -> VoxelHrfResult:
     """Estimate per-voxel HRF via multi-basis aggregate GLM.
 
@@ -49,19 +160,33 @@ def estimate_voxel_hrf(
     X_trials : NDArray, shape ``(T, N*K)``
         Trial design with K basis functions per trial, interleaved:
         ``[t1_b1, t1_b2, ..., t1_bK, t2_b1, ...]``.
-    basis : object
-        HRF basis object (stored in result for reference).
+    basis : HRF or NDArray
+        HRF basis whose waveforms define the shape normalization: an
+        :class:`fmrimod.hrf.HRF` (evaluated on a 0.05 s grid over its
+        span, as in R), or an ``(L, K)`` array of basis samples, which is
+        normalized on its own rows.
     confounds : NDArray, shape ``(T, q)``, optional
         Nuisance regressors to project out.
     K : int, optional
         Number of basis functions per trial.  Inferred from *basis*
-        shape if possible.
+        if omitted.
+    ref_hrf : HRF or NDArray, optional
+        Reference HRF that orients each voxel's shape (fmrilss
+        ``0d97c8b``). Defaults to the canonical
+        :data:`fmrimod.hrf.HRF_SPMG1`. For an array *basis* it is sampled
+        at 1 s row spacing, or it may be given as a length-``L`` waveform
+        on the basis rows.
 
     Returns
     -------
     VoxelHrfResult
-        ``coefficients`` has shape ``(K, V)``, normalised to unit L2
-        norm per voxel.
+        ``coefficients`` has shape ``(K, V)``. Each voxel's waveform is
+        oriented to correlate positively with *ref_hrf* and has a unit
+        positive peak, so a deactivating voxel keeps negative trial
+        amplitudes. ``amplitude_scale`` holds the signed scale removed from
+        the raw pooled fit. Voxels whose positive peak is below 5% of their
+        largest absolute deflection are flagged in ``degenerate`` and scaled
+        by that deflection; one ``RuntimeWarning`` reports how many.
     """
     Y = np.asarray(Y, dtype=np.float64)
     X_trials = np.asarray(X_trials, dtype=np.float64)
@@ -77,18 +202,19 @@ def estimate_voxel_hrf(
     if not np.all(np.isfinite(X_trials)):
         raise ValueError("X_trials must contain only finite values")
 
+    waveform_basis, ref = _voxel_hrf_waveforms(basis, ref_hrf)
     if K is None:
-        b = np.asarray(basis)
-        if b.ndim == 2:
-            K = b.shape[1]
-        else:
-            raise ValueError("Cannot infer K; pass K explicitly")
+        K = waveform_basis.shape[1]
 
     NK = X_trials.shape[1]
     if K < 1:
         raise ValueError("K must be >= 1")
     if NK % K != 0:
         raise ValueError(f"ncol(X_trials)={NK} not divisible by K={K}")
+    if waveform_basis.shape[1] != K:
+        raise ValueError(
+            f"basis has {waveform_basis.shape[1]} functions, expected K={K}"
+        )
 
     # Aggregate per-basis regressors: A[:, k] = sum of all trial-k columns
     A = np.zeros((T, K), dtype=np.float64)
@@ -111,12 +237,19 @@ def estimate_voxel_hrf(
     # Solve A'A @ W = A'Y via least squares → W (K, V)
     W, _, _, _ = np.linalg.lstsq(A_c, Y_c, rcond=None)
 
-    # Normalise to unit L2 norm per voxel
-    norms = np.linalg.norm(W, axis=0, keepdims=True)
-    norms = np.where(norms > 0, norms, 1.0)
-    W = W / norms
+    coefficients, scale, degenerate = _normalize_voxel_hrf_coefficients(
+        W, waveform_basis, ref
+    )
+    _warn_degenerate_hrf(degenerate)
 
-    return VoxelHrfResult(coefficients=W, basis=basis, conditions=[])
+    return VoxelHrfResult(
+        coefficients=coefficients,
+        basis=basis,
+        conditions=[],
+        amplitude_scale=scale,
+        degenerate=degenerate,
+        normalization="positive-peak",
+    )
 
 
 def _parse_onset_column(form: object) -> str:
@@ -169,6 +302,7 @@ def estimate_hrf(
     fixed: Optional[NDArray[np.float64]] = None,
     block: Optional[str] = None,
     dataset: HrfEstimationDataset | None = None,
+    ref_hrf: HRF | ArrayLike | None = None,
 ) -> NDArray[np.float64] | VoxelHrfResult:
     """Estimate HRF using matrix inputs or a limited formula+dataset path.
 
@@ -205,6 +339,10 @@ def estimate_hrf(
         - ``fixed`` may be passed as a numeric confound matrix; formula-based
           fixed-effects construction is not yet implemented.
         - ``block`` is accepted for signature compatibility but not used yet.
+    ref_hrf : HRF or NDArray, optional
+        Orientation reference forwarded to :func:`estimate_voxel_hrf`. In
+        formula+dataset mode the TR-sampled basis rows are aligned with a
+        reference sampled at the dataset TR.
 
     Returns
     -------
@@ -240,6 +378,12 @@ def estimate_hrf(
             n_timepoints=Y.shape[0],
             tr=tr,
         )
+        if ref_hrf is None or callable(ref_hrf):
+            from fmrimod.hrf import HRF_SPMG1
+
+            ref_times = np.arange(basis_2d.shape[0], dtype=np.float64) * tr
+            reference = HRF_SPMG1 if ref_hrf is None else ref_hrf
+            ref_hrf = _sample_hrf(reference, ref_times)[:, 0]
         if fixed is not None:
             if isinstance(fixed, np.ndarray):
                 confounds = np.asarray(fixed, dtype=np.float64)
@@ -257,6 +401,7 @@ def estimate_hrf(
         basis=basis,
         confounds=None if confounds is None else np.asarray(confounds, dtype=np.float64),
         K=K,
+        ref_hrf=ref_hrf,
     )
 
     if output == "result":
@@ -299,6 +444,10 @@ def lss_with_voxel_hrf(
     Returns
     -------
     SingleTrialResult
+        ``extra`` is a :class:`VoxelHrfExtras` repeating the per-voxel
+        ``degenerate`` flags and ``normalization`` of *hrf_result*: with
+        positive-peak shapes, betas are peak-response amplitudes except for
+        degenerate voxels.
     """
     Y = np.asarray(Y, dtype=np.float64)
     X_trials = np.asarray(X_trials, dtype=np.float64)
@@ -370,4 +519,8 @@ def lss_with_voxel_hrf(
         betas=betas,
         method=SingleTrialMethod.LSS_VOXEL_HRF,
         residual_df=float(T - 2),
+        extra=VoxelHrfExtras(
+            degenerate=hrf_result.degenerate,
+            normalization=hrf_result.normalization,
+        ),
     )

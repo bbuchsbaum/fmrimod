@@ -28,8 +28,26 @@ def _synthetic_inputs(seed: int = 123):
         a[:, j] = x_trials[:, j::k].sum(axis=1)
 
     y = a @ coeff
-    coeff_norm = coeff / np.linalg.norm(coeff, axis=0, keepdims=True)
-    return y, x_trials, basis, coeff_norm
+    return y, x_trials, basis, _positive_peak(coeff, basis)
+
+
+def _positive_peak(coeff, basis, tr=1.0):
+    """R ``.normalize_voxel_hrf_coefficients`` on the array basis's rows.
+
+    Waveforms are baseline-subtracted, oriented to correlate positively with
+    the canonical HRF sampled at the row spacing, and divided by their
+    positive peak (fmrilss 0d97c8b; replaces the old unit-L2 contract).
+    """
+    from fmrimod.hrf import HRF_SPMG1
+
+    H = basis - basis[0]
+    ref = HRF_SPMG1(np.arange(basis.shape[0]) * tr)
+    ref = ref - ref[0]
+    wf = H @ coeff
+    orient = np.sign(ref @ wf)
+    peak = (wf * orient).max(axis=0)
+    assert np.all(peak >= 0.05 * np.abs(wf).max(axis=0))  # no degenerate voxels
+    return coeff / (orient * peak)
 
 
 def test_estimate_hrf_coefficients_recover_normalized_weights():
@@ -45,6 +63,8 @@ def test_estimate_hrf_output_hrf_reconstructs_basis_projection():
     expected = basis @ coeff_norm
     assert out.shape == expected.shape
     assert_allclose(out, expected, atol=1e-10)
+    # Unit positive peak relative to the first sample.
+    assert_allclose((out - out[0]).max(axis=0), 1.0, atol=1e-10)
 
 
 def test_estimate_hrf_result_mode_returns_dataclass():
@@ -87,14 +107,15 @@ def _build_trial_basis_design(onsets, basis, n_timepoints, tr):
 def test_estimate_hrf_formula_dataset_mode_single_run():
     rng = np.random.default_rng(7)
     T, K, V = 80, 3, 4
-    tr = 1.0
+    tr = 2.0
     onsets = np.array([5.0, 15.0, 25.0, 35.0, 45.0], dtype=np.float64)
     basis = rng.standard_normal((12, K))
     X_trials = _build_trial_basis_design(onsets, basis, T, tr)
     A = np.column_stack([X_trials[:, k::K].sum(axis=1) for k in range(K)])
     coeff = rng.standard_normal((K, V))
     Y = A @ coeff
-    coeff_norm = coeff / np.linalg.norm(coeff, axis=0, keepdims=True)
+    # The TR-sampled basis rows are oriented against a TR-sampled reference.
+    coeff_norm = _positive_peak(coeff, basis, tr=tr)
 
     sf = SamplingFrame(blocklens=T, tr=tr)
     ds = FmriDataset(
