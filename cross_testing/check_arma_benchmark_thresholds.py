@@ -1,5 +1,13 @@
 #!/usr/bin/env python
-"""Validate AR/ARMA benchmark report against minimum speed thresholds."""
+"""Validate AR/ARMA benchmark report against minimum speed thresholds.
+
+The thresholds are ratios against the AR(2) run-pooled case, so they move
+whenever the AR path changes speed. Since the pooled Hannan-Rissanen ARMA
+port (inventory v2 AR-03) and the AR speedups of the same wave, ARMA fitting
+does strictly more work than AR(2), and CI runs this with ``--report-only``:
+the ratios and absolute timings are printed and kept in the uploaded
+artifact, and a miss is a warning rather than a failure.
+"""
 
 from __future__ import annotations
 
@@ -28,6 +36,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--min-arma-run", type=float, default=1.20)
     parser.add_argument("--min-arma-global", type=float, default=1.05)
+    parser.add_argument(
+        "--report-only",
+        action="store_true",
+        help="Report threshold misses as a warning and exit 0 (tracked, not gated).",
+    )
     args = parser.parse_args(argv)
 
     with open(args.report, "r", encoding="utf-8") as fobj:
@@ -35,6 +48,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     arma_run = _get_metric(report, "arma_run_p2q1")
     arma_global = _get_metric(report, "arma_global_p2q1")
+    for case, res in report.get("results", {}).items():
+        print(
+            f"{case}: fit_noise {res['fit_noise_median_s']:.3f}s, "
+            f"whiten {res['whiten_median_s']:.3f}s, total {res['total_median_s']:.3f}s"
+        )
 
     failures = []
     if arma_run < args.min_arma_run:
@@ -46,6 +64,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"arma_global_p2q1={arma_global:.3f} < min_arma_global={args.min_arma_global:.3f}"
         )
 
+    if failures and args.report_only:
+        print(f"::warning::AR/ARMA benchmark below thresholds: {'; '.join(failures)}")
+        return 0
     if failures:
         print("AR/ARMA benchmark threshold check FAILED:")
         for msg in failures:

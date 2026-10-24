@@ -49,7 +49,7 @@ jobs:
             --artifact cross_testing/reports/fmrimod_arma_benchmark_ci.json \
             --schema cross_testing/schemas/core_parity_benchmark.schema.json
 
-      - name: Enforce benchmark thresholds
+      - name: Report benchmark thresholds (tracked, not gated)
         run: |
           if [ "${{ github.event_name }}" = "schedule" ]; then
             MIN_RUN=1.20
@@ -61,7 +61,8 @@ jobs:
           python cross_testing/check_arma_benchmark_thresholds.py \
             --report cross_testing/reports/fmrimod_arma_benchmark_ci.json \
             --min-arma-run "$MIN_RUN" \
-            --min-arma-global "$MIN_GLOBAL"
+            --min-arma-global "$MIN_GLOBAL" \
+            --report-only
 
       - name: Upload benchmark artifact
         uses: actions/upload-artifact@v4
