@@ -1,33 +1,156 @@
-"""Iterative GLS: alternates AR estimation and GLM fitting.
+"""First-level AR GLS for ``fmri_lm``.
 
-Implements the standard two-stage (or multi-stage) approach:
-1. Fit OLS to get residuals
-2. Estimate AR parameters from residuals
-3. Whiten design and data
-4. Re-fit OLS on whitened data
-5. (Optionally repeat)
+The noise model is estimated by :func:`~fmrimod.ar.estimation.fit_noise` and
+applied by :func:`~fmrimod.ar.whitening.whiten_apply`, the API single-trial
+prewhitening uses, following fmrireg's runwise AR fit
+(``R/fmri_lm_strategies.R`` ``process_run_standard``, ``R/fmrilm.R`` global
+AR, ``R/fmri_lm_runwise.R`` ``runwise_lm_voxelwise``):
+
+1. The engine's OLS fit supplies, per run, the matrices it solved (after
+   censoring, volume weighting and soft projection) and their residuals.
+2. phi is estimated once from those residuals, with fmriAR's residual-bias
+   correction for the design that produced them, and held fixed for the GLS
+   solve: the correction belongs to the OLS residual operator (fmrireg
+   23c275f, 168980d).
+3. Each run's matrices are whitened, restarting at the run start and at
+   every censoring gap, and solved.
+
+Censored volumes are not observations (fmrimod scrubs them): they are gaps
+in the AR estimation and the whitening, never data.
 """
 
 from __future__ import annotations
 
-from typing import Any, Dict, Tuple, cast
+import warnings
+from collections.abc import Sequence
+from dataclasses import dataclass, replace
+from typing import Any, cast
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy import linalg
 
-from ..dataset.data_access import get_run_data
-from ..glm.solver import fast_lm_matrix, fast_preproject
-from ..model.config import FmriLmConfig
-from .estimation import estimate_ar
-from .whitening import ar_whiten_matrix
+from fmrimod.dataset.data_access import get_run_data
+from fmrimod.glm.errors import UnsupportedEngineConfiguration
+from fmrimod.glm.solver import LmResult, Projection, fast_lm_matrix, fast_preproject
+from fmrimod.model.config import AROptions, FmriLmConfig
+
+from .estimation import _quantise_to_noise_pools, fit_noise
+from .plan import plan_from_phi
+from .whitening import whiten_apply
+
+# fmrireg ``.ar_correction_lag_budget``: at most 25 corrected lags.
+_MAX_CORRECTION_LAG = 25
+
+
+@dataclass(frozen=True)
+class _RunMatrices:
+    """One run as the OLS fit solved it.
+
+    ``X``, ``Y`` and ``resid`` hold the observed volumes only; ``keep`` marks
+    them on the run's volume grid (``None`` when nothing was censored).
+    """
+
+    X: NDArray[np.float64]
+    Y: NDArray[np.float64]
+    resid: NDArray[np.float64]
+    keep: NDArray[np.bool_] | None
+    proj: Projection
+    obs_weights: NDArray[np.float64] | None
+
+    @property
+    def rank(self) -> int:
+        return int(self.proj.rank)
+
+    @property
+    def censor(self) -> NDArray[np.bool_] | None:
+        """Censoring mask on the volume grid, or ``None``."""
+        return None if self.keep is None else ~self.keep
+
+    @property
+    def segments(self) -> NDArray[np.intp] | None:
+        """Contiguous-segment label of each observed volume, or ``None``."""
+        if self.keep is None:
+            return None
+        idx = np.flatnonzero(self.keep)
+        breaks = np.concatenate([[0], (np.diff(idx) > 1).astype(np.intp)])
+        return np.cumsum(breaks).astype(np.intp)
+
+    def on_grid(self, mat: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Rows of ``mat`` placed on the volume grid, zero where censored.
+
+        A zero row is outside every residual-forming operator and lag
+        product, so the grid form describes the scrubbed fit exactly.
+        """
+        if self.keep is None:
+            return mat
+        out = np.zeros((self.keep.size, mat.shape[1]), dtype=np.float64)
+        out[self.keep] = mat
+        return out
+
+
+def validate_ar_config(model: object, config: FmriLmConfig) -> None:
+    """Refuse AR configurations ``fmri_lm`` cannot fit.
+
+    Voxelwise AR follows fmrireg's narrow contract
+    (``.validate_builtin_voxelwise_noise``, 3c2a9c2), plus robust fitting,
+    which needs one design per run here.
+    """
+    ar = config.ar
+    if ar.voxelwise and not ar.enabled:
+        raise ValueError(
+            "voxelwise AR requires an AR structure; set AROptions(struct='ar1') "
+            "or another AR structure"
+        )
+    if not ar.enabled:
+        return
+    if ar.pooling == "parcel":
+        raise UnsupportedEngineConfiguration(
+            engine="runwise",
+            feature="AR pooling='parcel'",
+            repair="use AROptions(pooling='run') or pooling='global'",
+            current_capability=("pooling='run'", "pooling='global'"),
+        )
+    if not ar.voxelwise:
+        return
+    capability = (
+        "pooling='run'",
+        "iter_gls=1",
+        "no censoring",
+        "no volume weights, soft projection or robust fitting",
+    )
+    blockers = []
+    if ar.pooling != "run":
+        blockers.append(f"pooling={ar.pooling!r}")
+    if ar.iter_gls != 1:
+        blockers.append(f"iter_gls={ar.iter_gls}")
+    if ar.censor is not None or _dataset_censors(model):
+        blockers.append("censoring")
+    if config.volume_weights.enabled:
+        blockers.append("volume weights")
+    if config.soft_subspace.enabled:
+        blockers.append("soft subspace projection")
+    if config.robust.enabled:
+        blockers.append("robust fitting")
+    if blockers:
+        raise UnsupportedEngineConfiguration(
+            engine="runwise",
+            feature=f"voxelwise AR with {', '.join(blockers)}",
+            repair=(
+                "use voxelwise AR with pooling='run', iter_gls=1 and no "
+                "censoring, weighting, projection or robust fitting, or set "
+                "AROptions(voxelwise=False) for a shared AR model"
+            ),
+            current_capability=capability,
+        )
 
 
 def iterative_gls(
     model: object,  # FmriModel
     config: FmriLmConfig,
-    initial_fit: Dict[str, Any],
-) -> Tuple[Dict[str, Any], NDArray[np.float64]]:
-    """Run iterative GLS with AR whitening.
+    initial_fit: dict[str, Any],
+) -> tuple[dict[str, Any], NDArray[np.float64]]:
+    """Refit the runs of an OLS fit by AR generalised least squares.
 
     Parameters
     ----------
@@ -36,119 +159,373 @@ def iterative_gls(
     config : FmriLmConfig
         Configuration with AR options.
     initial_fit : dict
-        Initial OLS fit result from ``fit_runwise()``.
+        Initial OLS fit from ``fit_runwise()``: per-run ``run_X``,
+        ``residuals``, ``run_results`` and ``projections``.
 
     Returns
     -------
     fit_result : dict
-        Updated fit result with whitened estimates.
+        GLS fit. ``run_X`` and ``residuals`` are the whitened design and
+        residuals of each run, a matching pair. For voxelwise AR, ``XtXinv``
+        holds one matrix per voxel, shape ``(V, p, p)``, and ``run_X`` is
+        ``None`` (every voxel has its own whitened design).
     ar_params : NDArray
-        Estimated AR parameters.
+        The AR coefficients the whitening applied: ``(p,)`` for one run or
+        global pooling, ``(n_runs, p)`` for run pooling; voxelwise
+        ``(p, V)`` for one run, ``(n_runs, p, V)`` otherwise. Empty when
+        ``iter_gls=0``.
     """
     ar_opts = config.ar
-    ar_order = ar_opts.ar_order
-    n_iter = ar_opts.iter_gls
-    n_runs = model.n_runs  # type: ignore[attr-defined]
+    if ar_opts.iter_gls < 1:
+        return initial_fit, np.array([], dtype=np.float64)
 
-    # Current residuals from initial fit
-    residuals_list = initial_fit["residuals"]
-    # Storage for per-run AR params
-    ar_params_per_run = []
+    runs = _run_matrices(model, initial_fit)
+    order = ar_opts.ar_order
+    if ar_opts.voxelwise:
+        phis = [_voxelwise_phi(rm, order, ar_opts.noise_pools) for rm in runs]
+        fit = _solve_voxelwise(runs, phis, ar_opts.exact_first, config.solver)
+        params = phis[0] if len(phis) == 1 else np.stack(phis)
+        return fit, params
 
-    current_fit = initial_fit
+    phis = _shared_phi(runs, ar_opts)
+    fit = _solve_shared(runs, phis, ar_opts.exact_first, config.solver)
+    single = len(phis) == 1 or ar_opts.pooling == "global"
+    return fit, phis[0] if single else np.stack(phis)
 
-    for iteration in range(n_iter):
-        # Step 1: Estimate AR from current residuals
-        run_ar_params = []
-        for r in range(n_runs):
-            resid_r = residuals_list[r]
-            censor_r = None
-            if hasattr(model, "dataset") and hasattr(model.dataset, "get_censor"):
-                censor_r = model.dataset.get_censor(r)
 
-            phi_r = estimate_ar(
-                resid_r,
-                order=ar_order,
-                voxelwise=ar_opts.voxelwise,
-                censor=censor_r,
-                noise_pools=getattr(ar_opts, "noise_pools", None),
+# -- Run matrices ------------------------------------------------------------
+
+
+def _run_matrices(model: object, initial_fit: dict[str, Any]) -> list[_RunMatrices]:
+    """The matrices each run's OLS fit solved, with their residuals."""
+    out = []
+    for r, (X, resid, result, proj) in enumerate(
+        zip(
+            initial_fit["run_X"],
+            initial_fit["residuals"],
+            initial_fit["run_results"],
+            initial_fit["projections"],
+            strict=True,
+        )
+    ):
+        out.append(
+            _RunMatrices(
+                X=X,
+                # The data the OLS fit paired with X (as robust_refit does).
+                Y=resid + X @ result.betas,
+                resid=resid,
+                keep=_kept_volumes(model, r, X.shape[0]),
+                proj=proj,
+                obs_weights=getattr(result, "obs_weights", None),
             )
-            run_ar_params.append(phi_r)
+        )
+    return out
 
-        # Step 2: Whiten and re-fit each run
-        run_results = []
-        run_projections = []
-        new_residuals = []
-        ar_residuals = []
-        new_run_X = []
 
-        for r in range(n_runs):
-            Y_r = get_run_data(model.dataset, r)  # type: ignore[attr-defined]
-            X_r = model.design_matrix_array(run=r)  # type: ignore[attr-defined]
-            phi_r = run_ar_params[r]
+def _dataset_censors(model: object) -> bool:
+    """True when the model's dataset censors any volume."""
+    dataset = getattr(model, "dataset", None)
+    get_censor = getattr(dataset, "get_censor", None)
+    if not callable(get_censor):
+        return False
+    for r in range(int(getattr(model, "n_runs", 0))):
+        censor = get_censor(r)
+        if censor is not None and np.any(np.asarray(censor)):
+            return True
+    return False
 
-            # Whiten
-            X_w, Y_w = ar_whiten_matrix(
-                X_r,
-                Y_r,
-                phi_r,
-                exact_first_ar1=ar_opts.exact_first,
+
+def _kept_volumes(
+    model: object, run: int, n_rows: int
+) -> NDArray[np.bool_] | None:
+    """Observed volumes of a run (the rows ``fit_run_ols`` kept), or ``None``."""
+    dataset = getattr(model, "dataset", None)
+    get_censor = getattr(dataset, "get_censor", None)
+    censor = get_censor(run) if callable(get_censor) else None
+    if censor is None:
+        return None
+    # fit_run_ols has validated the mask (boolean or 0/1).
+    censor = np.asarray(censor).astype(bool)
+    if not np.any(censor):
+        return None
+    keep = ~censor
+    if int(keep.sum()) != n_rows:
+        raise ValueError(
+            f"run {run}: the censor mask keeps {int(keep.sum())} volumes but "
+            f"the OLS fit solved {n_rows}"
+        )
+    return keep
+
+
+# -- Estimation --------------------------------------------------------------
+
+
+def _correction_lag_budget(order: int, rdf: int) -> int:
+    """fmrireg ``.ar_correction_lag_budget``.
+
+    Projection mixes the whole autocovariance tail into lags ``0..p``: correct
+    at least five lags, and ``2p + 1`` for higher orders, keeping about three
+    residual df per corrected lag and at most 25.
+    """
+    desired = max(5, 2 * order + 1)
+    supported = max(0, rdf // 3)
+    return max(order, min(_MAX_CORRECTION_LAG, desired, supported))
+
+
+def _estimate_phi(
+    resid: Sequence[NDArray[np.float64]],
+    order: int,
+    *,
+    censor: NDArray[np.bool_] | None = None,
+    design: NDArray[np.float64] | None = None,
+    rdf: int = 0,
+) -> NDArray[np.float64]:
+    """One AR(``order``) model pooled over voxels (and over runs).
+
+    ``resid`` holds one residual matrix per run, on the volume grid; with
+    several runs the model is pooled across them (fmrireg global AR). Only
+    voxels whose residuals are finite in every run enter the estimate. An
+    estimate that fails falls back to no whitening with a warning, as
+    fmrireg ``.estimate_ar_parameters_routed`` does.
+    """
+    finite = np.logical_and.reduce([np.all(np.isfinite(r), axis=0) for r in resid])
+    if not np.any(finite):
+        return np.zeros(order, dtype=np.float64)
+    stacked = np.vstack([r[:, finite] for r in resid])
+    run_labels = (
+        np.repeat(np.arange(len(resid)), [r.shape[0] for r in resid])
+        if len(resid) > 1
+        else None
+    )
+    try:
+        plan = fit_noise(
+            stacked,
+            runs=run_labels,
+            censor=censor,
+            method="ar",
+            p=order,
+            p_max=order,
+            pooling="global",
+            design=design,
+            correction_max_lag=_correction_lag_budget(order, rdf),
+        )
+    except (ValueError, np.linalg.LinAlgError) as err:
+        warnings.warn(
+            f"AR({order}) estimation failed ({err}); fitting without AR whitening.",
+            UserWarning,
+            stacklevel=4,
+        )
+        return np.zeros(order, dtype=np.float64)
+    phi = np.zeros(order, dtype=np.float64)
+    est = np.asarray(plan.phi[0] if plan.phi else [], dtype=np.float64)[:order]
+    phi[: est.size] = np.where(np.isfinite(est), est, 0.0)
+    return phi
+
+
+def _shared_phi(runs: list[_RunMatrices], ar_opts: AROptions) -> list[NDArray[np.float64]]:
+    """phi per run (``pooling="run"``) or one phi for all runs (``"global"``).
+
+    Each estimate is corrected for the residual-forming operator of the fit
+    that produced the residuals. Runs are fitted separately, so for global
+    pooling that operator is block diagonal over runs; stacking the designs
+    would describe one coefficient vector shared by all runs (168980d).
+    """
+    order = ar_opts.ar_order
+    if ar_opts.pooling == "global" and len(runs) > 1:
+        censor = None
+        if any(rm.keep is not None for rm in runs):
+            censor = np.concatenate(
+                [
+                    np.zeros(rm.X.shape[0], dtype=bool) if rm.keep is None else rm.censor
+                    for rm in runs
+                ]
             )
+        phi = _estimate_phi(
+            [rm.on_grid(rm.resid) for rm in runs],
+            order,
+            censor=censor,
+            design=linalg.block_diag(*(rm.on_grid(rm.X) for rm in runs)),
+            rdf=min(rm.X.shape[0] - rm.rank for rm in runs),
+        )
+        return [phi] * len(runs)
+    return [
+        _estimate_phi(
+            [rm.on_grid(rm.resid)],
+            order,
+            censor=rm.censor,
+            design=rm.on_grid(rm.X),
+            rdf=rm.X.shape[0] - rm.rank,
+        )
+        for rm in runs
+    ]
 
-            # Re-fit
-            proj = fast_preproject(X_w)
-            result = fast_lm_matrix(X_w, Y_w, proj, return_fitted=True)
 
-            run_results.append(result)
-            run_projections.append(proj)
-            new_run_X.append(X_w)
+def _voxelwise_phi(
+    rm: _RunMatrices, order: int, noise_pools: int | None
+) -> NDArray[np.float64]:
+    """phi of every voxel, shape ``(order, V)``.
 
-            # Residuals on whitened scale (kept in fit payload)
-            if result.fitted is not None:
-                new_residuals.append(Y_w - result.fitted)
-            else:
-                new_residuals.append(Y_w - X_w @ result.betas)
-            # Residuals on original scale (used for next AR update)
-            ar_residuals.append(Y_r - X_r @ result.betas)
+    fmrireg ``estimate_ar_parameters``: fmriAR on the voxel's OLS residuals,
+    with no design correction. ``noise_pools`` quantises the estimates into
+    equal-frequency pools (Nilearn's scheme).
+    """
+    V = rm.resid.shape[1]
+    phi = np.zeros((order, V), dtype=np.float64)
+    finite = np.all(np.isfinite(rm.resid), axis=0)
+    for v in np.flatnonzero(finite):
+        phi[:, v] = _estimate_phi([rm.resid[:, v : v + 1]], order)
+    if noise_pools is not None and int(noise_pools) > 1 and np.any(finite):
+        phi[:, finite] = _quantise_to_noise_pools(phi[:, finite], int(noise_pools))
+    return phi
 
-        # Update for next iteration
-        residuals_list = ar_residuals
 
-        # Pool results
-        from ..glm.strategies import _pool_run_results
+# -- Whitening and solve -----------------------------------------------------
 
-        pooled = _pool_run_results(run_results, run_projections)
 
-        current_fit = {
-            "betas": pooled["betas"],
-            "sigma": pooled["sigma"],
-            "dfres": pooled["dfres"],
-            "XtXinv": pooled["XtXinv"],
-            "projections": run_projections,
-            "run_results": run_results,
-            "residuals": new_residuals,
-            "run_X": new_run_X,
-        }
-        ar_params_per_run = run_ar_params
+def _whiten(
+    rm: _RunMatrices,
+    phi: NDArray[np.float64],
+    exact_first: bool,
+    cols: NDArray[np.intp] | None = None,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Whiten a run's design and data, restarting at every censoring gap.
 
-    # Combine AR params honoring config.global_ar.
-    if not ar_params_per_run:
-        ar_params = np.array([])
-    elif len(ar_params_per_run) == 1:
-        ar_params = ar_params_per_run[0]
-    elif ar_opts.global_ar:
-        ar_params = np.mean(np.stack(ar_params_per_run, axis=0), axis=0)
-    else:
-        ar_params = np.stack(ar_params_per_run, axis=0)
+    Voxels with non-finite data (``na_action="propagate"``) stay non-finite.
+    """
+    Y = rm.Y if cols is None else rm.Y[:, cols]
+    plan = plan_from_phi(np.asarray(phi, dtype=np.float64), exact_first=exact_first)
+    finite = np.all(np.isfinite(Y), axis=0)
+    wr = whiten_apply(plan, rm.X, Y[:, finite], runs=cast(Any, rm.segments))
+    assert wr.X is not None and wr.Y is not None
+    if np.all(finite):
+        return wr.X, wr.Y
+    Yw = np.full(Y.shape, np.nan, dtype=np.float64)
+    Yw[:, finite] = wr.Y
+    return wr.X, Yw
 
-    return current_fit, ar_params
+
+def _with_observation_df(
+    proj: Projection, obs_weights: NDArray[np.float64] | None
+) -> Projection:
+    """Residual df counting only volumes with a positive weight.
+
+    Whitening is invertible, so the whitened rows still span only the
+    weighted volumes (``stats::lm.wfit``, fmrireg 60f8430).
+    """
+    if obs_weights is None:
+        return proj
+    dfres = float(np.count_nonzero(np.asarray(obs_weights) > 0) - proj.rank)
+    return proj if dfres == proj.dfres else replace(proj, dfres=dfres)
+
+
+def _solve_shared(
+    runs: list[_RunMatrices],
+    phis: list[NDArray[np.float64]],
+    exact_first: bool,
+    solver: Any,
+) -> dict[str, Any]:
+    """GLS of every run with its phi, pooled across runs."""
+    from fmrimod.glm.strategies import _pool_run_results
+
+    run_results = []
+    projections = []
+    residuals = []
+    run_X = []
+    for rm, phi in zip(runs, phis, strict=True):
+        Xw, Yw = _whiten(rm, phi, exact_first)
+        proj = fast_preproject(Xw, check_finite=False, method=solver)
+        proj = _with_observation_df(proj, rm.obs_weights)
+        result = fast_lm_matrix(Xw, Yw, proj, return_fitted=True, check_finite=False)
+        result.obs_weights = rm.obs_weights
+        assert result.fitted is not None
+        run_results.append(result)
+        projections.append(proj)
+        residuals.append(Yw - result.fitted)
+        run_X.append(Xw)
+
+    pooled = _pool_run_results(run_results, projections)
+    return {
+        "betas": pooled["betas"],
+        "sigma": pooled["sigma"],
+        "dfres": pooled["dfres"],
+        "XtXinv": pooled["XtXinv"],
+        "projections": projections,
+        "run_results": run_results,
+        "residuals": residuals,
+        "run_X": run_X,
+    }
+
+
+def _solve_voxelwise(
+    runs: list[_RunMatrices],
+    phis: list[NDArray[np.float64]],
+    exact_first: bool,
+    solver: Any,
+) -> dict[str, Any]:
+    """Per-voxel GLS: each voxel's design and data whitened with its phi.
+
+    Voxels that share a phi (``noise_pools``) share one solve. Each voxel
+    keeps its own ``(X'X)^-1``; the residual df is the run's ``n - rank``,
+    since whitening preserves the rank (fmrireg ``runwise_lm_voxelwise``).
+    """
+    from fmrimod.glm.strategies import _pool_run_results
+
+    run_results = []
+    covariances = []
+    grams = []
+    residuals = []
+    for rm, phi in zip(runs, phis, strict=True):
+        n, p = rm.X.shape
+        V = rm.Y.shape[1]
+        betas = np.full((p, V), np.nan)
+        rss = np.full(V, np.nan)
+        cov = np.full((V, p, p), np.nan)
+        gram = np.full((V, p, p), np.nan)
+        resid = np.full((n, V), np.nan)
+        groups, inverse = np.unique(phi.T, axis=0, return_inverse=True)
+        inverse = np.asarray(inverse).ravel()
+        for g, phi_g in enumerate(groups):
+            cols = np.flatnonzero(inverse == g)
+            Xw, Yw = _whiten(rm, phi_g, exact_first, cols)
+            proj = fast_preproject(Xw, check_finite=False, method=solver)
+            result = fast_lm_matrix(Xw, Yw, proj, return_fitted=True, check_finite=False)
+            assert result.fitted is not None
+            betas[:, cols] = result.betas
+            rss[cols] = result.rss
+            cov[cols] = proj.XtXinv
+            gram[cols] = Xw.T @ Xw
+            resid[:, cols] = Yw - result.fitted
+        dfres = float(n - rm.rank)
+        sigma2 = rss / dfres if dfres > 0 else np.full(V, np.nan)
+        run_results.append(
+            LmResult(betas=betas, rss=rss, sigma2=sigma2, dfres=dfres, rank=rm.rank)
+        )
+        covariances.append(cov)
+        grams.append(gram)
+        residuals.append(resid)
+
+    # Rank diagnostics come from the unwhitened design (whitening keeps them).
+    projections = [rm.proj for rm in runs]
+    pooled = _pool_run_results(
+        run_results, projections, covariances=covariances, grams=grams
+    )
+    return {
+        "betas": pooled["betas"],
+        "sigma": pooled["sigma"],
+        "dfres": pooled["dfres"],
+        "XtXinv": pooled["XtXinv"],
+        "projections": projections,
+        "run_results": run_results,
+        "residuals": residuals,
+        "run_X": None,
+    }
 
 
 def iterative_ar_gls(
     model: object,  # FmriModel
     config: FmriLmConfig,
-    initial_fit: Dict[str, Any],
-) -> Tuple[Dict[str, Any], object]:
+    initial_fit: dict[str, Any],
+) -> tuple[dict[str, Any], object]:
     """Run iterative GLS using plan-based whitening.
 
     Enhanced version of :func:`iterative_gls` that uses
@@ -311,7 +688,7 @@ def iterative_ar_gls(
         residuals_list = ar_residuals
 
         # Pool results
-        from ..glm.strategies import _pool_run_results
+        from fmrimod.glm.strategies import _pool_run_results
 
         pooled = _pool_run_results(run_results, run_projections)
 

@@ -1267,6 +1267,10 @@ def fmri_lm(
             repair="set RobustOptions(reestimate_phi=False)",
         )
 
+    from fmrimod.ar.integration import validate_ar_config
+
+    validate_ar_config(model, config)
+
     # Resolve and run the engine
     eng, fit_kwargs = resolve_engine(engine, engine_kwargs)
     eng.preflight(model, config)
