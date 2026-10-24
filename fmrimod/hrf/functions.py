@@ -8,10 +8,15 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from scipy import interpolate, special, stats
 
-# Constant used in legacy SPM canonical HRF parameterization (kept only
-# for the ``spm_canonical_legacy`` path; the new SPM-form canonical
-# uses scipy's gamma pdf directly).
-_SPM_C = 1.274527e-13
+def _spm_undershoot_scale(p2: float) -> float:
+    """Legacy SPM undershoot normaliser ``1 / (6 * Gamma(p2 + 1))``.
+
+    Only the ``spm_canonical_legacy`` path (and its analytic derivatives)
+    uses it; the SPM-form canonical uses scipy's gamma pdf directly. It was
+    hard-coded to ``1 / (6 * 15!)`` (``1.274527e-13``), which scaled the
+    undershoot wrongly for any ``p2 != 15`` (fmrihrf ``d19ba00``).
+    """
+    return float(1.0 / (6.0 * special.gamma(p2 + 1.0)))
 
 
 # Default parameters for the SPM canonical HRF (SPM ``spm_hrf`` /
@@ -53,7 +58,8 @@ def spm_canonical_legacy(
     """Legacy SPM canonical HRF (R ``fmrireg`` parameterization).
 
     Implements the simplified double-gamma form
-    ``exp(-t) * (a1 * t^p1 - C * t^p2)`` with ``C = 1.274527e-13``.
+    ``exp(-t) * (a1 * t^p1 - C * t^p2)`` with ``C = 1 / (6 * Gamma(p2 + 1))``
+    (``1.274527e-13`` at the default ``p2 = 15``).
     This is the form fmrimod shipped before the SPM-canonical
     alignment work; the realised canonical's peak/undershoot
     *ratio* is ~4600 (vs SPM's ~10) and the peak time is ``p1``
@@ -86,7 +92,8 @@ def spm_canonical_legacy(
                 f"spm_canonical_legacy: dispersion must be positive, " f"got {sigma!r}"
             )
         t_pos = t[mask] * sigma
-        result[mask] = np.exp(-t_pos) * (a1 * t_pos**p1 - _SPM_C * t_pos**p2)
+        c = _spm_undershoot_scale(p2)
+        result[mask] = np.exp(-t_pos) * (a1 * t_pos**p1 - c * t_pos**p2)
     return result
 
 

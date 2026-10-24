@@ -8,6 +8,7 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from .core import HRF
+from .functions import _spm_undershoot_scale
 
 
 @runtime_checkable
@@ -142,9 +143,6 @@ def _numeric_derivative(hrf: HRF, t: ArrayLike, order: int = 1) -> NDArray[np.fl
 
 # Analytic derivative functions for specific HRF types
 
-# Shared constant with functions.py
-from .functions import _SPM_C
-
 
 def spmg1_derivative(t: ArrayLike, p1: float = 5, p2: float = 15, a1: float = 0.0833) -> NDArray[np.float64]:
     """Analytic derivative of SPM canonical HRF (SPMG1).
@@ -164,9 +162,10 @@ def spmg1_derivative(t: ArrayLike, p1: float = 5, p2: float = 15, a1: float = 0.
 
     if np.any(pos):
         t_pos = t[pos]
+        c = _spm_undershoot_scale(p2)
         ret[pos] = np.exp(-t_pos) * (
             a1 * t_pos**(p1 - 1) * (p1 - t_pos) -
-            _SPM_C * t_pos**(p2 - 1) * (p2 - t_pos)
+            c * t_pos**(p2 - 1) * (p2 - t_pos)
         )
 
     return ret
@@ -190,11 +189,12 @@ def spmg1_second_derivative(t: ArrayLike, p1: float = 5, p2: float = 15, a1: flo
 
     if np.any(pos):
         t_pos = t[pos]
+        c = _spm_undershoot_scale(p2)
         # Components and their derivatives
         d1 = a1 * t_pos**(p1 - 1) * (p1 - t_pos)
-        d2 = _SPM_C * t_pos**(p2 - 1) * (p2 - t_pos)
+        d2 = c * t_pos**(p2 - 1) * (p2 - t_pos)
         d1_prime = a1 * ((p1 - 1) * t_pos**(p1 - 2) * (p1 - t_pos) - t_pos**(p1 - 1))
-        d2_prime = _SPM_C * ((p2 - 1) * t_pos**(p2 - 2) * (p2 - t_pos) - t_pos**(p2 - 1))
+        d2_prime = c * ((p2 - 1) * t_pos**(p2 - 2) * (p2 - t_pos) - t_pos**(p2 - 1))
 
         ret[pos] = np.exp(-t_pos) * (d1_prime - d2_prime - (d1 - d2))
 
