@@ -96,6 +96,34 @@ def _default_precision_from_sframe(sampling_info: object) -> float:
     return float(np.min(tr_arr) / DEFAULT_PRECISION_OVERSAMPLING)
 
 
+def _plain_function_hrf(fn: Any) -> HRF:
+    """Wrap a plain function of time as an HRF (R ``gen_hrf(fn)``).
+
+    Like fmrihrf's ``.detect_nbasis()``, the basis width is the number of
+    columns ``fn`` returns on ``t = 1..10`` (1, with a warning, when that
+    evaluation fails). The HRF is named after the function; a lambda is
+    ``"custom"``.
+    """
+    from fmrimod.hrf.core import as_hrf
+
+    name = getattr(fn, "__name__", None)
+    if not name or name == "<lambda>":
+        name = "custom"
+    try:
+        probe = np.asarray(fn(np.arange(1.0, 11.0)))
+    except Exception as exc:
+        warnings.warn(
+            f"Could not determine nbasis for function {name} - defaulting to "
+            f"1. Evaluation failed: {exc}",
+            UserWarning,
+            stacklevel=3,
+        )
+        nbasis = 1
+    else:
+        nbasis = int(probe.shape[1]) if probe.ndim == 2 else 1
+    return as_hrf(fn, name=name, nbasis=nbasis)
+
+
 class EventModel(ModelProtocol):  # type: ignore[misc]
     """Event model for fMRI design matrix construction.
 
@@ -627,7 +655,13 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         if hasattr(hrf, "nbasis") and hasattr(hrf, "evaluate"):
             if self._is_valid_fmrimod_hrf(hrf, fmrimod):
                 return hrf
-        return fmrimod.SPM_CANONICAL
+            return fmrimod.SPM_CANONICAL
+        if callable(hrf):
+            return _plain_function_hrf(hrf)
+        raise TypeError(
+            "HRF basis must be a basis name, an HRF object or a function of "
+            f"time; got {type(hrf).__name__} {hrf!r}"
+        )
 
     def _resolve_hrf_for_term(self, term: Term) -> Any:
         """Resolve a term HRF while honoring term-local HRF options."""
