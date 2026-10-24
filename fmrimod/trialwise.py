@@ -43,7 +43,8 @@ def trialwise(
     lag : float, default=0.0
         Temporal offset in seconds added to onset before convolution
     nbasis : int, default=1
-        Number of basis functions (for HRFs that support variable bases)
+        Number of basis functions (for HRFs that support variable bases,
+        e.g. ``basis="fir", nbasis=6``); 1 keeps the basis' own size
     add_sum : bool, default=False
         If True, append a column that is the average of all trialwise columns.
         This serves as a conventional main effect regressor.
