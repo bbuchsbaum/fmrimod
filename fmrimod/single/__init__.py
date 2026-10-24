@@ -338,7 +338,9 @@ def estimate_single_trial_from_dataset(
         Estimator selector; see :func:`estimate_single_trial`.
     confounds, return_se, prewhiten, nuisance_projector, chunk_size,
         oasis_config, sbhm_config, sbhm_library, include_intercept
-        Forwarded to :func:`estimate_single_trial`.
+        Forwarded to :func:`estimate_single_trial`. When ``prewhiten.runs``
+        is unset it is filled from the dataset's sampling-frame runs;
+        supplied runs must match the frame's run boundaries.
     block, durations, precision
         Forwarded to :func:`fmrimod.event_model`. ``block`` and ``durations``
         default to event-table column auto-detection (``run``/``block`` and
@@ -374,6 +376,11 @@ def estimate_single_trial_from_dataset(
         )
 
     sampling_frame = cast(Any, dataset).get_sampling_frame()
+    if prewhiten is not None:
+        from ._prewhiten import with_frame_runs
+
+        # AR estimation and filtering must not span the frame's runs.
+        prewhiten = with_frame_runs(prewhiten, sampling_frame.blockids)
 
     resolved_block = block
     if resolved_block is None:
