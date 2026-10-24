@@ -518,20 +518,20 @@ def fit_noise(
     if exact_first not in ("ar1", "none"):
         exact_first = "ar1" if exact_first else "none"
     if not (isinstance(p, str) and p == "auto"):
+        p_num = float(p) if isinstance(p, numbers.Real) else float("nan")
         if (
             isinstance(p, (bool, np.bool_))
-            or not isinstance(p, numbers.Real)
-            or not np.isfinite(p)
-            or p < 0
-            or p != int(p)
+            or not np.isfinite(p_num)
+            or p_num < 0
+            or p_num != int(p_num)
         ):
             raise ValueError(
                 "'p' must be \"auto\" or a single non-negative whole number"
             )
-        p = int(p)
         # An explicit order is honoured as given; p_max bounds only the
         # automatic search (fmriAR 617bd87).
-        p_max = max(int(p_max), p)
+        p = int(p_num)
+        p_max = max(int(p_max), int(p_num))
 
     # Resolve multiscale mode
     ms_modes = ("pacf_weighted", "acvf_pooled")
@@ -1037,6 +1037,7 @@ def fit_noise(
             if len(theta_e):
                 Th[i, : len(theta_e)] = theta_e
 
+        phi_avg: NDArray[np.float64] | None
         theta_avg: NDArray[np.float64] | None = None
         arma_sigma2 = float("nan")
         if method == "arma":
