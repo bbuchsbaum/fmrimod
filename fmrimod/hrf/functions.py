@@ -432,6 +432,11 @@ def mexhat_hrf(
 ) -> NDArray[np.float64]:
     """Mexican hat (Ricker) wavelet HRF.
 
+    ``2 / (sqrt(3 sigma) pi^(1/4)) (1 - z^2) exp(-z^2 / 2)`` with
+    ``z = (t - center) / sigma``. The constant gives the un-truncated wavelet
+    unit L2 norm, and the response is zero before onset (fmrihrf
+    ``7e5f7ec``).
+
     Args:
         t: Time points in seconds
         sigma: Width parameter
@@ -597,9 +602,10 @@ def hrf_time(
 
 
 def hrf_mexhat(t: ArrayLike, mean: float = 6.0, sd: float = 2.0) -> NDArray[np.float64]:
-    """Mexican hat wavelet HRF.
+    """Mexican hat wavelet HRF (R ``hrf_mexhat`` argument names).
 
-    Computes the Mexican hat (Ricker) wavelet at given time points.
+    The causal, unit-L2 Ricker wavelet of :func:`mexhat_hrf` with
+    ``center=mean`` and ``sigma=sd``; there is one implementation.
 
     Args:
         t: Time points in seconds
@@ -607,13 +613,9 @@ def hrf_mexhat(t: ArrayLike, mean: float = 6.0, sd: float = 2.0) -> NDArray[np.f
         sd: Width parameter
 
     Returns:
-        HRF values at time points
+        HRF values at time points (zero for ``t < 0``)
     """
-    t = np.asarray(t, dtype=np.float64)
-    t0 = t - mean
-    a = (1 - (t0 / sd) ** 2) * np.exp(-(t0**2) / (2 * sd**2))
-    scale = np.sqrt(2 / (3 * sd * np.pi ** (1 / 4)))
-    return cast("NDArray[np.float64]", scale * a)
+    return mexhat_hrf(t, sigma=sd, center=mean)
 
 
 def hrf_inv_logit(

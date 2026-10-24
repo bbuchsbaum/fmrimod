@@ -291,3 +291,34 @@ class TestTentGenerator:
         y = hrf(t)
         row_sums = y.sum(axis=1)
         np.testing.assert_allclose(row_sums, 1.0, atol=0.05)
+
+
+# ── mexican hat ─────────────────────────────────────────────────────
+
+class TestMexhatHRF:
+    """fmrihrf ``7e5f7ec`` (``R/hrf-functions.R:146-151``): unit-L2 Ricker, causal."""
+
+    def test_peak_uses_unit_l2_constant(self):
+        from fmrimod.hrf import HRF_MEXHAT
+
+        expected = 2.0 / (np.sqrt(6.0) * np.pi**0.25)
+        np.testing.assert_allclose(HRF_MEXHAT(np.array([6.0])), [expected], rtol=1e-14)
+
+    @pytest.mark.parametrize("sd", [0.5, 2.0, 3.5])
+    def test_unit_l2_norm(self, sd):
+        from fmrimod.hrf.functions import hrf_mexhat
+
+        dt = 0.001
+        mean = 15.0 * sd  # far enough from onset that the causal mask clips nothing
+        t = np.arange(mean - 12 * sd, mean + 12 * sd + dt / 2, dt)
+        assert np.sum(hrf_mexhat(t, mean=mean, sd=sd) ** 2) * dt == pytest.approx(1.0, abs=1e-6)
+
+    def test_causal_and_single_implementation(self):
+        from fmrimod.hrf import HRF_MEXHAT
+        from fmrimod.hrf.functions import hrf_mexhat, mexhat_hrf
+
+        np.testing.assert_array_equal(HRF_MEXHAT(np.array([-3.0, -0.5])), [0.0, 0.0])
+        t = np.arange(-4.0, 20.0, 0.25)
+        np.testing.assert_array_equal(
+            hrf_mexhat(t, mean=6.0, sd=2.0), mexhat_hrf(t, sigma=2.0, center=6.0)
+        )
