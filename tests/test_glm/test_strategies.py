@@ -530,3 +530,45 @@ def test_fit_runwise_float32_compute_dtype_close_to_float64():
 
     np.testing.assert_allclose(f32["betas"], f64["betas"], rtol=3e-4, atol=3e-5)
     np.testing.assert_allclose(f32["sigma"], f64["sigma"], rtol=3e-4, atol=3e-5)
+
+
+def test_pool_run_results_takes_per_voxel_covariances():
+    # Voxelwise AR gives every voxel of a run its own (X'X)^-1; pooling one
+    # voxel with its matrices must match pooling that voxel alone.
+    rng = np.random.default_rng(8)
+    n, V = 50, 3
+    X = np.column_stack([np.ones(n), rng.standard_normal(n)])
+    results, projections, covs, grams = [], [], [], []
+    per_voxel = [[] for _ in range(V)]
+    for _ in range(2):
+        Y = X @ rng.standard_normal((2, V)) + rng.standard_normal((n, V))
+        cov_r, gram_r, b, rss = [], [], [], []
+        for v in range(V):
+            Xv = X * rng.uniform(0.5, 2.0, n)[:, None]
+            proj = fast_preproject(Xv)
+            fit = fast_lm_matrix(Xv, Y[:, [v]], proj)
+            per_voxel[v].append((fit, proj))
+            cov_r.append(proj.XtXinv)
+            gram_r.append(Xv.T @ Xv)
+            b.append(fit.betas[:, 0])
+            rss.append(fit.rss[0])
+        rss = np.array(rss)
+        results.append(
+            LmResult(
+                betas=np.column_stack(b), rss=rss, sigma2=rss / (n - 2),
+                dfres=float(n - 2), rank=2,
+            )
+        )
+        projections.append(per_voxel[0][-1][1])
+        covs.append(np.stack(cov_r))
+        grams.append(np.stack(gram_r))
+
+    pooled = _pool_run_results(results, projections, covariances=covs, grams=grams)
+    assert pooled["XtXinv"].shape == (V, 2, 2)
+    for v in range(V):
+        alone = _pool_run_results(
+            [fit for fit, _ in per_voxel[v]], [proj for _, proj in per_voxel[v]]
+        )
+        np.testing.assert_allclose(pooled["betas"][:, v], alone["betas"][:, 0], rtol=1e-12)
+        np.testing.assert_allclose(pooled["XtXinv"][v], alone["XtXinv"], rtol=1e-10)
+        np.testing.assert_allclose(pooled["sigma"][v], alone["sigma"][0], rtol=1e-12)

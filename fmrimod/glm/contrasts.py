@@ -242,6 +242,22 @@ def _validate_f_contrast_matrix(
     return con_mat
 
 
+def _contrast_variance_factor(
+    con_vec: NDArray[np.float64],
+    XtXinv: NDArray[np.float64],
+) -> NDArray[np.float64] | float:
+    """``c' (X'X)^-1 c``: a scalar, or one value per voxel for ``(V, p, p)``.
+
+    A voxelwise AR fit whitens every voxel's design with its own AR
+    coefficients, so each voxel has its own ``(X'X)^-1``.
+    """
+    if XtXinv.ndim == 3:
+        return cast(
+            "NDArray[np.float64]", np.einsum("p,vpq,q->v", con_vec, XtXinv, con_vec)
+        )
+    return float(con_vec @ XtXinv @ con_vec)
+
+
 def _f_quadratic_form_terms(
     con_mat: NDArray[np.float64],
     betas: NDArray[np.float64],
@@ -249,6 +265,8 @@ def _f_quadratic_form_terms(
 ) -> tuple[NDArray[np.float64], NDArray[np.float64], int]:
     """Compute stable F-test quadratic-form numerators."""
     CB = con_mat @ betas  # (k, V)
+    if XtXinv.ndim == 3:
+        return _f_quadratic_form_terms_by_voxel(CB, con_mat, XtXinv)
     cov = con_mat @ XtXinv @ con_mat.T  # (k, k)
 
     df1 = int(np.linalg.matrix_rank(cov))
@@ -277,6 +295,35 @@ def _f_quadratic_form_terms(
         Z = np.linalg.solve(L, CB)
         numer = np.sum(Z ** 2, axis=0)
 
+    return CB, np.maximum(numer, 0.0), df1
+
+
+def _f_quadratic_form_terms_by_voxel(
+    CB: NDArray[np.float64],
+    con_mat: NDArray[np.float64],
+    XtXinv: NDArray[np.float64],
+) -> tuple[NDArray[np.float64], NDArray[np.float64], int]:
+    """F numerators with one ``(X'X)^-1`` per voxel, shape ``(V, p, p)``."""
+    cov = np.einsum("kp,vpq,lq->vkl", con_mat, XtXinv, con_mat)  # (V, k, k)
+    ranks = np.linalg.matrix_rank(cov)
+    df1 = int(np.max(ranks)) if ranks.size else 0
+    if df1 <= 0:
+        return CB, np.zeros(CB.shape[1], dtype=np.float64), 1
+    cond = np.linalg.cond(cov)
+    if (
+        np.any(ranks < cov.shape[1])
+        or not np.all(np.isfinite(cond))
+        or np.any(cond > 1.0 / np.sqrt(np.finfo(np.float64).eps))
+    ):
+        warnings.warn(
+            "F-contrast covariance is singular; using pseudoinverse fallback",
+            RuntimeWarning,
+            stacklevel=3,
+        )
+        cov_inv = np.linalg.pinv(cov)
+    else:
+        cov_inv = np.linalg.inv(cov)
+    numer = np.einsum("kv,vkl,lv->v", CB, cov_inv, CB)
     return CB, np.maximum(numer, 0.0), df1
 
 
@@ -568,7 +615,8 @@ def contrast_t(
     betas : NDArray
         Coefficient matrix, shape ``(p, V)``.
     XtXinv : NDArray
-        ``(X'X)^{-1}``, shape ``(p, p)``.
+        ``(X'X)^{-1}``, shape ``(p, p)``, or ``(V, p, p)`` with one matrix
+        per voxel.
     sigma : NDArray
         Residual standard deviation, shape ``(V,)``.
     dfres : float
@@ -589,7 +637,7 @@ def contrast_t(
     estimate = con_vec @ betas
 
     # Variance of contrast: c' (X'X)^{-1} c * sigma^2
-    var_factor = con_vec @ XtXinv @ con_vec  # scalar
+    var_factor = _contrast_variance_factor(con_vec, XtXinv)
     se = sigma * np.sqrt(np.maximum(var_factor, 0.0))
 
     # t-statistic
@@ -627,7 +675,8 @@ def contrast_t_batch(
     betas : NDArray
         Coefficient matrix, shape ``(p, V)``.
     XtXinv : NDArray
-        ``(X'X)^{-1}``, shape ``(p, p)``.
+        ``(X'X)^{-1}``, shape ``(p, p)``, or ``(V, p, p)`` with one matrix
+        per voxel.
     sigma : NDArray
         Residual standard deviation, shape ``(V,)``.
     dfres : float
@@ -658,9 +707,13 @@ def contrast_t_batch(
     estimates = con_mat @ betas
 
     # Per-contrast variance factors: diag(C XtXinv C')
-    c_xtx = con_mat @ XtXinv
-    var_factors = np.sum(c_xtx * con_mat, axis=1)
-    se = np.sqrt(np.maximum(var_factors, 0.0))[:, np.newaxis] * sigma[np.newaxis, :]
+    if XtXinv.ndim == 3:
+        var_by_voxel = np.einsum("kp,vpq,kq->kv", con_mat, XtXinv, con_mat)
+        se = np.sqrt(np.maximum(var_by_voxel, 0.0)) * sigma[np.newaxis, :]
+    else:
+        c_xtx = con_mat @ XtXinv
+        var_factors = np.sum(c_xtx * con_mat, axis=1)
+        se = np.sqrt(np.maximum(var_factors, 0.0))[:, np.newaxis] * sigma[np.newaxis, :]
 
     tstat = _t_statistic(estimates, se, dfres)
     p_value = _t_two_sided_pvalue(tstat, dfres)
@@ -700,7 +753,8 @@ def contrast_f(
     betas : NDArray
         Coefficient matrix, shape ``(p, V)``.
     XtXinv : NDArray
-        ``(X'X)^{-1}``, shape ``(p, p)``.
+        ``(X'X)^{-1}``, shape ``(p, p)``, or ``(V, p, p)`` with one matrix
+        per voxel.
     sigma : NDArray
         Residual standard deviation, shape ``(V,)``.
     dfres : float
@@ -718,7 +772,7 @@ def contrast_f(
     if con_mat.shape[0] == 1:
         con_vec = con_mat[0]
         estimate = con_vec @ betas  # (V,)
-        var_factor = con_vec @ XtXinv @ con_vec
+        var_factor = _contrast_variance_factor(con_vec, XtXinv)
         se = sigma * np.sqrt(np.maximum(var_factor, 0.0))
         tstat = _t_statistic(estimate, se, dfres)
         fstat = np.maximum(tstat * tstat, 0.0)
