@@ -17,11 +17,17 @@ from fmrimod.ar.acvf import (
     _bic_n,
     acvf_from_pooled,
     pooled_acvf_segments,
+    shrink_to_pd,
     sigma2_from_gamma_phi,
     valid_segments,
 )
 from fmrimod.ar.estimation import fit_noise
-from fmrimod.ar.numhelpers import ar_to_pacf, enforce_stationary_ar, pacf_to_ar
+from fmrimod.ar.numhelpers import (
+    ar_to_pacf,
+    enforce_stationary_ar,
+    levinson_durbin,
+    pacf_to_ar,
+)
 from fmrimod.ar.plan import plan_from_phi
 from fmrimod.ar.whitening import whiten_apply
 
@@ -465,3 +471,84 @@ def test_bic_n_matches_the_reference_design_effect():
         1000 * v_eff, rel=1e-12
     )
     assert _bic_n(M[:, :1], 1000) == 1000
+
+
+def _r_global_ar(resid, runs, p, p_max=6, censor=()):
+    """Transcription of fmriAR 0.4.2 ``.ar_from_pooled_runs`` (617bd87).
+
+    Yule-Walker on the frame-weighted mean of the runs' unrepaired
+    autocorrelations, PD-repaired at each candidate order; under
+    ``p="auto"`` one BIC search on N = sum of per-run frames x V_eff.
+    """
+    censor = {int(c) for c in censor}
+    graw, lens, n_bics = [], [], []
+    for r in np.unique(runs):
+        rows = np.where(runs == r)[0]
+        keep = np.array([i for i in rows if i not in censor])
+        seg = np.cumsum(np.concatenate([[1], (np.diff(keep) > 1).astype(int)]))
+        n_eff = keep.size
+        p_cap = min(max(p_max, 0 if p == "auto" else p), n_eff - 1)
+        pooled = pooled_acvf_segments(resid[keep], seg, p_cap)
+        g, _ = acvf_from_pooled(pooled, order=p_cap, tol=-np.inf)
+        graw.append(g)
+        lens.append(n_eff)
+        n_bics.append(_bic_n(resid[keep], n_eff, vbar=pooled.num[0]))
+    L = min(g.size for g in graw)
+    w = np.asarray(lens, dtype=float) / sum(lens)
+    g = float(w @ [g[0] for g in graw]) * (w @ np.vstack([g[:L] / g[0] for g in graw]))
+
+    def fit(pp):
+        phi, s2 = levinson_durbin(shrink_to_pd(g[: pp + 1]), pp)
+        return enforce_stationary_ar(phi, 0.99), max(s2, 1e-12)
+
+    if p != "auto":
+        return fit(min(p, L - 1))[0]
+    nb, best_phi = sum(n_bics), np.array([])
+    best_bic = nb * np.log(g[0]) + np.log(nb)
+    for pp in range(1, min(L - 1, sum(lens) // 5) + 1):
+        phi, s2 = fit(pp)
+        bic = nb * np.log(s2) + (pp + 1) * np.log(nb)
+        if phi.size == pp and bic < best_bic:
+            best_bic, best_phi = bic, phi
+    return best_phi
+
+
+def test_global_pooling_solves_yule_walker_on_pooled_autocorrelation():
+    """fmriAR 617bd87 (.ar_from_pooled_runs; test-audit-regressions.R:269-293).
+
+    Row AR-12. Cheap pass disqualified: an accuracy-only test passes both the
+    old weighted coefficient average and the pooled solve (their fixed-p
+    difference is <= 0.002), so this is a formula check.
+    """
+    rng = np.random.default_rng(9117)
+    lens = [120, 200, 80]
+    runs = np.repeat([1, 2, 3], lens)
+    for i in range(6):
+        Y = np.vstack([_arma_sim(L, 10, [0.5, 0.2], rng=rng) for L in lens])
+        cens = np.sort(rng.choice(400, 25, replace=False)) if i % 2 else ()
+        fitted = fit_noise(Y, runs=runs, p=2, censor=np.asarray(cens, dtype=int))
+        np.testing.assert_allclose(
+            fitted.phi[0], _r_global_ar(Y, runs, 2, censor=cens), rtol=0, atol=1e-10
+        )
+    lens = [100, 100, 100, 100]
+    runs = np.repeat([1, 2, 3, 4], lens)
+    orders = []
+    for _ in range(4):
+        Y = np.vstack([_arma_sim(L, 20, [0.4, -0.1], rng=rng) for L in lens])
+        fitted = fit_noise(Y, runs=runs, p="auto")
+        ref = _r_global_ar(Y, runs, "auto")
+        assert fitted.order[0] == ref.size
+        np.testing.assert_allclose(fitted.phi[0], ref, rtol=0, atol=1e-10)
+        orders.append(fitted.order[0])
+    assert orders == [2, 2, 2, 2]
+
+
+def test_global_pooling_is_invariant_to_per_run_scale():
+    """Autocorrelations, not autocovariances, are pooled (R :269-277)."""
+    R = _arma_sim(300, 10, [0.5, 0.2], rng=np.random.default_rng(9116))
+    runs = np.repeat([1, 2], 150)
+    R2 = R.copy()
+    R2[runs == 2] *= 10
+    a = fit_noise(R, runs=runs, p=2).phi[0]
+    b = fit_noise(R2, runs=runs, p=2).phi[0]
+    np.testing.assert_allclose(a, b, rtol=0, atol=1e-10)

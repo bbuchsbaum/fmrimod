@@ -316,6 +316,65 @@ def estimate_ar_bic(
 # ---------------------------------------------------------------------------
 
 
+def _ar_from_pooled_runs(
+    estimates: list[dict[str, Any]], lens: NDArray[np.float64], p: object
+) -> NDArray[np.float64] | None:
+    """Global AR coefficients from the runs' pooled autocorrelations.
+
+    Ports fmriAR 617bd87 ``.ar_from_pooled_runs``: Yule-Walker on the
+    frame-weighted mean of each run's bias-corrected, unrepaired
+    autocorrelation (truncated to the common length), PD-repaired at each
+    candidate order. Pooling correlations weights a run by its frames, not
+    its variance. Averaging coefficients instead needs no stationarity,
+    zero-pads runs that chose a lower order, and fits each run on its own
+    frames only. Under ``p="auto"`` the order is chosen once on the pooled
+    data with N = the sum of the runs' ``n_bic``. Returns ``None`` when no
+    run supplied an autocovariance.
+    """
+    from .acvf import _select_ar_order, shrink_to_pd, yw_from_acvf
+    from .numhelpers import enforce_stationary_ar
+
+    ok = np.array(
+        [
+            e.get("gamma_raw") is not None and len(e["gamma_raw"]) > 0 and n > 0
+            for e, n in zip(estimates, lens, strict=True)
+        ],
+        dtype=bool,
+    )
+    if not np.any(ok):
+        return None
+    used = [e for e, k in zip(estimates, ok, strict=True) if k]
+    graw = [np.asarray(e["gamma_raw"], dtype=np.float64) for e in used]
+    if any(not np.isfinite(g[0]) or g[0] <= 0 for g in graw):
+        return None
+    L = min(g.size for g in graw)
+    w = lens[ok] / lens[ok].sum()
+    rho = np.vstack([g[:L] / g[0] for g in graw])
+    gamma = float(w @ np.array([g[0] for g in graw])) * (w @ rho)
+    if not np.isfinite(gamma[0]) or gamma[0] <= 0:
+        return None
+    p_cap = L - 1
+
+    def fit_order(pp: int) -> tuple[NDArray[np.float64], float]:
+        phi, sigma2 = yw_from_acvf(shrink_to_pd(gamma[: pp + 1]), pp)
+        return enforce_stationary_ar(phi, 0.99), float(max(sigma2, 1e-12))
+
+    if p != "auto":
+        pp = min(int(cast(Any, p)), p_cap)
+        if pp <= 0:
+            return np.array([], dtype=np.float64)
+        return fit_order(pp)[0]
+
+    n_eff = float(sum(e.get("n_eff", 0) for e in used))
+    if n_eff <= 0:
+        n_eff = float(lens[ok].sum())
+    n_bic = float(sum(e.get("n_bic", e.get("n_eff", 0)) for e in used))
+    if n_bic <= 0:
+        n_bic = n_eff
+    p_sel = min(p_cap, int(n_eff // 5))
+    return _select_ar_order(fit_order, float(gamma[0]), p_sel, n_bic)[0]
+
+
 def fit_noise(
     resid: Optional[NDArray[np.float64]] = None,
     Y: Optional[NDArray[np.float64]] = None,
@@ -883,6 +942,13 @@ def fit_noise(
             empty["sigma2"] = float(gamma0[0])
             return empty
         gamma_full, _ = acvf_from_pooled(pooled, order=p_cap, correction=corr)
+        # Bias-corrected but not PD-repaired, for global pooling: averaging
+        # these across runs and repairing once per candidate order uses every
+        # run's information in the Yule-Walker solve.
+        gamma_raw, _ = acvf_from_pooled(
+            pooled, order=p_cap, correction=corr, tol=-np.inf
+        )
+        pooled_info = {"gamma_raw": gamma_raw, "n_eff": n_eff}
 
         def _fit_order(pp: int) -> tuple[NDArray[np.float64], float]:
             g, _ = acvf_from_pooled(pooled, order=pp, correction=corr)
@@ -892,7 +958,7 @@ def fit_noise(
         if p != "auto":
             pp = min(int(cast(Any, p)), p_cap)
             if pp <= 0:
-                empty = dict(empty)
+                empty = dict(empty, **pooled_info)
                 empty["gamma"] = gamma_full
                 empty["sigma2"] = (
                     float(gamma_full[0]) if gamma_full.size else float("nan")
@@ -905,6 +971,7 @@ def fit_noise(
                 "order": (pp, 0),
                 "gamma": gamma_full,
                 "sigma2": sigma2,
+                **pooled_info,
             }
 
         # Bound the order BIC may select by the data; an explicit p is honoured.
@@ -919,6 +986,8 @@ def fit_noise(
             "order": (best_p, 0),
             "gamma": gamma_full,
             "sigma2": best_sigma2,
+            "n_bic": n_bic,
+            **pooled_info,
         }
 
     if corr_by_run is None:
@@ -958,14 +1027,19 @@ def fit_noise(
             if len(theta_e):
                 Th[i, : len(theta_e)] = theta_e
 
-        phi_avg = (
-            (w @ Phi)[:pmax_len] if pmax_len > 0 else np.array([], dtype=np.float64)
-        )
+        phi_avg = _ar_from_pooled_runs(estimates, lens, p) if method == "ar" else None
+        if phi_avg is None:
+            # Fallback: length-weighted coefficient average, re-constrained.
+            phi_avg = (
+                (w @ Phi)[:pmax_len]
+                if pmax_len > 0
+                else np.array([], dtype=np.float64)
+            )
+            if phi_avg.size:
+                phi_avg = enforce_stationary_ar(phi_avg, 0.99)
         theta_avg = (
             (w @ Th)[:qmax_len] if qmax_len > 0 else np.array([], dtype=np.float64)
         )
-        if phi_avg.size:
-            phi_avg = enforce_stationary_ar(phi_avg, 0.99)
         if theta_avg.size:
             theta_avg = enforce_invertible_ma(theta_avg)
         phi_list = [phi_avg]
