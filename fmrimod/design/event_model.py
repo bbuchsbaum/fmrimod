@@ -777,7 +777,17 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         for i, (term, event_term) in enumerate(zip(self.terms, event_terms)):
             # Compute design matrix columns for this term
             if isinstance(term, CovariateTerm):
-                X_term = event_term.design_matrix(self.sampling_points)
+                # One unconvolved column per variable (R covariate(x, y)),
+                # not the elementwise product an interaction term builds.
+                n_samples = len(self.sampling_points)
+                X_term = np.hstack(
+                    [
+                        np.asarray(
+                            event.design_matrix(self.sampling_points), dtype=float
+                        ).reshape(n_samples, -1)
+                        for event in event_term.events
+                    ]
+                )
             elif term.hrf is not None:
                 # Use proper fmrimod-based convolution
                 X_term = self._convolve_term(event_term, term)
@@ -1885,6 +1895,10 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         trialwise_cond = getattr(event_term, "_trialwise_conditions", None)
         if trialwise_cond is not None:
             return [str(c) for c in trialwise_cond]
+
+        if getattr(event_term, "_is_covariate", False):
+            # Covariates contribute one column per variable.
+            return [continuous_token(event.name) for event in event_term.events]
 
         cond_tags = []
 

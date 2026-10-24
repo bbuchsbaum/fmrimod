@@ -174,8 +174,16 @@ def conditions_event_term(
     if hasattr(event_term, '_cache') and cache_key in event_term._cache:
         return cast("List[str]", event_term._cache[cache_key])
     
+    # Covariate terms: one condition per variable, never crossed
+    if getattr(event_term, "_is_covariate", False):
+        cov_tags = [continuous_token(event.name) for event in event_term.events]
+        if not hasattr(event_term, '_cache'):
+            event_term._cache = {}
+        event_term._cache[cache_key] = cov_tags
+        return cov_tags
+
     # Shortcut for single continuous event with one column
-    if (len(event_term.events) == 1 and 
+    if (len(event_term.events) == 1 and
         event_term.events[0].event_type != "categorical"):
         event = event_term.events[0]
         
