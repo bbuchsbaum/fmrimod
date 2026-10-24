@@ -420,6 +420,25 @@ def soft_subspace_projection(
     X_proj, Y_proj : tuple of NDArray
         Projected matrices.
     """
+    X_proj, Y_proj, _ = _soft_subspace_projection(X, Y, nuisance, lam)
+    return X_proj, Y_proj
+
+
+def _soft_subspace_projection(
+    X: NDArray[np.float64],
+    Y: NDArray[np.float64],
+    nuisance: NDArray[np.float64],
+    lam: float | str,
+) -> tuple[
+    NDArray[np.float64],
+    NDArray[np.float64],
+    tuple[NDArray[np.float64], NDArray[np.float64]] | None,
+]:
+    """:func:`soft_subspace_projection` that also returns ``(U, shrink)``.
+
+    ``P = I - U diag(shrink) U'`` is the applied projection; the basis is
+    ``None`` when there is no nuisance column (``P = I``).
+    """
     X = np.asarray(X, dtype=np.float64)
     Y = np.asarray(Y, dtype=np.float64)
     N = np.asarray(nuisance, dtype=np.float64)
@@ -429,7 +448,7 @@ def soft_subspace_projection(
     if X.shape[0] != Y.shape[0] or X.shape[0] != N.shape[0]:
         raise ValueError("X, Y, and nuisance must have matching row counts")
     if N.shape[1] == 0:
-        return X.copy(), Y.copy()
+        return X.copy(), Y.copy(), None
 
     # SVD-based form mirrors fmrireg::soft_projection implementation.
     U, s, _ = np.linalg.svd(N, full_matrices=False)
@@ -441,4 +460,24 @@ def soft_subspace_projection(
     UY = U.T @ Y
     X_proj = X - U @ (shrink[:, np.newaxis] * UX)
     Y_proj = Y - U @ (shrink[:, np.newaxis] * UY)
-    return X_proj, Y_proj
+    return X_proj, Y_proj, (U, shrink)
+
+
+def _soft_projection_residual_df(
+    U: NDArray[np.float64],
+    shrink: NDArray[np.float64],
+    Q: NDArray[np.float64],
+) -> float:
+    """Residual df of an OLS fit after a soft subspace projection.
+
+    After ``Y <- P Y`` and ``X <- P X`` with ``P = I - U diag(s) U'``, the
+    OLS residual is ``(I - H) P eps`` (``H`` the hat matrix of ``PX``), so
+    with iid noise ``E[RSS] = sigma^2 tr((I - H) P^2)``:
+    ``n - sum(g) - rank(PX) + sum(g_j ||Q' u_j||^2)``, ``g = 2 s - s^2``,
+    with ``Q`` an orthonormal basis of ``PX`` (fmrireg 5edfd16,
+    ``.soft_projection_residual_df``). ``n - rank(PX)`` would ignore the
+    projection and bias sigma^2 low.
+    """
+    g = 2.0 * shrink - shrink ** 2
+    leverage_u = np.sum((Q.T @ U) ** 2, axis=0)
+    return float(U.shape[0] - np.sum(g) - Q.shape[1] + np.sum(g * leverage_u))

@@ -9,21 +9,24 @@ from __future__ import annotations
 import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+from dataclasses import dataclass, replace
 from typing import Any, Dict, Iterator, List, Optional, Tuple, cast
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy import linalg
 
 from ..dataset.data_access import get_run_data
 from ..model.config import FmriLmConfig
 from .errors import UnsupportedEngineConfiguration
 from .preprocess import (
+    _soft_projection_residual_df,
+    _soft_subspace_projection,
     apply_censoring,
     apply_volume_weights,
     compute_dvars,
     dvars_weights,
     extract_nuisance_timeseries,
-    soft_subspace_projection,
 )
 from .solver import (
     LmResult,
@@ -158,7 +161,7 @@ def fit_run_ols(
     Y_used : NDArray
         The (possibly preprocessed) data matrix that was actually fitted.
     """
-    X_fit, Y_fit = _prepare_run_matrices(
+    X_fit, Y_fit, prep = _prepare_run_matrices(
         X,
         Y,
         config,
@@ -182,6 +185,7 @@ def fit_run_ols(
         )
         if projection_cache is not None and cache_key is not None:
             projection_cache[cache_key] = proj
+    proj = _with_preprocessing_df(proj, X_fit, prep)
     result = fast_lm_matrix(
         X_fit,
         Y_fit,
@@ -190,8 +194,49 @@ def fit_run_ols(
         compute_dtype=compute_dtype,
         check_finite=False,
     )
+    result.obs_weights = prep.obs_weights
 
     return result, proj, X_fit, Y_fit
+
+
+@dataclass(frozen=True)
+class _RunPreprocessing:
+    """Preprocessing applied to one run that changes its residual df.
+
+    ``obs_weights`` are the volume weights applied to the rows of ``X`` and
+    ``Y`` (after censoring); ``soft_basis`` is ``(U, shrink)`` of the soft
+    subspace projection ``P = I - U diag(shrink) U'``.
+    """
+
+    obs_weights: NDArray[np.float64] | None = None
+    soft_basis: tuple[NDArray[np.float64], NDArray[np.float64]] | None = None
+
+
+def _with_preprocessing_df(
+    proj: Projection,
+    X_fit: NDArray[np.float64],
+    prep: _RunPreprocessing,
+) -> Projection:
+    """Return ``proj`` with the residual df of the preprocessed run.
+
+    A zero-weight volume is not an observation (``stats::lm.wfit``,
+    fmrireg 60f8430), and a soft subspace projection shrinks the residual
+    space to ``tr((I - H) P^2)`` (fmrireg 5edfd16); the soft-projection df
+    takes precedence, as in fmrireg. A cached projection is never mutated.
+    """
+    dfres: float | None = None
+    if prep.obs_weights is not None:
+        dfres = float(np.count_nonzero(prep.obs_weights > 0) - proj.rank)
+    if prep.soft_basis is not None:
+        U, shrink = prep.soft_basis
+        Q = proj.Q
+        if Q is None:
+            Q = linalg.qr(X_fit, pivoting=True, mode="economic", check_finite=False)[0]
+            Q = Q[:, : proj.rank]
+        dfres = _soft_projection_residual_df(U, shrink, Q)
+    if dfres is None or dfres == proj.dfres:
+        return proj
+    return replace(proj, dfres=dfres)
 
 
 def _prepare_run_matrices(
@@ -202,10 +247,12 @@ def _prepare_run_matrices(
     censor: Optional[NDArray[np.bool_]] = None,
     dataset: Optional[object] = None,
     run: Optional[int] = None,
-) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+) -> tuple[NDArray[np.float64], NDArray[np.float64], _RunPreprocessing]:
     """Apply censoring/weighting/subspace preprocessing for one run."""
     X_fit = X
     Y_fit = Y
+    obs_weights: NDArray[np.float64] | None = None
+    soft_basis: tuple[NDArray[np.float64], NDArray[np.float64]] | None = None
 
     if config.na_action == "error" and not np.all(np.isfinite(Y_fit)):
         run_label = "?" if run is None else str(run)
@@ -265,6 +312,7 @@ def _prepare_run_matrices(
                 threshold=config.volume_weights.threshold,
             )
         X_fit, Y_fit = apply_volume_weights(X_fit, Y_fit, weights)
+        obs_weights = np.asarray(weights, dtype=np.float64)
 
     # 3. Soft subspace projection
     if config.soft_subspace.enabled:
@@ -298,7 +346,7 @@ def _prepare_run_matrices(
                     f"nuisance_matrix rows ({nuisance.shape[0]}) must match data rows ({X_fit.shape[0]})"
                 )
 
-            X_fit, Y_fit = soft_subspace_projection(
+            X_fit, Y_fit, soft_basis = _soft_subspace_projection(
                 X_fit,
                 Y_fit,
                 nuisance,
@@ -313,14 +361,14 @@ def _prepare_run_matrices(
                 config.soft_subspace.nuisance_mask,
                 dataset_mask=dataset_mask,
             )
-            X_fit, Y_fit = soft_subspace_projection(
+            X_fit, Y_fit, soft_basis = _soft_subspace_projection(
                 X_fit,
                 Y_fit,
                 nuisance,
                 config.soft_subspace.lam,
             )
 
-    return X_fit, Y_fit
+    return X_fit, Y_fit, _RunPreprocessing(obs_weights, soft_basis)
 
 
 def fit_runwise(
@@ -376,7 +424,7 @@ def fit_runwise(
         X_r = model.design_matrix_array(run=0)  # type: ignore[attr-defined]
         censor_r = dataset.get_censor(0) if hasattr(dataset, "get_censor") else None
 
-        X_fit, Y_fit = _prepare_run_matrices(
+        X_fit, Y_fit, prep = _prepare_run_matrices(
             X_r,
             Y_r,
             config,
@@ -390,6 +438,7 @@ def fit_runwise(
             check_finite=False,
             method=config.solver,
         )
+        proj = _with_preprocessing_df(proj, X_fit, prep)
         result = _fit_chunked_lm(
             X_fit,
             Y_fit,
@@ -546,7 +595,7 @@ def fit_concat(
     # ``run=None`` tells ``_prepare_run_matrices`` to treat X/Y as the
     # already-concatenated, full-length matrices (weights / nuisance are
     # defined over all rows here, so no per-run slicing is needed).
-    X, Y_full = _prepare_run_matrices(
+    X, Y_full, prep = _prepare_run_matrices(
         X,
         Y_full,
         config,
@@ -555,7 +604,7 @@ def fit_concat(
         run=None,
     )
 
-    proj = fast_preproject(X, compute_dtype=compute_dtype)
+    proj = _with_preprocessing_df(fast_preproject(X, compute_dtype=compute_dtype), X, prep)
     lm = fast_lm_matrix(
         X,
         Y_full,
@@ -760,7 +809,7 @@ def fit_chunkwise(
         if hasattr(dataset, "get_censor"):
             censor_r = dataset.get_censor(r)
 
-        X_fit, Y_fit = _prepare_run_matrices(
+        X_fit, Y_fit, prep = _prepare_run_matrices(
             X_r,
             Y_r,
             config,
@@ -783,6 +832,7 @@ def fit_chunkwise(
             )
             if proj_cache is not None and cache_key is not None:
                 proj_cache[cache_key] = proj
+        proj = _with_preprocessing_df(proj, X_fit, prep)
 
         result = _fit_chunked_lm(
             X_fit,

@@ -68,7 +68,9 @@ def test_fit_run_ols_accepts_soft_subspace_auto_mode():
     np.testing.assert_allclose(X_used, X_ref, atol=1e-12)
     np.testing.assert_allclose(Y_used, Y_ref, atol=1e-12)
     np.testing.assert_allclose(result.betas, ref_result.betas, atol=1e-10)
-    np.testing.assert_allclose(result.sigma2, ref_result.sigma2, atol=1e-10)
+    # sigma2 uses the soft-projection residual df (fmrireg 5edfd16),
+    # not the n - rank of the reference fit; the RSS is the same.
+    np.testing.assert_allclose(result.rss, ref_result.rss, atol=1e-10)
     np.testing.assert_allclose(proj.XtXinv, ref_proj.XtXinv, atol=1e-10)
 
 
@@ -91,7 +93,9 @@ def test_fit_run_ols_accepts_soft_subspace_gcv_mode():
     np.testing.assert_allclose(X_used, X_ref, atol=1e-10)
     np.testing.assert_allclose(Y_used, Y_ref, atol=1e-10)
     np.testing.assert_allclose(result.betas, ref_result.betas, atol=1e-8)
-    np.testing.assert_allclose(result.sigma2, ref_result.sigma2, atol=1e-8)
+    # sigma2 uses the soft-projection residual df (fmrireg 5edfd16),
+    # not the n - rank of the reference fit; the RSS is the same.
+    np.testing.assert_allclose(result.rss, ref_result.rss, atol=1e-8)
     np.testing.assert_allclose(proj.XtXinv, ref_proj.XtXinv, atol=1e-8)
 
 
@@ -146,7 +150,9 @@ def test_fit_run_ols_nuisance_mask_3d_maps_via_dataset_mask():
     np.testing.assert_allclose(X_used, X_ref, atol=1e-12)
     np.testing.assert_allclose(Y_used, Y_ref, atol=1e-12)
     np.testing.assert_allclose(res.betas, ref_res.betas, atol=1e-10)
-    np.testing.assert_allclose(res.sigma2, ref_res.sigma2, atol=1e-10)
+    # sigma2 uses the soft-projection residual df (fmrireg 5edfd16),
+    # not the n - rank of the reference fit; the RSS is the same.
+    np.testing.assert_allclose(res.rss, ref_res.rss, atol=1e-10)
     np.testing.assert_allclose(proj.XtXinv, ref_proj.XtXinv, atol=1e-10)
 
 
@@ -175,7 +181,9 @@ def test_fit_run_ols_nuisance_mask_pathlike_file_matches_manual_projection(tmp_p
     np.testing.assert_allclose(X_used, X_ref, atol=1e-12)
     np.testing.assert_allclose(Y_used, Y_ref, atol=1e-12)
     np.testing.assert_allclose(res.betas, ref_res.betas, atol=1e-10)
-    np.testing.assert_allclose(res.sigma2, ref_res.sigma2, atol=1e-10)
+    # sigma2 uses the soft-projection residual df (fmrireg 5edfd16),
+    # not the n - rank of the reference fit; the RSS is the same.
+    np.testing.assert_allclose(res.rss, ref_res.rss, atol=1e-10)
     np.testing.assert_allclose(proj.XtXinv, ref_proj.XtXinv, atol=1e-10)
 
 
@@ -202,7 +210,9 @@ def test_fit_run_ols_slices_allrun_nuisance_matrix_for_selected_run():
     np.testing.assert_allclose(X_used, X_ref, atol=1e-12)
     np.testing.assert_allclose(Y_used, Y_ref, atol=1e-12)
     np.testing.assert_allclose(res.betas, ref_res.betas, atol=1e-10)
-    np.testing.assert_allclose(res.sigma2, ref_res.sigma2, atol=1e-10)
+    # sigma2 uses the soft-projection residual df (fmrireg 5edfd16),
+    # not the n - rank of the reference fit; the RSS is the same.
+    np.testing.assert_allclose(res.rss, ref_res.rss, atol=1e-10)
     np.testing.assert_allclose(proj.XtXinv, ref_proj.XtXinv, atol=1e-10)
 
 
@@ -265,7 +275,9 @@ def test_fit_run_ols_combined_allrun_slicing_weights_and_nuisance_with_censor():
     np.testing.assert_allclose(X_used, X_ref, atol=1e-12)
     np.testing.assert_allclose(Y_used, Y_ref, atol=1e-12)
     np.testing.assert_allclose(res.betas, ref_res.betas, atol=1e-10)
-    np.testing.assert_allclose(res.sigma2, ref_res.sigma2, atol=1e-10)
+    # sigma2 uses the soft-projection residual df (fmrireg 5edfd16),
+    # not the n - rank of the reference fit; the RSS is the same.
+    np.testing.assert_allclose(res.rss, ref_res.rss, atol=1e-10)
     np.testing.assert_allclose(proj.XtXinv, ref_proj.XtXinv, atol=1e-10)
 
 
