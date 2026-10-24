@@ -166,3 +166,65 @@ class TestTrialwise:
         # Check zero-padded names
         assert model.column_names[0] == 'trial_001'
         assert model.column_names[-1] == 'trial_100'
+
+
+class TestTrialwiseHrfOptions:
+    """``trialwise()`` forwards ``nbasis``/``lag`` to the HRF (R e799253).
+
+    DES-07: the legacy and string-formula ``trialwise()`` stored these as
+    private attributes that nothing read.
+    """
+
+    @pytest.fixture
+    def trial_data(self):
+        return pd.DataFrame({'onset': [10.0, 40.0, 70.0, 100.0]})
+
+    def test_string_trialwise_nbasis_sizes_fir(self, trial_data):
+        model = event_model(
+            "onset ~ trialwise(basis='fir', nbasis=6)",
+            data=trial_data, tr=2.0, n_scans=80,
+        )
+        # 6 FIR bins per trial (the FIR default is 12, so 6 is distinguishable)
+        assert model.design_matrix.shape[1] == 6 * len(trial_data)
+        assert model.column_names[:6] == [f"trial_1_b{b:02d}" for b in range(1, 7)]
+
+    def test_legacy_trialwise_nbasis_sizes_fir(self, trial_data):
+        model = event_model(
+            [trialwise(basis='fir', nbasis=6)], data=trial_data, tr=2.0, n_scans=80,
+        )
+        assert model.design_matrix.shape[1] == 6 * len(trial_data)
+
+    @pytest.mark.parametrize(
+        "lagged",
+        ["onset ~ trialwise(lag=4)", [trialwise(lag=4.0)]],
+        ids=["string", "legacy"],
+    )
+    def test_trialwise_lag_shifts_regressors(self, trial_data, lagged):
+        base = event_model("onset ~ trialwise()", data=trial_data, tr=2.0, n_scans=80)
+        shifted = event_model(lagged, data=trial_data, tr=2.0, n_scans=80)
+        X0 = base.design_matrix
+        X4 = shifted.design_matrix
+        # Same as an ordinary hrf(lag=4) term with one level per trial.
+        per_trial = trial_data.assign(tid=[f"t{i}" for i in range(len(trial_data))])
+        ref = event_model("onset ~ hrf(tid, lag=4)", data=per_trial, tr=2.0, n_scans=80)
+        np.testing.assert_allclose(X4, ref.design_matrix, atol=1e-12)
+        # A 4 s lag at TR=2 moves each regressor down by exactly 2 scans.
+        # Compared over the first 28 s after each onset, i.e. inside the
+        # unlagged HRF span (32 s) minus the lag.
+        times = np.arange(80) * 2.0
+        for j, onset in enumerate(trial_data['onset']):
+            rows = np.flatnonzero((times >= onset) & (times < onset + 28.0))
+            np.testing.assert_allclose(X4[rows + 2, j], X0[rows, j], atol=1e-12)
+            assert np.max(np.abs(X0[rows, j])) > 0.1
+
+    def test_string_trialwise_matches_legacy_term_options(self):
+        from fmrimod.formula import parse_formula
+
+        (parsed,) = parse_formula(
+            "onset ~ trialwise(basis='fir', nbasis=6, lag=2, durations='dur', normalize=True)",
+            for_event_model=True,
+        )
+        direct = trialwise(basis='fir', nbasis=6, lag=2.0, durations='dur', normalize=True)
+        assert parsed._kwargs == direct._kwargs
+        assert parsed._kwargs['nbasis'] == 6
+        assert parsed._kwargs['lag'] == 2.0
