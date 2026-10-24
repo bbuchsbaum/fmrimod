@@ -93,16 +93,21 @@ def apply_basis_filter(
     contrast_name : str
         Name of contrast (for messages)
     basis_weights : ndarray, optional
-        Weights for selected basis functions (normalized to sum to 1)
+        Weights for the selected basis functions, or for every basis
+        function when ``basis_spec`` is None/"all" (normalized to sum to 1).
 
     Returns
     -------
     dict
         Keys: 'weights' (filtered matrix), 'condnames' (filtered names), 'nbasis' (int)
     """
+    no_selection = basis_spec is None or basis_spec == "all"
+    if isinstance(basis_spec, (int, np.integer)):
+        basis_spec = [int(basis_spec)]
+
     # No filtering needed for single-basis HRFs
     if nbasis <= 1:
-        if basis_spec is not None and basis_spec != "all":
+        if not no_selection:
             warnings.warn(
                 f"Contrast '{contrast_name}': basis filtering requested but "
                 f"term has no multi-basis HRF (nbasis={nbasis}). Ignoring.",
@@ -113,16 +118,26 @@ def apply_basis_filter(
             'nbasis': nbasis,
         }
 
-    # No filtering requested
-    if basis_spec is None or basis_spec == "all":
+    # Neither a basis selection nor basis weights: nothing to do
+    if no_selection and basis_weights is None:
         return {
             'weights': weights_mat,
             'condnames': condnames,
             'nbasis': nbasis,
         }
 
-    # Filter condition names
-    filtered_names = filter_basis(condnames, basis_spec, nbasis, contrast_name)
+    # Filter condition names (no selection keeps every basis function)
+    if basis_spec is None or basis_spec == "all":
+        selected = list(range(1, nbasis + 1))
+        filtered_names = list(condnames)
+    elif isinstance(basis_spec, str):
+        raise ValueError(
+            f"Contrast '{contrast_name}': basis must be None, 'all' or basis "
+            f"indices; got {basis_spec!r}"
+        )
+    else:
+        selected = [int(b) for b in basis_spec]
+        filtered_names = filter_basis(condnames, selected, nbasis, contrast_name)
 
     # Zero out weights for non-selected conditions
     result_weights = weights_mat.copy()
@@ -132,10 +147,8 @@ def apply_basis_filter(
 
     # Apply basis_weights if provided
     if basis_weights is not None:
-        if isinstance(basis_spec, list):
-            n_selected = len(basis_spec)
-        else:
-            n_selected = nbasis
+        basis_weights = np.asarray(basis_weights, dtype=np.float64)
+        n_selected = len(selected)
 
         if len(basis_weights) != n_selected:
             raise ValueError(
@@ -159,8 +172,8 @@ def apply_basis_filter(
                 match = re.search(r'_b(\d+)$', name)
                 if match:
                     basis_idx = int(match.group(1))
-                    if isinstance(basis_spec, list):
-                        weight_idx = basis_spec.index(basis_idx)
+                    if basis_idx in selected:
+                        weight_idx = selected.index(basis_idx)
                         result_weights[i, :] *= basis_weights[weight_idx]
 
     return {
