@@ -198,9 +198,11 @@ def _runwise_chunks(dataset: FmriDataset) -> ChunkIterator:
 
 
 def _dataset_voxel_indices(dataset: FmriDataset) -> NDArray[np.intp]:
+    # Linear (C-order) index of each in-mask voxel, matching the column order
+    # of ``get_data``; ``np.where(mask)[0]`` would be the x index of a 3-D mask.
     mask = dataset.get_mask()
     if mask.dtype == np.bool_:
-        return np.where(mask)[0].astype(np.intp)
+        return np.flatnonzero(mask).astype(np.intp)
     return np.arange(dataset.n_voxels, dtype=np.intp)
 
 
