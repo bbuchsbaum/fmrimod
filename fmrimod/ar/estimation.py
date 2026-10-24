@@ -352,7 +352,8 @@ def fit_noise(
     runs : NDArray, optional
         Integer run labels, length *n*.
     censor : NDArray, optional
-        0-based indices of censored timepoints (or boolean mask).
+        0-based indices of censored timepoints, or a boolean mask with one
+        entry per timepoint.
     method : str
         ``"ar"`` or ``"arma"``.
     p : int or ``"auto"``
@@ -397,6 +398,7 @@ def fit_noise(
     WhiteningPlan
     """
     from .acvf import (
+        _normalize_censor,
         acvf_bias_matrix,
         acvf_from_pooled,
         acvf_max_lag,
@@ -456,16 +458,7 @@ def fit_noise(
     if ms_mode is not None and ms_mode in ms_modes:
         multiscale_mode = ms_mode
 
-    # Normalize censor: convert boolean mask to 0-based indices
-    if censor is not None:
-        censor = np.asarray(censor)
-        if censor.dtype == bool:
-            censor = np.where(censor)[0]
-        else:
-            censor = np.asarray(censor, dtype=np.intp)
-        censor = np.unique(censor[(censor >= 0) & (censor < n)])
-        if len(censor) == 0:
-            censor = None
+    censor = _normalize_censor(censor, n)
 
     # Split into runs (contiguous labels only)
     named_runs = run_sets(runs, n)

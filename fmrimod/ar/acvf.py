@@ -126,6 +126,32 @@ def parcel_codes(x: NDArray[Any], arg: str = "parcels") -> NDArray[np.intp]:
     return codes
 
 
+def _normalize_censor(
+    censor: NDArray[Any] | None, n: int, arg: str = "censor"
+) -> NDArray[np.intp] | None:
+    """Sorted unique 0-based censored frames inside ``[0, n)``, or ``None``.
+
+    A boolean mask is converted with ``flatnonzero``: casting it to integers
+    (fmriAR 617bd87) censors frames 0 and 1 instead of the flagged ones.
+    """
+    if censor is None:
+        return None
+    c = np.asarray(censor)
+    if c.size == 0:
+        return None
+    if c.dtype == bool:
+        if c.size != n:
+            raise ValueError(
+                f"logical '{arg}' must have one entry per timepoint ({n}), "
+                f"not {c.size}"
+            )
+        idx = np.flatnonzero(c)
+    else:
+        idx = np.unique(np.asarray(c, dtype=np.intp).ravel())
+    idx = idx[(idx >= 0) & (idx < n)].astype(np.intp, copy=False)
+    return idx if idx.size else None
+
+
 def valid_segments(
     n: int,
     runs: Optional[NDArray[Any]] = None,
@@ -135,9 +161,8 @@ def valid_segments(
     n = int(n)
     r = run_codes(runs, n)
     valid = np.ones(n, dtype=bool)
-    if censor is not None and len(np.asarray(censor)):
-        c = np.asarray(censor, dtype=np.intp)
-        c = c[(c >= 0) & (c < n)]
+    c = _normalize_censor(censor, n)
+    if c is not None:
         valid[c] = False
     idx = np.where(valid)[0].astype(np.intp, copy=False)
     if idx.size == 0:
@@ -398,11 +423,9 @@ def acvf_bias_matrix(
         max_lag = capped
 
     sets = run_sets(runs, n)
-    cens = (
-        np.array([], dtype=np.intp)
-        if censor is None
-        else np.asarray(censor, dtype=np.intp)
-    )
+    cens = _normalize_censor(censor, n)
+    if cens is None:
+        cens = np.array([], dtype=np.intp)
     out: list[NDArray[np.float64]] = []
     for _, ridx in sets:
         keep = np.setdiff1d(ridx, cens, assume_unique=False)
@@ -580,15 +603,7 @@ def noise_acvf(
     if np.any(~np.isfinite(resid)):
         raise ValueError("'resid' contains NA, NaN, or Inf")
     max_lag = int(min(max(max_lag, 0), n))
-
-    if censor is not None:
-        c = np.asarray(censor)
-        if c.dtype == bool:
-            c = np.where(c)[0]
-        censor = np.unique(np.asarray(c, dtype=np.intp))
-        censor = censor[(censor >= 0) & (censor < n)]
-        if censor.size == 0:
-            censor = None
+    censor = _normalize_censor(censor, n)
 
     corr_by_run: Optional[list[Optional[NDArray[np.float64]]]] = None
     if design is not None:

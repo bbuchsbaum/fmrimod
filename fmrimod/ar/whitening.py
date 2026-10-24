@@ -405,7 +405,8 @@ def whiten_apply(
     runs : NDArray[np.float64], optional
         Run labels (overrides plan's runs).
     censor : NDArray[np.float64], optional
-        0-based censor indices (overrides plan's censor).
+        0-based censor indices, or a boolean mask with one entry per row
+        (overrides plan's censor).
     parcels : NDArray[np.float64], optional
         Parcel labels (overrides plan's parcels).
 
@@ -413,7 +414,7 @@ def whiten_apply(
     -------
     WhitenResult
     """
-    from .acvf import parcel_codes, run_codes, run_sets
+    from .acvf import _normalize_censor, parcel_codes, run_codes, run_sets
     from .plan import WhitenResult
 
     X = np.array(X, dtype=np.float64, copy=True)
@@ -437,9 +438,10 @@ def whiten_apply(
     else:
         run_codes(runs, n)
 
-    # Resolve censor
+    # Resolve censor; a boolean mask must not be cast to 0/1 indices.
+    censor = _normalize_censor(censor, n)
     if censor is None:
-        censor = plan.censor
+        censor = _normalize_censor(plan.censor, n)
 
     # --- Parcel plan ---
     if plan.pooling == "parcel":
@@ -514,8 +516,7 @@ def whiten_apply(
 
     # Split censor by run
     censor_by_run = [np.array([], dtype=np.intp) for _ in rsplits]
-    if censor is not None and len(censor) > 0:
-        censor = np.asarray(censor, dtype=np.intp)
+    if censor is not None:
         for ri, idx in enumerate(rsplits):
             start = idx[0]
             c_in = np.intersect1d(censor, idx)
@@ -589,7 +590,7 @@ def whiten(
     runs : NDArray[np.float64], optional
         Run labels.
     censor : NDArray[np.float64], optional
-        0-based censor indices.
+        0-based censor indices, or a boolean mask with one entry per row.
     **fit_kwargs
         Additional arguments passed to ``fit_noise()``.
 
