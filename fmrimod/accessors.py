@@ -218,7 +218,13 @@ def p_values(
     type = _normalize_target(type)
     if type == "estimates":
         t = cast("NDArray[np.float64]", stats(x, type="estimates"))
-        df = float(getattr(x, "residual_df"))
+        # A robust fit's inference df is sum(w) - rank, not its residual df.
+        inference_df = getattr(x, "_inference_df", None)
+        df = float(
+            inference_df()
+            if callable(inference_df)
+            else x.residual_df  # type: ignore[attr-defined]
+        )
         return cast(
             "EstimateOrContrastMap",
             2.0 * sp_stats.t.sf(np.abs(t), df=df),
