@@ -750,6 +750,48 @@ class TestApplyBasisFilter:
                 contrast_name='test'
             )
 
+    @pytest.mark.parametrize("no_selection", [None, "all"])
+    def test_basis_weights_apply_without_basis_selection(self, no_selection):
+        """With no basis selection, basis_weights weight every basis (R 8976d1a).
+
+        DES-09: ``basis=None``/``"all"`` returned before ``basis_weights`` was
+        used. A one-hot vector must equal selecting that basis.
+        """
+        condnames = ['c.A_b01', 'c.A_b02', 'c.A_b03', 'c.B_b01', 'c.B_b02', 'c.B_b03']
+        weights = np.array([[1.0, 1.0, 1.0, -1.0, -1.0, -1.0]]).T
+
+        weighted = apply_basis_filter(
+            weights, condnames, basis_spec=no_selection, nbasis=3,
+            contrast_name='x', basis_weights=np.array([1.0, 0.0, 0.0]),
+        )
+        selected = apply_basis_filter(
+            weights, condnames, basis_spec=[1], nbasis=3, contrast_name='x',
+        )
+        np.testing.assert_allclose(weighted['weights'], selected['weights'])
+        np.testing.assert_allclose(
+            weighted['weights'][:, 0], [1.0, 0.0, 0.0, -1.0, 0.0, 0.0]
+        )
+
+        graded = apply_basis_filter(
+            weights, condnames, basis_spec=no_selection, nbasis=3,
+            contrast_name='x', basis_weights=np.array([0.5, 0.3, 0.2]),
+        )
+        np.testing.assert_allclose(
+            graded['weights'][:, 0], [0.5, 0.3, 0.2, -0.5, -0.3, -0.2]
+        )
+
+    @pytest.mark.parametrize("no_selection", [None, "all"])
+    def test_basis_weights_length_checked_without_basis_selection(self, no_selection):
+        """A basis_weights vector must have one entry per basis function."""
+        condnames = ['c.A_b01', 'c.A_b02', 'c.A_b03', 'c.B_b01', 'c.B_b02', 'c.B_b03']
+        weights = np.array([[1.0, 1.0, 1.0, -1.0, -1.0, -1.0]]).T
+
+        with pytest.raises(ValueError, match="basis_weights length"):
+            apply_basis_filter(
+                weights, condnames, basis_spec=no_selection, nbasis=3,
+                contrast_name='x', basis_weights=np.array([1.0, 0.0]),
+            )
+
     def test_multi_column_contrast(self):
         """Test filtering works with multi-column contrast matrices."""
         # F-contrast with 2 columns
