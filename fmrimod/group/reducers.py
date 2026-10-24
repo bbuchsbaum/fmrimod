@@ -336,7 +336,7 @@ def combine_lancaster(
     clamped = _clamp_cpp_p_values(p)
     w3 = weights.reshape(1, dataset.n_subjects, 1)
     with np.errstate(divide="ignore", invalid="ignore"):
-        chi_terms = sp_stats.chi2.ppf(1.0 - clamped, df=2.0 * w3)
+        chi_terms = sp_stats.chi2.isf(clamped, df=2.0 * w3)
     chi2 = np.sum(np.where(finite, chi_terms, 0.0), axis=1, keepdims=True)
     df = 2.0 * np.sum(np.where(finite, w3, 0.0), axis=1, keepdims=True)
     p_g = sp_stats.chi2.sf(chi2, df)
