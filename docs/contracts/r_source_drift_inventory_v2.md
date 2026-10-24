@@ -200,7 +200,7 @@ Suggested starting order, by reach and size:
 | fmrihrf | HRF-06 (CLI run spill), HRF-10 (after D8), HRF-11 to HRF-16 |
 | fmridesign | DES-11, DES-12, DES-13, DES-15 to DES-21 |
 | fmrireg | REG-A-14, REG-A-16 to REG-A-19, REG-B-09, REG-B-10, REG-B-12 |
-| fmriAR | AR-13 to AR-16, AR-18 to AR-22 |
+| fmriAR | AR-14 to AR-16, AR-18 to AR-22 (AR-13 done, see "After wave 1") |
 | fmrilss | LSS-04 (with LSS-01) |
 | fmrigds | GDS-08 to GDS-12 (GDS-12 is R-bridge only) |
 | fmridataset | DS-07 to DS-14 (DS-07 may need a helper in neuroim-python; DS-11 suggests routing the NIfTI backend through the neuroim adapter) |
@@ -227,7 +227,7 @@ DS-20 (S1). Each detail row gives a Python shape or a reason to skip.
 
 HRF-09, DES-14, DES-23 (and HRF-17 if promoted), REG-A-13, REG-A-15,
 REG-A-28, the `cov_tri` order part of REG-B-02, REG-B-08 (if real REML is
-kept), REG-B-11, REG-B-13, REG-B-15, REG-B-16, AR-17, AR-23, AR-26, LSS-05,
+kept), REG-B-11, REG-B-13, REG-B-15, REG-B-16, AR-17, AR-26, LSS-05,
 LSS-08, LSS-09, the `VoxelSpace` part of DS-02, DS-15 to DS-19, DS-25.
 The decisions they need are grouped below.
 
@@ -307,6 +307,16 @@ New follow-ups found during wave 1 (not inventory rows):
 - `cross_testing/test_tier_d_showcase` expects case ids that no longer
   exist (fails at `4f14a19` too).
 
+## After wave 1
+
+- **AR-03 R parity** (PR #22): the pooled Hannan-Rissanen ARMA agrees with
+  fmriAR 0.4.2 to 2.5e-11 in `cross_testing/test_fmriar_arma_parity.py`.
+- **AR-13 and AR-23** (`c50c542`): `fit_noise(method="arma")` selects its
+  orders by BIC over `0..p_max` x `0..q_max` under `p="auto"` and the new
+  `q="auto"` (`q_max=2`). AR-23's signature change was approved by the
+  maintainer on 2026-10-24 (D5). Twenty cases agree with fmriAR, seven of
+  them with automatic orders, including the selected order.
+
 ## Steward decisions
 
 - **D1. fmridataset direction** (DS-15 to DS-19, DS-25, DS-02). The R spec
@@ -333,8 +343,9 @@ New follow-ups found during wave 1 (not inventory rows):
   censoring to the AR model only (R). The t statistic when se is exactly 0:
   NaN or 0. Also pre-existing: fmrireg's default baseline is a B-spline drift
   basis, while fmrimod defaults to a run intercept, so default fits differ.
-- **D5. Public surface** (REG-A-28, AR-17, AR-23, AR-26, REG-B-11,
-  REG-B-13, REG-B-15, REG-B-16, DS-20). R deleted its unreachable bootstrap
+- **D5. Public surface** (REG-A-28, AR-17, AR-26, REG-B-11,
+  REG-B-13, REG-B-15, REG-B-16, DS-20; AR-23 was approved and landed, see
+  "After wave 1"). R deleted its unreachable bootstrap
   and effective-df helpers, but fmrimod still exports `bootstrap_glm` at
   top level with no R spec. The other rows add keywords or result fields to
   public functions.

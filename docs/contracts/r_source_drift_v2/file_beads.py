@@ -222,7 +222,7 @@ BEADS: list[Bead] = [
         "spmg1-x10-scale caveat; D3 contrast semantics (term contrasts, "
         "subset bases, zero columns); D4 first-level inference (runwise "
         "pooling, censor semantics, se == 0); D5 public surface (bootstrap_glm, "
-        "S2 keyword additions); D6 group semantics (REML, weighted "
+        "S2 keyword additions; AR-23 approved and landed); D6 group semantics (REML, weighted "
         "perm_onesample, cov_tri order); D7 single-trial scope (k-means, "
         "R1-GLM, GLMsingle); D8 neural_input semantics; D9 first-level AR "
         "routing scope; D10 run numbering for event-free runs.\n\n"
@@ -315,11 +315,10 @@ BEADS: list[Bead] = [
         "bd-01M5PS5JM4J8A2JKZX9WHN96RC",
         "Port fmriAR contract changes (drift v2 wave 2)",
         2,
-        "AR-13 to AR-16, AR-18 to AR-22. AR-21 should already hold after "
+        "AR-14 to AR-16, AR-18 to AR-22. AR-21 should already hold after "
         "AR-02 (verify and close the row); AR-15's validation belongs in "
-        "_normalize_censor; _hr_arma_pooled already supports the AR-13 order "
-        "grid. AR-17 is S2. "
-        + _red("fmriar.md", "AR-13 to AR-16, AR-18 to AR-22"),
+        "_normalize_censor. AR-13 landed with AR-23 in c50c542. AR-17 is S2. "
+        + _red("fmriar.md", "AR-14 to AR-16, AR-18 to AR-22"),
         ("drift-v2", "wave2", "fmriAR"),
     ),
     Bead(
