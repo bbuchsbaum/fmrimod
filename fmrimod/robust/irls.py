@@ -7,23 +7,39 @@ problem.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Tuple
+from dataclasses import replace
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
 
-from ..dataset.data_access import get_run_data
-from ..glm.solver import fast_lm_matrix, fast_preproject
-from ..model.config import FmriLmConfig
-from .estimators import bisquare_weights, huber_weights, mad_scale
+from fmrimod.glm.solver import LmResult, Projection, fast_lm_matrix, fast_preproject
+from fmrimod.model.config import FmriLmConfig, RobustOptions
+
+from .estimators import bisquare_weights, huber_weights
+
+# fmrireg robust_iterative_fitter convergence defaults (relative change in
+# the coefficients, checked from the first iteration on).
+_TOL = 1e-4
+_MIN_ITER = 1
+_EPS = float(np.finfo(np.float64).eps)
+# The psi functions take residuals already divided by the robust scale.
+_UNIT_SCALE = np.ones(1)
 
 
 def robust_refit(
     model: object,  # FmriModel
     config: FmriLmConfig,
-    initial_fit: Dict[str, Any],
-) -> Tuple[Dict[str, Any], NDArray[np.float64]]:
+    initial_fit: dict[str, Any],
+) -> tuple[dict[str, Any], NDArray[np.float64]]:
     """Re-fit the GLM using IRLS with robust weights.
+
+    Each run is refitted on the matrices the initial fit actually solved
+    (``initial_fit["run_X"]`` and the data they were paired with: the
+    preprocessed run, or the whitened run when AR ran). Every IRLS step
+    weights those base matrices by one row-weight vector, so the result is
+    exactly the weighted least-squares fit with the returned weights
+    (fmrireg ``robust_iterative_fitter``, fb00ab1).
 
     Parameters
     ----------
@@ -32,88 +48,86 @@ def robust_refit(
     config : FmriLmConfig
         Configuration with robust options.
     initial_fit : dict
-        Initial fit result (OLS or GLS).
+        Initial fit result (OLS or GLS) with per-run ``run_X``,
+        ``residuals`` and ``run_results``.
 
     Returns
     -------
     fit_result : dict
-        Updated fit result.
+        Updated fit result. Each run's residual df is the number of
+        observations with non-zero weight minus the rank of the weighted
+        design (``stats::lm.wfit``).
     weights : NDArray
-        Final IRLS weights, shape ``(n_total, V)``.
+        Row weights used for the final solve, shape ``(n_total,)``,
+        concatenated over runs. Rows that carried no observation (zero
+        prior volume weight) are reported as 0.
     """
     robust_opts = config.robust
-    max_iter = robust_opts.max_iter
     n_runs = model.n_runs  # type: ignore[attr-defined]
-
-    # Weight function
-    weight_fn: Callable[[NDArray[np.float64], NDArray[np.float64]], NDArray[np.float64]]
-    if robust_opts.type == "huber":
-        weight_fn = lambda r, s: huber_weights(r, s, k=robust_opts.k_huber)
-    elif robust_opts.type == "bisquare":
-        weight_fn = lambda r, s: bisquare_weights(r, s, c=robust_opts.c_tukey)
-    else:
+    if robust_opts.type not in ("huber", "bisquare"):
         # Should not happen if config validation passed
         raise ValueError(f"Unknown robust type: {robust_opts.type}")
 
-    # Get initial residuals and design matrices
     residuals_list = initial_fit["residuals"]
     run_X = initial_fit["run_X"]
+    initial_results = initial_fit["run_results"]
 
+    # scale_scope="global": one scale from the initial residuals of all runs.
+    sigma_fixed: float | None = None
+    if robust_opts.scale_scope == "global":
+        row_medians = np.concatenate(
+            [np.median(np.abs(residuals_list[r]), axis=1) for r in range(n_runs)]
+        )
+        sigma_fixed = _floor_scale(1.4826 * float(np.median(row_medians)))
+
+    run_results = []
+    run_projections = []
+    new_residuals = []
+    new_run_X = []
     all_weights = []
 
-    for iteration in range(max_iter):
-        run_results = []
-        run_projections = []
-        new_residuals = []
-        new_run_X = []
-        iter_weights = []
+    for r in range(n_runs):
+        X0 = run_X[r]
+        initial = initial_results[r]
+        # The data the initial fit paired with X0: residuals + fitted values.
+        Y0 = residuals_list[r] + X0 @ initial.betas
+        obs_weights = getattr(initial, "obs_weights", None)
+        active = (
+            np.ones(X0.shape[0], dtype=bool)
+            if obs_weights is None
+            else np.asarray(obs_weights) > 0
+        )
 
-        for r in range(n_runs):
-            resid_r = residuals_list[r]
-            X_r = run_X[r]
-            Y_r = get_run_data(model.dataset, r)  # type: ignore[attr-defined]
+        betas = initial.betas
+        for iteration in range(robust_opts.max_iter):
+            betas_prev = betas
+            u = _scaled_row_residuals(
+                Y0 - X0 @ betas, robust_opts.scale_scope, sigma_fixed
+            )
+            w = _psi(u, robust_opts)
+            sqrt_w = np.sqrt(w)[:, np.newaxis]
+            X_w = X0 * sqrt_w
+            Y_w = Y0 * sqrt_w
+            proj = fast_preproject(X_w, check_finite=False, method=config.solver)
+            result = fast_lm_matrix(X_w, Y_w, proj, return_fitted=True, check_finite=False)
+            betas = result.betas
+            if iteration + 1 >= _MIN_ITER:
+                scale = max(1.0, float(np.max(np.abs(betas_prev))))
+                delta = float(np.max(np.abs(betas - betas_prev))) / scale
+                if np.isfinite(delta) and delta <= _TOL:
+                    break
 
-            # Compute scale
-            if robust_opts.scale_scope == "run":
-                # Pool across voxels within run
-                scale = mad_scale(resid_r, axis=0)
-            elif robust_opts.scale_scope == "global":
-                # Use global scale (simplified: use run scale)
-                scale = mad_scale(resid_r, axis=0)
-            elif robust_opts.scale_scope == "voxel":
-                scale = mad_scale(resid_r, axis=0)
-            else:
-                scale = mad_scale(resid_r, axis=0)
+        # A zero-weight row carries no information (stats::lm.wfit).
+        dfres = float(np.count_nonzero((w > 0) & active) - proj.rank)
+        proj, result = _with_dfres(proj, result, dfres)
+        result.obs_weights = obs_weights
 
-            # Compute weights
-            w = weight_fn(resid_r, scale)
-            iter_weights.append(w)
-
-            # Apply weights and re-fit. Robust weights ``w`` are voxelwise
-            # (n, V); a single shared design solve cannot carry a different
-            # weight per voxel, so reduce to a per-row weight (mean across
-            # voxels) and apply the same row weighting to X and Y — the
-            # standard row-WLS approximation for pooled robust refit.
-            w_sqrt = np.sqrt(np.maximum(w, 0.0))
-            w_row = np.mean(w_sqrt, axis=1)
-            X_w = X_r * w_row[:, np.newaxis]
-            Y_w = Y_r * w_row[:, np.newaxis]
-
-            proj = fast_preproject(X_w)
-            result = fast_lm_matrix(X_w, Y_w, proj, return_fitted=True)
-
-            run_results.append(result)
-            run_projections.append(proj)
-            new_run_X.append(X_w)
-
-            if result.fitted is not None:
-                new_residuals.append(Y_w - result.fitted)
-            else:
-                new_residuals.append(Y_w - X_w @ result.betas)
-
-        residuals_list = new_residuals
-        run_X = new_run_X
-        all_weights = iter_weights
+        run_results.append(result)
+        run_projections.append(proj)
+        new_run_X.append(X_w)
+        assert result.fitted is not None
+        new_residuals.append(Y_w - result.fitted)
+        all_weights.append(np.where(active, w, 0.0))
 
     # Pool final results
     from ..glm.strategies import _pool_run_results
@@ -131,7 +145,54 @@ def robust_refit(
         "run_X": new_run_X,
     }
 
-    # Concatenate weights across runs
-    weights_concat = np.vstack(all_weights) if all_weights else np.array([])
+    return fit_result, np.concatenate(all_weights)
 
-    return fit_result, weights_concat
+
+def _psi(u: NDArray[np.float64], opts: RobustOptions) -> NDArray[np.float64]:
+    """Row weights from scaled residuals (Huber or Tukey bisquare)."""
+    u2 = u[:, np.newaxis]
+    if opts.type == "huber":
+        return huber_weights(u2, _UNIT_SCALE, k=opts.k_huber)[:, 0]
+    return bisquare_weights(u2, _UNIT_SCALE, c=opts.c_tukey)[:, 0]
+
+
+def _floor_scale(sigma: float) -> float:
+    """fmrireg's guard against a zero or non-finite robust scale."""
+    return sigma if np.isfinite(sigma) and sigma > _EPS else _EPS
+
+
+def _scaled_row_residuals(
+    resid: NDArray[np.float64],
+    scope: str,
+    sigma_fixed: float | None,
+) -> NDArray[np.float64]:
+    """Per-row scaled residual ``u`` that drives the row weights.
+
+    ``u_i = median_v(|r_iv| / sigma_v)`` with ``sigma`` the MAD-type scale
+    ``1.4826 * median|r|`` taken per voxel (``"voxel"``), over the run
+    (``"run"``: median of the row medians) or fixed across runs
+    (``"global"``), as fmrireg ``robust_iterative_fitter``.
+    """
+    abs_resid = np.abs(resid)
+    if sigma_fixed is not None:
+        return np.median(abs_resid, axis=1) / sigma_fixed
+    if scope == "voxel":
+        sigma_v = 1.4826 * np.median(abs_resid, axis=0)
+        sigma_v = np.where(np.isfinite(sigma_v) & (sigma_v > _EPS), sigma_v, _EPS)
+        return np.median(abs_resid / sigma_v[np.newaxis, :], axis=1)
+    row_medians = np.median(abs_resid, axis=1)
+    return row_medians / _floor_scale(1.4826 * float(np.median(row_medians)))
+
+
+def _with_dfres(
+    proj: Projection,
+    result: LmResult,
+    dfres: float,
+) -> tuple[Projection, LmResult]:
+    """Re-express a WLS solve with its own residual df."""
+    if dfres == proj.dfres:
+        return proj, result
+    sigma2 = (
+        result.rss / dfres if dfres > 0 else np.full_like(result.rss, np.nan)
+    )
+    return replace(proj, dfres=dfres), replace(result, dfres=dfres, sigma2=sigma2)
