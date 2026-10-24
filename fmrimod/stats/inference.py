@@ -142,34 +142,31 @@ def fdr_correction(
         Adjusted p-values.
     """
     p = np.asarray(p_values, dtype=np.float64).ravel()
-    n = len(p)
-    if n == 0:
-        return np.array([], dtype=bool), np.array([], dtype=np.float64)
-
-    # Sort
-    sorted_idx = np.argsort(p)
-    sorted_p = p[sorted_idx]
-    ranks = np.arange(1, n + 1, dtype=np.float64)
-
-    if method == "bh":
-        # BH: p_adj = min(p * n / rank, 1)
-        adjusted = sorted_p * n / ranks
-    elif method == "by":
-        # BY: p_adj = min(p * n * c_n / rank, 1) where c_n = sum(1/k)
-        c_n: float = float(np.sum(1.0 / ranks))
-        adjusted = sorted_p * n * c_n / ranks
-    else:
+    if method not in ("bh", "by"):
         raise ValueError(f"Unknown method: {method}")
+    p_adjusted = np.full(p.shape, np.nan, dtype=np.float64)
+    # Missing p-values stay missing and do not count towards n (R's p.adjust).
+    finite = np.isfinite(p)
+    n = int(finite.sum())
+    if n:
+        sorted_idx = np.argsort(p[finite])
+        sorted_p = p[finite][sorted_idx]
+        ranks = np.arange(1, n + 1, dtype=np.float64)
+        scale = float(n)
+        if method == "by":
+            # BY: p_adj = min(p * n * c_n / rank, 1) where c_n = sum(1/k)
+            scale *= float(np.sum(1.0 / ranks))
+        adjusted = sorted_p * scale / ranks
 
-    # Enforce monotonicity (from right to left)
-    adjusted = np.minimum.accumulate(adjusted[::-1])[::-1]
-    adjusted = np.clip(adjusted, 0.0, 1.0)
+        # Enforce monotonicity (from right to left)
+        adjusted = np.minimum.accumulate(adjusted[::-1])[::-1]
+        adjusted = np.clip(adjusted, 0.0, 1.0)
 
-    # Unsort
-    p_adjusted = np.empty(n)
-    p_adjusted[sorted_idx] = adjusted
+        unsorted = np.empty(n)
+        unsorted[sorted_idx] = adjusted
+        p_adjusted[finite] = unsorted
 
-    reject = p_adjusted <= alpha
+    reject = finite & (np.nan_to_num(p_adjusted, nan=np.inf) <= alpha)
 
     return reject, p_adjusted
 
