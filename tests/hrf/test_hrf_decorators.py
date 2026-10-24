@@ -10,6 +10,7 @@ from fmrimod.hrf.decorators import (
     gen_hrf_lagged,
     lag_hrf,
 )
+from fmrimod.hrf.generators import gen_hrf
 from fmrimod.hrf.library import SPM_CANONICAL, SPM_WITH_DERIVATIVE
 from fmrimod.hrf.normalization import normalize as _normalize
 
@@ -127,13 +128,65 @@ class TestBlockHRF:
         # Blocked response should have larger integral
         assert _trapezoid_compat(result_blocked, t) > _trapezoid_compat(original, t)
     
-    def test_block_hrf_negligible_width(self):
-        """Test that negligible width returns original."""
-        t = np.arange(0, 20, 0.5)
-        blocked_tiny = block_hrf(SPM_CANONICAL, width=0.01, precision=0.1)
-        
-        # Should be essentially unchanged
-        assert np.allclose(blocked_tiny(t), SPM_CANONICAL(t), rtol=1e-4)
+    @pytest.mark.parametrize("precision", [0.1, 0.01])
+    @pytest.mark.parametrize("width", [1e-6, 0.05, 0.0999, 0.1, 0.1001])
+    def test_block_hrf_integrates_every_positive_width(self, width, precision):
+        """Every positive width is a block, including widths below ``precision``.
+
+        fmrihrf ``dff54b9`` (``R/hrf_decorators.R:105-118``,
+        ``test_block_contract.R`` "every positive block width..."): only
+        ``width == 0`` is the impulse. Trapezoid quadrature is exact for the
+        flat and linear kernels, so the integral ``int_0^w h(t - s) ds`` is
+        checked exactly.
+        """
+        flat = as_hrf(
+            lambda t: ((np.asarray(t) >= 0) & (np.asarray(t) <= 4)).astype(float),
+            span=4.0,
+        )
+        linear = as_hrf(
+            lambda t: np.where(
+                (np.asarray(t) >= 0) & (np.asarray(t) <= 4), np.asarray(t, float), 0.0
+            ),
+            span=4.0,
+        )
+        t = np.array([1.0, 2.0])
+
+        np.testing.assert_allclose(
+            block_hrf(flat, width, precision)(np.array([1.0])), [width], rtol=0, atol=1e-12
+        )
+        np.testing.assert_allclose(
+            block_hrf(linear, width, precision)(t), t * width - width**2 / 2,
+            rtol=0, atol=1e-12,
+        )
+        np.testing.assert_allclose(
+            block_hrf(flat, width, precision, summate=False)(np.array([1.0])), [1.0],
+            rtol=0, atol=1e-12,
+        )
+        np.testing.assert_allclose(
+            block_hrf(linear, width, precision, summate=False)(t), t - width / 2,
+            rtol=0, atol=1e-12,
+        )
+
+    def test_block_hrf_continuous_across_precision(self):
+        """No jump in mass when ``width`` crosses ``precision``."""
+        flat = as_hrf(
+            lambda t: ((np.asarray(t) >= 0) & (np.asarray(t) <= 4)).astype(float),
+            span=4.0,
+        )
+        above = block_hrf(flat, 0.1 + 1e-8, 0.1)(np.array([1.0]))[0]
+        below = block_hrf(flat, 0.1 - 1e-8, 0.1)(np.array([1.0]))[0]
+        assert above - below == pytest.approx(2e-8, abs=1e-12)
+
+    def test_block_hrf_zero_width_is_impulse(self):
+        """``width == 0`` keeps the original impulse response."""
+        assert block_hrf(SPM_CANONICAL, 0.0) is SPM_CANONICAL
+
+    def test_block_hrf_rejects_negative_width(self):
+        """Negative widths raise (R asserts ``width >= 0``)."""
+        with pytest.raises(ValueError, match="width"):
+            block_hrf(SPM_CANONICAL, -1.0)
+        with pytest.raises(ValueError, match="width"):
+            gen_hrf(SPM_CANONICAL, width=-1.0)
     
     def test_block_hrf_with_decay(self):
         """Test block with exponential decay."""

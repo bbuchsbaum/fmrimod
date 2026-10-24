@@ -75,8 +75,8 @@ def gen_hrf(
         # Already an HRF
         base_hrf = hrf
     
-    # Apply block if specified
-    if width > 0:
+    # Apply block if specified (block_hrf rejects negative widths)
+    if width != 0:
         base_hrf = block_hrf(base_hrf, width, precision=precision, half_life=half_life, summate=summate)
 
     # Apply lag if specified
