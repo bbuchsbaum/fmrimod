@@ -623,9 +623,16 @@ def estimate_ar_series(
     starts0: Optional[NDArray[Any]] = None,
     center_id: Optional[NDArray[Any]] = None,
 ) -> dict[str, Any]:
-    """Order selection / fixed-p fit for one series with segment structure."""
-    y = np.asarray(y, dtype=np.float64).ravel()
-    n = y.size
+    """Order selection / fixed-p fit for one pooling unit with segments.
+
+    ``y`` is one series or an ``(n, V)`` block of voxels; a block's per-voxel
+    autocovariances are pooled exactly as the global/run path pools them
+    (fmriAR 5f5fc32), and BIC counts its effective voxels.
+    """
+    Y = np.asarray(y, dtype=np.float64)
+    if Y.ndim == 1:
+        Y = Y[:, np.newaxis]
+    n = Y.shape[0]
     if starts0 is None or len(np.asarray(starts0)) == 0:
         starts0_arr = np.array([0], dtype=np.intp)
     else:
@@ -645,7 +652,7 @@ def estimate_ar_series(
     is_start[starts0_arr[starts0_arr < n]] = True
     is_start[0] = True
     seg_id = np.cumsum(is_start.astype(np.intp))
-    pooled = pooled_acvf_segments(y[:, np.newaxis], seg_id, p_cap, center_id=center_id)
+    pooled = pooled_acvf_segments(Y, seg_id, p_cap, center_id=center_id)
     gamma0, _ = acvf_from_pooled(pooled, order=0)
     if gamma0.size == 0 or not np.isfinite(gamma0[0]) or gamma0[0] <= 0:
         return empty
@@ -678,7 +685,7 @@ def estimate_ar_series(
     # Selection on a handful of points would choose AR(8) from 11 frames, so
     # the search (not an explicit p) is bounded by the data.
     p_sel = min(p_cap, n // 5)
-    n_bic = _bic_n(y[:, np.newaxis], n, groups=center_id, vbar=pooled.num[0])
+    n_bic = _bic_n(Y, n, groups=center_id, vbar=pooled.num[0])
     best_phi, best_p, best_sigma2 = _select_ar_order(
         fit_order, float(gamma0[0]), p_sel, n_bic
     )

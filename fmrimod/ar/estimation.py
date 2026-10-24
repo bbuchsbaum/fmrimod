@@ -628,16 +628,22 @@ def fit_noise(
             ms_dispersion,
             ms_estimate_scale,
             ms_parent_maps,
-            parcel_means,
         )
 
         seg = valid_segments(n, runs=runs, censor=censor)
         if seg.idx.size < 2:
             raise ValueError("no valid timepoints remain after censoring")
+        resid_valid = resid[seg.idx]
 
-        def _estimator(y_col: NDArray[np.float64]) -> dict[str, Any]:
+        def _voxel_blocks(labels: NDArray[np.intp]) -> dict[str, NDArray[np.float64]]:
+            # Each parcel is estimated from its voxels' pooled autocovariance,
+            # not the parcel-mean series, whose autocovariance is dominated by
+            # what the voxels share (fmriAR 5f5fc32).
+            return {str(k): resid_valid[:, labels == k] for k in np.unique(labels)}
+
+        def _estimator(block: NDArray[np.float64]) -> dict[str, Any]:
             return estimate_ar_series(
-                y_col,
+                block,
                 p_max,
                 p=p,
                 starts0=seg.starts0,
@@ -654,12 +660,8 @@ def fit_noise(
         else:
             target = min(int(p_target), int(p_max))
 
-        M_fine_full = parcel_means(resid, parcels)
-        M_fine = {
-            k: np.asarray(v, dtype=np.float64)[seg.idx] for k, v in M_fine_full.items()
-        }
         est_f = ms_estimate_scale(
-            M_fine,
+            _voxel_blocks(parcels),
             _estimator,
             run_starts=seg.starts0,
             lag_max=target,
@@ -723,24 +725,15 @@ def fit_noise(
             if not np.array_equal(parcels_fine, parcels):
                 raise ValueError("parcel_sets['fine'] must match parcels")
 
-            M_coarse = {
-                k: np.asarray(v, dtype=np.float64)[seg.idx]
-                for k, v in parcel_means(resid, parcels_coarse).items()
-            }
-            M_medium = {
-                k: np.asarray(v, dtype=np.float64)[seg.idx]
-                for k, v in parcel_means(resid, parcels_medium).items()
-            }
-
             est_c = ms_estimate_scale(
-                M_coarse,
+                _voxel_blocks(parcels_coarse),
                 _estimator,
                 run_starts=seg.starts0,
                 lag_max=target,
                 center_id=seg.run_id,
             )
             est_m = ms_estimate_scale(
-                M_medium,
+                _voxel_blocks(parcels_medium),
                 _estimator,
                 run_starts=seg.starts0,
                 lag_max=target,
@@ -828,7 +821,6 @@ def fit_noise(
         }
 
         theta_parcel = {k: np.array([], dtype=np.float64) for k in phi_parcel}
-        resid_valid = resid[seg.idx]
         n_valid = seg.idx.size
         is_start = np.zeros(n_valid, dtype=bool)
         is_start[seg.starts0[seg.starts0 < n_valid]] = True
