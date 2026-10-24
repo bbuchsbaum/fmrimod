@@ -152,16 +152,29 @@ def _add_hat_step(
     both endpoints placed at their exact sub-bin positions. Both properties
     matter: bin-aligned trapezoid weights quantise the block edges, and exact
     edges with plain rectangle weights drop the quadrature to first order.
+
+    The hats of bins 0 and ``n_bins - 1`` reach one bin beyond the window, so
+    a position within one bin before the window still covers part of bin 0's
+    hat, and a position past bin ``n_bins`` covers every hat in the window.
+    ``diff`` needs ``n_bins + 3`` slots (R ``addHatStep``, fmrihrf
+    ``b901bca``).
     """
-    if pos <= 0.0:
-        return  # nothing accumulated yet
-    max_pos = float(n_bins - 1)
-    if pos > max_pos:
-        pos = max_pos
+    if pos <= -1.0:
+        return  # left of every hat
+    v = coef * dt
+
+    if pos < 0.0:
+        # Only the left tail of bin 0's hat lies before pos.
+        w = v * 0.5 * (1.0 + pos) * (1.0 + pos)
+        diff[0] += w
+        diff[1] -= w
+        return
+
+    if pos > float(n_bins):
+        pos = float(n_bins)
 
     a = int(np.floor(pos))
     f = pos - float(a)
-    v = coef * dt
 
     # Full weight on every bin strictly left of a.
     if a > 0:
@@ -210,24 +223,30 @@ def _build_neural_input(
 
     n_bins = len(time)
     t0 = float(time[0])
-    max_pos = float(n_bins - 1)
+    end_pos = float(n_bins)  # no bin's hat reaches past this
 
-    # Difference array with two guard slots (see _add_hat_step).
-    diff = np.zeros(n_bins + 2, dtype=np.float64)
+    # Difference array with three guard slots (see _add_hat_step).
+    diff = np.zeros(n_bins + 3, dtype=np.float64)
 
     for onset, duration, amplitude in zip(onsets, durations, amplitudes):
         d = float(duration)
         pos_s = (float(onset) - t0) / dt
-        if pos_s > max_pos:
+        if pos_s >= end_pos:
             continue  # starts past the window
 
         if not (d > 0.0):
             # Impulse of unit mass, split linearly across the two bracketing
             # bins. Snapping it to the nearest bin instead cost up to dt/2 of
             # onset error, which at the default precision of 0.33 s was ~12%
-            # of peak for an onset that fell between bins.
+            # of peak for an onset that fell between bins. Within one bin
+            # before the window only the share of bin 0 is kept.
+            if pos_s <= -1.0:
+                continue
             if pos_s < 0.0:
-                pos_s = 0.0
+                w = float(amplitude) * (1.0 + pos_s)
+                diff[0] += w
+                diff[1] -= w
+                continue
             a = int(np.floor(pos_s))
             f = pos_s - float(a)
             w0 = float(amplitude) * (1.0 - f)
@@ -239,7 +258,7 @@ def _build_neural_input(
             continue
 
         pos_e = (float(onset) + d - t0) / dt
-        if pos_e <= 0.0:
+        if pos_e <= -1.0:
             continue  # ends before the window
 
         # Block weights are the difference of the two running hat integrals,

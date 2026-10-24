@@ -520,3 +520,37 @@ class TestRegressorDesign:
         """Test error on invalid input type."""
         with pytest.raises(TypeError, match="regressors must be"):
             regressor_design("not a regressor", [0, 1, 2])
+
+
+def _box_hrf() -> HRF:
+    """Flat kernel ``1[0 <= t <= 1]`` with span 1."""
+    from fmrimod.hrf import as_hrf
+
+    return as_hrf(
+        lambda t: np.where((np.asarray(t) >= 0) & (np.asarray(t) <= 1), 1.0, 0.0),
+        span=1.0,
+        name="box",
+    )
+
+
+class TestConvolutionWindowEdge:
+    """fmrihrf ``b901bca`` (``src/neural_input.cpp:24-40,114``, test_regressor.R
+    "a block at the start of the convolution window keeps its mass")."""
+
+    def test_block_at_window_start_keeps_its_mass(self):
+        # The fine window starts one span before the first grid point; a
+        # block starting on that edge used to gain half a fine bin of mass.
+        reg = regressor([0.0], hrf=_box_hrf(), duration=0.5)
+        at_edge = reg.evaluate(np.array([1.0, 2.0, 3.0]), precision=0.1)
+        inside = reg.evaluate(np.array([0.5, 1.0, 2.0, 3.0]), precision=0.1)[1:]
+        np.testing.assert_allclose(at_edge, inside, rtol=0, atol=1e-10)
+        assert at_edge[0] == pytest.approx(0.5, abs=1e-10)
+
+    def test_block_starting_before_window_is_kept(self):
+        # Starts half a fine bin before the window but overlaps it through
+        # its duration, so the event filter must use onset + duration.
+        reg = regressor([0.0], hrf=_box_hrf(), duration=0.5)
+        at_edge = reg.evaluate(np.array([1.05, 2.05]), precision=0.1)
+        inside = reg.evaluate(np.array([0.55, 1.05, 2.05]), precision=0.1)[1:]
+        np.testing.assert_allclose(at_edge, inside, rtol=0, atol=1e-10)
+        assert at_edge[0] > 0.4
