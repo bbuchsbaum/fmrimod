@@ -116,11 +116,11 @@ class TestWeightedHRF:
     def test_normalize_constant(self):
         """``normalize=True`` retired; callers scale weights explicitly."""
         t = np.array([0.0, 1.0, 2.0, 3.0])
-        # The retired flag divided weights so sum(weights[:-1]) == 1; do that
-        # by hand.
-        weights = np.array([1.0, 1.0, 1.0, 1.0]) / 3.0
+        # R's flag divides by the sum of all n bin weights (fmrihrf 18d418f);
+        # do that by hand.
+        weights = np.array([1.0, 1.0, 1.0, 1.0]) / 4.0
         y = weighted_hrf(t, weights=weights, width=3.0, method="constant")
-        assert y[0] == pytest.approx(1.0 / 3.0, abs=0.01)
+        assert y[0] == pytest.approx(0.25)
 
         with pytest.raises(ValueError, match="normalize=True.*retired"):
             weighted_hrf(t, weights=[1.0, 1.0, 1.0, 1.0], width=3.0,
@@ -167,7 +167,55 @@ class TestWeightedHRF:
         assert hrf.nbasis == 1
         assert hrf.span == 4.0
         assert hrf.weights == (1.0, 2.0, 1.0)
+        # Constant method: three equal bins over [0, 4), times are bin starts.
+        np.testing.assert_allclose(hrf.times, [0.0, 4.0 / 3.0, 8.0 / 3.0])
+
+    def test_constant_width_uses_every_weight(self):
+        """``width`` splits ``[0, width)`` into n equal right-open bins.
+
+        fmrihrf ``18d418f`` (``R/hrf-functions.R:745-755``, test_hrf.R
+        "width divides the window into equal bins").
+        """
+        y = weighted_hrf(
+            np.array([1.49, 1.5, 2.99, 3.0, 4.49, 4.5]),
+            weights=[1, 2, 3, 0],
+            width=6.0,
+        )
+        np.testing.assert_array_equal(y, [1, 2, 2, 3, 3, 0])
+
+        hrf = weighted_generator([0.1, 0.3, 1, 1, 0.3, 0.1], width=10)
+        t = np.arange(0, 12.0001, 0.01)
+        last_bin = (t >= 8.34) & (t < 10)
+        np.testing.assert_array_equal(hrf(t[last_bin]), np.full(last_bin.sum(), 0.1))
+        np.testing.assert_array_equal(hrf(np.array([10.0, 10.5])), [0.0, 0.0])
+        assert hrf.span == 10.0
+
+    def test_constant_times_last_bin_matches_previous(self):
+        """With ``times`` the last bin is as wide as the one before it."""
+        hrf = weighted_generator([1, 2, 2, 1], times=[4, 6, 8, 10])
+        np.testing.assert_array_equal(
+            hrf(np.array([3.9, 5.0, 7.0, 9.0, 11.0, 12.0])), [0, 1, 2, 2, 1, 0]
+        )
+        assert hrf.span == 12.0
+        np.testing.assert_array_equal(
+            weighted_hrf(np.array([11.0, 12.0]), [1, 2, 2, 1], times=[4, 6, 8, 10]),
+            [1.0, 0.0],
+        )
+
+    def test_weighted_hrf_gen_normalize_sums_every_weight(self):
+        """R ``hrf_weighted(normalize=TRUE)`` divides by the sum of all n weights."""
+        from fmrimod.hrf_dispatch import weighted_hrf_gen
+
+        gen = weighted_hrf_gen("t", "w", relative=True, normalize=True)
+        (hrf,) = gen({"onset": [0.0], "t": [[0.0, 1.0, 2.0]], "w": [[1.0, 2.0, 1.0]]})
+        np.testing.assert_allclose(hrf(np.array([0.5, 1.5, 2.5, 3.0])), [0.25, 0.5, 0.25, 0.0])
+
+    def test_linear_span_is_last_time(self):
+        """The linear method is unchanged: weights sit on the points themselves."""
+        hrf = weighted_generator([1, 2, 1], width=4.0, method="linear")
         assert hrf.times == (0.0, 2.0, 4.0)
+        assert hrf.span == 4.0
+        np.testing.assert_allclose(hrf(np.array([1.0, 4.0, 4.5])), [1.5, 1.0, 0.0])
 
     def test_registry(self):
         hrf = get_hrf("weighted", weights=[1, 2, 1], width=4.0)
