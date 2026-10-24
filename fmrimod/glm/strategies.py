@@ -878,6 +878,9 @@ def fit_chunkwise(
 def _pool_run_results(
     results: List[LmResult],
     projections: List[Projection],
+    *,
+    covariances: list[NDArray[np.float64]] | None = None,
+    grams: list[NDArray[np.float64]] | None = None,
 ) -> Dict[str, Any]:
     """Pool per-run OLS results via fixed-effects meta-analysis.
 
@@ -889,11 +892,16 @@ def _pool_run_results(
         Per-run regression results.
     projections : list of Projection
         Per-run projections.
+    covariances, grams : list of NDArray, optional
+        Per-voxel ``(X'X)^-1`` and ``X'X`` of each run, shape ``(V, p, p)``,
+        when every voxel was solved with its own design (voxelwise AR);
+        they replace the projections' matrices.
 
     Returns
     -------
     dict
-        Pooled ``betas``, ``sigma``, ``dfres``, ``XtXinv``.
+        Pooled ``betas``, ``sigma``, ``dfres``, ``XtXinv`` (``(V, p, p)``
+        when ``covariances`` are given).
     """
     if len(results) == 1:
         r = results[0]
@@ -902,7 +910,7 @@ def _pool_run_results(
             "betas": r.betas,
             "sigma": np.sqrt(r.sigma2),
             "dfres": r.dfres,
-            "XtXinv": p.XtXinv,
+            "XtXinv": p.XtXinv if covariances is None else covariances[0],
         }
 
     p_dim = results[0].betas.shape[0]
@@ -916,18 +924,21 @@ def _pool_run_results(
     exact_beta = np.zeros((p_dim, V), dtype=np.float64)
     beta_mean = np.zeros((p_dim, V), dtype=np.float64)
 
-    for r, proj in zip(results, projections):
+    for i, (r, proj) in enumerate(zip(results, projections, strict=True)):
         beta_mean += r.betas
-        diag_xtxinv = np.maximum(np.diag(proj.XtXinv), 0.0)
+        if covariances is None:
+            diag_xtxinv = np.maximum(np.diag(proj.XtXinv), 0.0)[:, np.newaxis]
+        else:
+            diag_xtxinv = np.maximum(np.einsum("vjj->jv", covariances[i]), 0.0)
         # A column the run does not estimate carries no information there:
         # on full-width multi-run designs each run's design block is zero
         # for the other runs' columns, which the pivoted QR reports as
         # aliased. This is a property of the design, not of the data scale.
         estimated = diag_xtxinv > 0.0
         estimated[list(proj.aliased_indices)] = False
-        se2 = diag_xtxinv[:, np.newaxis] * r.sigma2[np.newaxis, :]  # (p,V)
-        positive = estimated[:, np.newaxis] & (se2 > 0.0)
-        exact = estimated[:, np.newaxis] & (se2 == 0.0)
+        se2 = diag_xtxinv * r.sigma2[np.newaxis, :]  # (p,V)
+        positive = estimated & (se2 > 0.0)
+        exact = estimated & (se2 == 0.0)
         w = np.divide(1.0, se2, out=np.zeros_like(se2), where=positive)
         wsum += w
         wbeta += w * r.betas
@@ -953,13 +964,17 @@ def _pool_run_results(
 
     # Keep a pooled XtXinv for downstream contrasts/SE interfaces.
     # This follows the prior behavior based on summed per-run information.
-    XtX_total = np.zeros((p_dim, p_dim), dtype=np.float64)
+    XtX_total = np.zeros(
+        (p_dim, p_dim) if grams is None else (V, p_dim, p_dim), dtype=np.float64
+    )
     rss_total = np.zeros(V, dtype=np.float64)
     dfres_total = 0.0
 
-    for r, proj in zip(results, projections):
+    for i, (r, proj) in enumerate(zip(results, projections, strict=True)):
         XtX_cached = getattr(proj, "XtX", None)
-        if XtX_cached is not None:
+        if grams is not None:
+            XtX_r = grams[i]
+        elif XtX_cached is not None:
             XtX_r = np.asarray(XtX_cached, dtype=np.float64)
         else:
             try:

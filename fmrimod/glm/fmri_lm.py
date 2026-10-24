@@ -521,7 +521,9 @@ class FmriLm:
     residual_df : float
         Residual degrees of freedom.
     XtXinv : NDArray
-        ``(X'X)^{-1}`` matrix, shape ``(p, p)``.
+        ``(X'X)^{-1}`` matrix, shape ``(p, p)``; for voxelwise AR one matrix
+        per voxel, shape ``(V, p, p)``, since every voxel's design is
+        whitened with its own AR coefficients.
     model : object
         The :class:`~fmrimod.model.FmriModel` that was fitted.
     config : FmriLmConfig
@@ -567,13 +569,15 @@ class FmriLm:
     def se(self) -> NDArray[np.float64]:
         """Return standard errors for each coefficient, shape ``(p, V)``.
 
-        ``SE_{j,v} = sigma_v * sqrt(XtXinv_{j,j})``
+        ``SE_{j,v} = sigma_v * sqrt(XtXinv_{j,j})``, with voxel ``v``'s own
+        ``XtXinv`` for a voxelwise AR fit.
         """
-        diag_XtXinv = np.diag(self.XtXinv)
+        if self.XtXinv.ndim == 3:
+            diag_XtXinv = np.einsum("vjj->jv", self.XtXinv)
+        else:
+            diag_XtXinv = np.diag(self.XtXinv)[:, np.newaxis]
         return np.asarray(
-            self.sigma[np.newaxis, :] * np.sqrt(
-                np.maximum(diag_XtXinv, 0.0)
-            )[:, np.newaxis],
+            self.sigma[np.newaxis, :] * np.sqrt(np.maximum(diag_XtXinv, 0.0)),
             dtype=np.float64,
         )
 
