@@ -142,6 +142,43 @@ def test_spmg2_legacy_unchanged() -> None:
     )
 
 
+@pytest.mark.parametrize("p2", [12.0, 16.5])
+def test_legacy_undershoot_normaliser_scales_with_p2(p2: float) -> None:
+    """The legacy undershoot is ``t^p2 e^-t / (6 Gamma(p2 + 1))``.
+
+    fmrihrf ``d19ba00`` (``R/hrf-functions.R:179-218``, test_spmg_correctness.R
+    "scales the undershoot by P2, not a fixed 15!"): the normaliser was
+    hard-coded to ``6 * 15!``. At ``p2 == 15`` the two agree to ~4e-9, so the
+    check needs ``p2 != 15``.
+    """
+    from math import gamma
+
+    from fmrimod.hrf.derivatives import spmg1_derivative, spmg1_second_derivative
+
+    t = np.arange(0.0, 40.0001, 0.25)
+    a1 = 0.0833
+    expected = np.exp(-t) * (a1 * t**5 - t**p2 / (6.0 * gamma(p2 + 1.0)))
+    np.testing.assert_allclose(
+        spm_canonical_legacy(t, p2=p2), expected, rtol=1e-12, atol=1e-15
+    )
+
+    tp, h = t[1:], 1e-5
+
+    def central(f):
+        return (f(tp + h) - f(tp - h)) / (2 * h)
+
+    np.testing.assert_allclose(
+        spmg1_derivative(tp, p2=p2),
+        central(lambda x: spm_canonical_legacy(x, p2=p2)),
+        rtol=0, atol=1e-7,
+    )
+    np.testing.assert_allclose(
+        spmg1_second_derivative(tp, p2=p2),
+        central(lambda x: spmg1_derivative(x, p2=p2)),
+        rtol=0, atol=1e-7,
+    )
+
+
 def test_spmg3_uses_spm_dispersion_derivative_by_default() -> None:
     """``SPMG3_HRF()`` third column is the SPM dispersion derivative.
 
