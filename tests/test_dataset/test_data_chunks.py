@@ -119,3 +119,19 @@ def test_data_chunks_voxel_ind_is_linear_index_on_3d_mask() -> None:
     )
     runwise = data_chunks(ds, runwise=True).collect()[0]
     np.testing.assert_array_equal(runwise.voxel_ind, [7, 9])
+
+
+def test_data_chunks_on_an_empty_mask_plans_zero_chunks() -> None:
+    # fmridataset a814330: an emptied feature axis plans zero blocks instead of
+    # crashing. Inventory v2 DS-12. nchunks must report 0, so catching the
+    # error inside collect() cannot pass.
+    import warnings
+
+    from fmrimod.dataset import data_chunks, matrix_dataset
+
+    ds = matrix_dataset(np.zeros((6, 3)), tr=2.0, mask=np.zeros(3, dtype=bool))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        chunks = data_chunks(ds, nchunks=2)
+    assert chunks.nchunks == 0
+    assert chunks.collect() == []
