@@ -91,6 +91,9 @@ class GroupLmResult:
         """
         if name in self.predictor_names:
             return name
+        folded = [p for p in self.predictor_names if p.lower() == name.lower()]
+        if len(folded) == 1:
+            return folded[0]
         matches = [p for p in self.predictor_names if p.endswith(f"[T.{name}]")]
         if len(matches) == 1:
             return matches[0]
@@ -206,6 +209,29 @@ class GroupLmResult:
         from ..glm.contrasts import z_from_stat
 
         return z_from_stat(self.t_stat(predictor), self.residual_df, "t")
+
+    def __repr__(self) -> str:
+        n = int(np.asarray(self.dataset.assay(f"t_coef:{self.predictor_names[0]}")).shape[0])
+        return (
+            f"GroupLmResult(predictors={list(self.predictor_names)}, "
+            f"n_voxels={n}, residual_df={self.residual_df:.0f})"
+        )
+
+    def to_img(
+        self, predictor: str = "Intercept", *, kind: str = "z", fill: float = 0.0
+    ) -> Any:
+        """One group map as an in-memory ``nibabel.Nifti1Image`` (default z)."""
+        if self.spatial is None:
+            raise ValueError("GroupLmResult has no spatial frame")
+        getters = {
+            "t": self.t_stat,
+            "z": self.z_score,
+            "effect": self.effect,
+            "se": self.standard_error,
+            "p": self.p_value,
+        }
+        vec = np.asarray(getters[kind](predictor), dtype=np.float64).ravel()
+        return self.spatial.to_img(vec, fill=fill)
 
     def threshold(
         self,
@@ -371,10 +397,11 @@ def fmri_group_lm(
     covariates
         Subject-level table for ``formula=``: a DataFrame or the path of a
         TSV/CSV file such as a BIDS ``participants.tsv`` (``n/a`` read as
-        missing). Rows are matched
-        to subjects through a ``subject`` or ``participant_id`` column when
-        present (a ``sub-`` prefix is ignored), otherwise taken in input
-        order.
+        missing). Rows are joined to subjects by id (``subject`` or
+        ``participant_id`` column, ``sub-`` prefix optional). Subject ids
+        come from ``subjects=``, the mapping keys, or the ``sub-<label>``
+        in map file names; only when none of those exist are rows taken in
+        input order.
     mask
         Image-map input only: brain mask (path, image or boolean array).
 
@@ -427,12 +454,17 @@ def fmri_group_lm(
     spatial = None
     contrast_map = _as_contrast_mapping(data, subjects)
     if contrast_map is None and _is_image_list(data):
+        if subjects is None:
+            # Name maps after the BIDS ``sub-`` entity in their file names so
+            # covariates join by id, never by row order.
+            subjects = _ids_from_paths(cast(Sequence[Any], data))
         data, spatial = _load_masked_maps(cast(Sequence[Any], data), mask)
     elif mask is not None:
         raise ValueError("fmri_group_lm: mask= applies only to image-map input")
     if contrast_map is not None:
         from ..contrast.group_collection import group_dataset_from_contrasts
 
+        contrast_map = _common_mask(contrast_map)
         names = list(contrast_map)
         dataset = group_dataset_from_contrasts(
             contrast_map, covariates=_subject_table(covariates, names)
@@ -655,6 +687,21 @@ def _read_covariates(covariates: Any) -> Any:
     return pd.DataFrame(covariates)
 
 
+def _ids_from_paths(items: Sequence[Any]) -> Optional[list[str]]:
+    """``sub-<label>`` from each map's file name, when every map has a unique one."""
+    import re
+
+    ids = []
+    for item in items:
+        if not isinstance(item, (str, Path)):
+            return None
+        match = re.search(r"(?:^|[_/\\])(sub-[A-Za-z0-9]+)", str(item))
+        if match is None:
+            return None
+        ids.append(match.group(1))
+    return ids if len(set(ids)) == len(ids) else None
+
+
 def _ids_from_covariates(covariates: Any, n_subjects: int) -> Optional[list[str]]:
     if covariates is None:
         return None
@@ -733,3 +780,69 @@ def _load_masked_maps(
         affine=affine,
     )
     return stack[:, mask_arr], spatial
+
+
+def _common_mask(contrast_map: dict[str, Any]) -> dict[str, Any]:
+    """Restrict first-level results fitted with different masks to their overlap.
+
+    Subjects fitted with their own brain masks (as fMRIPrep produces) have
+    different voxel sets on the same grid. Their maps are cut to the
+    intersection, with a warning naming how many voxels each loses. Results
+    on different grids, or without voxel geometry and of different lengths,
+    cannot be combined and raise.
+    """
+    import dataclasses
+    import warnings
+
+    results = list(contrast_map.values())
+    spatials = [getattr(r, "spatial", None) for r in results]
+    if any(sp is None for sp in spatials):
+        return contrast_map
+    first = spatials[0]
+    if all(np.array_equal(sp.mask, first.mask) for sp in spatials[1:]):
+        return contrast_map
+    for name, sp in zip(contrast_map, spatials, strict=True):
+        same_grid = sp.spatial_shape == first.spatial_shape and (
+            sp.affine is None
+            or first.affine is None
+            or np.allclose(sp.affine, first.affine)
+        )
+        if not same_grid:
+            raise ValueError(
+                f"fmri_group_lm: subject {name!r} was fitted on a different "
+                f"voxel grid ({sp.spatial_shape}) than {list(contrast_map)[0]!r} "
+                f"({first.spatial_shape}); resample to a common space first"
+            )
+    common = np.logical_and.reduce([sp.mask for sp in spatials])
+    if not common.any():
+        raise ValueError("fmri_group_lm: the subjects' masks do not overlap")
+    dropped = {
+        name: int(sp.mask.sum() - common.sum())
+        for name, sp in zip(contrast_map, spatials, strict=True)
+        if sp.mask.sum() != common.sum()
+    }
+    warnings.warn(
+        f"fmri_group_lm: first-level masks differ; using their {int(common.sum())}"
+        f"-voxel intersection (voxels dropped per subject: {dropped})",
+        UserWarning,
+        stacklevel=3,
+    )
+    out: dict[str, Any] = {}
+    for name, result, sp in zip(contrast_map, results, spatials, strict=True):
+        keep = common[sp.mask]
+
+        def cut(values: Any) -> Any:
+            if values is None:
+                return None
+            arr = np.asarray(values)
+            return arr[..., keep] if arr.shape[-1] == keep.size else arr
+
+        out[name] = dataclasses.replace(
+            result,
+            estimate=cut(result.estimate),
+            stat=cut(result.stat),
+            se=cut(result.se),
+            p_value=cut(result.p_value),
+            spatial=dataclasses.replace(sp, mask=common),
+        )
+    return out

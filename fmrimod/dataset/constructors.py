@@ -117,6 +117,11 @@ def fmri_dataset(
     >>> ds.n_runs
     2
     """
+    n_event_tables = (
+        None
+        if events is None or isinstance(events, pd.DataFrame)
+        else len(list(events))
+    )
     resolved_events = _resolve_events(events, event_table)
     resolved_start_time = _resolve_start_time(start_time, slice_timing_offset)
 
@@ -125,12 +130,14 @@ def fmri_dataset(
             raise ValueError("Pass `img` or `data_source`, not both")
         if run_length is not None:
             raise ValueError("`run_length` is not valid with `data_source`")
-        return FmriDataset(
+        dataset = FmriDataset(
             data_source,
             event_table=resolved_events,
             censor=censor,
             confounds=_as_frame_list(confounds),
         )
+        _check_events_cover_runs(dataset, n_event_tables)
+        return dataset
 
     if img is None:
         raise ValueError("fmri_dataset requires `img` (or legacy `data_source`)")
@@ -144,12 +151,52 @@ def fmri_dataset(
         start_time=resolved_start_time,
         run_length=run_length,
     )
-    return FmriDataset(
+    dataset = FmriDataset(
         adapter,
         event_table=resolved_events,
         censor=censor,
         confounds=_as_frame_list(confounds),
     )
+    _check_events_cover_runs(dataset, n_event_tables)
+    return dataset
+
+
+def _check_events_cover_runs(dataset: FmriDataset, n_event_tables: int | None) -> None:
+    """A per-run list of event tables must have one table per run."""
+    n_runs = int(dataset.n_runs)
+    if n_event_tables is not None and n_event_tables != n_runs:
+        raise ValueError(
+            f"{n_event_tables} events table(s) for {n_runs} runs; pass one "
+            "table per run, or one table with a `run` column"
+        )
+
+
+def require_run_labels(events: pd.DataFrame, n_runs: int) -> str | None:
+    """Return the run-label column for a multi-run fit, or raise.
+
+    With several runs, every event needs a run label (a 1-based ``run`` or
+    ``block`` column); without one all events would land in run 1 and the
+    other runs would be fitted as pure baseline. Returns ``None`` for a
+    single run without a label.
+    """
+    label = next((c for c in ("run", "block") if c in events.columns), None)
+    if label is None:
+        if n_runs > 1:
+            raise ValueError(
+                f"the dataset has {n_runs} runs but the events table has no "
+                "`run` column; add one (1-based) or build the dataset with "
+                "events=[table_run1, table_run2, ...]"
+            )
+        return None
+    if n_runs > 1:
+        runs = pd.to_numeric(events[label], errors="coerce")
+        bad = runs.isna() | ~runs.between(1, n_runs)
+        if bad.any():
+            raise ValueError(
+                f"events `{label}` values must be run numbers 1..{n_runs}; "
+                f"got {sorted(set(events[label][bad].astype(str)))[:5]}"
+            )
+    return label
 
 
 def _as_frame_list(

@@ -690,3 +690,136 @@ def test_binned_ar_truncates_onto_nilearn_grid(monkeypatch) -> None:
         AROptions(struct="ar1", bin_width=0.01)
     with pytest.raises(ValueError, match="not both"):
         AROptions(struct="ar1", voxelwise=True, bin_width=0.01, noise_pools=10)
+
+
+# ---------------------------------------------------------------------------
+# 7. round 5 critic findings (independent review)
+# ---------------------------------------------------------------------------
+
+
+def test_multirun_fit_refuses_events_without_run_labels() -> None:
+    import fmrimod as fm
+    from fmrimod.spec import hrf
+
+    inp = make_inputs(seed=19, n_runs=2, n_scans=60, shape=(6, 6, 5))
+    with pytest.raises(ValueError, match="1 events table"):
+        fm.fmri_dataset(inp.imgs, mask=inp.mask_img, tr=2.0, events=[inp.events[0]])
+    ds = fm.fmri_dataset(inp.imgs, mask=inp.mask_img, tr=2.0, events=inp.events[0])
+    with pytest.raises(ValueError, match="no `run` column"):
+        fm.fmri_lm(hrf("trial_type"), ds)
+    bad = inp.events_df.assign(run=inp.events_df["run"] + 5)
+    with pytest.raises(ValueError, match="run numbers 1..2"):
+        fm.fmri_lm(hrf("trial_type"), inp.imgs, tr=2.0, events=bad, mask=inp.mask_img)
+
+
+def test_group_maps_join_covariates_by_file_subject_id() -> None:
+    import fmrimod as fm
+    from benchmarks.ergonomics.inputs import make_group_map_inputs
+
+    maps = make_group_map_inputs(n_per_group=6)
+    ordered = fm.fmri_group_lm(
+        maps.paths, formula="~ group + age", covariates=maps.participants
+    )
+    shuffled = fm.fmri_group_lm(
+        maps.paths,
+        formula="~ group + age",
+        covariates=maps.participants.sample(frac=1.0, random_state=3),
+    )
+    np.testing.assert_allclose(shuffled.t_stat("patient"), ordered.t_stat("patient"))
+    with pytest.raises(ValueError, match="no row for subjects"):
+        fm.fmri_group_lm(
+            maps.paths, formula="~ group", covariates=maps.participants.iloc[:-1]
+        )
+
+
+def test_group_lm_intersects_differing_first_level_masks(one_run) -> None:
+    import nibabel as nib
+
+    import fmrimod as fm
+    from fmrimod.spec import hrf
+
+    smaller = one_run.mask.copy()
+    smaller[tuple(np.argwhere(smaller)[0])] = False
+    smaller_img = nib.Nifti1Image(smaller.astype(np.uint8), one_run.img.affine)
+    kw = {"tr": one_run.tr, "events": one_run.events[0]}
+    a = fm.fmri_lm(hrf("trial_type"), one_run.img, mask=one_run.mask_img, **kw)
+    b = fm.fmri_lm(hrf("trial_type"), one_run.img, mask=smaller_img, **kw)
+    with pytest.warns(UserWarning, match="masks differ"):
+        res = fm.fmri_group_lm({"a": a.contrast("face"), "b": b.contrast("face")})
+    assert res.t_stat().shape == (int(smaller.sum()),)
+    assert res.spatial is not None and res.spatial.mask.sum() == smaller.sum()
+
+
+def test_fits_and_group_results_pickle(one_run) -> None:
+    import pickle
+
+    import fmrimod as fm
+    from fmrimod.spec import drift, hrf
+
+    fit = fm.fmri_lm(hrf("trial_type") + drift(), _dataset(one_run))
+    clone = pickle.loads(pickle.dumps(fit))
+    np.testing.assert_array_equal(clone.betas, fit.betas)
+    np.testing.assert_allclose(
+        clone.contrast("face - house").stat, fit.contrast("face - house").stat
+    )
+    group = fm.fmri_group_lm(np.random.default_rng(0).normal(size=(5, 7)))
+    np.testing.assert_allclose(
+        pickle.loads(pickle.dumps(group)).t_stat(), group.t_stat()
+    )
+
+
+def test_nilearn_keywords_get_fmrimod_spelling(one_run) -> None:
+    import fmrimod as fm
+    from fmrimod.spec import hrf
+
+    with pytest.raises(TypeError, match="ar1_voxelwise"):
+        fm.fmri_lm(hrf("trial_type"), _dataset(one_run), noise_model="ar1")
+    with pytest.raises(TypeError, match="drift"):
+        fm.fmri_lm(hrf("trial_type"), _dataset(one_run), high_pass=0.01)
+    with pytest.raises(TypeError, match="model first"):
+        fm.fmri_lm(one_run.img, tr=2.0, events=one_run.events[0])
+
+
+def test_non_estimable_contrast_warns(one_run) -> None:
+    import warnings
+
+    import fmrimod as fm
+    from fmrimod.spec import hrf
+
+    events = one_run.events[0]
+    twin = events[events.trial_type == "face"].assign(trial_type="faceB")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        fit = fm.fmri_lm(
+            hrf("trial_type"),
+            one_run.img,
+            tr=one_run.tr,
+            events=pd.concat([events, twin], ignore_index=True),
+            mask=one_run.mask_img,
+        )
+    with pytest.warns(UserWarning, match="not estimable"):
+        fit.contrast("face")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        fit.contrast("face + faceB")
+        fit.contrast("house")
+
+
+def test_to_img_and_contrast_spellings(one_run) -> None:
+    import fmrimod as fm
+    from fmrimod.contrast import OmnibusContrast
+    from fmrimod.spec import drift, hrf
+
+    fit = fm.fmri_lm(hrf("trial_type") + drift(), _dataset(one_run))
+    res = fit.contrast("face - house")
+    img = res.to_img()
+    np.testing.assert_allclose(np.asarray(img.dataobj)[one_run.mask], res.z)
+    assert "ContrastResult(" in repr(res) and len(repr(res)) < 200
+    rows = fit.contrast(["face", "house"])
+    omnibus = fit.contrast(OmnibusContrast(term="trial_type"))
+    np.testing.assert_allclose(rows.stat, omnibus.stat)
+    by_name = fit.contrast("trial_type_trial_type.face - trial_type_trial_type.house")
+    np.testing.assert_allclose(by_name.stat, res.stat)
+    assert fit.contrast("drift1").stat.shape == res.stat.shape
+    batch = fit.compute_contrasts({"fh": "face - house"})
+    np.testing.assert_allclose(batch["fh"].stat, res.stat)

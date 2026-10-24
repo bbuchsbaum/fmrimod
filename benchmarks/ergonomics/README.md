@@ -50,6 +50,23 @@ against the latest one (`--baseline` picks another).
   batched GLS solve (identical to ~1e-12) made it faster on small inputs and
   2.2x slower at ~25k voxels (Nilearn bins coefficients; fmrimod stays
   exact). fmrimod 965 vs Nilearn 1316 tokens over 14 scenarios.
+- **Round 5** added s15 (FDR + cluster-extent thresholding and a cluster
+  table: 315 vs 111 tokens on the old API, 81 now via
+  `contrast.threshold(...).clusters()`), binned voxelwise AR
+  (`ar="ar1_binned"`), and promoted `bids_datasets` to the spine. The
+  scorecard also caught a regression from the storage-backend rework
+  (#24): per-volume NIfTI reads tripled first-level time; runs are now read
+  in one pass. An independent critic review (an agent that had not seen
+  this work) then found what the scorecard does not measure; fixed here:
+  multi-run fits with unlabelled events (silently all in run 1), group
+  covariates joined by row order for map files, differing first-level masks
+  blocking the group fit, unpicklable fits, Nilearn keywords failing with
+  an engine error, no warning for non-estimable contrasts, no in-memory
+  image for plotting (`to_img()`), and contrast spellings (column names,
+  lists for F, `compute_contrasts` on strings). Signal scaling, p-value
+  sidedness, zero-duration events, memory at full-brain size and BIDS
+  `n/a` handling were left as proposals because each changes semantics.
+  fmrimod 1046 vs Nilearn 1427 tokens over 15 scenarios.
 
 ## How a scenario is built
 
@@ -98,7 +115,7 @@ should be pinned as **strict xfail** probes in
 3. regenerate the report (`test_checked_in_report_matches_scenario_bodies`
    fails until you do);
 4. turn the probe into a regression test asserting the short form equals
-   the long one (sections 3-5 of that file hold rounds 2-4).
+   the long one (sections 3-7 of that file hold rounds 2-5).
 
 ## Adding a scenario
 

@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -68,6 +68,18 @@ class ThresholdedMap:
     def n_suprathreshold(self) -> int:
         """Number of voxels that survive."""
         return int(np.count_nonzero(self.z))
+
+    def to_img(self, *, fill: float = 0.0) -> Any:
+        """The thresholded z map as an in-memory ``nibabel.Nifti1Image``."""
+        return self._require_spatial().to_img(self.z, fill=fill)
+
+    def __repr__(self) -> str:
+        return (
+            f"ThresholdedMap(name={self.name!r}, method={self.method!r}, "
+            f"alpha={self.alpha}, threshold={self.threshold:.3f}, "
+            f"cluster_size={self.cluster_size}, "
+            f"n_suprathreshold={self.n_suprathreshold}/{self.z.size})"
+        )
 
     def to_nifti(self, path: str | Path, *, fill: float = 0.0) -> Path:
         """Write the thresholded z map to NIfTI."""

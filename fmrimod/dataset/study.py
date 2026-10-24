@@ -13,6 +13,7 @@ from numpy.typing import NDArray
 
 from .errors import FmriDatasetError
 from .fmri_dataset import FmriDataset
+from ..utils.pickling import ReadOnlyMappingPickle
 
 if TYPE_CHECKING:
     from fmrimod.group import GroupDataset, GroupSpace, VoxelSpace
@@ -222,7 +223,7 @@ def _normalise_contrast_results(
 
 
 @dataclass(frozen=True)
-class StudyDataset:
+class StudyDataset(ReadOnlyMappingPickle):
     """Subject table plus per-subject :class:`FmriDataset` objects.
 
     The container owns study-level subject metadata and provides the canonical

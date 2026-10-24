@@ -20,6 +20,7 @@ from scipy.interpolate import BSpline as ScipyBSpline
 
 from ..types import Array, SamplingInfo
 from .baseline_term import BaselineTerm
+from ..utils.pickling import ReadOnlyMappingPickle
 
 BaselineBasis = Literal['constant', 'poly', 'bs', 'ns', 'cosine']
 BaselineIntercept = Literal['runwise', 'global', 'none']
@@ -113,7 +114,7 @@ class CleanedNuisance:
 
 
 @dataclass(frozen=True)
-class BaselineModel:
+class BaselineModel(ReadOnlyMappingPickle):
     """Baseline model for fMRI time series.
     
     A baseline model represents low-frequency drift, block-wise intercepts,

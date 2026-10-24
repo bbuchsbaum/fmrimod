@@ -672,6 +672,22 @@ class ContrastResult:
         )
         return neuroim.DenseNeuroVec(stacked, space4d)
 
+    def to_img(self, kind: str = "z", *, fill: float = 0.0) -> Any:
+        """One statistic as an in-memory ``nibabel.Nifti1Image``.
+
+        Defaults to the z map, so ``nilearn.plotting.plot_stat_map(res.to_img())``
+        works directly. ``kind`` as in :meth:`to_nifti`.
+        """
+        return self._require_spatial().to_img(self._vector_for(kind), fill=fill)
+
+    def __repr__(self) -> str:
+        n = int(np.asarray(self.stat).size)
+        df = self.df if isinstance(self.df, tuple) else f"{float(self.df):.1f}"
+        return (
+            f"ContrastResult(name={self.name!r}, stat_type={self.stat_type!r}, "
+            f"n_voxels={n}, df={df}, max|stat|={np.nanmax(np.abs(self.stat)):.3g})"
+        )
+
     def to_nifti(
         self,
         path: str | Path,

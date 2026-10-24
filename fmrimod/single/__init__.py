@@ -411,12 +411,12 @@ def estimate_single_trial_from_dataset(
 
     resolved_block = block
     if resolved_block is None:
-        if "run" in events_df.columns:
-            resolved_block = "run"
-        elif "block" in events_df.columns:
-            resolved_block = "block"
-        else:
-            resolved_block = np.ones(len(events_df), dtype=int)
+        from ..dataset.constructors import require_run_labels
+
+        label = require_run_labels(events_df, int(getattr(dataset, "n_runs", 1)))
+        resolved_block = (
+            label if label is not None else np.ones(len(events_df), dtype=int)
+        )
 
     resolved_durations = durations
     if resolved_durations is None and "duration" in events_df.columns:
