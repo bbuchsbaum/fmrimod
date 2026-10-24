@@ -653,3 +653,30 @@ def test_single_all_voxel_parcel_reproduces_global_pooling():
         g = fit_noise(R, p=pp, censor=cens)
         pc = fit_noise(R, p=pp, censor=cens, pooling="parcel", parcels=np.ones(12, int))
         np.testing.assert_allclose(pc.phi_by_parcel["1"], g.phi[0], rtol=0, atol=1e-10)
+
+
+def test_segment_lag_sums_match_a_plain_reference():
+    """R test-audit-regressions.R:636-655: segments of length 1 and lags
+    longer than any segment; centring per ``center_id`` group."""
+    rng = np.random.default_rng(9301)
+    M = rng.standard_normal((40, 3))
+    seg = np.repeat([1, 2, 3, 4], [15, 1, 20, 4])
+    for center in (None, np.repeat([1, 2], 20)):
+        if center is None:
+            Mc = M - M.mean(axis=0)
+        else:
+            Mc = M.copy()
+            for g in (1, 2):
+                Mc[center == g] -= Mc[center == g].mean(axis=0)
+        for L in (0, 3, 25):
+            out = pooled_acvf_segments(M, seg, L, center_id=center)
+            ref_num = np.zeros(L + 1)
+            ref_pairs = np.zeros(L + 1)
+            for h in range(L + 1):
+                for t in range(40):
+                    s = t - h
+                    if s >= 0 and seg[s] == seg[t]:
+                        ref_num[h] += Mc[t] @ Mc[s] / 3
+                        ref_pairs[h] += 1
+            np.testing.assert_allclose(out.num, ref_num, rtol=0, atol=1e-12)
+            np.testing.assert_array_equal(out.pairs, ref_pairs)
