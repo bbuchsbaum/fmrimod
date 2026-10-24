@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, cast
@@ -15,61 +16,90 @@ from fmrimod.dataset.backend_protocol import (
     _normalize_indices,
 )
 from fmrimod.dataset.errors import BackendIOError, ConfigError
+from fmrimod.dataset.space import VolumeSpace
 
 
-def _as_paths(source: str | Path | Sequence[str | Path]) -> list[Path]:
-    if isinstance(source, (str, Path)):
-        paths = [Path(source)]
-    else:
-        paths = [Path(item) for item in source]
-    if not paths:
+def _require_nibabel() -> None:
+    if importlib.util.find_spec("nibabel") is None:
+        raise ConfigError(
+            "nibabel is required for NiftiBackend. "
+            "Install with: pip install fmrimod[nibabel]",
+            parameter="nibabel",
+        )
+
+
+def _is_image(obj: object) -> bool:
+    return hasattr(obj, "dataobj") and hasattr(obj, "affine")
+
+
+def _as_sources(source: object) -> list[Any]:
+    """Paths stay paths; in-memory nibabel images are kept as they are."""
+    items = [source] if isinstance(source, (str, Path)) or _is_image(source) else list(
+        cast(Sequence[Any], source)
+    )
+    if not items:
         raise ConfigError("source must contain at least one path", parameter="source")
-    return paths
+    return [item if _is_image(item) else Path(item) for item in items]
+
+
+def _source_label(src: object) -> str:
+    return str(src) if isinstance(src, Path) else f"<{type(src).__name__}>"
 
 
 class NiftiBackend(StorageBackend):
-    """Backend for NIfTI images in ``timepoints x masked voxels`` orientation."""
+    """Backend for NIfTI images in ``timepoints x masked voxels`` orientation.
+
+    ``source`` is one or more paths or in-memory nibabel images, read lazily
+    volume by volume. ``mask_source`` is a path, a nibabel image, or a 3-D
+    array (which takes the first source's affine); image masks keep their
+    voxels with values above zero. Every source must share the mask's grid
+    and affine.
+    """
 
     def __init__(
         self,
-        source: str | Path | Sequence[str | Path],
-        mask_source: str | Path,
+        source: str | Path | Sequence[str | Path] | Any,
+        mask_source: str | Path | Any,
         *,
         preload: bool = False,
     ) -> None:
-        self._source = _as_paths(source)
-        self._mask_source = Path(mask_source)
+        self._source = _as_sources(source)
+        self._mask_source: Any = (
+            mask_source
+            if _is_image(mask_source) or isinstance(mask_source, np.ndarray)
+            else Path(mask_source)
+        )
         self._preload = bool(preload)
         self._data: NDArray[np.float64] | None = None
         self._mask_vec: NDArray[np.bool_] | None = None
         self._dims: BackendDims | None = None
         self._metadata: dict[str, object] = {}
         self._file_time_dims: list[int] = []
+        self._space: VolumeSpace | None = None
         self._is_open = False
 
     def open(self) -> None:  # noqa: A003
-        try:
-            import nibabel as nib
-        except ImportError as exc:
-            raise ConfigError(
-                "nibabel is required for NiftiBackend. "
-                "Install with: pip install fmrimod[nibabel]",
-                parameter="nibabel",
-            ) from exc
+        _require_nibabel()
 
-        if not self._mask_source.exists():
-            raise BackendIOError(
-                f"Mask file not found: {self._mask_source}",
-                file=str(self._mask_source),
-                operation="open",
-            )
-
-        mask_img = cast(Any, nib).load(str(self._mask_source))
-        mask_data = np.asarray(mask_img.dataobj)
+        mask_label = _source_label(self._mask_source)
+        if isinstance(self._mask_source, np.ndarray):
+            mask_data = np.asarray(self._mask_source, dtype=bool)
+            mask_affine = np.asarray(self._image(self._source[0]).affine, dtype=np.float64)
+            mask_label = "<ndarray mask>"
+        else:
+            if isinstance(self._mask_source, Path) and not self._mask_source.exists():
+                raise BackendIOError(
+                    f"Mask file not found: {self._mask_source}",
+                    file=mask_label,
+                    operation="open",
+                )
+            mask_img = self._image(self._mask_source)
+            mask_data = np.asarray(mask_img.dataobj)
+            mask_affine = np.asarray(mask_img.affine, dtype=np.float64)
         if mask_data.ndim < 3:
             raise BackendIOError(
                 "mask image must be at least 3-D",
-                file=str(self._mask_source),
+                file=mask_label,
                 operation="open",
             )
         spatial_shape = tuple(int(v) for v in mask_data.shape[:3])
@@ -79,19 +109,27 @@ class NiftiBackend(StorageBackend):
         total_time = 0
         self._file_time_dims = []
         for src in self._source:
-            if not src.exists():
+            if isinstance(src, Path) and not src.exists():
                 raise BackendIOError(
                     f"Source file not found: {src}",
                     file=str(src),
                     operation="open",
                 )
-            img = cast(Any, nib).load(str(src))
+            img = self._image(src)
             shape = tuple(int(v) for v in img.shape)
             if len(shape) < 3 or shape[:3] != spatial_shape:
                 raise BackendIOError(
                     f"Source spatial shape {shape[:3]} does not match mask "
                     f"shape {spatial_shape}",
-                    file=str(src),
+                    file=_source_label(src),
+                    operation="open",
+                )
+            # Spatial identity is the space, not the shape (fmridataset 7cb121e).
+            if not np.allclose(np.asarray(img.affine), mask_affine, atol=1e-6):
+                raise BackendIOError(
+                    f"Source is not in the mask's spatial space: affine "
+                    f"{np.asarray(img.affine).tolist()} != {mask_affine.tolist()}",
+                    file=_source_label(src),
                     operation="open",
                 )
             n_time = shape[3] if len(shape) > 3 else 1
@@ -99,12 +137,18 @@ class NiftiBackend(StorageBackend):
             total_time += int(n_time)
 
         self._dims = BackendDims(spatial=cast("tuple[int, int, int]", spatial_shape), time=total_time)
+        self._space = VolumeSpace(
+            cast("tuple[int, int, int]", spatial_shape),
+            self._mask_vec,
+            affine=mask_affine,
+            mask_shape=spatial_shape,
+        )
         self._metadata = {
             "format": "nifti",
-            "affine": np.asarray(mask_img.affine),
-            "voxel_dims": np.asarray(mask_img.header.get_zooms()[:3]),
-            "source": [str(path) for path in self._source],
-            "mask_source": str(self._mask_source),
+            "affine": mask_affine.copy(),
+            "voxel_dims": np.sqrt((mask_affine[:3, :3] ** 2).sum(axis=0)),
+            "source": [_source_label(src) for src in self._source],
+            "mask_source": mask_label,
         }
         self._data = self._read_data_subset() if self._preload else None
         self._is_open = True
@@ -112,6 +156,14 @@ class NiftiBackend(StorageBackend):
     def close(self) -> None:
         self._data = None
         self._is_open = False
+
+    @staticmethod
+    def _image(src: Any) -> Any:
+        if _is_image(src):
+            return src
+        import nibabel as nib
+
+        return cast(Any, nib).load(str(src))
 
     def get_dims(self) -> BackendDims:
         if self._dims is None:
@@ -122,6 +174,18 @@ class NiftiBackend(StorageBackend):
         if self._mask_vec is None:
             raise BackendIOError("Backend not opened", operation="get_mask")
         return self._mask_vec.copy()
+
+    @property
+    def space(self) -> VolumeSpace:
+        if self._space is None:
+            raise BackendIOError("Backend not opened", operation="space")
+        return self._space
+
+    @property
+    def source_run_lengths(self) -> tuple[int, ...]:
+        if self._dims is None:
+            raise BackendIOError("Backend not opened", operation="source_run_lengths")
+        return tuple(self._file_time_dims)
 
     def get_data(
         self,
@@ -149,14 +213,7 @@ class NiftiBackend(StorageBackend):
         rows: NDArray[np.intp] | None = None,
         cols: NDArray[np.intp] | None = None,
     ) -> NDArray[np.float64]:
-        try:
-            import nibabel as nib
-        except ImportError as exc:
-            raise ConfigError(
-                "nibabel is required for NiftiBackend. "
-                "Install with: pip install fmrimod[nibabel]",
-                parameter="nibabel",
-            ) from exc
+        _require_nibabel()
 
         if self._mask_vec is None or self._dims is None:
             raise BackendIOError("Backend not opened", operation="read")
@@ -179,7 +236,7 @@ class NiftiBackend(StorageBackend):
             if local_rows.size == 0:
                 continue
 
-            img = cast(Any, nib).load(str(src))
+            img = self._image(src)
             source_rows: list[NDArray[np.float64]] = []
             for row in local_rows:
                 if len(img.shape) > 3:

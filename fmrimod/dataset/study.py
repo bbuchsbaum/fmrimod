@@ -57,21 +57,8 @@ def _as_1d_float_array(
 
 
 def _voxel_space(dataset: FmriDataset) -> VoxelSpace:
-    """Return a dataset's mask as a packed voxel space (C-order voxel ids)."""
-    from fmrimod.group import VoxelSpace
-
-    mask = np.asarray(dataset.get_mask(), dtype=bool)
-    shape = mask.shape if mask.ndim == 3 else (int(mask.size), 1, 1)
-    get_affine = getattr(getattr(dataset, "_source", None), "get_affine", None)
-    affine = None
-    if callable(get_affine):
-        affine = np.asarray(get_affine(), dtype=np.float64)
-    return VoxelSpace(
-        shape=shape,
-        affine=affine if affine is not None and affine.shape == (4, 4) else None,
-        mask_idx=np.flatnonzero(mask),
-        storage="packed",
-    )
+    """Return a dataset's columns as a packed voxel space (C-order voxel ids)."""
+    return dataset.space.to_voxel_space()
 
 
 def _route_samples(

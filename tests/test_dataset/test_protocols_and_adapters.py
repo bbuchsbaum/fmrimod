@@ -76,10 +76,16 @@ class TestNumpyAdapter:
         assert np.all(mask)
 
     def test_mask_custom(self, single_run_data, sframe_single):
-        mask = np.ones((50, 1, 1), dtype=bool)
+        # The mask says which grid voxels the columns are, so it must select
+        # exactly as many voxels as there are columns.
+        mask = np.ones((51, 1, 1), dtype=bool)
         mask[0] = False
         adapter = NumpyAdapter(single_run_data, sframe_single, mask=mask)
         np.testing.assert_array_equal(adapter.get_mask(), mask)
+        short = np.ones((50, 1, 1), dtype=bool)
+        short[0] = False
+        with pytest.raises(ValueError, match="selects 49 voxels"):
+            NumpyAdapter(single_run_data, sframe_single, mask=short)
 
     def test_mismatched_timepoints(self, sframe_single):
         bad_data = np.zeros((50, 50))  # 50 timepoints but frame expects 100

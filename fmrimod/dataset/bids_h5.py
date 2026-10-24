@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, cast
@@ -23,6 +23,7 @@ from .backends.bids_h5_backend import (
     bids_h5_scan_backend,
     h5_shared_connection,
 )
+from .backends.concat_backend import ConcatBackend
 from .errors import BackendIOError, FmriDatasetError
 from .fmri_dataset import FmriDataset
 
@@ -183,45 +184,6 @@ def _bind_frames(frames: list[pd.DataFrame | None]) -> pd.DataFrame:
     return pd.concat(non_empty, ignore_index=True, sort=False)
 
 
-class _BidsSubjectAdapter:
-    """Run-wise adapter over one subject's BIDS-HDF5 scan backends."""
-
-    def __init__(
-        self,
-        backends: Sequence[BidsH5ScanBackend],
-        sampling_frame: SamplingFrame,
-    ) -> None:
-        if not backends:
-            raise FmriDatasetError("BIDS-HDF5 subject requires at least one scan")
-        self._backends = list(backends)
-        self._sampling_frame = sampling_frame
-        for backend in self._backends:
-            backend.open()
-
-    def get_data(self, run: int) -> NDArray[np.float64]:
-        if run < 0 or run >= len(self._backends):
-            raise IndexError(f"Run {run} out of range [0, {len(self._backends)})")
-        return np.asarray(self._backends[run].get_data(), dtype=np.float64)
-
-    def get_mask(self) -> NDArray[np.bool_]:
-        return self._backends[0].get_mask()
-
-    def get_sampling_frame(self) -> SamplingFrame:
-        return self._sampling_frame
-
-    @property
-    def n_runs(self) -> int:
-        return len(self._backends)
-
-    @property
-    def n_timepoints(self) -> list[int]:
-        return [backend.n_time for backend in self._backends]
-
-    @property
-    def n_voxels(self) -> int:
-        return int(self._backends[0].get_mask().sum())
-
-
 def _make_scan_backends(
     manifest: pd.DataFrame,
     connection: SharedH5Connection,
@@ -292,11 +254,15 @@ def _build_subject_dataset(
 
     backends = [scan_backends[str(name)] for name in scan_rows["scan_name"]]
     frame = SamplingFrame(blocklens=run_lengths, tr=run_trs, start_time=start_times)
-    adapter = _BidsSubjectAdapter(backends, frame)
+    if not backends:
+        raise FmriDatasetError("BIDS-HDF5 subject requires at least one scan")
+    for backend in backends:
+        backend.open()
     return FmriDataset(
-        adapter,
+        ConcatBackend(backends, part_label="Scan"),
         event_table=_bind_frames(events),
         censor=censors if censors else None,
+        sampling_frame=frame,
     )
 
 
