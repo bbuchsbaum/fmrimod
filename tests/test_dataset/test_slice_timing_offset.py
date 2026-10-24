@@ -236,3 +236,25 @@ def test_default_midpoint_gives_lower_correlation_against_nilearn() -> None:
         f"midpoint default should land in [0.90, 0.96] correlation vs "
         f"Nilearn's frame-start default; got {corr_default:.6f}"
     )
+
+
+def test_top_level_matrix_dataset_forwards_timing_and_censor() -> None:
+    """``fmrimod.matrix_dataset`` must not drop the canonical keywords."""
+    import fmrimod
+
+    runs = [np.zeros((6, 2)), np.zeros((8, 2))]
+    censor = [np.array([0, 1, 0, 0, 0, 0], bool), np.zeros(8, bool)]
+    for kwargs in (
+        {"start_time": [1.0, 0.25]},
+        {"slice_timing_offset": 0.0},
+        {"censor": censor},
+    ):
+        top = fmrimod.matrix_dataset(runs, tr=2.0, **kwargs)
+        canonical = matrix_dataset(runs, tr=2.0, **kwargs)
+        np.testing.assert_allclose(
+            top.sampling_frame.start_time, canonical.sampling_frame.start_time
+        )
+        assert (top.censor is None) == (canonical.censor is None)
+    np.testing.assert_array_equal(
+        fmrimod.matrix_dataset(runs, tr=2.0, censor=censor).get_censor(0), censor[0]
+    )
