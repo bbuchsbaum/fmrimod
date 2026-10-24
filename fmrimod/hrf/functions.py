@@ -402,7 +402,10 @@ def fir_basis(
 ) -> NDArray[np.float64]:
     """Finite Impulse Response (FIR) basis set.
 
-    Creates a basis of boxcar functions.
+    Column ``k`` is the indicator of the right-open bin
+    ``[k * w, (k + 1) * w)`` with ``w = span / n_basis``, matching R
+    ``hrf_fir_generator()``. ``t == span`` lies outside every bin, so the
+    basis is zero there, as it is before onset.
 
     Args:
         t: Time points in seconds
@@ -412,22 +415,15 @@ def fir_basis(
     Returns:
         Matrix of FIR basis functions evaluated at t
     """
-    t = np.asarray(t, dtype=np.float64)
-
-    # Create bin edges
-    bin_width = span / n_basis
-    bins = np.arange(n_basis + 1) * bin_width
-
-    # Create basis functions
+    t = np.atleast_1d(np.asarray(t, dtype=np.float64))
+    n_basis = int(n_basis)
     basis = np.zeros((len(t), n_basis))
 
-    for i in range(n_basis):
-        # Boxcar function for this bin
-        basis[:, i] = ((t >= bins[i]) & (t < bins[i + 1])).astype(float)
-
-    # Handle edge case where t == span
-    if n_basis > 0:
-        basis[t == span, -1] = 1.0
+    inside = np.flatnonzero(~np.isnan(t) & (t >= 0) & (t < span))
+    if n_basis > 0 and len(inside) > 0:
+        bin_width = span / n_basis
+        bin_index = np.minimum(np.floor(t[inside] / bin_width), n_basis - 1)
+        basis[inside, bin_index.astype(np.intp)] = 1.0
 
     return basis
 
