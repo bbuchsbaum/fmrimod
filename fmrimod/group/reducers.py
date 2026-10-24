@@ -360,15 +360,25 @@ def meta_fe_reg(
     formula: str = "~ 1",
     X: NDArray[np.float64] | None = None,
     eps: float = 1e-12,
+    min_subjects: int = 2,
 ) -> GroupDataset:
-    """Fixed-effects meta-regression reducer."""
+    """Fixed-effects meta-regression reducer.
+
+    A subject enters a feature's fit only if its beta and variance are
+    finite, the variance is positive and its design row is finite
+    (fmrigds ``meta:fe_reg``); variances below ``eps`` are floored.
+    """
     beta, var = _beta_and_var(dataset, method="meta:fe_reg")
     if beta.shape != var.shape:
         raise AdapterContractError("beta and var/se assays must have matching shapes")
     if eps <= 0:
         raise AdapterContractError("eps must be > 0")
+    if min_subjects < 1:
+        raise AdapterContractError("min_subjects must be >= 1")
     X_mat, predictor_names = _design_matrix(dataset, X=X, formula=formula)
     pcols = X_mat.shape[1]
+    required = max(int(min_subjects), pcols + 1)
+    finite_design = np.all(np.isfinite(X_mat), axis=1)
     beta_2d = _flatten_feature_axis(beta)
     var_2d = _flatten_feature_axis(var)
     n_features = beta_2d.shape[1]
@@ -381,10 +391,11 @@ def meta_fe_reg(
     for feature_idx in range(n_features):
         y = beta_2d[:, feature_idx]
         v = var_2d[:, feature_idx]
-        w = 1.0 / np.maximum(v, eps)
-        ok = np.isfinite(y) & np.isfinite(w)
-        if np.sum(ok) < (pcols + 1):
+        with np.errstate(invalid="ignore"):
+            ok = np.isfinite(y) & np.isfinite(v) & (v > 0) & finite_design
+        if np.sum(ok) < required:
             continue
+        w = 1.0 / np.maximum(np.where(ok, v, 1.0), eps)
         Xok = X_mat[ok, :]
         wok = w[ok]
         yok = y[ok]
@@ -431,7 +442,11 @@ def meta_fe_reg(
         dataset,
         assays,
         method="meta:fe_reg",
-        metadata={"formula": formula, "predictor_names": tuple(predictor_names)},
+        metadata={
+            "formula": formula,
+            "predictor_names": tuple(predictor_names),
+            "min_subjects": int(min_subjects),
+        },
     )
 
 
@@ -441,15 +456,25 @@ def meta_re_reg(
     formula: str = "~ 1",
     X: NDArray[np.float64] | None = None,
     eps: float = 1e-12,
+    min_subjects: int = 2,
 ) -> GroupDataset:
-    """DerSimonian-Laird random-effects meta-regression reducer."""
+    """DerSimonian-Laird random-effects meta-regression reducer.
+
+    Uses the same subject validity rule as :func:`meta_fe_reg`, and skips
+    a feature whose design is rank-deficient on its valid subjects or
+    whose ``tr(P)`` is not positive (fmrigds ``.meta_re_reg_dl_r``).
+    """
     beta, var = _beta_and_var(dataset, method="meta:re_reg")
     if beta.shape != var.shape:
         raise AdapterContractError("beta and var/se assays must have matching shapes")
     if eps <= 0:
         raise AdapterContractError("eps must be > 0")
+    if min_subjects < 1:
+        raise AdapterContractError("min_subjects must be >= 1")
     X_mat, predictor_names = _design_matrix(dataset, X=X, formula=formula)
     pcols = X_mat.shape[1]
+    required = max(int(min_subjects), pcols + 1)
+    finite_design = np.all(np.isfinite(X_mat), axis=1)
     beta_2d = _flatten_feature_axis(beta)
     var_2d = _flatten_feature_axis(var)
     n_features = beta_2d.shape[1]
@@ -463,13 +488,16 @@ def meta_re_reg(
     for feature_idx in range(n_features):
         y = beta_2d[:, feature_idx]
         v = var_2d[:, feature_idx]
-        w = 1.0 / np.maximum(v, eps)
-        ok = np.isfinite(y) & np.isfinite(w)
-        if np.sum(ok) < (pcols + 1):
+        with np.errstate(invalid="ignore"):
+            ok = np.isfinite(y) & np.isfinite(v) & (v > 0) & finite_design
+        if np.sum(ok) < required:
             continue
+        w = 1.0 / np.maximum(np.where(ok, v, 1.0), eps)
         Xok = X_mat[ok, :]
         wok = w[ok]
         yok = y[ok]
+        if np.linalg.matrix_rank(Xok) < pcols:
+            continue
         Xw = Xok * np.sqrt(wok)[:, np.newaxis]
         gram = Xw.T @ Xw
         gram_inv = _safe_inverse(gram)
@@ -480,8 +508,10 @@ def meta_re_reg(
         q_val = float(np.sum(wok * resid * resid))
         x_a_x = np.sum((Xok @ gram_inv) * Xok, axis=1)
         c_term = float(np.sum(wok) - np.sum((wok**2) * x_a_x))
+        if not np.isfinite(c_term) or c_term <= 0:
+            continue
         df_val = float(np.sum(ok) - pcols)
-        tau_val = max((q_val - df_val) / max(c_term, eps), 0.0)
+        tau_val = max((q_val - df_val) / c_term, 0.0)
 
         w_star = 1.0 / ((1.0 / wok) + tau_val)
         Xws = Xok * np.sqrt(w_star)[:, np.newaxis]
@@ -535,6 +565,7 @@ def meta_re_reg(
             "formula": formula,
             "predictor_names": tuple(predictor_names),
             "tau2": "DL",
+            "min_subjects": int(min_subjects),
         },
     )
 

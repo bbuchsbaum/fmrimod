@@ -308,6 +308,55 @@ def test_meta_re_reg_reports_dl_tau2_and_dispatches() -> None:
     assert "coef:age" in direct.assays
 
 
+def _meta_reg_validity_dataset(var: np.ndarray):
+    x = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+    beta = np.array([0.4, -1.1, 0.9, -2.3, -5.5, 0.2])
+    subjects = [f"s{i}" for i in range(x.size)]
+    return group_dataset(
+        {"beta": beta.reshape(1, -1, 1), "var": np.asarray(var, float).reshape(1, -1, 1)},
+        space=SampleLabelSpace(["r1"]),
+        subjects=subjects,
+        contrasts=["c1"],
+        col_data=pd.DataFrame({"x": x}, index=subjects),
+    ), x, beta
+
+
+@pytest.mark.parametrize("reducer", [meta_fe_reg, meta_re_reg])
+def test_meta_reg_drops_subjects_without_a_positive_variance(reducer) -> None:
+    # fmrigds 7c7ecae (R/reducers-core.R meta:fe_reg / .meta_re_reg_dl_r): a
+    # subject enters only if beta and var are finite and var > 0.
+    var = np.array([0.5, 0.0, 0.8, -0.5, 1.2, 0.6])
+    ds, x, beta = _meta_reg_validity_dataset(var)
+    keep = var > 0
+    ref, _, _ = _meta_reg_validity_dataset(np.where(keep, var, np.nan))
+
+    out = reducer(ds, formula="~ x")
+    expected = reducer(ref, formula="~ x")
+    for name in ("coef:Intercept", "coef:x", "se_coef:x", "df_res"):
+        np.testing.assert_allclose(out.assay(name), expected.assay(name), rtol=1e-12)
+    assert out.assay("df_res")[0, 0, 0] == keep.sum() - 2
+
+    X = np.column_stack([np.ones(keep.sum()), x[keep]])
+    w = 1.0 / var[keep]
+    if reducer is meta_fe_reg:
+        coef = np.linalg.solve((X.T * w) @ X, X.T @ (w * beta[keep]))
+        np.testing.assert_allclose(out.assay("coef:x")[0, 0, 0], coef[1], rtol=1e-12)
+
+
+@pytest.mark.parametrize("reducer", [meta_fe_reg, meta_re_reg])
+def test_meta_reg_honours_min_subjects_and_floors_tiny_variance(reducer) -> None:
+    var = np.array([0.5, np.nan, 0.8, np.nan, 1.2, np.nan])
+    ds, _, _ = _meta_reg_validity_dataset(var)
+    assert np.isfinite(reducer(ds, formula="~ x").assay("coef:x")).all()
+    assert np.isnan(reducer(ds, formula="~ x", min_subjects=4).assay("coef:x")).all()
+
+    tiny, _, _ = _meta_reg_validity_dataset(np.array([0.5, 1e-30, 0.8, 0.3, 1.2, 0.6]))
+    floor, _, _ = _meta_reg_validity_dataset(np.array([0.5, 1e-12, 0.8, 0.3, 1.2, 0.6]))
+    np.testing.assert_array_equal(
+        reducer(tiny, formula="~ x").assay("coef:x"), reducer(floor, formula="~ x").assay("coef:x")
+    )
+
+
 def test_meta_reg_requires_covariates_for_non_intercept_formula() -> None:
     ds = group_dataset(
         {"beta": np.ones((1, 3, 1)), "se": np.ones((1, 3, 1))},
