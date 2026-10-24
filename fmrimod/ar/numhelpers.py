@@ -209,7 +209,9 @@ def levinson_durbin(
         Innovation variance.
     """
     gamma = np.asarray(gamma, dtype=np.float64).ravel()
-    if p <= 0 or len(gamma) < p + 1 or gamma[0] < 1e-15:
+    # Only a zero variance is degenerate: an absolute floor left data in small
+    # units unwhitened (fmrireg 0f9138b).
+    if p <= 0 or len(gamma) < p + 1 or not gamma[0] > 0:
         return np.zeros(max(p, 0), dtype=np.float64), float(gamma[0]) if len(
             gamma
         ) else 0.0

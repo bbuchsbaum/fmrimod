@@ -20,7 +20,7 @@ from fmrimod.glm.fmri_lm import FmriLm
 from fmrimod.glm.matrix import fit_glm_from_suffstats
 from fmrimod.glm.solver import LmResult, Projection
 from fmrimod.glm.strategies import _pool_run_results
-from fmrimod.model.config import FmriLmConfig
+from fmrimod.model.config import AROptions, FmriLmConfig
 
 _T = np.array([0.0, 1.0, -1.0, 0.0])
 _F = np.array([[0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]])
@@ -86,6 +86,26 @@ def test_runwise_pooled_betas_t_and_f_are_scale_invariant(scale):
     F_fit = fit.contrast(np.eye(4)[:2], name="F")
     np.testing.assert_allclose(F_fit.stat, F_ref.stat, rtol=1e-8)
     np.testing.assert_allclose(F_fit.p_value, F_ref.p_value, rtol=1e-8)
+
+
+@pytest.mark.parametrize("scale", [1e-9, 1e6])
+@pytest.mark.parametrize(
+    "ar",
+    [{}, {"pooling": "global"}, {"voxelwise": True}],
+    ids=["run", "global", "voxelwise"],
+)
+def test_ar_phi_and_t_are_scale_invariant(scale, ar):
+    # The AR estimate has no absolute variance floor either: at Y * 1e-9 the
+    # Levinson-Durbin solve used to return phi = 0, leaving the data
+    # unwhitened (fmrireg 0f9138b).
+    cfg = FmriLmConfig(ar=AROptions(struct="ar1", **ar))
+    ref = fm.fmri_lm("hrf(condition)", _two_run_dataset(1.0), config=cfg)
+    fit = fm.fmri_lm("hrf(condition)", _two_run_dataset(scale), config=cfg)
+
+    assert np.all(np.asarray(ref.ar_params) != 0.0)
+    np.testing.assert_allclose(fit.ar_params, ref.ar_params, rtol=0, atol=1e-10)
+    np.testing.assert_allclose(fit.betas / scale, ref.betas, rtol=1e-8)
+    np.testing.assert_allclose(fit.tstat(), ref.tstat(), rtol=1e-8)
 
 
 @pytest.mark.parametrize("scale", [1e-8, 1e-12])
