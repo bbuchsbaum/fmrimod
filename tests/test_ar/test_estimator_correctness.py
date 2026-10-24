@@ -374,6 +374,64 @@ def test_pooled_arma_recovers_parameters_and_voxel_scale_sigma2():
     np.testing.assert_array_equal(whiten_apply(p0, np.ones((300, 1)), W).Y, W)
 
 
+def test_arma_p_auto_searches_orders_instead_of_fixing_ar2():
+    """Inventory v2 AR-13 (fmriAR a75a5de): white noise selects AR order 0."""
+    W = np.random.default_rng(1).standard_normal((240, 30))
+    assert fit_noise(W, method="arma", p="auto", q=1).order == (0, 1)
+
+
+def test_arma_p_q_auto_recovers_the_true_order():
+    """R test-audit-regressions.R:417-431 (AR-13, AR-23).
+
+    R asks for 8 of 10 hits, but both fmriAR and fmrimod recover ARMA(1, 1)
+    on this design about 81% of the time (100 replicates each), so 10 at
+    0.8 holds only for R's seed. 40 replicates at 0.65 keeps the check
+    meaningful (the fixed AR(2) order it replaces scores 0) with margin.
+    """
+    rng = np.random.default_rng(9126)
+    for phi, theta, truth in (([0.5], [0.4], (1, 1)), ([], [], (0, 0)), ([0.5], [], (1, 0))):
+        hits = 0
+        for _ in range(40):
+            plan = fit_noise(_arma_sim(240, 30, phi, theta, rng=rng), method="arma",
+                             p="auto", q="auto")
+            hits += (plan.phi[0].size, plan.theta[0].size) == truth and plan.order == truth
+        assert hits >= 26, (truth, hits)
+    with pytest.raises(ValueError, match="requires method"):
+        fit_noise(_arma_sim(100, 2, [0.5], rng=rng), q="auto")
+    with pytest.raises(ValueError, match="'q' must be"):
+        fit_noise(_arma_sim(100, 2, [0.5], rng=rng), method="arma", q=-1)
+    with pytest.raises(ValueError, match="'q_max' must be"):
+        fit_noise(_arma_sim(100, 2, [0.5], rng=rng), method="arma", q="auto", q_max=-1)
+
+
+def test_arma_auto_search_is_bounded_by_p_max_and_q_max():
+    R = _arma_sim(240, 30, [0.6, -0.3], [0.5], rng=np.random.default_rng(5))
+    assert fit_noise(R, method="arma", p="auto", q="auto").order == (2, 1)
+    assert fit_noise(R, method="arma", p="auto", q="auto", p_max=1, q_max=0).order == (1, 0)
+
+
+def test_arma_order_selection_whitens_shared_slow_noise():
+    """R test-audit-regressions.R:433-449: ARMA(1,1) voxel noise plus a shared
+    AR(0.95) component is not ARMA(1,1); the selected model whitens it
+    better than the fixed (1, 1) fit."""
+    from fmrimod.ar.diagnostics import acorr_diagnostics
+
+    rng = np.random.default_rng(9127)
+    X1 = np.ones((240, 1))
+
+    def mean_abs_acf(plan, R):
+        return float(np.mean(np.abs(acorr_diagnostics(whiten_apply(plan, X1, R).Y,
+                                                      max_lag=3)["acf"])))
+
+    fixed, auto = [], []
+    for _ in range(10):
+        shared = lfilter([1.0], [1.0, -0.95], rng.standard_normal(240))
+        R = _arma_sim(240, 30, [0.5], [0.4], rng=rng) + 0.4 * shared[:, None]
+        fixed.append(mean_abs_acf(fit_noise(R, method="arma", p=1, q=1), R))
+        auto.append(mean_abs_acf(fit_noise(R, method="arma", p="auto", q="auto"), R))
+    assert np.mean(auto) < np.mean(fixed)
+
+
 def test_pooled_arma_falls_back_to_white_noise_with_a_warning():
     """R test-audit-regressions.R:742-747."""
     from fmrimod.ar.hr_arma import _hr_arma_pooled
