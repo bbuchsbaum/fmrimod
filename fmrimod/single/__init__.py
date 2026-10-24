@@ -137,24 +137,6 @@ def estimate_single_trial(
     -------
     SingleTrialResult
     """
-    # Optional prewhitening. Routes through fmrimod.ar.fit_noise +
-    # whiten_apply (the same engine the GLM solver uses) so Y, X,
-    # baseline_regressors, and confounds share one plan.
-    whitening_plan = None
-    if prewhiten is not None and prewhiten.method != "none":
-        from ._prewhiten import prewhiten_matrices
-
-        pw = prewhiten_matrices(
-            Y,
-            X,
-            confounds,
-            prewhiten,
-            baseline_regressors=baseline_regressors,
-        )
-        Y, X, confounds = pw.Y, pw.X, pw.confounds
-        baseline_regressors = pw.baseline_regressors
-        whitening_plan = pw.plan
-
     try:
         method_enum = (
             method
@@ -185,6 +167,52 @@ def estimate_single_trial(
             "only for method='lss' or method='lsa'."
         )
 
+    oasis_cfg: OasisConfig | None = None
+    if method_enum is SingleTrialMethod.OASIS:
+        if oasis_config is None:
+            oasis_cfg = (
+                OasisConfig(
+                    return_se=True,
+                    K=resolved_k,
+                    ridge_mode="none",
+                    ridge_x=0.0,
+                    ridge_b=0.0,
+                )
+                if return_se
+                else OasisConfig(K=resolved_k)
+            )
+        else:
+            oasis_cfg = oasis_config
+            if oasis_cfg.K == 1 and resolved_k > 1:
+                oasis_cfg = replace(oasis_cfg, K=resolved_k)
+            if return_se and not oasis_cfg.return_se:
+                oasis_cfg = replace(oasis_cfg, return_se=True)
+
+    # Optional prewhitening. Routes through fmrimod.ar.fit_noise +
+    # whiten_apply (the same engine the GLM solver uses) so Y, X,
+    # baseline_regressors, and confounds share one plan. The aggregate
+    # noise model sums trials per basis function (fmrilss a9d816e).
+    whitening_plan = None
+    if prewhiten is not None and prewhiten.method != "none":
+        from ._prewhiten import aggregate_trials, prewhiten_matrices
+
+        noise_k = 1
+        if oasis_cfg is not None:
+            noise_k = oasis_cfg.K
+        elif method_enum is SingleTrialMethod.SBHM and sbhm_library is not None:
+            noise_k = int(sbhm_library.B.shape[1])
+        pw = prewhiten_matrices(
+            Y,
+            X,
+            confounds,
+            prewhiten,
+            baseline_regressors=baseline_regressors,
+            noise_trials=aggregate_trials(X, noise_k),
+        )
+        Y, X, confounds = pw.Y, pw.X, pw.confounds
+        baseline_regressors = pw.baseline_regressors
+        whitening_plan = pw.plan
+
     if method_enum is SingleTrialMethod.LSS:
         result = lss_single_trial(
             Y,
@@ -208,24 +236,7 @@ def estimate_single_trial(
             include_intercept=include_intercept,
         )
     elif method_enum is SingleTrialMethod.OASIS:
-        if oasis_config is None:
-            oasis_cfg = (
-                OasisConfig(
-                    return_se=True,
-                    K=resolved_k,
-                    ridge_mode="none",
-                    ridge_x=0.0,
-                    ridge_b=0.0,
-                )
-                if return_se
-                else OasisConfig(K=resolved_k)
-            )
-        else:
-            oasis_cfg = oasis_config
-            if oasis_cfg.K == 1 and resolved_k > 1:
-                oasis_cfg = replace(oasis_cfg, K=resolved_k)
-            if return_se and not oasis_cfg.return_se:
-                oasis_cfg = replace(oasis_cfg, return_se=True)
+        assert oasis_cfg is not None
         result = oasis_single_trial(
             Y,
             X,
