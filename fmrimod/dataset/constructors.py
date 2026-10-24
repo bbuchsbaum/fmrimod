@@ -100,19 +100,14 @@ def fmri_dataset(
     if img is None:
         raise ValueError("fmri_dataset requires `img` (or legacy `data_source`)")
 
-    # Adapter chain expects a scalar start_time; ``None`` means "use the
-    # SamplingFrame default" which the adapter currently encodes as 0.0
-    # (frame-start). To keep the typed dataset constructor's documented
-    # default of TR/2 (BOLD-midpoint), we resolve None against the
-    # supplied TR right here.
-    adapter_start: float
-    if resolved_start_time is None:
-        tr_scalar = float(np.atleast_1d(np.asarray(tr, dtype=float))[0])
-        adapter_start = tr_scalar / 2.0
-    else:
-        adapter_start = float(np.atleast_1d(np.asarray(resolved_start_time))[0])
+    # Per-run ``tr``/``start_time`` pass through to the adapter's
+    # SamplingFrame; ``None`` lets it apply ``TR/2`` per run (R 99d19fe, #94).
     adapter = _build_adapter(
-        img, mask=mask, tr=tr, start_time=adapter_start, run_length=run_length
+        img,
+        mask=mask,
+        tr=tr,
+        start_time=resolved_start_time,
+        run_length=run_length,
     )
     return FmriDataset(adapter, event_table=resolved_events, censor=censor)
 
@@ -242,7 +237,7 @@ def _build_adapter(
     *,
     mask: object,
     tr: float | Sequence[float] | None,
-    start_time: float,
+    start_time: float | Sequence[float] | None,
     run_length: int | Sequence[int] | None = None,
 ) -> DatasetProtocol:
     # `run_length` only has a meaning for a single 2-D matrix input.
@@ -302,16 +297,22 @@ def _build_adapter(
     )
 
 
-def _require_tr(tr: float | Sequence[float] | None, *, what: str) -> float:
+def _require_tr(
+    tr: float | Sequence[float] | None, *, what: str
+) -> float | Sequence[float]:
     if tr is None:
         raise ValueError(f"`tr` is required for {what} input")
     if isinstance(tr, (int, float)):
         return float(tr)
-    return tr  # type: ignore[return-value]
+    return tr
 
 
 def _make_neurovec_adapter(
-    img: object, *, mask: object, tr: float | Sequence[float] | None, start_time: float
+    img: object,
+    *,
+    mask: object,
+    tr: float | Sequence[float] | None,
+    start_time: float | Sequence[float] | None,
 ) -> DatasetProtocol:
     from .adapters.neuroim_adapter import NeuroVecAdapter
 
@@ -321,7 +322,11 @@ def _make_neurovec_adapter(
 
 
 def _make_nibabel_adapter(
-    img: object, *, mask: object, tr: float | Sequence[float] | None, start_time: float
+    img: object,
+    *,
+    mask: object,
+    tr: float | Sequence[float] | None,
+    start_time: float | Sequence[float] | None,
 ) -> DatasetProtocol:
     from .adapters.nibabel_adapter import NibabelAdapter
 
@@ -335,7 +340,11 @@ def _make_nibabel_adapter(
 
 
 def _make_paths_adapter(
-    paths: object, *, mask: object, tr: float | Sequence[float] | None, start_time: float
+    paths: object,
+    *,
+    mask: object,
+    tr: float | Sequence[float] | None,
+    start_time: float | Sequence[float] | None,
 ) -> DatasetProtocol:
     from .adapters.neuroim_adapter import NeuroVecAdapter
 
@@ -348,7 +357,11 @@ def _make_paths_adapter(
 
 
 def _make_array4d_adapter(
-    arr: NDArray[np.float64], *, mask: object, tr: float | Sequence[float] | None, start_time: float
+    arr: NDArray[np.float64],
+    *,
+    mask: object,
+    tr: float | Sequence[float] | None,
+    start_time: float | Sequence[float] | None,
 ) -> DatasetProtocol:
     from .adapters.neuroim_adapter import NeuroVecAdapter
 
@@ -365,7 +378,7 @@ def _make_matrix_adapter(
     *,
     mask: object,
     tr: float | Sequence[float] | None,
-    start_time: float,
+    start_time: float | Sequence[float] | None,
     run_length: int | Sequence[int] | None = None,
 ) -> DatasetProtocol:
     resolved_tr = _require_tr(tr, what="2-D matrix")
