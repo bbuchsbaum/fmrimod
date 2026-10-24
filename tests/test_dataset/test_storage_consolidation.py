@@ -50,10 +50,33 @@ def test_constructors_and_adapters_resolve_to_one_backend():
         np.testing.assert_array_equal(ds.get_run_data(1), runs[1])
 
 
-def test_reads_are_fresh_arrays():
-    ds = matrix_dataset(np.zeros((4, 3)), tr=2.0)
-    out = ds.get_all_data()
-    out += 1.0
+def _write_nifti(path, arr):
+    nib = pytest.importorskip("nibabel")
+    nib.save(nib.Nifti1Image(arr, np.eye(4)), path)
+    return str(path)
+
+
+@pytest.mark.parametrize("path", ["matrix", "numpy_adapter", "nifti_preload", "nifti_lazy"])
+def test_reads_are_fresh_arrays(path, tmp_path):
+    # Writing into a read (e.g. centring before analysis) must never change
+    # the dataset; a backend may cache, but it must not hand the cache out.
+    from fmrimod.dataset import nifti_backend
+
+    sf = SamplingFrame(blocklens=[2, 2], tr=2.0)
+    if path == "matrix":
+        ds = matrix_dataset(np.zeros((4, 3)), tr=2.0, run_length=[2, 2])
+    elif path == "numpy_adapter":
+        ds = FmriDataset(NumpyAdapter([np.zeros((2, 3)), np.zeros((2, 3))], sf))
+    else:
+        img = _write_nifti(tmp_path / "b.nii", np.zeros((3, 1, 1, 4)))
+        mask = _write_nifti(tmp_path / "m.nii", np.ones((3, 1, 1), "uint8"))
+        be = nifti_backend(img, mask, preload=path == "nifti_preload")
+        be.open()
+        ds = FmriDataset(be, sampling_frame=sf)
+    for read in (ds.get_all_data, lambda: ds.get_run_data(1),
+                 lambda: ds.get_data(rows=[0, 3]), lambda: ds.get_data(cols=[1])):
+        out = read()
+        out += 1.0
     np.testing.assert_array_equal(ds.get_all_data(), np.zeros((4, 3)))
 
 

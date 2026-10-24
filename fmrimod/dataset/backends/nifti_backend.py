@@ -199,6 +199,9 @@ class NiftiBackend(StorageBackend):
         assert self._dims is not None and self._mask_vec is not None
         row_idx = _normalize_indices(rows, self._dims.time, "rows")
         col_idx = _normalize_indices(cols, int(self._mask_vec.sum()), "cols")
+        if row_idx is None and col_idx is None:
+            # Never hand out the preload cache: callers may write into reads.
+            return data.copy()
         if row_idx is not None:
             data = data[row_idx, :]
         if col_idx is not None:
