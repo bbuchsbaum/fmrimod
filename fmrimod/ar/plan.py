@@ -33,7 +33,9 @@ class WhiteningPlan:
     runs : NDArray[Any] or None
         Integer run labels (length *n*).
     exact_first : bool
-        Apply exact AR(1) first-sample scaling at segment starts.
+        Start each run/censor segment with the exact stationary
+        initialisation of the AR/ARMA model (exact GLS whitening within
+        segments; Prais-Winsten scaling for AR(1)).
     method : str
         Estimation method: ``"ar"``, ``"arma"``, or ``"afni"``.
     pooling : str
@@ -87,8 +89,7 @@ class WhiteningPlan:
             n_runs = len(np.unique(self.runs))
             lines.append(f"  Runs:    {n_runs}")
         lines.append(
-            f"  Exact first-sample scaling: "
-            f"{'AR(1)' if self.exact_first else 'none'}"
+            f"  Segment start: {'exact stationary' if self.exact_first else 'none'}"
         )
 
         def _fmt(v: NDArray[Any] | None) -> str:
@@ -172,7 +173,7 @@ def plan_from_phi(
     pooling : str
         ``"global"``, ``"run"``, or ``"parcel"``.
     exact_first : bool
-        Apply exact first-sample scaling.
+        Exact stationary start-up at each segment start.
     method : str, optional
         Estimation method label.  Auto-detected from theta if not given.
 
@@ -270,7 +271,7 @@ def whiten_with_phi(
     pooling : str
         Pooling mode.
     exact_first : bool
-        Exact first-sample scaling.
+        Exact stationary start-up at each segment start.
 
     Returns
     -------

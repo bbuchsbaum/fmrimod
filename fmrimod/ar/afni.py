@@ -108,7 +108,7 @@ def afni_restricted_plan(
     estimate_ma1 : bool
         Estimate MA(1) on AR-filtered residuals.
     exact_first : bool
-        Apply exact first-sample AR(1) scaling.
+        Exact stationary start-up at each segment start.
 
     Returns
     -------
