@@ -25,6 +25,13 @@ from .numhelpers import enforce_stationary_ar, levinson_durbin
 ACVF_RCOND_MIN = 1e-6
 # R qr()'s default rank tolerance.
 _QR_RANK_TOL = 1e-7
+# fmriAR .solve_correction heuristics, ported verbatim (5f5fc32, bd4e03f):
+# directions with a singular value below this fraction of the MEDIAN are
+# pinned (the median, because a design leaving few residual df shrinks the
+# whole spectrum relative to the largest value), and the pin makes this
+# trailing fraction of the corrected lag budget as close to zero as possible.
+_CORRECTION_SV_TOL = 0.1
+_CORRECTION_TAIL_FRAC = 0.25
 
 
 @dataclass
@@ -270,6 +277,58 @@ def shrink_to_pd(gamma: NDArray[np.float64], tol: float = 1e-6) -> NDArray[np.fl
     return np.concatenate([[g0], tail * lo])
 
 
+def _qr_solve(a: NDArray[np.float64], b: NDArray[np.float64]) -> NDArray[np.float64]:
+    """R ``qr.solve``: least squares that refuses a rank-deficient system.
+
+    An underdetermined full-row-rank system gets R's basic solution, with
+    the trailing coefficients set to zero.
+    """
+    nr, nc = a.shape
+    d = np.abs(np.diag(scipy_linalg.qr(a, mode="r", pivoting=True)[0]))
+    rank = int(np.sum(d > _QR_RANK_TOL * d[0])) if d.size and d[0] > 0 else 0
+    if rank != min(nr, nc):
+        raise np.linalg.LinAlgError("singular matrix 'a' in solve")
+    if nr >= nc:
+        return np.linalg.lstsq(a, b, rcond=None)[0]
+    x = np.zeros(nc, dtype=np.float64)
+    x[:nr] = np.linalg.solve(a[:, :nr], b)
+    return x
+
+
+def _solve_correction(
+    A: NDArray[np.float64],
+    g: NDArray[np.float64],
+    sv_tol: float = _CORRECTION_SV_TOL,
+    tail_frac: float = _CORRECTION_TAIL_FRAC,
+) -> NDArray[np.float64]:
+    """Solve ``A gamma = g``, pinning the directions the residuals cannot see.
+
+    Projecting out run means and slow drift leaves ``A`` with near-null
+    directions (about a constant offset across lags). Without censoring
+    the raw estimate carries almost no noise along them, but censoring
+    breaks that, and the exact solve returned phi with sd ~0.3 for a truth
+    of 0.4. Directions with a singular value below ``sv_tol`` times the
+    median are not taken from the data: their coefficients make the last
+    ``tail_frac`` of the corrected autocovariance as close to zero as
+    possible, the short-memory assumption the truncated correction already
+    makes. Well-determined directions are solved exactly, so a
+    well-conditioned map gets ``solve(A, g)`` (fmriAR 5f5fc32, bd4e03f
+    ``.solve_correction``).
+    """
+    L = A.shape[1]
+    if L < 8:
+        return np.linalg.solve(A, g)
+    U, d, Vt = np.linalg.svd(A)
+    keep = d > sv_tol * np.median(d)
+    if np.all(keep):
+        return np.linalg.solve(A, g)
+    V = Vt.T
+    x0 = V[:, keep] @ ((U[:, keep].T @ g) / d[keep])
+    N = V[:, ~keep]
+    tail = slice(L - int(np.ceil(tail_frac * L)), L)
+    return x0 + N @ _qr_solve(N[tail], -x0[tail])
+
+
 def apply_acvf_correction(
     gamma: NDArray[np.float64], A: NDArray[np.float64]
 ) -> tuple[NDArray[np.float64], bool]:
@@ -287,7 +346,7 @@ def apply_acvf_correction(
     if not np.isfinite(rcond) or rcond < ACVF_RCOND_MIN:
         return gamma, False
     try:
-        out = np.linalg.solve(Asub, gamma[:L])
+        out = _solve_correction(Asub, gamma[:L])
     except np.linalg.LinAlgError:
         return gamma, False
     if not np.all(np.isfinite(out)) or out[0] <= 0:
