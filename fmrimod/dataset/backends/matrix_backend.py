@@ -7,7 +7,11 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from fmrimod.dataset.backend_protocol import BackendDims, StorageBackend
+from fmrimod.dataset.backend_protocol import (
+    BackendDims,
+    StorageBackend,
+    _normalize_indices,
+)
 from fmrimod.dataset.errors import ConfigError
 
 
@@ -80,10 +84,12 @@ class MatrixBackend(StorageBackend):
     ) -> NDArray[np.float64]:
         """Return masked matrix data with optional row/column selection."""
         data = self._data[:, self._mask]
-        if rows is not None:
-            data = data[np.asarray(rows, dtype=np.intp), :]
-        if cols is not None:
-            data = data[:, np.asarray(cols, dtype=np.intp)]
+        row_idx = _normalize_indices(rows, data.shape[0], "rows")
+        col_idx = _normalize_indices(cols, data.shape[1], "cols")
+        if row_idx is not None:
+            data = data[row_idx, :]
+        if col_idx is not None:
+            data = data[:, col_idx]
         return data
 
     def get_metadata(self) -> dict[str, object]:

@@ -8,8 +8,12 @@ from typing import Any, Literal, cast
 import numpy as np
 from numpy.typing import NDArray
 
-from ..backend_protocol import BackendDims, StorageBackend
-from ..errors import BackendIOError, ConfigError
+from fmrimod.dataset.backend_protocol import (
+    BackendDims,
+    StorageBackend,
+    _normalize_indices,
+)
+from fmrimod.dataset.errors import BackendIOError, ConfigError
 
 CompressionMode = Literal["parcellated", "latent"]
 
@@ -26,22 +30,6 @@ def _decode_h5_value(value: object) -> object:
         if value.dtype.kind in {"S", "O", "U"}:
             return [_decode_h5_value(v) for v in value.tolist()]
     return value
-
-
-def _as_index_array(
-    value: NDArray[np.intp] | int | list[int] | tuple[int, ...] | None,
-    upper: int,
-    name: str,
-) -> NDArray[np.intp] | None:
-    if value is None:
-        return None
-    arr = np.atleast_1d(np.asarray(value))
-    if not np.issubdtype(arr.dtype, np.integer):
-        raise ValueError(f"{name} indices must be integers")
-    out: NDArray[np.intp] = arr.astype(np.intp, copy=False)
-    if np.any(out < 0) or np.any(out >= upper):
-        raise ValueError(f"{name} indices must be within [0, {upper - 1}]")
-    return out
 
 
 class SharedH5Connection:
@@ -209,8 +197,8 @@ class BidsH5ScanBackend(StorageBackend):
         if data.ndim != 2:
             data = data.reshape(self.n_time, self.n_features)
 
-        row_idx = _as_index_array(rows, data.shape[0], "rows")
-        col_idx = _as_index_array(cols, data.shape[1], "cols")
+        row_idx = _normalize_indices(rows, data.shape[0], "rows")
+        col_idx = _normalize_indices(cols, data.shape[1], "cols")
         if row_idx is not None:
             data = data[row_idx, :]
         if col_idx is not None:
