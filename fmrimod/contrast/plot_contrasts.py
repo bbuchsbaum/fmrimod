@@ -13,11 +13,16 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from functools import singledispatch
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
 from ..types import Array, ModelProtocol
+
+if TYPE_CHECKING:
+    import pandas as pd
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
 
 
 @dataclass
@@ -33,12 +38,11 @@ class _Row:
 
 
 @singledispatch
-def plot_contrasts(x: Any,
+def plot_contrasts(x: object,
                    absolute_limits: bool = False,
                    rotate_x_text: bool = True,
                    scale_mode: str = "auto",
-                   figsize: tuple[float, float] | None = None,
-                   **kwargs: Any) -> Any:
+                   figsize: tuple[float, float] | None = None) -> Figure:
     """Plot contrast weights as a heatmap.
 
     Dispatches on ``x``: an ``EventModel`` (its contrasts, labelled from its
@@ -57,10 +61,10 @@ def plot_contrasts(x: Any,
         ``"auto"`` and ``"diverging"`` are symmetric about 0;
         ``"one_sided"`` is a neutral-to-warm scale for non-negative weights.
     figsize : (float, float), optional
-    **kwargs
-        ``annotate``, ``title``, ``subtitle``, ``caption`` and ``ax``; for
-        a dict also ``labels`` (column labels) and ``design`` (a model or
-        design matrix, enabling the SE column).
+
+    The implementations also take ``annotate``, ``title``, ``subtitle``,
+    ``caption`` and ``ax``; the dict one also ``labels`` (column labels)
+    and ``design`` (a model or design matrix, enabling the SE column).
 
     Returns
     -------
@@ -69,7 +73,7 @@ def plot_contrasts(x: Any,
     raise NotImplementedError(f"plot_contrasts not implemented for {type(x)}")
 
 
-def _dict_rows(contrast_dict: dict[str, Any], f_always: bool = False) -> tuple[list[_Row], int]:
+def _dict_rows(contrast_dict: dict[str, object], f_always: bool = False) -> tuple[list[_Row], int]:
     if not contrast_dict:
         raise ValueError("No contrasts provided")
     first = np.asarray(next(iter(contrast_dict.values())), dtype=float)
@@ -87,7 +91,7 @@ def _dict_rows(contrast_dict: dict[str, Any], f_always: bool = False) -> tuple[l
     return rows, p
 
 
-def _design_and_runs(design: Any, p: int) -> tuple[np.ndarray | None, np.ndarray | None]:
+def _design_and_runs(design: object, p: int) -> tuple[np.ndarray | None, np.ndarray | None]:
     if design is None:
         return None, None
     from ..visualization._design_common import (
@@ -118,7 +122,7 @@ def _plot_contrasts_dict(contrast_dict: dict[str, Array],
                          figsize: tuple[float, float] | None = None,
                          labels: Sequence[str] | None = None,
                          design: Any = None,
-                         **kwargs: Any) -> Any:
+                         **kwargs: object) -> Figure:
     """Plot contrasts from a dict of weight vectors or ``p x k`` matrices.
 
     ``labels`` names the design columns (default ``Reg1``, ...); a
@@ -133,7 +137,7 @@ def _plot_contrasts_dict(contrast_dict: dict[str, Array],
                             rotate_x_text=rotate_x_text, scale_mode=scale_mode, figsize=figsize, **kwargs)
 
 
-def _event_model_rows(model: Any) -> list[_Row]:
+def _event_model_rows(model: object) -> list[_Row]:
     from . import contrast_weights
 
     cws = contrast_weights(model)
@@ -172,8 +176,11 @@ def plot_contrasts_event_model(model: ModelProtocol,
                                rotate_x_text: bool = True,
                                scale_mode: str = "auto",
                                figsize: tuple[float, float] | None = None,
-                               **kwargs: Any) -> Any:
+                               **kwargs: object) -> Any:
     """Plot the contrasts defined on an ``EventModel``'s terms.
+
+    (Returns a matplotlib Figure; annotated ``Any`` so the hint resolves
+    without importing matplotlib.)
 
     Columns are labelled and grouped as in ``design_map``; the SE column
     uses the model's design with one intercept per run.
@@ -199,7 +206,7 @@ def plot_contrasts_event_model(model: ModelProtocol,
 def render_contrasts(
     rows: list[_Row],
     col_labels: list[str],
-    ci: Any,
+    ci: pd.DataFrame | None,
     X: np.ndarray | None,
     run: np.ndarray | None,
     *,
@@ -211,9 +218,9 @@ def render_contrasts(
     title: str | None = None,
     subtitle: str | None = None,
     caption: str | None = None,
-    ax: Any = None,
+    ax: Axes | None = None,
     default_title: str = "Contrast weights",
-) -> Any:
+) -> Figure:
     """Draw contrast rows as the R heatmap; shared by plot_Fcontrasts."""
     from matplotlib.colors import Normalize
     from matplotlib.transforms import ScaledTranslation, blended_transform_factory

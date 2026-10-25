@@ -5,7 +5,7 @@ from __future__ import annotations
 import itertools
 import warnings
 from functools import reduce, singledispatch
-from typing import Any, Dict, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, cast
 
 import numpy as np
 
@@ -16,6 +16,10 @@ from ..events.factor import EventFactor
 from ..events.term import EventTerm
 from ..events.variable import EventVariable
 from ..types import Array
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
 
 
 @singledispatch
@@ -282,9 +286,16 @@ def _term_nbasis(model: EventModel, term_indices_vec: list[int]) -> int:
 
 
 @singledispatch
-def plot_Fcontrasts(x: Any,
+def plot_Fcontrasts(x: object,
                     figsize: tuple[float, float] | None = None,
-                    **kwargs: Any) -> Any:
+                    *,
+                    annotate: bool | None = None,
+                    title: str | None = None,
+                    subtitle: str | None = None,
+                    caption: str | None = None,
+                    absolute_limits: bool = False,
+                    rotate_x_text: bool = True,
+                    ax: Axes | None = None) -> Figure:
     """Plot F-contrast matrices as one heatmap, one row per component.
 
     Dispatches on ``x``: a dict from :func:`Fcontrasts` (name to ``p x k``
@@ -298,10 +309,18 @@ def plot_Fcontrasts(x: Any,
     ----------
     x : Dict[str, Array] or EventModel
     figsize : tuple, optional
-    **kwargs
-        Passed to the renderer: ``annotate``, ``title``, ``subtitle``,
-        ``caption``, ``ax``, ``absolute_limits``, ``rotate_x_text``; for a
-        dict also ``labels`` and ``design``.
+    annotate : bool, optional
+        Print the weights (default up to 40 columns).
+    title, subtitle, caption : str, optional
+        ``None`` uses the default; ``""`` removes it.
+    absolute_limits : bool
+        Fix the fill at [-1, 1].
+    rotate_x_text : bool
+        Angle column labels when they would overlap.
+    ax : matplotlib Axes, optional
+    labels, design
+        For a dict: column labels, and a model or design matrix for the SE
+        column.
 
     Returns
     -------
@@ -318,9 +337,16 @@ def plot_Fcontrasts(x: Any,
 @plot_Fcontrasts.register(dict)
 def _plot_fcontrasts_dict(fcontrasts: dict[str, Array],
                           figsize: tuple[float, float] | None = None,
+                          *,
                           labels: list[str] | None = None,
-                          design: Any = None,
-                          **kwargs: Any) -> Any:
+                          design: object = None,
+                          annotate: bool | None = None,
+                          title: str | None = None,
+                          subtitle: str | None = None,
+                          caption: str | None = None,
+                          absolute_limits: bool = False,
+                          rotate_x_text: bool = True,
+                          ax: Axes | None = None) -> Figure:
     """Plot F-contrast matrices from a dictionary (name to ``p x k``)."""
     from .plot_contrasts import _design_and_runs, _dict_rows, render_contrasts
 
@@ -329,13 +355,21 @@ def _plot_fcontrasts_dict(fcontrasts: dict[str, Array],
     rows, p = _dict_rows(fcontrasts, f_always=True)
     col_labels = list(labels) if labels is not None else [f"Reg{i + 1}" for i in range(p)]
     X, run = _design_and_runs(design, p)
-    kwargs.setdefault("default_title", "F-contrast weights")
-    return render_contrasts(rows, col_labels, None, X, run, figsize=figsize, **kwargs)
+    return render_contrasts(rows, col_labels, None, X, run, figsize=figsize, annotate=annotate, title=title,
+                            subtitle=subtitle, caption=caption, absolute_limits=absolute_limits,
+                            rotate_x_text=rotate_x_text, ax=ax, default_title="F-contrast weights")
 
 
 def _plot_fcontrasts_event_model(model: EventModel,
                                  figsize: tuple[float, float] | None = None,
-                                 **kwargs: Any) -> Any:
+                                 *,
+                                 annotate: bool | None = None,
+                                 title: str | None = None,
+                                 subtitle: str | None = None,
+                                 caption: str | None = None,
+                                 absolute_limits: bool = False,
+                                 rotate_x_text: bool = True,
+                                 ax: Axes | None = None) -> Figure:
     """Plot the F-contrasts of an ``EventModel``."""
     from ..visualization._design_common import (
         design_columns,
@@ -356,8 +390,9 @@ def _plot_fcontrasts_event_model(model: EventModel,
     ci = ci[ci["kind"] == "event"].reset_index(drop=True)
     X = model_design_matrix(model)
     run = timeline(model_sampling_frame(model), X.shape[0]).run
-    kwargs.setdefault("default_title", "F-contrast weights")
-    return render_contrasts(rows, list(ci["full_label"]), ci, X, run, figsize=figsize, **kwargs)
+    return render_contrasts(rows, list(ci["full_label"]), ci, X, run, figsize=figsize, annotate=annotate,
+                            title=title, subtitle=subtitle, caption=caption, absolute_limits=absolute_limits,
+                            rotate_x_text=rotate_x_text, ax=ax, default_title="F-contrast weights")
 
 
 # Register the EventModel implementation

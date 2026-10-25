@@ -10,7 +10,12 @@ as bars on one time axis, as scan grids, or as a compact lane.
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
+
 
 import numpy as np
 import pandas as pd
@@ -51,7 +56,7 @@ def motion_kind(label: str) -> str | None:
     return None
 
 
-def _term_columns(model: Any) -> tuple[pd.DataFrame, dict[str, list[int]]]:
+def _term_columns(model: object) -> tuple[pd.DataFrame, dict[str, list[int]]]:
     ci = design_columns(model)
     by_term: dict[str, list[int]] = {}
     for i, t in enumerate(ci["term"]):
@@ -133,7 +138,7 @@ def drift_cutoff_note(basis: str, k_per_run: np.ndarray, run_dur: np.ndarray) ->
 
 
 def plot_baseline_model(
-    model: Any,
+    model: object,
     term: str | None = None,
     title: str | None = None,
     subtitle: str | None = None,
@@ -143,7 +148,7 @@ def plot_baseline_model(
     figsize: tuple[float, float] | None = None,
     line_width: float = 1.2,
     term_name: str | None = None,
-) -> Any:
+) -> Figure:
     """Plot the time-varying terms of a baseline model (R ``plot.baseline_model``).
 
     One lane per term on a shared time axis: drift basis functions keep
@@ -381,7 +386,7 @@ def plot_baseline_model(
 # --------------------------------------------------------------------------
 
 
-def _frame_events(events: Any, runs: pd.DataFrame) -> tuple[pd.DataFrame, str]:
+def _frame_events(events: object, runs: pd.DataFrame) -> tuple[pd.DataFrame, str]:
     """Run-relative onsets and run numbers for the coverage overlay, and a
     caption note (R ``.fd_sf_events``)."""
     if hasattr(events, "events") and hasattr(events, "blockids") and isinstance(events.events, dict):
@@ -447,17 +452,17 @@ def _stack(left: np.ndarray, right: np.ndarray, gap: float) -> np.ndarray:
 
 
 def plot_sampling_frame(
-    sframe: Any,
+    sframe: object,
     style: str = "timeline",
     show_ticks: bool = False,
     tick_every: int | None = None,
-    events: Any = None,
+    events: object = None,
     title: str | None = None,
     subtitle: str | None = None,
     caption: str | None = None,
     figsize: tuple[float, float] | None = None,
-    ax: Any = None,
-) -> Any:
+    ax: Axes | None = None,
+) -> Figure:
     """Plot the runs of a sampling frame (R ``plot.sampling_frame``).
 
     Parameters

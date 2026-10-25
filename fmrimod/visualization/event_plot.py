@@ -15,7 +15,12 @@ Runs are hairlines with "Run k" labels on top; no line crosses a run.
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
+
 
 import numpy as np
 import pandas as pd
@@ -83,7 +88,7 @@ def _abbreviate(labels: list[str], minlength: int) -> list[str]:
     return uniq
 
 
-def event_table(model: Any, ci: pd.DataFrame, row_key: list[str], tl: Timeline) -> pd.DataFrame | None:
+def event_table(model: object, ci: pd.DataFrame, row_key: list[str], tl: Timeline) -> pd.DataFrame | None:
     """Event onsets per display row, in plot time units.
 
     Columns: ``onset``, ``duration``, ``row``, ``event`` (one id per
@@ -190,7 +195,7 @@ def _caption(ev: pd.DataFrame | None, y_scale: str, style: str) -> str:
 
 
 def plot_event_model(
-    model: Any,
+    model: object,
     term: str | None = None,
     style: str = "auto",
     show_events: bool = True,
@@ -203,9 +208,9 @@ def plot_event_model(
     subtitle: str | None = None,
     caption: str | None = None,
     figsize: tuple[float, float] | None = None,
-    ax: Any = None,
+    ax: Axes | None = None,
     abbrev_min: int = 10,
-) -> Any:
+) -> Figure:
     """Plot the convolved regressors of an event model against time.
 
     Parameters
@@ -315,18 +320,25 @@ def plot_event_model(
 
 
 def plot_design_matrix(
-    model: Any,
+    model: object,
     term_name: str | None = None,
     figsize: tuple[float, float] | None = None,
     separate_regressors: bool = True,
-    **kwargs: Any,
-) -> Any:
+    style: str | None = None,
+    show_events: bool = True,
+    block_x: str = "global",
+    title: str | None = None,
+    subtitle: str | None = None,
+    caption: str | None = None,
+) -> Figure:
     """Alias of :func:`plot_event_model` kept for the former API.
 
     ``separate_regressors=False`` selects the overlay style.
     """
-    style = kwargs.pop("style", "auto" if separate_regressors else "overlay")
-    return plot_event_model(model, term=term_name, style=style, figsize=figsize, **kwargs)
+    if style is None:
+        style = "auto" if separate_regressors else "overlay"
+    return plot_event_model(model, term=term_name, style=style, figsize=figsize, show_events=show_events,
+                            block_x=block_x, title=title, subtitle=subtitle, caption=caption)
 
 
 # --------------------------------------------------------------------------
@@ -338,7 +350,7 @@ def _run_segments(tl: Timeline) -> list[np.ndarray]:
     return [np.flatnonzero(tl.run == r) for r in tl.runs["run"]]
 
 
-def _x_frame(ax: Any, tl: Timeline, block_x: str, time_range: tuple[float, float] | None,
+def _x_frame(ax: Axes, tl: Timeline, block_x: str, time_range: tuple[float, float] | None,
              label: bool = True, runs: list[int] | None = None) -> None:
     if tl.unit != "s":
         lo, hi = float(tl.runs["start"].iloc[0]), float(tl.runs["end"].iloc[-1])
@@ -353,10 +365,11 @@ def _x_frame(ax: Any, tl: Timeline, block_x: str, time_range: tuple[float, float
     time_axis(ax, lo, hi, label=("Time within run (min:s)" if block_x == "run" else "Time (min:s)") if label else None)
 
 
-def _stacked(*, model: Any, X: np.ndarray, ci: pd.DataFrame, tl: Timeline, row_key: list[str], rows: list[str],
+def _stacked(*, model: object, X: np.ndarray, ci: pd.DataFrame, tl: Timeline, row_key: list[str], rows: list[str],
              colours: dict[str, str], ev: pd.DataFrame | None, suppress: bool, row_disp: dict[str, str],
-             col_disp: list[str], block_x: str, time_range: Any, title: Any, subtitle: Any, caption: Any,
-             figsize: Any, y_scale: str) -> Any:
+             col_disp: list[str], block_x: str, time_range: tuple[float, float] | None, title: str | None,
+             subtitle: str | None, caption: str | None,
+             figsize: tuple[float, float] | None, y_scale: str) -> Figure:
     from matplotlib.ticker import FixedLocator, FuncFormatter, NullLocator
 
     # Display rows: condition x basis, in design order of first appearance.
@@ -473,10 +486,11 @@ def _stacked(*, model: Any, X: np.ndarray, ci: pd.DataFrame, tl: Timeline, row_k
     return fig
 
 
-def _overlay(*, model: Any, X: np.ndarray, ci: pd.DataFrame, tl: Timeline, row_key: list[str], rows: list[str],
+def _overlay(*, model: object, X: np.ndarray, ci: pd.DataFrame, tl: Timeline, row_key: list[str], rows: list[str],
              colours: dict[str, str], ev: pd.DataFrame | None, suppress: bool, row_disp: dict[str, str],
-             col_disp: list[str], block_x: str, time_range: Any, title: Any, subtitle: Any, caption: Any,
-             figsize: Any, ax: Any) -> Any:
+             col_disp: list[str], block_x: str, time_range: tuple[float, float] | None, title: str | None,
+             subtitle: str | None, caption: str | None,
+             figsize: tuple[float, float] | None, ax: Axes) -> Figure:
     p = X.shape[1]
     reg_cols = palette(p)
     own = ax is None
@@ -519,10 +533,11 @@ def _overlay(*, model: Any, X: np.ndarray, ci: pd.DataFrame, tl: Timeline, row_k
     return fig
 
 
-def _heatmap(*, model: Any, X: np.ndarray, ci: pd.DataFrame, tl: Timeline, row_key: list[str], rows: list[str],
+def _heatmap(*, model: object, X: np.ndarray, ci: pd.DataFrame, tl: Timeline, row_key: list[str], rows: list[str],
              colours: dict[str, str], ev: pd.DataFrame | None, suppress: bool, row_disp: dict[str, str],
-             col_disp: list[str], block_x: str, time_range: Any, title: Any, subtitle: Any, caption: Any,
-             figsize: Any, ax: Any) -> Any:
+             col_disp: list[str], block_x: str, time_range: tuple[float, float] | None, title: str | None,
+             subtitle: str | None, caption: str | None,
+             figsize: tuple[float, float] | None, ax: Axes) -> Figure:
     p = X.shape[1]
     order = list(range(p))
     no_basis = pd.to_numeric(ci["basis_total"], errors="coerce").fillna(1).max() <= 1

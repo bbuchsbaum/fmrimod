@@ -10,7 +10,12 @@ correlation map's diagonal. The numbers live in
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
+
 
 import numpy as np
 import pandas as pd
@@ -50,7 +55,7 @@ from .style import BASE_SIZE, INK, WARN
 # --------------------------------------------------------------------------
 
 
-def display_columns(model: Any) -> pd.DataFrame:
+def display_columns(model: object) -> pd.DataFrame:
     """Column metadata in display order (R ``.fd_hm_columns``).
 
     Baseline columns are regrouped by term and then run, so each term's
@@ -92,7 +97,7 @@ def _thin(n: int, max_labels: int) -> list[int]:
     return list(range(0, n, k))
 
 
-def _run_value(v: Any) -> str:
+def _run_value(v: object) -> str:
     if v is None or (isinstance(v, float) and np.isnan(v)):
         return ""
     return str(int(v))
@@ -104,7 +109,7 @@ def _run_value(v: Any) -> str:
 
 
 def design_map(
-    model: Any,
+    model: object,
     block_separators: bool = True,
     rotate_x_text: bool = True,
     fill_midpoint: float | None = None,
@@ -117,9 +122,9 @@ def design_map(
     caption: str | None = None,
     max_labels: int = 60,
     figsize: tuple[float, float] | None = None,
-    ax: Any = None,
-    **kwargs: Any,
-) -> Any:
+    ax: Axes | None = None,
+    **kwargs: object,
+) -> Figure:
     """Design matrix as an image, in the style of SPM (R ``design_map``).
 
     One row per scan (time runs downward), one column per regressor.
@@ -356,7 +361,7 @@ def _fmt_r(r: float, digits: int) -> str:
 
 
 def correlation_map(
-    model: Any,
+    model: object,
     rotate_x_text: bool = True,
     method: str = "pearson",
     half_matrix: bool = True,
@@ -369,9 +374,9 @@ def correlation_map(
     caption: str | None = None,
     within_run: bool | None = None,
     figsize: tuple[float, float] | None = None,
-    ax: Any = None,
+    ax: Axes | None = None,
     annot: bool | None = None,
-) -> Any:
+) -> Figure:
     """Pairwise regressor correlations as a lower triangle (R ``correlation_map``).
 
     The fill is the diverging palette fixed at [-1, 1] with a neutral zero;
@@ -583,7 +588,7 @@ def correlation_map(
     return fig
 
 
-def plot_model_summary(model: Any, figsize: tuple[float, float] | None = None) -> dict[str, Any]:
+def plot_model_summary(model: object, figsize: tuple[float, float] | None = None) -> dict[str, Figure]:
     """The design map, correlation map and regressor plot of a model.
 
     Returns a dict with ``"design_map"``, ``"correlation_map"`` and

@@ -10,7 +10,20 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from matplotlib.artist import Artist
+    from matplotlib.axes import Axes
+    from matplotlib.backend_bases import RendererBase
+    from matplotlib.cm import ScalarMappable
+    from matplotlib.colorbar import Colorbar
+    from matplotlib.colors import Colormap, Normalize
+    from matplotlib.figure import Figure
+    from matplotlib.ticker import FuncFormatter
+    from matplotlib.transforms import Bbox
+
+    from ..sampling import SamplingFrame
 
 import numpy as np
 import pandas as pd
@@ -39,7 +52,7 @@ PM = "±"
 # --------------------------------------------------------------------------
 
 
-def model_design_matrix(model: Any) -> np.ndarray:
+def model_design_matrix(model: object) -> np.ndarray:
     """The full design matrix as a float array (``FmriModel`` builds it on call)."""
     dm = model.design_matrix
     if callable(dm):
@@ -50,7 +63,7 @@ def model_design_matrix(model: Any) -> np.ndarray:
     return out.reshape(-1, 1) if out.ndim == 1 else out
 
 
-def model_sampling_frame(model: Any) -> Any:
+def model_sampling_frame(model: object) -> SamplingFrame | None:
     for attr in ("sampling_frame", "sampling_info"):
         try:
             sf = getattr(model, attr, None)
@@ -61,7 +74,7 @@ def model_sampling_frame(model: Any) -> Any:
     return None
 
 
-def is_baseline_model(model: Any) -> bool:
+def is_baseline_model(model: object) -> bool:
     from ..baseline.baseline_model import BaselineModel
 
     return isinstance(model, BaselineModel)
@@ -70,7 +83,7 @@ def is_baseline_model(model: Any) -> bool:
 _DRIFT_RE = re.compile(r"^base_[A-Za-z]+?(\d+)_block_\d+$")
 
 
-def design_columns(model: Any) -> pd.DataFrame:
+def design_columns(model: object) -> pd.DataFrame:
     """:func:`column_info` with baseline rows labelled by role.
 
     Baseline columns are grouped as ``drift`` (labelled ``drift k``),
@@ -158,7 +171,7 @@ class Timeline:
         return [float(self.runs["start"].iloc[0])] + [float(v) for v in self.runs["end"]]
 
 
-def timeline(sframe: Any, n_rows: int, block_x: str = "global") -> Timeline:
+def timeline(sframe: object, n_rows: int, block_x: str = "global") -> Timeline:
     """Per-scan runs and times plus a run table (R ``.fd_timeline``).
 
     A frame whose scans do not match ``n_rows`` falls back to scan units.
@@ -292,7 +305,7 @@ class Group:
         return (self.start + self.end) / 2
 
 
-def groups_of(keys: Sequence[Any], labels: Sequence[Any] | None = None) -> list[Group]:
+def groups_of(keys: Sequence[object], labels: Sequence[object] | None = None) -> list[Group]:
     """Runs of consecutive equal keys (R ``.fd_hm_groups``)."""
     keys = [str(k) for k in keys]
     labels = list(labels) if labels is not None else keys
@@ -311,7 +324,7 @@ def boundaries(groups: Sequence[Group]) -> list[float]:
 
 
 def draw_spanners(
-    ax: Any,
+    ax: Axes,
     groups: Sequence[Group],
     *,
     text_pt: float = 6.0,
@@ -320,7 +333,7 @@ def draw_spanners(
     weight: str = "bold",
     colour: str | None = None,
     overflow_pt: float = 24.0,
-) -> list[Any]:
+) -> list[Artist]:
     """Term spanners above ``ax``: a label over a thin rule per group.
 
     x is in data units (columns at 0..p-1), y in points above the axes.
@@ -350,7 +363,7 @@ def draw_spanners(
     return out
 
 
-def fit_spanners(fig: Any) -> None:
+def fit_spanners(fig: Figure) -> None:
     """Shorten spanner labels that overflow their group; inset the rules."""
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
@@ -439,13 +452,13 @@ def row_colours(ci: pd.DataFrame, row_key: Sequence[str]) -> dict[str, str]:
 
 
 def cbar_axes(
-    ax: Any,
+    ax: Axes,
     where: str = "bottom",
     *,
     width_in: float = 1.5,
     height_pt: float = 6.0,
     gap_pt: float = 10.0,
-) -> Any:
+) -> Axes:
     """A slim colourbar axes anchored to ``ax``'s right edge.
 
     ``"bottom"`` sits ``gap_pt`` below the x tick labels and axis title;
@@ -457,7 +470,7 @@ def cbar_axes(
 
     cax = ax.inset_axes([0, 0, 1, 1])
 
-    def locate(_a: Any, renderer: Any) -> Any:
+    def locate(_a: Axes, renderer: RendererBase) -> Bbox:
         fig = ax.figure
         pos = ax.get_position()
         fh, fw = fig.get_figheight(), fig.get_figwidth()
@@ -476,14 +489,14 @@ def cbar_axes(
 
 
 def colourbar(
-    fig: Any,
-    cax: Any,
-    mappable: Any,
+    fig: Figure,
+    cax: Axes,
+    mappable: ScalarMappable,
     label: str | None,
     ticks: Sequence[float] | None = None,
     *,
     label_side: str = "left",
-) -> Any:
+) -> Colorbar:
     """A slim horizontal colourbar in ``cax`` with its title beside it."""
     cb = fig.colorbar(mappable, cax=cax, orientation="horizontal")
     cb.outline.set_visible(False)
@@ -503,13 +516,13 @@ def colourbar(
     return cb
 
 
-def _bar_formatter() -> Any:
+def _bar_formatter() -> FuncFormatter:
     from matplotlib.ticker import FuncFormatter
 
     return FuncFormatter(lambda v, _p=None: fd_num(v, 2) if abs(v) > 1e-12 else "0")
 
 
-def freeze_fonts(fig: Any) -> Any:
+def freeze_fonts(fig: Figure) -> Figure:
     """Pin every text in ``fig`` to the theme's font list.
 
     Text created under :func:`themed` stores the generic ``sans-serif``
@@ -529,8 +542,8 @@ def freeze_fonts(fig: Any) -> Any:
     return fig
 
 
-def finish_figure(fig: Any, title: str | None, subtitle: str | None, caption: str | None,
-                  *, own: bool = True, ax: Any = None) -> Any:
+def finish_figure(fig: Figure, title: str | None, subtitle: str | None, caption: str | None,
+                  *, own: bool = True, ax: Axes | None = None) -> Figure:
     """Pin fonts, lay out with the header and caption (own figure) or put
     the title on ``ax``, then shorten spanner labels that overflow."""
     from ._helpers import finish
@@ -553,9 +566,9 @@ def header_width(subtitle: str | None, title: str | None = None, cap: float = 9.
     return min(max(len(ln) for ln in lines) / 13.0 + 0.4, cap)
 
 
-def finish_to_panel(fig: Any, ax: Any, title: str | None, subtitle: str | None, caption: str | None,
+def finish_to_panel(fig: Figure, ax: Axes, title: str | None, subtitle: str | None, caption: str | None,
                     *, width_in: float | None = None, height_in: float | None = None,
-                    min_width: float = 0.0) -> Any:
+                    min_width: float = 0.0) -> Figure:
     """:func:`finish_figure`, then resize the figure so ``ax`` is exactly
     ``width_in`` x ``height_in`` inches (square cells without fixing the
     aspect, which would fight ``tight_layout``), and lay out again. A
@@ -583,7 +596,7 @@ def finish_to_panel(fig: Any, ax: Any, title: str | None, subtitle: str | None, 
     return fig
 
 
-def fd_cmap(kind: str = "diverging") -> Any:
+def fd_cmap(kind: str = "diverging") -> Colormap:
     """:func:`style.cmap` without the ``set_bad`` call that matplotlib 3.11
     flags as pending deprecation (uses ``with_extremes``)."""
     from matplotlib.colors import LinearSegmentedColormap
@@ -597,7 +610,7 @@ def fd_cmap(kind: str = "diverging") -> Any:
     return cm.with_extremes(bad=INK["band"])
 
 
-def signed_norm(limit: float, lower: float | None = None) -> Any:
+def signed_norm(limit: float, lower: float | None = None) -> Normalize:
     from matplotlib.colors import Normalize
 
     limit = limit if np.isfinite(limit) and limit > 0 else 1.0

@@ -9,15 +9,13 @@ the renderers and tests share.
 
 from __future__ import annotations
 
-from typing import Any
-
 import numpy as np
 import pandas as pd
 
 from ._design_common import model_design_matrix, model_sampling_frame, timeline
 
 
-def _scan_runs(model: Any, n: int) -> np.ndarray:
+def _scan_runs(model: object, n: int) -> np.ndarray:
     return timeline(model_sampling_frame(model), n).run
 
 
@@ -163,7 +161,7 @@ def contrast_se(X: np.ndarray, run: np.ndarray | None, W: np.ndarray) -> np.ndar
 # --------------------------------------------------------------------------
 
 
-def _prepared(model: Any, within_run: bool | None) -> tuple[np.ndarray, pd.DataFrame, np.ndarray, bool]:
+def _prepared(model: object, within_run: bool | None) -> tuple[np.ndarray, pd.DataFrame, np.ndarray, bool]:
     from ._design_common import is_baseline_model
     from .heatmaps import display_columns
 
@@ -179,7 +177,7 @@ def _prepared(model: Any, within_run: bool | None) -> tuple[np.ndarray, pd.DataF
     return X, ci, run, bool(within_run)
 
 
-def design_correlations(model: Any, method: str = "pearson", within_run: bool | None = False) -> pd.DataFrame:
+def design_correlations(model: object, method: str = "pearson", within_run: bool | None = False) -> pd.DataFrame:
     """Correlations between the design columns of ``model``.
 
     Parameters
@@ -204,7 +202,7 @@ def design_correlations(model: Any, method: str = "pearson", within_run: bool | 
     return pd.DataFrame(R, index=labels, columns=labels)
 
 
-def design_vif(model: Any, within_run: bool | None = False) -> pd.Series:
+def design_vif(model: object, within_run: bool | None = False) -> pd.Series:
     """Variance inflation factor of each design column (per-run intercepts).
 
     ``inf`` marks an aliased column; NaN a column constant within runs.
