@@ -458,9 +458,11 @@ class TestSingledispatchHandlers:
         term = make_term(['A', 'B', 'C'])
         spec = ColumnContrastSpec(pattern_A='NOMATCH', pattern_B=None, name='test')
 
-        with pytest.warns(UserWarning, match="matched no columns"):
-            with pytest.raises(ContrastError, match="No conditions were selected"):
-                contrast_weights(spec, term)
+        with (
+            pytest.warns(UserWarning, match="matched no columns"),
+            pytest.raises(ContrastError, match="No conditions were selected"),
+        ):
+            contrast_weights(spec, term)
 
     def test_column_contrast_no_match_B(self):
         """Test ColumnContrastSpec when pattern_B matches nothing."""
