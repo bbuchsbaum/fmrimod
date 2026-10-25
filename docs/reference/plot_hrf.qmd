@@ -1,0 +1,20 @@
+# plotting.plot_hrf { #fmrimod.plotting.plot_hrf }
+
+```python
+plot_hrf(hrf, time=None, normalize=False, show_peak=True, ax=None, **kwargs)
+```
+
+Plot a single HRF.
+
+For multi-basis HRFs each basis function is plotted as a separate line.
+
+Args:
+    hrf: HRF object to plot.
+    time: Time points (seconds).  Defaults to ``np.arange(0, span, 0.1)``.
+    normalize: Normalize each basis to unit peak before plotting.
+    show_peak: Annotate peak time and amplitude on single-basis plots.
+    ax: Existing matplotlib Axes.  Created if ``None``.
+    **kwargs: Forwarded to ``ax.plot()``.
+
+Returns:
+    The matplotlib Axes object.

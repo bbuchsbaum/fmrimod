@@ -1,0 +1,30 @@
+# plotting.plot_hrfs { #fmrimod.plotting.plot_hrfs }
+
+```python
+plot_hrfs(
+    *hrfs,
+    time=None,
+    normalize=False,
+    labels=None,
+    title=None,
+    ax=None,
+    **kwargs,
+)
+```
+
+Overlay multiple HRFs on the same axes for comparison.
+
+Only single-basis HRFs (or the first basis of multi-basis HRFs) are
+plotted to keep the comparison readable.
+
+Args:
+    *hrfs: HRF objects to compare.
+    time: Time points (seconds).  Defaults to the max span across HRFs.
+    normalize: Normalize each HRF to unit peak.
+    labels: Per-HRF labels for the legend.
+    title: Plot title.
+    ax: Existing matplotlib Axes.
+    **kwargs: Forwarded to ``ax.plot()``.
+
+Returns:
+    The matplotlib Axes object.

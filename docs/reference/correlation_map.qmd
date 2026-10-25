@@ -1,0 +1,47 @@
+# visualization.design_map.correlation_map { #fmrimod.visualization.design_map.correlation_map }
+
+```python
+correlation_map(
+    model,
+    rotate_x_text=True,
+    figsize=None,
+    cmap='RdBu_r',
+    annot=False,
+    fmt='.2f',
+    **kwargs,
+)
+```
+
+Visualize correlation matrix of design matrix regressors.
+
+Creates a heatmap showing the correlation between all pairs of
+regressors in the design matrix.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name          | Type                        | Description                                                       | Default    |
+|---------------|-----------------------------|-------------------------------------------------------------------|------------|
+| model         | EventModel or BaselineModel | Event model or baseline model containing the design matrix        | _required_ |
+| rotate_x_text | bool                        | Whether to rotate x-axis labels                                   | `True`     |
+| figsize       | tuple of float              | Figure size as (width, height). If None, automatically determined | `None`     |
+| cmap          | str                         | Colormap name (diverging colormap recommended)                    | `'RdBu_r'` |
+| annot         | bool                        | Whether to annotate cells with correlation values                 | `False`    |
+| fmt           | str                         | Format string for annotations                                     | `'.2f'`    |
+| **kwargs      | object                      | Additional arguments passed to seaborn's heatmap                  | `{}`       |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                     | Description       |
+|--------|--------------------------|-------------------|
+| fig    | matplotlib.figure.Figure | The figure object |
+| ax     | matplotlib.axes.Axes     | The axes object   |
+
+## Examples {.doc-section .doc-section-examples}
+
+```python
+>>> # Basic correlation map
+>>> fig, ax = correlation_map(model)
+>>>
+>>> # With correlation values shown
+>>> fig, ax = correlation_map(model, annot=True, figsize=(10, 8))
+```

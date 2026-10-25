@@ -1,0 +1,37 @@
+# visualization.design_map.plot_baseline_model { #fmrimod.visualization.design_map.plot_baseline_model }
+
+```python
+plot_baseline_model(model, term_name=None, title=None, figsize=None, **kwargs)
+```
+
+Plot baseline model terms over time.
+
+Shows drift, block, and nuisance terms as line plots,
+with faceting by block/run when applicable.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name      | Type          | Description                                                              | Default    |
+|-----------|---------------|--------------------------------------------------------------------------|------------|
+| model     | BaselineModel | Baseline model to visualize                                              | _required_ |
+| term_name | str           | Specific term to plot ('drift', 'block', 'nuisance'). If None, plot all. | `None`     |
+| title     | str           | Custom title                                                             | `None`     |
+| figsize   | tuple         | Figure size                                                              | `None`     |
+| **kwargs  | object        | Additional arguments passed to plot functions                            | `{}`       |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                          | Description       |
+|--------|-------------------------------|-------------------|
+| fig    | matplotlib.figure.Figure      | The figure object |
+| axes   | array of matplotlib.axes.Axes | The axes objects  |
+
+## Examples {.doc-section .doc-section-examples}
+
+```python
+>>> # Plot all baseline terms
+>>> fig, axes = plot_baseline_model(baseline_model)
+>>>
+>>> # Plot only drift term
+>>> fig, axes = plot_baseline_model(baseline_model, term_name='drift')
+```

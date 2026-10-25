@@ -1,10 +1,12 @@
 ---
 title: "Robust model pieces"
-subtitle: "Downweight outliers before they reach the GLM seam."
+subtitle: "Inspect the scale estimates and weights used in robust fitting."
 jupyter: python3
 execute:
   freeze: auto
 ---
+
+{{< include ../_plot-setup.qmd >}}
 
 A single bad time point — a swallow, a big head movement — can pull an
 ordinary least-squares estimate toward itself, because OLS minimizes
@@ -15,7 +17,7 @@ large for that scale, and refit. The full estimator is `fmri_rlm(...)`;
 this page opens up the two primitives it is built from so you can see
 exactly what "downweight an outlier" means numerically.
 
-## Robust Scale and Weights
+## Inspect scale and weights
 
 ```{python}
 import numpy as np
@@ -47,7 +49,26 @@ weights = pd.DataFrame({
 weights.round(3)
 ```
 
-## Where This Fits
+## Plot the weighting rules
+
+Viewing the full weighting curves shows how each rule responds as a residual
+moves away from zero. The horizontal axis is in units of the residual scale.
+
+```{python}
+#| fig-width: 8
+#| fig-height: 3.2
+#| fig-alt: "Huber and bisquare weight curves against standardized residual. Huber weights decrease gradually while bisquare weights reach zero for large residuals."
+#| fig-cap: "Default robust weighting rules for residuals scaled to unit dispersion. These are estimator weights, not probabilities that a time point is valid."
+standardized = np.linspace(-7, 7, 281)[:, None]
+fig, ax = plt.subplots(figsize=(8, 3.2))
+ax.plot(standardized[:, 0], huber_weights(standardized, np.ones(1))[:, 0], label="Huber")
+ax.plot(standardized[:, 0], bisquare_weights(standardized, np.ones(1))[:, 0], label="Bisquare")
+ax.set(xlabel="Residual / scale", ylabel="Weight", ylim=(-0.03, 1.05))
+ax.legend()
+plt.show()
+```
+
+## Choose robust fitting
 
 Use robust fitting when a small number of high-residual time points would
 otherwise dominate a voxel-wise estimate. The authored model stays the same;

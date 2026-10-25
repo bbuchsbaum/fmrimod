@@ -78,11 +78,32 @@ project:
     - "reference/t_to_d.qmd"
     - "reference/r_to_z.qmd"
     - "reference/z_to_r.qmd"
+    - "reference/estimate_hrf.qmd"
+    - "reference/estimate_hrf_fir.qmd"
+    - "reference/HrfEstimate.qmd"
+    - "reference/coef_images.qmd"
+    - "reference/group_dataset.qmd"
+    - "reference/examine_group.qmd"
+    - "reference/GroupExamination.qmd"
+    - "reference/examination_control.qmd"
+    - "reference/plot_hrf.qmd"
+    - "reference/plot_hrfs.qmd"
+    - "reference/plot_regressor.qmd"
+    - "reference/plot_regressors.qmd"
+    - "reference/design_map.qmd"
+    - "reference/correlation_map.qmd"
+    - "reference/plot_design_matrix.qmd"
+    - "reference/plot_baseline_model.qmd"
+    - "reference/plot_sampling_frame.qmd"
+    - "reference/plot_contrasts.qmd"
+  post-render:
+    - python ../scripts/normalize_docs_html.py
   preview:
     port: 4200
     browser: false
   resources:
     - "reference/**"
+    - "assets/**"
 
 website:
   title: "fmrimod"
@@ -109,6 +130,8 @@ website:
         href: get-started.qmd
       - text: "Tutorials"
         href: tutorials/index.qmd
+      - text: "Inspect models"
+        href: tutorials/plotting-visualization.qmd
       - text: "Concepts"
         href: concepts/mental-model.qmd
       - text: "API"
@@ -142,12 +165,14 @@ website:
           contents:
             - tutorials/parametric-modulators.qmd
             - tutorials/single-trial.qmd
+            - tutorials/estimating-hrfs.qmd
             - tutorials/sketched-ar-models.qmd
             - tutorials/robust-models.qmd
             - tutorials/functional-connectivity.qmd
         - section: "Inspect and integrate"
           contents:
             - tutorials/plotting-visualization.qmd
+            - tutorials/group-diagnostics.qmd
             - tutorials/simulation.qmd
             - tutorials/bids-io.qmd
             - tutorials/benchmark-datasets.qmd
@@ -162,21 +187,14 @@ website:
 
 format:
   html:
-    # Light-first with a dark toggle, Starlight-style. `_variables.scss`
-    # carries the shared typography/chrome plus the light palette;
-    # `_variables-dark.scss` only overrides the palette. No Bootswatch base:
-    # the previous `darkly` fought every override and forced dark-only.
-    # Filenames must NOT be a `X` / `X-dark` pair. With the previous
-    # `_variables.scss` / `_variables-dark.scss` the dark layer's values
-    # reached the light bundle too and every page rendered dark. See the
-    # naming note in _theme-base.scss; verify any change by reading
-    # `--bs-body-bg` out of _site/site_libs/bootstrap/, not from the config.
+    # Shared editorial layout; night overrides only the palette.
     theme:
       light: [_theme-base.scss]
       dark: [_theme-base.scss, _theme-night.scss]
     css: styles.css
     include-in-header: _includes/quarto-color-scheme-compat.html
     include-before-body: _includes/skip-link.html
+    include-after-body: _includes/figure-navigation.html
     toc: true
     toc-depth: 3
     toc-location: right
@@ -184,15 +202,18 @@ format:
     number-sections: false
     anchor-sections: true
     code-copy: true
+    code-fold: true
+    code-summary: "Show Python"
     code-overflow: wrap
     code-link: true
     code-annotations: hover
     highlight-style:
       light: github
       dark: github-dark
+    lightbox: true
     fig-align: center
     fig-cap-location: bottom
-    fig-format: retina
+    fig-format: svg
     fig-dpi: 200
     smooth-scroll: true
     link-external-icon: false
@@ -200,8 +221,8 @@ format:
     citations-hover: true
     footnotes-hover: true
     grid:
-      sidebar-width: 260px
-      body-width: 860px
+      sidebar-width: 245px
+      body-width: 790px
       margin-width: 220px
       gutter-width: 1.5rem
 

@@ -1,0 +1,35 @@
+# contrast.plot_contrasts.plot_contrasts { #fmrimod.contrast.plot_contrasts.plot_contrasts }
+
+```python
+plot_contrasts(
+    x,
+    absolute_limits=False,
+    rotate_x_text=True,
+    scale_mode='auto',
+    figsize=None,
+    cmap=None,
+    **kwargs,
+)
+```
+
+Plot contrast weights as a heatmap.
+
+This is a generic function that dispatches based on the type of x.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name            | Type                         | Description                                                     | Default    |
+|-----------------|------------------------------|-----------------------------------------------------------------|------------|
+| x               | object                       | Object containing contrast information (EventModel, dict, etc.) | _required_ |
+| absolute_limits | bool                         | If True, fix color scale at (-1, 1). If False, use data range.  | `False`    |
+| rotate_x_text   | bool                         | If True, rotate x-axis labels for readability.                  | `True`     |
+| scale_mode      | (auto, diverging, one_sided) | Color scale mode. 'auto' chooses based on data.                 | `'auto'`   |
+| figsize         | tuple                        | Figure size (width, height)                                     | `None`     |
+| cmap            | str                          | Colormap name. If None, chosen based on scale_mode.             | `None`     |
+| **kwargs        | object                       | Additional arguments passed to plotting functions               | `{}`       |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                     | Description       |
+|--------|--------------------------|-------------------|
+|        | matplotlib.figure.Figure | The figure object |

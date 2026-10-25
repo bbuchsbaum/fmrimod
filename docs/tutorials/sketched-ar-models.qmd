@@ -1,16 +1,18 @@
 ---
 title: "Sketched and AR-aware models"
-subtitle: "Low-rank sketch and AR whitening through the typed engine seam."
+subtitle: "Compare sketched estimates and model temporal autocorrelation."
 jupyter: python3
 execute:
   freeze: auto
 ---
 
+{{< include ../_plot-setup.qmd >}}
+
 Sketching and AR whitening are *engine* choices, not separate APIs. You
 keep the same typed spec and dataset and select the engine or AR config
 on `fmri_lm` — the result is still a typed `FmriLm`.
 
-## Why Sketch?
+## Choose a sketch
 
 For large fMRI matrices, a randomized sketch reduces the problem size
 before solving the GLM. Pass `SketchEngineOptions` as the engine; compare
@@ -45,7 +47,7 @@ sketched = fm.fmri_lm(spec, dataset, engine=SketchEngineOptions(sketch_ratio=0.6
 full.betas.shape, sketched.betas.shape
 ```
 
-## Compare Estimates
+## Compare estimates
 
 ```{python}
 np.corrcoef(full.betas.ravel(), sketched.betas.ravel())[0, 1].round(4)
@@ -54,7 +56,7 @@ np.corrcoef(full.betas.ravel(), sketched.betas.ravel())[0, 1].round(4)
 The sketched solve recovers the full-rank estimates to within rounding on
 this design — the speed/accuracy trade is a single typed engine argument.
 
-## AR-Aware Fitting
+## Model autocorrelation
 
 Temporal autocorrelation is handled by the AR config, not by hand-rolling
 residual ACFs. Fit with `AROptions(struct="ar1")` and read the estimated
@@ -70,7 +72,7 @@ np.ravel(ar_fit.ar_params).round(3), ar_fit.residual_df
 `ar_params` is near zero here because the simulated noise is white;
 on real data it quantifies the autocorrelation the whitening removed.
 
-## AR Noise Fixture
+## Simulate AR noise
 
 When you *do* want a raw autocorrelation read — e.g. validating a noise
 model — `simulate_noise_vector` and `acorr_diagnostics` operate on a

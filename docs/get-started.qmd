@@ -2,7 +2,12 @@
 title: "Get started"
 subtitle: "From event timing to an inspectable first-level fit."
 jupyter: python3
+format:
+  html:
+    code-fold: false
 ---
+
+{{< include _plot-setup.qmd >}}
 
 ## Install
 
@@ -22,7 +27,7 @@ uv venv --python 3.11 .venv
 uv pip install --python .venv/bin/python -e ".[dev,test,docs]"
 ```
 
-## The 30-Second Tour
+## Fit a small example
 
 Start with an event table and bind it to data in an `fmri_dataset`. The
 event table stores experimental timing; the dataset keeps data, TR, and
@@ -44,17 +49,16 @@ events = pd.DataFrame({
 })
 ```
 
-The design is a **Python value**, built with `hrf(...)`. You can read its
-fields before anything is fitted.
+`hrf(...)` describes the condition regressor. You can read its fields before
+compiling a design or fitting a model.
 
 ```{python}
 spec = hrf("condition", basis="spmg1")
 spec.variables, spec.hrf
 ```
 
-So the result can be checked rather than merely inspected for shape, generate
-data through the public simulation API with a **known** face-versus-baseline
-effect of `2.0` in two features and no effect in two others.
+Generate a face-versus-baseline effect of `2.0` in two features and no effect
+in two others. This gives the fitted estimates something concrete to recover.
 
 ```{python}
 sampling = fm.SamplingFrame(blocklens=130, TR=1.0)
@@ -69,9 +73,9 @@ bold = simulate_bold(
 dataset = fm.fmri_dataset(bold, tr=1.0, events=events)
 ```
 
-Fit the first-level model, then state the hypothesis by
-**naming conditions** rather than column positions. The recovered estimate
-returns the injected effect.
+Fit the first-level model and ask for the face-versus-baseline contrast by
+condition name. With added noise, the estimates should be close to the
+injected effects.
 
 ```{python}
 fit = fm.fmri_lm(spec, dataset)
@@ -85,7 +89,7 @@ pd.DataFrame({
 })
 ```
 
-## The Design fmrimod Built
+## Inspect the design
 
 `fmri_lm()` built the design for you, and you can read it back from the
 fit. The columns first:
@@ -122,22 +126,22 @@ The R-style string formula still works and compiles to the *same* spec:
 it composes with `+`, and your editor can introspect it before you fit.
 :::
 
-## What Just Happened
+## Follow the result into a group model
 
 `fmri_dataset()` binds data to timing and events, `hrf(...)` is the
 design spec, `fmri_lm()` fits the public first-level path, and
 `fit.contrast(...)` states the hypothesis by name. This is the same
-workflow the flagship parity checks use:
+sequence used in the worked tutorials:
 
 ```text
 fmri_dataset -> fmri_lm(spec) -> contrast -> group
 ```
 
 The **[golden path](tutorials/golden-path.qmd)** runs this workflow
-start to finish, first level *into* group, and checks the recovered
-numbers against the R/Nilearn reference on the page.
+from first-level estimates into a group model. It checks recovery on
+simulated data and explains a separate, checked-in Nilearn parity receipt.
 
-## Next Steps
+## Next steps
 
 - [Tutorial: the golden path](tutorials/golden-path.qmd): the whole workflow, end to end
 - [Tutorial: real FIAC data](tutorials/real-data-fiac.qmd): the same modeling seam on neuroimaging data

@@ -1,0 +1,42 @@
+# visualization.design_map.plot_sampling_frame { #fmrimod.visualization.design_map.plot_sampling_frame }
+
+```python
+plot_sampling_frame(
+    sframe,
+    style='timeline',
+    show_ticks=True,
+    tick_every=None,
+    figsize=None,
+    **kwargs,
+)
+```
+
+Plot sampling frame structure.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name       | Type                     | Description                                                                     | Default      |
+|------------|--------------------------|---------------------------------------------------------------------------------|--------------|
+| sframe     | SamplingFrame or similar | Sampling frame to visualize                                                     | _required_   |
+| style      | (\'timeline\', \'grid\') | 'timeline': horizontal bars per run 'grid': scan tiles showing timing structure | `'timeline'` |
+| show_ticks | bool                     | Show tick marks                                                                 | `True`       |
+| tick_every | float                    | Tick spacing in seconds                                                         | `None`       |
+| figsize    | tuple                    | Figure size                                                                     | `None`       |
+| **kwargs   | object                   | Additional arguments passed to plot functions                                   | `{}`         |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                     | Description       |
+|--------|--------------------------|-------------------|
+| fig    | matplotlib.figure.Figure | The figure object |
+| ax     | matplotlib.axes.Axes     | The axes object   |
+
+## Examples {.doc-section .doc-section-examples}
+
+```python
+>>> # Timeline view
+>>> fig, ax = plot_sampling_frame(sframe, style='timeline')
+>>>
+>>> # Grid view
+>>> fig, ax = plot_sampling_frame(sframe, style='grid')
+```

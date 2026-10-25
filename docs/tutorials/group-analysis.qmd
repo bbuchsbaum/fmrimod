@@ -6,6 +6,8 @@ execute:
   freeze: auto
 ---
 
+{{< include ../_plot-setup.qmd >}}
+
 This is the last stage of the workflow. A first-level model gives you
 one effect estimate per subject; a *second-level* (group) analysis asks
 whether that effect holds across subjects, and how it varies with
@@ -14,22 +16,22 @@ container and out through result objects you read by attribute. The
 group design is written as a formula, the same way you would write it in
 R or statsmodels.
 
-Three functions in `fmrimod.stats` cover this stage. They are the same
-underlying model seen from different angles, so pick by what you want
-back:
+For spatial contrast results, start with `group_dataset_from_contrasts` and
+`fmri_group_lm`, demonstrated below. Three functions in `fmrimod.stats`
+also accept the tabular `GroupData` used later on this page:
 
-- **`fmri_meta`** is the workhorse. Meta-analysis when the formula is
+- **`fmri_meta`** fits a meta-analysis when the formula is
   `~ 1`; meta-regression when you add a covariate (`~ 1 + C(group)`).
   Returns an `FmriMetaResult`.
 - **`fmri_ttest`** is a thin shortcut for the plain one-sample
   *t*-test, when that is literally all you want. Returns an
   `FmriTTestResult`.
-- **`group_fit`** is one canonical door that *always* returns the same
-  `GroupFitResult`, whatever model you ask for. Worth it when many fits
-  must come back as one uniform type (a sweep, a pipeline stage).
+- **`group_fit`** returns a `GroupFitResult` across its supported model
+  choices. Use it when a pipeline needs a uniform result type.
 
-If you only read one section, read `fmri_meta` below. It is enough for
-almost every analysis.
+Meta-analysis uses the supplied sampling variances to weight subjects.
+The plain one-sample t-test treats subjects equally. Choose the model for
+the scientific question and available uncertainty estimates.
 
 ## Spatial contrasts stay spatial
 
@@ -148,7 +150,7 @@ voxel each group statistic belongs to.
 f"mean planted effect = {subject_effects.mean():.3f}"
 ```
 
-## Per-Subject Estimates → Typed `GroupData`
+## Organize subject estimates
 
 A second-level analysis starts from one effect (and its standard error) per
 subject per feature. Stack them as a tidy frame and let
@@ -185,7 +187,7 @@ gd = group_data_from_csv(
 gd.format, len(gd.subjects)
 ```
 
-## One-Sample Random Effects
+## Fit a one-sample random-effects model
 
 The common second-level question, "is the effect non-zero across subjects?",
 is a random-effects meta-analysis with an intercept-only formula.
@@ -203,7 +205,7 @@ pd.DataFrame({
 }).round(3)
 ```
 
-## One Result Type for Every Fit: `group_fit`
+## Use a uniform result type with `group_fit`
 
 `fmri_meta` and `fmri_ttest` each return their own result type. When you
 run many second-level models and want them all to come back as the
@@ -225,7 +227,7 @@ For anything other than that default, pass a `GroupFitRequest`: a frozen
 description of the *whole* fit (formula, model, fixed vs random effects,
 `tau2` method, weights, and backend) as one value you
 can build, inspect, and reuse instead of tracking many keyword
-arguments. The request below just writes the default out in full so you
+arguments. The request below writes the default out in full so you
 can see every knob it sets:
 
 ```{python}
@@ -245,9 +247,9 @@ For everyday analysis, call `fmri_meta`/`fmri_ttest` directly; reach for
 `group_fit` when a uniform `GroupFitResult` across many fits is worth
 more than the shorter call.
 
-## Between-Group Meta-Regression
+## Fit a between-group meta-regression
 
-To test a group difference, keep the same `fmri_meta` call and just add
+To test a group difference, keep the same `fmri_meta` call and add
 the covariate to the `formula`. With `method="dl"` this is a
 *random-effects* meta-regression: it models between-subject
 heterogeneity (`tau2`) while estimating the group effect. The
@@ -293,7 +295,7 @@ once the design has a covariate (or `fe` when you specifically want a
 fixed-effects model).
 :::
 
-## One-Sample Test, One Call
+## Run a one-sample t-test
 
 For a plain one-sample second-level *t*-test, `fmri_ttest` is the typed
 shortcut: same `GroupData`, a `FmriTTestResult` out.
@@ -302,6 +304,12 @@ shortcut: same `GroupData`, a `FmriTTestResult` out.
 tt = fmri_ttest(gd, formula="~ 1")
 type(tt).__name__, tt.engine, tt.statistic.round(2)
 ```
+
+## Inspect the group model
+
+For subject-level diagnostics, see [Examine a group model](group-diagnostics.qmd).
+It starts from the unreduced `GroupDataset` and separates unusual subject maps
+from subjects that strongly affect the pooled statistic.
 
 ## Next
 

@@ -6,13 +6,15 @@ execute:
   freeze: auto
 ---
 
+{{< include ../_plot-setup.qmd >}}
+
 The BIDS and IO modules sit at the edges of an analysis: one reads an
 external description of a model (a BIDS Stats Model) and turns it into
 fmrimod objects you can fit; the other writes fitted results back out as
 files. Everything in between is the ordinary modeling workflow — the
 file formats stay at the boundary and never leak into the model.
 
-## Translate a Run-level BIDS Stats Model
+## Translate a run-level BIDS Stats Model
 
 `translate_run_node` converts a BIDS Stats Model node into a model spec,
 realized event and baseline models, and semantic contrast artifacts. The model
@@ -94,7 +96,7 @@ pd.Series({
 translated.column_names
 ```
 
-## Writing Results
+## Write results
 
 `write_results(...)` emits a manifest plus BIDS-like statistic files. When the
 fit came from a neuroim-backed dataset, the mask and affine are already part of

@@ -1,190 +1,61 @@
 ---
 title: "Tutorials"
-subtitle: "Model fMRI effects without hand-aligning design columns."
+subtitle: "Worked analyses, from event timing to group inference."
+page-layout: article
+body-classes: doc-index
 ---
 
-Start with the [golden path](golden-path.qmd): fit a first-level model,
-state a contrast by condition name, carry that contrast into a group model,
-and check the recovered numbers against a Nilearn parity receipt. The point
-is practical: fewer fragile alignments between event tables, design columns,
-contrast vectors, and second-level inputs.
+Start with [a first model](../get-started.qmd), then follow
+[the complete workflow](golden-path.qmd) from a simulated subject effect to a
+group estimate. For real brain data, the [FIAC analysis](real-data-fiac.qmd)
+works through two runs of a published experiment.
 
-The main workflow is:
+## Explore through figures
 
-```text
-fmri_dataset -> fmri_lm -> contrast -> group
-```
+[![Eight axial slices of the FIAC sentence contrast, with a shared t-statistic color scale.](../assets/fiac-sentence-effect.png){fig-alt="Eight axial slices showing positive and negative FIAC same-sentence minus different-sentence t statistics."}](real-data-fiac.qmd)
 
-Use the task pages below when you need one part of that workflow in more
-detail.
+The FIAC tutorial explains how the design and contrast produce this map.
+For smaller examples you can run without a download, try
+[plotting and visualization](plotting-visualization.qmd),
+[estimating HRFs](estimating-hrfs.qmd), or
+[examining a group model](group-diagnostics.qmd).
 
-## Learn in order
+## Learn the analysis
 
-New to fmrimod? Read the first seven pages in order: the golden path gives
-you the destination, then the workflow, dataset, design, fit, contrast, and
-group pages explain each boundary. The remaining pages are task-focused and
-can be read as needed.
+| Tutorial | What you will do |
+| --- | --- |
+| [The complete workflow](golden-path.qmd) | Recover a simulated effect through a first-level fit, contrast, and group model; read a separate parity receipt. |
+| [A real FIAC analysis](real-data-fiac.qmd) | Fit two runs, define sentence and speaker contrasts, and reconstruct brain maps. |
+| [Workflow overview](overview-workflow.qmd) | See how timing, dataset, specification, fit, and contrast objects connect. |
+| [Datasets](datasets.qmd) | Work with feature matrices, spatial images, archives, and chunks. |
+| [Design matrices](design-matrices.qmd) | Turn event timing into regressors and inspect their column metadata. |
+| [Linear models](linear-model.qmd) | Fit a first-level GLM and check a known face-minus-scene effect. |
+| [Contrasts](contrasts.qmd) | Test named conditions, pairwise differences, and omnibus hypotheses. |
+| [Group analysis](group-analysis.qmd) | Collect subject estimates and fit group models and meta-regressions. |
 
-::: {.grid}
+## Inspect and extend
 
-::: {.g-col-12}
-::: {.card .h-100 .p-3}
-### [The golden path](golden-path.qmd): start here
-The whole workflow, end to end, on data with a known injected effect:
-`fmri_dataset → fmri_lm → contrast → group`. Because the effect is
-planted, you can watch it survive every stage and check the first-level
-fit against Nilearn. Read this first; every other page zooms in on one
-step of it.
-:::
-:::
+| Tutorial | What you will do |
+| --- | --- |
+| [Plotting and visualization](plotting-visualization.qmd) | Compare HRFs, view design heatmaps and correlations, and inspect timing. |
+| [Estimate an HRF](estimating-hrfs.qmd) | Fit smooth FIR response curves and inspect uncertainty and smoothing. |
+| [Group diagnostics](group-diagnostics.qmd) | Compare subject maps and inspect surprise, influence, and review flags. |
+| [Single-trial estimates](single-trial.qmd) | Recover trial amplitudes with labels and standard errors. |
+| [Parametric modulators](parametric-modulators.qmd) | Model trial covariates and understand centering and orthogonalization. |
+| [Sketched and AR-aware models](sketched-ar-models.qmd) | Compare low-rank estimates and configure temporal autocorrelation. |
+| [Robust model pieces](robust-models.qmd) | Inspect how residual scale and weights change a refit. |
+| [Functional connectivity](functional-connectivity.qmd) | Extract spatial ROI signals, remove nuisance effects, and estimate associations. |
+| [Simulation](simulation.qmd) | Generate BOLD responses and noise for method checks. |
+| [Benchmark datasets](benchmark-datasets.qmd) | Fit deterministic fixtures and compare estimates with known coefficients. |
 
-::: {.g-col-12 .g-col-md-6}
-::: {.card .h-100 .p-3}
-### [A real FIAC analysis](real-data-fiac.qmd)
-Apply the public first-level seam to a real neuroimaging dataset, inspect the
-design and contrast maps, and read the result beside its Nilearn parity
-receipt.
-:::
-:::
+## Integrate and contribute
 
-::: {.g-col-12 .g-col-md-6}
-::: {.card .h-100 .p-3}
-### [Overview and workflow](overview-workflow.qmd)
-Walk through the modeling stack: sampling frames, datasets, design specs,
-baseline terms, GLM fitting, contrasts, and group summaries.
-:::
-:::
+| Tutorial | What you will do |
+| --- | --- |
+| [BIDS and result I/O](bids-io.qmd) | Translate supported Stats Model nodes and export results. |
+| [Plugin development](plugin-development.qmd) | Extend basis and engine registries. |
+| [Module coverage](module-coverage.qmd) | Find the tutorial for a module family. |
 
-::: {.g-col-12 .g-col-md-6}
-::: {.card .h-100 .p-3}
-### [Build a design matrix](design-matrices.qmd)
-Create condition-specific HRF regressors from an event table and inspect the
-resulting column metadata.
-:::
-:::
-
-::: {.g-col-12 .g-col-md-6}
-::: {.card .h-100 .p-3}
-### [Parametric modulators](parametric-modulators.qmd)
-Model conditions modulated by trial-by-trial continuous variables. Centering
-semantics, the `center_modulators=` opt-out, and why fmrimod does not
-orthogonalize modulators automatically (Mumford et al. 2015).
-:::
-:::
-
-::: {.g-col-12 .g-col-md-6}
-::: {.card .h-100 .p-3}
-### [Contrasts](contrasts.qmd)
-Create named contrast vectors from model columns and use factorial contrast
-generators for main effects and interactions.
-:::
-:::
-
-::: {.g-col-12 .g-col-md-6}
-::: {.card .h-100 .p-3}
-### [Simulation](simulation.qmd)
-Generate clean BOLD responses, fMRI-like noise, and matrix time series for
-method checks.
-:::
-:::
-
-::: {.g-col-12 .g-col-md-6}
-::: {.card .h-100 .p-3}
-### [Linear model](linear-model.qmd)
-Fit a small first-level model through `fmri_lm()`, then inspect beta,
-t-statistic, and contrast outputs.
-:::
-:::
-
-::: {.g-col-12 .g-col-md-6}
-::: {.card .h-100 .p-3}
-### [Datasets](datasets.qmd)
-Represent in-memory and latent data as canonical `fmrimod.dataset` objects with
-sampling frames and event tables.
-:::
-:::
-
-::: {.g-col-12 .g-col-md-6}
-::: {.card .h-100 .p-3}
-### [Group analysis](group-analysis.qmd)
-Summarize first-level estimates with native group-analysis and meta-regression
-helpers.
-:::
-:::
-
-::: {.g-col-12 .g-col-md-6}
-::: {.card .h-100 .p-3}
-### [Functional connectivity](functional-connectivity.qmd)
-Use residualization and Fisher z helpers for auxiliary effect-size summaries.
-:::
-:::
-
-::: {.g-col-12 .g-col-md-6}
-::: {.card .h-100 .p-3}
-### [Sketched and AR-aware models](sketched-ar-models.qmd)
-Use low-rank GLM sketches and residual autocorrelation diagnostics for large
-or temporally correlated data.
-:::
-:::
-
-::: {.g-col-12 .g-col-md-6}
-::: {.card .h-100 .p-3}
-### [Single-trial estimates](single-trial.qmd)
-Recover trial-wise betas with labels, standard errors, and method metadata.
-:::
-:::
-
-::: {.g-col-12 .g-col-md-6}
-::: {.card .h-100 .p-3}
-### [Robust model pieces](robust-models.qmd)
-See how robust weights suppress outlying time points before they dominate a
-fit.
-:::
-:::
-
-::: {.g-col-12 .g-col-md-6}
-::: {.card .h-100 .p-3}
-### [BIDS and result IO](bids-io.qmd)
-Translate BIDS Stats Model nodes into explicit fmrimod artifacts and keep result
-writing at the IO boundary.
-:::
-:::
-
-::: {.g-col-12 .g-col-md-6}
-::: {.card .h-100 .p-3}
-### [Plotting and visualization](plotting-visualization.qmd)
-Turn authored designs, timing grids, and HRFs into quick diagnostic figures.
-:::
-:::
-
-::: {.g-col-12 .g-col-md-6}
-::: {.card .h-100 .p-3}
-### [Plugin development](plugin-development.qmd)
-Extend internal registries while keeping user-facing modeling decisions explicit.
-:::
-:::
-
-::: {.g-col-12 .g-col-md-6}
-::: {.card .h-100 .p-3}
-### [Benchmark datasets](benchmark-datasets.qmd)
-Load deterministic fixtures, build design matrices, and score estimated
-condition betas against known truth.
-:::
-:::
-
-::: {.g-col-12 .g-col-md-6}
-::: {.card .h-100 .p-3}
-### [API reference](../reference/index.qmd)
-Look up the main event, HRF, contrast, GLM, and single-trial APIs generated
-from Python docstrings.
-:::
-:::
-
-:::
-
-## Finding the right page
-
-Not sure which tutorial covers the function you need? The [module
-coverage map](module-coverage.qmd) lists every public module family and
-the tutorial that teaches it. This index is useful once you know roughly what
-you are looking for, though not the place to start learning.
+The [API reference](../reference/index.qmd) documents exact signatures.
+The [evidence guide](../evidence/index.qmd) explains which comparisons have
+been recorded and what each one supports.

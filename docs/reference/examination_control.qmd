@@ -1,0 +1,18 @@
+# group._examine_control.examination_control { #fmrimod.group._examine_control.examination_control }
+
+```python
+examination_control(
+    block_size=None,
+    geometry=None,
+    review=None,
+    surprise=None,
+    influence=None,
+    quality=None,
+    min_stability=None,
+    exact_refit_n=None,
+    retain_n=None,
+    tolerance=None,
+)
+```
+
+Build an `ExaminationControl`, merging nested mappings.

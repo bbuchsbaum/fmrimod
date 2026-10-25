@@ -6,7 +6,9 @@ execute:
   freeze: auto
 ---
 
-## Clean Condition Signals
+{{< include ../_plot-setup.qmd >}}
+
+## Simulate condition signals
 
 `simulate_bold_signal()` creates condition-wise HRF-convolved responses. The
 first column of `mat` is time; the remaining columns are condition signals.
@@ -45,7 +47,7 @@ ax.set_ylabel("Response")
 plt.show()
 ```
 
-## Noise Components
+## Add noise components
 
 `simulate_noise_vector()` combines temporal correlation, low-frequency drift,
 and optional physiological sinusoids.
@@ -91,7 +93,7 @@ ax.set_ylabel("Noise")
 plt.show()
 ```
 
-## Signal Plus Noise
+## Combine signal and noise
 
 `simulate_simple_dataset()` returns clean and noisy matrices for small method
 checks.
@@ -102,7 +104,7 @@ dataset = fm.simulate_simple_dataset(ncond=3, tr=2.0, snr=0.5, seed=2)
 dataset["clean"].shape, dataset["noisy"].shape
 ```
 
-## Matrix Time Series
+## Simulate matrix time series
 
 `simulate_fmri_matrix()` varies event amplitude and duration across columns,
 mirroring the R vignette's column-specific simulation examples.

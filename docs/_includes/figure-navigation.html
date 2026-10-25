@@ -1,0 +1,10 @@
+<script>
+// Give wide scientific figures an explicit keyboard scrolling target.
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.cell-output-display figure > p:has(a.lightbox)').forEach((preview) => {
+    preview.tabIndex = 0;
+    preview.setAttribute('role', 'region');
+    preview.setAttribute('aria-label', 'Scientific figure. Scroll horizontally to inspect details, or follow the image link for the complete view.');
+  });
+});
+</script>

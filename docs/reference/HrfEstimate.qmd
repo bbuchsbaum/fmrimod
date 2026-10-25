@@ -1,0 +1,38 @@
+# hrf.estimate.HrfEstimate { #fmrimod.hrf.estimate.HrfEstimate }
+
+```python
+HrfEstimate(
+    estimate,
+    std_error,
+    lower,
+    upper,
+    time,
+    curves,
+    voxels,
+    curve_info,
+    coefficients,
+    sigma,
+    df_residual,
+    edf,
+    lam,
+    gcv,
+    basis,
+    basis_spec,
+    basis_at_time,
+    span,
+    ci_level,
+    covariance_unscaled,
+    event_model,
+    fixed_model,
+    baseline_model,
+    event_design,
+    nuisance_design,
+    formula,
+    diagnostics,
+)
+```
+
+Condition-level smooth FIR estimate.
+
+``estimate`` / ``std_error`` are ``(time, curve, voxel)``. Use
+`tidy` and `predict` for labeled tables and new grids.

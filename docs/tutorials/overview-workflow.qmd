@@ -6,7 +6,9 @@ execute:
   freeze: auto
 ---
 
-## The Workflow
+{{< include ../_plot-setup.qmd >}}
+
+## Follow the analysis
 
 `fmrimod` runs one typed workflow from data to group results. Every
 arrow below is a typed Python value, not a string or a hand-built matrix:
@@ -76,7 +78,7 @@ bold = simulate_bold(
 dataset = fm.fmri_dataset(bold, tr=1.0, events=events)
 ```
 
-## Typed Spec → First-Level Fit
+## Fit the specification
 
 The spec is a typed `hrf(...)` value — one HRF-convolved regressor per
 stimulus level. `fmri_lm` compiles it, adds the baseline, and returns an
@@ -94,7 +96,7 @@ inspectable.
 list(fit.model.design_matrix(run=0).columns)
 ```
 
-## Typed Contrast
+## Name the contrast
 
 The scientific comparison names conditions, not column positions.
 
@@ -114,7 +116,7 @@ The estimate returns the effect we injected. Recovering the planted
 value (not just *some* value) is the evidence that the design, the fit,
 and the contrast weights are all specified correctly.
 
-## The Final Stage
+## Continue to group analysis
 
 The final arrow — carrying these per-subject `ContrastResult` objects
 into a second-level (group) model to ask whether the effect holds across

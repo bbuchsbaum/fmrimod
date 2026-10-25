@@ -1,23 +1,21 @@
 ---
-title: "The golden path"
-subtitle: "The whole workflow, from data to group, with recovered numbers and a parity check."
+title: "From first-level fit to group inference"
+subtitle: "Recover a known effect, preserve its contrast metadata, and inspect a group estimate."
 jupyter: python3
+format:
+  html:
+    code-fold: false
 execute:
   freeze: auto
 ---
 
-Every other tutorial shows one part of the workflow. This page runs the
-**whole** thing (`fmri_dataset → fmri_lm → contrast → group`) without a
-break, on data with a *known* injected effect, then checks fmrimod's
-first-level math against Nilearn's GLM.
+{{< include ../_plot-setup.qmd >}}
 
-Two ideas make this worth reading carefully. First, we *inject* a known
-effect into simulated data, so at every stage you can ask the only
-question that really tests an analysis: did the model recover the number
-we put in? Second, recovering your own injected effect proves the
-pipeline is self-consistent but not that the math is correct in absolute
-terms. That requires an independent implementation, which is why
-the last section compares the first-level fit to Nilearn.
+This tutorial follows a simulated condition effect through a first-level fit,
+a named contrast, and a group model. Knowing the generating effect lets us
+check recovery at each stage. A later section reads a separate, checked-in
+Nilearn comparison and explains what that receipt supports. The example here
+does not rerun the external comparison.
 
 ## The helper that moves results to the group level
 
@@ -247,8 +245,7 @@ This is still OLS: it treats each first-level estimate as equally precise.
 Random-effects meta-analysis is available through `fmri_meta` for the
 `GroupData`/DataFrame input family shown in [Group
 analysis](group-analysis.qmd). In the current alpha API, `fmri_meta` does not
-yet accept the native `GroupDataset` produced above. The docs state that seam
-instead of silently rebuilding a second group object from arrays.
+yet accept the native `GroupDataset` produced above. Use the input family supported by the chosen group estimator.
 
 [Group analysis](group-analysis.qmd) builds up the random-effects
 interface in full: one-sample tests, between-group contrasts, and
@@ -256,7 +253,7 @@ meta-regression with covariates.
 
 ## Next
 
-- [Real FIAC data](real-data-fiac.qmd): apply the public seam to a real neuroimaging dataset
+- [Real FIAC data](real-data-fiac.qmd): fit and inspect real neuroimaging data
 - [Group analysis](group-analysis.qmd): the second-level interface in depth
 - [Contrasts](contrasts.qmd): the semantic contrast algebra
 - [Benchmark datasets](benchmark-datasets.qmd): the parity artifacts behind the receipt

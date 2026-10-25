@@ -1,20 +1,19 @@
 ---
 title: "Contrasts"
-subtitle: "Typed hypotheses over declared provenance — no column indexing."
+subtitle: "Compare conditions and test sets of effects by name."
 jupyter: python3
 execute:
   freeze: auto
 ---
 
-A contrast in fmrimod is a **typed object that names conditions**, not a
-hand-built `np.zeros(len(columns))` vector keyed by substring matching on
-column names. You state the hypothesis in terms of the *term* and *levels*
-you declared in the design; fmrimod resolves it against the design's
-recorded provenance and returns a typed `ContrastResult`. The hypothesis
-survives column reordering, baseline changes, and basis expansion because it
-never depended on column positions in the first place.
+{{< include ../_plot-setup.qmd >}}
 
-## A Typed Event Design
+A contrast describes a hypothesis about the model's coefficients. Use
+`condition(...)` to name a term and level from the event design; fmrimod
+resolves those names against the recorded column metadata. The result contains
+the effect estimate, standard error, test statistic, and p-value.
+
+## Build the event design
 
 ```{python}
 import numpy as np
@@ -35,11 +34,9 @@ fit = fm.fmri_lm(hrf("condition", basis="spmg1"), dataset)
 fit.n_coefficients, fit.n_voxels
 ```
 
-## A Pair Contrast
+## Compare two conditions
 
-The old way was to find `"face"` columns by substring, find `"scene"`
-columns by substring, and write a weight vector by index — fragile the
-moment a baseline column shifts. The typed way names the conditions:
+Subtract the scene condition from the face condition:
 
 ```{python}
 face_vs_scene = fit.contrast(
@@ -56,13 +53,50 @@ pd.DataFrame({
 ```
 
 `face_vs_scene` is a `ContrastResult`: `.estimate`, `.stat`, `.se`,
-`.p_value`, `.df`, and `.stat_type` (`"t"` here) are typed attributes, not
-dictionary keys.
+`.p_value`, `.df`, and `.stat_type` (`"t"` here) are available as attributes.
 
-## A Unit Contrast vs Baseline
+## Read the contrast explanation
 
-A single named condition against the implicit baseline is just the
-condition reference on its own — no weight bookkeeping.
+`explain()` returns the stored hypothesis, the columns it touched, the test
+family and degrees of freedom, and any caveats. This is useful when checking
+that an estimated result still corresponds to the intended comparison.
+
+```{python}
+explanation = face_vs_scene.explain()
+pd.Series({
+    "contrast": explanation.name,
+    "columns used": explanation.touched_columns,
+    "test family": explanation.statistic["family"],
+    "caveats": explanation.caveats,
+})
+```
+
+## Inspect the resolved weights
+
+A named hypothesis resolves to numerical weights over the fitted columns.
+Plotting those weights makes its treatment of baseline columns explicit.
+
+```{python}
+#| fig-width: 8
+#| fig-height: 2.8
+#| fig-alt: "Heatmap of face-minus-scene contrast weights: positive for face, negative for scene, and zero for the remaining fitted columns."
+#| fig-cap: "Weights resolved from the face-minus-scene hypothesis against this fit. Baseline and other task columns receive zero weight. The data in this tutorial are random, so the resulting statistics are illustrative."
+from fmrimod.contrast.plot_contrasts import plot_contrasts
+
+hypothesis = condition("face", term="condition") - condition("scene", term="condition")
+resolved = hypothesis.resolve(fit.design_columns())
+fig = plot_contrasts({"face − scene": resolved}, figsize=(8, 2.8),
+                     absolute_limits=True, rotate_x_text=False)
+ax = fig.axes[0]
+ax.set_xticklabels(list(fit.model.design_matrix(run=0).columns), rotation=30, ha="right")
+ax.set_title("")
+plt.show()
+```
+
+## Compare a condition with baseline
+
+A single condition reference tests that condition against the implicit
+baseline.
 
 ```{python}
 face_vs_baseline = fit.contrast(
@@ -72,11 +106,10 @@ face_vs_baseline = fit.contrast(
 face_vs_baseline.stat_type, face_vs_baseline.estimate.round(3)
 ```
 
-## An Omnibus F-Contrast
+## Test an omnibus F-contrast
 
 "Does *any* condition differ?" is an F-contrast over the term's levels.
-`OmnibusContrast` takes the term and its declared levels — still no column
-math.
+`OmnibusContrast` takes the term and its declared levels.
 
 ```{python}
 omnibus = fit.contrast(
@@ -89,14 +122,14 @@ omnibus = fit.contrast(
 omnibus.stat_type, omnibus.df, omnibus.stat.round(2)
 ```
 
-## Factorial Designs
+## Factorial designs
 
 For balanced factorial cell layouts, `generate_main_effect_contrast` and
 `generate_interaction_contrast` build the contrast matrices from a cells
 table. They are matrix builders, not typed specs — prefer the
 `condition(...)` / `OmnibusContrast` path above whenever the question is
 about declared factor levels, and reach for the generators only when you
-genuinely need a full balanced factorial decomposition.
+need a full balanced factorial decomposition.
 
 ```{python}
 from fmrimod.contrast import generate_main_effect_contrast

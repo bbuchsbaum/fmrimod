@@ -1,0 +1,27 @@
+# group.examine.examine_group { #fmrimod.group.examine.examine_group }
+
+```python
+examine_group(
+    dataset,
+    method='meta:fe',
+    *,
+    formula=None,
+    estimands=None,
+    quality=None,
+    retain=None,
+    control=None,
+    na_action='fail',
+    X=None,
+)
+```
+
+Examine subjects under an intended group model.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name      | Type                                                         | Description                                                                                                                        | Default     |
+|-----------|--------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------|-------------|
+| dataset   | GroupDataset                                                 | Subject-level `GroupDataset`. Must not already be a group reduce (``beta_g`` / singleton ``group`` subject).                | _required_  |
+| method    | SupportedMethod \| str                                       | Native reducer used for the *intended* model. The source ``dataset`` is not rewritten.                                             | `'meta:fe'` |
+| formula   | str \| None                                                  | Patsy formula for regression methods. Defaults to ``~ 1``.                                                                         | `None`      |
+| estimands | Sequence\[str\] \| Mapping\[str, Sequence\[float\]\] \| None | Design-column names or a mapping of name → weights. Defaults to every design column (or ``pooled_effect`` for intercept-only IVW). | `None`      |

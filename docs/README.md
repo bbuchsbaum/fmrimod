@@ -1,6 +1,6 @@
 # Documentation Source Map
 
-This directory has two documentation layers:
+This directory contains the current site, internal records, and legacy sources:
 
 - `*.qmd`, `tutorials/*.qmd`, and `reference/*.qmd` are the canonical Quarto
   site sources rendered by `docs/_quarto.yml`.
@@ -58,3 +58,53 @@ Nilearn image/masking APIs, fabricated identity-affine or all-ones-mask paths,
 manual spatial reconstruction, and silently unexecuted snippets. Thin package
 adapters remain allowed because this policy is scoped to reader-facing
 tutorials rather than enforced by repository-wide token count.
+
+## Model inspection and figures
+
+The site teaches inspection alongside fitting: HRF shapes and uncertainty,
+design structure and correlations, numerical rank, residuals, contrast weights
+and explanations, trial estimates, and subject influence in group models.
+Figures must identify simulated data, label quantities and units, and explain
+what the display can and cannot establish. The image viewer provides an
+enlargement path for narrow screens.
+
+`_plot-setup.qmd` loads `assets/fmrimod.mplstyle` in each tutorial kernel.
+The CSS and the two SCSS files own the reading layout and light/night
+palettes. Fonts are served locally, with their license in `assets/fonts/`.
+`DESIGN.md` at the repository root records the visual system.
+
+## Build and verify
+
+Use the project environment and the single `_quartodoc.yml` configuration:
+
+```bash
+uv pip install --python .venv/bin/python -e ".[dev,test,docs]"
+cd docs
+../.venv/bin/quartodoc build --config _quartodoc.yml
+cd ..
+.venv/bin/python scripts/normalize_quartodoc.py
+```
+
+Check which interpreter the `python3` Jupyter kernel actually starts. A user
+kernel with that name can override the virtual environment even when
+`QUARTO_PYTHON` is set. A temporary kernel avoids changing the user's setup:
+
+```bash
+.venv/bin/python -m ipykernel install \
+  --prefix /tmp/fmrimod-docs-kernel --name python3
+PATH="$PWD/.venv/bin:$PATH" \
+QUARTO_PYTHON="$PWD/.venv/bin/python" \
+JUPYTER_PATH=/tmp/fmrimod-docs-kernel/share/jupyter \
+quarto render docs --execute --no-cache --execute-daemon 0
+.venv/bin/python scripts/audit_docs_artifact.py docs/_site
+```
+
+For a fresh qualification run, move both `docs/_freeze` and
+`docs/.quarto/_freeze` aside before rendering. `--no-cache` alone does not
+disable project freezing. Preserve the old output until the render succeeds.
+The post-render step removes Quarto 1.7's unused RequireJS loader from static
+table pages while retaining it for actual AMD or Jupyter widget output.
+
+Inspect representative tutorials and the API reference at desktop and 390 px,
+including image enlargement, mobile navigation, search, and the theme toggle.
+A local render does not publish the site; the Pages workflow deploys `main`.

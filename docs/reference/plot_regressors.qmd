@@ -1,0 +1,29 @@
+# plotting.plot_regressors { #fmrimod.plotting.plot_regressors }
+
+```python
+plot_regressors(
+    *regs,
+    grid=None,
+    precision=0.33,
+    labels=None,
+    title=None,
+    ax=None,
+    **kwargs,
+)
+```
+
+Overlay multiple regressors on the same axes.
+
+Only the first basis column of each regressor is plotted.
+
+Args:
+    *regs: Regressor objects.
+    grid: Evaluation time grid.
+    precision: Temporal precision.
+    labels: Per-regressor legend labels.
+    title: Plot title.
+    ax: Existing matplotlib Axes.
+    **kwargs: Forwarded to ``ax.plot()``.
+
+Returns:
+    The matplotlib Axes object.

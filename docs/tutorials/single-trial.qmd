@@ -6,6 +6,8 @@ execute:
   freeze: auto
 ---
 
+{{< include ../_plot-setup.qmd >}}
+
 A standard GLM gives you one beta per *condition*. Many analyses —
 representational similarity, trial-wise decoding, single-trial
 variability — instead need one beta per *trial*. That is what
@@ -15,7 +17,7 @@ time-by-trial design, choose a method, and get back a `SingleTrialResult`
 with one estimate per trial per voxel. (`fmrimod.betas` holds older
 beta-extraction wrappers; new code should use `estimate_single_trial`.)
 
-## A Trial-wise Design
+## Simulate trial responses
 
 The example uses eight separated trial regressors with a known amplitude
 gradient. Voxel 1 receives the full gradient, voxel 2 receives half, and voxel
@@ -39,14 +41,13 @@ truth = np.linspace(0.5, 2.0, n_trials)[:, None] * np.array([[1.0, 0.5, 0.0]])
 Y = X @ truth + rng.normal(scale=0.03, size=(n_time, n_voxels))
 ```
 
-## LSS Through the Dispatcher
+## Fit with least-squares separate
 
 `method="lss"` is *least-squares separate*: it fits one model per trial,
 each with that trial's own regressor plus a single regressor collapsing
-all the other trials. This keeps the per-trial estimates from being
-destabilized by the heavy collinearity between closely spaced trial
-regressors — the reason you cannot just read trial betas off one big
-least-squares fit. `estimate_single_trial` selects the estimator by the
+all the other trials. This can reduce instability from collinearity between closely spaced trial
+regressors. Its performance depends on the design and on variation in the
+other trials, which the collapsed regressor approximates. `estimate_single_trial` selects the estimator by the
 `method` argument and carries trial labels (and standard errors, when
 requested) through to the result.
 
@@ -75,7 +76,35 @@ pd.DataFrame({
 }).round(3)
 ```
 
-## Compatibility Beta Extraction
+## Plot trial estimates
+
+The time-by-trial design yields one estimate per trial and feature. The
+separated trials in this example make recovery straightforward; closely
+spaced events create a harder estimation problem.
+
+```{python}
+#| fig-width: 8
+#| fig-height: 3.4
+#| fig-alt: "Trial-wise LSS estimates for three simulated features, following full, half, and zero amplitude gradients, with standard-error bars."
+#| fig-cap: "Simulated trial amplitudes. Dashed lines show the generating values; points and ±1 SE bars show LSS estimates. Separation of events keeps overlap small in this example."
+fig, ax = plt.subplots(figsize=(8, 3.4))
+trial_number = np.arange(1, n_trials + 1)
+for voxel, color in enumerate(["#24786f", "#c26143", "#657aa4"]):
+    ax.plot(trial_number, truth[:, voxel], "--", color=color, linewidth=1, alpha=0.7)
+    ax.errorbar(trial_number, result.betas[:, voxel], yerr=result.se[:, voxel],
+                fmt="o", color=color, capsize=2, label=f"Feature {voxel + 1}")
+ax.set(xlabel="Trial", ylabel="Response amplitude", xticks=trial_number)
+ax.legend()
+plt.show()
+```
+
+For spectral basis HRF matching (SBHM), the dispatcher also accepts
+`method="sbhm"`, an `SbhmConfig`, and a prebuilt `SbhmLibrary`. The
+[dispatcher reference](../reference/estimate_single_trial.qmd) documents the
+configuration and library arguments; the LSS example here does not validate
+SBHM behavior.
+
+## Use the compatibility wrapper
 
 `estimate_betas` is the beta-oriented compatibility entry point for older code.
 It returns the same LSS estimates in a smaller `BetaResult`; the dispatcher

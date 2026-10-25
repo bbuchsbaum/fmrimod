@@ -118,3 +118,28 @@ Generate small synthetic examples and convert common statistics.
 | [stats.inference.t_to_d](t_to_d.qmd#fmrimod.stats.inference.t_to_d) | Convert t-statistics to standardized effect sizes and variances. |
 | [stats.inference.r_to_z](r_to_z.qmd#fmrimod.stats.inference.r_to_z) | Convert correlations to Fisher Z and sampling variance. |
 | [stats.inference.z_to_r](z_to_r.qmd#fmrimod.stats.inference.z_to_r) | Back-transform Fisher Z to correlation. |
+
+## Model inspection
+
+Inspect response shapes, design structure, coefficient maps, and group diagnostics.
+
+| | |
+| --- | --- |
+| [hrf.estimate.estimate_hrf](estimate_hrf.qmd#fmrimod.hrf.estimate.estimate_hrf) | Dispatch between the smooth-FIR estimator and the voxel-compat helper. |
+| [hrf.estimate.estimate_hrf_fir](estimate_hrf_fir.qmd#fmrimod.hrf.estimate.estimate_hrf_fir) | Estimate condition-level HRF curves with a shared smooth FIR. |
+| [hrf.estimate.HrfEstimate](HrfEstimate.qmd#fmrimod.hrf.estimate.HrfEstimate) | Condition-level smooth FIR estimate. |
+| [accessors.coef_images](coef_images.qmd#fmrimod.accessors.coef_images) | Return one named coefficient/statistic map per requested name. |
+| [group.dataset.group_dataset](group_dataset.qmd#fmrimod.group.dataset.group_dataset) | Construct a `GroupDataset` from materialized assay arrays. |
+| [group.examine.examine_group](examine_group.qmd#fmrimod.group.examine.examine_group) | Examine subjects under an intended group model. |
+| [group.examine.GroupExamination](GroupExamination.qmd#fmrimod.group.examine.GroupExamination) | Result of `examine_group`. |
+| [group._examine_control.examination_control](examination_control.qmd#fmrimod.group._examine_control.examination_control) | Build an `ExaminationControl`, merging nested mappings. |
+| [plotting.plot_hrf](plot_hrf.qmd#fmrimod.plotting.plot_hrf) | Plot a single HRF. |
+| [plotting.plot_hrfs](plot_hrfs.qmd#fmrimod.plotting.plot_hrfs) | Overlay multiple HRFs on the same axes for comparison. |
+| [plotting.plot_regressor](plot_regressor.qmd#fmrimod.plotting.plot_regressor) | Plot an evaluated regressor time course. |
+| [plotting.plot_regressors](plot_regressors.qmd#fmrimod.plotting.plot_regressors) | Overlay multiple regressors on the same axes. |
+| [visualization.design_map.design_map](design_map.qmd#fmrimod.visualization.design_map.design_map) | Visualize design matrix as a heatmap. |
+| [visualization.design_map.correlation_map](correlation_map.qmd#fmrimod.visualization.design_map.correlation_map) | Visualize correlation matrix of design matrix regressors. |
+| [visualization.design_map.plot_design_matrix](plot_design_matrix.qmd#fmrimod.visualization.design_map.plot_design_matrix) | Plot time series of design matrix regressors. |
+| [visualization.design_map.plot_baseline_model](plot_baseline_model.qmd#fmrimod.visualization.design_map.plot_baseline_model) | Plot baseline model terms over time. |
+| [visualization.design_map.plot_sampling_frame](plot_sampling_frame.qmd#fmrimod.visualization.design_map.plot_sampling_frame) | Plot sampling frame structure. |
+| [contrast.plot_contrasts.plot_contrasts](plot_contrasts.qmd#fmrimod.contrast.plot_contrasts.plot_contrasts) | Plot contrast weights as a heatmap. |

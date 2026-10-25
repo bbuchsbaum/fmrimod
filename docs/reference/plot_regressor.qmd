@@ -1,0 +1,25 @@
+# plotting.plot_regressor { #fmrimod.plotting.plot_regressor }
+
+```python
+plot_regressor(
+    reg,
+    grid=None,
+    precision=0.33,
+    show_onsets=True,
+    ax=None,
+    **kwargs,
+)
+```
+
+Plot an evaluated regressor time course.
+
+Args:
+    reg: `Regressor` object.
+    grid: Evaluation time grid.  Defaults to ``np.arange(0, max_onset + span, precision)``.
+    precision: Temporal precision for evaluation.
+    show_onsets: Draw vertical lines at event onsets.
+    ax: Existing matplotlib Axes.
+    **kwargs: Forwarded to ``ax.plot()``.
+
+Returns:
+    The matplotlib Axes object.
