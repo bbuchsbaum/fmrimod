@@ -18,7 +18,7 @@ import pandas as pd
 
 import fmrimod as fm
 from fmrimod.hrf import get_hrf
-from fmrimod.plotting import plot_hrf
+from fmrimod.plotting import plot_hrf, plot_hrfs
 from fmrimod.spec import compile as compile_spec
 from fmrimod.spec import hrf
 from fmrimod.visualization import plot_design_matrix, plot_sampling_frame
@@ -63,16 +63,33 @@ plt.show()
 ## Plot an HRF
 
 The `fmrimod.plotting` module covers HRF and regressor plots. Use it to inspect
-an HRF object before it is convolved into a design.
+an HRF object before it is convolved into a design. Each function returns a
+matplotlib `Figure`.
 
 ```{python}
 #| fig-width: 6
-#| fig-height: 3.0
+#| fig-height: 3.8
 #| fig-cap: "Normalized SPM canonical HRF: a positive peak followed by a
 #|   smaller undershoot. This is the response shape used by the design above."
 #| fig-alt: "Line chart of the normalized SPM canonical hemodynamic response,
-#|   rising to one positive peak and falling through a shallow undershoot."
-ax = plot_hrf(get_hrf("spmg1"), normalize=True)
+#|   rising to one positive peak near five seconds, annotated with the peak
+#|   time, and falling through a shallow undershoot."
+fig = plot_hrf(get_hrf("spmg1"), normalize=True)
+plt.show()
+```
+
+A basis set expands to one curve per basis function, labelled at its peak, so
+you can see what each column of a multi-basis term models.
+
+```{python}
+#| fig-width: 7
+#| fig-height: 4.2
+#| fig-cap: "The SPMG3 basis: the canonical response with its temporal and
+#|   dispersion derivatives, which absorb small shifts in latency and width."
+#| fig-alt: "Three curves labelled canonical, temporal deriv. and dispersion
+#|   deriv.; the derivatives oscillate around zero within the canonical
+#|   response's time window."
+fig = plot_hrfs(get_hrf("spmg3"))
 plt.show()
 ```
 

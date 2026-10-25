@@ -18,6 +18,7 @@ from .neural_input import neural_input_core
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
 
 # The factory input type. Strings and callables are coerced to HRF via
 # make_hrf() in _coerce_hrf(); the stored Regressor.hrf field is strictly
@@ -419,29 +420,29 @@ class Regressor:
 
         return result
     
-    # Scoped/strict divergence (bd-01KRNN0H73CCYGFJSJ30JPVFTW): the
-    # cast("Axes", plot_regressor(...)) below is REQUIRED under scoped
-    # mypy (--follow-imports=skip) -- ..plotting is opaque Any there so
-    # plot_regressor returns Any and removing the cast raises
-    # no-any-return against the declared -> "Axes". Full-strict resolves
-    # ..plotting and flags the cast redundant-cast. Verified empirically
-    # (scoped goes red without it). Scoped is the epic gate so the cast
-    # stays; same divergence shape as events/basis.py:160.
     def plot(
         self,
         grid: ArrayLike | None = None,
-        precision: float = 0.33,
+        precision: float | None = None,
         show_onsets: bool = True,
-        ax: Optional["Axes"] = None,
-        **kwargs: object,
-    ) -> "Axes":
-        """Plot this regressor.  See :func:`fmrimod.plotting.plot_regressor`."""
+        ax: Axes | None = None,
+        *,
+        layout: Literal["stack", "overlay"] = "stack",
+        title: str | None = None,
+        subtitle: str | None = None,
+        figsize: tuple[float, float] | None = None,
+    ) -> Figure:
+        """Plot the predicted response and return the matplotlib Figure.
+
+        Events are drawn as bars under the curve; a basis-set regressor gets
+        one panel per basis function. See
+        :func:`fmrimod.plotting.plot_regressor`.
+        """
         from ..plotting import plot_regressor
-        return cast(
-            "Axes",
-            plot_regressor(
-                cast(Any, self), grid=grid, precision=precision, show_onsets=show_onsets, ax=ax, **kwargs
-            ),
+
+        return plot_regressor(
+            self, grid=grid, precision=precision, show_onsets=show_onsets, ax=ax,
+            layout=layout, title=title, subtitle=subtitle, figsize=figsize,
         )
 
     def shift(self, shift_amount: float) -> "Regressor":

@@ -1240,6 +1240,17 @@ class FmriLm:
 
     # -- Display --
 
+    def plot(self, kind: str = "betas", **kwargs: Any) -> Any:
+        """Plot the fit; see :func:`fmrimod.visualization.fit_plots.plot_fit`.
+
+        ``kind`` is ``"betas"`` (t across voxels, or a coefficient plot
+        with ``voxel=``), ``"contrasts"``, ``"hrf"``, ``"timecourse"`` or
+        ``"residuals"``. Returns a matplotlib ``Figure``.
+        """
+        from ..visualization.fit_plots import plot_fit
+
+        return plot_fit(self, kind=kind, **kwargs)
+
     def __repr__(self) -> str:
         parts = [
             "FmriLm(",

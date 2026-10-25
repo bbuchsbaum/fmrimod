@@ -333,6 +333,16 @@ class FmriModel:
 
     # -- Display --
 
+    def plot(self, baseline: bool = True, **kwargs: Any) -> Any:
+        """Plot the regressors over time; see
+        :func:`fmrimod.visualization.fit_plots.plot_fmri_model`.
+
+        Returns a matplotlib ``Figure``.
+        """
+        from ..visualization.fit_plots import plot_fmri_model
+
+        return plot_fmri_model(self, baseline=baseline, **kwargs)
+
     def __repr__(self) -> str:
         return (
             f"FmriModel(\n"
