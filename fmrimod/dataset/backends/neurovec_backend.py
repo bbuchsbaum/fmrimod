@@ -14,6 +14,7 @@ from fmrimod.dataset.backend_protocol import (
     _normalize_indices,
 )
 from fmrimod.dataset.errors import ConfigError
+from fmrimod.dataset.mask_utils import as_mask
 from fmrimod.dataset.space import VolumeSpace
 
 
@@ -66,16 +67,16 @@ def resolve_volume_mask(mask: object, vec: object) -> NDArray[np.bool_]:
     if isinstance(mask, (str, Path)):
         mask = _require_neuroim("reading a mask path").read_vol(str(mask))
     if mask is None:
-        arr = np.asarray(_array4d(vec)[..., 0] != 0, dtype=bool)
+        arr = as_mask(_array4d(vec)[..., 0])
     elif is_neurovol(mask):
         try:
             space.compatible_with(cast(Any, mask).space)
         except ValueError as exc:
             raise ValueError(f"Mask is not in the run's spatial space: {exc}") from exc
-        arr = np.asarray(cast(Any, mask).data, dtype=bool)
+        arr = as_mask(cast(Any, mask).data)
     elif isinstance(mask, np.ndarray) or hasattr(mask, "data"):
         raw = mask if isinstance(mask, np.ndarray) else cast(Any, mask).data
-        arr = np.asarray(raw, dtype=bool)
+        arr = as_mask(raw)
         if arr.ndim == 1 and arr.size == int(np.prod(shape)):
             arr = arr.reshape(shape)
     else:

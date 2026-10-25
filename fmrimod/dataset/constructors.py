@@ -34,6 +34,7 @@ from .adapters import BackendAdapter
 from .adapters.neuroim_adapter import _is_neurovec
 from .backend_constructors import matrix_backend
 from .fmri_dataset import FmriDataset
+from .mask_utils import mask_to_logical
 from .protocols import DatasetProtocol
 
 
@@ -317,7 +318,7 @@ def matrix_dataset(
         blocklens=blocklens, tr=resolved_tr, start_time=resolved_start_time
     )
     data_matrix = np.vstack(runs)
-    flat_mask = None if mask is None else np.asarray(mask, dtype=bool).reshape(-1)
+    flat_mask = None if mask is None else mask_to_logical(mask)
     backend = matrix_backend(data_matrix, mask=flat_mask)
     adapter = BackendAdapter(backend, sampling_frame)
     # Split a flat censor across runs to match the multi-block sframe;
@@ -542,7 +543,7 @@ def _make_matrix_adapter(
     sampling_frame = SamplingFrame(
         blocklens=blocklens, tr=resolved_tr, start_time=start_time
     )
-    flat_mask = None if mask is None else np.asarray(mask, dtype=bool).reshape(-1)
+    flat_mask = None if mask is None else mask_to_logical(mask)
     backend = matrix_backend(np.asarray(arr, dtype=np.float64), mask=flat_mask)
     return BackendAdapter(backend, sampling_frame)
 

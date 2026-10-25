@@ -9,6 +9,7 @@ from numpy.typing import NDArray
 
 from ...sampling import SamplingFrame
 from ..backends.matrix_backend import MatrixBackend
+from ..mask_utils import as_mask
 
 
 class NumpyAdapter:
@@ -75,7 +76,7 @@ class NumpyAdapter:
         mask_arr = (
             np.ones((nvox, 1, 1), dtype=bool)  # default flat mask
             if mask is None
-            else np.asarray(mask, dtype=bool)
+            else as_mask(mask)
         )
         if int(mask_arr.sum()) != nvox:
             raise ValueError(

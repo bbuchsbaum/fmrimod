@@ -644,7 +644,9 @@ def design_frame(
     )
     parts = []
     if em is not None:
-        parts.append(pd.DataFrame(np.asarray(em.design_matrix), columns=em.column_names))
+        parts.append(
+            pd.DataFrame(np.asarray(em.design_matrix), columns=em.column_names)
+        )
     parts.append(pd.DataFrame(np.asarray(bm.design_matrix), columns=bm.column_names))
     frame = pd.concat(parts, axis=1)
     if names == "short":

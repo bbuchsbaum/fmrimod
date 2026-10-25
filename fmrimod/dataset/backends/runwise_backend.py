@@ -18,6 +18,7 @@ from fmrimod.dataset.backend_protocol import (
     StorageBackend,
     _normalize_indices,
 )
+from fmrimod.dataset.mask_utils import as_mask
 from fmrimod.dataset.space import VolumeSpace
 
 
@@ -28,7 +29,7 @@ class RunwiseSourceBackend(StorageBackend):
         self._source = source
         self._lengths = tuple(int(v) for v in source.n_timepoints)
         self._starts = np.concatenate([[0], np.cumsum(self._lengths)]).astype(np.intp)
-        mask = np.asarray(source.get_mask(), dtype=bool)
+        mask = as_mask(source.get_mask())
         affine = None
         get_affine = getattr(source, "get_affine", None)
         if callable(get_affine):

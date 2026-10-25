@@ -114,9 +114,10 @@ substrate wherever it is present. Why not `VoxelSpace` itself:
   adapter. DS-02 is closed, including its S2 part.
 - New backends implement one ABC and report a space. Composite sources
   compose by `ConcatBackend`.
-- Still open:
-  - mask binarisation differs between array masks (`astype(bool)`) and
-    image masks (`> 0`). R uses `as.logical`. A follow-up should pick one
-    rule.
-  - `LatentDataset`'s voxel view has no affine, because latent backends
-    carry none.
+- Mask binarisation follows one rule at every input path, R's
+  `which(as.logical(x))`: non-zero values are in, negatives included, and
+  NaN is out (`fmrimod.dataset.mask_utils.as_mask`). Array masks
+  previously used `astype(bool)` (NaN in) and image masks `> 0` (negatives
+  out).
+- Still open: `LatentDataset`'s voxel view has no affine, because latent
+  backends carry none.
