@@ -490,6 +490,15 @@ def run(
     return results
 
 
+def latest_round_report() -> Path | None:
+    """The highest-numbered ``reports/round_N_report.json``, if any."""
+    rounds = sorted(
+        REPORT_DIR.glob("round_*_report.json"),
+        key=lambda p: int(p.stem.split("_")[1]),
+    )
+    return rounds[-1] if rounds else None
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--repeats", type=int, default=5)
@@ -508,8 +517,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--baseline",
         type=Path,
-        default=REPORT_DIR / "round_4_report.json",
-        help="earlier report to show fmrimod's before/after against",
+        default=None,
+        help="earlier report to show fmrimod's before/after against "
+        "(default: the highest-numbered reports/round_N_report.json)",
     )
     args = parser.parse_args(argv)
 
@@ -524,11 +534,14 @@ def main(argv: list[str] | None = None) -> int:
     (args.out / "ergonomics_report.json").write_text(
         json.dumps(report, indent=2) + "\n"
     )
+    baseline_path = args.baseline or latest_round_report()
     baseline = (
-        json.loads(args.baseline.read_text()) if args.baseline.is_file() else None
+        json.loads(baseline_path.read_text())
+        if baseline_path is not None and baseline_path.is_file()
+        else None
     )
-    if baseline is not None:
-        baseline.setdefault("round", args.baseline.stem.replace("_report", ""))
+    if baseline is not None and baseline_path is not None:
+        baseline.setdefault("round", baseline_path.stem.replace("_report", ""))
     markdown = render_markdown(report, baseline)
     (args.out / "REPORT.md").write_text(markdown)
     print(markdown)

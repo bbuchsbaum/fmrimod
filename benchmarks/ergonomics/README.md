@@ -67,6 +67,17 @@ against the latest one (`--baseline` picks another).
   sidedness, zero-duration events, memory at full-brain size and BIDS
   `n/a` handling were left as proposals because each changes semantics.
   fmrimod 1046 vs Nilearn 1427 tokens over 15 scenarios.
+- **Round 6** took up those proposals without changing defaults. P-values
+  stay two-sided. `fmri_lm(scale="psc")` is opt-in percent-signal-change
+  scaling (Nilearn's `signal_scaling=0`). `bids_datasets` zeroes fMRIPrep's
+  leading `n/a` confound rows and drops `n/a` trial types with a warning,
+  and negative onsets (events before the first kept scan) are accepted.
+  `--full-brain` adds 64x64x40 x 300-scan rows with peak memory: chunking
+  the AR solves cut pooled AR(1) from 10.4 s / +1.4 GB to 3.9 s / +0.36 GB.
+  fmrimod wins s01 at full-brain size (0.6 s vs 2.1 s, 684 vs 851 MB) but
+  voxelwise AR(1) (s06) is still 7.8 s vs 6.6 s and 2146 vs 1547 MB peak.
+  Zero-duration events keep fmrimod's unit-impulse convention (fmrireg's);
+  Nilearn's differs only by a scale factor.
 
 ## How a scenario is built
 
