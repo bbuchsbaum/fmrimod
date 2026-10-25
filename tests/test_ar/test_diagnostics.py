@@ -223,3 +223,17 @@ class TestSandwichRankDeficient:
             ]
         )
         np.testing.assert_allclose(out["se"], ref, rtol=1e-10)
+
+    @pytest.mark.parametrize("se_type", ["iid", "hc0"])
+    def test_supplied_beta_keeps_aliased_columns_fit(self, se_type):
+        # lstsq spreads the fit over x and 2x; NaN at the aliased entry is the
+        # lm() convention. Both must give the residuals of the estimated fit.
+        X, y = self._aliased()
+        ref = sandwich_from_whitened_resid(X, y[:, None], type=se_type)
+        b_lstsq = np.linalg.lstsq(X, y, rcond=None)[0]
+        assert abs(b_lstsq[2]) > 0.1
+        b_na = np.append(np.linalg.lstsq(X[:, :2], y, rcond=None)[0], np.nan)
+        for beta in (b_lstsq, b_na):
+            out = sandwich_from_whitened_resid(X, y[:, None], beta=beta, type=se_type)
+            np.testing.assert_allclose(out["sigma2"], ref["sigma2"], rtol=1e-10)
+            np.testing.assert_allclose(out["se"], ref["se"], rtol=1e-10, equal_nan=True)

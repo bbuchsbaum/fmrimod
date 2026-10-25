@@ -147,15 +147,17 @@ def sandwich_from_whitened_resid(
     XtX_inv[np.ix_(est, est)] = XtX_e
 
     if beta is None:
-        beta_e = XtX_e @ (Xe.T @ Yw)
+        E = Yw - Xe @ (XtX_e @ (Xe.T @ Yw))
     else:
         beta = np.asarray(beta, dtype=np.float64)
         if beta.ndim == 1:
             beta = beta[:, np.newaxis]
         if beta.shape != (p_dim, v):
             raise ValueError(f"beta must have shape {(p_dim, v)}, got {beta.shape}")
-        beta_e = beta[est]
-    E = Yw - Xe @ beta_e
+        # Subtract every column's fit: lstsq-style coefficients can spread
+        # it over aliased columns. NaN (lm()-style NA) contributes nothing,
+        # which matches R's beta[est] when the aliased entries are NA.
+        E = Yw - Xw @ np.where(np.isnan(beta), 0.0, beta)
     df = n - rank_X if df_mode == "rankX" else n - p_dim
     sigma2 = np.sum(E**2, axis=0) / df
 
