@@ -368,8 +368,13 @@ User-visible behaviour changes:
   non-orthogonal design residuals and fractional block lengths now raise.
 
 Judgement calls:
-- DES-19 keeps duplicate contrast names, as R's test does; raising
-  needs a steward call.
+- DES-19: the maintainer decided (2026-10-25) that duplicate contrast
+  names raise `ContrastError` (a `ValueError`) naming each repeated name
+  and its positions, in `contrast_set()` after flattening and among the
+  contrasts attached to one model term. This diverges from R, whose test
+  keeps them (`contrast_set(a, contrast_set(a))` equals
+  `contrast_set(a, a)`) and whose name-keyed results then overwrite; the
+  R side should get the same fix.
 - DES-20 includes the model's F-contrasts, as R does.
 - HRF-12's named frame is opt-in (`as_frame=`), so the default return type
   is unchanged.

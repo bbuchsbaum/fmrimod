@@ -12,6 +12,8 @@ from collections.abc import Sequence
 from itertools import combinations
 from typing import Any, Callable, Dict, List, Mapping, Optional, Union
 
+from .errors import ContrastError
+
 
 # Simple placeholder for Formula type
 class Formula:
@@ -352,8 +354,10 @@ class ContrastSet(list[Any]):
         *contrasts : ContrastSpec or ContrastSet
             Contrast specifications or sets of them.
         """
-        super().__init__(_flatten_contrasts(contrasts))
-    
+        flat = _flatten_contrasts(contrasts)
+        _check_unique_contrast_names(flat, "contrast_set()")
+        super().__init__(flat)
+
     def __repr__(self) -> str:
         """Rich string representation."""
         n = len(self)
@@ -372,6 +376,29 @@ class ContrastSet(list[Any]):
             names_preview += f", ... ({n - 5} more)"
 
         return f"ContrastSet(n={n}, names=[{names_preview}], types={{{type_str}}})"
+
+
+def _check_unique_contrast_names(specs: Sequence[Any], where: str) -> None:
+    """Raise :class:`ContrastError` when two specs share a name.
+
+    Results are keyed by contrast name, so a repeated name would silently
+    overwrite an earlier contrast. The message lists each repeated name with
+    its 0-based positions in ``specs``. (R fmridesign keeps duplicates;
+    fmrimod refuses them by maintainer decision, 2026-10-25.)
+    """
+    positions: dict[str, list[int]] = {}
+    for i, spec in enumerate(specs):
+        positions.setdefault(str(getattr(spec, "name", spec)), []).append(i)
+    repeated = {name: ix for name, ix in positions.items() if len(ix) > 1}
+    if repeated:
+        detail = "; ".join(
+            f"{name!r} at positions {', '.join(map(str, ix))}" for name, ix in repeated.items()
+        )
+        raise ContrastError(
+            f"{where}: duplicate contrast names ({detail}). Contrast results are "
+            "keyed by name, so each contrast needs a unique name.",
+            contrast=next(iter(repeated)),
+        )
 
 
 def _flatten_contrasts(items: Sequence[Any], path: str | None = None) -> list[ContrastSpec]:

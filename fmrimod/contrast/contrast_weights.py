@@ -38,6 +38,7 @@ from .contrast_spec import (
     PairContrastSpec,
     PolyContrastSpec,
     UnitContrastSpec,
+    _check_unique_contrast_names,
 )
 from .errors import ContrastError, DesignProvenanceError
 
@@ -1486,6 +1487,9 @@ def _(x: ContrastSet, term: Any, **kwargs: object) -> Dict[str, Contrast]:
     dict
         Dictionary mapping contrast names to Contrast objects
     """
+    # A set built by contrast_set() is unique; one grown by list methods
+    # (``append``/``extend``) may not be.
+    _check_unique_contrast_names(x, "contrast_weights()")
     results = {}
 
     for contrast_spec in x:
@@ -1542,6 +1546,9 @@ def _contrast_weights_event_model(model: Any, **kwargs: object) -> Dict[str, Any
         specs = _term_contrast_specs(term)
         if not specs:
             continue
+        # Results are keyed by name within the term (and ``term#name``
+        # downstream), so a repeated name would overwrite.
+        _check_unique_contrast_names(specs, f"Term '{term.name}' contrasts")
 
         term_facts = [f for f in facts if f["term_index"] == index + 1]
         layout = _TermColumns(term_facts, _get_conditions(event_term, expand_basis=False))
