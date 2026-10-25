@@ -126,10 +126,16 @@ class TestEventModelPlotContrasts:
         ax = fig.axes[0]
         y_labels = [label.get_text() for label in ax.get_yticklabels()]
         
-        # Should have labels for all three contrasts
-        assert any('A_vs_B' in label for label in y_labels)
-        assert any('A_vs_C' in label for label in y_labels)
-        assert any('just_A' in label for label in y_labels)
+        # One row per contrast, in definition order.
+        assert y_labels == ['A_vs_B', 'A_vs_C', 'just_A']
+
+    def test_plot_contrasts_does_not_mutate_weights(self, model_with_contrasts):
+        """Plotting must leave the contrast objects untouched."""
+        before = contrast_weights(model_with_contrasts)['condition']['A_vs_B']
+        plot_contrasts(model_with_contrasts)
+        after = contrast_weights(model_with_contrasts)['condition']['A_vs_B']
+        assert not hasattr(after.offset_weights, 'regressor_names')
+        np.testing.assert_array_equal(np.asarray(before.offset_weights), np.asarray(after.offset_weights))
 
 
 def _nonzero_columns(model, weights):

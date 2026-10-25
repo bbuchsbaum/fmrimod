@@ -104,6 +104,32 @@ The numbers are available without a plot:
 design_correlations(event_model).round(2)
 ```
 
+## Check Contrast Weights
+
+`plot_contrasts()` lays each contrast out as a row of weights over the same
+columns. Two margin columns check every row: `sum w` (a non-zero sum, in
+orange, means the contrast is not a pure comparison) and `SE ×σ`, the
+standard error the design gives the contrast per unit of noise; lower is
+better. An `EventModel` with contrasts on its terms can be passed directly;
+here the weights are given by hand, with the model supplying the design.
+
+```{python}
+#| fig-width: 6.5
+#| fig-height: 2.6
+#| fig-cap: "A face-versus-scene comparison and the face effect alone. The
+#|   comparison sums to zero; the single-condition contrast does not."
+#| fig-alt: "Two rows of contrast weights over the face and scene columns,
+#|   with sum and standard-error columns at the right."
+from fmrimod.contrast import plot_contrasts
+
+fig = plot_contrasts(
+    {"face_vs_scene": [1, -1], "face": [1, 0]},
+    labels=["face", "scene"],
+    design=event_model,
+)
+plt.show()
+```
+
 ## Plot the Sampling Frame
 
 The sampling-frame plot is useful when a model has multiple runs or unusual
