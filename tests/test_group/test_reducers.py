@@ -66,6 +66,7 @@ def test_meta_fe_matches_inverse_variance_mean() -> None:
         "I2",
         "Q",
         "beta_g",
+        "n_eff",
         "p_g",
         "se_g",
         "var_g",
@@ -124,6 +125,26 @@ def test_meta_fe_marks_underpowered_features_missing() -> None:
 
     assert np.isnan(out.assay("beta_g")[0, 0, 0])
     assert np.isnan(out.assay("p_g")[0, 0, 0])
+
+
+@pytest.mark.parametrize("reducer", [meta_fe, meta_re])
+def test_meta_reducers_report_effective_subject_count(reducer) -> None:
+    # fmrigds R/reducers-core.R:27-29,75-127; test-variance-floor.R:8-21:
+    # n_eff counts subjects with finite beta and a finite, positive variance,
+    # and is reported even where the fit is masked for too few subjects.
+    beta = np.array([[1.0, 2.0, 3.0, 4.0], [1.0, 2.0, 3.0, 4.0], [1.0, np.nan, 3.0, 4.0]])
+    var = np.array([[1e-20, 1e-12, 0.5, 1.0], [0.0, -1.0, 0.5, 1.0], [1.0, 1.0, np.inf, 1.0]])
+    ds = group_dataset(
+        {"beta": beta[:, :, None], "var": var[:, :, None]},
+        space=SampleLabelSpace(["v1", "v2", "v3"]),
+        subjects=["s1", "s2", "s3", "s4"],
+        contrasts=["c1"],
+    )
+
+    out = reducer(ds, min_subjects=3)
+
+    np.testing.assert_array_equal(out.assay("n_eff")[:, 0, 0], [4.0, 2.0, 2.0])
+    assert np.isnan(out.assay("beta_g")[1, 0, 0])
 
 
 def test_meta_fe_requires_beta_and_uncertainty() -> None:

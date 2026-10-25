@@ -177,6 +177,8 @@ def meta_fe(
     }
     for arr in assays.values():
         arr[bad] = np.nan
+    # Valid-subject count, reported unmasked (R/reducers-core.R:27-29,85,125).
+    assays["n_eff"] = np.asarray(k, dtype=np.float64).copy()
 
     return _reduced_dataset(
         dataset,
@@ -232,6 +234,8 @@ def meta_re(
     }
     for arr in assays.values():
         arr[bad] = np.nan
+    # Valid-subject count, reported unmasked (R/reducers-core.R:27-29,85,125).
+    assays["n_eff"] = np.asarray(k, dtype=np.float64).copy()
 
     return _reduced_dataset(
         dataset,
