@@ -688,6 +688,7 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         if hrf_fun is not None:
             from ..hrf.core import as_hrf
 
+            self._warn_hrf_fun_precedence(term)
             try:
                 hrf_fun(np.asarray([0.0], dtype=np.float64))
             except TypeError:
@@ -711,6 +712,37 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
 
             hrf_obj = lag_hrf(hrf_obj, lag=lag)
         return hrf_obj
+
+    def _warn_hrf_fun_precedence(self, term: Term) -> None:
+        """Warn once per term when ``hrf_fun`` overrides a non-default basis.
+
+        R fmridesign ``hrf()`` (c69a829) warns when both a basis other than
+        the default ``"spmg1"`` (a name or an HRF object) and ``hrf_fun`` are
+        given, because ``hrf_fun`` takes precedence.
+        """
+        basis = term.hrf
+        if basis is None:
+            return
+        if isinstance(basis, str):
+            from ..hrf.aliases import _normalize_hrf_name
+
+            if basis.strip().lower() == "canonical":
+                return
+            try:
+                if _normalize_hrf_name(basis) == "spmg1":
+                    return
+            except ValueError:
+                pass
+        warned = self.__dict__.setdefault("_hrf_fun_warned", set())
+        if id(term) in warned:
+            return
+        warned.add(id(term))
+        warnings.warn(
+            f"Term '{term.name}': both a basis ({basis!r}) and `hrf_fun` were "
+            "specified; `hrf_fun` takes precedence.",
+            UserWarning,
+            stacklevel=3,
+        )
 
     def _hrf_for_event_data(
         self, hrf_obj: Any, hrf_fun: Any, event: Any, mask: Any = None
