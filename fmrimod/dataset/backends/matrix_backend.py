@@ -11,6 +11,7 @@ from fmrimod.dataset.backend_protocol import (
     _normalize_indices,
 )
 from fmrimod.dataset.errors import ConfigError
+from fmrimod.dataset.mask_utils import as_mask, mask_to_logical
 from fmrimod.dataset.space import VolumeSpace
 
 
@@ -44,7 +45,7 @@ class MatrixBackend(StorageBackend):
         mask_vec = (
             np.ones(n_cells, dtype=np.bool_)
             if mask is None
-            else np.asarray(mask, dtype=np.bool_).reshape(-1)
+            else mask_to_logical(mask)
         )
         if mask_vec.shape != (n_cells,):
             raise ConfigError(
@@ -69,7 +70,7 @@ class MatrixBackend(StorageBackend):
         data = np.asarray(masked_data, dtype=np.float64)
         if data.ndim != 2:
             raise ConfigError("masked_data must be a 2-D array", parameter="masked_data")
-        mask_arr = np.asarray(mask, dtype=np.bool_)
+        mask_arr = as_mask(mask)
         # An in-memory mask keeps the shape it was given in (3-D grid, or
         # e.g. a 2-D slab); a flat mask stays flat.
         mask_shape = mask_arr.shape if mask_arr.ndim > 1 else None
