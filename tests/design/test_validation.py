@@ -152,6 +152,29 @@ class TestValidateContrasts:
         assert 'name' in result.columns
         assert 'estimable' in result.columns
 
+    def test_attached_contrasts_are_validated(self):
+        """Inventory v2 DES-20: weights=None reads the nested contrast result.
+
+        R ``validate_contrasts(model)`` validates every attached contrast
+        plus the model's F-contrasts.
+        """
+        from fmrimod import event_model
+        from fmrimod.contrast import contrast_set, pair_contrast
+
+        data = pd.DataFrame({"onset": [2.0, 20.0, 40.0, 60.0], "cond": ["A", "B", "A", "B"]})
+        term = Term("cond")
+        term.contrast_specs = contrast_set(pair_contrast(
+            Formula("cond == 'A'"), Formula("cond == 'B'"), name="AvB"))
+        model = event_model([term], data=data, tr=2.0, n_scans=50)
+
+        result = validate_contrasts(model)
+        rows = result.set_index("name")
+        assert set(rows.index) == {"cond#AvB", "cond#cond"}
+        assert rows.loc["cond#AvB", "type"] == "t"
+        assert bool(rows.loc["cond#AvB", "estimable"])
+        assert bool(rows.loc["cond#AvB", "sum_to_zero"])
+        assert rows.loc["cond#AvB", "nonzero_weights"] == 2
+
     def test_weights_as_dict(self):
         """Dictionary of contrast weights should create multiple rows."""
         X = np.random.randn(100, 4)

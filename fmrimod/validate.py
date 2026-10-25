@@ -9,6 +9,37 @@ import pandas as pd
 from numpy.typing import NDArray
 
 
+def _model_contrast_weights(model: Any) -> dict[str, NDArray[np.float64]]:
+    """Full-design weights of a model's attached t- and F-contrasts.
+
+    ``contrast_weights(model)`` is nested ``{term: {name: Contrast}}``; each
+    contrast is keyed ``"<term>#<name>"``, followed by the ``Fcontrasts``
+    matrices (R ``validate_contrasts`` ``gather_from_model``). A source that
+    cannot be computed for this model contributes nothing.
+    """
+    from .contrast import Fcontrasts, contrast_weights
+
+    out: dict[str, NDArray[np.float64]] = {}
+    try:
+        attached = cast("dict[str, dict[str, Any]]", contrast_weights(model))
+    except Exception:
+        attached = {}
+    for term, contrasts in attached.items():
+        for name, con in contrasts.items():
+            W = getattr(con, "offset_weights", None)
+            if W is None:
+                continue
+            W = np.asarray(W, dtype=float)
+            out[f"{term}#{name}"] = W.reshape(-1, 1) if W.ndim == 1 else W
+    try:
+        fcons = cast("dict[str, Any]", Fcontrasts(model))
+    except Exception:
+        fcons = {}
+    for name, F in fcons.items():
+        out[name] = np.asarray(F, dtype=float)
+    return out
+
+
 def validate_contrasts(
     x: object,
     weights: object | None = None,
@@ -33,8 +64,9 @@ def validate_contrasts(
     weights : array-like, dict, or None
         Contrast weights to validate. Accepted formats:
 
-        - ``None``: if ``x`` is an ``EventModel``, validates all
-          attached contrasts.
+        - ``None``: if ``x`` is an ``EventModel``, validates every
+          attached contrast (named ``"<term>#<contrast>"``) and the
+          model's ``Fcontrasts``.
         - ``numpy.ndarray`` or ``list``: a single contrast vector
           or matrix.
         - ``dict``: maps contrast names to weight vectors/matrices.
@@ -96,20 +128,7 @@ def validate_contrasts(
     wlist = {}
     if weights is None:
         if isinstance(x, EventModel):
-            # Try to get attached contrasts
-            try:
-                from .contrast import contrast_weights as cw_func
-                cw = cast(Any, cw_func(x))
-                if cw:
-                    for name, obj in cw.items():
-                        W = obj.get('offset_weights', obj.get('weights'))
-                        if W is not None:
-                            W = np.atleast_2d(np.asarray(W, dtype=float))
-                            if W.shape[0] == 1 and W.shape[1] > 1:
-                                W = W.T  # Ensure column vector
-                            wlist[name] = W
-            except Exception:
-                pass
+            wlist = _model_contrast_weights(x)
             if not wlist:
                 return pd.DataFrame(columns=['name', 'type', 'estimable', 'sum_to_zero',
                                            'orthogonal_to_intercept', 'full_rank', 'nonzero_weights'])

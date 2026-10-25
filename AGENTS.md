@@ -145,11 +145,23 @@ fmrimod unflagged (fmrimod#16). Two guards now make that visible:
 FMRIMOD_REQUIRE_R=1 .venv/bin/python -m pytest cross_testing/
 ```
 
-Twenty-two `cross_testing/` tests fail against fmrihrf 0.4.0 for a
-pre-existing reason unrelated to the quadrature work: R's `HRF_SPMG1` and
-fmrimod's `spmg1` differ by a factor of 10 in normalization convention.
-Establish a baseline before attributing any `cross_testing/` failure to
-your own diff.
+rpy2 3.6 needs R >= 4.4. With an older R (Ubuntu 24.04 ships 4.3.3), pin
+`rpy2==3.5.17`. fmriAR and fmrilss are also R-backed; install them from
+their repos the same way.
+
+Baseline (2026-10-25, fmrihrf 0.4.0.9000 `5b63d6a`, fmriAR 0.4.2, fmrilss
+0.2.0; receipt `docs/contracts/r_parity_run_2026-10-25.md`): 54 R-backed
+tests run and 19 fail, all from steward decision D2 (SPMG conventions):
+- 15 use SPMG1, where fmrimod's undershoot ratio is 0.167 (R: exactly 1/6)
+  and its span 32 s (R: 24 s);
+- 4 use SPMG2/SPMG3, where fmrimod's temporal-derivative column is an
+  onset-shift derivative (R: analytic dh/dt).
+
+Given the same HRF, the regressor and convolution engines agree with R to
+1e-16. Two non-R tests also fail (`test_tier_d_showcase`, the FitLins CLI
+tree). The old "factor of 10" note described the `*_Legacy` SPMG classes,
+not current `spmg1`. Establish a baseline before attributing any
+`cross_testing/` failure to your own diff.
 
 ## Issue Tracking — mote
 

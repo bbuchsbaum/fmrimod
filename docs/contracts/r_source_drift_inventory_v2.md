@@ -197,12 +197,12 @@ Suggested starting order, by reach and size:
 
 | Package | Rows |
 | --- | --- |
-| fmrihrf | HRF-06 (CLI run spill), HRF-10 (after D8), HRF-11 to HRF-16 |
-| fmridesign | DES-11, DES-12, DES-13, DES-15 to DES-21 |
-| fmrireg | REG-A-14, REG-A-16 to REG-A-19, REG-B-09, REG-B-10, REG-B-12 |
-| fmriAR | AR-14 to AR-16, AR-18 to AR-22 (AR-13 done, see "After wave 1") |
+| fmrihrf | HRF-06, HRF-11 to HRF-16: done, see "After wave 2"; HRF-10 waits on D8 |
+| fmridesign | DES-11, DES-12, DES-13, DES-15 to DES-21: done, see "After wave 2" |
+| fmrireg | REG-A-14, REG-A-16 to REG-A-19, REG-B-09, REG-B-10, REG-B-12: done, see "After wave 2" |
+| fmriAR | AR-14 to AR-16, AR-18 to AR-22: done, see "After wave 2" (AR-13 done in wave 1) |
 | fmrilss | LSS-04 (with LSS-01) |
-| fmrigds | GDS-08 to GDS-12 (GDS-12 is R-bridge only) |
+| fmrigds | GDS-08 to GDS-12: done, see "After wave 2" |
 | fmridataset | DS-07 to DS-14: done, see "After wave 1" |
 
 ### Wave 3: features without an S2 tag
@@ -333,6 +333,65 @@ New follow-ups found during wave 1 (not inventory rows):
   DS-11 (NIfTI-backed datasets keep their space). Voxel-routed study
   estimates of image data lower to the common `VoxelSpace` (`1118e19`),
   closing DS-02's S2 part.
+
+## After wave 2
+
+All wave-2 rows except HRF-10 (waits on D8) landed on branch
+`claude/wave2-drift-rows`, one commit per row. On that branch the
+Python suite has only the three network/history-gated failures, and
+`FMRIMOD_REQUIRE_R=1 pytest cross_testing/` runs 65 R-backed tests whose
+failures are exactly the D2 baseline in
+[`r_parity_run_2026-10-25.md`](r_parity_run_2026-10-25.md).
+
+| Package | Rows and commits | Checked against R |
+| --- | --- | --- |
+| fmrigds | GDS-08 `efca281`, GDS-09 `8370463`, GDS-10 `3ef1b99`, GDS-11 `29892b4`, GDS-12 `2acd93f` | GDS-08's bounds read off `R/reducers-lmm.R` |
+| fmrihrf | HRF-13 `ab38ff2`, HRF-11 `3a039de`, HRF-12 `870cac3`, HRF-16 `0c78a36`, HRF-14 `5c50407`, HRF-15 `be8d181`, HRF-06 `3380a25` | regressors agree once D2 is set aside |
+| fmrireg | REG-A-19 `bf34b7a`, REG-A-18 `e7ed219`, REG-A-16 `108c951`, REG-B-10 `2190ac4`, REG-B-12 `da182e4`, REG-B-09 `d522b18`, REG-A-14 `2fcaa9d`, REG-A-17 `f43bb8c` | no |
+| fmriAR | AR-14 `a09714a`, AR-15 `c1964b1`, AR-16 `fe51ad1`, AR-18 `cc5f895`, AR-19 `35ef65e`, AR-20 `ba95577`, AR-21 `2c9cb78` (test only), AR-22 `8fa630a` | AR-18, 19, 21, 22 against fmriAR 0.4.2 to 1e-10 (31 parity tests) |
+| fmridesign | DES-11 `d71b6ed`, DES-12 `f339fa3`, DES-13 `61669de`, DES-15 `ab77d09`, DES-16 `d5878c5`, DES-17 `2eabce8`, DES-18 `db31cee`, DES-19 `5319e59`, DES-20 `11c11a6`, DES-21 `31c3f4c` | ports R's tests |
+
+User-visible behaviour changes:
+- `"betas"` is the canonical accessor target; `"estimates"` is deprecated.
+- Uncomputable requested contrasts raise `ContrastError` (a `ValueError`)
+  instead of warning and dropping the contrast. This includes
+  `column_contrast` patterns that select different columns in the
+  design-name and term-level namespaces (DES-12 met REG-A-18 at
+  integration).
+- `fmri_lm` with `q > 0`, `struct="arma"` or `method="arma"` fits a runwise
+  ARMA GLS. It used to fit AR(p) silently.
+- Covariate columns are named `<tag>_<variable>` (default tag `cov`).
+- `basis_name` in column facts is the lower-case basis family.
+- Term-level `column_contrast` patterns on multi-basis terms spread weight
+  over the basis columns, as R does.
+- Malformed censor indices, AFNI specs, plan/run-count mismatches,
+  non-orthogonal design residuals and fractional block lengths now raise.
+
+Judgement calls:
+- DES-19 keeps duplicate contrast names, as R's test does; raising
+  needs a steward call.
+- DES-20 includes the model's F-contrasts, as R does.
+- HRF-12's named frame is opt-in (`as_frame=`), so the default return type
+  is unchanged.
+- REG-A-14 does not port R's 64-voxel estimation subset; it uses all
+  finite voxels.
+
+Follow-ups found during wave 2 (not inventory rows):
+- `hr_arma`'s default `p_big`: fmriAR's C++ path uses `max(8, p + q + 5)`,
+  its R fallback and fmrimod add `ceil(10 log10 n)`.
+- `iterative_ar_gls` is public, unused and keeps the old per-run plan and
+  censor handling; `fmri_lm` now uses `iterative_gls`.
+- `AROptions.p_max` and `convergence_tol` are still ignored on the AR path
+  (`censor` belongs to REG-A-15).
+- `single/_prewhiten.py` forms residuals from an intercept-augmented design
+  but passes `design=config.design` to `fit_noise`.
+- Poly/BSpline event bases are refit per run even without `subset=`
+  (`_subset_event_term`); belongs with D3.
+- `!=` in pair-contrast formulas matches nothing, so
+  `one_against_all_contrast` returns level-vs-baseline weights with a
+  "Mask B is empty" warning.
+- `design_colmap` reports `modulation_type="amplitude"` for covariate
+  columns; R reports `covariate`.
 
 ## Steward decisions
 

@@ -61,12 +61,12 @@ face_vs_scene = column_contrast(
 fit.contrast(face_vs_scene)
 
 # Typed accessor surface — every kwarg is a Literal, validated at the boundary.
-per_coef_t: np.ndarray = fm.stats(fit, type="estimates")
-per_coef_se: np.ndarray = fm.standard_error(fit, type="estimates")
-per_coef_p: np.ndarray = fm.p_values(fit, type="estimates")
+per_coef_t: np.ndarray = fm.stats(fit, type="betas")
+per_coef_se: np.ndarray = fm.standard_error(fit, type="betas")
+per_coef_p: np.ndarray = fm.p_values(fit, type="betas")
 contrast_fs: dict = fm.stats(fit, type="F")
 contrast_ts: dict = fm.stats(fit, type="contrasts")
-tidy_estimates: pd.DataFrame = fm.tidy(fit, type="estimates")
+tidy_estimates: pd.DataFrame = fm.tidy(fit, type="betas")
 
 print(f"design: {len(fit.model.event_model.column_names)} columns over 2 runs")
 print(f"per-coefficient t shape:  {per_coef_t.shape}  (coefficients × voxels)")

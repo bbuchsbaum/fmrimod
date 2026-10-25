@@ -35,4 +35,25 @@ class DesignProvenanceError(ValueError):
         )
 
 
-__all__ = ["DesignProvenanceError"]
+class ContrastError(ValueError):
+    """Raised when a requested contrast cannot be computed.
+
+    A requested contrast is never dropped or replaced by all-zero weights:
+    an unknown condition name, a formula that cannot be parsed or evaluated,
+    or a selection that matches no condition is an error naming the contrast
+    and, when known, the term (fmrireg 2fe1498 / 06d2664).
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        contrast: str | None = None,
+        term: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.contrast = contrast
+        self.term = term
+
+
+__all__ = ["ContrastError", "DesignProvenanceError"]

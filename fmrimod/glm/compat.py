@@ -20,7 +20,7 @@ from scipy import optimize
 from ..model.config import FmriLmConfig
 from .contrasts import ContrastResult, _safe_t, contrast_f_vectorized, contrast_t_batch
 from .fmri_lm import FmriLm, fmri_lm
-from .matrix import _design_matrix_from_model, _MatrixModel
+from .matrix import _design_and_runs_from_model, _MatrixModel
 from .solver import fast_lm_matrix, fast_preproject
 
 ArrayLike = Any
@@ -401,18 +401,54 @@ def fit_glm_on_transformed_series(
     strategy: str = "external",
     engine: str = "runwise",
 ) -> FmriLm:
-    """Fit a GLM using a model design and externally supplied response matrix."""
-    del dataset
+    """Fit a GLM using a model design and externally supplied response matrix.
+
+    ``Y`` is the stacked response of every run of ``model``; a multi-run
+    model is fitted run by run on its full design, so AR estimation and
+    whitening restart at run boundaries exactly as in ``fmri_lm``. An
+    explicit ``dataset`` describes the columns of ``Y`` and is only
+    dimension-checked; it is never inferred from ``model`` because a
+    transformed response can live in a different feature space.
+    """
     Y_arr = np.asarray(Y, dtype=np.float64)
     if Y_arr.ndim == 1:
         Y_arr = Y_arr[:, np.newaxis]
-    X = _design_matrix_from_model(model)
+    X, run_lengths = _design_and_runs_from_model(model)
     if X.shape[0] != Y_arr.shape[0]:
         raise ValueError("Row mismatch between design matrix and response matrix")
-    fit = fmri_lm(_MatrixModel(X, Y_arr, source=model), cfg or FmriLmConfig(), engine=engine)
+    _validate_external_response_dataset(
+        dataset, Y_arr.shape, context="fit_glm_on_transformed_series()"
+    )
+    fit = fmri_lm(
+        _MatrixModel(X, Y_arr, source=model, run_lengths=run_lengths),
+        cfg or FmriLmConfig(),
+        engine=engine,
+    )
     cast(Any, fit).strategy = strategy
     cast(Any, fit).engine = engine
     return fit
+
+
+def _validate_external_response_dataset(
+    dataset: object, expected: tuple[int, ...], *, context: str
+) -> None:
+    """Check an explicit dataset's ``(timepoints, features)`` against ``Y``."""
+    if dataset is None:
+        return
+    lengths = getattr(dataset, "run_lengths", None)
+    if lengths is None:
+        lengths = getattr(dataset, "n_timepoints", None)
+    n_features = getattr(dataset, "n_voxels", None)
+    if lengths is None or n_features is None:
+        return
+    n_time = int(lengths) if isinstance(lengths, (int, np.integer)) else int(sum(lengths))
+    observed = (n_time, int(n_features))
+    if observed != tuple(int(v) for v in expected):
+        raise ValueError(
+            f"{context}: explicit dataset dimensions are {observed[0]} x "
+            f"{observed[1]}, but the external response is {expected[0]} x "
+            f"{expected[1]}"
+        )
 
 
 def fit_glm_with_config(
@@ -448,6 +484,19 @@ def fmri_ols_fit(
         Y_arr = Y_arr[:, np.newaxis]
     if X_arr.ndim != 2 or Y_arr.ndim != 2 or X_arr.shape[0] != Y_arr.shape[0]:
         raise ValueError("Y and X must be 2-D matrices with matching rows")
+    # A rank-deficient group design has no unique estimates: stop instead of
+    # returning pseudoinverse-split coefficients (fmrireg 3ed5e8d).
+    if not np.all(np.isfinite(X_arr)):
+        raise ValueError("X must contain only finite values")
+    rank_x = int(np.linalg.matrix_rank(X_arr))
+    if rank_x < X_arr.shape[1]:
+        raise ValueError(
+            f"X must have full column rank; got rank {rank_x} for "
+            f"{X_arr.shape[1]} columns (rank deficient)"
+        )
+    extra_parameter = 0 if voxelwise is None else 1
+    if X_arr.shape[0] - X_arr.shape[1] - extra_parameter <= 0:
+        raise ValueError("Non-positive residual degrees of freedom")
 
     if voxelwise is None:
         proj = fast_preproject(X_arr)

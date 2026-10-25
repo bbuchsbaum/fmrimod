@@ -176,6 +176,58 @@ def _fit_mixedlm_feature(
     return model.fit(reml=reml, method="lbfgs", disp=False, **fit_options)
 
 
+# R fmrigds searches the random-effect parameters on a bounded box: the
+# random-intercept log variance ratio on [-14, 10] (R/reducers-lmm.R:146) and
+# the log relative SDs of the intercept+slope Cholesky factor on [-14, 10],
+# with the full-covariance off-diagonal on [-10, 10] (R/reducers-lmm.R:331-337).
+# Since 7c7ecae an optimum pinned at an upper bound (a diverging variance) is
+# reported as converged = 0. statsmodels' MixedLM is unbounded, so the same
+# divergence surfaces as a parameter beyond R's bound while statsmodels still
+# reports convergence; these helpers translate it onto R's contract.
+_LMM_LOG_THETA_UPPER = 10.0
+_LMM_OFFDIAG_BOUND = 10.0
+_LMM_BOUND_TOL = 1e-3
+
+
+def _lmm_ri_converged(result: Any, lambda_ri: float) -> float:
+    """R-contract convergence flag for one random-intercept fit."""
+    if not bool(getattr(result, "converged", False)):
+        return 0.0
+    if not np.isfinite(lambda_ri):
+        return 0.0
+    if lambda_ri > 0 and np.log(lambda_ri) >= _LMM_LOG_THETA_UPPER - _LMM_BOUND_TOL:
+        return 0.0
+    return 1.0
+
+
+def _lmm_ri_slope1_converged(
+    result: Any,
+    rel_cov: NDArray[np.float64],
+    *,
+    covariance: Literal["diag", "full"],
+) -> float:
+    """R-contract convergence flag for one intercept+slope fit.
+
+    ``rel_cov`` is the 2x2 random-effect covariance divided by the residual
+    variance; its Cholesky factor carries R's optimisation parameters.
+    """
+    if not bool(getattr(result, "converged", False)):
+        return 0.0
+    if not np.all(np.isfinite(rel_cov)):
+        return 0.0
+    upper = _LMM_LOG_THETA_UPPER - _LMM_BOUND_TOL
+    l11 = float(np.sqrt(max(rel_cov[0, 0], 0.0)))
+    if l11 > 0 and np.log(l11) >= upper:
+        return 0.0
+    l21 = float(rel_cov[1, 0] / l11) if (covariance == "full" and l11 > 0) else 0.0
+    if abs(l21) >= _LMM_OFFDIAG_BOUND - _LMM_BOUND_TOL:
+        return 0.0
+    l22 = float(np.sqrt(max(rel_cov[1, 1] - l21 * l21, 0.0)))
+    if l22 > 0 and np.log(l22) >= upper:
+        return 0.0
+    return 1.0
+
+
 def _is_expected_lmm_fit_failure(exc: BaseException) -> bool:
     if isinstance(exc, (FloatingPointError, np.linalg.LinAlgError)):
         return True

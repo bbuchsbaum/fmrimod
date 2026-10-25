@@ -12,6 +12,7 @@ from numpy.typing import NDArray
 
 from .._warnings import call_safely, suppress_fmrimod_warnings
 from ..covariate import CovariateTerm, create_covariate_events
+from ..design_colmap import _hrf_basis_family
 from ..hrf.core import HRF
 from ..dispatch import get_hrf
 from ..events import (
@@ -496,6 +497,11 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
 
         event_term = EventTerm(term_events, name=term.name)
         cast(Any, event_term)._is_covariate = True
+        # One condition per variable, named by the variable (not the
+        # prefixed event): the prefix/id is the term tag (R covariate()).
+        cast(Any, event_term)._covariate_conditions = [
+            continuous_token(name) for name in term.covariates
+        ]
         return event_term
 
     def _create_regular_event_term(self, term: Term) -> EventTerm:
@@ -682,6 +688,7 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         if hrf_fun is not None:
             from ..hrf.core import as_hrf
 
+            self._warn_hrf_fun_precedence(term)
             try:
                 hrf_fun(np.asarray([0.0], dtype=np.float64))
             except TypeError:
@@ -705,6 +712,37 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
 
             hrf_obj = lag_hrf(hrf_obj, lag=lag)
         return hrf_obj
+
+    def _warn_hrf_fun_precedence(self, term: Term) -> None:
+        """Warn once per term when ``hrf_fun`` overrides a non-default basis.
+
+        R fmridesign ``hrf()`` (c69a829) warns when both a basis other than
+        the default ``"spmg1"`` (a name or an HRF object) and ``hrf_fun`` are
+        given, because ``hrf_fun`` takes precedence.
+        """
+        basis = term.hrf
+        if basis is None:
+            return
+        if isinstance(basis, str):
+            from ..hrf.aliases import _normalize_hrf_name
+
+            if basis.strip().lower() == "canonical":
+                return
+            try:
+                if _normalize_hrf_name(basis) == "spmg1":
+                    return
+            except ValueError:
+                pass
+        warned = self.__dict__.setdefault("_hrf_fun_warned", set())
+        if id(term) in warned:
+            return
+        warned.add(id(term))
+        warnings.warn(
+            f"Term '{term.name}': both a basis ({basis!r}) and `hrf_fun` were "
+            "specified; `hrf_fun` takes precedence.",
+            UserWarning,
+            stacklevel=3,
+        )
 
     def _hrf_for_event_data(
         self, hrf_obj: Any, hrf_fun: Any, event: Any, mask: Any = None
@@ -823,7 +861,9 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
 
             # Generate term tag
             term_tag = make_term_tag(
-                term_name=term.name,
+                term_name=(
+                    term.covariate_tag if isinstance(term, CovariateTerm) else term.name
+                ),
                 event_names=term.events,
                 hrf_name=term.hrf if isinstance(term.hrf, str) else None,
                 basis_type=(
@@ -850,7 +890,8 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
             basis_name = None
             basis_total = None
             if isinstance(term, CovariateTerm):
-                term_col_names = cond_tags
+                # ``<tag>_<variable>`` (R covariate(): cov_x, motion_x).
+                term_col_names = make_column_names(term_tag, cond_tags, 1)
             elif (
                 hasattr(event_term, "_is_trialwise")
                 and cast(Any, event_term)._is_trialwise
@@ -860,7 +901,9 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
                     try:
                         hrf_obj = self._resolve_hrf_for_term(term)
                         nb = int(getattr(hrf_obj, "nbasis", 1) or 1)
-                        basis_name = getattr(hrf_obj, "name", type(hrf_obj).__name__)
+                        basis_name = _hrf_basis_family(
+                            getattr(hrf_obj, "name", type(hrf_obj).__name__)
+                        )
                         basis_total = nb
                     except Exception:
                         pass
@@ -886,7 +929,9 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
                     try:
                         hrf_obj = self._resolve_hrf_for_term(term)
                         nb = hrf_obj.nbasis
-                        basis_name = getattr(hrf_obj, "name", type(hrf_obj).__name__)
+                        basis_name = _hrf_basis_family(
+                            getattr(hrf_obj, "name", type(hrf_obj).__name__)
+                        )
                         basis_total = nb
                     except Exception:
                         pass
@@ -895,6 +940,11 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
 
                 term_col_names = make_column_names(term_tag, cond_tags, nb)
 
+            if len(term_col_names) != X_term.shape[1]:
+                raise ValueError(
+                    f"Term '{term.name}' built {X_term.shape[1]} design columns but "
+                    f"{len(term_col_names)} column names {term_col_names}"
+                )
             column_names.extend(term_col_names)
             column_facts.extend(
                 self._make_column_facts(
@@ -1908,6 +1958,9 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
 
         if getattr(event_term, "_is_covariate", False):
             # Covariates contribute one column per variable.
+            cov_conditions = getattr(event_term, "_covariate_conditions", None)
+            if cov_conditions is not None:
+                return list(cov_conditions)
             return [continuous_token(event.name) for event in event_term.events]
 
         cond_tags = []

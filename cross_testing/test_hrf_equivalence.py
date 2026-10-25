@@ -94,7 +94,10 @@ class TestHRFEquivalence:
         # Test with custom parameters
         py_result2 = gaussian_hrf(t, mean=8.0, sd=3.0)
         
+        # Each run_r_code block runs in a fresh environment, so the grid must
+        # be defined here too; a bare ``t`` resolved to a leftover global.
         r_vars2 = r_tester.run_r_code("""
+        t <- seq(0, 30, length.out=100)
         hrf2 <- hrf_gaussian(t, mean=8.0, sd=3.0)
         """)
         

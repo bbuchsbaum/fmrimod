@@ -176,3 +176,64 @@ class TestAcorrAggregatesPerVoxel:
         assert np.all(np.isnan(out[:, 1]))
         mean = acorr_diagnostics(R, max_lag=2)["acf"]
         np.testing.assert_allclose(mean, out[:, [0, 2]].mean(axis=1), atol=1e-12)
+
+
+class TestSandwichRankDeficient:
+    """AR-18 (fmriAR 617bd87): aliased columns get NaN SEs, like ``lm()``."""
+
+    @staticmethod
+    def _aliased(seed=9122, n=100):
+        rng = np.random.default_rng(seed)
+        x = rng.standard_normal(n)
+        X = np.column_stack([np.ones(n), x, 2 * x])
+        y = 1 + x + rng.standard_normal(n)
+        return X, y
+
+    def test_iid_matches_lm_on_the_estimable_columns(self):
+        X, y = self._aliased()
+        out = sandwich_from_whitened_resid(X, y[:, None])
+        Xe = X[:, :2]
+        b = np.linalg.solve(Xe.T @ Xe, Xe.T @ y)
+        s2 = np.sum((y - Xe @ b) ** 2) / 98
+        ref = np.sqrt(np.diag(np.linalg.inv(Xe.T @ Xe)) * s2)
+        assert out["df"] == 98
+        assert np.isnan(out["se"][2, 0])
+        np.testing.assert_allclose(out["se"][:2, 0], ref, rtol=1e-10)
+        assert np.all(np.isnan(out["XtX_inv"][2])) and np.all(
+            np.isnan(out["XtX_inv"][:, 2])
+        )
+        np.testing.assert_allclose(
+            out["XtX_inv"][:2, :2], np.linalg.inv(Xe.T @ Xe), rtol=1e-10
+        )
+
+    def test_hc0_rank_deficient_and_vectorised(self):
+        X, y = self._aliased()
+        out = sandwich_from_whitened_resid(X, y[:, None], type="hc0")
+        assert np.isnan(out["se"][2, 0]) and np.all(np.isfinite(out["se"][:2]))
+        rng = np.random.default_rng(9123)
+        X = np.column_stack([np.ones(200), rng.standard_normal((200, 3))])
+        Y = rng.standard_normal((200, 7)) * (1 + np.abs(X[:, [1]]))
+        out = sandwich_from_whitened_resid(X, Y, type="hc0")
+        XtXi = np.linalg.inv(X.T @ X)
+        E = Y - X @ XtXi @ X.T @ Y
+        ref = np.column_stack(
+            [
+                np.sqrt(np.diag(XtXi @ ((X * E[:, [j]]).T @ (X * E[:, [j]])) @ XtXi))
+                for j in range(7)
+            ]
+        )
+        np.testing.assert_allclose(out["se"], ref, rtol=1e-10)
+
+    @pytest.mark.parametrize("se_type", ["iid", "hc0"])
+    def test_supplied_beta_keeps_aliased_columns_fit(self, se_type):
+        # lstsq spreads the fit over x and 2x; NaN at the aliased entry is the
+        # lm() convention. Both must give the residuals of the estimated fit.
+        X, y = self._aliased()
+        ref = sandwich_from_whitened_resid(X, y[:, None], type=se_type)
+        b_lstsq = np.linalg.lstsq(X, y, rcond=None)[0]
+        assert abs(b_lstsq[2]) > 0.1
+        b_na = np.append(np.linalg.lstsq(X[:, :2], y, rcond=None)[0], np.nan)
+        for beta in (b_lstsq, b_na):
+            out = sandwich_from_whitened_resid(X, y[:, None], beta=beta, type=se_type)
+            np.testing.assert_allclose(out["sigma2"], ref["sigma2"], rtol=1e-10)
+            np.testing.assert_allclose(out["se"], ref["se"], rtol=1e-10, equal_nan=True)

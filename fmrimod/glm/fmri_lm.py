@@ -533,6 +533,9 @@ class FmriLm:
     ar_params : NDArray or None
         Estimated AR parameters, shape ``(ar_order, V)`` or ``(ar_order,)``
         for global estimation.
+    ma_params : NDArray or None
+        Estimated MA parameters of an ARMA noise model (``AROptions(q>0)``),
+        ``(q,)`` for one run or ``(n_runs, q)``; ``None`` otherwise.
     robust_weights : NDArray or None
         Row weights of the final robust (IRLS) solve, shape ``(n,)`` over
         all runs; the fit is exactly the WLS fit with these weights.
@@ -552,6 +555,7 @@ class FmriLm:
     ar_params: Optional[NDArray[np.float64]] = None
     robust_weights: Optional[NDArray[np.float64]] = None
     run_results: Optional[List[object]] = None
+    ma_params: NDArray[np.float64] | None = None
     projections: Optional[List[Projection]] = None
     provenance: Optional[FitProvenance] = None
     _named_weights_cache: Optional[Dict[str, NDArray[np.float64]]] = field(
@@ -1552,12 +1556,14 @@ def fmri_lm(
     # Handle AR modeling if configured
     ar_params = fit_result.ar_params
     ols_fit: dict[str, Any] | None = None
+    ma_params: NDArray[np.float64] | None = None
     if ar_params is None and config.ar.enabled:
         from ..ar.integration import iterative_gls
 
         # Build a dict compatible with the legacy interface
         ols_fit = _engine_result_to_dict(fit_result)
         legacy, ar_params = iterative_gls(model, config, ols_fit)
+        ma_params = legacy.get("ma_params")
         fit_result = _dict_to_engine_result(legacy, fit_result)
 
     # Handle robust fitting if configured
@@ -1589,6 +1595,7 @@ def fmri_lm(
         model=model,
         config=config,
         ar_params=ar_params,
+        ma_params=ma_params,
         robust_weights=robust_weights,
         run_results=fit_result.run_results,
         projections=cast("Optional[List[Projection]]", fit_result.projections),

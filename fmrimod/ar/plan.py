@@ -58,6 +58,10 @@ class WhiteningPlan:
         Per-parcel voxel-scale autocovariance.
     sigma2_by_parcel : dict mapping str -> float or None
         Per-parcel innovation variance derived from stored phi and gamma.
+    n_time : int or None
+        Number of timepoints the plan was fitted on (``None`` for plans not
+        fitted to data). :func:`~fmrimod.ar.whitening.whiten_apply` inherits
+        the stored ``censor`` set only for data of this length.
     """
 
     phi: list[NDArray[Any]] | None = None
@@ -76,6 +80,7 @@ class WhiteningPlan:
     sigma2: list[float] | None = None
     gamma_by_parcel: dict[str, NDArray[Any]] | None = None
     sigma2_by_parcel: dict[str, float] | None = None
+    n_time: int | None = None
 
     def __repr__(self) -> str:
         p, q = self.order

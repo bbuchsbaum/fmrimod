@@ -195,3 +195,93 @@ def test_pooled_hr_order_grid_matches_fmriar(r_call, data, hr_iter):
     np.testing.assert_allclose(fit.phi, r_call.field(r_fit, "phi"), rtol=0, atol=1e-9)
     np.testing.assert_allclose(fit.theta, r_call.field(r_fit, "theta"), rtol=0, atol=1e-9)
     np.testing.assert_allclose(fit.sigma2, np.ravel(r_call.field(r_fit, "sigma2"))[0], rtol=1e-9)
+
+
+# -- Other fmriAR 0.4.2 audit rows checkable against R -------------------------
+
+
+@pytest.mark.parametrize("se_type", ["iid", "hc0"])
+def test_sandwich_rank_deficient_matches_fmriar(r_call, se_type):
+    """AR-18: aliased columns get NA SEs and NA XtX_inv rows, as in R."""
+    from fmrimod.ar.diagnostics import sandwich_from_whitened_resid
+
+    rng = np.random.default_rng(1)
+    n = 120
+    x, z = rng.standard_normal(n), rng.standard_normal(n)
+    X = np.column_stack([np.ones(n), x, 2 * x, z, x + z])
+    Y = rng.standard_normal((n, 3)) * (1 + np.abs(x[:, None]))
+    r_out = r_call("fmriAR::sandwich_from_whitened_resid", X, Y, type=se_type)
+    out = sandwich_from_whitened_resid(X, Y, type=se_type)
+    r_se = r_call.field(r_out, "se")
+    np.testing.assert_array_equal(np.isnan(out["se"]), np.isnan(r_se))
+    # numerical_floor: same QR pivoting and solve as R; only float64 rounding differs.
+    np.testing.assert_allclose(out["se"], r_se, rtol=1e-10, equal_nan=True)
+    np.testing.assert_allclose(
+        out["XtX_inv"], r_call.field(r_out, "XtX_inv"), rtol=1e-9, equal_nan=True
+    )
+    assert out["df"] == int(r_call.field(r_out, "df")[0])
+
+
+def test_enforce_invertible_ma_matches_fmriar(r_call):
+    """AR-19: reflection plus the 1/0.99 radial bound, on fixed and random theta."""
+    from rpy2 import robjects as ro
+
+    from fmrimod.ar.numhelpers import enforce_invertible_ma
+
+    rng = np.random.default_rng(9107)
+    cases = [[-1.0], [1.0], [0.0, -1.0], [-0.995], [0.4, 0.1], [1.2, 0.5]]
+    cases += [rng.normal(scale=1.5, size=q).tolist() for q in (1, 2, 3) for _ in range(10)]
+    for th in cases:
+        ours = enforce_invertible_ma(np.array(th))
+        theirs = np.array(
+            list(r_call("fmriAR:::enforce_invertible_ma", ro.FloatVector(th))),
+            dtype=np.float64,
+        )
+        # numerical_floor: polyroot vs numpy roots agree to float64 rounding.
+        np.testing.assert_allclose(ours, theirs, rtol=0, atol=1e-10, err_msg=str(th))
+
+
+@pytest.mark.parametrize("phi", [1.0, 1.2, -1.0, 0.6])
+def test_exact_start_nonstationary_ar1_matches_fmriar(r_call, phi):
+    """AR-21: a non-stationary AR(1) exact start is the conditional recursion."""
+    from rpy2 import robjects as ro
+
+    from fmrimod.ar.whitening import arma_whiten_segments
+
+    y = np.arange(1.0, 6.0)[:, None]
+    r_out = r_call(
+        "fmriAR:::arma_whiten_inplace", y, np.zeros((5, 0)), ro.FloatVector([phi]),
+        ro.FloatVector([]), ro.IntVector([0]), exact_first=True, parallel=False,
+    )
+    ours = arma_whiten_segments(
+        y, np.array([phi]), np.array([]), np.array([0]), exact_first_ar1=True
+    )
+    np.testing.assert_allclose(ours, r_call.field(r_out, "Y"), rtol=0, atol=1e-12)
+
+
+@pytest.mark.parametrize(
+    ("p", "q", "n", "iter_"),
+    [(1, 1, 300, 0), (2, 1, 300, 1), (0, 2, 500, 0), (1, 1, 40, 0)],
+)
+def test_single_series_hr_matches_fmriar(r_call, p, q, n, iter_):
+    """AR-22: the regression starts after the long-AR burn-in; sigma2 over its rows.
+
+    ``p_big`` is passed explicitly: fmriAR's C++ default
+    (``max(8, p + q + 5)``) and its R fallback / fmrimod default (which add
+    ``ceil(10 log10 n)``) differ.
+    """
+    from rpy2 import robjects as ro
+
+    from fmrimod.ar.hr_arma import hr_arma
+
+    rng = np.random.default_rng(9114 + n)
+    y = lfilter([1.0, 0.4], [1.0, -0.5], rng.standard_normal(n + 200))[200:]
+    p_big = 8 if n < 100 else 25
+    r_fit = r_call(
+        "fmriAR:::hr_arma", ro.FloatVector(y), p, q, p_big=p_big, iter=iter_
+    )
+    fit = hr_arma(y, p=p, q=q, p_big=p_big, n_iter=iter_)
+    # numerical_floor: identical regressions; only least-squares rounding differs.
+    np.testing.assert_allclose(fit["phi"], r_call.field(r_fit, "phi"), rtol=0, atol=1e-10)
+    np.testing.assert_allclose(fit["theta"], r_call.field(r_fit, "theta"), rtol=0, atol=1e-10)
+    np.testing.assert_allclose(fit["sigma2"], r_call.field(r_fit, "sigma2")[0], rtol=1e-10)

@@ -173,6 +173,12 @@ class EventBasis(BaseEvent):  # type: ignore[misc]
             raise ValueError("Basis expansion must produce at least one column")
         if expanded.shape[0] != len(self.values):
             raise ValueError("Basis expansion row count must match number of events")
+        declared = getattr(self.basis, "n_basis", None)
+        if isinstance(declared, int) and expanded.shape[1] != declared:
+            raise ValueError(
+                f"Basis expansion of '{self.name}' produced {expanded.shape[1]} "
+                f"columns but the basis declares {declared}"
+            )
 
         return expanded
     

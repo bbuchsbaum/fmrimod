@@ -166,3 +166,57 @@ class TestPooledOrderGrid:
                 if best is None or bic < best[0]:
                     best = (bic, pp, qq)
         assert fit.order == (best[1], best[2])
+
+
+def _hr_burn_in_reference(y, p, q, p_big):
+    """Independent transcription of fmriAR ``hr_arma_R`` / ``hr_arma_fit_cpp``
+    (617bd87) for iter=0: Yule-Walker long AR on the biased ACVF, then the
+    regression over rows after the long-AR burn-in."""
+    from scipy.linalg import solve_toeplitz
+    from scipy.signal import lfilter
+
+    y = y - y.mean()
+    n = y.size
+    g = np.array([y[: n - k] @ y[k:] / n for k in range(p_big + 1)])
+    a = solve_toeplitz(g[:-1], g[1:])
+    ehat = lfilter(np.r_[1.0, -a], [1.0], y)
+    m = max(p, q)
+    burn = max(m, p_big + q) if q > 0 else m
+    if n - burn < 10 * (p + q + 1):
+        burn = m
+    rows = np.arange(burn, n)
+    Z = np.column_stack(
+        [y[rows - i] for i in range(1, p + 1)] + [ehat[rows - j] for j in range(1, q + 1)]
+    )
+    coef = np.linalg.lstsq(Z, y[rows], rcond=None)[0]
+    phi, theta = coef[:p], coef[p:]
+    e = lfilter(np.r_[1.0, -phi], np.r_[1.0, theta], y)
+    return phi, theta, float(np.mean(e[rows] ** 2))
+
+
+class TestBurnIn:
+    """AR-22 (fmriAR 617bd87): the regression skips the long-AR burn-in."""
+
+    @staticmethod
+    def _series(n=300, seed=9114):
+        from scipy.signal import lfilter
+
+        rng = np.random.default_rng(seed)
+        return lfilter([1.0, 0.4], [1.0, -0.5], rng.standard_normal(n + 200))[200:]
+
+    @pytest.mark.parametrize(("p", "q"), [(1, 1), (2, 1), (0, 2), (1, 0)])
+    def test_matches_burn_in_transcription(self, p, q):
+        y = self._series()
+        out = hr_arma(y, p=p, q=q, enforce=False)
+        phi, theta, sigma2 = _hr_burn_in_reference(y, p, q, out["p_big"])
+        np.testing.assert_allclose(out["phi"], phi, rtol=0, atol=1e-10)
+        np.testing.assert_allclose(out["theta"], theta, rtol=0, atol=1e-10)
+        np.testing.assert_allclose(out["sigma2"], sigma2, rtol=1e-10)
+
+    def test_short_series_keeps_all_rows(self):
+        # n - burn < 10 (p + q + 1): the burn-in is not affordable.
+        y = self._series(n=40)
+        out = hr_arma(y, p=1, q=1, p_big=8, enforce=False)
+        phi, theta, sigma2 = _hr_burn_in_reference(y, 1, 1, 8)
+        np.testing.assert_allclose(out["phi"], phi, rtol=0, atol=1e-10)
+        np.testing.assert_allclose(out["sigma2"], sigma2, rtol=1e-10)

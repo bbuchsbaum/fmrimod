@@ -24,6 +24,7 @@ from fmrimod.contrast.contrast_weights import (
     _calculate_mask_weights, _get_conditions, _parse_formula_condition,
     _match_conditions_to_formula, CONTRAST_TOLERANCE
 )
+from fmrimod.contrast.errors import ContrastError
 
 
 # ============================================================================
@@ -376,11 +377,9 @@ class TestSingledispatchHandlers:
         term = make_term(['A', 'B', 'C'])
         spec = UnitContrastSpec(name='test', A=Formula("condition == 'Z'"))
 
-        with pytest.warns(UserWarning, match="No conditions were selected"):
-            con = contrast_weights(spec, term)
-
-        # Should have zero weights
-        assert np.all(con.weights == 0)
+        # REG-A-18: selecting nothing is an error, not zero weights.
+        with pytest.raises(ContrastError, match="No conditions were selected"):
+            contrast_weights(spec, term)
 
     def test_unit_contrast_none_formula(self):
         """Test UnitContrastSpec with A=None (select all)."""
@@ -438,11 +437,8 @@ class TestSingledispatchHandlers:
             B=Formula("alsonothere == 'Y'")
         )
 
-        with pytest.warns(UserWarning, match="No conditions were selected"):
-            con = contrast_weights(spec, term)
-
-        # Should create zero weights
-        assert np.all(con.weights == 0)
+        with pytest.raises(ContrastError, match="No conditions were selected"):
+            contrast_weights(spec, term)
 
     def test_column_contrast_empty_term(self):
         """Test ColumnContrastSpec with empty term."""
@@ -462,10 +458,11 @@ class TestSingledispatchHandlers:
         term = make_term(['A', 'B', 'C'])
         spec = ColumnContrastSpec(pattern_A='NOMATCH', pattern_B=None, name='test')
 
-        with pytest.warns(UserWarning):
-            con = contrast_weights(spec, term)
-        # When no match, weights will be zero
-        assert con.weights.shape[0] == 3
+        with (
+            pytest.warns(UserWarning, match="matched no columns"),
+            pytest.raises(ContrastError, match="No conditions were selected"),
+        ):
+            contrast_weights(spec, term)
 
     def test_column_contrast_no_match_B(self):
         """Test ColumnContrastSpec when pattern_B matches nothing."""
@@ -644,12 +641,10 @@ class TestSingledispatchHandlers:
         c2 = PolyContrastSpec(name='bad', A=Formula('time'), degree=5)  # Too high
         cset = ContrastSet(c1, c2)  # Pass as separate args, not list
 
-        with pytest.warns(UserWarning, match="Failed to compute"):
-            results = contrast_weights(cset, term)
-
-        # Should have the good one, not the bad one
-        assert 'good' in results
-        assert 'bad' not in results
+        # REG-A-18: a failing contrast in a set is an error, never dropped.
+        with pytest.raises(ContrastError, match="contrast 'bad'") as excinfo:
+            contrast_weights(cset, term)
+        assert excinfo.value.contrast == 'bad'
 
 
 # ============================================================================
@@ -805,11 +800,9 @@ class TestContrastFormulaSpec:
         term = make_term(['A', 'B', 'C'])
         spec = ContrastFormulaSpec(name='test', A=Formula("???invalid"))
 
-        # Should fall back to treating as condition name
-        con = contrast_weights(spec, term)
-
-        # Won't match anything, all zeros
-        assert np.all(con.weights == 0)
+        # REG-A-18: an unparseable formula errors instead of zero weights.
+        with pytest.raises(ContrastError, match="unparseable formula"):
+            contrast_weights(spec, term)
 
     def test_formula_with_basis_expansion(self):
         """Test ContrastFormulaSpec with basis expansion."""
@@ -833,11 +826,20 @@ class TestContrastFormulaSpec:
         # Create a formula with invalid syntax that will be treated as a name
         spec = ContrastFormulaSpec(name='test', A=Formula("@#$%"))
 
-        con = contrast_weights(spec, term)
+        with pytest.raises(ContrastError, match="Formula contrast 'test'"):
+            contrast_weights(spec, term)
 
-        # Invalid syntax gets treated as a name that doesn't match anything
-        # Should return zero weights (no match)
-        assert np.all(con.weights == 0)
+    def test_formula_unknown_name_errors(self):
+        """REG-A-18: a name that matches no condition is an error."""
+        term = make_term(['A', 'B', 'C'])
+        spec = ContrastFormulaSpec(name='test', A=Formula("A - Z"))
+
+        with pytest.raises(ContrastError, match="unknown name 'Z'"):
+            contrast_weights(spec, term)
+
+        spec = ContrastFormulaSpec(name='test', A=Formula("condition == 'Z'"))
+        with pytest.raises(ContrastError, match="matches no condition"):
+            contrast_weights(spec, term)
 
 
 # ============================================================================

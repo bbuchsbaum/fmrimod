@@ -67,11 +67,19 @@ class CovariateTerm(Term):  # type: ignore[misc]
     covariates : str or list of str
         Covariate variable name(s)
     prefix : str, optional
-        Prefix to add to covariate names in design matrix
+        Term tag for the covariate columns when ``id`` is not given.
     subset : array-like or callable, optional
         Boolean mask or function to subset the data
     name : str, optional
         Custom name for the term
+    id : str, optional
+        Term identifier; the term tag of the covariate columns.
+
+    Notes
+    -----
+    Design columns are named ``<tag>_<variable>`` with the tag ``id``, else
+    ``prefix``, else ``cov`` (R ``fmridesign::covariate()``): ``x`` and ``y``
+    give ``cov_x`` and ``cov_y``.
     
     Examples
     --------
@@ -91,7 +99,8 @@ class CovariateTerm(Term):  # type: ignore[misc]
         covariates: Union[str, List[str]],
         prefix: Optional[str] = None,
         subset: Optional[Union[Array, Callable[..., Any]]] = None,
-        name: Optional[str] = None
+        name: Optional[str] = None,
+        id: str | None = None,  # noqa: A002 - R covariate(id=)
     ):
         """Initialize covariate term."""
         # Normalize to list
@@ -100,6 +109,7 @@ class CovariateTerm(Term):  # type: ignore[misc]
         
         self.covariates = covariates
         self.prefix = prefix
+        self.id = id
         self.subset = subset
         self._is_covariate = True
         
@@ -122,6 +132,11 @@ class CovariateTerm(Term):  # type: ignore[misc]
     def is_covariate(self) -> bool:
         """Whether this is a covariate term."""
         return True
+
+    @property
+    def covariate_tag(self) -> str:
+        """Term tag of the covariate columns: ``id``, else ``prefix``, else ``cov``."""
+        return self.id or self.prefix or "cov"
     
     def __repr__(self) -> str:
         """String representation."""
@@ -270,7 +285,8 @@ def covariate(
     data: Optional[pd.DataFrame] = None,
     prefix: Optional[str] = None,
     subset: Optional[Union[Array, Callable[..., Any]]] = None,
-    name: Optional[str] = None
+    name: Optional[str] = None,
+    id: str | None = None,  # noqa: A002 - R covariate(id=)
 ) -> CovariateTerm:
     """Create a covariate term for non-convolved regressors.
     
@@ -285,11 +301,15 @@ def covariate(
     data : DataFrame, optional
         Data containing the variables (for validation)
     prefix : str, optional
-        Prefix to add to variable names in design matrix
+        Term tag for the covariate columns when ``id`` is not given.
     subset : array-like or callable, optional
         Boolean mask or function to subset the data
     name : str, optional
         Custom name for the covariate term
+    id : str, optional
+        Term identifier; the term tag of the covariate columns.
+        Columns are named ``<tag>_<variable>`` with the tag ``id``, else
+        ``prefix``, else ``cov`` (``cov_motion_x``, ``motion_x``, ...).
     
     Returns
     -------
@@ -330,7 +350,8 @@ def covariate(
         covariates=list(variables),
         prefix=prefix,
         subset=subset,
-        name=name
+        name=name,
+        id=id,
     )
 
 

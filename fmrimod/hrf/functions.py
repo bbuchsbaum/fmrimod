@@ -833,28 +833,31 @@ def hrf_basis_lwu(
             "use normalize(LWUBasisHRF(...), mode)."
         )
 
-    tau0, sigma0, rho0 = theta0
+    if np.any(np.isnan(t)):
+        raise ValueError("t must not contain NaN values")
 
-    # Primary HRF at expansion point
+    tau0, sigma0, rho0 = (float(v) for v in theta0)
+
+    # Primary HRF at expansion point (also validates sigma0 and rho0)
     h0 = hrf_lwu(t, tau0, sigma0, rho0, normalize="none")
 
-    # Compute partial derivatives numerically
-    eps = 1e-5
+    # Partial derivatives in closed form. Finite differences would step
+    # outside the validated domain at rho in {0, 1.5} or sigma just above
+    # 0.05 (R steps one-sidedly there, fmrihrf 5489369); the analytic
+    # Jacobian is exact everywhere in the domain.
+    #   h = g1 - rho * g2,  g1 = exp(-d^2 / (2 s^2)),  d = t - tau
+    #   g2 = exp(-u^2 / (2 (1.6 s)^2)),  u = t - tau - 2 s
+    d = t - tau0
+    u = d - 2.0 * sigma0
+    s_u = 1.6 * sigma0
+    g1 = np.exp(-(d**2) / (2.0 * sigma0**2))
+    g2 = np.exp(-(u**2) / (2.0 * s_u**2))
 
-    # Partial derivative w.r.t. tau
-    h_tau_plus = hrf_lwu(t, tau0 + eps, sigma0, rho0)
-    h_tau_minus = hrf_lwu(t, tau0 - eps, sigma0, rho0)
-    dh_dtau = (h_tau_plus - h_tau_minus) / (2 * eps)
-
-    # Partial derivative w.r.t. sigma
-    h_sigma_plus = hrf_lwu(t, tau0, sigma0 + eps, rho0)
-    h_sigma_minus = hrf_lwu(t, tau0, sigma0 - eps, rho0)
-    dh_dsigma = (h_sigma_plus - h_sigma_minus) / (2 * eps)
-
-    # Partial derivative w.r.t. rho
-    h_rho_plus = hrf_lwu(t, tau0, sigma0, rho0 + eps)
-    h_rho_minus = hrf_lwu(t, tau0, sigma0, rho0 - eps)
-    dh_drho = (h_rho_plus - h_rho_minus) / (2 * eps)
+    dh_dtau = g1 * d / sigma0**2 - rho0 * g2 * u / s_u**2
+    # d/ds of -u^2 / (2 (1.6 s)^2) = 2u / (1.6 s)^2 + u^2 / (1.6^2 s^3)
+    dg2_dsigma = g2 * (2.0 * u / s_u**2 + u**2 / (1.6**2 * sigma0**3))
+    dh_dsigma = g1 * d**2 / sigma0**3 - rho0 * dg2_dsigma
+    dh_drho = -g2
 
     # Stack as columns
     basis = np.column_stack([h0, dh_dtau, dh_dsigma, dh_drho])

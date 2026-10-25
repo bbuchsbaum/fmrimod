@@ -55,6 +55,7 @@ _ALIASES: dict[str, HRFName] = {
     "gamma": "gamma",
     "gaussian": "gaussian",
     "bspline": "bspline",
+    "bs": "bspline",  # R fmridesign hrf(basis = "bs")
     "fir": "fir",
     "fourier": "fourier",
     "time": "time",

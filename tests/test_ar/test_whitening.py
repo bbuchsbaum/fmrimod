@@ -428,3 +428,60 @@ class TestExactStationaryStart:
         out = arma_whiten_segments(y, np.array([1.0]), np.array([]), np.array([0]),
                                    exact_first_ar1=True)
         np.testing.assert_allclose(out, np.ones(5))
+
+
+class TestPlanDataConsistency:
+    """AR-16 (fmriAR 617bd87): a plan only describes the data it was fitted on."""
+
+    @staticmethod
+    def _data(n=200, V=4, seed=9104):
+        rng = np.random.default_rng(seed)
+        e = rng.standard_normal((n, V))
+        for t in range(1, n):
+            e[t] += 0.5 * e[t - 1]
+        X = np.column_stack([np.ones(n), rng.standard_normal(n)])
+        return X, e
+
+    def test_plan_records_n_time(self):
+        X, R = self._data()
+        assert fit_noise(R, p=1).n_time == 200
+        assert WhiteningPlan().n_time is None
+
+    def test_censor_fallback_only_for_matching_length(self):
+        X, R = self._data()
+        cens = [39, 40, 149]
+        plan = fit_noise(R, p=1, censor=cens)
+        np.testing.assert_array_equal(
+            whiten_apply(plan, X, R).Y, whiten_apply(plan, X, R, censor=cens).Y
+        )
+        # Different data (different length) must not inherit the training set.
+        short = whiten_apply(plan, X[:150], R[:150])
+        ref = whiten_apply(plan, X[:150], R[:150], censor=[])
+        np.testing.assert_array_equal(short.Y, ref.Y)
+        np.testing.assert_array_equal(short.X, ref.X)
+
+    def test_per_run_plan_refuses_a_different_run_count(self):
+        X, R = self._data(300, 3, 9106)
+        runs3 = np.repeat([1, 2, 3], 100)
+        plan = fit_noise(R, runs=runs3, pooling="run", p=1)
+        runs2 = np.repeat([1, 2], 100)
+        with pytest.raises(ValueError, match="3 'phi' sets"):
+            whiten_apply(plan, X[:200], R[:200], runs=runs2)
+        gplan = fit_noise(R, runs=runs3, p=1)
+        whiten_apply(gplan, X[:200], R[:200], runs=runs2)
+
+
+@pytest.mark.parametrize(
+    ("phi", "expected"),
+    [(1.0, [1, 1, 1, 1, 1]), (1.2, [1, 0.8, 0.6, 0.4, 0.2]), (-1.0, [1, 3, 5, 7, 9])],
+)
+def test_nonstationary_ar1_exact_start_falls_back_to_conditional(phi, expected):
+    """AR-21 (fmriAR 617bd87): |phi| >= 1 leaves the first sample unscaled.
+
+    ``sqrt(max(1 - phi**2, 0))`` would zero sample 0 instead.
+    """
+    y = np.arange(1.0, 6.0)
+    out = arma_whiten_segments(
+        y, np.array([phi]), np.array([]), np.array([0]), exact_first_ar1=True
+    )
+    np.testing.assert_allclose(out, expected, rtol=0, atol=1e-12)

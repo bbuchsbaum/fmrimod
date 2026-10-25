@@ -8,6 +8,7 @@ or directly on design matrix columns.
 from __future__ import annotations
 
 import warnings
+from collections.abc import Sequence
 from itertools import combinations
 from typing import Any, Callable, Dict, List, Mapping, Optional, Union
 
@@ -340,18 +341,18 @@ class ContrastSet(list[Any]):
 
     def __init__(self, *contrasts: Any) -> None:
         """Initialize contrast set.
-        
+
+        Nested ``ContrastSet`` arguments (such as the result of
+        :func:`one_against_all_contrast` or :func:`pairwise_contrasts`) are
+        flattened recursively in argument order; empty sets contribute
+        nothing (R fmridesign 2a98707). Plain lists are not flattened.
+
         Parameters
         ----------
-        *contrasts : ContrastSpec
-            Variable number of contrast specifications
+        *contrasts : ContrastSpec or ContrastSet
+            Contrast specifications or sets of them.
         """
-        # Validate all are ContrastSpec
-        for c in contrasts:
-            if not isinstance(c, ContrastSpec):
-                raise TypeError(f"All elements must be ContrastSpec, got {type(c)}")
-        
-        super().__init__(contrasts)
+        super().__init__(_flatten_contrasts(contrasts))
     
     def __repr__(self) -> str:
         """Rich string representation."""
@@ -371,6 +372,32 @@ class ContrastSet(list[Any]):
             names_preview += f", ... ({n - 5} more)"
 
         return f"ContrastSet(n={n}, names=[{names_preview}], types={{{type_str}}})"
+
+
+def _flatten_contrasts(items: Sequence[Any], path: str | None = None) -> list[ContrastSpec]:
+    """Leaves of possibly nested contrast sets, with the path of a bad entry.
+
+    Top-level arguments are numbered from 1 (``argument 2``); entries of a
+    nested set by their index in it (``argument 2[1]``).
+    """
+    out: list[ContrastSpec] = []
+    for i, item in enumerate(items):
+        location = f"argument {i + 1}" if path is None else f"{path}[{i}]"
+        if isinstance(item, ContrastSpec):
+            out.append(item)
+        elif isinstance(item, ContrastSet):
+            out.extend(_flatten_contrasts(list(item), location))
+        else:
+            hint = (
+                " For a plain list of specifications, use contrast_set(*specs)."
+                if isinstance(item, (list, tuple))
+                else ""
+            )
+            raise TypeError(
+                f"contrast_set(): {location} must be a ContrastSpec or ContrastSet, "
+                f"got {type(item).__name__}.{hint}"
+            )
+    return out
 
 
 def contrast(
@@ -500,12 +527,20 @@ def column_contrast(
         Contrast name
     where : Formula, optional
         Currently unused, kept for API consistency
-        
+
     Returns
     -------
     ColumnContrastSpec
         Column contrast specification
-        
+
+    Notes
+    -----
+    For a contrast attached to a model term, patterns are matched against
+    the term's design-matrix column names (``cond_cond.A_b01``) first and,
+    only if they match none of them, against the term-level condition
+    names (``cond.A_b01``). A pattern that selects different columns in the
+    two namespaces is an error: anchor it on the design-matrix names.
+
     Examples
     --------
     >>> # Test main effect of continuous RT
@@ -665,12 +700,16 @@ def interaction_contrast(
 
 def contrast_set(*contrasts: Any) -> ContrastSet:
     """Create a set of contrasts.
-    
+
+    Nested sets, such as the results of :func:`one_against_all_contrast` or
+    :func:`pairwise_contrasts`, are flattened in argument order. Plain lists
+    are not; splice them with ``contrast_set(*specs)``.
+
     Parameters
     ----------
-    *contrasts : ContrastSpec
-        Variable number of contrast specifications
-        
+    *contrasts : ContrastSpec or ContrastSet
+        Contrast specifications or sets of them.
+
     Returns
     -------
     ContrastSet

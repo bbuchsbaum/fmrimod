@@ -80,14 +80,17 @@ class AROptions:
     Parameters
     ----------
     struct : str
-        AR structure: ``"iid"`` (no AR), ``"ar1"``, ``"ar2"``, ``"arp"``.
+        AR structure: ``"iid"`` (no AR), ``"ar1"``, ``"ar2"``, ``"arp"``, or
+        ``"arma"`` (AR order ``p``, default 1).
     p : int or None
-        AR order when *struct* is ``"arp"``.
+        AR order when *struct* is ``"arp"`` or ``"arma"``.
     iter_gls : int
         Maximum number of GLS iterations. ``fmri_lm`` estimates the AR model
         once, from the OLS residuals with fmriAR's residual-bias correction
         for the design, and holds it fixed for the GLS solve (fmrireg
         23c275f), so any value >= 1 gives the same fit; ``0`` fits OLS.
+        An ARMA model (``q > 0``) is refined up to ``iter_gls`` times,
+        stopping once its coefficients move by at most ``convergence_tol``.
     global_ar : bool
         Alias for ``pooling="global"`` (fmrireg ``ar_options$global``).
     voxelwise : bool
@@ -116,6 +119,18 @@ class AROptions:
         Nilearn clusters with k-means instead). Trades a little accuracy
         (|phi error| < width) for speed at large voxel counts; ``None``
         (default) keeps the exact per-voxel estimates.
+    method : str
+        ``"ar"`` (default) or ``"arma"``, which requests an ARMA model like
+        ``q > 0``. ``fmri_lm`` does not support ``"afni"``.
+    q : int
+        MA order. ``q > 0`` (or ``struct``/``method`` ``"arma"``, which
+        default ``q`` to 1) makes ``fmri_lm`` fit an ARMA(p, q) model per
+        run by fmriAR's pooled Hannan-Rissanen estimator (fmrireg 3c2a9c2);
+        ``struct="iid"`` with ``q > 0`` is a pure MA model. ``fmri_lm``
+        supports this only with ``pooling="run"``, ``iter_gls >= 1`` and no
+        censoring, voxelwise covariance, noise pools or robust fitting.
+    convergence_tol : float
+        ARMA refinement stops once no coefficient moves by more than this.
     """
 
     struct: Literal["iid", "ar1", "ar2", "arp", "arma"] = "iid"
@@ -287,7 +302,20 @@ class AROptions:
 
     @property
     def enabled(self) -> bool:
-        return self.struct != "iid"
+        # A pure MA model (struct="iid", q > 0) is temporal noise too.
+        return self.struct != "iid" or self.is_arma
+
+    @property
+    def is_arma(self) -> bool:
+        """True when an MA part is requested (``q > 0`` or ``"arma"``)."""
+        return self.q > 0 or self.struct == "arma" or self.method == "arma"
+
+    @property
+    def ma_order(self) -> int:
+        """Effective MA order: ``q``, or 1 when ARMA is requested by name."""
+        if self.q > 0:
+            return self.q
+        return 1 if self.is_arma else 0
 
 
 @dataclass

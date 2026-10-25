@@ -23,6 +23,7 @@ def regressor_design(
     sparse: Literal[False] = ...,
     include_intercept: bool = ...,
     column_names: None = ...,
+    as_frame: Literal[False] = ...,
 ) -> NDArray[np.float64]: ...
 
 
@@ -36,6 +37,21 @@ def regressor_design(
     include_intercept: bool = ...,
     *,
     column_names: List[str],
+    as_frame: bool = ...,
+) -> pd.DataFrame: ...
+
+
+@overload
+def regressor_design(
+    regressors: Regressor | RegressorSet | list[Regressor],
+    grid: ArrayLike,
+    precision: float = ...,
+    method: ConvolutionMethod = ...,
+    sparse: Literal[False] = ...,
+    include_intercept: bool = ...,
+    column_names: list[str] | None = ...,
+    *,
+    as_frame: Literal[True],
 ) -> pd.DataFrame: ...
 
 
@@ -49,6 +65,7 @@ def regressor_design(
     sparse: Literal[True],
     include_intercept: bool = ...,
     column_names: Optional[List[str]] = ...,
+    as_frame: bool = ...,
 ) -> scipy.sparse.csr_matrix: ...
 
 
@@ -59,7 +76,8 @@ def regressor_design(
     method: ConvolutionMethod = "conv",
     sparse: bool = False,
     include_intercept: bool = False,
-    column_names: Optional[List[str]] = None
+    column_names: Optional[List[str]] = None,
+    as_frame: bool = False,
 ) -> Union[NDArray[np.float64], scipy.sparse.csr_matrix, pd.DataFrame]:
     """Create a design matrix from regressors.
     
@@ -73,7 +91,13 @@ def regressor_design(
         method: Evaluation method ('conv', 'fft', 'direct')
         sparse: Whether to return sparse matrix
         include_intercept: Whether to add an intercept column
-        column_names: Optional column names for DataFrame output
+        column_names: Optional column names; when given, a DataFrame
+            indexed by ``grid`` is returned.
+        as_frame: Return a DataFrame even without ``column_names``. For a
+            :class:`RegressorSet` the columns are named by
+            :attr:`RegressorSet.column_names` (``<level>`` or
+            ``<level>_basis<k>``); other inputs need ``column_names``.
+            An intercept column is named ``"intercept"``.
         
     Returns:
         Design matrix as array, sparse matrix, or DataFrame
@@ -134,6 +158,16 @@ def regressor_design(
     if sparse:
         return csr_matrix(design)
     
+    if column_names is None and as_frame:
+        if not isinstance(regressors, RegressorSet):
+            raise ValueError(
+                "as_frame=True needs column_names unless regressors is a "
+                "RegressorSet"
+            )
+        column_names = regressors.column_names
+        if include_intercept:
+            column_names = ["intercept", *column_names]
+
     # Convert to DataFrame if column names provided
     if column_names is not None:
         if len(column_names) != n_cols:
