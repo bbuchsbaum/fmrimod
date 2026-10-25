@@ -12,6 +12,7 @@ from numpy.typing import NDArray
 
 from .._warnings import call_safely, suppress_fmrimod_warnings
 from ..covariate import CovariateTerm, create_covariate_events
+from ..design_colmap import _hrf_basis_family
 from ..hrf.core import HRF
 from ..dispatch import get_hrf
 from ..events import (
@@ -860,7 +861,9 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
                     try:
                         hrf_obj = self._resolve_hrf_for_term(term)
                         nb = int(getattr(hrf_obj, "nbasis", 1) or 1)
-                        basis_name = getattr(hrf_obj, "name", type(hrf_obj).__name__)
+                        basis_name = _hrf_basis_family(
+                            getattr(hrf_obj, "name", type(hrf_obj).__name__)
+                        )
                         basis_total = nb
                     except Exception:
                         pass
@@ -886,7 +889,9 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
                     try:
                         hrf_obj = self._resolve_hrf_for_term(term)
                         nb = hrf_obj.nbasis
-                        basis_name = getattr(hrf_obj, "name", type(hrf_obj).__name__)
+                        basis_name = _hrf_basis_family(
+                            getattr(hrf_obj, "name", type(hrf_obj).__name__)
+                        )
                         basis_total = nb
                     except Exception:
                         pass
