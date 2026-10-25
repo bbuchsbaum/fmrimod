@@ -104,6 +104,9 @@ def test_hdf5_roundtrip_axis_data_keeps_column_types(tmp_path) -> None:
             "age": [30.5, 40.0, 22.25],
             "n_runs": [2, 3, 4],
             "patient": [True, False, True],
+            # Missing entries must stay missing, not break the category cast.
+            "dose": pd.Categorical([1, None, 2]),
+            "arm": pd.Categorical(["a", None, "b"]),
         },
         index=pd.Index(subjects, name="subject"),
     )

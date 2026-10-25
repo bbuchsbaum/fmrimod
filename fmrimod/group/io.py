@@ -98,8 +98,16 @@ def _restore_dtype(values: Any, spec: Mapping[str, Any]) -> Any:
     if dtype == "category":
         categories = pd.Index(spec["categories"]).astype(str(spec["categories_dtype"]))
         target: Any = pd.CategoricalDtype(categories, ordered=bool(spec["ordered"]))
-        values = values.astype(categories.dtype)
-        return values.astype(target)
+        # Cast only the present entries: JSON nulls come back as NaN, which
+        # an integer or bool category dtype cannot hold.
+        missing = np.asarray(pd.isna(values))
+        present = pd.Index(np.asarray(values, dtype=object)[~missing])
+        codes = np.full(missing.shape, -1, dtype=np.int64)
+        codes[~missing] = categories.get_indexer(present.astype(categories.dtype))
+        restored = pd.Categorical.from_codes(codes, dtype=target)
+        if isinstance(values, pd.Index):
+            return pd.CategoricalIndex(restored, name=values.name)
+        return pd.Series(restored, index=values.index, name=values.name)
     if dtype.startswith("datetime64"):
         resolved = pd.api.types.pandas_dtype(dtype)
         if isinstance(resolved, pd.DatetimeTZDtype):
