@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from fmrimod.events import EventFactor, EventVariable, EventTerm
+from fmrimod.contrast.errors import ContrastError
 from fmrimod.contrast import (
     contrast,
     unit_contrast,
@@ -693,22 +694,16 @@ class TestContrastEdgeCases:
 
         # Use formula that doesn't match any conditions
         spec = unit_contrast(Formula("nonexistent == 'Z'"), name="test")
-        with pytest.warns(UserWarning, match="No conditions were selected"):
-            con = contrast_weights(spec, term)
-
-        # Should handle gracefully - creates zero weights
-        assert con.weights.shape[0] == 2  # Still has 2 conditions
-        assert np.all(con.weights == 0)  # But all weights are zero
+        # A contrast that selects nothing is an error, never zero weights
+        # (REG-A-18; fmridesign .calculate_mask_weights stops here).
+        with pytest.raises(ContrastError, match="No conditions were selected"):
+            contrast_weights(spec, term)
 
     def test_no_matching_conditions_unit_contrast(self, simple_term_3_levels):
         """Test unit contrast when no conditions match."""
         spec = unit_contrast(Formula("condition == 'Z'"), name="nonexistent")
-        with pytest.warns(UserWarning, match="No conditions were selected"):
-            con = contrast_weights(spec, simple_term_3_levels)
-
-        # Should create zero weights
-        assert con.weights.shape == (3, 1)
-        assert np.all(con.weights == 0)
+        with pytest.raises(ContrastError, match="'nonexistent'"):
+            contrast_weights(spec, simple_term_3_levels)
 
     def test_contrast_repr(self, simple_term_3_levels):
         """Test Contrast.__repr__ method."""

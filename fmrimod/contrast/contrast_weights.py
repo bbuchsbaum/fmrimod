@@ -34,6 +34,7 @@ from .contrast_spec import (
     PolyContrastSpec,
     UnitContrastSpec,
 )
+from .errors import ContrastError, DesignProvenanceError
 
 # Tolerance for sum-to-zero checks
 CONTRAST_TOLERANCE = 1e-8
@@ -733,11 +734,11 @@ def _(x: UnitContrastSpec, term: Any, **kwargs: object) -> Contrast:
     nA: int = int(np.sum(mask_A))
 
     if nA == 0:
-        warnings.warn(
+        raise ContrastError(
             f"Unit contrast '{x.name}': No conditions were selected by formula. "
-            f"Formula: '{formula_expr}', Conditions: {all_condnames}"
+            f"Formula: '{formula_expr}', Conditions: {all_condnames}",
+            contrast=x.name,
         )
-        weights_vec = np.zeros(len(all_condnames))
     else:
         # Unit contrast: selected conditions get equal positive weight summing to 1
         weights_vec = np.zeros(len(all_condnames))
@@ -787,8 +788,10 @@ def _(x: PairContrastSpec, term: Any, **kwargs: object) -> Contrast:
     try:
         weights_vec = _calculate_mask_weights(base_condnames, mask_A, mask_B)
     except ValueError as e:
-        warnings.warn(f"Contrast '{x.name}': {e}")
-        weights_vec = np.zeros(len(base_condnames))
+        raise ContrastError(
+            f"Contrast '{x.name}': {e} Conditions: {base_condnames}",
+            contrast=x.name,
+        ) from e
 
     weights = weights_vec.reshape(-1, 1)
 
@@ -871,8 +874,10 @@ def _(x: ColumnContrastSpec, term: Any, **kwargs: object) -> Contrast:
     try:
         weights_vec = _calculate_mask_weights(all_colnames, mask_A, mask_B)
     except ValueError as e:
-        warnings.warn(f"Column contrast '{x.name}': {e}")
-        weights_vec = np.zeros(len(all_colnames))
+        raise ContrastError(
+            f"Column contrast '{x.name}': {e} Columns: {all_colnames}",
+            contrast=x.name,
+        ) from e
     
     weights = weights_vec.reshape(-1, 1)
     
@@ -1178,11 +1183,11 @@ def _(x: ContrastFormulaSpec, term: Any, **kwargs: object) -> Contrast:
     try:
         weights_vec = _evaluate_formula_expression(formula_expr, all_condnames)
     except Exception as e:
-        warnings.warn(
-            f"Formula contrast '{x.name}': Failed to parse formula '{formula_expr}': {e}. "
-            "Using zero weights."
-        )
-        weights_vec = np.zeros(len(all_condnames))
+        raise ContrastError(
+            f"Formula contrast '{x.name}': cannot evaluate formula "
+            f"'{formula_expr}': {e}. Available conditions: {all_condnames}",
+            contrast=x.name,
+        ) from e
     if where_mask is not None:
         weights_vec = np.where(where_mask, weights_vec, 0.0)
 
@@ -1238,9 +1243,11 @@ def _evaluate_formula_expression(formula_expr: str, condnames: List[str]) -> NDA
     # Parse the formula expression into an AST
     try:
         tree = ast.parse(preprocessed, mode='eval')
-    except SyntaxError:
+    except SyntaxError as exc:
         # Try treating it as a simple condition name
         mask = _match_conditions_to_formula(condnames, formula_expr)
+        if not mask.any():
+            raise ValueError(f"unparseable formula ({exc.msg})") from exc
         weights = np.zeros(len(condnames), dtype=float)
         weights[mask] = 1.0
         return weights
@@ -1308,6 +1315,8 @@ def _eval_formula_ast(node: ast.AST, condnames: List[str]) -> NDArray[Any]:
             expr_str = _reconstruct_compare(node)
 
         mask = _match_conditions_to_formula(condnames, expr_str)
+        if not mask.any():
+            raise ValueError(f"{expr_str!r} matches no condition")
         weights = np.zeros(len(condnames), dtype=float)
         weights[mask] = 1.0
         return weights
@@ -1316,6 +1325,8 @@ def _eval_formula_ast(node: ast.AST, condnames: List[str]) -> NDArray[Any]:
         # Simple variable name: "A"
         var_name = node.id
         mask = _match_conditions_to_formula(condnames, var_name)
+        if not mask.any():
+            raise ValueError(f"unknown name {var_name!r} matches no condition")
         weights = np.zeros(len(condnames), dtype=float)
         weights[mask] = 1.0
         return weights
@@ -1397,11 +1408,14 @@ def _(x: ContrastSet, term: Any, **kwargs: object) -> Dict[str, Contrast]:
     for contrast_spec in x:
         try:
             con = contrast_weights(contrast_spec, term, **kwargs)
-            results[con.name] = con
+        except DesignProvenanceError:
+            raise
         except Exception as e:
-            warnings.warn(
-                f"Failed to compute weights for contrast '{contrast_spec.name}': {e}"
-            )
+            raise ContrastError(
+                f"Failed to compute weights for contrast '{contrast_spec.name}': {e}",
+                contrast=contrast_spec.name,
+            ) from e
+        results[con.name] = con
 
     return results
 
@@ -1455,13 +1469,15 @@ def _contrast_weights_event_model(model: Any, **kwargs: object) -> Dict[str, Any
             try:
                 local_contrast = contrast_weights(contrast_spec, event_term, **kwargs)
                 offset_weights = layout.embed(local_contrast, ncol, key)
+            except DesignProvenanceError:
+                raise
             except Exception as e:
-                warnings.warn(
+                raise ContrastError(
                     f"Failed to compute contrast '{contrast_spec.name}' "
                     f"for term '{key}': {e}",
-                    stacklevel=2,
-                )
-                continue
+                    contrast=contrast_spec.name,
+                    term=str(key),
+                ) from e
 
             full_contrast = Contrast(
                 term=term,
