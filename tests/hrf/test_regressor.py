@@ -643,3 +643,28 @@ class TestRegressorSetColumnNames:
 
     def test_empty_set_has_no_names(self):
         assert regressor_set([], []).column_names == []
+
+
+class TestInputValidationHRF16:
+    """Inventory v2 HRF-16 (fmrihrf ``aaf58d0``, ``dff54b9``)."""
+
+    @pytest.mark.parametrize(
+        "bad", [None, "yes", 1, 0.0, float("nan"), np.array([True])]
+    )
+    def test_summate_must_be_a_bool(self, bad):
+        with pytest.raises(TypeError, match="summate"):
+            regressor([1.0], summate=bad)
+        with pytest.raises(TypeError, match="summate"):
+            regressor_set([1.0], ["a"], summate=bad)
+
+    def test_summate_accepts_numpy_bool(self):
+        assert regressor([1.0], summate=np.bool_(False)).summate is False
+        assert regressor([1.0], summate=True).summate is True
+
+    def test_negative_block_width_rejected(self):
+        from fmrimod.hrf import HRF_SPMG1, block_hrf, gen_hrf
+
+        with pytest.raises(ValueError, match="width"):
+            gen_hrf(HRF_SPMG1, width=-1)
+        with pytest.raises(ValueError, match="width"):
+            block_hrf(HRF_SPMG1, -1)

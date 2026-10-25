@@ -126,6 +126,14 @@ class Regressor:
         """Validate and process inputs after initialization."""
         _set = object.__setattr__
 
+        # summate must be a single bool: None/NaN/ints would otherwise be
+        # read as False by the conv path (fmrihrf aaf58d0).
+        if not isinstance(self.summate, (bool, np.bool_)):
+            raise TypeError(
+                f"summate must be a bool, got {type(self.summate).__name__}"
+            )
+        _set(self, "summate", bool(self.summate))
+
         # Convert inputs to numpy arrays
         _set(self, "onsets", np.asarray(self.onsets, dtype=np.float64))
         _set(self, "duration", np.asarray(self.duration, dtype=np.float64))
