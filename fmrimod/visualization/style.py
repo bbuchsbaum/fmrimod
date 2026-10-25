@@ -214,7 +214,7 @@ def _default_rc(base_size: float = BASE_SIZE) -> dict[str, object]:
     from cycler import cycler
 
     return {
-        "font.family": "sans-serif",
+        "font.family": _available_fonts(),
         "font.sans-serif": _available_fonts(),
         "font.size": base_size,
         "text.color": INK["text"],

@@ -118,6 +118,24 @@ def themed(base_size: float = BASE_SIZE) -> AbstractContextManager[None]:
     return mpl.rc_context(theme_rc(base_size))
 
 
+def freeze_fonts(fig: Figure) -> Figure:
+    """Pin the theme's font family on every text artist of ``fig``.
+
+    A text whose family is the generic ``"sans-serif"`` resolves it from the
+    rcParams in force when it is drawn, and tick labels are created at draw
+    time, so a figure laid out under the theme but saved outside it would be
+    measured in one font and drawn in another (clipping margin text).
+    """
+    from matplotlib.text import Text
+
+    fam = theme_rc()["font.sans-serif"]
+    for a in fig.axes:
+        a.tick_params(axis="both", which="both", labelfontfamily=fam)
+    for t in fig.findobj(Text):
+        t.set_fontfamily(fam)
+    return fig
+
+
 def finish(
     fig: Figure,
     title: str | None = None,
@@ -155,6 +173,7 @@ def finish(
     bottom = (lines(caption) * c_size * 1.35 / 72 + 0.12) if caption else 0.0
 
     rect = (0.0, bottom / h_in, 1.0, 1.0 - top / h_in)
+    freeze_fonts(fig)
     if layout:
         with themed(base_size):
             fig.tight_layout(rect=rect, pad=0.5)
@@ -507,7 +526,7 @@ def basis_label(basis_name: str | None, ix: int | None, total: int | None) -> st
 def _baseline_label(name: str, run: object) -> tuple[str, str]:
     stem = re.sub(r"^base_", "", name)
     stem = re.sub(r"_block_\d+$", "", stem)
-    stem = re.sub(r"^constant\d*$", "intercept", stem)
+    stem = re.sub(r"^constant_?\d*$", "intercept", stem)
     group = re.sub(r"\d+$", "", stem) or stem
     label = stem if run is None or (isinstance(run, float) and np.isnan(run)) else f"{stem} {DOT} run {int(run)}"
     return group, label
@@ -613,6 +632,7 @@ __all__ = [
     "corr_text",
     "event_bars",
     "finish",
+    "freeze_fonts",
     "halo_text",
     "level_label",
     "mmss",

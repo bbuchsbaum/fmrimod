@@ -39,6 +39,7 @@ from ._helpers import (
     budget_yticks,
     column_info,
     finish,
+    freeze_fonts,
     halo_text,
     new_figure,
     num,
@@ -891,25 +892,6 @@ def plot_fit(
 def _header(text: dict[str, str | None], title: str, subtitle: str | None, caption: str | None) -> tuple[str | None, str | None, str | None]:
     pick = [text[k] if text[k] is not None else d for k, d in (("title", title), ("subtitle", subtitle), ("caption", caption))]
     return pick[0], pick[1], pick[2]
-
-
-def freeze_fonts(fig: Figure) -> Figure:
-    """Pin the theme's font family on every text artist of ``fig``.
-
-    A text whose family is the generic ``"sans-serif"`` resolves it from
-    the rcParams in force when it is drawn, so a figure laid out under the
-    theme but saved outside it is measured in one font and drawn in
-    another, and margin text can be clipped. Pinning the family keeps
-    layout and drawing in step.
-    """
-    from matplotlib.text import Text
-
-    fam = theme_rc()["font.sans-serif"]
-    for a in fig.axes:
-        a.tick_params(axis="both", which="both", labelfontfamily=fam)
-    for t in fig.findobj(Text):
-        t.set_fontfamily(fam)
-    return fig
 
 
 def _finish(fig: Figure, ax: Axes | None, text: dict[str, str | None], title: str, subtitle: str | None,
