@@ -469,3 +469,19 @@ class TestPlanDataConsistency:
             whiten_apply(plan, X[:200], R[:200], runs=runs2)
         gplan = fit_noise(R, runs=runs3, p=1)
         whiten_apply(gplan, X[:200], R[:200], runs=runs2)
+
+
+@pytest.mark.parametrize(
+    ("phi", "expected"),
+    [(1.0, [1, 1, 1, 1, 1]), (1.2, [1, 0.8, 0.6, 0.4, 0.2]), (-1.0, [1, 3, 5, 7, 9])],
+)
+def test_nonstationary_ar1_exact_start_falls_back_to_conditional(phi, expected):
+    """AR-21 (fmriAR 617bd87): |phi| >= 1 leaves the first sample unscaled.
+
+    ``sqrt(max(1 - phi**2, 0))`` would zero sample 0 instead.
+    """
+    y = np.arange(1.0, 6.0)
+    out = arma_whiten_segments(
+        y, np.array([phi]), np.array([]), np.array([0]), exact_first_ar1=True
+    )
+    np.testing.assert_allclose(out, expected, rtol=0, atol=1e-12)

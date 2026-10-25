@@ -237,3 +237,21 @@ def test_enforce_invertible_ma_matches_fmriar(r_call):
             dtype=np.float64,
         )
         np.testing.assert_allclose(ours, theirs, rtol=0, atol=1e-10, err_msg=str(th))
+
+
+@pytest.mark.parametrize("phi", [1.0, 1.2, -1.0, 0.6])
+def test_exact_start_nonstationary_ar1_matches_fmriar(r_call, phi):
+    """AR-21: a non-stationary AR(1) exact start is the conditional recursion."""
+    from rpy2 import robjects as ro
+
+    from fmrimod.ar.whitening import arma_whiten_segments
+
+    y = np.arange(1.0, 6.0)[:, None]
+    r_out = r_call(
+        "fmriAR:::arma_whiten_inplace", y, np.zeros((5, 0)), ro.FloatVector([phi]),
+        ro.FloatVector([]), ro.IntVector([0]), exact_first=True, parallel=False,
+    )
+    ours = arma_whiten_segments(
+        y, np.array([phi]), np.array([]), np.array([0]), exact_first_ar1=True
+    )
+    np.testing.assert_allclose(ours, r_call.field(r_out, "Y"), rtol=0, atol=1e-12)
