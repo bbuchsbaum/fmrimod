@@ -219,3 +219,21 @@ def test_sandwich_rank_deficient_matches_fmriar(r_call, se_type):
         out["XtX_inv"], r_call.field(r_out, "XtX_inv"), rtol=1e-9, equal_nan=True
     )
     assert out["df"] == int(r_call.field(r_out, "df")[0])
+
+
+def test_enforce_invertible_ma_matches_fmriar(r_call):
+    """AR-19: reflection plus the 1/0.99 radial bound, on fixed and random theta."""
+    from rpy2 import robjects as ro
+
+    from fmrimod.ar.numhelpers import enforce_invertible_ma
+
+    rng = np.random.default_rng(9107)
+    cases = [[-1.0], [1.0], [0.0, -1.0], [-0.995], [0.4, 0.1], [1.2, 0.5]]
+    cases += [rng.normal(scale=1.5, size=q).tolist() for q in (1, 2, 3) for _ in range(10)]
+    for th in cases:
+        ours = enforce_invertible_ma(np.array(th))
+        theirs = np.array(
+            list(r_call("fmriAR:::enforce_invertible_ma", ro.FloatVector(th))),
+            dtype=np.float64,
+        )
+        np.testing.assert_allclose(ours, theirs, rtol=0, atol=1e-10, err_msg=str(th))
