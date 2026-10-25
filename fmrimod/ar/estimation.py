@@ -492,6 +492,7 @@ def fit_noise(
         _bic_n,
         _normalize_censor,
         _select_ar_order,
+        _validate_design_residuals,
         acvf_bias_matrix,
         acvf_from_pooled,
         acvf_max_lag,
@@ -602,6 +603,7 @@ def fit_noise(
         if method != "ar":
             raise ValueError("residual-bias correction applies to method='ar' only")
         if design is not None:
+            _validate_design_residuals(resid, design)
             mats = acvf_bias_matrix(
                 design,
                 runs=runs,

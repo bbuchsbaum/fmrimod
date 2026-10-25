@@ -2,6 +2,7 @@
 
 from .afni import afni_phi_ar3, afni_phi_ar5, afni_restricted_plan
 from .acvf import (
+    DesignResidualMismatchError,
     acvf_bias_matrix,
     noise_acvf,
     pooled_acvf_segments,
@@ -65,6 +66,7 @@ __all__ = [
     "pooled_acvf_segments",
     "noise_acvf",
     "acvf_bias_matrix",
+    "DesignResidualMismatchError",
     "sigma2_from_gamma_phi",
     # Estimation
     "estimate_ar",

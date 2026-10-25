@@ -35,6 +35,7 @@ from fmrimod.glm.errors import FmriCapabilityError, UnsupportedEngineConfigurati
 from fmrimod.glm.solver import LmResult, Projection, fast_lm_matrix, fast_preproject
 from fmrimod.model.config import AROptions, FmriLmConfig
 
+from .acvf import DesignResidualMismatchError
 from .estimation import _quantise_to_noise_pools, fit_noise
 from .plan import plan_from_phi
 from .whitening import whiten_apply
@@ -343,6 +344,10 @@ def _estimate_phi(
             design=design,
             correction_max_lag=_correction_lag_budget(order, rdf),
         )
+    except DesignResidualMismatchError:
+        # The residuals are not this design's OLS residuals: a wiring bug,
+        # not a data problem, so it must not degrade to an unwhitened fit.
+        raise
     except (ValueError, np.linalg.LinAlgError) as err:
         warnings.warn(
             f"AR({order}) estimation failed ({err}); fitting without AR whitening.",
