@@ -361,6 +361,20 @@ def _display_condition_name(canonical: object) -> Optional[str]:
     return ":".join(labels)
 
 
+def _column_of(
+    layout: Any, column_names: list[str], canonical: object, basis_ix: int | None
+) -> str | None:
+    """Design column of a term condition (and basis), or ``None`` if not single."""
+    cond = layout.alias.get(str(canonical), str(canonical))
+    by_basis = layout.columns.get(cond, {})
+    if basis_ix is None:
+        if len(by_basis) != 1:
+            return None
+        basis_ix = next(iter(by_basis))
+    col = by_basis.get(basis_ix)
+    return None if col is None else column_names[col]
+
+
 @singledispatch
 def condition_map(
     x: Any,
@@ -1637,36 +1651,61 @@ def _register_events_event_conditions_contrasts() -> None:
 
         @condition_map.register(EventModel)
         def _condition_map_event_model(x: Any, drop_empty: bool = True, expand_basis: bool = False, **kwargs: object) -> Any:
-            """Map EventModel display/canonical names to design column names."""
+            """Map EventModel display/canonical names to design column names.
+
+            Rows are joined to columns on the construction-time column facts
+            (condition and basis index), not by position. A multi-basis term
+            has no single column per condition unless ``expand_basis=True``,
+            which gives one ``_b##`` row per basis function.
+            """
+            from ..contrast.contrast_weights import _TermColumns
+            from ..events.cells import conditions_event_term
+            from ..naming import add_basis_suffix
+
             rows = []
             event_term_list = x._create_event_terms()
-            column_names = list(getattr(x, "column_names", []) or [])
-            column_indices = getattr(x, "column_indices", {}) or {}
+            facts = x.column_facts
+            column_names = list(x.column_names)
+            key_of = {tuple(cols): key for key, cols in x.column_indices.items()}
 
-            for term_obj, event_term in zip(x.terms, event_term_list):
-                term_name = getattr(term_obj, "name", getattr(event_term, "name", "term"))
-                term_map = condition_map(
-                    event_term,
-                    drop_empty=drop_empty,
-                    expand_basis=expand_basis,
-                    **kwargs,
+            for index, (term_obj, event_term) in enumerate(
+                zip(x.terms, event_term_list, strict=True)
+            ):
+                term_facts = [f for f in facts if f["term_index"] == index + 1]
+                layout = _TermColumns(
+                    term_facts, conditions_event_term(event_term, False, False)
                 )
-                term_cols = [
-                    column_names[idx]
-                    for idx in column_indices.get(term_name, [])
-                    if idx < len(column_names)
-                ]
-                if len(term_cols) == len(term_map):
-                    mapped_cols = term_cols
-                else:
-                    mapped_cols = [None] * len(term_map)
-                for i, row in term_map.reset_index(drop=True).iterrows():
-                    rows.append({
-                        "term": term_name,
-                        "display": row["display"],
-                        "canonical": row["canonical"],
-                        "column_name": mapped_cols[cast(int, i)],
-                    })
+                term_name = key_of.get(
+                    tuple(layout.indices),
+                    getattr(term_obj, "name", getattr(event_term, "name", "term")),
+                )
+                totals = {f.get("basis_total") for f in term_facts}
+                nb = int(totals.pop() or 1) if len(totals) == 1 else 1
+                term_map = condition_map(
+                    event_term, drop_empty=drop_empty, expand_basis=False, **kwargs
+                )
+
+                for _, row in term_map.iterrows():
+                    if expand_basis and nb > 1:
+                        suffixes = add_basis_suffix([""], nb)
+                        for b, suffix in enumerate(suffixes, start=1):
+                            rows.append({
+                                "term": term_name,
+                                "display": f"{row['display']}{suffix}",
+                                "canonical": f"{row['canonical']}{suffix}",
+                                "column_name": _column_of(
+                                    layout, column_names, row["canonical"], b
+                                ),
+                            })
+                    else:
+                        rows.append({
+                            "term": term_name,
+                            "display": row["display"],
+                            "canonical": row["canonical"],
+                            "column_name": _column_of(
+                                layout, column_names, row["canonical"], None
+                            ),
+                        })
 
             return pd.DataFrame(
                 rows,

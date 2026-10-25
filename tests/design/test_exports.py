@@ -112,3 +112,42 @@ def test_condition_map_event_model_top_level():
     assert set(cmap["display"]) == {"A", "B"}
     assert set(cmap["canonical"]) == {"condition.A", "condition.B"}
     assert set(cmap["column_name"]) == set(model.column_names)
+
+
+def _cm_events():
+    return pd.DataFrame({"onset": [2.0, 20.0, 40.0, 60.0], "cond": ["A", "B", "A", "B"]})
+
+
+def test_condition_map_multibasis_expand_basis_joins_columns():
+    """Inventory v2 DES-13 (R 2368564/277ea71): join on condition and basis."""
+    import fmrimod
+
+    em = fmrimod.event_model(
+        "onset ~ hrf(cond, basis='spmg3')", data=_cm_events(), tr=2.0, n_scans=50
+    )
+    cmap = fmrimod.condition_map(em, expand_basis=True)
+    assert len(cmap) == 6
+    assert list(cmap["canonical"]) == [
+        f"cond.{lev}_b0{b}" for lev in "AB" for b in (1, 2, 3)
+    ]
+    assert list(cmap["display"]) == [f"{lev}_b0{b}" for lev in "AB" for b in (1, 2, 3)]
+    assert list(cmap["column_name"]) == [f"cond_{c}" for c in cmap["canonical"]]
+    assert list(cmap["column_name"]) == em.column_names
+
+    # Without expand_basis a condition has no single column.
+    plain = fmrimod.condition_map(em)
+    assert len(plain) == 2
+    assert plain["column_name"].isna().all()
+
+
+def test_condition_map_repeated_term_name_uses_its_own_columns():
+    import fmrimod
+
+    em = fmrimod.event_model(
+        "onset ~ hrf(cond) + hrf(cond, basis='spmg2')",
+        data=_cm_events(), tr=2.0, n_scans=50,
+    )
+    cmap = fmrimod.condition_map(em, expand_basis=True)
+    assert not cmap["column_name"].isna().any()
+    assert sorted(cmap["column_name"]) == sorted(em.column_names)
+    assert list(cmap["term"]) == ["cond"] * 2 + ["cond#1"] * 4
