@@ -186,8 +186,7 @@ def cmap(kind: str = "diverging") -> Colormap:
     if stops is None:
         raise ValueError(f"unknown colormap kind {kind!r}")
     cm = LinearSegmentedColormap.from_list(f"fmrimod_{kind}", ramp(stops, 256))
-    cm.set_bad(INK["band"])
-    return cm
+    return cm.with_extremes(bad=INK["band"])
 
 
 # --------------------------------------------------------------------------
