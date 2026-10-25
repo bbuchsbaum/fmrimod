@@ -890,6 +890,7 @@ def fit_noise(
             censor=censor,
             gamma_by_parcel=gamma_parcel,
             sigma2_by_parcel=sigma2_parcel,
+            n_time=n,
         )
 
     # --- Per-run estimation ---
@@ -1141,4 +1142,5 @@ def fit_noise(
         censor=censor,
         gamma=gamma_list,
         sigma2=sigma2_list,
+        n_time=n,
     )
