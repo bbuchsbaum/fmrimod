@@ -1,0 +1,36 @@
+# hrf.estimate.estimate_hrf_fir { #fmrimod.hrf.estimate.estimate_hrf_fir }
+
+```python
+estimate_hrf_fir(
+    form,
+    dataset,
+    *,
+    block='run',
+    fixed=None,
+    rsam=tuple(range(21)),
+    basemod=None,
+    k=8,
+    basis='bspline',
+    lam='gcv',
+    lam_grid=None,
+    ci_level=0.95,
+)
+```
+
+Estimate condition-level HRF curves with a shared smooth FIR.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name     | Type                      | Description                                                                                        | Default            |
+|----------|---------------------------|----------------------------------------------------------------------------------------------------|--------------------|
+| form     | str                       | Two-sided event-model formula containing at least one ``hrf()`` term. ``trialwise()`` is rejected. | _required_         |
+| dataset  | object                    | Dataset with ``event_table``, ``sampling_frame``, and a data matrix.                               | _required_         |
+| block    | str \| None               | Event-table column naming runs. ``None`` skips block grouping.                                     | `'run'`            |
+| fixed    | str \| None               | Optional nuisance event-model formula.                                                             | `None`             |
+| rsam     | Sequence\[float\]         | Strictly increasing post-stimulus times starting at zero.                                          | `tuple(range(21))` |
+| basemod  | object                    | Optional baseline model. Default is a constant baseline.                                           | `None`             |
+| k        | int                       | Free basis functions per curve (at least 4 for ``bspline``, 2 for ``tent``).                       | `8`                |
+| basis    | HrfBasisName              | ``"bspline"`` (cubic) or ``"tent"`` (piecewise linear).                                            | `'bspline'`        |
+| lam      | LamSpec                   | Non-negative penalty or ``"gcv"`` for shared GCV.                                                  | `'gcv'`            |
+| lam_grid | Sequence\[float\] \| None | Candidate penalties when ``lam='gcv'``.                                                            | `None`             |
+| ci_level | float \| None             | Confidence level in ``(0, 1)``, or ``None`` to omit intervals.                                     | `0.95`             |

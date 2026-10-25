@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from pathlib import Path
@@ -74,6 +75,8 @@ def local_target(root: Path, source: Path, href: str) -> tuple[Path, str] | None
 def audit(root: Path) -> list[str]:
     failures: list[str] = []
     html_paths = sorted(root.rglob("*.html"))
+    if not html_paths:
+        failures.append("No HTML pages found in the documentation artifact")
     pages = {path.resolve(): parse_page(path) for path in html_paths}
     link_count = 0
     image_count = 0
@@ -83,6 +86,25 @@ def audit(root: Path) -> list[str]:
         page = pages[resolved]
         raw = path.read_text(errors="replace")
         relative = path.relative_to(root)
+
+        source = root.parent / relative.with_suffix(".qmd")
+        if source.is_file():
+            cells = re.findall(
+                r"```\{python[^}]*\}\n(.*?)\n```", source.read_text(), re.DOTALL
+            )
+            expected = sum(
+                bool(re.search(r"(?m)^\s*#\|\s*fig-alt:", cell))
+                and not re.search(r"(?m)^\s*#\|\s*eval:\s*false", cell)
+                for cell in cells
+            )
+            if len(page.images) < expected:
+                failures.append(
+                    f"{relative}: expected at least {expected} declared plot outputs, "
+                    f"found {len(page.images)} images"
+                )
+
+        if re.search(r"\{fig-(?:alt|cap)\s*=", raw):
+            failures.append(f"{relative}: raw figure metadata leaked into HTML")
 
         if any(role in raw for role in RAW_SPHINX_ROLES):
             failures.append(f"{relative}: raw Sphinx role leaked into HTML")

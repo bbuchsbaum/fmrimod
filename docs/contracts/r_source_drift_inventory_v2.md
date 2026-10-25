@@ -556,3 +556,18 @@ mote (0 highest).
   reference for R's corrected AR estimator, and the LSS-01 red check uses
   fmrimod's `fit_noise` as its AR estimator. Both rest on v1's
   `tests/test_ar/test_estimator_correctness.py`.
+
+
+## Integration note — 2026-10-25
+
+The visual-documentation integration also brings the previously isolated
+Wave 4 and Wave 5 implementation commits `0854f38` and `4a9df93` into the
+current tree. They add smooth FIR condition-level HRF estimation, plural
+coefficient-map access, SBHM controls, and native group examination. The
+implementation checks live in `tests/test_hrf/test_estimate_hrf.py`,
+`tests/test_accessors.py`, `tests/test_single/test_sbhm.py`, and
+`tests/test_group/test_examine_group.py`.
+
+These are implementation and local-test receipts. They do not close every
+remaining v2 row or establish new R-backed parity for the broader S2 scope.
+The work item for the integration is `bd-01M5TKX98DETCTY8486NA7GNVB`.

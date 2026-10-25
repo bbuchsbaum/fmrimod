@@ -21,15 +21,17 @@ Result of evaluating a contrast on GLM output.
 
 ## Attributes {.doc-section .doc-section-attributes}
 
-| Name      | Type            | Description                                                                         |
-|-----------|-----------------|-------------------------------------------------------------------------------------|
-| name      | str             | Contrast name.                                                                      |
-| estimate  | NDArray         | Contrast estimate ``c' @ B``, shape ``(k, V)`` for F-tests or ``(V,)`` for t-tests. |
-| stat      | NDArray         | Test statistic (t or F), shape ``(V,)``.                                            |
-| se        | NDArray or None | Standard error, shape ``(V,)`` (t-tests only).                                      |
-| p_value   | NDArray         | Two-sided p-values, shape ``(V,)``.                                                 |
-| df        | float or tuple  | Degrees of freedom.  Scalar for t-tests, ``(df1, df2)`` for F-tests.                |
-| stat_type | str             | ``"t"`` or ``"F"``.                                                                 |
+| Name                                               | Type                                   | Description                                                                         |
+|----------------------------------------------------|----------------------------------------|-------------------------------------------------------------------------------------|
+| name                                               | str                                    | Contrast name.                                                                      |
+| estimate                                           | NDArray                                | Contrast estimate ``c' @ B``, shape ``(k, V)`` for F-tests or ``(V,)`` for t-tests. |
+| stat                                               | NDArray                                | Test statistic (t or F), shape ``(V,)``.                                            |
+| se                                                 | NDArray or None                        | Standard error, shape ``(V,)`` (t-tests only).                                      |
+| p_value                                            | NDArray                                | Two-sided p-values, shape ``(V,)``.                                                 |
+| df                                                 | float or tuple                         | Degrees of freedom.  Scalar for t-tests, ``(df1, df2)`` for F-tests.                |
+| stat_type                                          | str                                    | ``"t"`` or ``"F"``.                                                                 |
+| The z-score equivalent of ``stat`` is available as | attr:`z` and as                        |                                                                                     |
+| ``kind="z"`` in                                    | meth:`to_nifti` / `to_neurovol`. |                                                                                     |
 
 ## Methods
 
@@ -37,6 +39,8 @@ Result of evaluating a contrast on GLM output.
 | --- | --- |
 | [explain](#fmrimod.glm.contrasts.ContrastResult.explain) | Return structured explanation data for this contrast result. |
 | [summary](#fmrimod.glm.contrasts.ContrastResult.summary) | Return a JSON-ready structured summary of this contrast. |
+| [threshold](#fmrimod.glm.contrasts.ContrastResult.threshold) | Threshold :attr:`z` by height and cluster extent. |
+| [to_img](#fmrimod.glm.contrasts.ContrastResult.to_img) | One statistic as an in-memory ``nibabel.Nifti1Image``. |
 | [to_neurovec](#fmrimod.glm.contrasts.ContrastResult.to_neurovec) | Return a ``neuroim.DenseNeuroVec`` stacking multiple statistics. |
 | [to_neurovol](#fmrimod.glm.contrasts.ContrastResult.to_neurovol) | Return a ``neuroim.DenseNeuroVol`` for one statistic. |
 | [to_nifti](#fmrimod.glm.contrasts.ContrastResult.to_nifti) | Write one statistic to disk as a NIfTI volume. |
@@ -56,6 +60,56 @@ summary()
 ```
 
 Return a JSON-ready structured summary of this contrast.
+
+### threshold { #fmrimod.glm.contrasts.ContrastResult.threshold }
+
+```python
+threshold(
+    alpha=0.05,
+    *,
+    method='fdr',
+    height=None,
+    cluster_size=0,
+    two_sided=None,
+)
+```
+
+Threshold :attr:`z` by height and cluster extent.
+
+#### Parameters {.doc-section .doc-section-parameters}
+
+| Name         | Type          | Description                                                                                             | Default   |
+|--------------|---------------|---------------------------------------------------------------------------------------------------------|-----------|
+| alpha        | float         | FDR or family-wise error level.                                                                         | `0.05`    |
+| method       | str           | ``"fdr"`` (Benjamini-Hochberg, default), ``"bonferroni"``, or ``"none"`` with an explicit z ``height``. | `'fdr'`   |
+| height       | float \| None | z cutoff for ``method="none"``.                                                                         | `None`    |
+| cluster_size | int           | Remove clusters with fewer voxels (face connectivity; positive and negative clusters separately).       | `0`       |
+| two_sided    | bool \| None  | Default: True for t contrasts, False for F (whose z is one-sided).                                      | `None`    |
+
+#### Returns {.doc-section .doc-section-returns}
+
+| Name   | Type           | Description                                                   |
+|--------|----------------|---------------------------------------------------------------|
+|        | ThresholdedMap | ``.z``, ``.threshold``, ``.to_nifti(path)``, ``.clusters()``. |
+
+#### Examples {.doc-section .doc-section-examples}
+
+::
+
+    hits = fit.contrast("face - house").threshold(0.05, cluster_size=10)
+    hits.to_nifti("face_vs_house_fdr.nii.gz")
+    hits.clusters()
+
+### to_img { #fmrimod.glm.contrasts.ContrastResult.to_img }
+
+```python
+to_img(kind='z', *, fill=0.0)
+```
+
+One statistic as an in-memory ``nibabel.Nifti1Image``.
+
+Defaults to the z map, so ``nilearn.plotting.plot_stat_map(res.to_img())``
+works directly. ``kind`` as in `to_nifti`.
 
 ### to_neurovec { #fmrimod.glm.contrasts.ContrastResult.to_neurovec }
 
@@ -84,7 +138,7 @@ Return a ``neuroim.DenseNeuroVol`` for one statistic.
 
 | Name   | Type   | Description                                                                                                                     | Default   |
 |--------|--------|---------------------------------------------------------------------------------------------------------------------------------|-----------|
-| kind   | str    | One of ``"stat"`` (default), ``"estimate"``, ``"se"``, ``"p_value"``.                                                           | `'stat'`  |
+| kind   | str    | One of ``"stat"`` (default), ``"z"``, ``"estimate"``, ``"se"``, ``"p_value"``.                                                  | `'stat'`  |
 | fill   | float  | Value placed at non-mask voxels. Defaults to 0.0 so the volume writes cleanly to NIfTI; pass ``np.nan`` for diagnostic display. | `0.0`     |
 | label  | str    | Volume label. Defaults to ``f"{self.name}.{kind}"``.                                                                            | `None`    |
 
@@ -96,4 +150,22 @@ to_nifti(path, *, kind='stat', fill=0.0)
 
 Write one statistic to disk as a NIfTI volume.
 
-Returns the resolved `pathlib.Path`.
+#### Parameters {.doc-section .doc-section-parameters}
+
+| Name   | Type        | Description                                                                       | Default    |
+|--------|-------------|-----------------------------------------------------------------------------------|------------|
+| path   | str \| Path | Output file (``.nii`` or ``.nii.gz``); parent directories must exist.             | _required_ |
+| kind   | str         | ``"stat"`` (t or F, default), ``"z"``, ``"estimate"``, ``"se"`` or ``"p_value"``. | `'stat'`   |
+| fill   | float       | Value written outside the mask.                                                   | `0.0`      |
+
+#### Returns {.doc-section .doc-section-returns}
+
+| Name   | Type   | Description               |
+|--------|--------|---------------------------|
+|        | Path   | The resolved output path. |
+
+#### Examples {.doc-section .doc-section-examples}
+
+::
+
+    fit.contrast("face - house").to_nifti("face_vs_house_z.nii.gz", kind="z")

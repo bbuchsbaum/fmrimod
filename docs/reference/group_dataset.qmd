@@ -1,0 +1,17 @@
+# group.dataset.group_dataset { #fmrimod.group.dataset.group_dataset }
+
+```python
+group_dataset(
+    assays,
+    *,
+    space,
+    subjects,
+    contrasts,
+    col_data=None,
+    row_data=None,
+    contrast_data=None,
+    metadata=None,
+)
+```
+
+Construct a `GroupDataset` from materialized assay arrays.

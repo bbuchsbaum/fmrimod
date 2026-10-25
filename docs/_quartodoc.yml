@@ -294,3 +294,103 @@ quartodoc:
           path: z_to_r
           contents:
             - stats.inference.z_to_r
+
+    - title: "Model inspection"
+      desc: "Inspect response shapes, design structure, coefficient maps, and group diagnostics."
+      contents:
+        - kind: page
+          path: estimate_hrf
+          contents:
+            - hrf.estimate.estimate_hrf
+        - kind: page
+          path: estimate_hrf_fir
+          contents:
+            - hrf.estimate.estimate_hrf_fir
+        - kind: page
+          path: HrfEstimate
+          contents:
+            - hrf.estimate.HrfEstimate
+        - kind: page
+          path: coef_images
+          contents:
+            - accessors.coef_images
+        - kind: page
+          path: group_dataset
+          contents:
+            - group.dataset.group_dataset
+        - kind: page
+          path: examine_group
+          contents:
+            - group.examine.examine_group
+        - kind: page
+          path: GroupExamination
+          contents:
+            - group.examine.GroupExamination
+        - kind: page
+          path: examination_control
+          contents:
+            - group._examine_control.examination_control
+        - kind: page
+          path: plot_hrf
+          contents:
+            - plotting.plot_hrf
+        - kind: page
+          path: plot_hrfs
+          contents:
+            - plotting.plot_hrfs
+        - kind: page
+          path: plot_regressor
+          contents:
+            - plotting.plot_regressor
+        - kind: page
+          path: plot_regressors
+          contents:
+            - plotting.plot_regressors
+        - kind: page
+          path: design_map
+          contents:
+            - visualization.heatmaps.design_map
+        - kind: page
+          path: correlation_map
+          contents:
+            - visualization.heatmaps.correlation_map
+        - kind: page
+          path: plot_design_matrix
+          contents:
+            - visualization.event_plot.plot_design_matrix
+        - kind: page
+          path: plot_baseline_model
+          contents:
+            - visualization.baseline_plot.plot_baseline_model
+        - kind: page
+          path: plot_sampling_frame
+          contents:
+            - visualization.baseline_plot.plot_sampling_frame
+        - kind: page
+          path: plot_contrasts
+          contents:
+            - contrast.plot_contrasts.plot_contrasts
+        - kind: page
+          path: plot_event_model
+          contents:
+            - visualization.event_plot.plot_event_model
+        - kind: page
+          path: design_correlations
+          contents:
+            - visualization.design_stats.design_correlations
+        - kind: page
+          path: design_vif
+          contents:
+            - visualization.design_stats.design_vif
+        - kind: page
+          path: plot_fit
+          contents:
+            - visualization.fit_plots.plot_fit
+        - kind: page
+          path: hrf_curves
+          contents:
+            - plotting.hrf_curves
+        - kind: page
+          path: regressor_curves
+          contents:
+            - plotting.regressor_curves

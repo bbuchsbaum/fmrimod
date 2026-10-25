@@ -132,12 +132,17 @@ def estimate_single_trial(
     include_intercept : bool
         Add an intercept to the LSS adjustment design.
     n_basis : int, optional
-        HRF basis dimension. ``K > 1`` is OASIS-only (fmrilss ``f851fb0``).
-        When omitted, ``oasis_config.K`` is used if present.
+        HRF basis dimension in the trial-major design matrix. Values greater
+        than one are OASIS-only (fmrilss ``f851fb0``). When omitted,
+        ``oasis_config.K`` is used if present; otherwise the dimension is one.
+        If both are provided, ``oasis_config.K`` controls the OASIS solve, so
+        keep the two values equal.
 
     Returns
     -------
     SingleTrialResult
+        Trial-wise estimates, labels, method-specific diagnostics, and optional
+        standard errors.
     """
     try:
         method_enum = (
@@ -321,10 +326,10 @@ def estimate_single_trial_from_dataset(
 ) -> SingleTrialResult:
     """Estimate per-trial betas from an FmriDataset and trialwise spec.
 
-    Public-seam alternative to :func:`estimate_single_trial` that consumes a
-    :class:`~fmrimod.dataset.FmriDataset` plus a spec containing a
-    :func:`~fmrimod.trialwise` construction, builds the trial design matrix
-    from spec + dataset events, and delegates to
+    This public-seam wrapper consumes a
+    :class:`~fmrimod.dataset.FmriDataset` plus a specification containing a
+    :func:`~fmrimod.trialwise` construction. It builds the trial design matrix
+    from the specification and dataset events, then delegates to
     :func:`estimate_single_trial`.
 
     Parameters

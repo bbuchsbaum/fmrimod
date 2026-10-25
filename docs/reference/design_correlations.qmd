@@ -1,0 +1,21 @@
+# visualization.design_stats.design_correlations { #fmrimod.visualization.design_stats.design_correlations }
+
+```python
+design_correlations(model, method='pearson', within_run=False)
+```
+
+Correlations between the design columns of ``model``.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name       | Type                                     | Description                                                                                                                                                                                                                                            | Default     |
+|------------|------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|
+| model      | (EventModel, BaselineModel or FmriModel) |                                                                                                                                                                                                                                                        | _required_  |
+| method     | (\'pearson\', \'spearman\')              |                                                                                                                                                                                                                                                        | `"pearson"` |
+| within_run | bool or None                             | ``False``: across all scans with runs concatenated. ``True``: run intercepts dropped, columns centred within runs, run-specific columns correlated on their own run (pairs from different runs are NaN). ``None`` picks ``True`` for a baseline model. | `False`     |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type             | Description                                                                            |
+|--------|------------------|----------------------------------------------------------------------------------------|
+|        | pandas.DataFrame | Square, labelled by the columns' display labels; NaN where a correlation is undefined. |

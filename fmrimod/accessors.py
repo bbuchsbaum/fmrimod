@@ -52,9 +52,7 @@ _STATISTIC_ALIASES: Dict[str, AccessorStatistic] = {
     "std_error": "se",
 }
 
-_VALID_STATISTICS: frozenset[str] = frozenset(
-    {"estimate", "stat", "se", "pvalue"}
-)
+_VALID_STATISTICS: frozenset[str] = frozenset({"estimate", "stat", "se", "pvalue"})
 
 
 EstimateOrContrastMap = Union[NDArray[np.float64], Dict[str, NDArray[np.float64]]]
@@ -155,15 +153,22 @@ def coef_names(x: object, include_baseline: bool = True) -> list[str]:
 
 
 @overload
-def ar_parameters(x: object, scope: Literal["raw"]) -> Optional[object]: ...
+def ar_parameters(x: object, scope: Literal["raw"]) -> Optional[object]:
+    ...
+
+
 @overload
 def ar_parameters(
     x: object, scope: Literal["per_run"]
-) -> Optional[List[NDArray[np.float64]]]: ...
+) -> Optional[List[NDArray[np.float64]]]:
+    ...
+
+
 @overload
 def ar_parameters(
     x: object, scope: Literal["average"] = ...
-) -> Optional[NDArray[np.float64]]: ...
+) -> Optional[NDArray[np.float64]]:
+    ...
 
 
 def ar_parameters(
@@ -280,8 +285,7 @@ def zscores(
     stat_map = cast("Dict[str, NDArray[np.float64]]", stats(x, type=type))
     p_map = cast("Dict[str, NDArray[np.float64]]", p_values(x, type=type))
     return {
-        name: sp_stats.norm.isf(np.clip(p_map[name], 1e-300, 1.0) / 2.0)
-        * np.sign(stat)
+        name: sp_stats.norm.isf(np.clip(p_map[name], 1e-300, 1.0) / 2.0) * np.sign(stat)
         for name, stat in stat_map.items()
     }
 
@@ -293,7 +297,9 @@ def _coef_matrix(x: object, include_baseline: bool = True) -> NDArray[np.float64
     else:
         vals = getattr(x, "betas", None)
     if vals is None:
-        raise NotImplementedError(f"coefficient extraction not implemented for {type(x)}")
+        raise NotImplementedError(
+            f"coefficient extraction not implemented for {type(x)}"
+        )
     arr = _as_array(vals)
     if include_baseline:
         return arr
@@ -301,28 +307,56 @@ def _coef_matrix(x: object, include_baseline: bool = True) -> NDArray[np.float64
     return arr[: int(n_event)] if n_event is not None else arr
 
 
-def coef_image(
+def _contrast_names(x: object, target: AccessorTarget) -> list[str]:
+    wanted = "F" if target == "F" else "t"
+    return [
+        name
+        for name, result in getattr(x, "contrasts", {}).items()
+        if getattr(result, "stat_type", None) == wanted
+    ]
+
+
+def _contrast_vector(
     x: object,
-    coef: Union[int, str] = 0,
-    statistic: AccessorStatistic = "estimate",
-    mask: Optional[NDArray[np.bool_]] = None,
+    coef: Union[int, str],
+    statistic: AccessorStatistic,
+    target: AccessorTarget,
 ) -> NDArray[np.float64]:
-    """Return a coefficient/statistic vector or reconstruct it into a mask."""
-    statistic = _normalize_statistic(statistic)
-    values: EstimateOrContrastMap
-    if statistic == "estimate":
-        values = _coef_matrix(x, include_baseline=True)
-    elif statistic == "se":
-        values = standard_error(x, type="betas")
-    elif statistic == "stat":
-        values = stats(x, type="betas")
-    else:  # statistic == "pvalue"
-        values = p_values(x, type="betas")
-
-    names = coef_names(x, include_baseline=True)
+    names = _contrast_names(x, target)
+    if not names:
+        raise ValueError(f"No coefficients of type {target!r} available in this model.")
     idx = names.index(coef) if isinstance(coef, str) else int(coef)
-    vec = _as_array(values)[idx]
+    if isinstance(coef, str) and coef not in names:
+        raise ValueError(
+            f"Coefficient {coef!r} not found. Available names: {', '.join(names)}"
+        )
+    if idx < 0 or idx >= len(names):
+        raise IndexError(f"Coefficient index {idx} out of range [0, {len(names) - 1}].")
+    result = getattr(x, "contrasts")[names[idx]]
+    if statistic == "estimate":
+        raw = result.estimate
+    elif statistic == "se":
+        raw = result.se
+        if raw is None:
+            raise ValueError(f"Contrast {names[idx]!r} has no standard error")
+    elif statistic == "stat":
+        raw = result.stat
+    else:
+        raw = result.p_value
+    vec = np.ravel(np.asarray(raw, dtype=np.float64))
+    if vec.ndim != 1:
+        raise ValueError(
+            f"coef_image expected a flat voxel vector for {names[idx]!r}; "
+            f"got shape {np.asarray(raw).shape}"
+        )
+    return cast("NDArray[np.float64]", vec)
 
+
+def _apply_mask(
+    vec: NDArray[np.float64],
+    x: object,
+    mask: Optional[NDArray[np.bool_]],
+) -> NDArray[np.float64]:
     if mask is None:
         dataset = getattr(getattr(x, "model", None), "dataset", None)
         if dataset is not None and hasattr(dataset, "get_mask"):
@@ -338,6 +372,76 @@ def coef_image(
     return out
 
 
+def coef_image(
+    x: object,
+    coef: Union[int, str] = 0,
+    statistic: AccessorStatistic = "estimate",
+    mask: Optional[NDArray[np.bool_]] = None,
+    type: AccessorTarget = "betas",  # noqa: A002 - preserve the accessor keyword
+) -> NDArray[np.float64]:
+    """Return a coefficient/statistic vector or reconstruct it into a mask.
+
+    ``type='betas'`` indexes model coefficients. ``type='contrasts'``
+    and ``type='F'`` index named t- and F-contrast maps as flat voxel
+    vectors (not nested lists).
+    """
+    statistic = _normalize_statistic(statistic)
+    target = _normalize_target(type)
+    if target != "betas":
+        return _apply_mask(_contrast_vector(x, coef, statistic, target), x, mask)
+
+    values: EstimateOrContrastMap
+    if statistic == "estimate":
+        values = _coef_matrix(x, include_baseline=True)
+    elif statistic == "se":
+        values = standard_error(x, type="betas")
+    elif statistic == "stat":
+        values = stats(x, type="betas")
+    else:
+        values = p_values(x, type="betas")
+
+    names = coef_names(x, include_baseline=True)
+    idx = names.index(coef) if isinstance(coef, str) else int(coef)
+    vec = _as_array(values)[idx]
+    return _apply_mask(vec, x, mask)
+
+
+def coef_images(
+    x: object,
+    statistic: AccessorStatistic = "estimate",
+    type: AccessorTarget = "betas",  # noqa: A002 - preserve the accessor keyword
+    coefs: Optional[Sequence[str]] = None,
+    mask: Optional[NDArray[np.bool_]] = None,
+) -> Dict[str, NDArray[np.float64]]:
+    """Return one named coefficient/statistic map per requested name.
+
+    Plural companion to :func:`coef_image`. ``type`` selects estimates,
+    t-contrasts, or F-contrasts. Unknown ``coefs`` raise.
+    """
+    statistic = _normalize_statistic(statistic)
+    target = _normalize_target(type)
+    if target == "betas":
+        available = coef_names(x, include_baseline=True)
+    else:
+        available = _contrast_names(x, target)
+    if not available:
+        return {}
+    if coefs is None:
+        selected = list(available)
+    else:
+        missing = [name for name in coefs if name not in available]
+        if missing:
+            raise ValueError(
+                f"Coefficient(s) not found for type {target!r}: "
+                f"{', '.join(missing)}. Available names: {', '.join(available)}"
+            )
+        selected = list(coefs)
+    return {
+        name: coef_image(x, coef=name, statistic=statistic, type=target, mask=mask)
+        for name in selected
+    }
+
+
 def get_data(x: object, run: int = 0, **kwargs: object) -> NDArray[np.float64]:
     """Return run data from a dataset-like object."""
     method = getattr(x, "get_data", None)
@@ -348,7 +452,9 @@ def get_data(x: object, run: int = 0, **kwargs: object) -> NDArray[np.float64]:
 
 def get_data_matrix(x: object, **kwargs: object) -> NDArray[np.float64]:
     """Return all run data concatenated along time."""
-    forwarded = cast("dict[str, object]", {k: v for k, v in kwargs.items() if k != "run"})
+    forwarded = cast(
+        "dict[str, object]", {k: v for k, v in kwargs.items() if k != "run"}
+    )
     if hasattr(x, "n_runs") and hasattr(x, "get_data"):
         return np.vstack(
             [get_data(x, run=i, **forwarded) for i in range(int(x.n_runs))]
@@ -475,7 +581,9 @@ def tidy(x: object, type: AccessorTarget = "betas") -> pd.DataFrame:
                     "term": name,
                     "voxel": voxel,
                     "estimate": np.ravel(result.estimate)[voxel],
-                    "std_error": None if result.se is None else np.ravel(result.se)[voxel],
+                    "std_error": None
+                    if result.se is None
+                    else np.ravel(result.se)[voxel],
                     "stat": stat,
                     "statistic": stat,
                     "p_value": np.ravel(result.p_value)[voxel],

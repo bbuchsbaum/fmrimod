@@ -1,0 +1,5 @@
+# Local design review evidence and temporary mockups.
+/review/
+/build/
+/mocks/
+/config.local.json

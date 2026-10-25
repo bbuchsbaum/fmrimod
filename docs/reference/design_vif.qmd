@@ -1,0 +1,11 @@
+# visualization.design_stats.design_vif { #fmrimod.visualization.design_stats.design_vif }
+
+```python
+design_vif(model, within_run=False)
+```
+
+Variance inflation factor of each design column (per-run intercepts).
+
+``inf`` marks an aliased column; NaN a column constant within runs.
+With ``within_run=True`` (default for a baseline model when ``None``)
+the run-intercept columns are left out first.

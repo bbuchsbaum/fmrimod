@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
 
-from .._types import SbhmConfig, SbhmExtras, SingleTrialMethod, SingleTrialResult
+from .._project import project_nuisance
+from .._types import (
+    OasisConfig,
+    SbhmConfig,
+    SbhmExtras,
+    SingleTrialMethod,
+    SingleTrialResult,
+)
+from ..oasis import oasis_single_trial
 from .amplitude import sbhm_amplitude
 from .library import SbhmLibrary
 from .match import sbhm_match
@@ -17,10 +25,10 @@ from .prepass import sbhm_prepass
 def sbhm_single_trial(
     Y: NDArray[np.float64],
     X: NDArray[np.float64],
-    confounds: Optional[NDArray[np.float64]] = None,
-    config: Optional[SbhmConfig] = None,
-    trial_labels: Optional[list[Any]] = None,
-    library: Optional[SbhmLibrary] = None,
+    confounds: NDArray[np.float64] | None = None,
+    config: SbhmConfig | None = None,
+    trial_labels: list[Any] | None = None,
+    library: SbhmLibrary | None = None,
 ) -> SingleTrialResult:
     """SBHM single-trial estimation pipeline.
 
@@ -105,9 +113,7 @@ def sbhm_single_trial(
     # Infer K from library
     K = library.B.shape[1]
     if NK % K != 0:
-        raise ValueError(
-            f"X has {NK} columns, not divisible by library rank K={K}"
-        )
+        raise ValueError(f"X has {NK} columns, not divisible by library rank K={K}")
     N = NK // K
 
     # Build aggregate regressor: sum per basis column
@@ -115,8 +121,15 @@ def sbhm_single_trial(
     for k in range(K):
         A_agg[:, k] = X[:, k::K].sum(axis=1)
 
-    # Step 1: Prepass
-    beta_bar, G = sbhm_prepass(Y, A_agg, confounds=confounds)
+    pre_bar, G = sbhm_prepass(Y, A_agg, confounds=confounds)
+    if config.alpha_source == "prepass":
+        beta_bar = pre_bar
+    else:
+        alt = _alpha_from_source(Y, X, K, N, V, config.alpha_source, confounds, config)
+        norms = np.linalg.norm(alt, axis=0)
+        bad = (~np.isfinite(norms)) | (norms < 1e-8)
+        alt[:, bad] = pre_bar[:, bad]
+        beta_bar = alt
 
     # Step 2: Match
     match_result = sbhm_match(
@@ -125,6 +138,9 @@ def sbhm_single_trial(
         A=library.A,
         shrink=config.shrink,
         top_k=config.top_k,
+        whiten=config.whiten,
+        whiten_power=config.whiten_power,
+        sv_floor_rel=config.sv_floor_rel,
     )
 
     # Step 3: Amplitude estimation
@@ -159,3 +175,87 @@ def sbhm_single_trial(
             weights=match_result.weights,
         ),
     )
+
+
+def _alpha_from_beta_rt(beta_rt: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Leading left singular vector of each voxel's (K x N) trial coefficients."""
+    k, _n, v = beta_rt.shape
+    alpha = np.zeros((k, v), dtype=np.float64)
+    for vi in range(v):
+        block = np.where(np.isfinite(beta_rt[:, :, vi]), beta_rt[:, :, vi], 0.0)
+        if np.all(np.abs(block) < 1e-12):
+            continue
+        try:
+            u, s, _vt = np.linalg.svd(block, full_matrices=False)
+        except np.linalg.LinAlgError:
+            continue
+        if s.size < 1 or not np.isfinite(s[0]):
+            continue
+        alpha[:, vi] = u[:, 0]
+    return alpha
+
+
+def _alpha_from_trial_projection(
+    Y: NDArray[np.float64],
+    X: NDArray[np.float64],
+    k: int,
+    n_trials: int,
+    v: int,
+    confounds: NDArray[np.float64] | None,
+) -> NDArray[np.float64]:
+    if confounds is not None:
+        y_res, x_res = project_nuisance(confounds, Y, X)
+    else:
+        y_res, x_res = Y, X
+    proj = np.zeros((k, n_trials, v), dtype=np.float64)
+    eye = np.eye(k)
+    for trial in range(n_trials):
+        xt = x_res[:, trial * k : (trial + 1) * k]
+        gram = xt.T @ xt
+        lam = 1e-4 * float(np.mean(np.diag(gram)))
+        if not np.isfinite(lam) or lam < 0:
+            lam = 0.0
+        rhs = xt.T @ y_res
+        proj[:, trial, :] = np.linalg.solve(gram + lam * eye, rhs)
+    return _alpha_from_beta_rt(proj)
+
+
+def _alpha_from_oasis(
+    Y: NDArray[np.float64],
+    X: NDArray[np.float64],
+    k: int,
+    n_trials: int,
+    v: int,
+    confounds: NDArray[np.float64] | None,
+    config: SbhmConfig,
+) -> NDArray[np.float64]:
+    oasis = oasis_single_trial(
+        Y,
+        X,
+        confounds=confounds,
+        config=OasisConfig(
+            K=k,
+            ridge_mode=config.ridge_mode,
+            ridge_x=config.ridge_lambda,
+            ridge_b=config.ridge_lambda,
+        ),
+    )
+    beta_rt = oasis.betas.reshape(n_trials, k, v).transpose(1, 0, 2)
+    return _alpha_from_beta_rt(beta_rt)
+
+
+def _alpha_from_source(
+    Y: NDArray[np.float64],
+    X: NDArray[np.float64],
+    k: int,
+    n_trials: int,
+    v: int,
+    source: str,
+    confounds: NDArray[np.float64] | None,
+    config: SbhmConfig,
+) -> NDArray[np.float64]:
+    if source == "trial_projection":
+        return _alpha_from_trial_projection(Y, X, k, n_trials, v, confounds)
+    if source == "oasis_rank1":
+        return _alpha_from_oasis(Y, X, k, n_trials, v, confounds, config)
+    raise ValueError(f"unknown alpha_source: {source!r}")

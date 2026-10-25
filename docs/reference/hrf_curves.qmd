@@ -1,0 +1,20 @@
+# plotting.hrf_curves { #fmrimod.plotting.hrf_curves }
+
+```python
+hrf_curves(*hrfs, time=None, normalize=False, labels=None, basis='all')
+```
+
+Long-form curves drawn by `plot_hrfs`.
+
+Args:
+    *hrfs: HRF objects, a list of them, or one ``{label: hrf}`` mapping.
+    time: Time points in seconds; defaults to 0 to the longest span in
+        0.1 s steps.
+    normalize: Divide each curve by its largest absolute value.
+    labels: One label per HRF or per curve (after basis expansion).
+    basis: ``"all"`` expands a multi-basis HRF to one curve per basis
+        function; ``"first"`` keeps only its first column.
+
+Returns:
+    DataFrame with columns ``time``, ``series`` (categorical, in plot
+    order) and ``response``.

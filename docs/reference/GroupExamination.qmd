@@ -1,0 +1,20 @@
+# group.examine.GroupExamination { #fmrimod.group.examine.GroupExamination }
+
+```python
+GroupExamination(
+    dataset,
+    group_maps,
+    subject_data,
+    contrast_data,
+    estimand_data,
+    embedding,
+    method,
+    formula,
+    control,
+)
+```
+
+Result of `examine_group`.
+
+Spatial maps stay on `GroupDataset` objects. Subject, contrast,
+and estimand records live in tables.

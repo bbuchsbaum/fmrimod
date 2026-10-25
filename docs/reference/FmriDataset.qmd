@@ -1,22 +1,27 @@
 # dataset.fmri_dataset.FmriDataset { #fmrimod.dataset.fmri_dataset.FmriDataset }
 
 ```python
-FmriDataset(data_source, event_table=None, censor=None)
+FmriDataset(
+    data_source,
+    event_table=None,
+    censor=None,
+    *,
+    sampling_frame=None,
+    confounds=None,
+)
 ```
 
 fMRI dataset combining time-series data with experimental events.
 
-This is the primary concrete implementation of `DatasetProtocol`.
-It wraps any adapter that satisfies the protocol together with an event
-table describing the experimental design.
-
 ## Parameters {.doc-section .doc-section-parameters}
 
-| Name        | Type                                   | Description                                                                                                                                         | Default    |
-|-------------|----------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|------------|
-| data_source | DatasetProtocol                        | Object providing ``get_data(run)``, ``get_mask()``, etc. Typically a `NumpyAdapter`.                               | _required_ |
-| event_table | pd.DataFrame                           | Table of experimental events with at least ``onset`` and ``block`` (or ``run``) columns.  Additional columns are event variables.                   | `None`     |
-| censor      | NDArray\[np.bool_\] or list of NDArray | Boolean censoring vector(s).  ``True`` marks volumes to exclude. Can be a single array covering all runs concatenated, or a list of per-run arrays. | `None`     |
+| Name           | Type                                   | Description                                                                                                                                                                                                                                                    | Default    |
+|----------------|----------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| data_source    | StorageBackend or DatasetProtocol      | A storage backend (pass ``sampling_frame``), one of fmrimod's adapters, or any object satisfying `DatasetProtocol`.                                                                                                                                     | _required_ |
+| event_table    | pd.DataFrame                           | Table of experimental events with at least ``onset`` and ``block`` (or ``run``) columns.  Additional columns are event variables.                                                                                                                              | `None`     |
+| censor         | NDArray\[np.bool_\] or list of NDArray | Boolean censoring vector(s).  ``True`` marks volumes to exclude. Can be a single array covering all runs concatenated, or a list of per-run arrays.                                                                                                            | `None`     |
+| sampling_frame | SamplingFrame                          | Run structure of the rows. Required with a bare backend; otherwise it overrides the adapter's own frame.                                                                                                                                                       | `None`     |
+| confounds      | list of pd.DataFrame                   | Per-run nuisance tables (e.g. fMRIPrep ``*_desc-confounds_timeseries``), one row per scan. Nothing is modelled from them by default; a ``confounds("trans_x", ...)`` spec term without ``source=`` selects columns from these tables when the model is fitted. | `None`     |
 
 ## Attributes
 
@@ -24,25 +29,38 @@ table describing the experimental design.
 | --- | --- |
 | `blocklens` | Alias for per-run lengths during the consolidation migration. |
 | `censor` | Per-run boolean censor vectors, or *None*. |
+| `confounds` | Per-run nuisance tables attached to the dataset, or *None*. |
 | `event_table` | The event table, or *None* if not set. |
 | `n_timepoints` | Total number of timepoints across all runs. |
 | `run_lengths` | Number of timepoints per run. |
 | `sampling_frame` | Convenience alias for ``get_sampling_frame()``. |
-| `storage_backend` | Underlying storage backend when the source is backend-backed. |
+| `space` | Spatial identity of the columns: grid, in-mask voxels, affine. |
+| `storage_backend` | The storage backend every read goes through. |
 
 ## Methods
 
 | Name | Description |
 | --- | --- |
+| [get_affine](#fmrimod.dataset.fmri_dataset.FmriDataset.get_affine) | Return the 4x4 voxel-to-world affine, or ``None`` when unknown. |
 | [get_all_data](#fmrimod.dataset.fmri_dataset.FmriDataset.get_all_data) | Return all runs vertically concatenated as ``(total_time, voxels)``. |
 | [get_censor](#fmrimod.dataset.fmri_dataset.FmriDataset.get_censor) | Return the censor vector for a single run, or *None*. |
 | [get_data](#fmrimod.dataset.fmri_dataset.FmriDataset.get_data) | Return data by matrix slice or, temporarily, by run. |
 | [get_data_matrix](#fmrimod.dataset.fmri_dataset.FmriDataset.get_data_matrix) | Return all data as a ``timepoints x voxels`` matrix. |
-| [get_dims](#fmrimod.dataset.fmri_dataset.FmriDataset.get_dims) | Return backend dimensions when available. |
-| [get_mask](#fmrimod.dataset.fmri_dataset.FmriDataset.get_mask) | Return the spatial mask. |
-| [get_run_data](#fmrimod.dataset.fmri_dataset.FmriDataset.get_run_data) | Return ``(time, voxels)`` data matrix for one run. |
+| [get_dims](#fmrimod.dataset.fmri_dataset.FmriDataset.get_dims) | Return backend dimensions. |
+| [get_mask](#fmrimod.dataset.fmri_dataset.FmriDataset.get_mask) | Return the mask: in the grid's shape for images, flat for matrices. |
+| [get_run_data](#fmrimod.dataset.fmri_dataset.FmriDataset.get_run_data) | Return ``(time, voxels)`` data for one run. |
 | [get_sampling_frame](#fmrimod.dataset.fmri_dataset.FmriDataset.get_sampling_frame) | Return the `SamplingFrame`. |
+| [run_rows](#fmrimod.dataset.fmri_dataset.FmriDataset.run_rows) | Row indices of ``run`` (0-based) in the concatenated data. |
 | [with_event_table](#fmrimod.dataset.fmri_dataset.FmriDataset.with_event_table) | Return this dataset with a replacement event table. |
+| [with_scaling](#fmrimod.dataset.fmri_dataset.FmriDataset.with_scaling) | Return this dataset with read-time signal scaling. |
+
+### get_affine { #fmrimod.dataset.fmri_dataset.FmriDataset.get_affine }
+
+```python
+get_affine()
+```
+
+Return the 4x4 voxel-to-world affine, or ``None`` when unknown.
 
 ### get_all_data { #fmrimod.dataset.fmri_dataset.FmriDataset.get_all_data }
 
@@ -68,10 +86,9 @@ get_data(run=None, *, rows=None, cols=None)
 
 Return data by matrix slice or, temporarily, by run.
 
-The canonical consolidation contract is matrix-oriented
-``rows``/``cols`` access. Positional run access is retained during the
-migration for existing callers; new code should use
-`get_run_data`.
+``rows``/``cols`` select timepoints and in-mask voxels; the backend
+reads only those. Positional run access is retained during the
+migration; new code should use `get_run_data`.
 
 ### get_data_matrix { #fmrimod.dataset.fmri_dataset.FmriDataset.get_data_matrix }
 
@@ -87,7 +104,7 @@ Return all data as a ``timepoints x voxels`` matrix.
 get_dims()
 ```
 
-Return backend dimensions when available.
+Return backend dimensions.
 
 ### get_mask { #fmrimod.dataset.fmri_dataset.FmriDataset.get_mask }
 
@@ -95,7 +112,7 @@ Return backend dimensions when available.
 get_mask()
 ```
 
-Return the spatial mask.
+Return the mask: in the grid's shape for images, flat for matrices.
 
 ### get_run_data { #fmrimod.dataset.fmri_dataset.FmriDataset.get_run_data }
 
@@ -103,7 +120,7 @@ Return the spatial mask.
 get_run_data(run)
 ```
 
-Return ``(time, voxels)`` data matrix for one run.
+Return ``(time, voxels)`` data for one run.
 
 ### get_sampling_frame { #fmrimod.dataset.fmri_dataset.FmriDataset.get_sampling_frame }
 
@@ -113,6 +130,14 @@ get_sampling_frame()
 
 Return the `SamplingFrame`.
 
+### run_rows { #fmrimod.dataset.fmri_dataset.FmriDataset.run_rows }
+
+```python
+run_rows(run)
+```
+
+Row indices of ``run`` (0-based) in the concatenated data.
+
 ### with_event_table { #fmrimod.dataset.fmri_dataset.FmriDataset.with_event_table }
 
 ```python
@@ -120,3 +145,15 @@ with_event_table(event_table)
 ```
 
 Return this dataset with a replacement event table.
+
+### with_scaling { #fmrimod.dataset.fmri_dataset.FmriDataset.with_scaling }
+
+```python
+with_scaling(scale)
+```
+
+Return this dataset with read-time signal scaling.
+
+``scale="psc"`` reports every read as percent signal change of each
+voxel's run mean, ``100 * (y / mean - 1)`` (Nilearn's
+``signal_scaling=0``). ``None`` returns the dataset unchanged.

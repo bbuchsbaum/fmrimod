@@ -6,7 +6,9 @@ execute:
   freeze: auto
 ---
 
-## Extension Points
+{{< include ../_plot-setup.qmd >}}
+
+## Choose an extension point
 
 The public modeling API should stay structured and composable. Registries are
 internal extension mechanisms for adding implementations behind that API, not
@@ -17,7 +19,7 @@ The Python package exposes two practical extension surfaces:
 - basis registration for named basis constructors;
 - engine registration for alternate GLM fitting strategies.
 
-## Register a Basis
+## Register a basis
 
 `register_basis()` stores an implementation constructor under a name.
 `resolve_basis()` retrieves it later. Keep these names at the extension
@@ -41,7 +43,7 @@ basis = fm.resolve_basis("linear_ramp_demo", scale=0.5)
 basis(np.linspace(0, 4, 5)).ravel()
 ```
 
-## Register an Engine
+## Register an engine
 
 Custom engines live behind the GLM engine registry. An engine class provides a
 `preflight()` method and a `fit()` method returning an `EngineResult`.
@@ -79,7 +81,7 @@ The direct class registration keeps plugin code importable without requiring
 package metadata. For installed third-party packages, expose engines through
 the `fmrimod.engines` entry-point group.
 
-## Inspect Built-In Engines
+## Inspect built-in engines
 
 ```{python}
 from fmrimod.glm.engine import list_engines
@@ -87,7 +89,7 @@ from fmrimod.glm.engine import list_engines
 list_engines()
 ```
 
-## Extension Checklist
+## Check the extension
 
 - Validate dimensions in `preflight()`.
 - Return coefficient matrices in `(parameters, voxels)` order.

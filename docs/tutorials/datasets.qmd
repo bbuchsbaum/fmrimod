@@ -6,7 +6,9 @@ execute:
   freeze: auto
 ---
 
-## Dataset API Overview
+{{< include ../_plot-setup.qmd >}}
+
+## Choose a dataset container
 
 `fmrimod.dataset` is where dataset containers and storage adapters live.
 Import them from `fmrimod` or `fmrimod.dataset`. (If you are reading
@@ -36,7 +38,7 @@ Use these entry points as the public surface:
 | Chunked voxel work | `data_chunks()` / `voxel_index_chunks()` | Batch execution without changing the model contract. |
 | BIDS-HDF5 archives | `bids_h5_dataset()` / `compress_bids_study()` | Optional HDF5/BIDS IO boundary, not a second tutorial track. |
 
-## Sampling Frames
+## Sampling frames
 
 `SamplingFrame` describes the acquired time grid, including run lengths. In
 the canonical dataset contract, `samples` are acquisition times in seconds.
@@ -51,7 +53,7 @@ sf = fm.SamplingFrame(blocklens=[50, 50], TR=2.0)
 sf.samples[:6], sf.blocklens
 ```
 
-## Matrix Data
+## Matrix data
 
 Use `matrix_dataset()` when data already live in memory as a time by voxel
 matrix. Real image-backed workflows should route through the dataset adapters
@@ -84,7 +86,7 @@ dset.n_runs, dset.n_timepoints, dset.n_voxels
 dset.get_data(rows=[0, 1, 2], cols=[0, 1]).shape, dset.get_all_data().shape
 ```
 
-## Image and Archive IO
+## Image and archive I/O
 
 `fmri_dataset()` is the preferred constructor when a workflow starts from
 image-like objects or paths. It keeps image IO at the boundary and returns the
@@ -167,7 +169,7 @@ Use these when you need a single compact, shareable archive for a study;
 for everyday in-memory work the matrix and image constructors above are
 all you need.
 
-## Latent Data
+## Latent data
 
 Latent datasets store component scores and optional loadings. They can be used
 when the time series has been compressed before modeling.
@@ -187,7 +189,7 @@ latent = fm.latent_dataset(
 latent.n_runs, latent.n_voxels, latent.get_scores(0).shape
 ```
 
-## Chunking
+## Read in chunks
 
 Chunk helpers make it easy to split voxel-space work into reviewable batches.
 `data_chunks()` yields typed `DataChunk` objects carrying data and indices;
@@ -198,7 +200,7 @@ chunks = fm.data_chunks(dset, nchunks=4)
 [(chunk.chunk_num, chunk.data.shape, chunk.voxel_ind.tolist()) for chunk in chunks]
 ```
 
-## Migrating From fmridataset
+## Migrate from fmridataset
 
 If you have code that imports `fmridataset`, change the import to
 `fmrimod.dataset` (or `fmrimod`). The objects are the same, so this is

@@ -187,6 +187,15 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
     column_indices : dict
         Mapping from term name to list of column indices.
 
+    Notes
+    -----
+    A term ``subset=`` that matches zero events is a hard error. R
+    fmridesign 0.6.0 keeps the canonical column names and emits
+    placeholder (all-zero) columns with a ``fmridesign_zero_events``
+    warning. fmrimod refuses the silent empty column: an empty subset
+    is almost always a misspelled level or an events table that does
+    not contain the intended condition.
+
     See Also
     --------
     event_model : Factory function for creating ``EventModel`` instances.
@@ -371,6 +380,8 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
             return event_term
         mask = self._resolve_subset_mask(subset, term.name)
         if not np.any(mask):
+            # R fmridesign keeps placeholder columns; Python fails. See
+            # EventModel notes and docs/contracts/r_source_drift_inventory_v1.md.
             raise ValueError(
                 f"term '{term.name}' subset={subset!r} matched zero events"
             )

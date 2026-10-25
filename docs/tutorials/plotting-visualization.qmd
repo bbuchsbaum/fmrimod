@@ -1,16 +1,22 @@
 ---
-title: "Plotting and visualization"
-subtitle: "Inspect designs and timing without changing the modeling contract."
+title: "Inspect the model"
+subtitle: "Read response shapes, design structure, contrast weights, and sampling times."
 jupyter: python3
 execute:
   freeze: auto
 ---
 
-Visualization helpers turn the objects you already authored into diagnostic
-figures: the realized design, the sampling grid, and the HRF shape that will be
-convolved into the model.
+{{< include ../_plot-setup.qmd >}}
 
-## Plot a Realized Design
+Plot the model before interpreting its statistics: check the response shape,
+event timing, column structure, correlations, and contrast weights. These
+helpers return Matplotlib figures. For the fitted-model plots, see the
+[figure gallery](plot-gallery.qmd).
+
+On narrow screens, scroll plots horizontally to read their labels. Select a
+plot for the complete view.
+
+## Follow events into regressors
 
 ```{python}
 import matplotlib.pyplot as plt
@@ -41,11 +47,8 @@ event_model, _ = compile_spec(hrf("condition", basis="spmg1"), data=events, samp
 ```{python}
 #| fig-width: 7
 #| fig-height: 3.2
-#| fig-cap: "Realized face and scene regressors on the acquisition grid, one
-#|   row per condition. Ticks under each row mark that condition's onsets and
-#|   bars their 2 s durations, so each response can be traced to its event."
-#| fig-alt: "Two stacked line charts, face above scene, each showing two
-#|   hemodynamic responses over sixty seconds with onset ticks underneath."
+#| fig-cap: "Realized face and scene regressors on the acquisition grid, one row per condition. Ticks under each row mark that condition's onsets and bars their 2 s durations, so each response can be traced to its event."
+#| fig-alt: "Two stacked line charts, face above scene, each showing two hemodynamic responses over sixty seconds with onset ticks underneath."
 fig = plot_event_model(event_model, figsize=(7, 3.2))
 plt.show()
 ```
@@ -54,7 +57,7 @@ plt.show()
 `style="heatmap"` (chosen automatically for large designs such as
 trialwise models) draws one raster row per regressor.
 
-## Read the Design Matrix
+## View the design as a matrix
 
 `design_map()` draws the matrix itself, one row per scan and one column per
 regressor, the way SPM shows it. Each column is divided by its largest
@@ -65,12 +68,8 @@ nearly flat next to the rest of its term is marked in orange.
 ```{python}
 #| fig-width: 5.4
 #| fig-height: 6.6
-#| fig-cap: "The face and scene columns of the design matrix, scans running
-#|   downward. Bars under the matrix compare each column's peak with the
-#|   largest in its term."
-#| fig-alt: "Heatmap with two columns, face and scene, showing alternating
-#|   red bands where each condition's responses occur, with a colour bar
-#|   below."
+#| fig-cap: "The face and scene columns of the design matrix, scans running downward. Bars under the matrix compare each column's peak with the largest in its term."
+#| fig-alt: "Heatmap with two columns, face and scene, showing alternating red bands where each condition's responses occur, with a colour bar below."
 fig = design_map(event_model)
 plt.show()
 ```
@@ -78,7 +77,7 @@ plt.show()
 The same call works on a `BaselineModel`, where drift and intercept columns
 are grouped by run, and on a full `FmriModel`.
 
-## Check Collinearity
+## Inspect column correlations
 
 `correlation_map()` shows every pair of regressors once, as the lower
 triangle of the correlation matrix. Pairs at or above `|r| = 0.5` are
@@ -89,11 +88,8 @@ more turn orange.
 ```{python}
 #| fig-width: 5.4
 #| fig-height: 3.6
-#| fig-cap: "Face and scene regressors correlate at r = -0.43 because their
-#|   responses alternate within one short run, yet both VIFs stay near 1.2,
-#|   so the two effects can still be estimated separately."
-#| fig-alt: "A single shaded cell giving the face-scene correlation, with the
-#|   variance inflation factor of each regressor on the diagonal."
+#| fig-cap: "Pairwise correlation and diagonal VIF values for the alternating face and scene regressors. Inspect these alongside numerical rank; pairwise correlations alone do not establish estimability."
+#| fig-alt: "A single shaded cell giving the face-scene correlation, with the variance inflation factor of each regressor on the diagonal."
 fig = correlation_map(event_model)
 plt.show()
 ```
@@ -104,7 +100,7 @@ The numbers are available without a plot:
 design_correlations(event_model).round(2)
 ```
 
-## Check Contrast Weights
+## Check contrast weights
 
 `plot_contrasts()` lays each contrast out as a row of weights over the same
 columns. Two margin columns check every row: `sum w` (a non-zero sum, in
@@ -116,10 +112,8 @@ here the weights are given by hand, with the model supplying the design.
 ```{python}
 #| fig-width: 6.5
 #| fig-height: 2.6
-#| fig-cap: "A face-versus-scene comparison and the face effect alone. The
-#|   comparison sums to zero; the single-condition contrast does not."
-#| fig-alt: "Two rows of contrast weights over the face and scene columns,
-#|   with sum and standard-error columns at the right."
+#| fig-cap: "A face-versus-scene comparison and the face effect alone. The comparison sums to zero; the single-condition contrast does not."
+#| fig-alt: "Two rows of contrast weights over the face and scene columns, with sum and standard-error columns at the right."
 from fmrimod.contrast import plot_contrasts
 
 fig = plot_contrasts(
@@ -130,7 +124,7 @@ fig = plot_contrasts(
 plt.show()
 ```
 
-## Plot the Sampling Frame
+## Check the acquisition grid
 
 The sampling-frame plot is useful when a model has multiple runs or unusual
 TRs. It reads the timing object already used by design construction. Here
@@ -141,10 +135,8 @@ run without events or with an empty tail stands out.
 ```{python}
 #| fig-width: 7.6
 #| fig-height: 2.9
-#| fig-cap: "Three runs on one time axis. The third run is 20 scans short
-#|   (bold), and the ticks under each bar show where the events fall."
-#| fig-alt: "Three horizontal bars, one per run, laid end to end on a time
-#|   axis, with small onset ticks beneath each bar."
+#| fig-cap: "Three runs on one time axis. The third run is 20 scans short (bold), and the ticks under each bar show where the events fall."
+#| fig-alt: "Three horizontal bars, one per run, laid end to end on a time axis, with small onset ticks beneath each bar."
 runs = fm.SamplingFrame(blocklens=[60, 60, 40], TR=1.0)
 run_events = pd.DataFrame({
     "onset": [5.0, 20.0, 40.0, 8.0, 30.0, 50.0, 12.0],
@@ -157,7 +149,7 @@ plt.show()
 `style="grid"` shows each run's scans as cells on a within-run axis instead,
 and `style="lane"` packs the runs into one annotated row.
 
-## Plot the Baseline Model
+## Inspect baseline terms
 
 The baseline model holds the drift, intercept and nuisance columns. Its
 plot draws every time-varying term on the shared time axis, one panel per
@@ -167,10 +159,8 @@ together with the high-pass period the drift basis roughly corresponds to.
 ```{python}
 #| fig-width: 7.6
 #| fig-height: 4.0
-#| fig-cap: "Cubic polynomial drift, three columns per run. Each run gets its
-#|   own copy, and no line crosses a run boundary."
-#| fig-alt: "Line chart of three polynomial drift curves repeated in each of
-#|   three runs, with a key at the right edge."
+#| fig-cap: "Cubic polynomial drift, three columns per run. Each run gets its own copy, and no line crosses a run boundary."
+#| fig-alt: "Line chart of three polynomial drift curves repeated in each of three runs, with a key at the right edge."
 baseline = fm.baseline_model(basis="poly", degree=3, sframe=runs)
 fig = baseline.plot()
 plt.show()
@@ -179,7 +169,7 @@ plt.show()
 `design_map(baseline)` and `correlation_map(baseline)` show the same columns
 as a matrix and as within-run correlations.
 
-## Plot an HRF
+## Inspect the HRF basis
 
 The `fmrimod.plotting` module covers HRF and regressor plots. Use it to inspect
 an HRF object before it is convolved into a design. Each function returns a
@@ -188,11 +178,8 @@ matplotlib `Figure`.
 ```{python}
 #| fig-width: 6
 #| fig-height: 3.8
-#| fig-cap: "Normalized SPM canonical HRF: a positive peak followed by a
-#|   smaller undershoot. This is the response shape used by the design above."
-#| fig-alt: "Line chart of the normalized SPM canonical hemodynamic response,
-#|   rising to one positive peak near five seconds, annotated with the peak
-#|   time, and falling through a shallow undershoot."
+#| fig-cap: "Normalized SPM canonical HRF: a positive peak followed by a smaller undershoot. This is the response shape used by the design above."
+#| fig-alt: "Line chart of the normalized SPM canonical hemodynamic response, rising to one positive peak near five seconds, annotated with the peak time, and falling through a shallow undershoot."
 fig = plot_hrf(get_hrf("spmg1"), normalize=True)
 plt.show()
 ```
@@ -203,14 +190,21 @@ you can see what each column of a multi-basis term models.
 ```{python}
 #| fig-width: 7
 #| fig-height: 4.2
-#| fig-cap: "The SPMG3 basis: the canonical response with its temporal and
-#|   dispersion derivatives, which absorb small shifts in latency and width."
-#| fig-alt: "Three curves labelled canonical, temporal deriv. and dispersion
-#|   deriv.; the derivatives oscillate around zero within the canonical
-#|   response's time window."
+#| fig-cap: "The SPMG3 basis: the canonical response with its temporal and dispersion derivatives, which absorb small shifts in latency and width."
+#| fig-alt: "Three curves labelled canonical, temporal deriv. and dispersion deriv.; the derivatives oscillate around zero within the canonical response's time window."
 fig = plot_hrfs(get_hrf("spmg3"))
 plt.show()
 ```
+
+## Inspect fitted estimates
+
+- [Figure gallery](plot-gallery.qmd): model plots, coefficient distributions,
+  fitted HRFs, observed and fitted signals, and residual autocorrelation.
+- [Rank and residuals](linear-model.qmd#inspect-rank-and-conditioning).
+- [Contrast explanations](contrasts.qmd#read-the-contrast-explanation).
+- [Smooth FIR response estimates](estimating-hrfs.qmd).
+- [Trial amplitudes](single-trial.qmd#plot-trial-estimates).
+- [Subject surprise and influence](group-diagnostics.qmd).
 
 ## Next
 

@@ -1,0 +1,31 @@
+# hrf.estimate.estimate_hrf { #fmrimod.hrf.estimate.estimate_hrf }
+
+```python
+estimate_hrf(
+    Y=None,
+    X_trials=None,
+    basis=None,
+    *,
+    confounds=None,
+    K=None,
+    output='hrf',
+    form=None,
+    fixed=None,
+    block=None,
+    dataset=None,
+    rsam=None,
+    basemod=None,
+    k=8,
+    lam=None,
+    lam_grid=None,
+    ci_level=0.95,
+    **kwargs,
+)
+```
+
+Dispatch between the smooth-FIR estimator and the voxel-compat helper.
+
+Formula + dataset calls without a numeric 2-D ``basis`` use the
+fmrireg 0.2.0 smooth FIR. Matrix arguments, or a formula path that
+still supplies a numeric 2-D basis, keep the older
+`estimate_hrf` ``lstsq`` helper.

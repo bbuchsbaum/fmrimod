@@ -1,0 +1,20 @@
+# visualization.event_plot.plot_design_matrix { #fmrimod.visualization.event_plot.plot_design_matrix }
+
+```python
+plot_design_matrix(
+    model,
+    term_name=None,
+    figsize=None,
+    separate_regressors=True,
+    style=None,
+    show_events=True,
+    block_x='global',
+    title=None,
+    subtitle=None,
+    caption=None,
+)
+```
+
+Alias of `plot_event_model` kept for the former API.
+
+``separate_regressors=False`` selects the overlay style.

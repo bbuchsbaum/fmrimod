@@ -1,10 +1,10 @@
 {
   "counts": {
-    "all_names": 209,
-    "any_in_signature": 31,
-    "callable": 207,
+    "all_names": 210,
+    "any_in_signature": 32,
+    "callable": 208,
     "classes": 22,
-    "opaque_forwarder": 31
+    "opaque_forwarder": 32
   },
   "fmrimod_version": "0.1.0",
   "rows": [
@@ -828,7 +828,22 @@
       "name": "coef_image",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', coef: 'Union[int, str]' = 0, statistic: 'AccessorStatistic' = 'estimate', mask: 'Optional[NDArray[np.bool_]]' = None) -> 'NDArray[np.float64]'",
+      "runtime_signature": "(x: 'object', coef: 'Union[int, str]' = 0, statistic: 'AccessorStatistic' = 'estimate', mask: 'Optional[NDArray[np.bool_]]' = None, type: 'AccessorTarget' = 'betas') -> 'NDArray[np.float64]'",
+      "signature_source": "inspect.signature",
+      "tier": "compat",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
+      "compatibility_status": "compat",
+      "has_any_in_signature": false,
+      "has_untagged_kwargs_dict": false,
+      "is_callable": true,
+      "is_class": false,
+      "is_function": true,
+      "name": "coef_images",
+      "opaque_forwarder": false,
+      "owner_module": "fmrimod.accessors",
+      "runtime_signature": "(x: 'object', statistic: 'AccessorStatistic' = 'estimate', type: 'AccessorTarget' = 'betas', coefs: 'Optional[Sequence[str]]' = None, mask: 'Optional[NDArray[np.bool_]]' = None) -> 'Dict[str, NDArray[np.float64]]'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -1180,15 +1195,15 @@
     },
     {
       "compatibility_status": "compat",
-      "has_any_in_signature": false,
+      "has_any_in_signature": true,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
       "is_class": false,
       "is_function": true,
       "name": "estimate_hrf",
-      "opaque_forwarder": false,
-      "owner_module": "fmrimod.single.voxel_hrf",
-      "runtime_signature": "(Y: 'NDArray[np.float64] | None' = None, X_trials: 'NDArray[np.float64] | None' = None, basis: 'NDArray[np.float64] | object | None' = None, *, confounds: 'Optional[NDArray[np.float64]]' = None, K: 'Optional[int]' = None, output: \"Literal['hrf', 'coefficients', 'result']\" = 'hrf', form: 'Optional[str]' = None, fixed: 'Optional[NDArray[np.float64]]' = None, block: 'Optional[str]' = None, dataset: 'HrfEstimationDataset | None' = None, ref_hrf: 'HRF | ArrayLike | None' = None) -> 'NDArray[np.float64] | VoxelHrfResult'",
+      "opaque_forwarder": true,
+      "owner_module": "fmrimod.hrf.estimate",
+      "runtime_signature": "(Y: 'NDArray[np.float64] | None' = None, X_trials: 'NDArray[np.float64] | None' = None, basis: 'object | None' = None, *, confounds: 'NDArray[np.float64] | None' = None, K: 'int | None' = None, output: \"Literal['hrf', 'coefficients', 'result']\" = 'hrf', form: 'str | None' = None, fixed: 'object | None' = None, block: 'str | None' = None, dataset: 'object' = None, rsam: 'Sequence[float] | None' = None, basemod: 'object' = None, k: 'int' = 8, lam: 'LamSpec | None' = None, lam_grid: 'Sequence[float] | None' = None, ci_level: 'float | None' = 0.95, **kwargs: 'object') -> 'NDArray[np.float64] | Any'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"

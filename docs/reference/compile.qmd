@@ -13,3 +13,38 @@ compile(
 ```
 
 Lower a Spec or single Term to ``(EventModel, BaselineModel)``.
+
+The low-level lowering step. For a named design matrix use
+``fmrimod.design_matrix(spec, events=..., n_scans=..., tr=...)``; to fit,
+pass the spec to `fmrimod.fmri_lm`.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name           | Type          | Description                                                                                                                 | Default    |
+|----------------|---------------|-----------------------------------------------------------------------------------------------------------------------------|------------|
+| spec           | Spec \| Term  | Typed spec (``hrf(...) + drift(...)``) or a single term.                                                                    | _required_ |
+| data           | pd.DataFrame  | Events table (``onset``, ``duration``, condition columns, ``run``).                                                         | _required_ |
+| sampling_frame | SamplingFrame | `SamplingFrame` giving run lengths and TR.                                                         | _required_ |
+| block          | object        | Run labels (column name or array), event durations (column name, scalar or array) and HRF convolution precision in seconds. | `None`     |
+| durations      | object        | Run labels (column name or array), event durations (column name, scalar or array) and HRF convolution precision in seconds. | `None`     |
+| precision      | object        | Run labels (column name or array), event durations (column name, scalar or array) and HRF convolution precision in seconds. | `None`     |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type   | Description                                                                                    |
+|--------|--------|------------------------------------------------------------------------------------------------|
+|        | tuple  | ``(EventModel \| None, BaselineModel)``; the event model is ``None`` for a baseline-only spec. |
+
+## Examples {.doc-section .doc-section-examples}
+
+```python
+>>> import pandas as pd
+>>> from fmrimod import SamplingFrame
+>>> from fmrimod.spec import drift, hrf
+>>> events = pd.DataFrame({"onset": [4.0, 20.0], "duration": 1.0,
+...                        "trial_type": ["a", "b"]})
+>>> em, bm = compile(hrf("trial_type") + drift(), events,
+...                  SamplingFrame(blocklens=40, TR=2.0))
+>>> em.design_matrix.shape, len(bm.column_names)
+((40, 2), 2)
+```

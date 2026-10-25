@@ -1,0 +1,10 @@
+```{python}
+#| include: false
+from pathlib import Path
+import matplotlib.pyplot as plt
+
+_style = Path("assets/fmrimod.mplstyle")
+if not _style.exists():
+    _style = Path("../assets/fmrimod.mplstyle")
+plt.style.use(_style)
+```

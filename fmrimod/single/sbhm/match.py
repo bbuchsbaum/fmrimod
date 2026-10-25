@@ -45,7 +45,7 @@ def _stein_shrinkage(
     r, V = beta.shape
     # Simple diagonal shrinkage: shrink toward zero
     # Scale by S^2 / (S^2 + mean(beta^2))
-    beta_var = np.mean(beta ** 2, axis=1, keepdims=True)  # (r, 1)
+    beta_var = np.mean(beta**2, axis=1, keepdims=True)  # (r, 1)
     S2 = S[:, np.newaxis] ** 2
     shrink_factor = S2 / (S2 + beta_var + 1e-8)
     return cast("NDArray[np.float64]", beta * shrink_factor)
@@ -57,6 +57,9 @@ def sbhm_match(
     A: NDArray[np.float64],
     shrink: bool = True,
     top_k: int = 1,
+    whiten: bool = True,
+    whiten_power: float = 1.0,
+    sv_floor_rel: float = 1e-6,
 ) -> SbhmMatchResult:
     """Match per-voxel HRF shapes to library via cosine similarity.
 
@@ -73,6 +76,13 @@ def sbhm_match(
     top_k : int, default=1
         Number of top matches to return per voxel. If ``k > 1``, returns
         softmax-weighted blend of top-k library members.
+    whiten : bool, default=True
+        Divide coefficients by ``S**whiten_power`` before cosine match.
+    whiten_power : float, default=1.0
+        Whitening strength in ``[0, 1]``. ``1`` is full whitening,
+        ``0`` leaves the coefficient metric unchanged.
+    sv_floor_rel : float, default=1e-6
+        Relative singular-value floor used when ``whiten=True``.
 
     Returns
     -------
@@ -83,7 +93,7 @@ def sbhm_match(
     Notes
     -----
     The matching procedure:
-    1. Whiten coefficients: ``beta_w = beta_bar / S``
+    1. Optionally whiten: ``beta_w = beta_bar / S**whiten_power``
     2. L2-normalize both whitened coefficients and library coordinates
     3. Compute cosine similarity: ``sim = A_w_norm @ beta_w_norm``
     4. Find best match per voxel (argmax)
@@ -118,6 +128,11 @@ def sbhm_match(
         raise ValueError(f"S has length {S.shape[0]}, expected {r}")
     if A.shape[1] != r:
         raise ValueError(f"A has {A.shape[1]} columns, expected {r}")
+    power = float(whiten_power)
+    if not np.isfinite(power) or power < 0.0 or power > 1.0:
+        raise ValueError("whiten_power must be one finite value in [0, 1]")
+    if float(sv_floor_rel) < 0 or not np.isfinite(sv_floor_rel):
+        raise ValueError("sv_floor_rel must be one nonnegative finite value")
 
     # Optional shrinkage
     if shrink:
@@ -125,16 +140,24 @@ def sbhm_match(
     else:
         beta_shrunk = beta_bar.copy()
 
-    # Whiten: divide by singular values
-    beta_w = beta_shrunk / (S[:, np.newaxis] + 1e-12)
-    A_w = A / (S[np.newaxis, :] + 1e-12)
+    if whiten:
+        smax = float(np.max(S)) if S.size else 0.0
+        rel_floor = float(sv_floor_rel) * smax if smax > 0 else np.finfo(np.float64).eps
+        s_scale = (
+            np.maximum(np.maximum(S, rel_floor), np.finfo(np.float64).eps) ** power
+        )
+        beta_w = beta_shrunk / s_scale[:, np.newaxis]
+        A_w = A / s_scale[np.newaxis, :]
+    else:
+        beta_w = beta_shrunk
+        A_w = A.copy()
 
     # L2-normalize
-    beta_norms = np.sqrt(np.sum(beta_w ** 2, axis=0, keepdims=True))
+    beta_norms = np.sqrt(np.sum(beta_w**2, axis=0, keepdims=True))
     beta_norms[beta_norms == 0] = 1.0
     beta_w_norm = beta_w / beta_norms
 
-    A_norms = np.sqrt(np.sum(A_w ** 2, axis=1, keepdims=True))
+    A_norms = np.sqrt(np.sum(A_w**2, axis=1, keepdims=True))
     A_norms[A_norms == 0] = 1.0
     A_w_norm = A_w / A_norms
 

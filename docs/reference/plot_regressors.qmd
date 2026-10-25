@@ -1,0 +1,60 @@
+# plotting.plot_regressors { #fmrimod.plotting.plot_regressors }
+
+```python
+plot_regressors(
+    *regs,
+    grid=None,
+    labels=None,
+    title=None,
+    subtitle=None,
+    show_onsets=None,
+    onset_alpha=0.8,
+    precision=None,
+    basis='all',
+    layout='overlay',
+    samples=None,
+    palette='auto',
+    scales='free_y',
+    caption=None,
+    ax=None,
+    figsize=None,
+)
+```
+
+Compare regressors on a shared time axis (R ``plot_regressors``).
+
+Basis-set regressors expand to one curve per basis function and a
+`RegressorSet` to one curve per
+condition. Events are drawn as bars from onset to offset in a band under
+the curves; point events get a minimum width of 0.4% of the time range.
+
+Args:
+    *regs: Regressors, a list of them, a ``{label: regressor}`` mapping,
+        or one ``RegressorSet``.
+    grid: Evaluation times; defaults to 0 to the last onset plus span in
+        0.25 s steps. Use a fine grid with ``samples`` to show scan times.
+    labels: One label per regressor or per curve; defaults to the
+        mapping keys, condition levels, or "Regressor 1", "Regressor 2"...
+    title: Defaults to the curve label for one curve, else "Regressor
+        comparison"; ``""`` suppresses it.
+    subtitle: Optional subtitle.
+    show_onsets: ``True`` marks every curve's events in its colour;
+        ``"first"`` only the first regressor's, in grey; ``False`` none.
+        ``None`` uses ``"first"`` for overlays and ``True`` for stacks
+        (each panel marks its own events in grey).
+    onset_alpha: Opacity of the event bars.
+    precision: HRF sampling precision; defaults to the grid spacing,
+        capped at 0.33 s and floored at 0.01 s.
+    basis: ``"all"`` basis columns or only the ``"first"``.
+    layout: ``"overlay"`` or ``"stack"``.
+    samples: Sample times (e.g. scan acquisitions) at which the
+        regressors are evaluated and drawn as points.
+    palette: ``"auto"``, ``"categorical"`` or ``"ordered"``.
+    scales: For ``layout="stack"``: ``"free_y"`` or ``"fixed"`` (one
+        shared range, to compare amplitudes).
+    caption: Overrides the default caption describing the event bars.
+    ax: Draw a single-panel overlay into this axes.
+    figsize: Figure size in inches.
+
+Returns:
+    The matplotlib Figure. `regressor_curves` returns the data.

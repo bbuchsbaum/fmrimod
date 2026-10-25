@@ -28,7 +28,7 @@ in the design matrix.
 |-----------|-------------------|----------------------------------------------------------------------------------------------------------------------------------------|-----------|
 | basis     | str or HRF object | The hemodynamic response function or name of pre-supplied function. Options: "gamma", "spmg1", "spmg2", "spmg3", "bspline", "gaussian" | `"spmg1"` |
 | lag       | float             | Temporal offset in seconds added to onset before convolution                                                                           | `0.0`     |
-| nbasis    | int               | Number of basis functions (for HRFs that support variable bases)                                                                       | `1`       |
+| nbasis    | int               | Number of basis functions (for HRFs that support variable bases, e.g. ``basis="fir", nbasis=6``); 1 keeps the basis' own size          | `1`       |
 | add_sum   | bool              | If True, append a column that is the average of all trialwise columns. This serves as a conventional main effect regressor.            | `False`   |
 | label     | str               | Term label/prefix for the generated columns                                                                                            | `"trial"` |
 | durations | optional          | Duration specification (column name, float, or array). Passed to hrf().                                                                | `None`    |

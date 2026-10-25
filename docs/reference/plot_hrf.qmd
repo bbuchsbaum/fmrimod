@@ -1,0 +1,34 @@
+# plotting.plot_hrf { #fmrimod.plotting.plot_hrf }
+
+```python
+plot_hrf(
+    hrf,
+    time=None,
+    normalize=False,
+    show_peak=True,
+    ax=None,
+    *,
+    title=None,
+    subtitle=None,
+    figsize=None,
+)
+```
+
+Plot one HRF (R ``plot.HRF``).
+
+A single-basis HRF is drawn with its peak marked and annotated
+("Peak: 5.0 s"); a multi-basis HRF draws every basis function in one
+panel, coloured and labelled by basis.
+
+Args:
+    hrf: The HRF.
+    time: Time points (s); defaults to 0 to ``hrf.span`` in 0.1 s steps.
+    normalize: Scale each curve to peak at 1.
+    show_peak: Mark the peak of a single-basis HRF.
+    ax: Draw into this axes.
+    title: Defaults to the HRF name; ``""`` suppresses it.
+    subtitle: Optional subtitle.
+    figsize: Figure size in inches.
+
+Returns:
+    The matplotlib Figure.

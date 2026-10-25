@@ -1,0 +1,40 @@
+# plotting.plot_regressor { #fmrimod.plotting.plot_regressor }
+
+```python
+plot_regressor(
+    reg,
+    grid=None,
+    precision=None,
+    show_onsets=True,
+    ax=None,
+    *,
+    layout='stack',
+    onset_alpha=0.5,
+    title=None,
+    subtitle=None,
+    figsize=None,
+)
+```
+
+Plot one regressor's predicted response (R ``plot.Reg``).
+
+Titled "<HRF> regressor, N events", with each event drawn as a grey bar
+under the curve. A basis-set regressor gets one panel per basis
+function (``layout="overlay"`` puts them in one panel).
+
+Args:
+    reg: The `Regressor`.
+    grid: Evaluation times; defaults to 0 to the last onset plus span in
+        0.25 s steps.
+    precision: HRF sampling precision; defaults to the grid spacing,
+        capped at 0.33 s.
+    show_onsets: Draw the event bars.
+    ax: Draw a single panel into this axes (overlay only).
+    layout: ``"stack"`` or ``"overlay"`` for multi-basis regressors.
+    onset_alpha: Opacity of the event bars.
+    title: Overrides the default title; ``""`` suppresses it.
+    subtitle: Optional subtitle.
+    figsize: Figure size in inches.
+
+Returns:
+    The matplotlib Figure.

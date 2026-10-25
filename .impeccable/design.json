@@ -1,0 +1,375 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-25T21:06:57.595239Z",
+  "title": "Design System: fmrimod",
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "neutral",
+        "displayName": "Warm paper",
+        "canonical": "#fbfaf6",
+        "tonalRamp": [
+          "oklch(15% 0.01 95)",
+          "oklch(27% 0.01 95)",
+          "oklch(39% 0.01 95)",
+          "oklch(51% 0.01 95)",
+          "oklch(63% 0.01 95)",
+          "oklch(75% 0.01 95)",
+          "oklch(85% 0.01 95)",
+          "oklch(95% 0.01 95)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Green-black ink",
+        "canonical": "#202d31",
+        "tonalRamp": [
+          "oklch(15% 0.025 210)",
+          "oklch(27% 0.025 210)",
+          "oklch(39% 0.025 210)",
+          "oklch(51% 0.025 210)",
+          "oklch(63% 0.025 210)",
+          "oklch(75% 0.025 210)",
+          "oklch(85% 0.025 210)",
+          "oklch(95% 0.025 210)"
+        ]
+      },
+      "muted-ink": {
+        "role": "neutral",
+        "displayName": "Muted ink",
+        "canonical": "#526265",
+        "tonalRamp": [
+          "oklch(15% 0.025 200)",
+          "oklch(27% 0.025 200)",
+          "oklch(39% 0.025 200)",
+          "oklch(51% 0.025 200)",
+          "oklch(63% 0.025 200)",
+          "oklch(75% 0.025 200)",
+          "oklch(85% 0.025 200)",
+          "oklch(95% 0.025 200)"
+        ]
+      },
+      "teal": {
+        "role": "primary",
+        "displayName": "Muted teal",
+        "canonical": "#216e65",
+        "tonalRamp": [
+          "oklch(15% 0.09 175)",
+          "oklch(27% 0.09 175)",
+          "oklch(39% 0.09 175)",
+          "oklch(51% 0.09 175)",
+          "oklch(63% 0.09 175)",
+          "oklch(75% 0.09 175)",
+          "oklch(85% 0.09 175)",
+          "oklch(95% 0.09 175)"
+        ]
+      },
+      "teal-hover": {
+        "role": "primary",
+        "displayName": "Deep teal",
+        "canonical": "#164d47",
+        "tonalRamp": [
+          "oklch(15% 0.075 175)",
+          "oklch(27% 0.075 175)",
+          "oklch(39% 0.075 175)",
+          "oklch(51% 0.075 175)",
+          "oklch(63% 0.075 175)",
+          "oklch(75% 0.075 175)",
+          "oklch(85% 0.075 175)",
+          "oklch(95% 0.075 175)"
+        ]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Pale rule",
+        "canonical": "#d5dcd6",
+        "tonalRamp": [
+          "oklch(15% 0.01 155)",
+          "oklch(27% 0.01 155)",
+          "oklch(39% 0.01 155)",
+          "oklch(51% 0.01 155)",
+          "oklch(63% 0.01 155)",
+          "oklch(75% 0.01 155)",
+          "oklch(85% 0.01 155)",
+          "oklch(95% 0.01 155)"
+        ]
+      },
+      "code-surface": {
+        "role": "neutral",
+        "displayName": "Code surface",
+        "canonical": "#f5f5ef",
+        "tonalRamp": [
+          "oklch(15% 0.01 110)",
+          "oklch(27% 0.01 110)",
+          "oklch(39% 0.01 110)",
+          "oklch(51% 0.01 110)",
+          "oklch(63% 0.01 110)",
+          "oklch(75% 0.01 110)",
+          "oklch(85% 0.01 110)",
+          "oklch(95% 0.01 110)"
+        ]
+      },
+      "night-paper": {
+        "role": "neutral",
+        "displayName": "Night paper",
+        "canonical": "#192526",
+        "tonalRamp": [
+          "oklch(15% 0.02 190)",
+          "oklch(27% 0.02 190)",
+          "oklch(39% 0.02 190)",
+          "oklch(51% 0.02 190)",
+          "oklch(63% 0.02 190)",
+          "oklch(75% 0.02 190)",
+          "oklch(85% 0.02 190)",
+          "oklch(95% 0.02 190)"
+        ]
+      },
+      "night-ink": {
+        "role": "neutral",
+        "displayName": "Night ink",
+        "canonical": "#e4e9e2",
+        "tonalRamp": [
+          "oklch(15% 0.01 140)",
+          "oklch(27% 0.01 140)",
+          "oklch(39% 0.01 140)",
+          "oklch(51% 0.01 140)",
+          "oklch(63% 0.01 140)",
+          "oklch(75% 0.01 140)",
+          "oklch(85% 0.01 140)",
+          "oklch(95% 0.01 140)"
+        ]
+      },
+      "night-muted": {
+        "role": "neutral",
+        "displayName": "Night muted",
+        "canonical": "#b0bfb7",
+        "tonalRamp": [
+          "oklch(15% 0.02 155)",
+          "oklch(27% 0.02 155)",
+          "oklch(39% 0.02 155)",
+          "oklch(51% 0.02 155)",
+          "oklch(63% 0.02 155)",
+          "oklch(75% 0.02 155)",
+          "oklch(85% 0.02 155)",
+          "oklch(95% 0.02 155)"
+        ]
+      },
+      "night-teal": {
+        "role": "primary",
+        "displayName": "Night teal",
+        "canonical": "#92c9bb",
+        "tonalRamp": [
+          "oklch(15% 0.06 165)",
+          "oklch(27% 0.06 165)",
+          "oklch(39% 0.06 165)",
+          "oklch(51% 0.06 165)",
+          "oklch(63% 0.06 165)",
+          "oklch(75% 0.06 165)",
+          "oklch(85% 0.06 165)",
+          "oklch(95% 0.06 165)"
+        ]
+      },
+      "night-rule": {
+        "role": "neutral",
+        "displayName": "Night rule",
+        "canonical": "#435653",
+        "tonalRamp": [
+          "oklch(15% 0.025 170)",
+          "oklch(27% 0.025 170)",
+          "oklch(39% 0.025 170)",
+          "oklch(51% 0.025 170)",
+          "oklch(63% 0.025 170)",
+          "oklch(75% 0.025 170)",
+          "oklch(85% 0.025 170)",
+          "oklch(95% 0.025 170)"
+        ]
+      },
+      "plot-teal": {
+        "role": "primary",
+        "displayName": "Plot teal",
+        "canonical": "#24786f",
+        "tonalRamp": [
+          "oklch(15% 0.09 175)",
+          "oklch(27% 0.09 175)",
+          "oklch(39% 0.09 175)",
+          "oklch(51% 0.09 175)",
+          "oklch(63% 0.09 175)",
+          "oklch(75% 0.09 175)",
+          "oklch(85% 0.09 175)",
+          "oklch(95% 0.09 175)"
+        ]
+      },
+      "plot-terracotta": {
+        "role": "secondary",
+        "displayName": "Plot terracotta",
+        "canonical": "#c26143",
+        "tonalRamp": [
+          "oklch(15% 0.13 40)",
+          "oklch(27% 0.13 40)",
+          "oklch(39% 0.13 40)",
+          "oklch(51% 0.13 40)",
+          "oklch(63% 0.13 40)",
+          "oklch(75% 0.13 40)",
+          "oklch(85% 0.13 40)",
+          "oklch(95% 0.13 40)"
+        ]
+      },
+      "plot-blue": {
+        "role": "secondary",
+        "displayName": "Plot blue",
+        "canonical": "#657aa4",
+        "tonalRamp": [
+          "oklch(15% 0.07 260)",
+          "oklch(27% 0.07 260)",
+          "oklch(39% 0.07 260)",
+          "oklch(51% 0.07 260)",
+          "oklch(63% 0.07 260)",
+          "oklch(75% 0.07 260)",
+          "oklch(85% 0.07 260)",
+          "oklch(95% 0.07 260)"
+        ]
+      },
+      "plot-ochre": {
+        "role": "secondary",
+        "displayName": "Plot ochre",
+        "canonical": "#aa8b38",
+        "tonalRamp": [
+          "oklch(15% 0.11 90)",
+          "oklch(27% 0.11 90)",
+          "oklch(39% 0.11 90)",
+          "oklch(51% 0.11 90)",
+          "oklch(63% 0.11 90)",
+          "oklch(75% 0.11 90)",
+          "oklch(85% 0.11 90)",
+          "oklch(95% 0.11 90)"
+        ]
+      },
+      "plot-plum": {
+        "role": "secondary",
+        "displayName": "Plot plum",
+        "canonical": "#935d7a",
+        "tonalRamp": [
+          "oklch(15% 0.08 345)",
+          "oklch(27% 0.08 345)",
+          "oklch(39% 0.08 345)",
+          "oklch(51% 0.08 345)",
+          "oklch(63% 0.08 345)",
+          "oklch(75% 0.08 345)",
+          "oklch(85% 0.08 345)",
+          "oklch(95% 0.08 345)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Atlas display",
+        "purpose": "Atlas introduction."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Page titles."
+      },
+      "body": {
+        "displayName": "Reading",
+        "purpose": "Long-form documentation."
+      },
+      "label": {
+        "displayName": "Caption",
+        "purpose": "Figures and supporting text."
+      },
+      "code": {
+        "displayName": "Code",
+        "purpose": "Executable examples."
+      }
+    },
+    "shadows": [
+      {
+        "name": "theme-small",
+        "value": "0 1px 2px rgba(23, 25, 30, 0.05)",
+        "purpose": "Subtle theme shadow; atlas plates and navigation remain flat."
+      },
+      {
+        "name": "theme-default",
+        "value": "0 2px 8px rgba(23, 25, 30, 0.06)",
+        "purpose": "General theme shadow."
+      }
+    ],
+    "motion": [
+      {
+        "name": "smooth-scroll",
+        "value": "smooth",
+        "purpose": "Document scrolling; disabled for reduced-motion preference."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "stack-plates",
+        "value": "991px"
+      },
+      {
+        "name": "small-screen",
+        "value": "576px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Reading links",
+      "kind": "nav",
+      "description": "Text links guide readers through the documentation; previous and next labels wrap within half-width navigation links.",
+      "html": "<nav class=\"ds-links\"><a href=\"#\">Get started</a><a href=\"#\">Tutorials</a><a href=\"#\">Reference</a></nav>",
+      "css": ".ds-links { display:flex; flex-wrap:wrap; gap:.7rem 2rem; font: .88rem -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif; } .ds-links a { color:var(--bs-link-color, #216e65); text-underline-offset:.18em; text-decoration-thickness:1px; } .ds-links a:hover { text-decoration-thickness:2px; } .ds-links a:focus-visible { outline:2px solid var(--bs-link-color, #216e65); outline-offset:4px; }"
+    },
+    {
+      "name": "Figure plate",
+      "kind": "custom",
+      "description": "An open figure with a concise note; mobile tutorial figures scroll for detail, with a lightbox for the complete view. Homepage atlas figures fit the available width.",
+      "html": "<div class=\"ds-plate\"><div class=\"ds-figure\">Scientific figure</div><div><strong>Figure note</strong><p>Inspect the analysis and its supporting evidence.</p></div></div>",
+      "css": ".ds-plate { display:grid; grid-template-columns:minmax(0,3fr) minmax(13rem,1fr); gap:2.2rem; align-items:center; padding:1.8rem 0; border-block:1px solid var(--bs-border-color, #d5dcd6); color:var(--bs-body-color, #202d31); } .ds-figure { min-height:6rem; display:grid; place-items:center; background:#fff; } @media(max-width:991px) { .ds-plate { grid-template-columns:minmax(0,1fr); gap:1.25rem; } }"
+    },
+    {
+      "name": "Code block",
+      "kind": "custom",
+      "refersTo": "code-block",
+      "description": "A bordered source block on a muted surface.",
+      "html": "<pre class=\"ds-code\"><code>fm.fmri_lm(spec, dataset)</code></pre>",
+      "css": ".ds-code { border:1px solid var(--bs-border-color, #d5dcd6); border-radius:0; background:var(--fm-elevated-bg, #f5f5ef); color:var(--bs-body-color, #202d31); padding:.9rem 1rem; font:.8rem/1.6 \"JetBrains Mono\", \"Fira Code\", monospace; font-variant-ligatures:none; }"
+    },
+    {
+      "name": "Callout",
+      "kind": "custom",
+      "description": "A flat, ruled note for supporting information.",
+      "html": "<aside class=\"ds-callout\"><strong>Note</strong><p>Supporting context for the analysis.</p></aside>",
+      "css": ".ds-callout { border:1px solid var(--bs-border-color, #d5dcd6); border-radius:0; box-shadow:none; padding:.75rem 1rem; background:transparent; color:var(--bs-body-color, #202d31); font:.86rem/1.6 -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif; }"
+    },
+    {
+      "name": "Reference table",
+      "kind": "custom",
+      "description": "A compact table with horizontal rules.",
+      "html": "<table class=\"ds-table\"><thead><tr><th>Parameter</th><th>Meaning</th></tr></thead><tbody><tr><td>contrast</td><td>Effect to inspect</td></tr></tbody></table>",
+      "css": ".ds-table { border-collapse:collapse; font:.78rem -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif; font-variant-numeric:tabular-nums; color:var(--bs-body-color, #202d31); } .ds-table th, .ds-table td { text-align:left; padding:.6rem .65rem; border-bottom:1px solid var(--bs-border-color, #d5dcd6); } .ds-table th { font-weight:600; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Scientific Methods Atlas",
+    "overview": "A quiet, readable scientific publication presents executable analysis and its figures with equal care. Warm paper, restrained rules, and open figure plates leave the evidence room to speak.\n\nLocal serif reading type pairs with unobtrusive navigation and captions. Scientific plots retain their geometry and their own clear, restrained color vocabulary.",
+    "keyCharacteristics": [
+      "Open figure plates and flat, ruled surfaces.",
+      "Serif reading and headings with sans-serif navigation and captions.",
+      "Muted teal links and a measured scientific plot palette.",
+      "Local assets and conventional Quarto navigation."
+    ],
+    "rules": [],
+    "dos": [
+      "Do preserve figure proportions and provide readable captions.",
+      "Do keep navigation, links, and keyboard focus recognizable.",
+      "Do use local font and figure assets.",
+      "Do identify simulations and support scientific figures with executed code."
+    ],
+    "donts": [
+      "Don't wrap scientific figures in decorative cards.",
+      "Don't let wide tables force the page beyond the viewport.",
+      "Don't interrupt reading with decorative animation."
+    ]
+  }
+}

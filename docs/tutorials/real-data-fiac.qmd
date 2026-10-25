@@ -1,11 +1,13 @@
 ---
 title: "Fit two runs of real FIAC data"
-subtitle: "Carry a published 2 x 2 design through the public first-level seam and back to a brain map."
+subtitle: "Fit a published 2 × 2 experiment and inspect its spatial contrasts."
 jupyter: python3
 execute:
   freeze: auto
   cache: true
 ---
+
+{{< include ../_plot-setup.qmd >}}
 
 This tutorial fits two real functional runs from the Functional Imaging
 Analysis Contest (FIAC). The question is a 2 x 2 factorial one: does the BOLD
@@ -37,7 +39,7 @@ normalization are upstream of fmrimod and out of scope here.
 ::: {.callout-tip}
 ## Result and receipt at a glance
 
-The public seam below fits both 191-volume runs across all 28,008 in-mask
+The model below fits both 191-volume runs across all 28,008 in-mask
 voxels as one `FmriDataset` and one `FmriLm`. `neuroim` owns image reading,
 6 mm FWHM smoothing, masking, spatial metadata, and the reconstructed
 statistic shown on the [landing page](../index.qmd). fmrimod's default
@@ -127,7 +129,7 @@ design_ax = plot_design_matrix(design_matrices[0])
 plt.show()
 ```
 
-## Fit one multi-run model through the public seam
+## Fit one multi-run model
 
 The public dataset owns both runs. `neuroim` performs the image operations and
 fmrimod's adapter performs the masked image-to-matrix boundary internally:

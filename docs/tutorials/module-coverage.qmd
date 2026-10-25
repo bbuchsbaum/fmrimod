@@ -6,27 +6,29 @@ execute:
   freeze: auto
 ---
 
+{{< include ../_plot-setup.qmd >}}
+
 Use this page as a lookup table: find the module you need on the left
 and the table tells you which tutorial demonstrates it. Every public
 module family has at least one tutorial that uses it in a real workflow;
 modules with no analysis-facing API are marked as boundaries so you know
 not to go looking for an example that should not exist.
 
-## Public API Coverage
+## Find a module
 
 | Module family | Tutorial coverage | Public surface taught |
 | --- | --- | --- |
-| `hrf`, `spec`, `regressor`, `convolve`, `condition_basis` | [Get started](../get-started.qmd), [Design matrices](design-matrices.qmd), [Golden path](golden-path.qmd) | `hrf(...)`, composed specs, HRF-convolved event terms |
+| `hrf`, `spec`, `regressor`, `convolve`, `condition_basis` | [Get started](../get-started.qmd), [Design matrices](design-matrices.qmd), [Estimate an HRF](estimating-hrfs.qmd), [Golden path](golden-path.qmd) | `hrf(...)`, composed specs, HRF-convolved event terms |
 | `events`, `design`, `formula`, `baseline`, `basis`, `covariate`, `sampling` | [Design matrices](design-matrices.qmd), [Functional connectivity](functional-connectivity.qmd), [Overview](overview-workflow.qmd) | event tables, `compile(...)`, baseline models, typed covariates, acquisition grids |
 | `dataset`, `backends`, `accessors` | [Datasets](datasets.qmd), [Golden path](golden-path.qmd) | `fmri_dataset`, `matrix_dataset`, latent datasets, chunks, backend boundaries |
 | `glm`, `model`, `lowrank`, `ar` | [Linear model](linear-model.qmd), [Sketched and AR-aware models](sketched-ar-models.qmd) | `fmri_lm`, engine options, AR config, low-rank sketching |
 | `contrast`, `design_colmap`, `naming` | [Contrasts](contrasts.qmd), [Golden path](golden-path.qmd), [Design matrices](design-matrices.qmd) | typed condition contrasts, omnibus contrasts, column provenance |
-| `group`, `stats` | [Group analysis](group-analysis.qmd), [Golden path](golden-path.qmd), [Functional connectivity](functional-connectivity.qmd) | `group_fit`, `fmri_meta`, `fmri_ttest`, seed-target summaries |
+| `group`, `stats` | [Group analysis](group-analysis.qmd), [Group diagnostics](group-diagnostics.qmd), [Golden path](golden-path.qmd), [Functional connectivity](functional-connectivity.qmd) | `group_fit`, `fmri_meta`, `fmri_ttest`, `examine_group`, seed-target summaries |
 | `single`, `betas`, `trialwise` | [Single-trial estimates](single-trial.qmd) | `estimate_single_trial`, `estimate_betas`, trial labels and result metadata |
 | `robust` | [Robust model pieces](robust-models.qmd) | robust scale and weighting primitives behind robust refits |
 | `bids`, `io` | [BIDS and result IO](bids-io.qmd), [Datasets](datasets.qmd) | BIDS Stats Model translation, BIDS-HDF5 archive boundary, `write_results` |
 | `simulate` | [Simulation](simulation.qmd), [Benchmark datasets](benchmark-datasets.qmd) | BOLD fixtures, noise, matrix simulations, deterministic benchmarks |
-| `visualization`, `plotting` | [Plotting and visualization](plotting-visualization.qmd) | design, timing, and HRF inspection plots |
+| `visualization`, `plotting` | [Plotting and visualization](plotting-visualization.qmd) | design heatmaps, correlations, timing, HRF and regressor plots |
 | `validate`, `utils`, `dispatch`, `extension_registry`, `types` | [Plugin development](plugin-development.qmd), [Design matrices](design-matrices.qmd) | validation boundaries, dispatch/registry extension points, typed result contracts |
 | `afni`, `cli` | [BIDS and result IO](bids-io.qmd), [Module coverage](module-coverage.qmd) | interoperability boundary; not a separate analysis language |
 

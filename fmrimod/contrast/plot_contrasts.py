@@ -62,6 +62,8 @@ def plot_contrasts(x: object,
         ``"one_sided"`` is a neutral-to-warm scale for non-negative weights.
     figsize : (float, float), optional
 
+    Notes
+    -----
     The implementations also take ``annotate``, ``title``, ``subtitle``,
     ``caption`` and ``ax``; the dict one also ``labels`` (column labels)
     and ``design`` (a model or design matrix, enabling the SE column).

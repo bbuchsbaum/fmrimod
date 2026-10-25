@@ -1,187 +1,105 @@
 ---
-pagetitle: "fmrimod"
+pagetitle: "fmrimod — fMRI modeling in Python"
 toc: false
 sidebar: false
 page-layout: full
 jupyter: python3
 ---
 
-::: {.hero}
-::: {.hero-copy}
+{{< include _plot-setup.qmd >}}
 
-```{=html}
-<h1>fMRI design and statistical modeling in Python</h1>
-```
+::: {.atlas-intro}
+# fMRI models, from events to inference
 
-[Construct HRFs, design matrices and contrasts as explicit Python objects, fit first-level and group models, and examine the design at each stage.]{.lead}
+fmrimod is a Python library for hemodynamic response functions, experimental
+designs, first-level GLMs, contrasts, and group analysis. Describe the model,
+fit it to preprocessed data, and inspect the results at each step.
 
-[Get started →](get-started.qmd){.btn .btn-primary}
-[API reference](reference/index.qmd){.btn .btn-outline-secondary}
-
-[HRFs]{.kicker} [design matrices]{.kicker} [first-level GLM]{.kicker} [contrasts]{.kicker}
-:::
-::: {.hero-code}
-::: {.code-card}
-[quickstart.py]{.code-card-title}
-```python
-import numpy as np
-import pandas as pd
-import fmrimod as fm
-from fmrimod.spec import hrf
-from fmrimod.contrast import condition
-
-events = pd.DataFrame({
-    "onset": [8., 20., 32., 44.],
-    "duration": 2.,
-    "condition": ["face", "scene", "face", "scene"],
-})
-bold = np.random.default_rng(7).normal(size=(60, 4))
-dataset = fm.fmri_dataset(bold, tr=1.0, events=events)
-
-fit = fm.fmri_lm(hrf("condition", basis="spmg1"), dataset)
-result = fit.contrast(
-    condition("face", term="condition")
-    - condition("scene", term="condition"),
-)
-result.estimate
-```
-:::
+::: {.reading-links}
+[Install and fit a model](get-started.qmd)
+[Browse the tutorials](tutorials/index.qmd)
+[Explore the figure gallery](tutorials/plot-gallery.qmd)
+[Look up an API](reference/index.qmd)
 :::
 :::
 
-::: {.proof-feature}
-::: {.proof-feature-visual}
-```{=html}
-<a href="tutorials/real-data-fiac.qmd" aria-label="Open the real FIAC analysis">
-  <img
-    src="assets/fiac-sentence-effect.png"
-    alt="A centered two-by-four axial montage of the FIAC participant's brain showing the same-sentence minus different-sentence t statistic from one two-run model after 6 mm smoothing of the BOLD data."
-    loading="eager">
-</a>
-```
+::: {.figure-plate}
+::: {.plate-image}
+[![Eight axial brain slices showing the FIAC same-sentence minus different-sentence t statistic, with positive and negative effects on a shared color scale.](assets/fiac-sentence-effect.png){fig-alt="Eight axial slices showing positive and negative FIAC same-sentence minus different-sentence t statistics."}](tutorials/real-data-fiac.qmd)
 :::
-::: {.proof-feature-copy}
-## From typed contrast to brain image
+::: {.plate-note}
+## A contrast in brain space
 
-Fit both runs of a published FIAC experiment in one neuroim-backed dataset,
-state named sentence and speaker effects, and restore the statistic to a
-neuroim brain image. A separate checked-in receipt verifies the explicit
-Nilearn-compatible equal-weight pooling path.
+Two runs of the published FIAC experiment, one participant, and a
+same-sentence minus different-sentence contrast. Image geometry stays with
+the estimates through the fit and back to a brain map.
 
-[Run the real-data tutorial →](tutorials/real-data-fiac.qmd)
+These are uncorrected t statistics after 6 mm smoothing of the BOLD data.
+The tutorial explains the design, pooling choice, and comparison receipt.
+
+[Work through the FIAC analysis](tutorials/real-data-fiac.qmd)
 :::
 :::
 
-## The design is a value {.promise-heading}
+::: {.atlas-body}
+## See what goes into the model
 
-A design in fmrimod is a **first-class Python value**, not a magic string. You
-build it from `hrf(...)`, `drift(...)`, `intercept(...)` terms, compose them
-with `+`, and inspect every field before a single coefficient is solved.
+Event timing becomes a regressor only after choosing a hemodynamic response
+function (HRF). Compare the response shapes, inspect the design columns,
+and check what a contrast asks of those columns before interpreting a map.
 
 ```{python}
-import numpy as np
-import pandas as pd
-import fmrimod as fm
-from fmrimod.spec import hrf
-from fmrimod.contrast import condition
+#| echo: false
+#| fig-width: 9
+#| fig-height: 3.2
+#| fig-alt: "SPM canonical and gamma hemodynamic response curves normalized to unit peak, showing different response shapes."
+#| fig-cap: "Two HRF choices, each normalized to unit peak for this comparison. Equal peaks here do not imply equal native amplitude conventions."
+from fmrimod.hrf import get_hrf
+from fmrimod.plotting import plot_hrfs
 
-events = pd.DataFrame({
-    "onset": np.arange(8, 116, 12.0),
-    "condition": "face",
-    "duration": 2.0,
-})
-
-# Author the design, then read its declared fields; no string parsing.
-design = hrf("condition", basis="spmg1")
-design.variables, design.hrf
+fig, ax = plt.subplots(figsize=(9, 3.2))
+plot_hrfs(get_hrf("spmg1"), get_hrf("gamma"),
+          labels=["SPM canonical", "gamma"], normalize=True, ax=ax)
+ax.set_title("")
+ax.set_xlabel("Time after event (s)")
+ax.set_ylabel("Normalized response")
+plt.show()
 ```
 
-We use only public APIs to generate data with a **known** face-versus-baseline
-effect of `2.0` in two of four features. A correct fit should recover values
-near `2.0` in the first two and near zero in the other two.
+The [figure gallery](tutorials/plot-gallery.qmd) shows the current model,
+fit, and residual inspection plots. [Explore the plotting guide](tutorials/plotting-visualization.qmd) or
+[estimate an HRF from data](tutorials/estimating-hrfs.qmd), with fitted curves
+and uncertainty intervals.
 
-```{python}
-from fmrimod.spec import compile as compile_spec
-from fmrimod.simulate import simulate_bold
+## Follow an analysis
 
-sampling = fm.SamplingFrame(blocklens=130, TR=1.0)
-built, _ = compile_spec(design, data=events, sampling_frame=sampling)
-bold = simulate_bold(
-    np.asarray(built.design_matrix),
-    np.array([[2.0, 2.0, 0.0, 0.0]]),
-    noise_sd=0.3,
-    n_voxels=4,
-    rng=np.random.default_rng(7),
-)
-dataset = fm.fmri_dataset(bold, tr=1.0, events=events)
-```
+::: {.analysis-route}
+### [Events and design](tutorials/design-matrices.qmd)
 
-```{python}
-fit = fm.fmri_lm(design, dataset)
-faces = fit.contrast(
-    condition("face", term="condition"), name="face_vs_baseline"
-)
-pd.DataFrame({
-    "estimate": faces.estimate.round(3),
-    "t": faces.stat.round(2),
-    "p": faces.p_value.round(4),
-})
-```
-
-::: {.callout-note collapse="true"}
-## Coming from R / `fmrireg`?
-
-The R-style string formula still works and compiles to the *same* Spec
-tree: `fm.fmri_lm("hrf(condition)", dataset)` is exact sugar for
-`fm.fmri_lm(hrf("condition"), dataset)`. Prefer the object form in Python:
-it is composable, IDE-introspectable, and visible before fitting.
+Write an event table, select an HRF, and inspect the regressors and their
+correlations. Add baseline terms and parametric modulators as needed.
 :::
 
-## Design principles {.promise-heading}
+::: {.analysis-route}
+### [Fit and contrast](tutorials/linear-model.qmd)
 
-::: {.promise-grid}
-::: {.promise-card}
-### Intent as data
-HRFs, baselines, contrasts, AR options, single-trial estimators and group
-reductions are Python objects that can be inspected. They are constructed
-once and validated at construction. [Get started](get-started.qmd)
-
-[`hrf("condition")`]{.promise-tag}
-:::
-::: {.promise-card}
-### Composable
-Terms combine with `+` into a single design. The same sequence,
-`fmri_dataset → fmri_lm → contrast result → group dataset`, carries semantic
-intent and provenance from authored hypothesis to group-ready evidence; the
-[golden path](tutorials/golden-path.qmd) works through this end to end on a
-dataset with a known effect.
-
-[`hrf(...) + drift(...)`]{.promise-tag}
-:::
-::: {.promise-card}
-### Checked against references
-Nilearn, FitLins and the corresponding R implementations are treated as
-references. Agreement is recorded in checked-in benchmark and cross-testing
-artifacts rather than asserted.
-[Workflow overview](tutorials/overview-workflow.qmd)
-[Real FIAC analysis](tutorials/real-data-fiac.qmd)
-
-[`fm.design_matrix`]{.promise-tag}
-:::
+Fit a first-level GLM and compare named conditions. Follow a simulated effect
+through the [complete workflow](tutorials/golden-path.qmd), or estimate
+[responses to individual trials](tutorials/single-trial.qmd).
 :::
 
-::: {.callout-note}
-## Alpha, with visible evidence
+::: {.analysis-route}
+### [Group and diagnostics](tutorials/group-analysis.qmd)
 
-fmrimod is source-installable alpha software, not a PyPI release. The
-[evidence ledger](evidence/index.qmd) separates verified behavior from work
-that has not been run, while the
-[active caveats](https://github.com/bbuchsbaum/fmrimod/blob/main/docs/contracts/CAVEATS.md)
-name the owner and exit criterion for every accepted parity exception.
+Collect subject contrasts, choose a group model, and examine its results.
+[Group diagnostics](tutorials/group-diagnostics.qmd) distinguish unusual
+subject maps from subjects that strongly influence the pooled estimate.
 :::
 
-fmrimod brings HRF specification, design construction, first-level and
-group modeling into a single Python library. Capabilities that are spread
-across several R packages are consolidated here under one API, designed
-around explicit composition and reproducible analysis objects rather than
-translated directly.
+::: {.status-note}
+fmrimod is source-installable alpha software for Python 3.10 and newer.
+The [evidence guide](evidence/index.qmd) explains the checked-in comparisons
+with R, Nilearn, and FitLins, including the
+[active numerical caveats](https://github.com/bbuchsbaum/fmrimod/blob/main/docs/contracts/CAVEATS.md).
+:::
+:::

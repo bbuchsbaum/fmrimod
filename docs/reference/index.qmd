@@ -118,3 +118,34 @@ Generate small synthetic examples and convert common statistics.
 | [stats.inference.t_to_d](t_to_d.qmd#fmrimod.stats.inference.t_to_d) | Convert t-statistics to standardized effect sizes and variances. |
 | [stats.inference.r_to_z](r_to_z.qmd#fmrimod.stats.inference.r_to_z) | Convert correlations to Fisher Z and sampling variance. |
 | [stats.inference.z_to_r](z_to_r.qmd#fmrimod.stats.inference.z_to_r) | Back-transform Fisher Z to correlation. |
+
+## Model inspection
+
+Inspect response shapes, design structure, coefficient maps, and group diagnostics.
+
+| | |
+| --- | --- |
+| [hrf.estimate.estimate_hrf](estimate_hrf.qmd#fmrimod.hrf.estimate.estimate_hrf) | Dispatch between the smooth-FIR estimator and the voxel-compat helper. |
+| [hrf.estimate.estimate_hrf_fir](estimate_hrf_fir.qmd#fmrimod.hrf.estimate.estimate_hrf_fir) | Estimate condition-level HRF curves with a shared smooth FIR. |
+| [hrf.estimate.HrfEstimate](HrfEstimate.qmd#fmrimod.hrf.estimate.HrfEstimate) | Condition-level smooth FIR estimate. |
+| [accessors.coef_images](coef_images.qmd#fmrimod.accessors.coef_images) | Return one named coefficient/statistic map per requested name. |
+| [group.dataset.group_dataset](group_dataset.qmd#fmrimod.group.dataset.group_dataset) | Construct a `GroupDataset` from materialized assay arrays. |
+| [group.examine.examine_group](examine_group.qmd#fmrimod.group.examine.examine_group) | Examine subjects under an intended group model. |
+| [group.examine.GroupExamination](GroupExamination.qmd#fmrimod.group.examine.GroupExamination) | Result of `examine_group`. |
+| [group._examine_control.examination_control](examination_control.qmd#fmrimod.group._examine_control.examination_control) | Build an `ExaminationControl`, merging nested mappings. |
+| [plotting.plot_hrf](plot_hrf.qmd#fmrimod.plotting.plot_hrf) | Plot one HRF (R ``plot.HRF``). |
+| [plotting.plot_hrfs](plot_hrfs.qmd#fmrimod.plotting.plot_hrfs) | Compare HRFs on shared axes (R ``plot_hrfs``). |
+| [plotting.plot_regressor](plot_regressor.qmd#fmrimod.plotting.plot_regressor) | Plot one regressor's predicted response (R ``plot.Reg``). |
+| [plotting.plot_regressors](plot_regressors.qmd#fmrimod.plotting.plot_regressors) | Compare regressors on a shared time axis (R ``plot_regressors``). |
+| [visualization.heatmaps.design_map](design_map.qmd#fmrimod.visualization.heatmaps.design_map) | Design matrix as an image, in the style of SPM (R ``design_map``). |
+| [visualization.heatmaps.correlation_map](correlation_map.qmd#fmrimod.visualization.heatmaps.correlation_map) | Pairwise regressor correlations as a lower triangle (R ``correlation_map``). |
+| [visualization.event_plot.plot_design_matrix](plot_design_matrix.qmd#fmrimod.visualization.event_plot.plot_design_matrix) | Alias of `plot_event_model` kept for the former API. |
+| [visualization.baseline_plot.plot_baseline_model](plot_baseline_model.qmd#fmrimod.visualization.baseline_plot.plot_baseline_model) | Plot the time-varying terms of a baseline model (R ``plot.baseline_model``). |
+| [visualization.baseline_plot.plot_sampling_frame](plot_sampling_frame.qmd#fmrimod.visualization.baseline_plot.plot_sampling_frame) | Plot the runs of a sampling frame (R ``plot.sampling_frame``). |
+| [contrast.plot_contrasts.plot_contrasts](plot_contrasts.qmd#fmrimod.contrast.plot_contrasts.plot_contrasts) | Plot contrast weights as a heatmap. |
+| [visualization.event_plot.plot_event_model](plot_event_model.qmd#fmrimod.visualization.event_plot.plot_event_model) | Plot the convolved regressors of an event model against time. |
+| [visualization.design_stats.design_correlations](design_correlations.qmd#fmrimod.visualization.design_stats.design_correlations) | Correlations between the design columns of ``model``. |
+| [visualization.design_stats.design_vif](design_vif.qmd#fmrimod.visualization.design_stats.design_vif) | Variance inflation factor of each design column (per-run intercepts). |
+| [visualization.fit_plots.plot_fit](plot_fit.qmd#fmrimod.visualization.fit_plots.plot_fit) | Plot a fitted GLM (R fmrireg ``autoplot.fmri_lm``). |
+| [plotting.hrf_curves](hrf_curves.qmd#fmrimod.plotting.hrf_curves) | Long-form curves drawn by `plot_hrfs`. |
+| [plotting.regressor_curves](regressor_curves.qmd#fmrimod.plotting.regressor_curves) | Long-form curves drawn by `plot_regressors`. |

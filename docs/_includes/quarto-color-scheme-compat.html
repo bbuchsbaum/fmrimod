@@ -1,0 +1,13 @@
+<!--
+Quarto 1.7 emits a color-scheme bootstrap script that expects this link even
+when Pandoc inlines the syntax-highlighting CSS. The empty sentinel prevents
+the toggle initializer from aborting before it enables the dark/light switch.
+Remove it once the supported Quarto release emits the link itself or guards
+the lookup.
+-->
+<link
+  id="quarto-text-highlighting-styles"
+  class="quarto-color-scheme-extra"
+  rel="stylesheet"
+  href="data:text/css,"
+>

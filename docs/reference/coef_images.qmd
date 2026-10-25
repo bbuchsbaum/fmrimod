@@ -1,0 +1,10 @@
+# accessors.coef_images { #fmrimod.accessors.coef_images }
+
+```python
+coef_images(x, statistic='estimate', type='betas', coefs=None, mask=None)
+```
+
+Return one named coefficient/statistic map per requested name.
+
+Plural companion to `coef_image`. ``type`` selects estimates,
+t-contrasts, or F-contrasts. Unknown ``coefs`` raise.

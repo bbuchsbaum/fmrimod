@@ -1,47 +1,17 @@
 /*-- scss:defaults --*/
 
-// ---------------------------------------------------------------------------
-// Shared base + LIGHT palette.
-//
-// Modelled on Astro Starlight's default theme: a neutral gray ramp with a
-// slight blue cast (hue ~224), one blue accent used sparingly, flat chrome
-// (navbar and sidebar share the page background, separated only by a
-// hairline), and restrained corner radii.
-//
-// `_theme-night.scss` layers on top for the dark toggle and overrides the
-// palette only — typography, spacing, radii and every structural rule live
-// here, written against Bootstrap CSS variables, so the two modes cannot
-// drift apart.
-//
-// NAMING, DELIBERATE: do not name the pair `X.scss` / `X-dark.scss`.
-//
-// Observed while building this theme: with `_variables.scss` /
-// `_variables-dark.scss`, the dark layer's values ended up in the LIGHT
-// bundle as well, so both modes rendered dark. The dark layer assigns
-// without `!default` (it has to, to beat the base), so once it reaches the
-// light bundle it wins there too. Emptying those two files and switching to
-// these non-matching stem names produced a correct split, verified by
-// reading `--bs-body-bg` out of the emitted bundles.
-//
-// The exact trigger was not pinned down — same-stem `-dark` pairing and a
-// stale SCSS cache both fit the evidence, and an unreferenced `_probe.scss`
-// with non-default values did *not* leak, which rules out blanket
-// auto-discovery of `_*.scss`. Whatever the cause, the safe rule is: keep the
-// dark layer out of the light bundle, and verify by checking the compiled
-// CSS rather than trusting the config.
-// ---------------------------------------------------------------------------
-
+// Shared typography and light palette. Night overrides colors only.
 // -- Starlight-style gray ramp (hue 224) ------------------------------------
 $sl-gray-1: #eef0f5 !default;
 $sl-gray-2: #c2c6cc !default;
 $sl-gray-3: #878d96 !default; // muted text on dark
-$sl-gray-4: #565b63 !default; // muted text on light
+$sl-gray-4: #526265 !default; // muted text on light
 $sl-gray-5: #353b45 !default;
 $sl-gray-6: #23272f !default; // raised surfaces on dark
 $sl-gray-7: #1c1f26 !default; // code blocks on dark
-$sl-black: #17191e !default; // page background on dark
-$sl-accent: #2b52d8 !default; // accent on light
-$sl-accent-high: #8aa9ff !default; // accent on dark
+$sl-black: #202d31 !default; // page background on dark
+$sl-accent: #216e65 !default; // accent on light
+$sl-accent-high: #92c9bb !default; // accent on dark
 
 // -- Typography --------------------------------------------------------------
 $font-family-sans-serif: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
@@ -49,40 +19,40 @@ $font-family-sans-serif: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
 $font-family-monospace: "JetBrains Mono", "Fira Code", ui-monospace,
   SFMono-Regular, Menlo, Monaco, Consolas, monospace !default;
 
-$font-size-root: 16px;
-$line-height-base: 1.75; // Starlight runs airier than Bootstrap's default
+$font-size-root: 17px;
+$line-height-base: 1.7; // Starlight runs airier than Bootstrap's default
 $headings-font-weight: 600;
 $headings-line-height: 1.3;
 $headings-letter-spacing: -0.01em;
 
 // -- Light palette -----------------------------------------------------------
-$body-bg: #ffffff !default;
+$body-bg: #fbfaf6 !default;
 $body-color: $sl-black !default;
 $body-secondary-color: $sl-gray-4 !default;
 $body-tertiary-color: #6b717b !default;
-$body-secondary-bg: #f5f6f8 !default;
-$body-tertiary-bg: #fafbfc !default;
+$body-secondary-bg: #f1f1ea !default;
+$body-tertiary-bg: #f5f5ef !default;
 $body-emphasis-color: #000000 !default;
 
 $primary: $sl-accent !default;
 $link-color: $sl-accent !default;
-$link-hover-color: #1c3fb5 !default;
+$link-hover-color: #164d47 !default;
 
-$border-color: #e1e4ea !default;
+$border-color: #d5dcd6 !default;
 $border-color-translucent: rgba(23, 25, 30, 0.1) !default;
 
 $code-bg: #f2f4f7 !default;
 $code-color: #1c2430 !default;
-$code-block-bg: #fafbfc !default;
+$code-block-bg: #f5f5ef !default;
 
 // Flat chrome: the navbar is the page, plus a hairline.
-$navbar-bg: #ffffff !default;
+$navbar-bg: #fbfaf6 !default;
 $navbar-fg: $sl-gray-4 !default;
 
-$card-bg: #ffffff !default;
+$card-bg: #fbfaf6 !default;
 $card-color: $sl-black !default;
-$card-border-color: #e1e4ea !default;
-$card-cap-bg: #f5f6f8 !default;
+$card-border-color: #d5dcd6 !default;
+$card-cap-bg: #f1f1ea !default;
 
 // -- Bootstrap 5.3 dark-mode map inputs --------------------------------------
 // Bootstrap's `_maps.scss` dereferences these unconditionally, so they must
@@ -123,7 +93,7 @@ $body-secondary-color-dark: rgba($body-color-dark, 0.75) !default;
 $body-secondary-bg-dark: $sl-gray-6 !default;
 $body-tertiary-color-dark: rgba($body-color-dark, 0.5) !default;
 $body-tertiary-bg-dark: $sl-gray-7 !default;
-$body-emphasis-color-dark: #ffffff !default;
+$body-emphasis-color-dark: #fbfaf6 !default;
 $border-color-dark: #2a2e39 !default;
 $border-color-translucent-dark: rgba(255, 255, 255, 0.15) !default;
 $headings-color-dark: inherit !default;
@@ -146,8 +116,8 @@ $accordion-button-active-icon-dark: url("data:image/svg+xml,<svg xmlns='http://w
 
 // -- Shape -------------------------------------------------------------------
 // Starlight is noticeably less rounded than the previous 10-12px.
-$border-radius: 0.375rem;
-$border-radius-lg: 0.5rem;
+$border-radius: 0.15rem;
+$border-radius-lg: 0.2rem;
 $border-radius-sm: 0.25rem;
 $box-shadow-sm: 0 1px 2px rgba(23, 25, 30, 0.05);
 $box-shadow: 0 2px 8px rgba(23, 25, 30, 0.06);
@@ -204,7 +174,7 @@ h3 {
 // -- Code --------------------------------------------------------------------
 pre,
 .sourceCode {
-  border-radius: 0.5rem;
+  border-radius: 0.15rem;
   border: 1px solid var(--bs-border-color);
   background: var(--fm-elevated-bg);
 }
@@ -234,7 +204,7 @@ code:not(pre code) {
   border-bottom: 1px solid var(--bs-border-color);
   box-shadow: none;
   background: var(--bs-body-bg);
-  backdrop-filter: saturate(180%) blur(8px);
+
 }
 .navbar .navbar-brand {
   font-weight: 650;

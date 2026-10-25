@@ -6,7 +6,9 @@ execute:
   freeze: auto
 ---
 
-## Available Fixtures
+{{< include ../_plot-setup.qmd >}}
+
+## Choose a fixture
 
 `fmrimod` ships small, deterministic datasets where the true betas are
 known. They are ideal for learning and for sanity-checking a method: you
@@ -21,7 +23,7 @@ import fmrimod as fm
 fm.list_benchmark_datasets()
 ```
 
-## Inspect a Dataset
+## Inspect the dataset
 
 ```{python}
 name = "BM_Canonical_HighSNR"
@@ -35,14 +37,14 @@ data = fm.load_benchmark_dataset(name)
 data.keys()
 ```
 
-## Build a Design Matrix
+## Build the design
 
 ```{python}
 X = fm.create_design_matrix_from_benchmark(name, hrf="spmg1")
 X.head()
 ```
 
-## Fit OLS and Score It
+## Fit OLS and measure error
 
 The benchmark stores condition-level ground truth, so we drop the
 intercept row before scoring. We solve the GLM with `np.linalg.lstsq`
@@ -59,7 +61,7 @@ performance = fm.evaluate_method_performance(name, condition_beta, "OLS")
 pd.Series(performance["overall_metrics"]).round(4)
 ```
 
-## Compare Estimated and True Betas
+## Compare estimated and true betas
 
 ```{python}
 true_beta = data["true_betas_condition"]

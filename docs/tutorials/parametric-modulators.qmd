@@ -1,24 +1,23 @@
 ---
 title: "Parametric modulators"
-subtitle: "Centering, semantics, and the modern-correct workflow"
+subtitle: "Center trial covariates before convolution and inspect the resulting design."
 jupyter: python3
 ---
+
+{{< include ../_plot-setup.qmd >}}
 
 Continuous variables that vary trial by trial (reaction time, accuracy,
 confidence, or stimulus intensity) can enter the GLM as **parametric
 modulators** of a categorical condition. fmrimod's declarative
 `modulators=` keyword expands a single condition into an unmodulated
-boxcar plus one regressor per modulator, with the centering
-convention modern fMRI methodology recommends (Mumford, Poline &
-Poldrack, 2015) wired in by default.
+boxcar plus one regressor per modulator, with mean-centering before convolution enabled by default.
 
 This page covers:
 
-- The unified semantic: centering operates on the **raw input
+- The centering convention: centering operates on the **raw input
   variable** before convolution, never on the convolved column.
-- The four entry points and their (now consistent) defaults.
-- Why mean-centering and "no automatic orthogonalization" is the
-  modern-correct choice.
+- The defaults at four entry points.
+- How automatic orthogonalization changes the interpretation of a coefficient.
 - The opt-out for R-fmridesign / SPM-style exact reproducibility.
 
 ## The specification surface
@@ -75,9 +74,9 @@ acc_idx = cols.where(term="trial_type:accuracy", level="A").one().index
 print(f"unmod={unmod_idx}, rt={rt_idx}, accuracy={acc_idx}")
 ```
 
-Empirically, the centered modulators are near-orthogonal to the
-unmodulated boxcar, so per-modulator betas have a clean interpretation:
-"the BOLD change per unit of the modulator above its sample mean."
+Mean-centering sets the unmodulated effect at the mean input value. It does
+not guarantee orthogonality after HRF convolution. Inspect the correlations
+in the realized design; event spacing and other regressors still matter.
 
 ```{python}
 X = fit.model.design_matrix_array(run=0)
@@ -107,16 +106,14 @@ raw_value → (center) → (scale / poly basis) → amplitude_per_event → boxc
 No code path centers the convolved time series itself. This means
 the realised modulator column is **identical** whether you pre-center
 in the events DataFrame or rely on the specification default; fmrimod
-just applies the centering one step earlier in the chain. The
+applies the centering one step earlier in the chain. The
 regression test
 `tests/spec/test_parametric_modulators.py::test_centering_is_pre_convolution_input_variable_operation`
 pins this bitwise.
 
 ## Four entry points, one default
 
-The same conceptual operation is reachable from four surfaces. After
-the early-2026 consistency alignment, all four default to the same
-modern-correct behavior:
+The same conceptual operation is reachable from four surfaces. The defaults are:
 
 | entry point | default centering | how to opt out |
 | --- | --- | --- |
@@ -128,7 +125,7 @@ modern-correct behavior:
 The specification path used to silently override `EventVariable`'s
 `center=True` default with `center=False` to match the R
 `fmridesign` legacy. That hard-coded override is gone; the specification
-spec now follows the same convention as every other entry point.
+now follows the same convention as every other entry point.
 
 ## Why no automatic orthogonalization
 
@@ -295,6 +292,6 @@ contract pinned by the regression suite.
 - `tests/spec/test_parametric_modulators.py`: regression suite
   pinning the centering defaults, the pre-convolution semantics,
   and the order-independence of modulator listing.
-- [`docs/contracts/CAVEATS.md`](https://github.com/bbuchsbaum/fmrimod/blob/main/docs/contracts/CAVEATS.md)
-  → `parametric-modulator-r-parity-divergence` for the
-  R-fmridesign alignment ticket status.
+- [Active numerical caveats](https://github.com/bbuchsbaum/fmrimod/blob/main/docs/contracts/CAVEATS.md)
+  and [retirement records](https://github.com/bbuchsbaum/fmrimod/blob/main/docs/contracts/CAVEAT_RETIREMENTS.md)
+  for the current comparison boundaries.

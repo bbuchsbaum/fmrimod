@@ -4,7 +4,9 @@ subtitle: "Model event timing with a typed spec and inspect the regressors."
 jupyter: python3
 ---
 
-## Create Events
+{{< include ../_plot-setup.qmd >}}
+
+## Create events
 
 ```{python}
 import pandas as pd
@@ -21,19 +23,18 @@ events = pd.DataFrame({
 events
 ```
 
-## Define the Acquisition Grid
+## Define the acquisition grid
 
 ```{python}
 sf = fm.SamplingFrame(blocklens=60, TR=1.0)
 sf.samples[:8]
 ```
 
-## Build the Design from a Typed Spec
+## Compile the design
 
-`hrf(...)` is a typed value. `compile()` lowers a spec against the events
-and sampling frame into an `EventModel` (and its baseline) — no fitting,
-no string formula. The design matrix and column metadata are inspectable
-immediately.
+`compile()` combines the specification, event table, and acquisition times
+into an `EventModel` and a baseline model. It returns the design matrix and
+column metadata without fitting any data.
 
 ```{python}
 spec = hrf("condition", basis="spmg1")
@@ -46,7 +47,23 @@ event_model.design_matrix.shape
 event_model.column_names
 ```
 
-## Inspect Column Metadata
+## Plot the compiled columns
+
+The design heatmap shows the actual regressors used by the model. Compare its
+bands with the event table before fitting any data.
+
+```{python}
+#| fig-width: 6
+#| fig-height: 4
+#| fig-alt: "Heatmap of the face and scene event regressors across sixty acquisition samples, with alternating response bands."
+#| fig-cap: "The compiled event design. Color encodes regressor amplitude; it does not show an estimated BOLD effect."
+from fmrimod.visualization import design_map
+
+fig = design_map(event_model, figsize=(6, 5), scale="none", title="")
+plt.show()
+```
+
+## Inspect column metadata
 
 `design_colmap` reports the provenance of every column — which condition,
 which basis, what role — for the compiled event model.
@@ -55,15 +72,15 @@ which basis, what role — for the compiled event model.
 design_colmap(event_model)[["col", "name", "condition", "role", "basis_name"]]
 ```
 
-## Add a Parametric Modulator
+## Add a parametric modulator
 
 To model a condition modulated by a trial-by-trial continuous variable
 (reaction time, accuracy, confidence, ...), use the typed-spec
 `modulators=` keyword. This expands the term into an unmodulated
-boxcar plus one regressor per modulator. By default each modulator
-is mean-centered at the raw-value level (pre-convolution), giving
-the unmodulated boxcar and modulated columns the near-orthogonal
-structure that makes per-modulator betas interpretable.
+boxcar plus one regressor per modulator for each condition. By default,
+modulator values are mean-centered before convolution. This sets the
+unmodulated effect's reference at the mean modulator value; it does not
+guarantee orthogonal design columns after convolution.
 
 ```{python}
 modulated_spec = hrf("condition", basis="spmg1", modulators=("response_time",))

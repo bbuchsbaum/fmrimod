@@ -24,6 +24,14 @@ basis functions.
 |--------|--------------------|-------------------------------|
 |        | ColumnContrastSpec | Column contrast specification |
 
+## Notes {.doc-section .doc-section-notes}
+
+For a contrast attached to a model term, patterns are matched against
+the term's design-matrix column names (``cond_cond.A_b01``) first and,
+only if they match none of them, against the term-level condition
+names (``cond.A_b01``). A pattern that selects different columns in the
+two namespaces is an error: anchor it on the design-matrix names.
+
 ## Examples {.doc-section .doc-section-examples}
 
 ```python

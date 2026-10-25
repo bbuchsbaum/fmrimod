@@ -1,0 +1,48 @@
+# visualization.event_plot.plot_event_model { #fmrimod.visualization.event_plot.plot_event_model }
+
+```python
+plot_event_model(
+    model,
+    term=None,
+    style='auto',
+    show_events=True,
+    label_mode='auto',
+    max_labels=30,
+    block_x='global',
+    y_scale='term',
+    time_range=None,
+    title=None,
+    subtitle=None,
+    caption=None,
+    figsize=None,
+    ax=None,
+    abbrev_min=10,
+)
+```
+
+Plot the convolved regressors of an event model against time.
+
+## Parameters {.doc-section .doc-section-parameters}
+
+| Name        | Type                                              | Description                                                                                                                                                                                                                                                                 | Default    |
+|-------------|---------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| model       | EventModel                                        | The model to draw (an ``FmriModel`` or fit is reduced to its event model).                                                                                                                                                                                                  | _required_ |
+| term        | str                                               | Draw only this term (its name, e.g. ``"cond"`` or ``"cond:rt"``).                                                                                                                                                                                                           | `None`     |
+| style       | (\'auto\', \'stacked\', \'overlay\', \'heatmap\') | ``"stacked"``: one row per condition (and basis function) with its own amplitude axis on the right; ``"overlay"``: every regressor on one axis; ``"heatmap"``: one raster row per regressor. ``"auto"`` picks the heatmap above 12 rows or 3 basis functions, else stacked. | `"auto"`   |
+| show_events | bool                                              | Mark event onsets (rugs, or ticks in the heatmap) and durations.                                                                                                                                                                                                            | `True`     |
+| label_mode  | (\'auto\', \'compact\', \'none\')                 | ``"compact"`` abbreviates row labels, ``"none"`` drops them and ``"auto"`` drops them above ``max_labels`` regressors.                                                                                                                                                      | `"auto"`   |
+| max_labels  | int                                               | Label limit for ``label_mode="auto"``.                                                                                                                                                                                                                                      | `30`       |
+| block_x     | (\'global\', \'run\')                             | ``"global"``: runs concatenated on one time axis; ``"run"``: one column of panels per run on run-relative time (stacked style).                                                                                                                                             | `"global"` |
+| y_scale     | (\'term\', \'row\', \'shared\')                   | Stacked rows share their amplitude axis within a term (and basis function), are scaled per row, or share one scale.                                                                                                                                                         | `"term"`   |
+| time_range  | (float, float)                                    | Zoom to this time window (seconds on the plotted axis).                                                                                                                                                                                                                     | `None`     |
+| title       | str                                               | ``None`` uses the informative default; ``""`` removes it.                                                                                                                                                                                                                   | `None`     |
+| subtitle    | str                                               | ``None`` uses the informative default; ``""`` removes it.                                                                                                                                                                                                                   | `None`     |
+| caption     | str                                               | ``None`` uses the informative default; ``""`` removes it.                                                                                                                                                                                                                   | `None`     |
+| figsize     | (float, float)                                    | Defaults scale with the number of rows.                                                                                                                                                                                                                                     | `None`     |
+| ax          | matplotlib Axes                                   | Draw into this axes (overlay and heatmap styles only).                                                                                                                                                                                                                      | `None`     |
+
+## Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                     | Description   |
+|--------|--------------------------|---------------|
+|        | matplotlib.figure.Figure |               |

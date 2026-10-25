@@ -135,16 +135,12 @@ def convolve(
     sampling_frame : array-like, optional
         Explicit time points at which to sample the convolved signal.
         If provided, takes precedence over sampling_rate.
-    normalize : bool, optional
-        If True, peak-normalize each regressor column after convolution
-        so that max(abs(col)) == 1. Default False.
-    summate : bool, optional
-        Whether overlapping HRF responses are summed (default True).
-        If False, each block is duration-averaged rather than
-        accumulated. Overlapping events still add. Passed to
-        ``fmrimod.regressor``.
     **kwargs
-        Additional arguments passed to convolution
+        Options forwarded to the event-specific implementation. These include
+        ``normalize`` (default ``False``), which peak-normalizes each output
+        column, and ``summate`` (default ``True``). With ``summate=False``,
+        each block is duration-averaged rather than accumulated; overlapping
+        events still add.
 
     Returns
     -------
@@ -153,19 +149,27 @@ def convolve(
 
     Examples
     --------
-    >>> # Convolve event with default HRF
-    >>> event = EventVariable(onsets=[1, 5, 10], durations=[2, 2, 2],
-    ...                      values=[1, 2, 3], name="stimulus")
-    >>> convolved = convolve(event, sampling_rate=0.5)  # TR=2s
-
-    >>> # Use custom HRF
-    >>> from fmrimod import HRF
-    >>> custom_hrf = HRF(a1=6, a2=12)
-    >>> convolved = convolve(event, hrf=custom_hrf)
-
-    >>> # Use explicit sampling frame
-    >>> sampling_times = np.arange(0, 100, 2.0)  # TR=2s
-    >>> convolved = convolve(event, hrf=custom_hrf, sampling_frame=sampling_times)
+    >>> import numpy as np
+    >>> from fmrimod.convolve import convolve
+    >>> from fmrimod.events import EventVariable
+    >>> from fmrimod.hrf import HRF_GAMMA
+    >>> event = EventVariable(
+    ...     onsets=[1.0, 5.0, 10.0],
+    ...     durations=[2.0, 2.0, 2.0],
+    ...     values=[1.0, 2.0, 3.0],
+    ...     name="stimulus",
+    ... )
+    >>> default = convolve(event, sampling_rate=0.5)  # TR = 2 seconds
+    >>> default.shape
+    (22, 1)
+    >>> sampling_times = np.arange(0.0, 100.0, 2.0)
+    >>> custom = convolve(
+    ...     event,
+    ...     hrf=HRF_GAMMA,
+    ...     sampling_frame=sampling_times,
+    ... )
+    >>> custom.shape
+    (50, 1)
     """
     raise NotImplementedError(f"convolve not implemented for {type(x)}")
 

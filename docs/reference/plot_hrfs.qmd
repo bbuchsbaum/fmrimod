@@ -1,0 +1,56 @@
+# plotting.plot_hrfs { #fmrimod.plotting.plot_hrfs }
+
+```python
+plot_hrfs(
+    *hrfs,
+    time=None,
+    normalize=False,
+    labels=None,
+    title=None,
+    subtitle=None,
+    basis='all',
+    layout='overlay',
+    palette='auto',
+    reference=None,
+    reference_label=None,
+    scales='free_y',
+    caption=None,
+    ax=None,
+    figsize=None,
+)
+```
+
+Compare HRFs on shared axes (R ``plot_hrfs``).
+
+Multi-basis HRFs expand to one curve per basis function, so
+``plot_hrfs(HRF_SPMG3)`` shows the canonical response and both
+derivatives, labelled at their peaks.
+
+Args:
+    *hrfs: HRF objects, a list of them, or one ``{label: hrf}`` mapping.
+    time: Time points (s); defaults to 0 to the longest span, 0.1 s steps.
+    normalize: Scale each curve to peak at 1 (compare shapes).
+    labels: One label per HRF or per curve. Defaults to the HRF names;
+        the columns of a single basis set are named after their role
+        (``canonical``, ``temporal deriv.``...) or ``B1``, ``B2``...
+    title: Defaults to the HRF name for one HRF, else "HRF comparison";
+        ``""`` suppresses it.
+    subtitle: Optional subtitle.
+    basis: ``"all"`` basis functions or only the ``"first"``.
+    layout: ``"overlay"`` (one panel) or ``"stack"`` (one panel per curve
+        on a shared time axis).
+    palette: ``"auto"`` uses the ordered ramp for a single basis set of
+        more than three functions or more than six curves, else the
+        categorical palette; ``"ordered"`` suits HRFs that differ along
+        one parameter (lag, width).
+    reference: Optional HRF drawn as a dashed grey curve outside the
+        legend, evaluated and normalized like the others.
+    reference_label: Names the reference in the caption; defaults to its
+        name.
+    scales: For ``layout="stack"``: ``"free_y"`` or ``"fixed"``.
+    caption: Overrides the default caption ("Dashed grey: <reference>").
+    ax: Draw a single-panel overlay into this axes.
+    figsize: Figure size in inches; scaled to the panel count by default.
+
+Returns:
+    The matplotlib Figure. `hrf_curves` returns the plotted data.

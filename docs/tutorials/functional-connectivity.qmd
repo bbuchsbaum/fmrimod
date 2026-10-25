@@ -6,6 +6,8 @@ execute:
   freeze: auto
 ---
 
+{{< include ../_plot-setup.qmd >}}
+
 Seed-based functional connectivity asks a simple question: which target
 regions co-vary with a chosen seed region once nuisance signals are removed?
 This page starts from a spatial `neuroim` object, extracts named ROIs, and then
@@ -120,7 +122,7 @@ pd.DataFrame(
 Connectivity operates on one representative series per ROI. We average the
 voxel series within each extraction result and keep the ROI names in a
 DataFrame. Only here, after spatial extraction and its receipts are visible,
-do those named series cross into fmrimod's matrix-backed dataset seam. This is
+do those named series enter fmrimod's matrix-backed dataset. This is
 pre-extracted ROI data, not flattened voxel data.
 
 ```{python}
@@ -162,7 +164,7 @@ design_matrix(bmodel).shape   # (time, drift + intercept + motion columns)
 ## Residualize through the model
 
 `residualize` dispatches on the model. Pass `bmodel` itself, not its
-matrix. This is the same projection the first-level seam uses, so the cleaned
+matrix. This is the same projection the first-level model uses, so the cleaned
 signal is consistent with how fmrimod fits everything else.
 
 ```{python}
@@ -170,7 +172,7 @@ clean = residualize(bmodel, dataset.get_all_data())
 clean.shape
 ```
 
-## Seed-to-Target Correlation
+## Estimate seed-to-target correlations
 
 For a cleaned ROI matrix, the effect-size estimate is one explicit call. The
 helper preserves the readable "seed versus target columns" shape and adds
@@ -184,7 +186,7 @@ seed_target_correlation(
 ).round(3)
 ```
 
-## Seed as a GLM Covariate
+## Use the seed as a GLM covariate
 
 The fmrireg-style inferential version treats the seed time series as a sampled
 BOLD covariate. In fmrimod that is not a separate connectivity language:
@@ -202,7 +204,7 @@ target_events = pd.DataFrame({
 target_dataset = fm.fmri_dataset(clean[:, 1:2], tr=2.0, events=target_events)
 
 seed_fit = fm.fmri_lm(covariate("seed", source=seed_source), target_dataset)
-seed_index = seed_fit.design_columns().names.index("seed")
+seed_index = seed_fit.design_columns().where(term="seed").one().index
 round(float(seed_fit.coef()[seed_index, 0]), 3)
 ```
 
@@ -220,10 +222,10 @@ seed_target_lm(
 ).to_frame().round(3)
 ```
 
-## Back to fmrimod for Group-Ready Effect Sizes
+## Prepare effect sizes for group analysis
 
 `seed_target_correlation` already includes the Fisher *z* and sampling variance
-`1 / (n - 3)`, which is exactly what the group seam (`fmri_meta`, `group_fit`)
+`1 / (n - 3)`, which is exactly what group analysis (`fmri_meta`, `group_fit`)
 expects per connection. The lower-level `r_to_z` helper remains available when
 you already have correlations from another source.
 
