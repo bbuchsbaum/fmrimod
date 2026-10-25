@@ -50,6 +50,34 @@ against the latest one (`--baseline` picks another).
   batched GLS solve (identical to ~1e-12) made it faster on small inputs and
   2.2x slower at ~25k voxels (Nilearn bins coefficients; fmrimod stays
   exact). fmrimod 965 vs Nilearn 1316 tokens over 14 scenarios.
+- **Round 5** added s15 (FDR + cluster-extent thresholding and a cluster
+  table: 315 vs 111 tokens on the old API, 81 now via
+  `contrast.threshold(...).clusters()`), binned voxelwise AR
+  (`ar="ar1_binned"`), and promoted `bids_datasets` to the spine. The
+  scorecard also caught a regression from the storage-backend rework
+  (#24): per-volume NIfTI reads tripled first-level time; runs are now read
+  in one pass. An independent critic review (an agent that had not seen
+  this work) then found what the scorecard does not measure; fixed here:
+  multi-run fits with unlabelled events (silently all in run 1), group
+  covariates joined by row order for map files, differing first-level masks
+  blocking the group fit, unpicklable fits, Nilearn keywords failing with
+  an engine error, no warning for non-estimable contrasts, no in-memory
+  image for plotting (`to_img()`), and contrast spellings (column names,
+  lists for F, `compute_contrasts` on strings). Signal scaling, p-value
+  sidedness, zero-duration events, memory at full-brain size and BIDS
+  `n/a` handling were left as proposals because each changes semantics.
+  fmrimod 1046 vs Nilearn 1427 tokens over 15 scenarios.
+- **Round 6** took up those proposals without changing defaults. P-values
+  stay two-sided. `fmri_lm(scale="psc")` is opt-in percent-signal-change
+  scaling (Nilearn's `signal_scaling=0`). `bids_datasets` zeroes fMRIPrep's
+  leading `n/a` confound rows and drops `n/a` trial types with a warning,
+  and negative onsets (events before the first kept scan) are accepted.
+  `--full-brain` adds 64x64x40 x 300-scan rows with peak memory: chunking
+  the AR solves cut pooled AR(1) from 10.4 s / +1.4 GB to 3.9 s / +0.36 GB.
+  fmrimod wins s01 at full-brain size (0.6 s vs 2.1 s, 684 vs 851 MB) but
+  voxelwise AR(1) (s06) is still 7.8 s vs 6.6 s and 2146 vs 1547 MB peak.
+  Zero-duration events keep fmrimod's unit-impulse convention (fmrireg's);
+  Nilearn's differs only by a scale factor.
 
 ## How a scenario is built
 
@@ -98,7 +126,7 @@ should be pinned as **strict xfail** probes in
 3. regenerate the report (`test_checked_in_report_matches_scenario_bodies`
    fails until you do);
 4. turn the probe into a regression test asserting the short form equals
-   the long one (sections 3-5 of that file hold rounds 2-4).
+   the long one (sections 3-7 of that file hold rounds 2-5).
 
 ## Adding a scenario
 

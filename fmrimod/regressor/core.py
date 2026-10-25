@@ -150,12 +150,11 @@ class Regressor:
 
         n_onsets = len(self.onsets)
 
-        # Validate onsets: must be finite and non-negative
-        if n_onsets > 0:
-            if np.any(~np.isfinite(self.onsets)):
-                raise ValueError("onsets must contain finite numeric values")
-            if np.any(self.onsets < 0):
-                raise ValueError("onsets must be non-negative")
+        # Validate onsets: must be finite. Negative onsets are allowed: an
+        # event before the first scan (e.g. after dropping dummy volumes)
+        # still contributes the tail of its response.
+        if n_onsets > 0 and np.any(~np.isfinite(self.onsets)):
+            raise ValueError("onsets must contain finite numeric values")
 
         # Recycle duration and amplitude before validation
         if n_onsets > 0:

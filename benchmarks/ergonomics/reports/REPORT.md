@@ -8,58 +8,74 @@ Tokens/statements count the scenario body only (imports included; docstrings, co
 
 | scenario | size | tokens fm / nl | stmts fm / nl | ms fm / nl | warnings fm / nl | docs fm / nl | r | winner (auth, speed, noise, docs) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| s01_two_condition_t | small | 60 / 57 | 4 / 4 | 5.5 / 11.8 | 0 / 2 | 100% / 67% | 1.0000 | nilearn, fmrimod, fmrimod, fmrimod |
-| s01_two_condition_t | large | 60 / 57 | 4 / 4 | 66.3 / 156.9 | 0 / 2 | 100% / 67% | 1.0000 | n/a, fmrimod, fmrimod, n/a |
-| s02_multirun_confounds | small | 68 / 60 | 4 / 4 | 21.6 / 27.5 | 0 / 5 | 100% / 67% | 0.9999 | nilearn, fmrimod, fmrimod, fmrimod |
-| s03_parametric_rt | small | 70 / 113 | 4 / 8 | 6.6 / 26.1 | 0 / 2 | 100% / 67% | 1.0000 | fmrimod, fmrimod, fmrimod, fmrimod |
-| s04_omnibus_f | small | 71 / 106 | 5 / 7 | 6.9 / 12.3 | 0 / 2 | 100% / 67% | 0.9999 | fmrimod, fmrimod, fmrimod, fmrimod |
-| s05_fir_shape | small | 97 / 101 | 6 / 6 | 6.4 / 13.4 | 0 / 2 | 100% / 67% | 0.9954 | tie, fmrimod, fmrimod, fmrimod |
-| s06_ar1_t | small | 64 / 61 | 4 / 4 | 11.3 / 26.6 | 0 / 2 | 100% / 67% | 1.0000 | tie, fmrimod, fmrimod, fmrimod |
-| s06_ar1_t | large | 64 / 61 | 4 / 4 | 1836.0 / 826.7 | 0 / 2 | 100% / 67% | 1.0000 | n/a, nilearn, fmrimod, n/a |
-| s07_lss_beta_series | small | 53 / 105 | 3 / 10 | 9.5 / 294.9 | 0 / 56 | 100% / 67% | 0.9989 | fmrimod, fmrimod, fmrimod, fmrimod |
-| s08_group_one_sample | small | 74 / 135 | 5 / 12 | 50.7 / 115.0 | 0 / 16 | 100% / 67% | 1.0000 | fmrimod, fmrimod, fmrimod, fmrimod |
-| s09_design_only | small | 46 / 37 | 3 / 3 | 2.4 / 5.4 | 0 / 1 | 100% / 100% | 0.9999 | nilearn, fmrimod, fmrimod, tie |
-| s10_zmap_to_nifti | small | 76 / 66 | 5 / 6 | 8.9 / 14.5 | 0 / 2 | 100% / 67% | 1.0000 | nilearn, fmrimod, fmrimod, fmrimod |
-| s11_many_contrasts | small | 68 / 65 | 4 / 4 | 7.4 / 20.0 | 0 / 2 | 100% / 67% | 1.0000 | tie, fmrimod, fmrimod, fmrimod |
-| s12_group_covariate | small | 32 / 81 | 3 / 5 | 51.1 / 284.4 | 0 / 0 | 100% / 67% | 1.0000 | fmrimod, fmrimod, tie, fmrimod |
-| s13_bids_first_level | small | 79 / 122 | 5 / 7 | 81.7 / 125.5 | 0 / 14 | 100% / 78% | 0.9999 | fmrimod, fmrimod, fmrimod, fmrimod |
-| s14_bids_to_group | small | 107 / 207 | 7 / 13 | 176.0 / 239.4 | 0 / 26 | 100% / 72% | 0.9917 | fmrimod, fmrimod, fmrimod, fmrimod |
+| s01_two_condition_t | small | 60 / 57 | 4 / 4 | 6.9 / 11.5 | 0 / 2 | 100% / 67% | 1.0000 | nilearn, fmrimod, fmrimod, fmrimod |
+| s01_two_condition_t | large | 60 / 57 | 4 / 4 | 101.4 / 181.8 | 0 / 2 | 100% / 67% | 1.0000 | n/a, fmrimod, fmrimod, n/a |
+| s01_two_condition_t | full-brain | 60 / 57 | 4 / 4 | 591.8 / 2060.1 | 0 / 2 | 100% / 67% | 1.0000 | n/a, fmrimod, fmrimod, n/a |
+| s02_multirun_confounds | small | 68 / 60 | 4 / 4 | 35.3 / 28.9 | 0 / 5 | 100% / 67% | 0.9999 | nilearn, nilearn, fmrimod, fmrimod |
+| s03_parametric_rt | small | 70 / 113 | 4 / 8 | 7.7 / 23.8 | 0 / 2 | 100% / 67% | 1.0000 | fmrimod, fmrimod, fmrimod, fmrimod |
+| s04_omnibus_f | small | 71 / 106 | 5 / 7 | 9.1 / 18.0 | 0 / 2 | 100% / 67% | 0.9999 | fmrimod, fmrimod, fmrimod, fmrimod |
+| s05_fir_shape | small | 97 / 101 | 6 / 6 | 9.1 / 15.4 | 0 / 2 | 100% / 67% | 0.9954 | tie, fmrimod, fmrimod, fmrimod |
+| s06_ar1_t | small | 64 / 61 | 4 / 4 | 11.1 / 27.6 | 0 / 2 | 100% / 67% | 1.0000 | tie, fmrimod, fmrimod, fmrimod |
+| s06_ar1_t | large | 64 / 61 | 4 / 4 | 836.7 / 934.4 | 0 / 2 | 100% / 67% | 1.0000 | n/a, fmrimod, fmrimod, n/a |
+| s06_ar1_t | full-brain | 64 / 61 | 4 / 4 | 7799.9 / 6588.9 | 0 / 2 | 100% / 67% | 1.0000 | n/a, nilearn, fmrimod, n/a |
+| s07_lss_beta_series | small | 53 / 105 | 3 / 10 | 11.1 / 317.6 | 0 / 56 | 100% / 67% | 0.9989 | fmrimod, fmrimod, fmrimod, fmrimod |
+| s08_group_one_sample | small | 74 / 135 | 5 / 12 | 56.7 / 109.7 | 0 / 16 | 100% / 67% | 1.0000 | fmrimod, fmrimod, fmrimod, fmrimod |
+| s09_design_only | small | 46 / 37 | 3 / 3 | 2.3 / 5.8 | 0 / 1 | 100% / 100% | 0.9999 | nilearn, fmrimod, fmrimod, tie |
+| s10_zmap_to_nifti | small | 76 / 66 | 5 / 6 | 9.1 / 14.2 | 0 / 2 | 100% / 67% | 1.0000 | nilearn, fmrimod, fmrimod, fmrimod |
+| s11_many_contrasts | small | 68 / 65 | 4 / 4 | 10.8 / 21.6 | 0 / 2 | 100% / 67% | 1.0000 | tie, fmrimod, fmrimod, fmrimod |
+| s12_group_covariate | small | 32 / 81 | 3 / 5 | 57.6 / 307.3 | 0 / 0 | 100% / 67% | 1.0000 | fmrimod, fmrimod, tie, fmrimod |
+| s13_bids_first_level | small | 79 / 122 | 5 / 7 | 84.1 / 113.3 | 0 / 14 | 100% / 78% | 0.9999 | fmrimod, fmrimod, fmrimod, fmrimod |
+| s14_bids_to_group | small | 107 / 207 | 7 / 13 | 190.2 / 242.0 | 0 / 26 | 100% / 72% | 0.9917 | fmrimod, fmrimod, fmrimod, fmrimod |
+| s15_fdr_clusters | small | 81 / 111 | 6 / 9 | 9.3 / 19.9 | 0 / 2 | 100% / 80% | 1.0000 | fmrimod, fmrimod, fmrimod, fmrimod |
 
 ## Tally
 
-- **authoring**: fmrimod 7, nilearn 4, tie 3
-- **speed**: fmrimod 15, nilearn 1, tie 0
-- **noise**: fmrimod 15, nilearn 0, tie 1
-- **docs**: fmrimod 13, nilearn 0, tie 1
-- **total tokens (small inputs)**: fmrimod 965, nilearn 1316
+- **authoring**: fmrimod 8, nilearn 4, tie 3
+- **speed**: fmrimod 17, nilearn 2, tie 0
+- **noise**: fmrimod 18, nilearn 0, tie 1
+- **docs**: fmrimod 14, nilearn 0, tie 1
+- **total tokens (small inputs)**: fmrimod 1046, nilearn 1427
 
-## fmrimod since round_3
+## Full-brain rows (64x64x40, 300 scans)
+
+One timed call each; peak MB is the most memory allocated during the call (tracemalloc), excluding the inputs.
+
+| scenario | voxels r | s fm / nl | peak MB fm / nl |
+| --- | --- | --- | --- |
+| s01_two_condition_t | 1.0000 | 0.6 / 2.1 | 684 / 851 |
+| s06_ar1_t | 1.0000 | 7.8 / 6.6 | 2146 / 1547 |
+
+## fmrimod since round_5
 
 Nilearn's bodies are unchanged between rounds; only fmrimod's moved.
 
 | scenario | size | tokens before → after | stmts before → after | ms before → after |
 | --- | --- | --- | --- | --- |
-| s01_two_condition_t | small | 60 → 60 | 4 → 4 | 5.8 → 5.5 |
-| s01_two_condition_t | large | 60 → 60 | 4 → 4 | 68.4 → 66.3 |
-| s02_multirun_confounds | small | 68 → 68 | 4 → 4 | 23.5 → 21.6 |
-| s03_parametric_rt | small | 66 → 70 | 4 → 4 | 7.3 → 6.6 |
-| s04_omnibus_f | small | 71 → 71 | 5 → 5 | 7.0 → 6.9 |
-| s05_fir_shape | small | 97 → 97 | 6 → 6 | 6.5 → 6.4 |
-| s06_ar1_t | small | 64 → 64 | 4 → 4 | 10.3 → 11.3 |
-| s06_ar1_t | large | 64 → 64 | 4 → 4 | 794.8 → 1836.0 |
-| s07_lss_beta_series | small | 53 → 53 | 3 → 3 | 10.9 → 9.5 |
-| s08_group_one_sample | small | 74 → 74 | 5 → 5 | 45.7 → 50.7 |
-| s09_design_only | small | 46 → 46 | 3 → 3 | 2.1 → 2.4 |
-| s10_zmap_to_nifti | small | 76 → 76 | 5 → 5 | 8.1 → 8.9 |
-| s11_many_contrasts | small | 68 → 68 | 4 → 4 | 6.7 → 7.4 |
-| s12_group_covariate | small | 32 → 32 | 3 → 3 | 50.6 → 51.1 |
-| s13_bids_first_level | small | 79 → 79 | 5 → 5 | 78.2 → 81.7 |
+| s01_two_condition_t | small | 60 → 60 | 4 → 4 | 6.3 → 6.9 |
+| s01_two_condition_t | large | 60 → 60 | 4 → 4 | 98.2 → 101.4 |
+| s02_multirun_confounds | small | 68 → 68 | 4 → 4 | 30.8 → 35.3 |
+| s03_parametric_rt | small | 70 → 70 | 4 → 4 | 10.2 → 7.7 |
+| s04_omnibus_f | small | 71 → 71 | 5 → 5 | 6.4 → 9.1 |
+| s05_fir_shape | small | 97 → 97 | 6 → 6 | 7.8 → 9.1 |
+| s06_ar1_t | small | 64 → 64 | 4 → 4 | 10.8 → 11.1 |
+| s06_ar1_t | large | 64 → 64 | 4 → 4 | 1173.2 → 836.7 |
+| s07_lss_beta_series | small | 53 → 53 | 3 → 3 | 9.9 → 11.1 |
+| s08_group_one_sample | small | 74 → 74 | 5 → 5 | 53.2 → 56.7 |
+| s09_design_only | small | 46 → 46 | 3 → 3 | 3.2 → 2.3 |
+| s10_zmap_to_nifti | small | 76 → 76 | 5 → 5 | 9.8 → 9.1 |
+| s11_many_contrasts | small | 68 → 68 | 4 → 4 | 8.3 → 10.8 |
+| s12_group_covariate | small | 32 → 32 | 3 → 3 | 49.7 → 57.6 |
+| s13_bids_first_level | small | 79 → 79 | 5 → 5 | 79.9 → 84.1 |
+| s14_bids_to_group | small | 107 → 107 | 7 → 7 | 149.4 → 190.2 |
+| s15_fdr_clusters | small | 81 → 81 | 6 → 6 | 11.6 → 9.3 |
 
-Total fmrimod tokens: 854 → 965 (Nilearn 1316).
+Total fmrimod tokens: 1046 → 1046 (Nilearn 1427).
 
 ## Deficiencies (where fmrimod should improve)
 
-- `s06_ar1_t[large]` **speed** — 1836.0 ms vs Nilearn 826.7 ms
+- `s02_multirun_confounds[small]` **speed** — 35.3 ms vs Nilearn 28.9 ms
+- `s06_ar1_t[full-brain]` **memory** — peak 2146 MB vs Nilearn 1547 MB
+- `s06_ar1_t[full-brain]` **speed** — 7799.9 ms vs Nilearn 6588.9 ms
 - `s01_two_condition_t[small]` **authoring** — 60 tokens / 4 statements vs Nilearn 57 / 4
 - `s02_multirun_confounds[small]` **authoring** — 68 tokens / 4 statements vs Nilearn 60 / 4
 - `s09_design_only[small]` **authoring** — 46 tokens / 3 statements vs Nilearn 37 / 3
@@ -73,3 +89,4 @@ Total fmrimod tokens: 854 → 965 (Nilearn 1316).
 - `s10_zmap_to_nifti[small]` **friction** — By design: a contrast returns a `ContrastResult` holding t, z, effect, SE and p; writing z is `to_nifti(path, kind="z")`, where Nilearn's default output is a z image.
 - `s13_bids_first_level[small]` **friction** — `fm.bids_datasets` covers the fMRIPrep first-level layout only (preproc BOLD, events, sidecar TR, brain mask, confounds); no BIDS Stats Model or pybids query language.
 - `s14_bids_to_group[small]` **friction** — Agreement gate is r>=0.99, not 0.999: first-level estimates agree at r>=0.9997 (with a constant 1.20 HRF-normalisation scale) and the group stage is exact, but six subjects' age t in null voxels amplifies that last 0.03%.
+- `s15_fdr_clusters[small]` **friction** — `ThresholdedMap.clusters()` lists one peak per cluster; Nilearn's `get_clusters_table` also lists sub-peaks (8 mm apart).

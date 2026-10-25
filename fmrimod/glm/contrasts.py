@@ -18,6 +18,7 @@ from numpy.typing import NDArray
 from scipy import special as sp_special
 
 from fmrimod.glm.spatial import SpatialContext
+from fmrimod.glm.thresholding import ThresholdedMap
 
 if TYPE_CHECKING:
     import neuroim  # type: ignore[import-untyped]
@@ -514,6 +515,59 @@ class ContrastResult:
         """z-score equivalent of :attr:`stat` (see :func:`z_from_stat`)."""
         return z_from_stat(self.stat, self.df, self.stat_type).ravel()
 
+    def threshold(
+        self,
+        alpha: float = 0.05,
+        *,
+        method: str = "fdr",
+        height: float | None = None,
+        cluster_size: int = 0,
+        two_sided: bool | None = None,
+    ) -> ThresholdedMap:
+        """Threshold :attr:`z` by height and cluster extent.
+
+        Parameters
+        ----------
+        alpha
+            FDR or family-wise error level.
+        method
+            ``"fdr"`` (Benjamini-Hochberg, default), ``"bonferroni"``, or
+            ``"none"`` with an explicit z ``height``.
+        height
+            z cutoff for ``method="none"``.
+        cluster_size
+            Remove clusters with fewer voxels (face connectivity; positive
+            and negative clusters separately).
+        two_sided
+            Default: True for t contrasts, False for F (whose z is
+            one-sided).
+
+        Returns
+        -------
+        ThresholdedMap
+            ``.z``, ``.threshold``, ``.to_nifti(path)``, ``.clusters()``.
+
+        Examples
+        --------
+        ::
+
+            hits = fit.contrast("face - house").threshold(0.05, cluster_size=10)
+            hits.to_nifti("face_vs_house_fdr.nii.gz")
+            hits.clusters()
+        """
+        from .thresholding import threshold_map
+
+        return threshold_map(
+            self.z,
+            self.spatial,
+            alpha=alpha,
+            method=method,  # type: ignore[arg-type]
+            height=height,
+            cluster_size=cluster_size,
+            two_sided=(self.stat_type != "F") if two_sided is None else two_sided,
+            name=self.name,
+        )
+
     def _vector_for(self, kind: str) -> NDArray[np.float64]:
         """Return a 1-D ``(n_voxels,)`` vector for the requested statistic."""
         if kind in ("stat", "t", "F"):
@@ -617,6 +671,22 @@ class ContrastResult:
             origin=tuple(float(o) for o in space3d.origin[:3]) + (0.0,),
         )
         return neuroim.DenseNeuroVec(stacked, space4d)
+
+    def to_img(self, kind: str = "z", *, fill: float = 0.0) -> Any:
+        """One statistic as an in-memory ``nibabel.Nifti1Image``.
+
+        Defaults to the z map, so ``nilearn.plotting.plot_stat_map(res.to_img())``
+        works directly. ``kind`` as in :meth:`to_nifti`.
+        """
+        return self._require_spatial().to_img(self._vector_for(kind), fill=fill)
+
+    def __repr__(self) -> str:
+        n = int(np.asarray(self.stat).size)
+        df = self.df if isinstance(self.df, tuple) else f"{float(self.df):.1f}"
+        return (
+            f"ContrastResult(name={self.name!r}, stat_type={self.stat_type!r}, "
+            f"n_voxels={n}, df={df}, max|stat|={np.nanmax(np.abs(self.stat)):.3g})"
+        )
 
     def to_nifti(
         self,

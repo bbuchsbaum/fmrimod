@@ -729,7 +729,7 @@
       "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
-      "compatibility_status": "compat",
+      "compatibility_status": "spine",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
       "is_callable": true,
@@ -740,7 +740,7 @@
       "owner_module": "fmrimod.dataset.bids_fs",
       "runtime_signature": "(root: 'str | Path', task: 'str', *, space: 'str | None' = None, subjects: 'Sequence[str] | None' = None, derivatives: 'str | Path' = 'derivatives/fmriprep', desc: 'str' = 'preproc', slice_timing_offset: 'float | None' = None) -> 'dict[str, FmriDataset]'",
       "signature_source": "inspect.signature",
-      "tier": "compat",
+      "tier": "spine",
       "used_by_public_seam_artifact": "review_pending"
     },
     {
@@ -1518,7 +1518,7 @@
       "name": "fmri_lm",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.glm.fmri_lm",
-      "runtime_signature": "(spec_or_model: \"'Spec | Term | str | Sequence[object] | FmriModelLike'\", dataset_or_config: \"'FmriDataset | FmriLmConfig | None'\" = None, *, baseline: 'object' = None, block: 'Optional[Union[str, NDArray[np.float64]]]' = None, durations: 'Optional[Union[str, float, NDArray[np.float64]]]' = None, precision: 'Optional[float]' = None, config: 'Optional[FmriLmConfig]' = None, ar: \"Optional[Union[str, 'AROptions']]\" = None, engine: 'EngineSelector' = RunwiseEngineOptions(n_jobs=1, blas_threads=None, compute_dtype=<class 'numpy.float64'>, cache_projections=False, chunk_size=5000, name='runwise'), tr: 'Optional[Union[float, Sequence[float]]]' = None, events: 'object' = None, mask: 'object' = None, slice_timing_offset: 'Optional[Union[float, Sequence[float]]]' = None, **engine_kwargs: 'object') -> 'FmriLm'",
+      "runtime_signature": "(spec_or_model: \"'Spec | Term | str | Sequence[object] | FmriModelLike'\", dataset_or_config: \"'FmriDataset | FmriLmConfig | None'\" = None, *, baseline: 'object' = None, block: 'Optional[Union[str, NDArray[np.float64]]]' = None, durations: 'Optional[Union[str, float, NDArray[np.float64]]]' = None, precision: 'Optional[float]' = None, config: 'Optional[FmriLmConfig]' = None, ar: \"Optional[Union[str, 'AROptions']]\" = None, engine: 'EngineSelector' = RunwiseEngineOptions(n_jobs=1, blas_threads=None, compute_dtype=<class 'numpy.float64'>, cache_projections=False, chunk_size=5000, name='runwise'), tr: 'Optional[Union[float, Sequence[float]]]' = None, events: 'object' = None, mask: 'object' = None, slice_timing_offset: 'Optional[Union[float, Sequence[float]]]' = None, scale: \"Literal['psc'] | None\" = None, **engine_kwargs: 'object') -> 'FmriLm'",
       "signature_source": "inspect.signature",
       "tier": "spine_review",
       "used_by_public_seam_artifact": "release_1_0_api_spine"

@@ -928,8 +928,6 @@ def _convolve_array(
         raise ValueError("Array event durations must be finite")
     if not np.all(np.isfinite(values)):
         raise ValueError("Array event values must be finite")
-    if np.any(onsets < 0):
-        raise ValueError("Array event onsets must be non-negative")
     if np.any(durations < 0):
         raise ValueError("Array event durations must be non-negative")
 

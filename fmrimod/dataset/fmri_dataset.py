@@ -241,6 +241,27 @@ class FmriDataset:
             confounds=self._confounds,
         )
 
+    def with_scaling(self, scale: str | None) -> FmriDataset:
+        """Return this dataset with read-time signal scaling.
+
+        ``scale="psc"`` reports every read as percent signal change of each
+        voxel's run mean, ``100 * (y / mean - 1)`` (Nilearn's
+        ``signal_scaling=0``). ``None`` returns the dataset unchanged.
+        """
+        if scale is None:
+            return self
+        if scale != "psc":
+            raise ValueError(f"scale must be None or 'psc'; got {scale!r}")
+        from .backends.scaled_backend import ScaledBackend
+
+        return FmriDataset(
+            ScaledBackend(self._backend, self._run_starts),
+            event_table=self._event_table,
+            censor=self._censor,
+            sampling_frame=self._frame,
+            confounds=self._confounds,
+        )
+
     # -- Confounds --
 
     @property

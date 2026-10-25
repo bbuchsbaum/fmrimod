@@ -241,9 +241,6 @@ def validate_onsets(onsets: object) -> Array:
     if len(onsets_arr) == 0:
         raise ValidationError("Onsets cannot be empty")
 
-    if np.any(onsets_arr < 0):
-        raise ValidationError("Onsets cannot be negative")
-
     if not np.all(np.isfinite(onsets_arr)):
         raise ValidationError("Onsets must be finite")
 

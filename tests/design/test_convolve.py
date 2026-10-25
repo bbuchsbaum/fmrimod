@@ -869,14 +869,12 @@ class TestConvolveEdgeCases:
             np.array([[np.nan, 1.0, 1.0], [2.0, 1.0, 1.0]]),
             np.array([[5.0, np.nan, 1.0], [10.0, 1.0, 1.0]]),
             np.array([[5.0, 1.0, np.nan], [10.0, 1.0, 1.0]]),
-            np.array([[-1.0, 1.0, 1.0], [2.0, 1.0, 1.0]]),
             np.array([[1.0, -0.1, 1.0], [2.0, 1.0, 1.0]]),
         ]
         matches = [
             "Array event onsets must be finite",
             "Array event durations must be finite",
             "Array event values must be finite",
-            "Array event onsets must be non-negative",
             "Array event durations must be non-negative",
         ]
 

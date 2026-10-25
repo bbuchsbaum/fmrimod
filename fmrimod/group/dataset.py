@@ -23,6 +23,7 @@ from .errors import (
 )
 from .registry import adapter_registry
 from .space import GroupSpace, SampleLabelSpace, VoxelSpace
+from ..utils.pickling import ReadOnlyMappingPickle
 
 CONTRAST_INTENT_COLUMN = "contrast_intent"
 
@@ -134,7 +135,7 @@ def contrast_intent_payload_json(result: object) -> str | None:
 
 
 @dataclass(frozen=True)
-class GroupDataset:
+class GroupDataset(ReadOnlyMappingPickle):
     """Materialized group-analysis data.
 
     Assays are stored as ``sample x subject x contrast`` float64 arrays.

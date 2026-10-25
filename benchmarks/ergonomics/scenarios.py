@@ -605,6 +605,58 @@ def nilearn_bids_to_group(bids: BidsInputs):
 
 
 # --------------------------------------------------------------------------
+# S15  FDR + cluster-extent thresholded z-map and a cluster table
+# --------------------------------------------------------------------------
+
+CLUSTER_MIN_VOXELS = 10
+
+
+def fmrimod_fdr_clusters(inp: Inputs):
+    import fmrimod as fm
+    from fmrimod.spec import drift, hrf
+
+    fit = fm.fmri_lm(
+        hrf("trial_type") + drift(),
+        inp.img,
+        tr=inp.tr,
+        events=inp.events[0],
+        mask=inp.mask_img,
+        slice_timing_offset=0.0,  # parity-knob
+    )
+    contrast = fit.contrast("face - house")
+    hits = contrast.threshold(0.05, cluster_size=CLUSTER_MIN_VOXELS)
+    return hits, hits.clusters()
+
+
+def nilearn_fdr_clusters(inp: Inputs):
+    from nilearn.glm import threshold_stats_img
+    from nilearn.glm.first_level import FirstLevelModel
+    from nilearn.reporting import get_clusters_table
+
+    model = FirstLevelModel(
+        t_r=inp.tr,
+        mask_img=inp.mask_img,
+        hrf_model="spm",
+        noise_model="ols",  # parity-knob
+        high_pass=1 / 128,  # parity-knob
+        signal_scaling=False,  # parity-knob
+    )
+    model.fit(inp.img, events=inp.events[0])
+    z_map = model.compute_contrast("face - house")
+    thresholded, threshold = threshold_stats_img(
+        z_map,
+        mask_img=inp.mask_img,
+        alpha=0.05,
+        height_control="fdr",
+        cluster_threshold=CLUSTER_MIN_VOXELS,
+    )
+    table = get_clusters_table(
+        z_map, stat_threshold=threshold, cluster_threshold=CLUSTER_MIN_VOXELS
+    )
+    return thresholded, table
+
+
+# --------------------------------------------------------------------------
 # Unmeasured adapters: natural result -> masked float array
 # --------------------------------------------------------------------------
 
@@ -691,6 +743,15 @@ def extract_bids_group(result: Any, bids: BidsInputs) -> np.ndarray:
     return np.asarray(result, dtype=np.float64).ravel()
 
 
+def extract_thresholded(result: Any, inp: Inputs) -> np.ndarray:
+    image = result[0]
+    if hasattr(image, "get_fdata"):
+        return _masked(image, inp)
+    return np.asarray(
+        image.z if hasattr(image, "z") else image, dtype=np.float64
+    ).ravel()
+
+
 # --------------------------------------------------------------------------
 # Registry
 # --------------------------------------------------------------------------
@@ -710,6 +771,7 @@ class Scenario:
     min_correlation: float
     notes: tuple[str, ...] = field(default_factory=tuple)
     large_inputs: Callable[[], Any] | None = None
+    full_brain_inputs: Callable[[], Any] | None = None
 
 
 SCENARIOS: tuple[Scenario, ...] = (
@@ -723,6 +785,7 @@ SCENARIOS: tuple[Scenario, ...] = (
         extract_nilearn_stat,
         0.999,
         large_inputs=lambda: make_inputs(seed=1, shape=(34, 34, 28), n_scans=300),
+        full_brain_inputs=lambda: make_inputs(seed=1, shape=(64, 64, 40), n_scans=300),
         notes=(
             "By design: the default noise model is OLS (R fmrireg's `iid`), where Nilearn's `FirstLevelModel` uses AR(1); pass `ar=\"ar1_voxelwise\"` for Nilearn's model.",
             "By design: the sampling grid starts at TR/2 (R fmrihrf #94); Nilearn/SPM/FitLins use frame start, so cross-tool comparisons pass `slice_timing_offset=0.0`.",
@@ -781,6 +844,9 @@ SCENARIOS: tuple[Scenario, ...] = (
         extract_fmrimod_stat,
         extract_nilearn_stat,
         0.9999,
+        full_brain_inputs=lambda: make_inputs(
+            seed=6, ar=0.4, shape=(64, 64, 40), n_scans=300
+        ),
         large_inputs=lambda: make_inputs(
             seed=6, ar=0.4, shape=(34, 34, 28), n_scans=300
         ),
@@ -878,6 +944,19 @@ SCENARIOS: tuple[Scenario, ...] = (
         0.99,
         notes=(
             "Agreement gate is r>=0.99, not 0.999: first-level estimates agree at r>=0.9997 (with a constant 1.20 HRF-normalisation scale) and the group stage is exact, but six subjects' age t in null voxels amplifies that last 0.03%.",
+        ),
+    ),
+    Scenario(
+        "s15_fdr_clusters",
+        "FDR + cluster-extent thresholded z-map with a cluster table",
+        fmrimod_fdr_clusters,
+        nilearn_fdr_clusters,
+        lambda: make_inputs(seed=15, shape=(14, 14, 10), noise_sd=2.0),
+        extract_thresholded,
+        extract_thresholded,
+        0.999,
+        notes=(
+            "`ThresholdedMap.clusters()` lists one peak per cluster; Nilearn's `get_clusters_table` also lists sub-peaks (8 mm apart).",
         ),
     ),
 )

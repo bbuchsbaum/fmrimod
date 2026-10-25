@@ -2763,7 +2763,7 @@ def _check_onsets_in_frame(
 
     message = (
         f"event_model(): {total} event(s) fall outside the sampling frame. "
-        "Events outside [0, blocklen x TR) contribute nearly empty regressors; "
+        "Events outside [0, blocklen x TR) contribute partial or empty regressors; "
         "check that onsets are on the scan clock.\n" + "\n".join(message_lines)
     )
     if strict:

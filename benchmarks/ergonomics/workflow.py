@@ -136,7 +136,13 @@ def score(fm: SideResult, nl: SideResult, *, large: bool = False) -> dict[str, s
         docs = "tie"
     fm_warn, nl_warn = fm.runtime.warnings_emitted, nl.runtime.warnings_emitted
     authoring = _lower_is_better(fm.authoring.tokens, nl.authoring.tokens, TOKEN_MARGIN)
+    memory = {}
+    if fm.runtime.peak_mb is not None and nl.runtime.peak_mb is not None:
+        memory["memory"] = _lower_is_better(
+            fm.runtime.peak_mb, nl.runtime.peak_mb, SPEED_MARGIN
+        )
     return {
+        **memory,
         "authoring": "n/a" if large else authoring,
         "speed": _lower_is_better(
             fm.runtime.warm_seconds, nl.runtime.warm_seconds, SPEED_MARGIN
@@ -149,18 +155,35 @@ def score(fm: SideResult, nl: SideResult, *, large: bool = False) -> dict[str, s
 
 
 def run_scenario(
-    scenario: Scenario, *, repeats: int = 3, large: bool = False
+    scenario: Scenario,
+    *,
+    repeats: int = 3,
+    large: bool = False,
+    full_brain: bool = False,
 ) -> ScenarioResult:
-    """Run both sides of one scenario and score them."""
-    factory = scenario.large_inputs if large else scenario.make_inputs
+    """Run both sides of one scenario and score them.
+
+    ``full_brain`` uses the scenario's 64x64x40 x 300-scan inputs, runs one
+    timed repeat, and records each side's peak allocated memory.
+    """
+    if full_brain:
+        factory = scenario.full_brain_inputs
+    else:
+        factory = scenario.large_inputs if large else scenario.make_inputs
     if factory is None:
-        raise ValueError(f"{scenario.scenario_id} has no large inputs")
+        raise ValueError(f"{scenario.scenario_id} has no inputs of that size")
     inputs = factory()
     sides: dict[str, SideResult] = {}
     arrays: dict[str, np.ndarray] = {}
     for library in ("fmrimod", "nilearn"):
         func = getattr(scenario, library)
-        result, runtime = profile_runtime(func, inputs, library, repeats=repeats)
+        result, runtime = profile_runtime(
+            func,
+            inputs,
+            library,
+            repeats=1 if full_brain else repeats,
+            measure_memory=full_brain,
+        )
         sides[library] = SideResult(library, authoring_cost(func), runtime)
         arrays[library] = getattr(scenario, f"extract_{library}")(result, inputs)
 
@@ -176,14 +199,14 @@ def run_scenario(
     return ScenarioResult(
         scenario_id=scenario.scenario_id,
         title=scenario.title,
-        size="large" if large else "small",
+        size="full-brain" if full_brain else ("large" if large else "small"),
         fmrimod=sides["fmrimod"],
         nilearn=sides["nilearn"],
         correlation=corr,
         max_abs_delta=max_abs,
         relative_max_delta=max_abs / scale,
         min_correlation=scenario.min_correlation,
-        verdicts=score(sides["fmrimod"], sides["nilearn"], large=large),
+        verdicts=score(sides["fmrimod"], sides["nilearn"], large=large or full_brain),
         notes=scenario.notes,
     )
 
@@ -207,6 +230,17 @@ def deficiencies(results: list[ScenarioResult]) -> list[dict[str, Any]]:
                     "axis": "agreement",
                     "detail": (
                         f"outputs disagree (r={r.correlation:.4f} < {r.min_correlation})"
+                    ),
+                }
+            )
+        if r.verdicts.get("memory") == "nilearn":
+            found.append(
+                {
+                    "scenario": tag,
+                    "axis": "memory",
+                    "detail": (
+                        f"peak {fm.runtime.peak_mb:.0f} MB vs Nilearn "
+                        f"{nl.runtime.peak_mb:.0f} MB"
                     ),
                 }
             )
@@ -275,6 +309,7 @@ def deficiencies(results: list[ScenarioResult]) -> list[dict[str, Any]]:
     order = {
         "agreement": 0,
         "speed": 1,
+        "memory": 1,
         "authoring": 2,
         "friction": 3,
         "noise": 4,
@@ -406,6 +441,25 @@ def render_markdown(
     out.append(
         f"- **total tokens (small inputs)**: fmrimod {tt['fmrimod']}, nilearn {tt['nilearn']}"
     )
+    full = [s for s in report["scenarios"] if s["size"] == "full-brain"]
+    if full:
+        out += [
+            "",
+            "## Full-brain rows (64x64x40, 300 scans)",
+            "",
+            "One timed call each; peak MB is the most memory allocated during "
+            "the call (tracemalloc), excluding the inputs.",
+            "",
+            "| scenario | voxels r | s fm / nl | peak MB fm / nl |",
+            "| --- | --- | --- | --- |",
+        ]
+        for s in full:
+            fm, nl = s["fmrimod"]["runtime"], s["nilearn"]["runtime"]
+            out.append(
+                f"| {s['scenario_id']} | {s['agreement']['correlation']:.4f} "
+                f"| {fm['warm_seconds']:.1f} / {nl['warm_seconds']:.1f} "
+                f"| {fm['peak_mb']:.0f} / {nl['peak_mb']:.0f} |"
+            )
     if baseline is not None:
         out += render_progress(report, baseline)
     out += ["", "## Deficiencies (where fmrimod should improve)", ""]
@@ -418,7 +472,11 @@ def render_markdown(
 
 
 def run(
-    *, repeats: int = 3, large: bool = False, only: list[str] | None = None
+    *,
+    repeats: int = 3,
+    large: bool = False,
+    full_brain: bool = False,
+    only: list[str] | None = None,
 ) -> list[ScenarioResult]:
     results: list[ScenarioResult] = []
     for scenario in SCENARIOS:
@@ -427,7 +485,18 @@ def run(
         results.append(run_scenario(scenario, repeats=repeats))
         if large and scenario.large_inputs is not None:
             results.append(run_scenario(scenario, repeats=repeats, large=True))
+        if full_brain and scenario.full_brain_inputs is not None:
+            results.append(run_scenario(scenario, full_brain=True))
     return results
+
+
+def latest_round_report() -> Path | None:
+    """The highest-numbered ``reports/round_N_report.json``, if any."""
+    rounds = sorted(
+        REPORT_DIR.glob("round_*_report.json"),
+        key=lambda p: int(p.stem.split("_")[1]),
+    )
+    return rounds[-1] if rounds else None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -437,28 +506,42 @@ def main(argv: list[str] | None = None) -> int:
         "--large", action="store_true", help="add scaling rows on larger images"
     )
     parser.add_argument(
+        "--full-brain",
+        action="store_true",
+        help="add 64x64x40 x 300-scan rows with peak memory (slow)",
+    )
+    parser.add_argument(
         "--scenario", action="append", help="run only these scenario ids"
     )
     parser.add_argument("--out", type=Path, default=REPORT_DIR)
     parser.add_argument(
         "--baseline",
         type=Path,
-        default=REPORT_DIR / "round_3_report.json",
-        help="earlier report to show fmrimod's before/after against",
+        default=None,
+        help="earlier report to show fmrimod's before/after against "
+        "(default: the highest-numbered reports/round_N_report.json)",
     )
     args = parser.parse_args(argv)
 
-    results = run(repeats=args.repeats, large=args.large, only=args.scenario)
+    results = run(
+        repeats=args.repeats,
+        large=args.large,
+        full_brain=args.full_brain,
+        only=args.scenario,
+    )
     report = build_report(results)
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "ergonomics_report.json").write_text(
         json.dumps(report, indent=2) + "\n"
     )
+    baseline_path = args.baseline or latest_round_report()
     baseline = (
-        json.loads(args.baseline.read_text()) if args.baseline.is_file() else None
+        json.loads(baseline_path.read_text())
+        if baseline_path is not None and baseline_path.is_file()
+        else None
     )
-    if baseline is not None:
-        baseline.setdefault("round", args.baseline.stem.replace("_report", ""))
+    if baseline is not None and baseline_path is not None:
+        baseline.setdefault("round", baseline_path.stem.replace("_report", ""))
     markdown = render_markdown(report, baseline)
     (args.out / "REPORT.md").write_text(markdown)
     print(markdown)

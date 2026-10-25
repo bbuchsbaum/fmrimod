@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from numpy.typing import DTypeLike, NDArray
@@ -112,6 +112,10 @@ class SpatialContext:
 
         volume = self.reconstruct(vec, fill=fill, dtype=np.float64)
         return neuroim.DenseNeuroVol(volume, self.to_neuro_space(), label=label)
+
+    def to_img(self, vec: NDArray[np.float64], *, fill: float = 0.0) -> Any:
+        """A ``nibabel.Nifti1Image`` of a flat voxel vector (for Nilearn plotting)."""
+        return self.to_neurovol(vec, fill=fill).to_nibabel()
 
     def write_nifti(
         self,

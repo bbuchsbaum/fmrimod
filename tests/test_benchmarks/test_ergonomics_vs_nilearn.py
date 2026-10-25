@@ -547,7 +547,7 @@ def test_voxelwise_ar_fast_paths_equal_per_voxel_reference(
     ar = AROptions(struct=struct, voxelwise=True)
     fast = fm.fmri_lm(spec, ds, ar=ar)
 
-    def per_voxel_phi(rm, order, noise_pools):
+    def per_voxel_phi(rm, order, noise_pools, bin_width=None):
         phi = np.zeros((order, rm.resid.shape[1]))
         for v in range(rm.resid.shape[1]):
             phi[:, v] = integration._estimate_phi([rm.resid[:, v : v + 1]], order)
@@ -575,3 +575,445 @@ def test_voxelwise_yule_walker_defers_degenerate_voxels() -> None:
     assert not ok[:3].any() and ok[3:].all()
     reference = np.array([_estimate_phi([x[:, v : v + 1]], 1)[0] for v in range(3, 50)])
     np.testing.assert_allclose(phi[0, 3:], reference, atol=1e-13)
+
+
+# ---------------------------------------------------------------------------
+# 6. round 5: thresholding, binned AR, spine promotion
+# ---------------------------------------------------------------------------
+
+
+def test_height_thresholds_match_nilearn_rules() -> None:
+    from nilearn.glm import fdr_threshold
+    from scipy import stats
+
+    from fmrimod.glm.thresholding import height_threshold
+
+    rng = np.random.default_rng(5)
+    z = np.concatenate([rng.normal(size=900), rng.normal(4.0, 1.0, size=100)])
+    ours = height_threshold(z, alpha=0.05, method="fdr", height=None, two_sided=True)
+    assert ours == pytest.approx(fdr_threshold(np.abs(z), 0.025), abs=1e-9)
+    bonf = height_threshold(
+        z, alpha=0.05, method="bonferroni", height=None, two_sided=True
+    )
+    assert bonf == pytest.approx(stats.norm.isf(0.025 / z.size))
+    null = height_threshold(
+        rng.normal(size=50), alpha=0.001, method="fdr", height=None, two_sided=True
+    )
+    assert null == np.inf
+    with pytest.raises(ValueError, match="height"):
+        height_threshold(z, alpha=0.05, method="none", height=None, two_sided=True)
+
+
+def test_contrast_threshold_matches_nilearn_threshold_stats_img() -> None:
+    from benchmarks.ergonomics.scenarios import (
+        _masked,
+        fmrimod_fdr_clusters,
+        nilearn_fdr_clusters,
+    )
+
+    inp = make_inputs(seed=15, shape=(14, 14, 10), noise_sd=2.0)
+    ours, table = fmrimod_fdr_clusters(inp)
+    theirs, their_table = nilearn_fdr_clusters(inp)
+    reference = _masked(theirs, inp)
+    np.testing.assert_array_equal(ours.z != 0, reference != 0)
+    # Values differ only by the small HRF-sampling gap between the designs.
+    assert np.corrcoef(ours.z, reference)[0, 1] > 0.9999
+    np.testing.assert_allclose(ours.z, reference, rtol=0.02)
+    top = their_table.iloc[0]
+    assert (
+        table.loc[0, ["x", "y", "z"]].to_numpy() == top[["X", "Y", "Z"]].to_numpy()
+    ).all()
+    assert table.loc[0, "volume_mm3"] == pytest.approx(float(top["Cluster Size (mm3)"]))
+
+
+def test_threshold_cluster_extent_and_one_sided_f(one_run) -> None:
+    import nibabel as nib
+
+    import fmrimod as fm
+    from fmrimod.contrast import OmnibusContrast
+    from fmrimod.spec import drift, hrf
+
+    fit = fm.fmri_lm(hrf("trial_type") + drift(), _dataset(one_run))
+    t = fit.contrast("face - house")
+    loose = t.threshold(method="none", height=1.0)
+    strict = t.threshold(method="none", height=1.0, cluster_size=40)
+    assert strict.n_suprathreshold <= loose.n_suprathreshold
+    assert (strict.clusters()["size"] >= 40).all()
+    f = fit.contrast(OmnibusContrast(term="trial_type")).threshold(0.05)
+    assert f.two_sided is False and (f.z >= 0).all()
+    out = strict.to_nifti(one_run.out_dir / "thr.nii.gz")
+    assert nib.load(out).shape == one_run.mask.shape
+
+
+def test_group_threshold_uses_group_z() -> None:
+    import fmrimod as fm
+    from benchmarks.ergonomics.inputs import make_group_map_inputs
+
+    maps = make_group_map_inputs(n_per_group=8)
+    res = fm.fmri_group_lm(
+        maps.paths, formula="~ group + age", covariates=maps.participants
+    )
+    hits = res.threshold("patient", 0.05)
+    expected = np.abs(res.z_score("patient")) > hits.threshold
+    np.testing.assert_array_equal(hits.z != 0, expected)
+    assert not hits.clusters().empty
+
+
+def test_binned_ar_truncates_onto_nilearn_grid(monkeypatch) -> None:
+    import fmrimod as fm
+    import fmrimod.ar.integration as integration
+    from fmrimod.model.config import AROptions
+    from fmrimod.spec import drift, hrf
+
+    seen = []
+    original = integration._voxelwise_phi
+
+    def spy(*args, **kwargs):
+        phi = original(*args, **kwargs)
+        seen.append(phi)
+        return phi
+
+    monkeypatch.setattr(integration, "_voxelwise_phi", spy)
+    inp = make_inputs(seed=18, ar=0.4, n_scans=100, shape=(8, 8, 6))
+    ds = _dataset(inp)
+    binned = fm.fmri_lm(hrf("trial_type") + drift(), ds, ar="ar1_binned")
+    phi = seen[-1]
+    np.testing.assert_allclose(phi * 100, np.round(phi * 100), atol=1e-9)
+    assert np.unique(phi).size < phi.size
+    explicit = fm.fmri_lm(
+        hrf("trial_type") + drift(),
+        ds,
+        ar=AROptions(struct="ar1", voxelwise=True, bin_width=0.01),
+    )
+    np.testing.assert_allclose(binned.betas, explicit.betas)
+    with pytest.raises(ValueError, match="voxelwise"):
+        AROptions(struct="ar1", bin_width=0.01)
+    with pytest.raises(ValueError, match="not both"):
+        AROptions(struct="ar1", voxelwise=True, bin_width=0.01, noise_pools=10)
+
+
+# ---------------------------------------------------------------------------
+# 7. round 5 critic findings (independent review)
+# ---------------------------------------------------------------------------
+
+
+def test_multirun_fit_refuses_events_without_run_labels() -> None:
+    import fmrimod as fm
+    from fmrimod.spec import hrf
+
+    inp = make_inputs(seed=19, n_runs=2, n_scans=60, shape=(6, 6, 5))
+    with pytest.raises(ValueError, match="1 events table"):
+        fm.fmri_dataset(inp.imgs, mask=inp.mask_img, tr=2.0, events=[inp.events[0]])
+    ds = fm.fmri_dataset(inp.imgs, mask=inp.mask_img, tr=2.0, events=inp.events[0])
+    with pytest.raises(ValueError, match="no `run` column"):
+        fm.fmri_lm(hrf("trial_type"), ds)
+    bad = inp.events_df.assign(run=inp.events_df["run"] + 5)
+    with pytest.raises(ValueError, match="run numbers 1..2"):
+        fm.fmri_lm(hrf("trial_type"), inp.imgs, tr=2.0, events=bad, mask=inp.mask_img)
+
+
+def test_group_maps_join_covariates_by_file_subject_id() -> None:
+    import fmrimod as fm
+    from benchmarks.ergonomics.inputs import make_group_map_inputs
+
+    maps = make_group_map_inputs(n_per_group=6)
+    ordered = fm.fmri_group_lm(
+        maps.paths, formula="~ group + age", covariates=maps.participants
+    )
+    shuffled = fm.fmri_group_lm(
+        maps.paths,
+        formula="~ group + age",
+        covariates=maps.participants.sample(frac=1.0, random_state=3),
+    )
+    np.testing.assert_allclose(shuffled.t_stat("patient"), ordered.t_stat("patient"))
+    with pytest.raises(ValueError, match="no row for subjects"):
+        fm.fmri_group_lm(
+            maps.paths, formula="~ group", covariates=maps.participants.iloc[:-1]
+        )
+
+
+def test_group_lm_intersects_differing_first_level_masks(one_run) -> None:
+    import nibabel as nib
+
+    import fmrimod as fm
+    from fmrimod.spec import hrf
+
+    smaller = one_run.mask.copy()
+    smaller[tuple(np.argwhere(smaller)[0])] = False
+    smaller_img = nib.Nifti1Image(smaller.astype(np.uint8), one_run.img.affine)
+    kw = {"tr": one_run.tr, "events": one_run.events[0]}
+    a = fm.fmri_lm(hrf("trial_type"), one_run.img, mask=one_run.mask_img, **kw)
+    b = fm.fmri_lm(hrf("trial_type"), one_run.img, mask=smaller_img, **kw)
+    with pytest.warns(UserWarning, match="masks differ"):
+        res = fm.fmri_group_lm({"a": a.contrast("face"), "b": b.contrast("face")})
+    assert res.t_stat().shape == (int(smaller.sum()),)
+    assert res.spatial is not None and res.spatial.mask.sum() == smaller.sum()
+
+
+def test_fits_and_group_results_pickle(one_run) -> None:
+    import pickle
+
+    import fmrimod as fm
+    from fmrimod.spec import drift, hrf
+
+    fit = fm.fmri_lm(hrf("trial_type") + drift(), _dataset(one_run))
+    clone = pickle.loads(pickle.dumps(fit))
+    np.testing.assert_array_equal(clone.betas, fit.betas)
+    np.testing.assert_allclose(
+        clone.contrast("face - house").stat, fit.contrast("face - house").stat
+    )
+    group = fm.fmri_group_lm(np.random.default_rng(0).normal(size=(5, 7)))
+    np.testing.assert_allclose(
+        pickle.loads(pickle.dumps(group)).t_stat(), group.t_stat()
+    )
+
+
+def test_nilearn_keywords_get_fmrimod_spelling(one_run) -> None:
+    import fmrimod as fm
+    from fmrimod.spec import hrf
+
+    with pytest.raises(TypeError, match="ar1_voxelwise"):
+        fm.fmri_lm(hrf("trial_type"), _dataset(one_run), noise_model="ar1")
+    with pytest.raises(TypeError, match="drift"):
+        fm.fmri_lm(hrf("trial_type"), _dataset(one_run), high_pass=0.01)
+    with pytest.raises(TypeError, match="model first"):
+        fm.fmri_lm(one_run.img, tr=2.0, events=one_run.events[0])
+
+
+def test_non_estimable_contrast_warns(one_run) -> None:
+    import warnings
+
+    import fmrimod as fm
+    from fmrimod.spec import hrf
+
+    events = one_run.events[0]
+    twin = events[events.trial_type == "face"].assign(trial_type="faceB")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        fit = fm.fmri_lm(
+            hrf("trial_type"),
+            one_run.img,
+            tr=one_run.tr,
+            events=pd.concat([events, twin], ignore_index=True),
+            mask=one_run.mask_img,
+        )
+    with pytest.warns(UserWarning, match="not estimable"):
+        fit.contrast("face")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        fit.contrast("face + faceB")
+        fit.contrast("house")
+
+
+def test_to_img_and_contrast_spellings(one_run) -> None:
+    import fmrimod as fm
+    from fmrimod.contrast import OmnibusContrast
+    from fmrimod.spec import drift, hrf
+
+    fit = fm.fmri_lm(hrf("trial_type") + drift(), _dataset(one_run))
+    res = fit.contrast("face - house")
+    img = res.to_img()
+    np.testing.assert_allclose(np.asarray(img.dataobj)[one_run.mask], res.z)
+    assert "ContrastResult(" in repr(res) and len(repr(res)) < 200
+    rows = fit.contrast(["face", "house"])
+    omnibus = fit.contrast(OmnibusContrast(term="trial_type"))
+    np.testing.assert_allclose(rows.stat, omnibus.stat)
+    by_name = fit.contrast("trial_type_trial_type.face - trial_type_trial_type.house")
+    np.testing.assert_allclose(by_name.stat, res.stat)
+    assert fit.contrast("drift1").stat.shape == res.stat.shape
+    batch = fit.compute_contrasts({"fh": "face - house"})
+    np.testing.assert_allclose(batch["fh"].stat, res.stat)
+
+
+# ---------------------------------------------------------------------------
+# 8. round 6: opt-in signal scaling, AR memory, BIDS n/a handling
+# ---------------------------------------------------------------------------
+
+
+def test_psc_scaling_is_opt_in_and_matches_nilearn(one_run) -> None:
+    import warnings
+
+    import nibabel as nib
+    from nilearn.glm.first_level import FirstLevelModel
+
+    import fmrimod as fm
+    from fmrimod.spec import drift, hrf
+
+    spec = hrf("trial_type") + drift()
+    ds = _dataset(one_run)
+    raw = fm.fmri_lm(spec, ds)
+    psc = fm.fmri_lm(spec, ds, scale="psc")
+    # Default unchanged; scaling changes betas but not inference.
+    assert not np.allclose(raw.betas, psc.betas)
+    np.testing.assert_allclose(
+        raw.contrast("face - house").stat, psc.contrast("face - house").stat,
+        rtol=1e-6, atol=1e-8,
+    )
+    # A 10x brighter scanner gives the same percent-signal-change betas.
+    bright_img = nib.Nifti1Image(
+        np.asarray(one_run.img.dataobj) * 10.0, one_run.img.affine
+    )
+    bright = fm.fmri_dataset(
+        bright_img, mask=one_run.mask_img, tr=one_run.tr, events=one_run.events[0]
+    )
+    np.testing.assert_allclose(
+        fm.fmri_lm(spec, bright, scale="psc").betas, psc.betas, rtol=1e-5, atol=1e-5
+    )  # float32 images: x10 is not exact
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        flm = FirstLevelModel(
+            t_r=one_run.tr, mask_img=one_run.mask_img, signal_scaling=0,
+            noise_model="ols", drift_model="cosine", high_pass=1 / 128,
+            minimize_memory=False,
+        ).fit(one_run.img, events=one_run.events[0])
+    nl = np.asarray(flm.compute_contrast("face - house", output_type="effect_size")
+                    .dataobj)[one_run.mask]
+    fm_effect = psc.contrast("face - house").estimate
+    assert np.corrcoef(nl, fm_effect)[0, 1] > 0.99
+    with pytest.raises(ValueError, match="psc"):
+        fm.fmri_lm(spec, ds, scale="zscore")
+
+
+def test_chunked_ar_solves_equal_single_chunk(monkeypatch) -> None:
+    import fmrimod as fm
+    import fmrimod.ar.acvf as acvf
+    import fmrimod.ar.integration as integration
+    from fmrimod.model.config import AROptions, FmriLmConfig, RobustOptions
+    from fmrimod.spec import drift, hrf
+
+    inp = make_inputs(seed=19, ar=0.4, n_scans=80, shape=(8, 8, 6))
+    ds = fm.fmri_dataset(inp.img, mask=inp.mask_img, tr=inp.tr, events=inp.events[0])
+    spec = hrf("trial_type") + drift()
+    robust = FmriLmConfig(ar=AROptions(struct="ar1"), robust=RobustOptions(type="huber"))
+    robust_off = FmriLmConfig(robust=RobustOptions(type="huber"))
+    fits = {}
+    for chunked in (False, True):
+        if chunked:
+            monkeypatch.setattr(integration, "_SOLVE_CHUNK", 37)
+            monkeypatch.setattr(acvf, "_ACVF_CHUNK", 29)
+        fits[chunked] = {ar: fm.fmri_lm(spec, ds, ar=ar) for ar in ("ar1", "ar1_voxelwise")}
+        # Robust IRLS restarts from the AR fit's whitened residuals.
+        fits[chunked]["robust"] = fm.fmri_lm(spec, ds, config=robust)
+        fits[chunked]["unwhitened"] = fm.fmri_lm(spec, ds, config=robust_off)
+    # Robust from a stored-residual restart equals robust on an AR fit whose
+    # residuals were never chunked (pins the in-place residual write).
+    assert not np.allclose(fits[True]["robust"].betas, fits[True]["unwhitened"].betas)
+    for ar in ("ar1", "ar1_voxelwise", "robust"):
+        a, b = fits[False][ar], fits[True][ar]
+        scale = np.abs(a.betas).max()
+        np.testing.assert_allclose(a.betas, b.betas, rtol=0, atol=1e-10 * scale)
+        np.testing.assert_allclose(
+            a.contrast("face - house").stat, b.contrast("face - house").stat,
+            rtol=1e-8, atol=1e-8,
+        )
+
+
+def test_negative_onsets_match_nilearn_regressor() -> None:
+    import warnings
+
+    from nilearn.glm.first_level import compute_regressor
+
+    import fmrimod as fm
+    from fmrimod.spec import hrf
+
+    frame_times = np.arange(40) * 2.0
+    for onset, duration in [(-4.0, 0.0), (-6.0, 8.0)]:
+        events = pd.DataFrame(
+            {"onset": [onset, 30.0], "duration": [duration, 1.0], "trial_type": ["a", "b"]}
+        )
+        with pytest.warns(UserWarning, match="outside the sampling frame"):
+            X = fm.design_matrix(
+                hrf("trial_type"), events=events, n_scans=40, tr=2.0, start_time=0.0
+            )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            ref, _ = compute_regressor(
+                np.array([[onset], [duration], [1.0]]), "spm", frame_times
+            )
+        column = np.asarray(X)[:, 0]
+        assert column[0] > 0
+        assert np.corrcoef(column, ref[:, 0])[0, 1] > 0.999
+
+
+def test_bids_na_confounds_and_trial_types() -> None:
+    import fmrimod as fm
+    from benchmarks.ergonomics.inputs import make_bids_inputs
+    from fmrimod.spec import confounds, hrf
+
+    bids = make_bids_inputs(n_subjects=1, n_runs=1, shape=(6, 6, 5), n_scans=60)
+    events_path = next(bids.root.rglob("*_events.tsv"))
+    events = pd.read_csv(events_path, sep="\t")
+    events.loc[0, "trial_type"] = np.nan
+    events.to_csv(events_path, sep="\t", index=False, na_rep="n/a")
+    with pytest.warns(UserWarning, match="dropped 1 event"):
+        ds = fm.bids_datasets(bids.root, bids.task, space=bids.space)["01"]
+    conf = ds.confounds[0]
+    assert conf["framewise_displacement"].iloc[0] == 0.0
+    assert not conf.isna().any().any()
+    fit = fm.fmri_lm(hrf("trial_type") + confounds("framewise_displacement"), ds)
+    assert np.isfinite(fit.contrast("face - house").stat).all()
+
+    # A gap after the first row is not a fMRIPrep convention: it stays NaN.
+    conf_path = next(bids.root.rglob("*_desc-confounds_timeseries.tsv"))
+    table = pd.read_csv(conf_path, sep="\t", na_values="n/a")
+    table.loc[5, "trans_x"] = np.nan
+    table.to_csv(conf_path, sep="\t", index=False, na_rep="n/a")
+    with pytest.warns(UserWarning, match="dropped 1 event"):
+        ds = fm.bids_datasets(bids.root, bids.task, space=bids.space)["01"]
+    assert np.isnan(ds.confounds[0]["trans_x"].iloc[5])
+
+
+def test_scaled_backend_honours_selector_contract() -> None:
+    import fmrimod as fm
+
+    inp = make_inputs(seed=23, n_runs=2, n_scans=40, shape=(5, 5, 4))
+    ds = fm.fmri_dataset(
+        inp.imgs, mask=inp.mask_img, tr=inp.tr, events=inp.events
+    ).with_scaling("psc")
+    backend = ds._backend
+    full = backend.get_data()
+    n, v = full.shape
+    rows = np.zeros(n, dtype=bool)
+    rows[[0, 5, n - 1]] = True
+    cols = np.zeros(v, dtype=bool)
+    cols[[1, v - 2]] = True
+    np.testing.assert_allclose(backend.get_data(rows=rows, cols=cols), full[rows][:, cols])
+    # A negative row in run 2 is scaled by run 2's mean, not the last run's.
+    np.testing.assert_allclose(backend.get_data(rows=[-n]), full[[0]])
+    np.testing.assert_allclose(backend.get_data(cols=[-1]), full[:, [-1]])
+
+
+def test_null_space_check_uses_economy_svd_for_tall_designs(
+    one_run, monkeypatch
+) -> None:
+    import fmrimod as fm
+    from fmrimod.spec import hrf
+
+    calls = []
+    svd = np.linalg.svd
+
+    def recording_svd(a, full_matrices=True, **kw):
+        calls.append((a.shape, full_matrices))
+        return svd(a, full_matrices=full_matrices, **kw)
+
+    fit = fm.fmri_lm(hrf("trial_type"), _dataset(one_run))
+    monkeypatch.setattr(np.linalg, "svd", recording_svd)
+    fit.contrast("face - house")
+    tall = [full for shape, full in calls if shape[0] > shape[1]]
+    assert tall and not any(tall)
+
+
+def test_clusters_use_spacing_and_origin_without_affine() -> None:
+    from fmrimod.glm.spatial import SpatialContext
+    from fmrimod.glm.thresholding import threshold_map
+
+    mask = np.ones((6, 6, 6), dtype=bool)
+    ctx = SpatialContext(
+        mask=mask, spatial_shape=(6, 6, 6), spacing=(2.0, 2.0, 2.0),
+        origin=(-6.0, 0.0, 10.0),
+    )
+    z = np.zeros(mask.sum())
+    z[np.ravel_multi_index((3, 2, 1), mask.shape)] = 6.0
+    table = threshold_map(z, ctx, method="none", height=3.0).clusters()
+    assert table["volume_mm3"].iloc[0] == pytest.approx(8.0)
+    assert tuple(table[["x", "y", "z"]].iloc[0]) == (0.0, 4.0, 12.0)

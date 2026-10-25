@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import warnings
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -566,6 +567,9 @@ class FmriLm:
     _design_id_cache: Optional[Tuple[Optional[str]]] = field(
         default=None, init=False, repr=False
     )
+    _null_space_cache: Optional[Tuple[NDArray[np.float64]]] = field(
+        default=None, init=False, repr=False
+    )
 
     # -- Accessors --
 
@@ -735,6 +739,11 @@ class FmriLm:
               ``"0.5 * (face + house) - tool"`` or
               ``"trial_type:rt.face"`` (see
               :func:`~fmrimod.contrast.semantic.parse_contrast_expression`)
+            - A list of expression strings, one F-test row each
+              (``["face", "house"]``)
+            - Design column names in an expression (``"drift1"``, or the
+              canonical ``"trial_type_trial_type.face"``) when no level
+              matches
             - A dict ``{"weights": array, "name": str}``
             - An :class:`~fmrimod.contrast.OmnibusContrast` typed intent
               value, resolved against the fit's :class:`DesignColumns`
@@ -832,6 +841,22 @@ class FmriLm:
                 ),
             )
 
+        if isinstance(spec, (list, tuple)) and spec and all(
+            isinstance(row, str) for row in spec
+        ):
+            matrix = np.vstack([self._string_weights(row) for row in spec])
+            cname = name or " ; ".join(spec)
+            return self._compute_contrast(
+                matrix,
+                name=cname,
+                intent=ContrastIntent(
+                    kind="expression_rows",
+                    name=cname,
+                    rows=int(matrix.shape[0]),
+                    **self._contrast_intent_payload_fields(matrix),
+                ),
+            )
+
         if isinstance(spec, str):
             if name is None and spec in self.contrasts:
                 return self.contrasts[spec]
@@ -898,12 +923,35 @@ class FmriLm:
         named: Dict[str, NDArray[np.float64]],
     ) -> ContrastResult:
         """Resolve a level expression (``"face - house"``) as a semantic contrast."""
+        semantic, weights = self._expression_weights(text, named=named)
+        intent_payload = semantic.intent(rows=1)
+        intent_payload.update(self._contrast_intent_payload_fields(weights))
+        return self._compute_contrast(
+            weights,
+            name=name or semantic.display_name,
+            intent=intent_payload,
+        )
+
+    def _expression_weights(
+        self, text: str, *, named: Dict[str, NDArray[np.float64]]
+    ) -> tuple[Any, NDArray[np.float64]]:
+        """Parse ``text`` and resolve it against the design columns."""
         from fmrimod.contrast.errors import DesignProvenanceError
         from fmrimod.contrast.semantic import parse_contrast_expression
 
         try:
             semantic = parse_contrast_expression(text)
-            weights = semantic.resolve(self.design_columns())
+            try:
+                weights = semantic.resolve(self.design_columns())
+            except DesignProvenanceError as exc:
+                if "matched no declared" not in str(exc):
+                    raise
+                # Fall back to design column names (the canonical names or
+                # the ``names="short"`` labels), as Nilearn contrasts use.
+                by_column = self._weights_from_column_names(semantic)
+                if by_column is None:
+                    raise
+                weights = by_column
         except (ValueError, TypeError, DesignProvenanceError) as exc:
             # A lone unknown word reads as a contrast *name*; keep the
             # historical KeyError for it. Real expressions surface the
@@ -918,13 +966,103 @@ class FmriLm:
                     f"{sorted(named)!r}. ({exc})"
                 ) from exc
             raise
-        intent_payload = semantic.intent(rows=1)
-        intent_payload.update(self._contrast_intent_payload_fields(weights))
-        return self._compute_contrast(
-            weights,
-            name=name or semantic.display_name,
-            intent=intent_payload,
-        )
+        return semantic, weights
+
+    def _string_weights(self, text: str) -> NDArray[np.float64]:
+        """1-D weights for a named contrast or a level/column expression."""
+        named = self._named_weights()
+        if text in named:
+            weights = np.atleast_2d(named[text])
+            if weights.shape[0] != 1:
+                raise ValueError(f"contrast {text!r} has several rows; use it alone")
+            return weights[0]
+        return self._expression_weights(text, named=named)[1]
+
+    def _named_weights(self) -> Dict[str, NDArray[np.float64]]:
+        if self._named_weights_cache is None:
+            model_cw = getattr(self.model, "contrast_weights", None)
+            self._named_weights_cache = (
+                cast(Dict[str, NDArray[np.float64]], model_cw())
+                if callable(model_cw)
+                else {}
+            )
+        return self._named_weights_cache
+
+    def _weights_from_column_names(self, semantic: Any) -> NDArray[np.float64] | None:
+        """Weights for an expression whose references are all column names."""
+        columns = self.design_columns()
+        index: dict[str, int] = {}
+        for i, (long, short) in enumerate(
+            zip(columns.names, columns.short_names, strict=True)
+        ):
+            index.setdefault(long, i)
+            index.setdefault(short, i)
+        weights = np.zeros(self.n_coefficients, dtype=np.float64)
+        for ref, weight in semantic.terms:
+            key = ref.level if ref.term is None else f"{ref.term}.{ref.level}"
+            if key not in index:
+                return None
+            weights[index[key]] += weight
+        return weights
+
+    def _design_null_space(self) -> NDArray[np.float64] | None:
+        """Basis of the null space of the stacked design (None when full rank)."""
+        if self._null_space_cache is None:
+            design = getattr(self.model, "design_matrix_array", None)
+            basis = np.zeros((self.n_coefficients, 0))
+            X = None
+            if callable(design):
+                try:
+                    n_runs = int(getattr(self.model, "n_runs", 1))
+                    X = np.vstack(
+                        [
+                            np.asarray(design(run=r), dtype=np.float64)
+                            for r in range(n_runs)
+                        ]
+                    )
+                except Exception:  # advisory check; skip for exotic models
+                    X = None
+            if X is not None and X.ndim == 2 and X.shape[1] == self.n_coefficients:
+                X = X[np.all(np.isfinite(X), axis=1)]
+                if X.size:
+                    # Economy SVD for tall designs: the full U would be
+                    # n x n. Wide designs need the full right basis.
+                    wide = X.shape[0] < X.shape[1]
+                    _, svals, vt = np.linalg.svd(X, full_matrices=wide)
+                    tol = (
+                        svals.max() * max(X.shape) * np.finfo(float).eps
+                        if svals.size
+                        else 0.0
+                    )
+                    rank = int(np.sum(svals > tol))
+                    basis = vt[rank:].T
+            self._null_space_cache = (basis,)
+        basis = self._null_space_cache[0]
+        return basis if basis.shape[1] else None
+
+    def _warn_if_not_estimable(self, weights: NDArray[np.float64], name: str) -> None:
+        """Warn when a contrast touches the design's null space.
+
+        Such a contrast has no unique estimate: its value depends on which
+        generalised inverse solved the rank-deficient fit.
+        """
+        rows = np.atleast_2d(np.asarray(weights, dtype=np.float64))
+        if rows.shape[1] != self.n_coefficients:
+            return
+        null = self._design_null_space()
+        if null is None:
+            return
+        leak = np.abs(rows @ null).max(axis=1)
+        scale = np.maximum(np.abs(rows).max(axis=1), 1e-12)
+        if np.any(leak > 1e-6 * scale):
+            warnings.warn(
+                f"contrast {name!r} is not estimable: the design is rank "
+                "deficient and these weights are not a combination of its "
+                "identifiable effects (e.g. two conditions with identical "
+                "timing). Its values are arbitrary; see fit.condition_report().",
+                UserWarning,
+                stacklevel=4,
+            )
 
     def _compute_contrast(
         self,
@@ -934,6 +1072,7 @@ class FmriLm:
     ) -> ContrastResult:
         """Dispatch to t or F contrast based on weight dimensions."""
         weights = np.atleast_1d(weights)
+        self._warn_if_not_estimable(weights, name)
         if weights.ndim == 1:
             result = contrast_t(
                 weights, self.betas, self.XtXinv, self.sigma,
@@ -1009,8 +1148,10 @@ class FmriLm:
 
         Parameters
         ----------
-        specs : dict[str, NDArray]
-            Mapping of contrast name to weight vector/matrix.
+        specs : dict[str, contrast spec]
+            Contrast name to a weight vector (t) or matrix (F), batched for
+            speed, or anything :meth:`contrast` accepts (``"face - house"``,
+            an ``OmnibusContrast``, a list of expressions for an F test).
 
         Returns
         -------
@@ -1028,6 +1169,14 @@ class FmriLm:
         for cname, w in specs.items():
             if cname in self.contrasts:
                 out[cname] = self.contrasts[cname]
+                continue
+            if not isinstance(w, np.ndarray) and not (
+                isinstance(w, (list, tuple)) and all(
+                    isinstance(x, (int, float, np.number)) for x in np.ravel(w)
+                )
+            ):
+                # Strings and typed contrast values take the full path.
+                out[cname] = self.contrast(w, name=cname)
                 continue
             w_arr = np.asarray(w, dtype=np.float64)
             if w_arr.ndim == 1:
@@ -1155,6 +1304,7 @@ def fmri_lm(
     events: object = None,
     mask: object = None,
     slice_timing_offset: Optional[Union[float, Sequence[float]]] = None,
+    scale: Literal["psc"] | None = None,
     **engine_kwargs: object,
 ) -> FmriLm:
     """Fit a GLM to fMRI data.
@@ -1210,8 +1360,10 @@ def fmri_lm(
         :class:`~fmrimod.model.config.AROptions`. AR coefficients are pooled
         per run by default; add ``"_voxelwise"`` (``"ar1_voxelwise"``) to
         estimate them voxel by voxel, which reproduces Nilearn's
-        ``noise_model="ar1"`` (r > 0.9999 on t maps) at roughly 1.5x the
-        cost.
+        ``noise_model="ar1"`` (r > 0.9999 on t maps), or ``"_binned"``
+        (``"ar1_binned"``) to also truncate them onto Nilearn's 0.01 grid
+        (``AROptions(voxelwise=True, bin_width=0.01)``), which is faster on
+        large images and matches Nilearn's AR(1) procedure step for step.
     engine
         Typed engine options object. Built-ins are
         :class:`~fmrimod.glm.engine.RunwiseEngineOptions`,
@@ -1219,6 +1371,12 @@ def fmri_lm(
         :class:`~fmrimod.glm.engine.SketchEngineOptions`, and
         :class:`~fmrimod.glm.engine.ReducedRankEngineOptions`. Legacy string
         engine names remain accepted for compatibility.
+    scale
+        ``None`` (default) fits the data in its own units, as R fmrireg
+        does. ``"psc"`` first rescales each voxel to percent signal change
+        of its run mean, ``100 * (y / mean - 1)`` (Nilearn's default
+        ``signal_scaling=0``), so effects are comparable across subjects
+        and scanners; use it when betas go on to a group analysis.
     tr, events, mask, slice_timing_offset
         Image shorthand: when the second argument is an image source
         (NIfTI image or path, NeuroVec, array, or a per-run sequence of
@@ -1261,6 +1419,8 @@ def fmri_lm(
     """
     from .engine import resolve_engine
 
+    _reject_foreign_keywords(spec_or_model, dataset_or_config, engine_kwargs)
+
     # -- Resolve second positional: dataset vs. config -----------------------
     if isinstance(dataset_or_config, FmriLmConfig):
         if config is not None and config is not dataset_or_config:
@@ -1279,6 +1439,13 @@ def fmri_lm(
             mask=mask,
             slice_timing_offset=slice_timing_offset,
         )
+
+    if scale is not None:
+        if dataset is None or not hasattr(dataset, "with_scaling"):
+            raise ValueError(
+                "fmri_lm: scale= needs a dataset or image input, not a prebuilt model"
+            )
+        dataset = dataset.with_scaling(scale)  # type: ignore[union-attr]
 
     # -- Resolve first positional: realized design vs. spec vs. model -------
     from ..design import RealizedDesign
@@ -1324,12 +1491,15 @@ def fmri_lm(
         from ..model.config import AROptions as _AROptions
         if isinstance(ar, str):
             struct, _, mode = ar.partition("_")
-            if mode not in ("", "voxelwise"):
+            if mode not in ("", "voxelwise", "binned"):
                 raise ValueError(
-                    f"fmri_lm: unknown ar={ar!r}; use 'ar1', 'ar1_voxelwise', ..."
+                    f"fmri_lm: unknown ar={ar!r}; use 'ar1', 'ar1_voxelwise', "
+                    "'ar1_binned', ..."
                 )
             resolved_ar = _AROptions(  # type: ignore[arg-type]
-                struct=struct, voxelwise=mode == "voxelwise"
+                struct=struct,
+                voxelwise=mode in ("voxelwise", "binned"),
+                bin_width=0.01 if mode == "binned" else None,
             )
         elif isinstance(ar, _AROptions):
             resolved_ar = ar
@@ -1554,6 +1724,49 @@ def _is_fmri_model_like(obj: object) -> bool:
     return isinstance(obj, FmriModelLike)
 
 
+# Nilearn ``FirstLevelModel`` keywords and where each lives in fmrimod. They
+# would otherwise land in ``**engine_kwargs`` and fail with an engine error.
+_NILEARN_KEYWORDS = {
+    "t_r": "use tr=",
+    "noise_model": "use ar='ar1' (pooled) or ar='ar1_voxelwise' (Nilearn's model)",
+    "hrf_model": "set the basis in the spec: hrf('trial_type', basis='spm'|'spmg2'|'spmg3'|'fir')",
+    "fir_delays": "use hrf(..., basis='fir', nbasis=N, span=N * tr)",
+    "drift_model": "add a drift term to the spec: + drift('cosine') or + drift('poly', degree=k)",
+    "high_pass": "add + drift('cosine', cutoff=1 / high_pass) to the spec",
+    "drift_order": "add + drift('poly', degree=k) to the spec",
+    "confounds": "add + confounds(source=[df_run1, ...]) to the spec, or attach them with fmri_dataset(..., confounds=[...])",
+    "mask_img": "use mask=",
+    "slice_time_ref": "use slice_timing_offset= (seconds; 0.0 is frame start)",
+    "smoothing_fwhm": "fmrimod fits preprocessed data; smooth first (e.g. nilearn.image.smooth_img)",
+    "signal_scaling": "use scale='psc' (percent signal change of the run mean, Nilearn's signal_scaling=0)",
+    "standardize": "fmrimod does not standardize voxel time series",
+    "minimize_memory": "not needed",
+    "target_affine": "resample the images first",
+    "target_shape": "resample the images first",
+    "run_imgs": "pass the images as the second argument",
+}
+
+
+def _reject_foreign_keywords(
+    spec_or_model: object, second: object, engine_kwargs: Mapping[str, object]
+) -> None:
+    """Explain Nilearn-style calls instead of failing deep in engine resolution."""
+    foreign = [k for k in engine_kwargs if k in _NILEARN_KEYWORDS]
+    if foreign:
+        hints = "; ".join(f"{k}: {_NILEARN_KEYWORDS[k]}" for k in foreign)
+        raise TypeError(f"fmri_lm got Nilearn keyword(s) {foreign}. {hints}.")
+    looks_like_image = isinstance(spec_or_model, (str, Path, np.ndarray)) or hasattr(
+        spec_or_model, "dataobj"
+    )
+    if isinstance(spec_or_model, str) and "(" in spec_or_model:
+        looks_like_image = False  # a legacy formula string
+    if looks_like_image and second is None:
+        raise TypeError(
+            "fmri_lm takes the model first: "
+            "fm.fmri_lm(hrf('trial_type') + drift(), img, tr=..., events=...)"
+        )
+
+
 def _bind_dataset_confounds(spec: "Spec | Term", dataset: object) -> "Spec":
     """Give source-less ``confounds(...)`` terms the dataset's confound tables."""
     import dataclasses
@@ -1624,15 +1837,16 @@ def _build_model_from_spec(
 
     sf = dataset.get_sampling_frame()
 
-    # Auto-detect block column.
+    # Auto-detect block column; a multi-run fit needs one (see
+    # ``require_run_labels``) so events cannot all fall into run 1.
     resolved_block = block
     if resolved_block is None:
-        if "run" in events_df.columns:
-            resolved_block = "run"
-        elif "block" in events_df.columns:
-            resolved_block = "block"
-        else:
-            resolved_block = np.ones(len(events_df), dtype=int)
+        from ..dataset.constructors import require_run_labels
+
+        label = require_run_labels(events_df, int(getattr(dataset, "n_runs", 1)))
+        resolved_block = (
+            label if label is not None else np.ones(len(events_df), dtype=int)
+        )
 
     # Auto-detect durations column.
     resolved_durations = durations
