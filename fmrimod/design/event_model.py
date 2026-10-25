@@ -497,6 +497,11 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
 
         event_term = EventTerm(term_events, name=term.name)
         cast(Any, event_term)._is_covariate = True
+        # One condition per variable, named by the variable (not the
+        # prefixed event): the prefix/id is the term tag (R covariate()).
+        cast(Any, event_term)._covariate_conditions = [
+            continuous_token(name) for name in term.covariates
+        ]
         return event_term
 
     def _create_regular_event_term(self, term: Term) -> EventTerm:
@@ -824,7 +829,9 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
 
             # Generate term tag
             term_tag = make_term_tag(
-                term_name=term.name,
+                term_name=(
+                    term.covariate_tag if isinstance(term, CovariateTerm) else term.name
+                ),
                 event_names=term.events,
                 hrf_name=term.hrf if isinstance(term.hrf, str) else None,
                 basis_type=(
@@ -851,7 +858,8 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
             basis_name = None
             basis_total = None
             if isinstance(term, CovariateTerm):
-                term_col_names = cond_tags
+                # ``<tag>_<variable>`` (R covariate(): cov_x, motion_x).
+                term_col_names = make_column_names(term_tag, cond_tags, 1)
             elif (
                 hasattr(event_term, "_is_trialwise")
                 and cast(Any, event_term)._is_trialwise
@@ -1918,6 +1926,9 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
 
         if getattr(event_term, "_is_covariate", False):
             # Covariates contribute one column per variable.
+            cov_conditions = getattr(event_term, "_covariate_conditions", None)
+            if cov_conditions is not None:
+                return list(cov_conditions)
             return [continuous_token(event.name) for event in event_term.events]
 
         cond_tags = []

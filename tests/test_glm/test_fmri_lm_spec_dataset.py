@@ -200,9 +200,9 @@ def test_fmri_lm_accepts_identity_hrf_covariate_term(synthetic_run) -> None:
 
     fit = fmri_lm(covariate("seed", source=source), dataset)
     names = fit.design_columns().names
-    seed_index = names.index("seed")
+    seed_index = names.index("cov_seed")
 
-    assert "seed" in names
+    assert "cov_seed" in names  # <tag>_<variable>, default tag "cov"
     assert fit.model.event_model.terms[0].hrf is None
     np.testing.assert_allclose(fit.coef()[seed_index, 0], 2.0, atol=1e-10)
 

@@ -176,7 +176,9 @@ def conditions_event_term(
     
     # Covariate terms: one condition per variable, never crossed
     if getattr(event_term, "_is_covariate", False):
-        cov_tags = [continuous_token(event.name) for event in event_term.events]
+        cov_tags = getattr(event_term, "_covariate_conditions", None) or [
+            continuous_token(event.name) for event in event_term.events
+        ]
         if not hasattr(event_term, '_cache'):
             event_term._cache = {}
         event_term._cache[cache_key] = cov_tags
