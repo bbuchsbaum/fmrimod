@@ -12,6 +12,7 @@ an empty or short active table auditable instead of silent.
 | `fitlins-ar1-coefficient-binning` | `false` | `bd-01KRGRF4X588F56QT21CPBB7NJ` | `2b3660b` | `benchmarks/parity/tier_b_fitlins_bids/reports/fitlins_cli_derivative_report.json` | `python3.9 -m pytest tests/test_ar/test_ar1_nilearn.py cross_testing/test_fitlins_cli_derivative_parity.py -q` |
 | `second-level-normal-vs-t-pvalues` | `false` | `bd-01KRGRF4WRPCKEK7FBR8BXJ4AY` | `64fd3fb` | `benchmarks/parity/tier_c_second_level/reports/parity_report.json` | `python3.9 -m pytest tests/test_benchmarks/test_tier_c_second_level_workflow.py -q` |
 | `typed-re-meta-regression-unimplemented` | `false` | `bd-01KRRJVG3YM80X0FX9C8KY5VG4` | `100ae17` | `tests/test_stats/test_meta_re_reg_parity.py` (no benchmark workflow exercises meta-regression, so by design there is no `parity_report.json`; fabricating a canary was disqualified as dishonest in the root-cause trace on `bd-01KRRMM5AEAKVQWAYWKTZRF263` — the checked-in parity test is the evidence, tying the typed path to the R-oracle-validated native `meta_re_reg` kernel) | `python3.9 -m pytest tests/test_stats/test_meta_re_reg_parity.py tests/test_benchmarks/test_parity_proof_artifacts.py::test_caveats_index_matches_generated_report_caveat_ids -q` |
+| `spmg1-x10-scale` | `false` | `bd-01M0E2GZMPAMZTDK3R4XV8V0X6` | `b13e503` | `docs/contracts/r_parity_receipts/spmg1_x10_scale_retirement.json` | `python3.9 -m pytest cross_testing/test_hrf_equivalence.py cross_testing/test_regressor_equivalence.py -q` |
 
 ## Maintenance Rule
 
