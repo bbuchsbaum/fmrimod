@@ -484,6 +484,19 @@ def fmri_ols_fit(
         Y_arr = Y_arr[:, np.newaxis]
     if X_arr.ndim != 2 or Y_arr.ndim != 2 or X_arr.shape[0] != Y_arr.shape[0]:
         raise ValueError("Y and X must be 2-D matrices with matching rows")
+    # A rank-deficient group design has no unique estimates: stop instead of
+    # returning pseudoinverse-split coefficients (fmrireg 3ed5e8d).
+    if not np.all(np.isfinite(X_arr)):
+        raise ValueError("X must contain only finite values")
+    rank_x = int(np.linalg.matrix_rank(X_arr))
+    if rank_x < X_arr.shape[1]:
+        raise ValueError(
+            f"X must have full column rank; got rank {rank_x} for "
+            f"{X_arr.shape[1]} columns (rank deficient)"
+        )
+    extra_parameter = 0 if voxelwise is None else 1
+    if X_arr.shape[0] - X_arr.shape[1] - extra_parameter <= 0:
+        raise ValueError("Non-positive residual degrees of freedom")
 
     if voxelwise is None:
         proj = fast_preproject(X_arr)
