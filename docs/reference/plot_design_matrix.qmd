@@ -1,4 +1,4 @@
-# visualization.design_map.plot_design_matrix { #fmrimod.visualization.design_map.plot_design_matrix }
+# visualization.event_plot.plot_design_matrix { #fmrimod.visualization.event_plot.plot_design_matrix }
 
 ```python
 plot_design_matrix(
@@ -6,38 +6,15 @@ plot_design_matrix(
     term_name=None,
     figsize=None,
     separate_regressors=True,
-    **kwargs,
+    style=None,
+    show_events=True,
+    block_x='global',
+    title=None,
+    subtitle=None,
+    caption=None,
 )
 ```
 
-Plot time series of design matrix regressors.
+Alias of `plot_event_model` kept for the former API.
 
-Creates line plots showing the time course of regressors in the
-design matrix.
-
-## Parameters {.doc-section .doc-section-parameters}
-
-| Name                | Type           | Description                                                     | Default    |
-|---------------------|----------------|-----------------------------------------------------------------|------------|
-| model               | EventModel     | Event model containing the design matrix                        | _required_ |
-| term_name           | str            | Name of specific term to plot. If None, plots all terms         | `None`     |
-| figsize             | tuple of float | Figure size as (width, height)                                  | `None`     |
-| separate_regressors | bool           | Whether to plot regressors in separate subplots when many exist | `True`     |
-| **kwargs            | object         | Additional arguments passed to plot functions                   | `{}`       |
-
-## Returns {.doc-section .doc-section-returns}
-
-| Name   | Type                                  | Description        |
-|--------|---------------------------------------|--------------------|
-| fig    | matplotlib.figure.Figure              | The figure object  |
-| axes   | matplotlib.axes.Axes or array of Axes | The axes object(s) |
-
-## Examples {.doc-section .doc-section-examples}
-
-```python
->>> # Plot all regressors
->>> fig, axes = plot_design_matrix(model)
->>>
->>> # Plot specific term only
->>> fig, ax = plot_design_matrix(model, term_name='condition')
-```
+``separate_regressors=False`` selects the overlay style.

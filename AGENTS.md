@@ -145,11 +145,21 @@ fmrimod unflagged (fmrimod#16). Two guards now make that visible:
 FMRIMOD_REQUIRE_R=1 .venv/bin/python -m pytest cross_testing/
 ```
 
-Twenty-two `cross_testing/` tests fail against fmrihrf 0.4.0 for a
-pre-existing reason unrelated to the quadrature work: R's `HRF_SPMG1` and
-fmrimod's `spmg1` differ by a factor of 10 in normalization convention.
+rpy2 3.6 needs R >= 4.4. With an older R (Ubuntu 24.04 ships 4.3.3), pin
+`rpy2==3.5.17`. fmriAR and fmrilss are also R-backed; install them from
+their repos the same way.
+
+Baseline (2026-10-25, fmrihrf 0.4.0.9000 `5b63d6a`, fmriAR 0.4.2, fmrilss
+0.2.0; receipt `docs/contracts/r_parity_run_2026-10-25.md`): all 65
+R-backed tests pass. The 19 SPMG failures of the first run were closed by
+steward decision D2 (decision note 0005: SPMG bases follow R fmrihrf).
+Two non-R tests fail (`test_tier_d_showcase`, the FitLins CLI tree).
 Establish a baseline before attributing any `cross_testing/` failure to
 your own diff.
+
+The R fmridesign fixtures in `tests/design/fixtures/` come from
+`tests/design/generate_fixtures.R` (run from `tests/design`; needs R
+fmridesign installed, e.g. `R CMD INSTALL` from a clone).
 
 ## Issue Tracking — mote
 

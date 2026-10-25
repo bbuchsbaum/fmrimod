@@ -20,7 +20,7 @@ from .contrast_spec import (
     unit_contrast,
 )
 from .contrast_weights import contrast_from_mask, contrast_mask, contrast_weights
-from .errors import DesignProvenanceError
+from .errors import ContrastError, DesignProvenanceError
 from .factorial import (
     generate_interaction_contrast,
     generate_main_effect_contrast,
@@ -77,6 +77,7 @@ __all__ = [
     'condition',
     'modulator',
     'group_dataset_from_contrasts',
+    'ContrastError',
     'DesignProvenanceError',
     # Visualization
     'plot_contrasts',

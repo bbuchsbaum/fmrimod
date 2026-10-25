@@ -1,47 +1,59 @@
-# visualization.design_map.correlation_map { #fmrimod.visualization.design_map.correlation_map }
+# visualization.heatmaps.correlation_map { #fmrimod.visualization.heatmaps.correlation_map }
 
 ```python
 correlation_map(
     model,
     rotate_x_text=True,
+    method='pearson',
+    half_matrix=True,
+    limits='fixed',
+    annotate=None,
+    flag_threshold=0.5,
+    vif_threshold=5.0,
+    title=None,
+    subtitle=None,
+    caption=None,
+    within_run=None,
     figsize=None,
-    cmap='RdBu_r',
-    annot=False,
-    fmt='.2f',
-    **kwargs,
+    ax=None,
+    annot=None,
 )
 ```
 
-Visualize correlation matrix of design matrix regressors.
+Pairwise regressor correlations as a lower triangle (R ``correlation_map``).
 
-Creates a heatmap showing the correlation between all pairs of
-regressors in the design matrix.
+The fill is the diverging palette fixed at [-1, 1] with a neutral zero;
+up to 20 columns each cell also prints r (two decimals up to 10
+columns). Cells with ``|r| >= flag_threshold`` are outlined and counted
+in the subtitle, which also names the most correlated pair. Pairwise
+correlations miss multicollinearity, so the diagonal shows each
+column's variance inflation factor with per-run intercepts
+(`design_vif`); VIFs at or
+above ``vif_threshold`` and aliased columns are flagged in the warning
+colour. Columns keep design order and are grouped by term, so the map
+lines up with `design_map`.
 
 ## Parameters {.doc-section .doc-section-parameters}
 
-| Name          | Type                        | Description                                                       | Default    |
-|---------------|-----------------------------|-------------------------------------------------------------------|------------|
-| model         | EventModel or BaselineModel | Event model or baseline model containing the design matrix        | _required_ |
-| rotate_x_text | bool                        | Whether to rotate x-axis labels                                   | `True`     |
-| figsize       | tuple of float              | Figure size as (width, height). If None, automatically determined | `None`     |
-| cmap          | str                         | Colormap name (diverging colormap recommended)                    | `'RdBu_r'` |
-| annot         | bool                        | Whether to annotate cells with correlation values                 | `False`    |
-| fmt           | str                         | Format string for annotations                                     | `'.2f'`    |
-| **kwargs      | object                      | Additional arguments passed to seaborn's heatmap                  | `{}`       |
+| Name           | Type                                     | Description                                                                                                                                                                              | Default     |
+|----------------|------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|
+| model          | (EventModel, BaselineModel or FmriModel) |                                                                                                                                                                                          | _required_  |
+| rotate_x_text  | bool                                     | Angle column labels when they would overlap.                                                                                                                                             | `True`      |
+| method         | (\'pearson\', \'spearman\')              | Correlation method (VIFs are always linear).                                                                                                                                             | `"pearson"` |
+| half_matrix    | bool                                     | Lower triangle only (default) or every off-diagonal cell.                                                                                                                                | `True`      |
+| limits         | (\'fixed\', \'data\')                    | Fill over [-1, 1], or symmetric up to the largest ``\|r\|``.                                                                                                                             | `"fixed"`   |
+| annotate       | bool                                     | Print r in the cells; default when there are at most 20 columns (12 for a baseline model). ``annot`` is an alias.                                                                        | `None`      |
+| flag_threshold | float                                    | Outline cells at or above this ``\|r\|``; flag VIFs at or above this.                                                                                                                    | `0.5`       |
+| vif_threshold  | float                                    | Outline cells at or above this ``\|r\|``; flag VIFs at or above this.                                                                                                                    | `0.5`       |
+| within_run     | bool                                     | Correlate within runs with run intercepts removed (see `design_correlations`). Defaults to ``True`` for a baseline model, ``False`` otherwise. | `None`      |
+| title          | str                                      | ``None`` uses the default; ``""`` removes it.                                                                                                                                            | `None`      |
+| subtitle       | str                                      | ``None`` uses the default; ``""`` removes it.                                                                                                                                            | `None`      |
+| caption        | str                                      | ``None`` uses the default; ``""`` removes it.                                                                                                                                            | `None`      |
+| figsize        | (float, float)                           |                                                                                                                                                                                          | `None`      |
+| ax             | matplotlib Axes                          |                                                                                                                                                                                          | `None`      |
 
 ## Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                     | Description       |
-|--------|--------------------------|-------------------|
-| fig    | matplotlib.figure.Figure | The figure object |
-| ax     | matplotlib.axes.Axes     | The axes object   |
-
-## Examples {.doc-section .doc-section-examples}
-
-```python
->>> # Basic correlation map
->>> fig, ax = correlation_map(model)
->>>
->>> # With correlation values shown
->>> fig, ax = correlation_map(model, annot=True, figsize=(10, 8))
-```
+| Name   | Type                     | Description   |
+|--------|--------------------------|---------------|
+|        | matplotlib.figure.Figure |               |

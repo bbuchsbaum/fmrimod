@@ -1,0 +1,22 @@
+# plotting.regressor_curves { #fmrimod.plotting.regressor_curves }
+
+```python
+regressor_curves(*regs, grid=None, precision=None, labels=None, basis='all')
+```
+
+Long-form curves drawn by `plot_regressors`.
+
+Args:
+    *regs: Regressor objects, a list of them, a ``{label: regressor}``
+        mapping, or one `RegressorSet`
+        (one curve per condition).
+    grid: Evaluation times; defaults to 0 to the last onset plus span in
+        0.25 s steps.
+    precision: HRF sampling precision; defaults to the grid spacing,
+        capped at 0.33 s and floored at 0.01 s.
+    labels: One label per regressor or per curve.
+    basis: ``"all"`` or ``"first"`` basis column of multi-basis
+        regressors.
+
+Returns:
+    DataFrame with columns ``time``, ``series`` and ``response``.

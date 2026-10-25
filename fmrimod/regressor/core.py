@@ -18,6 +18,7 @@ from .neural_input import neural_input_core
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
 
 # The factory input type. Strings and callables are coerced to HRF via
 # make_hrf() in _coerce_hrf(); the stored Regressor.hrf field is strictly
@@ -126,6 +127,14 @@ class Regressor:
         """Validate and process inputs after initialization."""
         _set = object.__setattr__
 
+        # summate must be a single bool: None/NaN/ints would otherwise be
+        # read as False by the conv path (fmrihrf aaf58d0).
+        if not isinstance(self.summate, (bool, np.bool_)):
+            raise TypeError(
+                f"summate must be a bool, got {type(self.summate).__name__}"
+            )
+        _set(self, "summate", bool(self.summate))
+
         # Convert inputs to numpy arrays
         _set(self, "onsets", np.asarray(self.onsets, dtype=np.float64))
         _set(self, "duration", np.asarray(self.duration, dtype=np.float64))
@@ -142,12 +151,11 @@ class Regressor:
 
         n_onsets = len(self.onsets)
 
-        # Validate onsets: must be finite and non-negative
-        if n_onsets > 0:
-            if np.any(~np.isfinite(self.onsets)):
-                raise ValueError("onsets must contain finite numeric values")
-            if np.any(self.onsets < 0):
-                raise ValueError("onsets must be non-negative")
+        # Validate onsets: must be finite. Negative onsets are allowed: an
+        # event before the first scan (e.g. after dropping dummy volumes)
+        # still contributes the tail of its response.
+        if n_onsets > 0 and np.any(~np.isfinite(self.onsets)):
+            raise ValueError("onsets must contain finite numeric values")
 
         # Recycle duration and amplitude before validation
         if n_onsets > 0:
@@ -164,6 +172,7 @@ class Regressor:
         # --- Handle list-of-HRFs (trial-varying) ---
         hrf_value = self.hrf
         _hrf_is_list = isinstance(hrf_value, list)
+        first_hrf: HRF | None = None
         if isinstance(hrf_value, list):
             for i, h in enumerate(hrf_value):
                 if not isinstance(h, HRF):
@@ -172,6 +181,7 @@ class Regressor:
                         f"got {type(h).__name__}. Use the regressor() factory "
                         "to coerce strings or callables."
                     )
+            first_hrf = hrf_value[0] if len(hrf_value) > 0 else None
             # Recycle length-1 list
             if len(hrf_value) == 1 and n_onsets > 0:
                 hrf_value = hrf_value * n_onsets
@@ -206,6 +216,13 @@ class Regressor:
                     _set(self, "hrf", [hrf_list[i] for i in keep_indices])
         else:
             _set(self, "filtered_all", True)
+
+        # With no events left there is nothing to vary per trial: keep the
+        # first supplied HRF as an ordinary single HRF so nbasis and span
+        # survive (an empty per-event list has neither; fmrihrf b7ce497).
+        if _hrf_is_list and len(self.onsets) == 0 and first_hrf is not None:
+            _set(self, "hrf", first_hrf)
+            _hrf_is_list = False
 
         # Ensure HRF is valid (single-HRF case)
         if not _hrf_is_list and not isinstance(self.hrf, HRF):
@@ -338,10 +355,12 @@ class Regressor:
                 return csr_matrix(result if result.ndim == 2 else result[:, np.newaxis])
             return result
 
-        # Filter events based on grid boundaries
-        onset_min = grid[0] - self.span
-        onset_max = grid[-1]
-        keep = (self.onsets >= onset_min) & (self.onsets <= onset_max)
+        # Keep events whose response can reach the grid. A block can begin
+        # before the point-event bound and still overlap the grid through its
+        # duration, so filter on the end of the neural input, not only on its
+        # onset (R prep_reg_inputs).
+        event_ends = self.onsets + np.maximum(self.duration, 0.0)
+        keep = (event_ends >= grid[0] - self.span) & (self.onsets <= grid[-1])
 
         if not np.any(keep):
             result = np.zeros((len(grid), nb))
@@ -401,29 +420,29 @@ class Regressor:
 
         return result
     
-    # Scoped/strict divergence (bd-01KRNN0H73CCYGFJSJ30JPVFTW): the
-    # cast("Axes", plot_regressor(...)) below is REQUIRED under scoped
-    # mypy (--follow-imports=skip) -- ..plotting is opaque Any there so
-    # plot_regressor returns Any and removing the cast raises
-    # no-any-return against the declared -> "Axes". Full-strict resolves
-    # ..plotting and flags the cast redundant-cast. Verified empirically
-    # (scoped goes red without it). Scoped is the epic gate so the cast
-    # stays; same divergence shape as events/basis.py:160.
     def plot(
         self,
         grid: ArrayLike | None = None,
-        precision: float = 0.33,
+        precision: float | None = None,
         show_onsets: bool = True,
-        ax: Optional["Axes"] = None,
-        **kwargs: object,
-    ) -> "Axes":
-        """Plot this regressor.  See :func:`fmrimod.plotting.plot_regressor`."""
+        ax: Axes | None = None,
+        *,
+        layout: Literal["stack", "overlay"] = "stack",
+        title: str | None = None,
+        subtitle: str | None = None,
+        figsize: tuple[float, float] | None = None,
+    ) -> Figure:
+        """Plot the predicted response and return the matplotlib Figure.
+
+        Events are drawn as bars under the curve; a basis-set regressor gets
+        one panel per basis function. See
+        :func:`fmrimod.plotting.plot_regressor`.
+        """
         from ..plotting import plot_regressor
-        return cast(
-            "Axes",
-            plot_regressor(
-                cast(Any, self), grid=grid, precision=precision, show_onsets=show_onsets, ax=ax, **kwargs
-            ),
+
+        return plot_regressor(
+            self, grid=grid, precision=precision, show_onsets=show_onsets, ax=ax,
+            layout=layout, title=title, subtitle=subtitle, figsize=figsize,
         )
 
     def shift(self, shift_amount: float) -> "Regressor":
@@ -524,7 +543,23 @@ class RegressorSet:
     
     regressors: List[Regressor]
     levels: List[str]
-    
+
+    @property
+    def column_names(self) -> list[str]:
+        """Design-matrix column names, in :meth:`evaluate` column order.
+
+        One name per level for single-basis HRFs, ``<level>_basis<k>`` for
+        multi-basis HRFs (fmrihrf ``regset_column_names``, #63).
+        """
+        names: list[str] = []
+        for level, reg in zip(self.levels, self.regressors, strict=True):
+            nb = reg.nbasis
+            if nb == 1:
+                names.append(level)
+            else:
+                names.extend(f"{level}_basis{k}" for k in range(1, nb + 1))
+        return names
+
     @overload
     def evaluate(
         self,
@@ -573,8 +608,12 @@ class RegressorSet:
                 result = result[:, np.newaxis]
             results.append(result)
         
-        # Combine results
-        design_matrix = np.hstack(results)
+        # Combine results; no levels means a len(grid) x 0 matrix
+        # (fmrihrf 304f1fb), not an hstack error.
+        if results:
+            design_matrix = np.hstack(results)
+        else:
+            design_matrix = np.zeros((len(np.atleast_1d(grid)), 0))
         
         if sparse:
             return csr_matrix(design_matrix)

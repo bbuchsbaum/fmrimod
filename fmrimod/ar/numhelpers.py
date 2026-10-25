@@ -135,26 +135,39 @@ def enforce_stationary_ar(
 
 
 def enforce_invertible_ma(
-    theta: NDArray[np.float64], tol: float = 1e-8
+    theta: NDArray[np.float64], tol: float = 1e-8, bound: float = 0.99
 ) -> NDArray[np.float64]:
-    """Enforce MA invertibility by reflecting roots inside the unit circle.
+    """Make an MA polynomial invertible, with a margin.
+
+    Roots of ``1 + theta_1 z + ... + theta_q z^q`` inside (or within ``tol``
+    of) the unit circle are reflected to ``1/conj(r)``. Reflection maps a
+    unit root to itself, so any root still closer to the origin than
+    ``1/bound`` is then pushed out radially to that modulus, mirroring the
+    PACF bound on the AR side (fmriAR 617bd87). Without it ``theta = -1``
+    stayed ``-1`` and the whitening recursion integrated like a random walk.
 
     Parameters
     ----------
     theta : NDArray[np.float64]
         MA coefficients, shape ``(q,)``.
     tol : float
-        Tolerance for unit-circle boundary.
+        Tolerance for the unit-circle boundary.
+    bound : float
+        Roots end at modulus ``>= 1/bound``. ``bound=1`` is pure reflection.
 
     Returns
     -------
     NDArray[np.float64]
-        Invertible MA coefficients, shape ``(q,)``.
+        Invertible MA coefficients, shape ``(q,)``; zeros when ``theta`` is
+        not finite. Coefficients already satisfying the bound are returned
+        unchanged.
     """
     theta = np.asarray(theta, dtype=np.float64).ravel()
     q = len(theta)
     if q == 0:
         return theta
+    if not np.all(np.isfinite(theta)):
+        return np.zeros(q, dtype=np.float64)
 
     # Roots of 1 + theta[0]*z + theta[1]*z^2 + ...
     poly = np.concatenate([[1.0], theta])
@@ -162,23 +175,23 @@ def enforce_invertible_ma(
     if len(roots) == 0:
         return theta
 
-    # Reflect roots inside unit circle
-    modified = False
-    for i in range(len(roots)):
-        if np.abs(roots[i]) <= 1.0 + tol:
-            roots[i] = 1.0 / np.conj(roots[i])
-            modified = True
-
-    if not modified:
+    r_min = 1.0 / float(bound)
+    mod = np.abs(roots)
+    inside = mod <= 1.0 + tol
+    roots = np.where(inside, 1.0 / np.conj(roots), roots)
+    mod = np.abs(roots)
+    short = mod < r_min
+    if not (np.any(inside) or np.any(short)):
         return theta
+    roots = np.where(short, roots * (r_min / np.where(short, mod, 1.0)), roots)
 
-    # Reconstruct polynomial from roots: prod_i (1 - z/r_i)
-    # But we need coefficients of 1 + c1*z + c2*z^2 + ...
+    # Coefficients of prod_i (1 - z/r_i) = 1 + c1*z + c2*z^2 + ...
     coeffs = np.array([1.0 + 0j])
     for r in roots:
         coeffs = np.convolve(coeffs, np.array([1.0 + 0j, -1.0 / r]))
-
-    return np.real(coeffs[1:])
+    out = np.zeros(q, dtype=np.float64)
+    out[: coeffs.size - 1] = np.real(coeffs[1:])
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -209,7 +222,9 @@ def levinson_durbin(
         Innovation variance.
     """
     gamma = np.asarray(gamma, dtype=np.float64).ravel()
-    if p <= 0 or len(gamma) < p + 1 or gamma[0] < 1e-15:
+    # Only a zero variance is degenerate: an absolute floor left data in small
+    # units unwhitened (fmrireg 0f9138b).
+    if p <= 0 or len(gamma) < p + 1 or not gamma[0] > 0:
         return np.zeros(max(p, 0), dtype=np.float64), float(gamma[0]) if len(
             gamma
         ) else 0.0

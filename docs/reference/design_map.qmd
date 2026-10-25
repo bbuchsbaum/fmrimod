@@ -1,4 +1,4 @@
-# visualization.design_map.design_map { #fmrimod.visualization.design_map.design_map }
+# visualization.heatmaps.design_map { #fmrimod.visualization.heatmaps.design_map }
 
 ```python
 design_map(
@@ -7,46 +7,59 @@ design_map(
     rotate_x_text=True,
     fill_midpoint=None,
     fill_limits=None,
+    scale='column',
+    palette='diverging',
+    y_axis='scan',
+    title=None,
+    subtitle=None,
+    caption=None,
+    max_labels=60,
     figsize=None,
-    cmap=None,
+    ax=None,
     **kwargs,
 )
 ```
 
-Visualize design matrix as a heatmap.
+Design matrix as an image, in the style of SPM (R ``design_map``).
 
-Creates a heatmap visualization of the design matrix showing the
-intensity of each regressor at each time point.
+One row per scan (time runs downward), one column per regressor.
+Columns are grouped by model term under a spanner, runs are separated
+by rules and labelled on the left, and the right axis marks the first
+scan of each run. By default each column is divided by its maximum
+absolute value (``scale="column"``) so regressors in different units
+share one diverging fill with zero at the neutral midpoint. Because
+that would make a near-flat regressor look healthy, a strip of bars
+under the matrix shows each column's peak relative to the largest in
+its term; columns below 5% of it are marked in the warning colour,
+outlined, and named in the subtitle. With 12 or fewer columns each
+label also gives the column's raw range.
+
+Baseline columns are grouped by term (drift, intercept, nuisance) and
+then run, with a "Run k" sub-spanner over each run's columns;
+nuisance columns are veiled so the block structure dominates.
 
 ## Parameters {.doc-section .doc-section-parameters}
 
-| Name             | Type                        | Description                                                                     | Default    |
-|------------------|-----------------------------|---------------------------------------------------------------------------------|------------|
-| model            | EventModel or BaselineModel | Event model or baseline model containing the design matrix to visualize         | _required_ |
-| block_separators | bool                        | Whether to draw separators between blocks/runs if available                     | `True`     |
-| rotate_x_text    | bool                        | Whether to rotate x-axis labels for better readability                          | `True`     |
-| fill_midpoint    | float                       | Midpoint for diverging color scale. If None, uses continuous scale              | `None`     |
-| fill_limits      | tuple of float              | (min, max) limits for color scale. If None, uses data range                     | `None`     |
-| figsize          | tuple of float              | Figure size as (width, height). If None, automatically determined               | `None`     |
-| cmap             | str                         | Colormap name. If None, uses 'RdBu_r' for diverging or 'viridis' for continuous | `None`     |
-| **kwargs         | object                      | Additional arguments passed to matplotlib's imshow                              | `{}`       |
+| Name             | Type                                     | Description                                                      | Default       |
+|------------------|------------------------------------------|------------------------------------------------------------------|---------------|
+| model            | (EventModel, BaselineModel or FmriModel) |                                                                  | _required_    |
+| block_separators | bool                                     | Draw a rule at each run boundary.                                | `True`        |
+| rotate_x_text    | bool                                     | Angle column labels when they would overlap.                     | `True`        |
+| fill_midpoint    | optional                                 | Centre and limits of the fill scale (default symmetric about 0). | `None`        |
+| fill_limits      | optional                                 | Centre and limits of the fill scale (default symmetric about 0). | `None`        |
+| scale            | (\'column\', \'none\')                   | Divide each column by its max abs value, or plot raw values.     | `"column"`    |
+| palette          | (\'diverging\', \'grey\')                | The signed palette, or white-to-ink as in SPM.                   | `"diverging"` |
+| y_axis           | (\'scan\', \'time\')                     | Label the right axis by scan number or onset time (m:ss).        | `"scan"`      |
+| title            | str                                      | ``None`` uses the default; ``""`` removes it.                    | `None`        |
+| subtitle         | str                                      | ``None`` uses the default; ``""`` removes it.                    | `None`        |
+| caption          | str                                      | ``None`` uses the default; ``""`` removes it.                    | `None`        |
+| max_labels       | int                                      | Thin column labels to every k-th beyond this many.               | `60`          |
+| figsize          | (float, float)                           |                                                                  | `None`        |
+| ax               | matplotlib Axes                          | Draw into this axes (the colourbar is placed under it).          | `None`        |
+| **kwargs         | object                                   | Passed to `matplotlib.axes.Axes.imshow`.                   | `{}`          |
 
 ## Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                     | Description       |
-|--------|--------------------------|-------------------|
-| fig    | matplotlib.figure.Figure | The figure object |
-| ax     | matplotlib.axes.Axes     | The axes object   |
-
-## Examples {.doc-section .doc-section-examples}
-
-```python
->>> # Basic usage
->>> fig, ax = design_map(model)
->>>
->>> # With custom colormap and size
->>> fig, ax = design_map(model, figsize=(12, 8), cmap='coolwarm')
->>>
->>> # Focus on specific value range
->>> fig, ax = design_map(model, fill_limits=(-2, 2))
-```
+| Name   | Type                     | Description   |
+|--------|--------------------------|---------------|
+|        | matplotlib.figure.Figure |               |

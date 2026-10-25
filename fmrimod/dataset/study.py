@@ -13,11 +13,14 @@ from numpy.typing import NDArray
 
 from .errors import FmriDatasetError
 from .fmri_dataset import FmriDataset
+from ..utils.pickling import ReadOnlyMappingPickle
 
 if TYPE_CHECKING:
-    from fmrimod.group import GroupDataset
+    from fmrimod.group import GroupDataset, GroupSpace, VoxelSpace
 
 MaskStrategy = Literal["subject_specific", "intersect", "union"]
+# Group rows that receive a subject's estimate entries, and those entries.
+_Route = tuple[NDArray[np.intp], NDArray[np.intp]]
 
 
 def _unwrap_dataset(value: object, *, row: int, dataset_col: str) -> FmriDataset:
@@ -52,6 +55,106 @@ def _as_1d_float_array(
             "must be one-dimensional"
         )
     return arr
+
+
+def _voxel_space(dataset: FmriDataset) -> VoxelSpace:
+    """Return a dataset's columns as a packed voxel space (C-order voxel ids)."""
+    return dataset.space.to_voxel_space()
+
+
+def _route_samples(
+    datasets: Sequence[FmriDataset],
+    subjects: Sequence[str],
+    lengths: Sequence[int],
+    mask_strategy: MaskStrategy,
+) -> tuple[int, list[_Route], VoxelSpace | None]:
+    """Map each subject's estimate entries onto the group sample axis.
+
+    Returns the number of group samples, one ``(rows, entries)`` pair per
+    subject (the group rows that receive that subject's estimate entries),
+    and the subjects' common packed voxel space (its ``mask_idx`` is the
+    voxel id of each group row), or ``None`` when the estimates are not
+    voxel maps of the subjects' masks (e.g. ROI summaries).
+
+    Voxel maps are matched by voxel id through each subject's own mask, never
+    by position (R ``e998bd4``): ``subject_specific`` refuses non-identical
+    masks, ``intersect``/``union`` align them with
+    :func:`fmrimod.group.common_mask`, and masks on different voxel grids are
+    refused.
+    """
+    from fmrimod.group import GroupSpaceError, assert_compatible_spaces, common_mask
+
+    if any(n != dataset.n_voxels for n, dataset in zip(lengths, datasets, strict=True)):
+        if len(set(lengths)) != 1:
+            raise FmriDatasetError(
+                "all contrast estimates must have the same sample length"
+            )
+        positions = np.arange(lengths[0], dtype=np.intp)
+        return lengths[0], [(positions, positions)] * len(datasets), None
+
+    spaces = [_voxel_space(dataset) for dataset in datasets]
+    for subject, space in zip(subjects, spaces, strict=True):
+        try:
+            assert_compatible_spaces(spaces[0], space)
+        except GroupSpaceError as exc:
+            raise FmriDatasetError(
+                f"subject '{subject}' mask is on a different voxel grid than "
+                f"subject '{subjects[0]}': {exc}"
+            ) from exc
+
+    common = spaces[0]
+    if mask_strategy == "subject_specific":
+        differing = [
+            subject
+            for subject, space in zip(subjects, spaces, strict=True)
+            if not np.array_equal(
+                np.asarray(space.mask_idx), np.asarray(common.mask_idx)
+            )
+        ]
+        if differing:
+            raise FmriDatasetError(
+                "subject masks differ under mask_strategy='subject_specific' "
+                f"(subjects: {', '.join(differing)}); use 'intersect' or "
+                "'union' to align voxel estimates by voxel id"
+            )
+    else:
+        rule: Literal["intersection", "union"] = (
+            "intersection" if mask_strategy == "intersect" else "union"
+        )
+        try:
+            for space in spaces[1:]:
+                _, _, common = common_mask(common, space, rule=rule)
+        except GroupSpaceError as exc:
+            raise FmriDatasetError(
+                f"subject masks have no voxels in common: {exc}"
+            ) from exc
+
+    routes = []
+    for space in spaces:
+        rows, entries, _ = common_mask(common, space, rule="intersection")
+        routes.append((rows, entries))
+    return common.n_samples, routes, common
+
+
+def _subject_key(value: object, column: str) -> str:
+    """Canonical string key for a subject id (fmridataset e5ae9b8, 57ff4a2).
+
+    Missing ids are refused before stringifying (``str(nan)`` is ``"nan"``);
+    whole-number floats format exactly (``100000.0`` -> ``"100000"``) and
+    fractional numbers are refused. Strings are kept as given.
+    """
+    if value is None or (not isinstance(value, str) and pd.isna(value)):
+        raise FmriDatasetError(f"subject id column '{column}' has missing ids")
+    if isinstance(value, (bool, np.bool_)):
+        raise FmriDatasetError(f"subject id column '{column}' holds a boolean")
+    if isinstance(value, (float, np.floating)):
+        if not float(value).is_integer():
+            raise FmriDatasetError(
+                f"subject id column '{column}' must hold whole numbers or "
+                f"strings; got {value!r}"
+            )
+        return str(int(value))
+    return str(value)
 
 
 class _ContrastResultLike(Protocol):
@@ -120,7 +223,7 @@ def _normalise_contrast_results(
 
 
 @dataclass(frozen=True)
-class StudyDataset:
+class StudyDataset(ReadOnlyMappingPickle):
     """Subject table plus per-subject :class:`FmriDataset` objects.
 
     The container owns study-level subject metadata and provides the canonical
@@ -148,8 +251,8 @@ class StudyDataset:
             )
 
         frame = self.subjects.copy()
-        ids = frame[self.id].map(str)
-        if ids.isna().any() or (ids == "").any():
+        ids = frame[self.id].map(lambda value: _subject_key(value, self.id))
+        if (ids == "").any():
             raise FmriDatasetError(f"subject id column '{self.id}' must be non-empty")
         if ids.duplicated().any():
             dupes = ", ".join(ids[ids.duplicated()].unique())
@@ -217,26 +320,54 @@ class StudyDataset:
             contrast_results, subjects=subjects
         )
 
+        estimates = {
+            (subject, contrast): _as_1d_float_array(
+                cast(_ContrastResultLike, result).estimate,
+                assay="estimate",
+                subject=subject,
+                contrast=contrast,
+            )
+            for (subject, contrast), result in lookup.items()
+        }
+        lengths: list[int] = []
+        for subject in subjects:
+            sizes = {int(estimates[(subject, c)].size) for c in contrasts}
+            if len(sizes) != 1:
+                raise FmriDatasetError(
+                    "all contrast estimates must have the same sample length"
+                )
+            lengths.append(sizes.pop())
+        n_samples, routes, common_space = _route_samples(
+            self.datasets, subjects, lengths, self.mask_strategy
+        )
+        voxel_index = (
+            None
+            if common_space is None
+            else np.asarray(common_space.mask_idx, dtype=np.intp)
+        )
+
         assays: dict[str, NDArray[np.float64]] = {}
-        n_samples: int | None = None
+
+        def put(
+            assay_name: str,
+            subject_index: int,
+            contrast_index: int,
+            values: NDArray[np.float64],
+        ) -> None:
+            if assay_name not in assays:
+                assays[assay_name] = np.full(
+                    (n_samples, len(subjects), len(contrasts)),
+                    np.nan,
+                    dtype=np.float64,
+                )
+            rows, entries = routes[subject_index]
+            assays[assay_name][rows, subject_index, contrast_index] = values[entries]
+
         for subject_index, subject in enumerate(subjects):
             for contrast_index, contrast in enumerate(contrasts):
                 result = lookup[(subject, contrast)]
-                estimate = _as_1d_float_array(
-                    cast(_ContrastResultLike, result).estimate,
-                    assay="estimate",
-                    subject=subject,
-                    contrast=contrast,
-                )
-                if n_samples is None:
-                    n_samples = int(estimate.size)
-                    shape = (n_samples, len(subjects), len(contrasts))
-                    assays["beta"] = np.full(shape, np.nan, dtype=np.float64)
-                elif estimate.size != n_samples:
-                    raise FmriDatasetError(
-                        "all contrast estimates must have the same sample length"
-                    )
-                assays["beta"][:, subject_index, contrast_index] = estimate
+                estimate = estimates[(subject, contrast)]
+                put("beta", subject_index, contrast_index, estimate)
 
                 for attr, assay_name in (
                     ("se", "se"),
@@ -249,22 +380,11 @@ class StudyDataset:
                     arr = _as_1d_float_array(
                         value, assay=assay_name, subject=subject, contrast=contrast
                     )
-                    if arr.size != n_samples:
+                    if arr.size != estimate.size:
                         raise FmriDatasetError(
                             f"{assay_name} arrays must match estimate sample length"
                         )
-                    if assay_name not in assays:
-                        assays[assay_name] = np.full(
-                            (n_samples, len(subjects), len(contrasts)),
-                            np.nan,
-                            dtype=np.float64,
-                        )
-                    assays[assay_name][:, subject_index, contrast_index] = arr
-
-        if n_samples is None:
-            raise FmriDatasetError(
-                "contrast_results must contain at least one estimate"
-            )
+                    put(assay_name, subject_index, contrast_index, arr)
 
         labels = (
             tuple(str(value) for value in sample_labels)
@@ -309,6 +429,10 @@ class StudyDataset:
                 for contrast in contrasts
             ]
 
+        row_data = pd.DataFrame(index=pd.Index(labels, name="sample"))
+        if voxel_index is not None:
+            row_data["voxel_index"] = voxel_index.astype(int)
+
         group_metadata = {
             "source_format": "study_dataset",
             "source": "fmrimod.dataset.StudyDataset",
@@ -319,13 +443,25 @@ class StudyDataset:
         if metadata:
             group_metadata.update(metadata)
 
+        # Voxel-routed estimates of datasets with real geometry lower to the
+        # subjects' common VoxelSpace, so group results keep their grid and
+        # affine (inventory v2 DS-02, steward decision D1). Matrix data has
+        # no affine and keeps sample labels, as do explicit sample_labels.
+        space: GroupSpace = SampleLabelSpace(labels)
+        if (
+            common_space is not None
+            and sample_labels is None
+            and all(dataset.get_affine() is not None for dataset in self.datasets)
+        ):
+            space = common_space
+
         return GroupDataset(
             assays=assays,
-            space=SampleLabelSpace(labels),
+            space=space,
             subjects=subjects,
             contrasts=contrasts,
             col_data=self.col_data,
-            row_data=pd.DataFrame(index=pd.Index(labels, name="sample")),
+            row_data=row_data,
             contrast_data=contrast_data,
             metadata=group_metadata,
         )

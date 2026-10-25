@@ -204,7 +204,7 @@ target_events = pd.DataFrame({
 target_dataset = fm.fmri_dataset(clean[:, 1:2], tr=2.0, events=target_events)
 
 seed_fit = fm.fmri_lm(covariate("seed", source=seed_source), target_dataset)
-seed_index = seed_fit.design_columns().names.index("seed")
+seed_index = seed_fit.design_columns().where(term="seed").one().index
 round(float(seed_fit.coef()[seed_index, 0]), 3)
 ```
 

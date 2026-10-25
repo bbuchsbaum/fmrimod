@@ -85,11 +85,11 @@ from fmrimod.contrast.plot_contrasts import plot_contrasts
 
 hypothesis = condition("face", term="condition") - condition("scene", term="condition")
 resolved = hypothesis.resolve(fit.design_columns())
-fig = plot_contrasts({"face − scene": resolved}, figsize=(8, 2.8),
-                     absolute_limits=True, rotate_x_text=False)
-ax = fig.axes[0]
-ax.set_xticklabels(list(fit.model.design_matrix(run=0).columns), rotation=30, ha="right")
-ax.set_title("")
+fig = plot_contrasts(
+    {"face − scene": resolved},
+    labels=list(fit.model.design_matrix(run=0).columns),
+    design=fit.model.design_matrix_array(run=0), figsize=(8, 3.2), absolute_limits=True, title="",
+)
 plt.show()
 ```
 

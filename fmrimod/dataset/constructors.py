@@ -28,12 +28,13 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from fmrimod.sampling import SamplingFrame
+from fmrimod.sampling import SamplingFrame, same_seconds
 
 from .adapters import BackendAdapter
 from .adapters.neuroim_adapter import _is_neurovec
 from .backend_constructors import matrix_backend
 from .fmri_dataset import FmriDataset
+from .mask_utils import mask_to_logical
 from .protocols import DatasetProtocol
 
 
@@ -42,11 +43,12 @@ def fmri_dataset(
     *,
     mask: object = None,
     tr: float | Sequence[float] | None = None,
-    events: pd.DataFrame | None = None,
+    events: pd.DataFrame | Sequence[pd.DataFrame] | None = None,
     censor: NDArray[np.bool_] | list[NDArray[np.bool_]] | None = None,
     start_time: float | Sequence[float] | None = None,
     slice_timing_offset: float | Sequence[float] | None = None,
     run_length: int | Sequence[int] | None = None,
+    confounds: pd.DataFrame | Sequence[pd.DataFrame] | None = None,
     # legacy spellings:
     data_source: DatasetProtocol | None = None,
     event_table: pd.DataFrame | None = None,
@@ -64,7 +66,10 @@ def fmri_dataset(
     tr
         Repetition time in seconds. Required for image inputs.
     events
-        Optional event table.
+        Optional event table: one DataFrame with a ``run`` column (1-based)
+        for multi-run data, or a sequence of per-run DataFrames (BIDS
+        ``*_events.tsv`` style, onsets relative to each run's start), which
+        is stacked into one table with ``run`` filled in.
     censor
         Optional boolean censor vector(s).
     start_time, slice_timing_offset
@@ -82,11 +87,42 @@ def fmri_dataset(
         2-D ndarray input; raises ``ValueError`` for any other ``img``
         type, including sequences (which already encode runs explicitly)
         and 4-D ndarrays.
+    confounds
+        Optional nuisance tables, one per run (or one table covering all
+        runs back to back). They are stored on the dataset; a spec term
+        ``confounds("trans_x", ...)`` without ``source=`` picks its columns
+        from them at fit time.
     data_source
         Legacy alias accepting a :class:`DatasetProtocol`-compatible object.
     event_table
         Legacy alias for ``events``.
+
+    Examples
+    --------
+    Two runs from NIfTI files with per-run BIDS event tables::
+
+        ds = fmri_dataset(
+            ["run-1_bold.nii.gz", "run-2_bold.nii.gz"],
+            mask="brain_mask.nii.gz",
+            tr=2.0,
+            events=[events_run1, events_run2],
+        )
+
+    A ``(time, voxels)`` matrix split into two runs:
+
+    >>> import numpy as np, pandas as pd
+    >>> events = pd.DataFrame({"onset": [4.0, 4.0], "duration": 1.0,
+    ...                        "trial_type": ["a", "b"], "run": [1, 2]})
+    >>> ds = fmri_dataset(np.zeros((40, 3)), tr=2.0, run_length=[20, 20],
+    ...                   events=events)
+    >>> ds.n_runs
+    2
     """
+    n_event_tables = (
+        None
+        if events is None or isinstance(events, pd.DataFrame)
+        else len(list(events))
+    )
     resolved_events = _resolve_events(events, event_table)
     resolved_start_time = _resolve_start_time(start_time, slice_timing_offset)
 
@@ -95,26 +131,116 @@ def fmri_dataset(
             raise ValueError("Pass `img` or `data_source`, not both")
         if run_length is not None:
             raise ValueError("`run_length` is not valid with `data_source`")
-        return FmriDataset(data_source, event_table=resolved_events, censor=censor)
+        dataset = FmriDataset(
+            data_source,
+            event_table=resolved_events,
+            censor=censor,
+            confounds=_as_frame_list(confounds),
+        )
+        _check_events_cover_runs(dataset, n_event_tables)
+        return dataset
 
     if img is None:
         raise ValueError("fmri_dataset requires `img` (or legacy `data_source`)")
 
-    # Adapter chain expects a scalar start_time; ``None`` means "use the
-    # SamplingFrame default" which the adapter currently encodes as 0.0
-    # (frame-start). To keep the typed dataset constructor's documented
-    # default of TR/2 (BOLD-midpoint), we resolve None against the
-    # supplied TR right here.
-    adapter_start: float
-    if resolved_start_time is None:
-        tr_scalar = float(np.atleast_1d(np.asarray(tr, dtype=float))[0])
-        adapter_start = tr_scalar / 2.0
-    else:
-        adapter_start = float(np.atleast_1d(np.asarray(resolved_start_time))[0])
+    # Per-run ``tr``/``start_time`` pass through to the adapter's
+    # SamplingFrame; ``None`` lets it apply ``TR/2`` per run (R 99d19fe, #94).
     adapter = _build_adapter(
-        img, mask=mask, tr=tr, start_time=adapter_start, run_length=run_length
+        img,
+        mask=mask,
+        tr=tr,
+        start_time=resolved_start_time,
+        run_length=run_length,
     )
-    return FmriDataset(adapter, event_table=resolved_events, censor=censor)
+    dataset = FmriDataset(
+        adapter,
+        event_table=resolved_events,
+        censor=censor,
+        confounds=_as_frame_list(confounds),
+    )
+    _check_events_cover_runs(dataset, n_event_tables)
+    return dataset
+
+
+def _check_events_cover_runs(dataset: FmriDataset, n_event_tables: int | None) -> None:
+    """A per-run list of event tables must have one table per run."""
+    n_runs = int(dataset.n_runs)
+    if n_event_tables is not None and n_event_tables != n_runs:
+        raise ValueError(
+            f"{n_event_tables} events table(s) for {n_runs} runs; pass one "
+            "table per run, or one table with a `run` column"
+        )
+
+
+def require_run_labels(events: pd.DataFrame, n_runs: int) -> str | None:
+    """Return the run-label column for a multi-run fit, or raise.
+
+    With several runs, every event needs a run label (a 1-based ``run`` or
+    ``block`` column); without one all events would land in run 1 and the
+    other runs would be fitted as pure baseline. Returns ``None`` for a
+    single run without a label.
+    """
+    label = next((c for c in ("run", "block") if c in events.columns), None)
+    if label is None:
+        if n_runs > 1:
+            raise ValueError(
+                f"the dataset has {n_runs} runs but the events table has no "
+                "`run` column; add one (1-based) or build the dataset with "
+                "events=[table_run1, table_run2, ...]"
+            )
+        return None
+    if n_runs > 1:
+        runs = pd.to_numeric(events[label], errors="coerce")
+        bad = runs.isna() | ~runs.between(1, n_runs)
+        if bad.any():
+            raise ValueError(
+                f"events `{label}` values must be run numbers 1..{n_runs}; "
+                f"got {sorted(set(events[label][bad].astype(str)))[:5]}"
+            )
+    return label
+
+
+def _as_frame_list(
+    confounds: pd.DataFrame | Sequence[pd.DataFrame] | None,
+) -> pd.DataFrame | list[pd.DataFrame] | None:
+    if confounds is None or isinstance(confounds, pd.DataFrame):
+        return confounds
+    return list(confounds)
+
+
+def coerce_dataset(
+    source: object,
+    *,
+    tr: object,
+    events: object,
+    mask: object,
+    slice_timing_offset: object,
+) -> object:
+    """Return ``source`` if it is a dataset, else build one from an image.
+
+    Shared by the entry points that accept either an :class:`FmriDataset` or
+    an image source plus ``tr=``/``events=``/``mask=`` shorthand
+    (:func:`fmrimod.fmri_lm`, :func:`fmrimod.estimate_single_trial_from_dataset`).
+    """
+    shorthand = {
+        "tr": tr,
+        "events": events,
+        "mask": mask,
+        "slice_timing_offset": slice_timing_offset,
+    }
+    given = {key: value for key, value in shorthand.items() if value is not None}
+    is_dataset = source is None or (
+        hasattr(source, "get_sampling_frame") and hasattr(source, "event_table")
+    )
+    if is_dataset:
+        if given:
+            raise ValueError(
+                f"{sorted(given)} build a dataset from an image and "
+                "cannot be combined with a prebuilt dataset; pass them to "
+                "fmri_dataset(...) instead."
+            )
+        return source
+    return fmri_dataset(source, **given)  # type: ignore[arg-type]
 
 
 def matrix_dataset(
@@ -192,7 +318,7 @@ def matrix_dataset(
         blocklens=blocklens, tr=resolved_tr, start_time=resolved_start_time
     )
     data_matrix = np.vstack(runs)
-    flat_mask = None if mask is None else np.asarray(mask, dtype=bool).reshape(-1)
+    flat_mask = None if mask is None else mask_to_logical(mask)
     backend = matrix_backend(data_matrix, mask=flat_mask)
     adapter = BackendAdapter(backend, sampling_frame)
     # Split a flat censor across runs to match the multi-block sframe;
@@ -211,12 +337,34 @@ def matrix_dataset(
 
 
 def _resolve_events(
-    events: pd.DataFrame | None,
+    events: pd.DataFrame | Sequence[pd.DataFrame] | None,
     event_table: pd.DataFrame | None,
 ) -> pd.DataFrame | None:
     if events is not None and event_table is not None and event_table is not events:
         raise ValueError("Pass `events` or `event_table`, not both")
-    return events if events is not None else event_table
+    resolved = events if events is not None else event_table
+    if resolved is None or isinstance(resolved, pd.DataFrame):
+        return resolved
+    return _stack_run_events(resolved)
+
+
+def _stack_run_events(per_run: Sequence[pd.DataFrame]) -> pd.DataFrame:
+    """Stack per-run event tables into one table with a 1-based ``run``."""
+    frames = list(per_run)
+    if not frames or not all(isinstance(f, pd.DataFrame) for f in frames):
+        raise TypeError(
+            "events must be a DataFrame or a non-empty sequence of per-run "
+            "DataFrames"
+        )
+    stacked = []
+    for run, frame in enumerate(frames, start=1):
+        if "run" in frame.columns and not (frame["run"] == run).all():
+            raise ValueError(
+                f"per-run events table {run - 1} has a `run` column that is "
+                f"not {run}; pass a single stacked table instead"
+            )
+        stacked.append(frame.assign(run=run))
+    return pd.concat(stacked, ignore_index=True)
 
 
 def _is_dataset_protocol(obj: object) -> bool:
@@ -242,7 +390,7 @@ def _build_adapter(
     *,
     mask: object,
     tr: float | Sequence[float] | None,
-    start_time: float,
+    start_time: float | Sequence[float] | None,
     run_length: int | Sequence[int] | None = None,
 ) -> DatasetProtocol:
     # `run_length` only has a meaning for a single 2-D matrix input.
@@ -302,16 +450,22 @@ def _build_adapter(
     )
 
 
-def _require_tr(tr: float | Sequence[float] | None, *, what: str) -> float:
+def _require_tr(
+    tr: float | Sequence[float] | None, *, what: str
+) -> float | Sequence[float]:
     if tr is None:
         raise ValueError(f"`tr` is required for {what} input")
     if isinstance(tr, (int, float)):
         return float(tr)
-    return tr  # type: ignore[return-value]
+    return tr
 
 
 def _make_neurovec_adapter(
-    img: object, *, mask: object, tr: float | Sequence[float] | None, start_time: float
+    img: object,
+    *,
+    mask: object,
+    tr: float | Sequence[float] | None,
+    start_time: float | Sequence[float] | None,
 ) -> DatasetProtocol:
     from .adapters.neuroim_adapter import NeuroVecAdapter
 
@@ -321,7 +475,11 @@ def _make_neurovec_adapter(
 
 
 def _make_nibabel_adapter(
-    img: object, *, mask: object, tr: float | Sequence[float] | None, start_time: float
+    img: object,
+    *,
+    mask: object,
+    tr: float | Sequence[float] | None,
+    start_time: float | Sequence[float] | None,
 ) -> DatasetProtocol:
     from .adapters.nibabel_adapter import NibabelAdapter
 
@@ -335,7 +493,11 @@ def _make_nibabel_adapter(
 
 
 def _make_paths_adapter(
-    paths: object, *, mask: object, tr: float | Sequence[float] | None, start_time: float
+    paths: object,
+    *,
+    mask: object,
+    tr: float | Sequence[float] | None,
+    start_time: float | Sequence[float] | None,
 ) -> DatasetProtocol:
     from .adapters.neuroim_adapter import NeuroVecAdapter
 
@@ -348,7 +510,11 @@ def _make_paths_adapter(
 
 
 def _make_array4d_adapter(
-    arr: NDArray[np.float64], *, mask: object, tr: float | Sequence[float] | None, start_time: float
+    arr: NDArray[np.float64],
+    *,
+    mask: object,
+    tr: float | Sequence[float] | None,
+    start_time: float | Sequence[float] | None,
 ) -> DatasetProtocol:
     from .adapters.neuroim_adapter import NeuroVecAdapter
 
@@ -365,7 +531,7 @@ def _make_matrix_adapter(
     *,
     mask: object,
     tr: float | Sequence[float] | None,
-    start_time: float,
+    start_time: float | Sequence[float] | None,
     run_length: int | Sequence[int] | None = None,
 ) -> DatasetProtocol:
     resolved_tr = _require_tr(tr, what="2-D matrix")
@@ -377,7 +543,7 @@ def _make_matrix_adapter(
     sampling_frame = SamplingFrame(
         blocklens=blocklens, tr=resolved_tr, start_time=start_time
     )
-    flat_mask = None if mask is None else np.asarray(mask, dtype=bool).reshape(-1)
+    flat_mask = None if mask is None else mask_to_logical(mask)
     backend = matrix_backend(np.asarray(arr, dtype=np.float64), mask=flat_mask)
     return BackendAdapter(backend, sampling_frame)
 
@@ -390,7 +556,7 @@ def _resolve_tr(
     if tr is None and TR is None:
         raise ValueError("matrix_dataset requires tr or TR")
     if tr is not None and TR is not None:
-        if not np.array_equal(np.asarray(tr), np.asarray(TR)):
+        if not same_seconds(tr, TR):
             raise ValueError("tr and TR must agree when both are supplied")
     resolved = TR if tr is None else tr
     assert resolved is not None
@@ -411,15 +577,17 @@ def _resolve_start_time(
     if start_time is None and slice_timing_offset is None:
         return None
     if start_time is not None and slice_timing_offset is not None:
-        if not np.array_equal(
-            np.asarray(start_time, dtype=float),
-            np.asarray(slice_timing_offset, dtype=float),
-        ):
+        if not same_seconds(start_time, slice_timing_offset):
             raise ValueError(
                 "start_time and slice_timing_offset must agree when both "
                 "are supplied"
             )
-    return slice_timing_offset if start_time is None else start_time
+    resolved = slice_timing_offset if start_time is None else start_time
+    # A dataset's first-volume offset is a time since the run began
+    # (fmridataset 99d19fe); SamplingFrame itself stays permissive.
+    if np.any(np.asarray(resolved, dtype=np.float64) < 0):
+        raise ValueError("start_time must be non-negative")
+    return resolved
 
 
 def _normalize_run_lengths(

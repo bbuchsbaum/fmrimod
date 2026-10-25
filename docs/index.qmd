@@ -18,6 +18,7 @@ fit it to preprocessed data, and inspect the results at each step.
 ::: {.reading-links}
 [Install and fit a model](get-started.qmd)
 [Browse the tutorials](tutorials/index.qmd)
+[Explore the figure gallery](tutorials/plot-gallery.qmd)
 [Look up an API](reference/index.qmd)
 :::
 :::
@@ -65,7 +66,8 @@ ax.set_ylabel("Normalized response")
 plt.show()
 ```
 
-[Explore the plotting guide](tutorials/plotting-visualization.qmd) or
+The [figure gallery](tutorials/plot-gallery.qmd) shows the current model,
+fit, and residual inspection plots. [Explore the plotting guide](tutorials/plotting-visualization.qmd) or
 [estimate an HRF from data](tutorials/estimating-hrfs.qmd), with fitted curves
 and uncertainty intervals.
 

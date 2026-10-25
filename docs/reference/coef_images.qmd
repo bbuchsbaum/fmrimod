@@ -1,7 +1,7 @@
 # accessors.coef_images { #fmrimod.accessors.coef_images }
 
 ```python
-coef_images(x, statistic='estimate', type='estimates', coefs=None, mask=None)
+coef_images(x, statistic='estimate', type='betas', coefs=None, mask=None)
 ```
 
 Return one named coefficient/statistic map per requested name.

@@ -1,42 +1,39 @@
-# visualization.design_map.plot_sampling_frame { #fmrimod.visualization.design_map.plot_sampling_frame }
+# visualization.baseline_plot.plot_sampling_frame { #fmrimod.visualization.baseline_plot.plot_sampling_frame }
 
 ```python
 plot_sampling_frame(
     sframe,
     style='timeline',
-    show_ticks=True,
+    show_ticks=False,
     tick_every=None,
+    events=None,
+    title=None,
+    subtitle=None,
+    caption=None,
     figsize=None,
-    **kwargs,
+    ax=None,
 )
 ```
 
-Plot sampling frame structure.
+Plot the runs of a sampling frame (R ``plot.sampling_frame``).
 
 ## Parameters {.doc-section .doc-section-parameters}
 
-| Name       | Type                     | Description                                                                     | Default      |
-|------------|--------------------------|---------------------------------------------------------------------------------|--------------|
-| sframe     | SamplingFrame or similar | Sampling frame to visualize                                                     | _required_   |
-| style      | (\'timeline\', \'grid\') | 'timeline': horizontal bars per run 'grid': scan tiles showing timing structure | `'timeline'` |
-| show_ticks | bool                     | Show tick marks                                                                 | `True`       |
-| tick_every | float                    | Tick spacing in seconds                                                         | `None`       |
-| figsize    | tuple                    | Figure size                                                                     | `None`       |
-| **kwargs   | object                   | Additional arguments passed to plot functions                                   | `{}`         |
+| Name       | Type                               | Description                                                                                                                                                                                  | Default      |
+|------------|------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------|
+| sframe     | SamplingFrame                      |                                                                                                                                                                                              | _required_   |
+| style      | (\'timeline\', \'grid\', \'lane\') | ``"timeline"``: one bar per run on a shared time axis; ``"grid"``: each run's scans as cells on a within-run scan axis; ``"lane"``: one row of adjacent run segments annotated above.        | `"timeline"` |
+| show_ticks | bool                               | Timeline: white ticks every ``tick_every`` scans inside each bar.                                                                                                                            | `False`      |
+| tick_every | int                                | Scans between ticks (timeline) or between shading changes (grid; default 5, or 10 for runs over 100 scans).                                                                                  | `None`       |
+| events     | EventModel or DataFrame            | Onsets (``onset`` run-relative seconds and ``run``/``block``) drawn as ticks under each run, as a coverage check; runs without events and onsets outside their run are noted in the caption. | `None`       |
+| title      | str                                | ``None`` uses the default; ``""`` removes it.                                                                                                                                                | `None`       |
+| subtitle   | str                                | ``None`` uses the default; ``""`` removes it.                                                                                                                                                | `None`       |
+| caption    | str                                | ``None`` uses the default; ``""`` removes it.                                                                                                                                                | `None`       |
+| figsize    | (float, float)                     |                                                                                                                                                                                              | `None`       |
+| ax         | matplotlib Axes                    |                                                                                                                                                                                              | `None`       |
 
 ## Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                     | Description       |
-|--------|--------------------------|-------------------|
-| fig    | matplotlib.figure.Figure | The figure object |
-| ax     | matplotlib.axes.Axes     | The axes object   |
-
-## Examples {.doc-section .doc-section-examples}
-
-```python
->>> # Timeline view
->>> fig, ax = plot_sampling_frame(sframe, style='timeline')
->>>
->>> # Grid view
->>> fig, ax = plot_sampling_frame(sframe, style='grid')
-```
+| Name   | Type                     | Description   |
+|--------|--------------------------|---------------|
+|        | matplotlib.figure.Figure |               |

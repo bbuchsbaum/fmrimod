@@ -24,6 +24,7 @@ from fmrimod.contrast.contrast_weights import (
     _calculate_mask_weights, _get_conditions, _parse_formula_condition,
     _match_conditions_to_formula, CONTRAST_TOLERANCE
 )
+from fmrimod.contrast.errors import ContrastError
 
 
 # ============================================================================
@@ -376,11 +377,9 @@ class TestSingledispatchHandlers:
         term = make_term(['A', 'B', 'C'])
         spec = UnitContrastSpec(name='test', A=Formula("condition == 'Z'"))
 
-        with pytest.warns(UserWarning, match="No conditions were selected"):
-            con = contrast_weights(spec, term)
-
-        # Should have zero weights
-        assert np.all(con.weights == 0)
+        # REG-A-18: selecting nothing is an error, not zero weights.
+        with pytest.raises(ContrastError, match="No conditions were selected"):
+            contrast_weights(spec, term)
 
     def test_unit_contrast_none_formula(self):
         """Test UnitContrastSpec with A=None (select all)."""
@@ -438,11 +437,8 @@ class TestSingledispatchHandlers:
             B=Formula("alsonothere == 'Y'")
         )
 
-        with pytest.warns(UserWarning, match="No conditions were selected"):
-            con = contrast_weights(spec, term)
-
-        # Should create zero weights
-        assert np.all(con.weights == 0)
+        with pytest.raises(ContrastError, match="No conditions were selected"):
+            contrast_weights(spec, term)
 
     def test_column_contrast_empty_term(self):
         """Test ColumnContrastSpec with empty term."""
@@ -462,10 +458,11 @@ class TestSingledispatchHandlers:
         term = make_term(['A', 'B', 'C'])
         spec = ColumnContrastSpec(pattern_A='NOMATCH', pattern_B=None, name='test')
 
-        with pytest.warns(UserWarning):
-            con = contrast_weights(spec, term)
-        # When no match, weights will be zero
-        assert con.weights.shape[0] == 3
+        with (
+            pytest.warns(UserWarning, match="matched no columns"),
+            pytest.raises(ContrastError, match="No conditions were selected"),
+        ):
+            contrast_weights(spec, term)
 
     def test_column_contrast_no_match_B(self):
         """Test ColumnContrastSpec when pattern_B matches nothing."""
@@ -644,12 +641,10 @@ class TestSingledispatchHandlers:
         c2 = PolyContrastSpec(name='bad', A=Formula('time'), degree=5)  # Too high
         cset = ContrastSet(c1, c2)  # Pass as separate args, not list
 
-        with pytest.warns(UserWarning, match="Failed to compute"):
-            results = contrast_weights(cset, term)
-
-        # Should have the good one, not the bad one
-        assert 'good' in results
-        assert 'bad' not in results
+        # REG-A-18: a failing contrast in a set is an error, never dropped.
+        with pytest.raises(ContrastError, match="contrast 'bad'") as excinfo:
+            contrast_weights(cset, term)
+        assert excinfo.value.contrast == 'bad'
 
 
 # ============================================================================
@@ -805,11 +800,9 @@ class TestContrastFormulaSpec:
         term = make_term(['A', 'B', 'C'])
         spec = ContrastFormulaSpec(name='test', A=Formula("???invalid"))
 
-        # Should fall back to treating as condition name
-        con = contrast_weights(spec, term)
-
-        # Won't match anything, all zeros
-        assert np.all(con.weights == 0)
+        # REG-A-18: an unparseable formula errors instead of zero weights.
+        with pytest.raises(ContrastError, match="unparseable formula"):
+            contrast_weights(spec, term)
 
     def test_formula_with_basis_expansion(self):
         """Test ContrastFormulaSpec with basis expansion."""
@@ -833,11 +826,290 @@ class TestContrastFormulaSpec:
         # Create a formula with invalid syntax that will be treated as a name
         spec = ContrastFormulaSpec(name='test', A=Formula("@#$%"))
 
-        con = contrast_weights(spec, term)
+        with pytest.raises(ContrastError, match="Formula contrast 'test'"):
+            contrast_weights(spec, term)
 
-        # Invalid syntax gets treated as a name that doesn't match anything
-        # Should return zero weights (no match)
-        assert np.all(con.weights == 0)
+    def test_formula_unknown_name_errors(self):
+        """REG-A-18: a name that matches no condition is an error."""
+        term = make_term(['A', 'B', 'C'])
+        spec = ContrastFormulaSpec(name='test', A=Formula("A - Z"))
+
+        with pytest.raises(ContrastError, match="unknown name 'Z'"):
+            contrast_weights(spec, term)
+
+        spec = ContrastFormulaSpec(name='test', A=Formula("condition == 'Z'"))
+        with pytest.raises(ContrastError, match="matches no condition"):
+            contrast_weights(spec, term)
+
+
+# ============================================================================
+# Cell-based semantics on real event terms (R fmridesign contrast.R)
+# ============================================================================
+
+def _event_term(formula, df, n_scans=80):
+    from fmrimod import event_model
+
+    em = event_model(formula, data=df, tr=2.0, n_scans=n_scans)
+    return em._create_event_terms()[0]
+
+
+def _crossed_frame(**factors):
+    import itertools
+
+    import pandas as pd
+
+    names = list(factors)
+    grid = list(itertools.product(*factors.values()))
+    df = pd.DataFrame(grid, columns=names)
+    df['onset'] = np.arange(len(df)) * 4.0 + 2.0
+    return df
+
+
+def _r_helmert(k):
+    """R ``contr.helmert(k)``."""
+    H = np.zeros((k, k - 1))
+    for j in range(k - 1):
+        H[: j + 1, j] = -1.0
+        H[j + 1, j] = j + 1
+    return H
+
+
+def _condition_levels(condnames):
+    """``'a.x_b.y'`` -> ``{'a': 'x', 'b': 'y'}`` for each condition name."""
+    return [dict(tok.split('.', 1) for tok in name.split('_')) for name in condnames]
+
+
+def _effect_columns(rows, factors):
+    """Product of per-factor Helmert codings: the effect space of ``factors``."""
+    out = np.ones((len(rows), 1))
+    for f in factors:
+        levels = sorted({r[f] for r in rows})
+        codes = _r_helmert(len(levels))[[levels.index(r[f]) for r in rows]]
+        out = np.einsum('ni,nj->nij', out, codes).reshape(len(rows), -1)
+    return out
+
+
+class TestContrastWhere:
+    """``where=`` restricts a contrast to a subset of the term's cells.
+
+    DES-03: ``where`` was stored but never applied (R ``.contrast_where_cells``,
+    fmridesign dfe11ea).
+    """
+
+    @pytest.fixture
+    def cond_task_term(self):
+        import pandas as pd
+
+        df = pd.DataFrame({
+            'onset': np.arange(8) * 6.0 + 2.0,
+            'cond': ['A', 'B'] * 4,
+            'task': ['x', 'x', 'y', 'y'] * 2,
+        })
+        return _event_term("onset ~ hrf(cond:task)", df)
+
+    def test_pair_contrast_where_restricts_cells(self, cond_task_term):
+        from fmrimod.contrast import pair_contrast
+
+        assert cond_task_term.conditions(drop_empty=False) == [
+            'cond.A_task.x', 'cond.A_task.y', 'cond.B_task.x', 'cond.B_task.y',
+        ]
+        spec = pair_contrast(Formula("cond == 'A'"), Formula("cond == 'B'"),
+                             where=Formula("task == 'x'"), name="AvB_x")
+        con = contrast_weights(spec, cond_task_term)
+        np.testing.assert_allclose(con.weights[:, 0], [1.0, 0.0, -1.0, 0.0])
+
+    def test_unit_and_formula_contrast_where(self, cond_task_term):
+        from fmrimod.contrast import contrast, unit_contrast
+
+        unit = contrast_weights(
+            unit_contrast("cond == 'A'", name="A_y", where={"task": "y"}),
+            cond_task_term,
+        )
+        np.testing.assert_allclose(unit.weights[:, 0], [0.0, 1.0, 0.0, 0.0])
+
+        form = contrast_weights(
+            contrast("cond == 'A' - cond == 'B'", name="AmB_y", where="task == 'y'"),
+            cond_task_term,
+        )
+        np.testing.assert_allclose(form.weights[:, 0], [0.0, 1.0, 0.0, -1.0])
+
+    def test_where_selecting_nothing_raises(self, cond_task_term):
+        from fmrimod.contrast import pair_contrast
+
+        spec = pair_contrast(Formula("cond == 'A'"), Formula("cond == 'B'"),
+                             where=Formula("task == 'z'"), name="none")
+        with pytest.raises(ValueError, match="where"):
+            contrast_weights(spec, cond_task_term)
+
+    def test_where_numeric_level_dict(self):
+        import pandas as pd
+
+        from fmrimod.contrast import pair_contrast
+
+        df = pd.DataFrame({
+            'onset': np.arange(8) * 6.0 + 2.0,
+            'cond': ['A', 'B'] * 4,
+            'block': ['1', '1', '2', '2'] * 2,
+        })
+        term = _event_term("onset ~ hrf(cond:block)", df)
+        con = contrast_weights(
+            pair_contrast({"cond": "A"}, {"cond": "B"}, name="b1", where={"block": 1}),
+            term,
+        )
+        rows = _condition_levels(term.conditions(drop_empty=False))
+        expected = [
+            (1.0 if r['cond'] == 'A' else -1.0) if r['block'] == '1' else 0.0
+            for r in rows
+        ]
+        np.testing.assert_allclose(con.weights[:, 0], expected)
+
+
+class TestFactorialContrastsUseNamedFactors:
+    """``interaction_contrast``/``oneway_contrast`` code the factors in ``A``.
+
+    DES-04: the weights were guessed from the cell count (2x2 / 2xk / 3x3) and
+    oneway Helmert-coded every cell (R fmridesign 648bac1,
+    test-contrast_weights.R "interaction_contrast uses every factor named in
+    the formula").
+    """
+
+    def test_three_way_interaction_3x2x2(self):
+        from fmrimod.contrast import interaction_contrast
+
+        df = _crossed_frame(cat=['face', 'scene', 'house'], att=['attend', 'ignore'],
+                            side=['left', 'right'])
+        term = _event_term("onset ~ hrf(cat:att:side)", df)
+        rows = _condition_levels(term.conditions(drop_empty=False))
+
+        w3 = contrast_weights(
+            interaction_contrast(Formula("~ cat * att * side"), name="i3"), term
+        ).weights
+        assert w3.shape == (12, 2)
+        X3 = _effect_columns(rows, ['cat', 'att', 'side'])
+        assert np.linalg.matrix_rank(np.hstack([w3, X3])) == 2
+        lower = np.hstack([
+            _effect_columns(rows, fs) for fs in
+            ([], ['cat'], ['att'], ['side'], ['cat', 'att'], ['cat', 'side'],
+             ['att', 'side'])
+        ])
+        assert np.max(np.abs(w3.T @ lower)) < 1e-12
+
+        # Two factors named: the cat:att interaction pooled over side.
+        w2 = contrast_weights(
+            interaction_contrast(Formula("cat * att"), name="i2"), term
+        ).weights
+        assert w2.shape == (12, 2)
+        assert np.linalg.matrix_rank(
+            np.hstack([w2, _effect_columns(rows, ['cat', 'att'])])
+        ) == 2
+
+    def test_two_way_interaction_3x2_is_orthogonal_to_main_effects(self):
+        from fmrimod.contrast import interaction_contrast
+
+        df = _crossed_frame(a=['a1', 'a2', 'a3'], b=['b1', 'b2'])
+        term = _event_term("onset ~ hrf(a:b)", df)
+        rows = _condition_levels(term.conditions(drop_empty=False))
+        W = contrast_weights(interaction_contrast("a * b", name="ab"), term).weights
+        assert W.shape == (6, 2)
+        lower = np.hstack([_effect_columns(rows, fs) for fs in ([], ['a'], ['b'])])
+        assert np.max(np.abs(W.T @ lower)) < 1e-12
+        assert np.linalg.matrix_rank(
+            np.hstack([W, _effect_columns(rows, ['a', 'b'])])
+        ) == 2
+
+    def test_interaction_requires_two_factors(self):
+        from fmrimod.contrast import interaction_contrast
+
+        df = _crossed_frame(a=['a1', 'a2'], b=['b1', 'b2'])
+        term = _event_term("onset ~ hrf(a:b)", df)
+        with pytest.raises(ValueError, match="two factors"):
+            contrast_weights(interaction_contrast("a", name="bad"), term)
+
+    def test_oneway_codes_only_the_named_factor(self):
+        from fmrimod.contrast import oneway_contrast
+
+        df = _crossed_frame(cond=['A', 'B', 'C'], task=['x', 'y'])
+        term = _event_term("onset ~ hrf(cond:task)", df)
+        rows = _condition_levels(term.conditions(drop_empty=False))
+        W = contrast_weights(oneway_contrast(Formula("cond"), name="cond_main"), term).weights
+        assert W.shape == (6, 2)
+        cond_effect = _effect_columns(rows, ['cond'])
+        assert np.linalg.matrix_rank(np.hstack([W, cond_effect])) == 2
+        others = np.hstack([_effect_columns(rows, fs) for fs in ([], ['task'], ['cond', 'task'])])
+        assert np.max(np.abs(W.T @ others)) < 1e-12
+
+
+class TestPolyContrastValues:
+    """``poly_contrast`` uses the level values (``value_map`` or numeric levels).
+
+    DES-05: weights used ``arange`` over alphabetical conditions and
+    ``value_map`` was never read (R fmridesign b7a4fc5, ``stats::poly``).
+    """
+
+    @staticmethod
+    def _r_poly1(values):
+        x = np.asarray(values, dtype=float)
+        x = x - x.mean()
+        return x / np.linalg.norm(x)
+
+    def test_value_map_sets_trend_spacing(self):
+        import pandas as pd
+
+        from fmrimod.contrast import poly_contrast
+
+        df = pd.DataFrame({'onset': np.arange(6) * 6.0 + 2.0,
+                           'intensity': ['low', 'medium', 'high'] * 2})
+        term = _event_term("onset ~ hrf(intensity)", df)
+        vmap = {'low': 1, 'medium': 2, 'high': 4}
+        con = contrast_weights(
+            poly_contrast("intensity", name="lin", degree=1, value_map=vmap), term
+        )
+        levels = [r['intensity'] for r in _condition_levels(con.condnames)]
+        assert levels == ['high', 'low', 'medium']
+        expected = self._r_poly1([vmap[lev] for lev in levels])
+        np.testing.assert_allclose(con.weights[:, 0], expected, atol=1e-12)
+        np.testing.assert_allclose(con.weights[:, 0], [0.7715167, -0.6172134, -0.1543033],
+                                   atol=1e-7)
+
+    def test_value_map_must_cover_levels(self):
+        import pandas as pd
+
+        from fmrimod.contrast import poly_contrast
+
+        df = pd.DataFrame({'onset': np.arange(6) * 6.0 + 2.0,
+                           'intensity': ['low', 'medium', 'high'] * 2})
+        term = _event_term("onset ~ hrf(intensity)", df)
+        spec = poly_contrast("intensity", name="lin", degree=1,
+                             value_map={'low': 1, 'high': 4})
+        with pytest.raises(ValueError, match="value_map"):
+            contrast_weights(spec, term)
+
+    def test_numeric_levels_without_value_map(self):
+        import pandas as pd
+
+        from fmrimod.contrast import poly_contrast
+
+        df = pd.DataFrame({'onset': np.arange(6) * 6.0 + 2.0,
+                           'dose': ['1', '2', '4'] * 2})
+        term = _event_term("onset ~ hrf(dose)", df)
+        con = contrast_weights(poly_contrast("dose", name="q", degree=2), term)
+        levels = [float(r['dose']) for r in _condition_levels(con.condnames)]
+        np.testing.assert_allclose(con.weights[:, 0], self._r_poly1(levels), atol=1e-12)
+        # Quadratic column is orthonormal to the constant and the linear trend.
+        q = con.weights[:, 1]
+        assert abs(np.linalg.norm(q) - 1.0) < 1e-12
+        assert abs(q.sum()) < 1e-12 and abs(q @ con.weights[:, 0]) < 1e-12
+
+    def test_non_numeric_levels_need_value_map(self):
+        import pandas as pd
+
+        from fmrimod.contrast import poly_contrast
+
+        df = pd.DataFrame({'onset': np.arange(6) * 6.0 + 2.0,
+                           'intensity': ['low', 'medium', 'high'] * 2})
+        term = _event_term("onset ~ hrf(intensity)", df)
+        with pytest.raises(ValueError, match="value_map"):
+            contrast_weights(poly_contrast("intensity", name="lin", degree=1), term)
 
 
 # ============================================================================

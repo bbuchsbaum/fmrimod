@@ -87,9 +87,17 @@ def test_intercept_builder_per_run_default():
     assert i.per == "run"
 
 
-def test_confounds_builder_requires_columns():
-    with pytest.raises(ValueError, match="at least one column"):
+def test_confounds_builder_requires_columns_or_source():
+    with pytest.raises(ValueError, match="column names or a `source`"):
         fm.confounds()
+
+
+def test_confounds_builder_defaults_to_all_source_columns():
+    run1 = pd.DataFrame({"trans_x": [0.0, 0.1], "rot_z": [0.0, 0.01]})
+    run2 = pd.DataFrame({"trans_x": [0.2, 0.1], "rot_z": [0.02, 0.0]})
+    assert fm.confounds(source=[run1, run2]).columns == ("trans_x", "rot_z")
+    assert fm.confounds(source=run1).columns == ("trans_x", "rot_z")
+    assert fm.confounds("rot_z", source=run1).columns == ("rot_z",)
 
 
 # -- Composition -----------------------------------------------------------

@@ -93,3 +93,14 @@ class TestHRFRegistry:
             assert get_hrf(name).name == name
         finally:
             remove_hrf(name)
+
+
+def test_list_available_hrfs_flags_aliases_not_canonical_names():
+    """Inventory v2 HRF-16 (fmrihrf ``9e80b8c``): aliases, not canonicals."""
+    rows = {row["name"]: row for row in registry_list_available_hrfs(details=True)}
+    assert rows["spmg1"]["is_alias"] is False
+    assert rows["spm"]["is_alias"] is True
+    assert rows["spm_canonical"]["is_alias"] is True
+    assert rows["identity"]["is_alias"] is False
+    assert rows["ident"]["is_alias"] is True
+    assert "(alias)" in str(rows["spm"]["description"])

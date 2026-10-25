@@ -10,7 +10,7 @@ import warnings
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Literal, Optional, cast
+from typing import TYPE_CHECKING, Literal, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -20,6 +20,10 @@ from scipy.interpolate import BSpline as ScipyBSpline
 
 from ..types import Array, SamplingInfo
 from .baseline_term import BaselineTerm
+from ..utils.pickling import ReadOnlyMappingPickle
+
+if TYPE_CHECKING:
+    from matplotlib.figure import Figure
 
 BaselineBasis = Literal['constant', 'poly', 'bs', 'ns', 'cosine']
 BaselineIntercept = Literal['runwise', 'global', 'none']
@@ -37,6 +41,7 @@ _NUISANCE_CHECK_MODES: tuple[NuisanceCheckMode, ...] = (
     'drop',
     'none',
 )
+
 _NUISANCE_NA_ACTIONS: tuple[NuisanceNAAction, ...] = ('drop', 'zero', 'median')
 BasisFunction = Callable[..., NDArray[np.float64]]
 
@@ -113,7 +118,7 @@ class CleanedNuisance:
 
 
 @dataclass(frozen=True)
-class BaselineModel:
+class BaselineModel(ReadOnlyMappingPickle):
     """Baseline model for fMRI time series.
     
     A baseline model represents low-frequency drift, block-wise intercepts,
@@ -207,6 +212,18 @@ class BaselineModel:
         """Compatibility alias used by generic column extractors."""
         return self.column_names
     
+    def plot(self, **kwargs: object) -> Figure:
+        """Plot the time-varying baseline terms; see
+        :func:`fmrimod.visualization.plot_baseline_model`.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+        """
+        from ..visualization.baseline_plot import plot_baseline_model
+
+        return plot_baseline_model(self, **kwargs)
+
     def __repr__(self) -> str:
         """Rich string representation matching R's print.baseline_model()."""
         lines = ["BaselineModel"]

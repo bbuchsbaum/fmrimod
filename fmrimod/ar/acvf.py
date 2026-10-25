@@ -10,6 +10,7 @@ not force lag-1 correlation to -1.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Optional, Sequence
 import warnings
@@ -17,10 +18,20 @@ import warnings
 import numpy as np
 from numpy.linalg import eigvalsh
 from numpy.typing import NDArray
+from scipy import linalg as scipy_linalg
 
 from .numhelpers import enforce_stationary_ar, levinson_durbin
 
 ACVF_RCOND_MIN = 1e-6
+# R qr()'s default rank tolerance.
+_QR_RANK_TOL = 1e-7
+# fmriAR .solve_correction heuristics, ported verbatim (5f5fc32, bd4e03f):
+# directions with a singular value below this fraction of the MEDIAN are
+# pinned (the median, because a design leaving few residual df shrinks the
+# whole spectrum relative to the largest value), and the pin makes this
+# trailing fraction of the corrected lag budget as close to zero as possible.
+_CORRECTION_SV_TOL = 0.1
+_CORRECTION_TAIL_FRAC = 0.25
 
 
 @dataclass
@@ -126,6 +137,51 @@ def parcel_codes(x: NDArray[Any], arg: str = "parcels") -> NDArray[np.intp]:
     return codes
 
 
+def _normalize_censor(
+    censor: NDArray[Any] | None, n: int, arg: str = "censor"
+) -> NDArray[np.intp] | None:
+    """Sorted unique 0-based censored frames inside ``[0, n)``, or ``None``.
+
+    A boolean mask is converted with ``flatnonzero``: casting it to integers
+    (fmriAR 617bd87) censors frames 0 and 1 instead of the flagged ones. A
+    mask must have one entry per timepoint; indices must be finite whole
+    numbers (``2.5`` is refused rather than truncated). Missing values
+    (``None``/NaN) are refused in either form; out-of-range indices are
+    dropped.
+    """
+    if censor is None:
+        return None
+    c = np.asarray(censor)
+    if c.size == 0:
+        return None
+    if c.dtype == object:
+        items = c.ravel().tolist()
+        if any(v is None for v in items):
+            raise ValueError(f"'{arg}' contains NA")
+        if all(isinstance(v, (bool, np.bool_)) for v in items):
+            c = c.astype(bool)
+    if c.dtype == bool:
+        if c.size != n:
+            raise ValueError(
+                f"logical '{arg}' must have one entry per timepoint ({n}), "
+                f"not {c.size}"
+            )
+        idx = np.flatnonzero(c)
+    else:
+        try:
+            cf = np.asarray(c, dtype=np.float64).ravel()
+        except (TypeError, ValueError):
+            cf = np.array([np.nan])
+        if np.any(~np.isfinite(cf)) or np.any(cf != np.trunc(cf)):
+            raise ValueError(
+                f"'{arg}' must be whole-number timepoint indices or a "
+                "boolean mask"
+            )
+        idx = np.unique(cf.astype(np.intp))
+    idx = idx[(idx >= 0) & (idx < n)].astype(np.intp, copy=False)
+    return idx if idx.size else None
+
+
 def valid_segments(
     n: int,
     runs: Optional[NDArray[Any]] = None,
@@ -135,9 +191,8 @@ def valid_segments(
     n = int(n)
     r = run_codes(runs, n)
     valid = np.ones(n, dtype=bool)
-    if censor is not None and len(np.asarray(censor)):
-        c = np.asarray(censor, dtype=np.intp)
-        c = c[(c >= 0) & (c < n)]
+    c = _normalize_censor(censor, n)
+    if c is not None:
         valid[c] = False
     idx = np.where(valid)[0].astype(np.intp, copy=False)
     if idx.size == 0:
@@ -170,6 +225,10 @@ def pooled_acvf_segments(
     if nv == 0 or nc == 0:
         return PooledAcvf(num=num, pairs=pairs)
 
+    if center_id is None and nc > _ACVF_CHUNK:
+        # Wide inputs (full-brain voxels): centre and accumulate lag products
+        # in column chunks instead of materialising a centred copy.
+        return _pooled_acvf_chunked(mat, np.asarray(seg_id), max_lag)
     if center_id is None:
         mat = mat - mat.mean(axis=0, keepdims=True)
     else:
@@ -183,18 +242,58 @@ def pooled_acvf_segments(
         mat = mat - mu[inv]
 
     seg = np.asarray(seg_id)
-    num[0] = float(np.sum(mat * mat) / nc)
+    mat = np.ascontiguousarray(mat)
+    num[0] = float(np.vdot(mat, mat) / nc)
     pairs[0] = float(nv)
     for lg in range(1, max_lag + 1):
         if nv <= lg:
             break
-        hi = np.arange(lg, nv)
-        lo = np.arange(0, nv - lg)
-        ok = seg[hi] == seg[lo]
-        if not np.any(ok):
+        ok = seg[lg:] == seg[:-lg]
+        n_ok = int(np.sum(ok))
+        if n_ok == 0:
             continue
-        num[lg] = float(np.sum(mat[hi[ok]] * mat[lo[ok]]) / nc)
+        # One dot product per run of consecutive usable pairs, on contiguous
+        # row slices, so no full-size copy is made per lag.
+        edges = np.diff(np.concatenate([[0], ok.astype(np.int8), [0]]))
+        total = 0.0
+        for a, b in zip(np.flatnonzero(edges == 1), np.flatnonzero(edges == -1),
+                        strict=True):
+            total += float(np.vdot(mat[a + lg : b + lg], mat[a:b]))
+        num[lg] = total / nc
+        pairs[lg] = float(n_ok)
+    return PooledAcvf(num=num, pairs=pairs)
+
+
+_ACVF_CHUNK = 8192
+
+
+def _pooled_acvf_chunked(
+    mat: NDArray[np.float64], seg: NDArray[Any], max_lag: int
+) -> PooledAcvf:
+    """:func:`pooled_acvf_segments` (column-mean centring) over column chunks."""
+    nv, nc = mat.shape
+    num = np.zeros(max_lag + 1, dtype=np.float64)
+    pairs = np.zeros(max_lag + 1, dtype=np.float64)
+    pairs[0] = float(nv)
+    runs_by_lag: list[list[tuple[int, int]]] = [[]]
+    for lg in range(1, max_lag + 1):
+        if nv <= lg:
+            runs_by_lag.append([])
+            continue
+        ok = seg[lg:] == seg[:-lg]
         pairs[lg] = float(np.sum(ok))
+        edges = np.diff(np.concatenate([[0], ok.astype(np.int8), [0]]))
+        runs_by_lag.append(
+            list(zip(np.flatnonzero(edges == 1), np.flatnonzero(edges == -1), strict=True))
+        )
+    for start in range(0, nc, _ACVF_CHUNK):
+        block = mat[:, start : start + _ACVF_CHUNK]
+        block = block - block.mean(axis=0, keepdims=True)
+        num[0] += float(np.vdot(block, block))
+        for lg in range(1, max_lag + 1):
+            for a, b in runs_by_lag[lg]:
+                num[lg] += float(np.vdot(block[a + lg : b + lg], block[a:b]))
+    num /= nc
     return PooledAcvf(num=num, pairs=pairs)
 
 
@@ -241,6 +340,58 @@ def shrink_to_pd(gamma: NDArray[np.float64], tol: float = 1e-6) -> NDArray[np.fl
     return np.concatenate([[g0], tail * lo])
 
 
+def _qr_solve(a: NDArray[np.float64], b: NDArray[np.float64]) -> NDArray[np.float64]:
+    """R ``qr.solve``: least squares that refuses a rank-deficient system.
+
+    An underdetermined full-row-rank system gets R's basic solution, with
+    the trailing coefficients set to zero.
+    """
+    nr, nc = a.shape
+    d = np.abs(np.diag(scipy_linalg.qr(a, mode="r", pivoting=True)[0]))
+    rank = int(np.sum(d > _QR_RANK_TOL * d[0])) if d.size and d[0] > 0 else 0
+    if rank != min(nr, nc):
+        raise np.linalg.LinAlgError("singular matrix 'a' in solve")
+    if nr >= nc:
+        return np.asarray(np.linalg.lstsq(a, b, rcond=None)[0], dtype=np.float64)
+    x = np.zeros(nc, dtype=np.float64)
+    x[:nr] = np.linalg.solve(a[:, :nr], b)
+    return x
+
+
+def _solve_correction(
+    A: NDArray[np.float64],
+    g: NDArray[np.float64],
+    sv_tol: float = _CORRECTION_SV_TOL,
+    tail_frac: float = _CORRECTION_TAIL_FRAC,
+) -> NDArray[np.float64]:
+    """Solve ``A gamma = g``, pinning the directions the residuals cannot see.
+
+    Projecting out run means and slow drift leaves ``A`` with near-null
+    directions (about a constant offset across lags). Without censoring
+    the raw estimate carries almost no noise along them, but censoring
+    breaks that, and the exact solve returned phi with sd ~0.3 for a truth
+    of 0.4. Directions with a singular value below ``sv_tol`` times the
+    median are not taken from the data: their coefficients make the last
+    ``tail_frac`` of the corrected autocovariance as close to zero as
+    possible, the short-memory assumption the truncated correction already
+    makes. Well-determined directions are solved exactly, so a
+    well-conditioned map gets ``solve(A, g)`` (fmriAR 5f5fc32, bd4e03f
+    ``.solve_correction``).
+    """
+    L = A.shape[1]
+    if L < 8:
+        return np.asarray(np.linalg.solve(A, g), dtype=np.float64)
+    U, d, Vt = np.linalg.svd(A)
+    keep = d > sv_tol * np.median(d)
+    if np.all(keep):
+        return np.asarray(np.linalg.solve(A, g), dtype=np.float64)
+    V = Vt.T
+    x0 = V[:, keep] @ ((U[:, keep].T @ g) / d[keep])
+    N = V[:, ~keep]
+    tail = slice(L - int(np.ceil(tail_frac * L)), L)
+    return np.asarray(x0 + N @ _qr_solve(N[tail], -x0[tail]), dtype=np.float64)
+
+
 def apply_acvf_correction(
     gamma: NDArray[np.float64], A: NDArray[np.float64]
 ) -> tuple[NDArray[np.float64], bool]:
@@ -258,7 +409,7 @@ def apply_acvf_correction(
     if not np.isfinite(rcond) or rcond < ACVF_RCOND_MIN:
         return gamma, False
     try:
-        out = np.linalg.solve(Asub, gamma[:L])
+        out = _solve_correction(Asub, gamma[:L])
     except np.linalg.LinAlgError:
         return gamma, False
     if not np.all(np.isfinite(out)) or out[0] <= 0:
@@ -367,6 +518,58 @@ def acvf_bias_core(
     return A
 
 
+class DesignResidualMismatchError(ValueError):
+    """``resid`` is not OLS-residualised by the ``design`` given for correction.
+
+    fmriAR's condition class ``fmriAR_design_residual_mismatch`` (ca27f27).
+    """
+
+
+def _validate_design_residuals(
+    resid: NDArray[np.float64], design: NDArray[np.float64], tol: float = 1e-6
+) -> float:
+    """Refuse residuals that are not numerically orthogonal to ``design``.
+
+    The design correction is derived for OLS residuals ``(I - QQ') y``; any
+    other residual operator (a raw series, WLS) asks it to undo a projection
+    that did not occur. Orthogonality is necessary, not sufficient: residuals
+    of a nested design also pass, so provenance stays the caller's job
+    (fmriAR ``.validate_design_residuals``). The test is relative to the
+    residual norm and uses the rank-revealing column space, so rescaling,
+    reordering or aliasing design columns cannot change the verdict.
+    """
+    resid = np.asarray(resid, dtype=np.float64)
+    if resid.ndim == 1:
+        resid = resid[:, np.newaxis]
+    design = np.asarray(design, dtype=np.float64)
+    if design.ndim == 1:
+        design = design[:, np.newaxis]
+    if design.shape[0] != resid.shape[0]:
+        raise ValueError(
+            f"'design' must have one row per timepoint in 'resid' "
+            f"({resid.shape[0]}), not {design.shape[0]}"
+        )
+    if np.any(~np.isfinite(design)):
+        raise ValueError("'design' contains NA, NaN, or Inf")
+    if design.size == 0 or resid.size == 0:
+        return 0.0
+    q, r, _ = scipy_linalg.qr(design, mode="economic", pivoting=True)
+    d = np.abs(np.diag(r))
+    rank = int(np.sum(d > _QR_RANK_TOL * d[0])) if d.size and d[0] > 0 else 0
+    resid_norm = float(np.linalg.norm(resid))
+    if rank == 0 or not np.isfinite(resid_norm) or resid_norm == 0:
+        return 0.0
+    rel = float(np.linalg.norm(q[:, :rank].T @ resid)) / resid_norm
+    if not np.isfinite(rel) or rel > tol:
+        raise DesignResidualMismatchError(
+            f"'resid' is not orthogonal to 'design' (relative projection "
+            f"{rel:.3g}). Design-based ACVF correction requires residuals "
+            "numerically compatible with OLS residualization by this design; "
+            "omit 'design' or supply the matching OLS residuals."
+        )
+    return rel
+
+
 def acvf_bias_matrix(
     design: NDArray[np.float64],
     runs: Optional[NDArray[Any]] = None,
@@ -381,10 +584,14 @@ def acvf_bias_matrix(
     if np.any(~np.isfinite(design)):
         raise ValueError("'design' contains NA")
     run_vec = run_codes(runs, n)
-    q, r = np.linalg.qr(design, mode="reduced")
-    rank = int(np.sum(np.abs(np.diag(r)) > 1e-12 * np.max(np.abs(np.diag(r)))))
-    Q = q[:, : max(rank, 1)]
-    df = n - Q.shape[1]
+    # The map depends only on the column space, so take Q[:, :rank] from a
+    # pivoted QR (R qr(), dqrdc2). Without pivoting a dependent column that is
+    # not last puts an arbitrary direction into the leading rank columns.
+    q, r, _ = scipy_linalg.qr(design, mode="economic", pivoting=True)
+    d = np.abs(np.diag(r))
+    rank = int(np.sum(d > _QR_RANK_TOL * d[0])) if d.size and d[0] > 0 else 0
+    Q = q[:, :rank]
+    df = n - rank
     max_lag = int(max_lag)
     if df < max_lag + 1:
         capped = max(1, df - 1)
@@ -398,11 +605,9 @@ def acvf_bias_matrix(
         max_lag = capped
 
     sets = run_sets(runs, n)
-    cens = (
-        np.array([], dtype=np.intp)
-        if censor is None
-        else np.asarray(censor, dtype=np.intp)
-    )
+    cens = _normalize_censor(censor, n)
+    if cens is None:
+        cens = np.array([], dtype=np.intp)
     out: list[NDArray[np.float64]] = []
     for _, ridx in sets:
         keep = np.setdiff1d(ridx, cens, assume_unique=False)
@@ -453,6 +658,79 @@ def yw_from_acvf(
     return levinson_durbin(gamma[: p + 1], p)
 
 
+def _bic_n(
+    mat: NDArray[np.float64],
+    n_frames: float,
+    groups: NDArray[Any] | None = None,
+    vbar: float | None = None,
+) -> float:
+    """BIC sample size of a pooled fit: frames times effective voxels.
+
+    The effective count is the Kish design effect ``V / (1 + (V - 1) rbar)``,
+    with the mean inter-voxel correlation ``rbar`` read off the variance of
+    the voxel mean (fmriAR 61b89ff ``.bic_n``). Frames alone treat pooled
+    voxels as one series and under-select; every voxel over-selects when
+    they share fluctuations. ``groups`` labels rows centred separately
+    (runs); ``vbar`` is the pooled lag-0 sum the caller already holds.
+    """
+    mat = np.asarray(mat, dtype=np.float64)
+    if mat.ndim == 1:
+        mat = mat[:, np.newaxis]
+    n_rows, V = mat.shape
+    if V <= 1 or n_rows < 2:
+        return float(n_frames)
+    if groups is None:
+        inv = np.zeros(n_rows, dtype=np.intp)
+    else:
+        inv = np.unique(np.asarray(groups), return_inverse=True)[1].ravel()
+    counts = np.bincount(inv).astype(np.float64)
+    rm = mat.mean(axis=1)
+    rm_c = rm - (np.bincount(inv, weights=rm) / counts)[inv]
+    vmean = float(np.dot(rm_c, rm_c))
+    if vbar is None:
+        mu = np.zeros((counts.size, V), dtype=np.float64)
+        np.add.at(mu, inv, mat)
+        centred = mat - (mu / counts[:, np.newaxis])[inv]
+        vbar = float(np.sum(centred * centred)) / V
+    if not vbar > 0:
+        return float(n_frames)
+    rbar = min(max((V * vmean / vbar - 1.0) / (V - 1.0), 0.0), 1.0)
+    return float(n_frames * max(1.0, min(V, V / (1.0 + (V - 1.0) * rbar))))
+
+
+def _select_ar_order(
+    fit_order: Callable[[int], tuple[NDArray[np.float64], float]],
+    gamma0: float,
+    p_sel: int,
+    n_bic: float,
+) -> tuple[NDArray[np.float64], int, float]:
+    """BIC order search shared by the run, global and parcel estimators.
+
+    ``BIC = N log(sigma2) + k log(N)`` with ``N = n_bic``: -2 log L of a
+    Gaussian AR is ``N log(sigma2)`` up to a constant, and the doubled fit
+    term ported from fmriAR 0.3.3 halved the penalty (fmriAR 617bd87).
+    ``fit_order(p)`` returns the stationarity-enforced coefficients and the
+    floored innovation variance. Returns ``(phi, p, sigma2)``.
+    """
+    log_n = float(np.log(n_bic))
+    sigma0 = max(float(gamma0), 1e-12)
+    best_bic = n_bic * np.log(sigma0) + log_n
+    best: tuple[NDArray[np.float64], int, float] = (
+        np.array([], dtype=np.float64),
+        0,
+        sigma0,
+    )
+    for pp in range(1, max(int(p_sel), 0) + 1):
+        phi, sigma2 = fit_order(pp)
+        if not np.isfinite(sigma2) or phi.size != pp or not np.all(np.isfinite(phi)):
+            continue
+        bic = n_bic * np.log(sigma2) + (pp + 1) * log_n
+        if np.isfinite(bic) and bic < best_bic:
+            best_bic = bic
+            best = (phi, pp, sigma2)
+    return best
+
+
 def estimate_ar_series(
     y: NDArray[np.float64],
     p_max: int,
@@ -460,9 +738,16 @@ def estimate_ar_series(
     starts0: Optional[NDArray[Any]] = None,
     center_id: Optional[NDArray[Any]] = None,
 ) -> dict[str, Any]:
-    """Order selection / fixed-p fit for one series with segment structure."""
-    y = np.asarray(y, dtype=np.float64).ravel()
-    n = y.size
+    """Order selection / fixed-p fit for one pooling unit with segments.
+
+    ``y`` is one series or an ``(n, V)`` block of voxels; a block's per-voxel
+    autocovariances are pooled exactly as the global/run path pools them
+    (fmriAR 5f5fc32), and BIC counts its effective voxels.
+    """
+    Y = np.asarray(y, dtype=np.float64)
+    if Y.ndim == 1:
+        Y = Y[:, np.newaxis]
+    n = Y.shape[0]
     if starts0 is None or len(np.asarray(starts0)) == 0:
         starts0_arr = np.array([0], dtype=np.intp)
     else:
@@ -482,7 +767,7 @@ def estimate_ar_series(
     is_start[starts0_arr[starts0_arr < n]] = True
     is_start[0] = True
     seg_id = np.cumsum(is_start.astype(np.intp))
-    pooled = pooled_acvf_segments(y[:, np.newaxis], seg_id, p_cap, center_id=center_id)
+    pooled = pooled_acvf_segments(Y, seg_id, p_cap, center_id=center_id)
     gamma0, _ = acvf_from_pooled(pooled, order=0)
     if gamma0.size == 0 or not np.isfinite(gamma0[0]) or gamma0[0] <= 0:
         return empty
@@ -512,27 +797,13 @@ def estimate_ar_series(
             "sigma2": sigma2,
         }
 
-    n_eff = float(n)
-    n_eff_log = np.log(n_eff)
-    sigma0 = max(float(gamma0[0]), 1e-12)
-    best_bic = 2.0 * n_eff * np.log(sigma0) + n_eff_log
-    best_phi = np.array([], dtype=np.float64)
-    best_p = 0
-    best_sigma2 = sigma0
-    p_sel = min(p_cap, int(np.floor(n_eff / 5.0)))
-    for pp in range(1, max(p_sel, 0) + 1):
-        phi_pp, sigma2 = fit_order(pp)
-        if not np.isfinite(sigma2):
-            continue
-        bic = 2.0 * n_eff * np.log(sigma2) + (pp + 1) * n_eff_log
-        if not np.isfinite(bic) or bic >= best_bic:
-            continue
-        if phi_pp.size != pp or not np.all(np.isfinite(phi_pp)):
-            continue
-        best_bic = bic
-        best_phi = phi_pp
-        best_p = pp
-        best_sigma2 = sigma2
+    # Selection on a handful of points would choose AR(8) from 11 frames, so
+    # the search (not an explicit p) is bounded by the data.
+    p_sel = min(p_cap, n // 5)
+    n_bic = _bic_n(Y, n, groups=center_id, vbar=pooled.num[0])
+    best_phi, best_p, best_sigma2 = _select_ar_order(
+        fit_order, float(gamma0[0]), p_sel, n_bic
+    )
     return {
         "phi": best_phi,
         "order": (best_p, 0),
@@ -580,18 +851,11 @@ def noise_acvf(
     if np.any(~np.isfinite(resid)):
         raise ValueError("'resid' contains NA, NaN, or Inf")
     max_lag = int(min(max(max_lag, 0), n))
-
-    if censor is not None:
-        c = np.asarray(censor)
-        if c.dtype == bool:
-            c = np.where(c)[0]
-        censor = np.unique(np.asarray(c, dtype=np.intp))
-        censor = censor[(censor >= 0) & (censor < n)]
-        if censor.size == 0:
-            censor = None
+    censor = _normalize_censor(censor, n)
 
     corr_by_run: Optional[list[Optional[NDArray[np.float64]]]] = None
     if design is not None:
+        _validate_design_residuals(resid, design)
         mats = acvf_bias_matrix(
             design, runs=runs, censor=censor, max_lag=int(min(correction_max_lag, n))
         )

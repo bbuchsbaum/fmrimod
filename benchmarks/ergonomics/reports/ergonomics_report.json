@@ -1,0 +1,2663 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "ergonomics_vs_nilearn",
+  "versions": {
+    "fmrimod": "0.1.0",
+    "nilearn": "0.14.1",
+    "numpy": "2.4.6",
+    "python": "3.11.17"
+  },
+  "machine": "x86_64",
+  "margins": {
+    "tokens": 0.05,
+    "speed": 0.1,
+    "docs": 0.05
+  },
+  "summary": {
+    "authoring": {
+      "fmrimod": 8,
+      "nilearn": 4,
+      "tie": 3
+    },
+    "speed": {
+      "fmrimod": 17,
+      "nilearn": 2,
+      "tie": 0
+    },
+    "noise": {
+      "fmrimod": 18,
+      "nilearn": 0,
+      "tie": 1
+    },
+    "docs": {
+      "fmrimod": 14,
+      "nilearn": 0,
+      "tie": 1
+    },
+    "memory": {
+      "fmrimod": 1,
+      "nilearn": 1,
+      "tie": 0
+    },
+    "total_tokens": {
+      "fmrimod": 1046,
+      "nilearn": 1427
+    }
+  },
+  "scenarios": [
+    {
+      "scenario_id": "s01_two_condition_t",
+      "title": "Two-condition t contrast, one run",
+      "size": "small",
+      "agreement": {
+        "correlation": 0.9999888606839541,
+        "min_correlation": 0.999,
+        "max_abs_delta": 0.15246112694849323,
+        "relative_max_delta": 0.008875563789706565,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "nilearn",
+        "speed": "fmrimod",
+        "noise": "fmrimod",
+        "docs": "fmrimod"
+      },
+      "notes": [
+        "By design: the default noise model is OLS (R fmrireg's `iid`), where Nilearn's `FirstLevelModel` uses AR(1); pass `ar=\"ar1_voxelwise\"` for Nilearn's model.",
+        "By design: the sampling grid starts at TR/2 (R fmrihrf #94); Nilearn/SPM/FitLins use frame start, so cross-tool comparisons pass `slice_timing_offset=0.0`.",
+        "By design: drift is opt-in (`+ drift()`, SPM's 128 s); Nilearn high-passes at 100 s by default. Fitting drift implicitly would change every existing fit."
+      ],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 4,
+          "tokens": 60,
+          "lines": 10,
+          "calls": 4,
+          "keyword_args": 3,
+          "imports": 2,
+          "imported_names": [
+            "fm",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 1.262572450999869,
+          "warm_seconds": 0.006901853999806917,
+          "warm_samples": [
+            0.0075262670000029175,
+            0.008258279000074253,
+            0.007766131000153109,
+            0.006901853999806917,
+            0.006978277000143862
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": [],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 4,
+          "tokens": 57,
+          "lines": 8,
+          "calls": 3,
+          "keyword_args": 5,
+          "imports": 1,
+          "imported_names": [
+            "FirstLevelModel"
+          ],
+          "parity_knobs": 3
+        },
+        "runtime": {
+          "first_call_seconds": 0.4820953749999717,
+          "warm_seconds": 0.01154875399993216,
+          "warm_samples": [
+            0.012674947000050452,
+            0.012241690999871935,
+            0.012932613999964815,
+            0.01154875399993216,
+            0.01206933299999946
+          ],
+          "warnings_emitted": 2,
+          "warning_messages": [
+            "The following unexpected columns in events data will be ignored: rt",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          }
+        ],
+        "docs_score": 0.6666666666666666
+      }
+    },
+    {
+      "scenario_id": "s01_two_condition_t",
+      "title": "Two-condition t contrast, one run",
+      "size": "large",
+      "agreement": {
+        "correlation": 0.9999934826686979,
+        "min_correlation": 0.999,
+        "max_abs_delta": 0.26307154272207,
+        "relative_max_delta": 0.01160284454338668,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "n/a",
+        "speed": "fmrimod",
+        "noise": "fmrimod",
+        "docs": "n/a"
+      },
+      "notes": [
+        "By design: the default noise model is OLS (R fmrireg's `iid`), where Nilearn's `FirstLevelModel` uses AR(1); pass `ar=\"ar1_voxelwise\"` for Nilearn's model.",
+        "By design: the sampling grid starts at TR/2 (R fmrihrf #94); Nilearn/SPM/FitLins use frame start, so cross-tool comparisons pass `slice_timing_offset=0.0`.",
+        "By design: drift is opt-in (`+ drift()`, SPM's 128 s); Nilearn high-passes at 100 s by default. Fitting drift implicitly would change every existing fit."
+      ],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 4,
+          "tokens": 60,
+          "lines": 10,
+          "calls": 4,
+          "keyword_args": 3,
+          "imports": 2,
+          "imported_names": [
+            "fm",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.1251369930000692,
+          "warm_seconds": 0.1014011649999702,
+          "warm_samples": [
+            0.11333994699998584,
+            0.1014011649999702,
+            0.10870634200000495,
+            0.10662556900001618,
+            0.11337087399988377
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": [],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 4,
+          "tokens": 57,
+          "lines": 8,
+          "calls": 3,
+          "keyword_args": 5,
+          "imports": 1,
+          "imported_names": [
+            "FirstLevelModel"
+          ],
+          "parity_knobs": 3
+        },
+        "runtime": {
+          "first_call_seconds": 0.18698754800016104,
+          "warm_seconds": 0.18181201799984592,
+          "warm_samples": [
+            0.5457324179999432,
+            0.18438022499981344,
+            0.18601359499984937,
+            0.1865872450000552,
+            0.18181201799984592
+          ],
+          "warnings_emitted": 2,
+          "warning_messages": [
+            "The following unexpected columns in events data will be ignored: rt",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          }
+        ],
+        "docs_score": 0.6666666666666666
+      }
+    },
+    {
+      "scenario_id": "s01_two_condition_t",
+      "title": "Two-condition t contrast, one run",
+      "size": "full-brain",
+      "agreement": {
+        "correlation": 0.9999934200115206,
+        "min_correlation": 0.999,
+        "max_abs_delta": 0.24878473951055824,
+        "relative_max_delta": 0.01082211609579216,
+        "agrees": true
+      },
+      "verdicts": {
+        "memory": "fmrimod",
+        "authoring": "n/a",
+        "speed": "fmrimod",
+        "noise": "fmrimod",
+        "docs": "n/a"
+      },
+      "notes": [
+        "By design: the default noise model is OLS (R fmrireg's `iid`), where Nilearn's `FirstLevelModel` uses AR(1); pass `ar=\"ar1_voxelwise\"` for Nilearn's model.",
+        "By design: the sampling grid starts at TR/2 (R fmrihrf #94); Nilearn/SPM/FitLins use frame start, so cross-tool comparisons pass `slice_timing_offset=0.0`.",
+        "By design: drift is opt-in (`+ drift()`, SPM's 128 s); Nilearn high-passes at 100 s by default. Fitting drift implicitly would change every existing fit."
+      ],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 4,
+          "tokens": 60,
+          "lines": 10,
+          "calls": 4,
+          "keyword_args": 3,
+          "imports": 2,
+          "imported_names": [
+            "fm",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.6504636759998448,
+          "warm_seconds": 0.5918005580001591,
+          "warm_samples": [
+            0.5918005580001591
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": [],
+          "peak_mb": 683.6318941116333
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 4,
+          "tokens": 57,
+          "lines": 8,
+          "calls": 3,
+          "keyword_args": 5,
+          "imports": 1,
+          "imported_names": [
+            "FirstLevelModel"
+          ],
+          "parity_knobs": 3
+        },
+        "runtime": {
+          "first_call_seconds": 1.9494331400001101,
+          "warm_seconds": 2.0601153039999645,
+          "warm_samples": [
+            2.0601153039999645
+          ],
+          "warnings_emitted": 2,
+          "warning_messages": [
+            "The following unexpected columns in events data will be ignored: rt",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ],
+          "peak_mb": 850.7248630523682
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          }
+        ],
+        "docs_score": 0.6666666666666666
+      }
+    },
+    {
+      "scenario_id": "s02_multirun_confounds",
+      "title": "Three runs + six motion confounds, fixed effects",
+      "size": "small",
+      "agreement": {
+        "correlation": 0.9999432068001516,
+        "min_correlation": 0.999,
+        "max_abs_delta": 0.4374590171924524,
+        "relative_max_delta": 0.018559112077237407,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "nilearn",
+        "speed": "nilearn",
+        "noise": "fmrimod",
+        "docs": "fmrimod"
+      },
+      "notes": [],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 4,
+          "tokens": 68,
+          "lines": 10,
+          "calls": 5,
+          "keyword_args": 4,
+          "imports": 2,
+          "imported_names": [
+            "fm",
+            "confounds",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.03815340500000275,
+          "warm_seconds": 0.03529893999984779,
+          "warm_samples": [
+            0.03607935900004122,
+            0.0372650760000397,
+            0.04025834900016889,
+            0.03537342399999943,
+            0.03529893999984779
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": [],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.confounds",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 4,
+          "tokens": 60,
+          "lines": 8,
+          "calls": 3,
+          "keyword_args": 6,
+          "imports": 1,
+          "imported_names": [
+            "FirstLevelModel"
+          ],
+          "parity_knobs": 3
+        },
+        "runtime": {
+          "first_call_seconds": 0.03282567900009781,
+          "warm_seconds": 0.028931560999808426,
+          "warm_samples": [
+            0.030681659000038053,
+            0.03154637900001944,
+            0.02985348700008217,
+            0.028931560999808426,
+            0.029159628000115845
+          ],
+          "warnings_emitted": 5,
+          "warning_messages": [
+            "The following unexpected columns in events data will be ignored: rt",
+            "The same contrast will be used for all 3 runs. If the design matrices are not the same for all runs, (for example with different column names or column order ac",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          }
+        ],
+        "docs_score": 0.6666666666666666
+      }
+    },
+    {
+      "scenario_id": "s03_parametric_rt",
+      "title": "Parametric modulation by reaction time",
+      "size": "small",
+      "agreement": {
+        "correlation": 0.9999867060925232,
+        "min_correlation": 0.999,
+        "max_abs_delta": 0.20820303165256426,
+        "relative_max_delta": 0.010754173359724726,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "fmrimod",
+        "speed": "fmrimod",
+        "noise": "fmrimod",
+        "docs": "fmrimod"
+      },
+      "notes": [],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 4,
+          "tokens": 70,
+          "lines": 10,
+          "calls": 4,
+          "keyword_args": 5,
+          "imports": 2,
+          "imported_names": [
+            "fm",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.007894127000099616,
+          "warm_seconds": 0.007727248000037434,
+          "warm_samples": [
+            0.008520168000131889,
+            0.008209062000105405,
+            0.007727248000037434,
+            0.008351710999932038,
+            0.007845583000062106
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": [],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 8,
+          "tokens": 113,
+          "lines": 12,
+          "calls": 7,
+          "keyword_args": 9,
+          "imports": 2,
+          "imported_names": [
+            "pd",
+            "FirstLevelModel"
+          ],
+          "parity_knobs": 3
+        },
+        "runtime": {
+          "first_call_seconds": 0.1054605710000942,
+          "warm_seconds": 0.023775594000198907,
+          "warm_samples": [
+            0.02606826400005957,
+            0.025220300999990286,
+            0.023775594000198907,
+            0.02749428199990689,
+            0.05169696500001919
+          ],
+          "warnings_emitted": 2,
+          "warning_messages": [
+            "The following unexpected columns in events data will be ignored: rt",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          }
+        ],
+        "docs_score": 0.6666666666666666
+      }
+    },
+    {
+      "scenario_id": "s04_omnibus_f",
+      "title": "Omnibus F over three conditions",
+      "size": "small",
+      "agreement": {
+        "correlation": 0.9999381243305792,
+        "min_correlation": 0.999,
+        "max_abs_delta": 5.92215908104788,
+        "relative_max_delta": 0.025519804497281376,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "fmrimod",
+        "speed": "fmrimod",
+        "noise": "fmrimod",
+        "docs": "fmrimod"
+      },
+      "notes": [],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 5,
+          "tokens": 71,
+          "lines": 11,
+          "calls": 5,
+          "keyword_args": 4,
+          "imports": 3,
+          "imported_names": [
+            "fm",
+            "OmnibusContrast",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.022221588000093107,
+          "warm_seconds": 0.009094930999935968,
+          "warm_samples": [
+            0.009744002999923396,
+            0.009163159000081578,
+            0.011397291999855952,
+            0.009483212999839452,
+            0.009094930999935968
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": [],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.contrast.omnibus.OmnibusContrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 7,
+          "tokens": 106,
+          "lines": 11,
+          "calls": 5,
+          "keyword_args": 7,
+          "imports": 1,
+          "imported_names": [
+            "FirstLevelModel"
+          ],
+          "parity_knobs": 3
+        },
+        "runtime": {
+          "first_call_seconds": 0.020568856000181768,
+          "warm_seconds": 0.017972476000068127,
+          "warm_samples": [
+            0.017972476000068127,
+            0.019413893000091775,
+            0.01898247100007211,
+            0.022009944000046744,
+            0.020138733000067077
+          ],
+          "warnings_emitted": 2,
+          "warning_messages": [
+            "The following unexpected columns in events data will be ignored: rt",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          }
+        ],
+        "docs_score": 0.6666666666666666
+      }
+    },
+    {
+      "scenario_id": "s05_fir_shape",
+      "title": "FIR basis, F over one condition's delays",
+      "size": "small",
+      "agreement": {
+        "correlation": 0.9954391378943677,
+        "min_correlation": 0.99,
+        "max_abs_delta": 10.59499376507246,
+        "relative_max_delta": 0.1507830809741461,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "tie",
+        "speed": "fmrimod",
+        "noise": "fmrimod",
+        "docs": "fmrimod"
+      },
+      "notes": [
+        "By design: `hrf(..., basis='fir', nbasis=N)` keeps R fmrihrf's 24 s span; one bin per scan (Nilearn's `fir_delays`) is `span=N * tr`."
+      ],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 6,
+          "tokens": 97,
+          "lines": 12,
+          "calls": 5,
+          "keyword_args": 8,
+          "imports": 3,
+          "imported_names": [
+            "fm",
+            "OmnibusContrast",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.013583365999920716,
+          "warm_seconds": 0.00908697799991387,
+          "warm_samples": [
+            0.012997509000115315,
+            0.012842864000049303,
+            0.009497082000052615,
+            0.009678364000137663,
+            0.00908697799991387
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": [],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.contrast.omnibus.OmnibusContrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 6,
+          "tokens": 101,
+          "lines": 13,
+          "calls": 6,
+          "keyword_args": 8,
+          "imports": 1,
+          "imported_names": [
+            "FirstLevelModel"
+          ],
+          "parity_knobs": 3
+        },
+        "runtime": {
+          "first_call_seconds": 0.01692624900010742,
+          "warm_seconds": 0.015448154000068826,
+          "warm_samples": [
+            0.01587803300003543,
+            0.017280274000086138,
+            0.015481184000009307,
+            0.015496438999889506,
+            0.015448154000068826
+          ],
+          "warnings_emitted": 2,
+          "warning_messages": [
+            "The following unexpected columns in events data will be ignored: rt",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          }
+        ],
+        "docs_score": 0.6666666666666666
+      }
+    },
+    {
+      "scenario_id": "s06_ar1_t",
+      "title": "AR(1) prewhitened t contrast",
+      "size": "small",
+      "agreement": {
+        "correlation": 0.9999778782383592,
+        "min_correlation": 0.9999,
+        "max_abs_delta": 0.1510633102738641,
+        "relative_max_delta": 0.011414597686920614,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "tie",
+        "speed": "fmrimod",
+        "noise": "fmrimod",
+        "docs": "fmrimod"
+      },
+      "notes": [
+        "Uses `ar=\"ar1_voxelwise\"` (Nilearn's model, r>0.9999). Round 4 found that path 10-33x slower than Nilearn; vectorised AR estimation plus one batched GLS solve (identical to ~1e-12) closed the gap. The pooled default `ar=\"ar1\"` agrees only to r~0.996."
+      ],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 4,
+          "tokens": 64,
+          "lines": 11,
+          "calls": 4,
+          "keyword_args": 4,
+          "imports": 2,
+          "imported_names": [
+            "fm",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.012328463999892847,
+          "warm_seconds": 0.011146567000196228,
+          "warm_samples": [
+            0.011212978000003204,
+            0.011278044999926351,
+            0.011172582999961378,
+            0.011173234999887427,
+            0.011146567000196228
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": [],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 4,
+          "tokens": 61,
+          "lines": 9,
+          "calls": 3,
+          "keyword_args": 6,
+          "imports": 1,
+          "imported_names": [
+            "FirstLevelModel"
+          ],
+          "parity_knobs": 2
+        },
+        "runtime": {
+          "first_call_seconds": 0.0281490140000642,
+          "warm_seconds": 0.027644931999930122,
+          "warm_samples": [
+            0.028931838999824322,
+            0.03051091599991196,
+            0.027644931999930122,
+            0.03355666799984647,
+            0.044475116999819875
+          ],
+          "warnings_emitted": 2,
+          "warning_messages": [
+            "The following unexpected columns in events data will be ignored: rt",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          }
+        ],
+        "docs_score": 0.6666666666666666
+      }
+    },
+    {
+      "scenario_id": "s06_ar1_t",
+      "title": "AR(1) prewhitened t contrast",
+      "size": "large",
+      "agreement": {
+        "correlation": 0.9999865100760991,
+        "min_correlation": 0.9999,
+        "max_abs_delta": 0.20350310714963982,
+        "relative_max_delta": 0.010153847552880088,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "n/a",
+        "speed": "fmrimod",
+        "noise": "fmrimod",
+        "docs": "n/a"
+      },
+      "notes": [
+        "Uses `ar=\"ar1_voxelwise\"` (Nilearn's model, r>0.9999). Round 4 found that path 10-33x slower than Nilearn; vectorised AR estimation plus one batched GLS solve (identical to ~1e-12) closed the gap. The pooled default `ar=\"ar1\"` agrees only to r~0.996."
+      ],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 4,
+          "tokens": 64,
+          "lines": 11,
+          "calls": 4,
+          "keyword_args": 4,
+          "imports": 2,
+          "imported_names": [
+            "fm",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 2.8465894389998994,
+          "warm_seconds": 0.8366605709998112,
+          "warm_samples": [
+            1.4514209669998763,
+            0.8366605709998112,
+            0.8702852259998508,
+            2.442704236000054,
+            0.9241297669998403
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": [],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 4,
+          "tokens": 61,
+          "lines": 9,
+          "calls": 3,
+          "keyword_args": 6,
+          "imports": 1,
+          "imported_names": [
+            "FirstLevelModel"
+          ],
+          "parity_knobs": 2
+        },
+        "runtime": {
+          "first_call_seconds": 0.9042648590000226,
+          "warm_seconds": 0.9343913970001267,
+          "warm_samples": [
+            0.9358751730001131,
+            1.032827172999987,
+            0.9343913970001267,
+            1.7793033420000484,
+            1.653495620000058
+          ],
+          "warnings_emitted": 2,
+          "warning_messages": [
+            "The following unexpected columns in events data will be ignored: rt",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          }
+        ],
+        "docs_score": 0.6666666666666666
+      }
+    },
+    {
+      "scenario_id": "s06_ar1_t",
+      "title": "AR(1) prewhitened t contrast",
+      "size": "full-brain",
+      "agreement": {
+        "correlation": 0.9999867395475929,
+        "min_correlation": 0.9999,
+        "max_abs_delta": 0.2341392093471164,
+        "relative_max_delta": 0.011594647673241892,
+        "agrees": true
+      },
+      "verdicts": {
+        "memory": "nilearn",
+        "authoring": "n/a",
+        "speed": "nilearn",
+        "noise": "fmrimod",
+        "docs": "n/a"
+      },
+      "notes": [
+        "Uses `ar=\"ar1_voxelwise\"` (Nilearn's model, r>0.9999). Round 4 found that path 10-33x slower than Nilearn; vectorised AR estimation plus one batched GLS solve (identical to ~1e-12) closed the gap. The pooled default `ar=\"ar1\"` agrees only to r~0.996."
+      ],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 4,
+          "tokens": 64,
+          "lines": 11,
+          "calls": 4,
+          "keyword_args": 4,
+          "imports": 2,
+          "imported_names": [
+            "fm",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 9.75274814599993,
+          "warm_seconds": 7.799880423999866,
+          "warm_samples": [
+            7.799880423999866
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": [],
+          "peak_mb": 2145.560643196106
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 4,
+          "tokens": 61,
+          "lines": 9,
+          "calls": 3,
+          "keyword_args": 6,
+          "imports": 1,
+          "imported_names": [
+            "FirstLevelModel"
+          ],
+          "parity_knobs": 2
+        },
+        "runtime": {
+          "first_call_seconds": 4.490579540999988,
+          "warm_seconds": 6.58886407,
+          "warm_samples": [
+            6.58886407
+          ],
+          "warnings_emitted": 2,
+          "warning_messages": [
+            "The following unexpected columns in events data will be ignored: rt",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ],
+          "peak_mb": 1547.37105178833
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          }
+        ],
+        "docs_score": 0.6666666666666666
+      }
+    },
+    {
+      "scenario_id": "s07_lss_beta_series",
+      "title": "LSS beta series, one map per trial",
+      "size": "small",
+      "agreement": {
+        "correlation": 0.9988947965102108,
+        "min_correlation": 0.995,
+        "max_abs_delta": 13.412496145877526,
+        "relative_max_delta": 0.20338196056703825,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "fmrimod",
+        "speed": "fmrimod",
+        "noise": "fmrimod",
+        "docs": "fmrimod"
+      },
+      "notes": [],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 3,
+          "tokens": 53,
+          "lines": 11,
+          "calls": 2,
+          "keyword_args": 5,
+          "imports": 2,
+          "imported_names": [
+            "fm",
+            "trialwise"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.012198141999988366,
+          "warm_seconds": 0.011082636000082857,
+          "warm_samples": [
+            0.011082636000082857,
+            0.0111130980001235,
+            0.011374079999995956,
+            0.011331585999869276,
+            0.01185741000017515
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": [],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.single.estimate_single_trial_from_dataset",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.trialwise",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 10,
+          "tokens": 105,
+          "lines": 14,
+          "calls": 8,
+          "keyword_args": 6,
+          "imports": 1,
+          "imported_names": [
+            "FirstLevelModel"
+          ],
+          "parity_knobs": 3
+        },
+        "runtime": {
+          "first_call_seconds": 0.33365099600018766,
+          "warm_seconds": 0.31764936099989427,
+          "warm_samples": [
+            0.3523448780001672,
+            0.4414098649999687,
+            0.31764936099989427,
+            0.34862068699999327,
+            0.32093330299994705
+          ],
+          "warnings_emitted": 56,
+          "warning_messages": [
+            "The following unexpected columns in events data will be ignored: rt",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          }
+        ],
+        "docs_score": 0.6666666666666666
+      }
+    },
+    {
+      "scenario_id": "s08_group_one_sample",
+      "title": "Eight subjects: first level, then one-sample group t",
+      "size": "small",
+      "agreement": {
+        "correlation": 0.9999540526412258,
+        "min_correlation": 0.999,
+        "max_abs_delta": 1.8394093850690467,
+        "relative_max_delta": 0.019808211439292383,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "fmrimod",
+        "speed": "fmrimod",
+        "noise": "fmrimod",
+        "docs": "fmrimod"
+      },
+      "notes": [],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 5,
+          "tokens": 74,
+          "lines": 14,
+          "calls": 5,
+          "keyword_args": 3,
+          "imports": 2,
+          "imported_names": [
+            "fm",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.059529403999931674,
+          "warm_seconds": 0.0567160060002152,
+          "warm_samples": [
+            0.06510610700001962,
+            0.05780786800005444,
+            0.05873179000013806,
+            0.0567579769999611,
+            0.0567160060002152
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": [],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.group.typed.fmri_group_lm",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 12,
+          "tokens": 135,
+          "lines": 18,
+          "calls": 9,
+          "keyword_args": 8,
+          "imports": 3,
+          "imported_names": [
+            "pd",
+            "FirstLevelModel",
+            "SecondLevelModel"
+          ],
+          "parity_knobs": 3
+        },
+        "runtime": {
+          "first_call_seconds": 0.11191001700012748,
+          "warm_seconds": 0.10974275800003852,
+          "warm_samples": [
+            0.11102977299992745,
+            0.11297610000019631,
+            0.11458720500013442,
+            0.10974275800003852,
+            0.1405087390000972
+          ],
+          "warnings_emitted": 16,
+          "warning_messages": [
+            "The following unexpected columns in events data will be ignored: rt",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.second_level.second_level.SecondLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.second_level.second_level.SecondLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.second_level.second_level.SecondLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          }
+        ],
+        "docs_score": 0.6666666666666666
+      }
+    },
+    {
+      "scenario_id": "s09_design_only",
+      "title": "Build and inspect a design matrix without data",
+      "size": "small",
+      "agreement": {
+        "correlation": 0.9998947316636057,
+        "min_correlation": 0.999,
+        "max_abs_delta": 0.035299324685552275,
+        "relative_max_delta": 0.1690738624152205,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "nilearn",
+        "speed": "fmrimod",
+        "noise": "fmrimod",
+        "docs": "tie"
+      },
+      "notes": [
+        "By design: canonical column names follow R fmridesign (`trial_type_trial_type.face`); `names=\"short\"` gives display labels (`face`, `rt:face`, `drift1`)."
+      ],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 3,
+          "tokens": 46,
+          "lines": 8,
+          "calls": 3,
+          "keyword_args": 3,
+          "imports": 2,
+          "imported_names": [
+            "fm",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.0027254399999492307,
+          "warm_seconds": 0.002291239999976824,
+          "warm_samples": [
+            0.0027042029998938233,
+            0.002688281000018833,
+            0.002291239999976824,
+            0.0029901929999596177,
+            0.002349283000057767
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": [],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 3,
+          "tokens": 37,
+          "lines": 7,
+          "calls": 2,
+          "keyword_args": 1,
+          "imports": 1,
+          "imported_names": [
+            "make_first_level_design_matrix"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.006610758000078931,
+          "warm_seconds": 0.005849437999813745,
+          "warm_samples": [
+            0.010293431000036435,
+            0.006318995999890831,
+            0.005906526999979178,
+            0.005849437999813745,
+            0.006084961999931693
+          ],
+          "warnings_emitted": 1,
+          "warning_messages": [
+            "The following unexpected columns in events data will be ignored: rt"
+          ],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.design_matrix.make_first_level_design_matrix",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      }
+    },
+    {
+      "scenario_id": "s10_zmap_to_nifti",
+      "title": "z-map of a t contrast written to NIfTI",
+      "size": "small",
+      "agreement": {
+        "correlation": 0.9999931497162122,
+        "min_correlation": 0.999,
+        "max_abs_delta": 0.10326759282677678,
+        "relative_max_delta": 0.008416778141810941,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "nilearn",
+        "speed": "fmrimod",
+        "noise": "fmrimod",
+        "docs": "fmrimod"
+      },
+      "notes": [
+        "By design: a contrast returns a `ContrastResult` holding t, z, effect, SE and p; writing z is `to_nifti(path, kind=\"z\")`, where Nilearn's default output is a z image."
+      ],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 5,
+          "tokens": 76,
+          "lines": 11,
+          "calls": 5,
+          "keyword_args": 4,
+          "imports": 2,
+          "imported_names": [
+            "fm",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.010311787000091499,
+          "warm_seconds": 0.00910063500009528,
+          "warm_samples": [
+            0.01041135800005577,
+            0.009605921000002127,
+            0.009479478000002928,
+            0.009570004000124754,
+            0.00910063500009528
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": [],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.glm.contrasts.ContrastResult.to_nifti",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 6,
+          "tokens": 66,
+          "lines": 10,
+          "calls": 4,
+          "keyword_args": 4,
+          "imports": 1,
+          "imported_names": [
+            "FirstLevelModel"
+          ],
+          "parity_knobs": 3
+        },
+        "runtime": {
+          "first_call_seconds": 0.01510691799990127,
+          "warm_seconds": 0.014192601999866383,
+          "warm_samples": [
+            0.014545063000014125,
+            0.014192601999866383,
+            0.015262138000025516,
+            0.015038188000062291,
+            0.015049143999931403
+          ],
+          "warnings_emitted": 2,
+          "warning_messages": [
+            "The following unexpected columns in events data will be ignored: rt",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          }
+        ],
+        "docs_score": 0.6666666666666666
+      }
+    },
+    {
+      "scenario_id": "s11_many_contrasts",
+      "title": "Six named contrasts from one fit",
+      "size": "small",
+      "agreement": {
+        "correlation": 0.9999846160210798,
+        "min_correlation": 0.999,
+        "max_abs_delta": 0.3296542690621109,
+        "relative_max_delta": 0.012821720223571545,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "tie",
+        "speed": "fmrimod",
+        "noise": "fmrimod",
+        "docs": "fmrimod"
+      },
+      "notes": [],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 4,
+          "tokens": 68,
+          "lines": 10,
+          "calls": 4,
+          "keyword_args": 3,
+          "imports": 2,
+          "imported_names": [
+            "fm",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.008735271999967154,
+          "warm_seconds": 0.010796355000138647,
+          "warm_samples": [
+            0.011929933999908826,
+            0.011403720000089379,
+            0.011711275000152455,
+            0.010796355000138647,
+            0.011002945999962321
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": [],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 4,
+          "tokens": 65,
+          "lines": 10,
+          "calls": 3,
+          "keyword_args": 5,
+          "imports": 1,
+          "imported_names": [
+            "FirstLevelModel"
+          ],
+          "parity_knobs": 3
+        },
+        "runtime": {
+          "first_call_seconds": 0.025525474000005488,
+          "warm_seconds": 0.021557799999982308,
+          "warm_samples": [
+            0.021612975999914852,
+            0.02354768600002899,
+            0.025532969999858324,
+            0.021557799999982308,
+            0.02371221700013848
+          ],
+          "warnings_emitted": 2,
+          "warning_messages": [
+            "The following unexpected columns in events data will be ignored: rt",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          }
+        ],
+        "docs_score": 0.6666666666666666
+      }
+    },
+    {
+      "scenario_id": "s12_group_covariate",
+      "title": "Second level from effect maps on disk: group + age",
+      "size": "small",
+      "agreement": {
+        "correlation": 1.0,
+        "min_correlation": 0.999,
+        "max_abs_delta": 1.2434497875801753e-14,
+        "relative_max_delta": 1.5475807583671229e-15,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "fmrimod",
+        "speed": "fmrimod",
+        "noise": "tie",
+        "docs": "fmrimod"
+      },
+      "notes": [],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 3,
+          "tokens": 32,
+          "lines": 7,
+          "calls": 2,
+          "keyword_args": 2,
+          "imports": 1,
+          "imported_names": [
+            "fm"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.0675930080001308,
+          "warm_seconds": 0.057620047999989765,
+          "warm_samples": [
+            0.0615769519999958,
+            0.06510113800004547,
+            0.060480657999960385,
+            0.057620047999989765,
+            0.0579770050001116
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": [],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.group.typed.GroupLmResult.t_stat",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.group.typed.fmri_group_lm",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 5,
+          "tokens": 81,
+          "lines": 11,
+          "calls": 5,
+          "keyword_args": 2,
+          "imports": 1,
+          "imported_names": [
+            "SecondLevelModel"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.37305445400011195,
+          "warm_seconds": 0.30726989899994805,
+          "warm_samples": [
+            0.3284282829999938,
+            0.3213094249999813,
+            0.3493831640000735,
+            0.31310877300006723,
+            0.30726989899994805
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": [],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.second_level.second_level.SecondLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.second_level.second_level.SecondLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.second_level.second_level.SecondLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          }
+        ],
+        "docs_score": 0.6666666666666666
+      }
+    },
+    {
+      "scenario_id": "s13_bids_first_level",
+      "title": "First level for every subject of a BIDS + fMRIPrep dataset",
+      "size": "small",
+      "agreement": {
+        "correlation": 0.9998803564910718,
+        "min_correlation": 0.999,
+        "max_abs_delta": 0.5581392122440825,
+        "relative_max_delta": 0.02840118955585678,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "fmrimod",
+        "speed": "fmrimod",
+        "noise": "fmrimod",
+        "docs": "fmrimod"
+      },
+      "notes": [
+        "`fm.bids_datasets` covers the fMRIPrep first-level layout only (preproc BOLD, events, sidecar TR, brain mask, confounds); no BIDS Stats Model or pybids query language."
+      ],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 5,
+          "tokens": 79,
+          "lines": 12,
+          "calls": 7,
+          "keyword_args": 1,
+          "imports": 2,
+          "imported_names": [
+            "fm",
+            "confounds",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.10226005200001964,
+          "warm_seconds": 0.08408957200003897,
+          "warm_samples": [
+            0.09086406899996291,
+            0.09265730600009192,
+            0.08408957200003897,
+            0.08607970299999579,
+            0.085977259999936
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": [],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.dataset.bids_fs.bids_datasets",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.confounds",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 7,
+          "tokens": 122,
+          "lines": 16,
+          "calls": 5,
+          "keyword_args": 7,
+          "imports": 1,
+          "imported_names": [
+            "first_level_from_bids"
+          ],
+          "parity_knobs": 4
+        },
+        "runtime": {
+          "first_call_seconds": 0.11641450599995551,
+          "warm_seconds": 0.11327426999991985,
+          "warm_samples": [
+            0.11684731399986958,
+            0.12705300800007535,
+            0.1188462160000654,
+            0.11661091400014811,
+            0.11327426999991985
+          ],
+          "warnings_emitted": 14,
+          "warning_messages": [
+            "'StartTime' not found in file /tmp/bids-_aq4__5v/derivatives/fmriprep/sub-01/func/sub-01_task-faces_run-1_space-MNI152NLin2009cAsym_desc-preproc_bold.json.",
+            "'slice_time_ref' not provided and cannot be inferred from metadata.",
+            "The following unexpected columns in events data will be ignored: rt",
+            "The same contrast will be used for all 2 runs. If the design matrices are not the same for all runs, (for example with different column names or column order ac",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.first_level_from_bids",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 0.7777777777777778
+      }
+    },
+    {
+      "scenario_id": "s14_bids_to_group",
+      "title": "BIDS dataset to group effect of age from participants.tsv",
+      "size": "small",
+      "agreement": {
+        "correlation": 0.9917309538943899,
+        "min_correlation": 0.99,
+        "max_abs_delta": 6.7868608943767725,
+        "relative_max_delta": 0.18296801406542648,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "fmrimod",
+        "speed": "fmrimod",
+        "noise": "fmrimod",
+        "docs": "fmrimod"
+      },
+      "notes": [
+        "Agreement gate is r>=0.99, not 0.999: first-level estimates agree at r>=0.9997 (with a constant 1.20 HRF-normalisation scale) and the group stage is exact, but six subjects' age t in null voxels amplifies that last 0.03%."
+      ],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 7,
+          "tokens": 107,
+          "lines": 16,
+          "calls": 9,
+          "keyword_args": 3,
+          "imports": 2,
+          "imported_names": [
+            "fm",
+            "confounds",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.18931594199989377,
+          "warm_seconds": 0.19023083100000804,
+          "warm_samples": [
+            0.19700589199987917,
+            0.19023083100000804,
+            0.19478539800002181,
+            0.20051419100013845,
+            0.24476608600002692
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": [],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.dataset.bids_fs.bids_datasets",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.group.typed.GroupLmResult.t_stat",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.group.typed.fmri_group_lm",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.confounds",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 13,
+          "tokens": 207,
+          "lines": 20,
+          "calls": 12,
+          "keyword_args": 10,
+          "imports": 2,
+          "imported_names": [
+            "first_level_from_bids",
+            "SecondLevelModel"
+          ],
+          "parity_knobs": 5
+        },
+        "runtime": {
+          "first_call_seconds": 0.26789472299992667,
+          "warm_seconds": 0.241971594000006,
+          "warm_samples": [
+            0.26422966999984965,
+            0.2699427200000173,
+            0.2673933420001049,
+            0.241971594000006,
+            0.2435299329999907
+          ],
+          "warnings_emitted": 26,
+          "warning_messages": [
+            "'StartTime' not found in file /tmp/bids-usd8ck2j/derivatives/fmriprep/sub-01/func/sub-01_task-faces_run-1_space-MNI152NLin2009cAsym_desc-preproc_bold.json.",
+            "'slice_time_ref' not provided and cannot be inferred from metadata.",
+            "The following unexpected columns in events data will be ignored: rt",
+            "The same contrast will be used for all 2 runs. If the design matrices are not the same for all runs, (for example with different column names or column order ac",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.first_level_from_bids",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "nilearn.glm.second_level.second_level.SecondLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.second_level.second_level.SecondLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.second_level.second_level.SecondLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          }
+        ],
+        "docs_score": 0.7222222222222222
+      }
+    },
+    {
+      "scenario_id": "s15_fdr_clusters",
+      "title": "FDR + cluster-extent thresholded z-map with a cluster table",
+      "size": "small",
+      "agreement": {
+        "correlation": 0.999995617009052,
+        "min_correlation": 0.999,
+        "max_abs_delta": 0.05445627692925914,
+        "relative_max_delta": 0.005959445933762539,
+        "agrees": true
+      },
+      "verdicts": {
+        "authoring": "fmrimod",
+        "speed": "fmrimod",
+        "noise": "fmrimod",
+        "docs": "fmrimod"
+      },
+      "notes": [
+        "`ThresholdedMap.clusters()` lists one peak per cluster; Nilearn's `get_clusters_table` also lists sub-peaks (8 mm apart)."
+      ],
+      "fmrimod": {
+        "library": "fmrimod",
+        "authoring": {
+          "statements": 6,
+          "tokens": 81,
+          "lines": 12,
+          "calls": 6,
+          "keyword_args": 4,
+          "imports": 2,
+          "imported_names": [
+            "fm",
+            "drift",
+            "hrf"
+          ],
+          "parity_knobs": 1
+        },
+        "runtime": {
+          "first_call_seconds": 0.010843161999900985,
+          "warm_seconds": 0.009280702999831192,
+          "warm_samples": [
+            0.009841820000019652,
+            0.009443027999850528,
+            0.009280702999831192,
+            0.009474628999896595,
+            0.009410387000116316
+          ],
+          "warnings_emitted": 0,
+          "warning_messages": [],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "fmrimod.glm.contrasts.ContrastResult.threshold",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.glm.fmri_lm.FmriLm.contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.glm.fmri_lm.fmri_lm",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.glm.thresholding.ThresholdedMap.clusters",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.drift",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "fmrimod.spec.builders.hrf",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 1.0
+      },
+      "nilearn": {
+        "library": "nilearn",
+        "authoring": {
+          "statements": 9,
+          "tokens": 111,
+          "lines": 21,
+          "calls": 5,
+          "keyword_args": 10,
+          "imports": 3,
+          "imported_names": [
+            "threshold_stats_img",
+            "FirstLevelModel",
+            "get_clusters_table"
+          ],
+          "parity_knobs": 3
+        },
+        "runtime": {
+          "first_call_seconds": 0.022065827999995236,
+          "warm_seconds": 0.01991096100005052,
+          "warm_samples": [
+            0.02186163399983343,
+            0.02099562800003696,
+            0.02016289599987431,
+            0.020638774000190097,
+            0.01991096100005052
+          ],
+          "warnings_emitted": 2,
+          "warning_messages": [
+            "The following unexpected columns in events data will be ignored: rt",
+            "[MultiNiftiMasker.fit] Generation of a mask has been requested (imgs != None) while a mask was given at masker creation. Given mask will be used."
+          ],
+          "peak_mb": null
+        },
+        "docs": [
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.compute_contrast",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.first_level.first_level.FirstLevelModel.fit",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": false
+          },
+          {
+            "qualname": "nilearn.glm.thresholding.threshold_stats_img",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          },
+          {
+            "qualname": "nilearn.reporting.get_clusters_table.get_clusters_table",
+            "has_docstring": true,
+            "has_parameters": true,
+            "has_examples": true
+          }
+        ],
+        "docs_score": 0.8
+      }
+    }
+  ],
+  "deficiencies": [
+    {
+      "scenario": "s02_multirun_confounds[small]",
+      "axis": "speed",
+      "detail": "35.3 ms vs Nilearn 28.9 ms"
+    },
+    {
+      "scenario": "s06_ar1_t[full-brain]",
+      "axis": "memory",
+      "detail": "peak 2146 MB vs Nilearn 1547 MB"
+    },
+    {
+      "scenario": "s06_ar1_t[full-brain]",
+      "axis": "speed",
+      "detail": "7799.9 ms vs Nilearn 6588.9 ms"
+    },
+    {
+      "scenario": "s01_two_condition_t[small]",
+      "axis": "authoring",
+      "detail": "60 tokens / 4 statements vs Nilearn 57 / 4"
+    },
+    {
+      "scenario": "s02_multirun_confounds[small]",
+      "axis": "authoring",
+      "detail": "68 tokens / 4 statements vs Nilearn 60 / 4"
+    },
+    {
+      "scenario": "s09_design_only[small]",
+      "axis": "authoring",
+      "detail": "46 tokens / 3 statements vs Nilearn 37 / 3"
+    },
+    {
+      "scenario": "s10_zmap_to_nifti[small]",
+      "axis": "authoring",
+      "detail": "76 tokens / 5 statements vs Nilearn 66 / 6"
+    },
+    {
+      "scenario": "s01_two_condition_t[small]",
+      "axis": "friction",
+      "detail": "By design: the default noise model is OLS (R fmrireg's `iid`), where Nilearn's `FirstLevelModel` uses AR(1); pass `ar=\"ar1_voxelwise\"` for Nilearn's model."
+    },
+    {
+      "scenario": "s01_two_condition_t[small]",
+      "axis": "friction",
+      "detail": "By design: the sampling grid starts at TR/2 (R fmrihrf #94); Nilearn/SPM/FitLins use frame start, so cross-tool comparisons pass `slice_timing_offset=0.0`."
+    },
+    {
+      "scenario": "s01_two_condition_t[small]",
+      "axis": "friction",
+      "detail": "By design: drift is opt-in (`+ drift()`, SPM's 128 s); Nilearn high-passes at 100 s by default. Fitting drift implicitly would change every existing fit."
+    },
+    {
+      "scenario": "s05_fir_shape[small]",
+      "axis": "friction",
+      "detail": "By design: `hrf(..., basis='fir', nbasis=N)` keeps R fmrihrf's 24 s span; one bin per scan (Nilearn's `fir_delays`) is `span=N * tr`."
+    },
+    {
+      "scenario": "s06_ar1_t[small]",
+      "axis": "friction",
+      "detail": "Uses `ar=\"ar1_voxelwise\"` (Nilearn's model, r>0.9999). Round 4 found that path 10-33x slower than Nilearn; vectorised AR estimation plus one batched GLS solve (identical to ~1e-12) closed the gap. The pooled default `ar=\"ar1\"` agrees only to r~0.996."
+    },
+    {
+      "scenario": "s09_design_only[small]",
+      "axis": "friction",
+      "detail": "By design: canonical column names follow R fmridesign (`trial_type_trial_type.face`); `names=\"short\"` gives display labels (`face`, `rt:face`, `drift1`)."
+    },
+    {
+      "scenario": "s10_zmap_to_nifti[small]",
+      "axis": "friction",
+      "detail": "By design: a contrast returns a `ContrastResult` holding t, z, effect, SE and p; writing z is `to_nifti(path, kind=\"z\")`, where Nilearn's default output is a z image."
+    },
+    {
+      "scenario": "s13_bids_first_level[small]",
+      "axis": "friction",
+      "detail": "`fm.bids_datasets` covers the fMRIPrep first-level layout only (preproc BOLD, events, sidecar TR, brain mask, confounds); no BIDS Stats Model or pybids query language."
+    },
+    {
+      "scenario": "s14_bids_to_group[small]",
+      "axis": "friction",
+      "detail": "Agreement gate is r>=0.99, not 0.999: first-level estimates agree at r>=0.9997 (with a constant 1.20 HRF-normalisation scale) and the group stage is exact, but six subjects' age t in null voxels amplifies that last 0.03%."
+    },
+    {
+      "scenario": "s15_fdr_clusters[small]",
+      "axis": "friction",
+      "detail": "`ThresholdedMap.clusters()` lists one peak per cluster; Nilearn's `get_clusters_table` also lists sub-peaks (8 mm apart)."
+    }
+  ]
+}

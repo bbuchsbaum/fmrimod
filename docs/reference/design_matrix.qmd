@@ -15,10 +15,10 @@ own typed signatures.
 
 ## Parameters {.doc-section .doc-section-parameters}
 
-| Name     | Type   | Description                                   | Default    |
-|----------|--------|-----------------------------------------------|------------|
-| x        | object | Object to extract design matrix from          | _required_ |
-| **kwargs | Any    | Additional arguments depending on object type | `{}`       |
+| Name     | Type   | Description                                                                                                                                                                                                                       | Default    |
+|----------|--------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| x        | object | Object to extract design matrix from: a typed spec/term (then pass ``events=``, ``n_scans=``, ``tr=`` and optionally ``start_time=``; see `fmrimod.spec._compile.design_frame`), an EventModel, a BaselineModel, or a term. | _required_ |
+| **kwargs | Any    | Additional arguments depending on object type                                                                                                                                                                                     | `{}`       |
 
 ## Returns {.doc-section .doc-section-returns}
 
@@ -35,6 +35,10 @@ own typed signatures.
 ## Examples {.doc-section .doc-section-examples}
 
 ```python
+>>> # From a typed spec, before any data exists (named DataFrame)
+>>> X = design_matrix(hrf("trial_type") + drift(), events=events,
+...                   n_scans=160, tr=2.0)
+>>>
 >>> # From EventModel
 >>> model = event_model("condition + rating", data=df, tr=2.0, n_scans=100)
 >>> X = design_matrix(model)

@@ -88,16 +88,15 @@ therefore classifies FIAC as `interop_bridge`, not `native_flagship`.
 The
 [`CAVEATS.md` index](https://github.com/bbuchsbaum/fmrimod/blob/main/docs/contracts/CAVEATS.md)
 records every active accepted divergence, its owner, affected tier, and exit
-criterion. Two caveats are currently active:
+criterion. The active caveat concerns rank-deficient designs: fmrimod uses residual
+degrees of freedom `n - rank(X)`, while the named Nilearn comparison uses
+`n - p`. This exception applies to that comparison, not to other differences.
 
-- For rank-deficient designs, fmrimod uses residual degrees of freedom
-  `n - rank(X)`, while the named Nilearn comparison uses `n - p`.
-- fmrimod's `spmg1` and R fmrihrf 0.4.0's `HRF_SPMG1` differ by a factor of
-  ten in their normalization convention. Comparisons that rescale the HRF
-  do not establish agreement in its original amplitude.
-
-These exceptions apply to the named comparisons; they do not cover other
-differences. Consult the index for each caveat's owner and exit criterion.
+The earlier SPMG normalization caveat was retired after the default bases
+were aligned with R fmrihrf. The
+[SPMG convention decision](https://github.com/bbuchsbaum/fmrimod/blob/main/docs/contracts/decisions/0005-spmg-conventions.md)
+and retirement receipt describe that change and the retained legacy aliases.
+Consult the index and retirement records for the current comparison boundaries.
 
 When a caveat is closed, its evidence moves to
 [`CAVEAT_RETIREMENTS.md`](https://github.com/bbuchsbaum/fmrimod/blob/main/docs/contracts/CAVEAT_RETIREMENTS.md).

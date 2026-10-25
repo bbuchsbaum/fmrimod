@@ -99,6 +99,72 @@ def test_group_data_from_nifti_accepts_numpy_int_df(tmp_path):
     assert gd.data["df"] == [10]
 
 
+@pytest.mark.parametrize(
+    "affine2",
+    [
+        np.diag([3.0, 3.0, 3.0, 1.0]),  # 2 mm vs 3 mm voxels
+        np.array(  # same voxel size, shifted origin
+            [[2.0, 0, 0, 5.0], [0, 2.0, 0, 0], [0, 0, 2.0, 0], [0, 0, 0, 1.0]]
+        ),
+    ],
+    ids=["voxel_size", "translation_only"],
+)
+def test_group_data_from_nifti_rejects_mismatched_affines(tmp_path, affine2):
+    # fmrigds e71c9b3 / 8b145f9, R/adapter-nifti.R:578-603: every image must
+    # share the first image's dims *and* affine (within 1e-4).
+    nib = pytest.importorskip("nibabel")
+    pytest.importorskip("neuroim")
+    vol = np.zeros((3, 3, 3), dtype=np.float64)
+    p1 = tmp_path / "sub-01_t.nii.gz"
+    p2 = tmp_path / "sub-02_t.nii.gz"
+    nib.save(nib.Nifti1Image(vol, affine=np.diag([2.0, 2.0, 2.0, 1.0])), str(p1))
+    nib.save(nib.Nifti1Image(vol, affine=affine2), str(p2))
+
+    with pytest.raises(ValueError, match="affine .+sub-02_t.nii.gz"):
+        group_data_from_nifti(t_paths=[p1, p2], df=12, validate=True)
+
+
+def test_group_data_from_nifti_accepts_affines_within_tolerance(tmp_path):
+    nib = pytest.importorskip("nibabel")
+    pytest.importorskip("neuroim")
+    vol = np.zeros((3, 3, 3), dtype=np.float64)
+    affine = np.diag([2.0, 2.0, 2.0, 1.0])
+    p1 = tmp_path / "sub-01_t.nii.gz"
+    p2 = tmp_path / "sub-02_t.nii.gz"
+    nib.save(nib.Nifti1Image(vol, affine=affine), str(p1))
+    shifted = affine.copy()
+    shifted[0, 3] = 5e-5
+    nib.save(nib.Nifti1Image(vol, affine=shifted), str(p2))
+
+    gd = group_data_from_nifti(t_paths=[p1, p2], df=12, validate=True)
+    assert gd.data["df"] == [12.0, 12.0]
+
+
+@pytest.mark.parametrize("df", [0, -3, [12, 0], float("nan"), "abc"])
+def test_group_data_from_nifti_rejects_non_positive_df(tmp_path, df):
+    # fmrigds e71c9b3, R/adapter-nifti.R:159-169: df must be numeric and > 0.
+    t1 = tmp_path / "sub-01_t.nii.gz"
+    t2 = tmp_path / "sub-02_t.nii.gz"
+    t1.touch()
+    t2.touch()
+
+    with pytest.raises(ValueError, match="df"):
+        group_data_from_nifti(t_paths=[t1, t2], df=df, validate=False)
+
+
+def test_group_data_from_nifti_accepts_fractional_df(tmp_path):
+    # Welch/Satterthwaite-style first-level df are non-integer.
+    t1 = tmp_path / "sub-01_t.nii.gz"
+    t2 = tmp_path / "sub-02_t.nii.gz"
+    t1.touch()
+    t2.touch()
+
+    gd = group_data_from_nifti(t_paths=[t1, t2], df=18.5, validate=False)
+    assert gd.data["df"] == [18.5, 18.5]
+    gd = group_data_from_nifti(t_paths=[t1, t2], df=[18.5, 20.25], validate=False)
+    assert gd.data["df"] == [18.5, 20.25]
+
+
 def test_group_data_from_nifti_rejects_beta_and_t_inputs(tmp_path):
     beta = tmp_path / "sub-01_beta.nii.gz"
     t = tmp_path / "sub-01_t.nii.gz"

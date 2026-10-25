@@ -10,6 +10,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Optional, cast
 
 if TYPE_CHECKING:
+    from fmrimod.lowrank.engine import SketchLmResult
+
     from ..fmri_lm import FmriModelLike
 
 import numpy as np
@@ -20,6 +22,7 @@ from ...lowrank.engine import LowRankConfig, fit_sketched
 from ...model.config import FmriLmConfig
 from ..engine import EngineResult, register_engine
 from ..solver import fast_preproject
+from ._capability import require_unweighted_ols
 
 
 @register_engine
@@ -94,13 +97,12 @@ class SketchEngine:
         Y = get_run_data(cast(Any, model.dataset), 0)
         result = fit_sketched(X, Y, lr_config, coords=coords)
 
-        proj = fast_preproject(X)
         return EngineResult(
             betas=result.betas,
             sigma=np.sqrt(result.sigma2),
             dfres=result.dfres,
-            XtXinv=proj.XtXinv,
-            extra={"lowrank_config": lr_config},
+            XtXinv=_cov_unscaled(result, X),
+            extra={"lowrank_config": lr_config, "sketch": _sketch_info(result)},
         )
 
     def _fit_multirun(
@@ -119,6 +121,8 @@ class SketchEngine:
         XtXB_total: Optional[NDArray[np.float64]] = None
         rss_total: Optional[NDArray[np.float64]] = None
         dfres_total = 0.0
+        kappa_total = 0.0
+        sketch_info = []
 
         for r in range(n_runs):
             X_r = model.design_matrix_array(run=r)
@@ -137,16 +141,22 @@ class SketchEngine:
                 and XtXB_total is not None
                 and rss_total is not None
             )
-            proj_r = fast_preproject(X_r)
+            # Precision of this run's estimator (its sketch's conditional
+            # covariance when sketched).
+            cov_r = _cov_unscaled(result_r, X_r)
             try:
-                XtX_r = np.linalg.inv(proj_r.XtXinv)
+                XtX_r = np.linalg.inv(cov_r)
             except np.linalg.LinAlgError:
-                XtX_r = np.linalg.pinv(proj_r.XtXinv)
+                XtX_r = np.linalg.pinv(cov_r)
 
             XtX_total += XtX_r
             XtXB_total += XtX_r @ result_r.betas
             rss_total += result_r.rss
             dfres_total += result_r.dfres
+            kappa_total += (
+                result_r.kappa if result_r.kappa is not None else result_r.dfres
+            )
+            sketch_info.append(_sketch_info(result_r))
 
         assert (
             XtX_total is not None
@@ -159,16 +169,37 @@ class SketchEngine:
             XtXinv_total = np.linalg.pinv(XtX_total)
 
         betas_pooled = XtXinv_total @ XtXB_total
-        sigma_pooled = np.sqrt(rss_total / max(dfres_total, 1))
+        sigma_pooled = np.sqrt(rss_total / max(kappa_total, 1))
 
         return EngineResult(
             betas=betas_pooled,
             sigma=sigma_pooled,
             dfres=dfres_total,
             XtXinv=XtXinv_total,
-            extra={"lowrank_config": lr_config},
+            extra={"lowrank_config": lr_config, "sketch": sketch_info},
         )
 
     def preflight(self, model: "FmriModelLike", config: FmriLmConfig) -> None:
         if not hasattr(model, "dataset"):
             raise ValueError("Model must have a 'dataset' attribute")
+        require_unweighted_ols(
+            self.name,
+            model,
+            config,
+            current_capability=("OLS on a sketched time axis",),
+        )
+
+
+def _cov_unscaled(result: SketchLmResult, X: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Unscaled covariance of the estimator ``fit_sketched`` computed.
+
+    A ridge solve has none of its own; it keeps the full-data ``(X'X)^-1``.
+    """
+    if result.cov_unscaled is not None:
+        return result.cov_unscaled
+    return fast_preproject(X).XtXinv
+
+
+def _sketch_info(result: SketchLmResult) -> dict[str, object]:
+    """Sketch metadata (fmrireg ``$sketch``): rows, ``tr(PK)`` and df."""
+    return {"m": result.sketch_rows, "kappa": result.kappa, "df": result.dfres}

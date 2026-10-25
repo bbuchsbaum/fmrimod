@@ -135,11 +135,13 @@ _EXPECTED_SPINE_TIERS = {
     "group_data_from_fmrilm": "spine",
     "estimate_single_trial": "spine",
     "estimate_single_trial_from_dataset": "spine",
+    # Dataset stage from a BIDS + fMRIPrep tree (ergonomics round 5).
+    "bids_datasets": "spine",
 }
 
 
 def test_spine_names_are_tier_assigned() -> None:
-    """The 13 spine names hold their assigned tier values.
+    """The pinned spine names hold their assigned tier values.
 
     Cheap-pass disqualified: relabeling a spine name to ``review_pending``
     or removing the row from the inventory would silently regress this

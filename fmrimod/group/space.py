@@ -103,9 +103,26 @@ class SampleLabelSpace:
         return SampleLabelSpace([self.labels[int(i)] for i in idx])
 
 
+def _check_operator_columns(op: Any, n: int, name: str, what: str) -> None:
+    """A space operator has one column per sample (parcel or component)."""
+    if op is None:
+        return
+    shape = getattr(op, "shape", None)
+    if shape is None or len(shape) != 2 or int(shape[1]) != n:
+        raise GroupSpaceError(
+            f"{name} must be a 2-D (parent features, {what}) matrix with {n} "
+            f"columns; got shape {shape}"
+        )
+
+
 @dataclass(frozen=True)
 class ParcelSpace:
-    """Space descriptor for parcel or ROI summaries."""
+    """Space descriptor for parcel or ROI summaries.
+
+    ``membership``, when given, is a ``(parent features, parcels)`` matrix
+    (dense or scipy sparse) with one column per parcel, as in fmridataset's
+    ``parcel_space``.
+    """
 
     labels: Sequence[object]
     lookup: Any = None
@@ -114,6 +131,7 @@ class ParcelSpace:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "labels", _coerce_labels(self.labels, parameter="labels"))
+        _check_operator_columns(self.membership, len(self.labels), "membership", "parcels")
 
     @property
     def n_samples(self) -> int:
@@ -127,13 +145,17 @@ class ParcelSpace:
         return ParcelSpace(
             labels=[self.labels[int(i)] for i in idx],
             lookup=self.lookup,
-            membership=None,
+            membership=None if self.membership is None else self.membership[:, idx],
         )
 
 
 @dataclass(frozen=True)
 class BasisSpace:
-    """Space descriptor for latent or basis-component features."""
+    """Space descriptor for latent or basis-component features.
+
+    ``projector``, when given, is a ``(parent features, components)`` matrix
+    with one column per component.
+    """
 
     n_components: int
     basis_name: str | None = None
@@ -146,6 +168,7 @@ class BasisSpace:
         if n_components <= 0:
             raise GroupSpaceError("n_components must be positive")
         object.__setattr__(self, "n_components", n_components)
+        _check_operator_columns(self.projector, n_components, "projector", "components")
 
     @property
     def n_samples(self) -> int:
@@ -162,7 +185,7 @@ class BasisSpace:
         return BasisSpace(
             n_components=int(idx.size),
             basis_name=self.basis_name,
-            projector=None,
+            projector=None if self.projector is None else self.projector[:, idx],
             voxel_space=self.voxel_space,
         )
 

@@ -89,20 +89,35 @@ class BaselineTerm:
         if blockid is None:
             return matrix
         
+        if not self.colind or not self.rowind:
+            raise ValueError(
+                f"Term '{self.varname}' carries no block structure; it cannot "
+                "be subset by blockid"
+            )
+
         if isinstance(blockid, int):
             block_ids = [int(blockid)]
         else:
             block_ids = [int(b) for b in blockid]
-        
+
         # Convert to 0-based if needed (R uses 1-based)
         block_ids = [b - 1 if b > 0 else b for b in block_ids]
-        
-        # Get column indices for requested blocks
-        col_idx: list[int] = []
-        for bid in block_ids:
-            if 0 <= bid < len(self.colind):
-                col_idx.extend(self.colind[bid])
-        
+
+        # A legacy single colind entry applies to every block.
+        colind = self.colind
+        if len(colind) == 1 and len(self.rowind) > 1:
+            colind = colind * len(self.rowind)
+
+        # Each active column once, in the term's own column order: a column
+        # shared by several blocks (a global intercept) is not repeated
+        # (R fmridesign 95042d4).
+        col_idx = sorted({
+            int(col)
+            for bid in block_ids
+            if 0 <= bid < len(colind)
+            for col in colind[bid]
+        })
+
         if not col_idx:
             # No columns for these blocks
             return pd.DataFrame()

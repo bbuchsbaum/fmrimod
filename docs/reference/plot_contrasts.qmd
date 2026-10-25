@@ -7,29 +7,33 @@ plot_contrasts(
     rotate_x_text=True,
     scale_mode='auto',
     figsize=None,
-    cmap=None,
-    **kwargs,
 )
 ```
 
 Plot contrast weights as a heatmap.
 
-This is a generic function that dispatches based on the type of x.
+Dispatches on ``x``: an ``EventModel`` (its contrasts, labelled from its
+columns, with standard errors from its design) or a dict mapping
+contrast names to weight vectors or ``p x k`` matrices (F-contrasts).
 
 ## Parameters {.doc-section .doc-section-parameters}
 
-| Name            | Type                         | Description                                                     | Default    |
-|-----------------|------------------------------|-----------------------------------------------------------------|------------|
-| x               | object                       | Object containing contrast information (EventModel, dict, etc.) | _required_ |
-| absolute_limits | bool                         | If True, fix color scale at (-1, 1). If False, use data range.  | `False`    |
-| rotate_x_text   | bool                         | If True, rotate x-axis labels for readability.                  | `True`     |
-| scale_mode      | (auto, diverging, one_sided) | Color scale mode. 'auto' chooses based on data.                 | `'auto'`   |
-| figsize         | tuple                        | Figure size (width, height)                                     | `None`     |
-| cmap            | str                          | Colormap name. If None, chosen based on scale_mode.             | `None`     |
-| **kwargs        | object                       | Additional arguments passed to plotting functions               | `{}`       |
+| Name            | Type                                     | Description                                                                                                                | Default    |
+|-----------------|------------------------------------------|----------------------------------------------------------------------------------------------------------------------------|------------|
+| x               | EventModel or dict                       |                                                                                                                            | _required_ |
+| absolute_limits | bool                                     | Fix the fill at [-1, 1] (or [0, 1] one-sided) instead of the largest absolute weight.                                      | `False`    |
+| rotate_x_text   | bool                                     | Angle column labels when they would overlap.                                                                               | `True`     |
+| scale_mode      | (\'auto\', \'diverging\', \'one_sided\') | ``"auto"`` and ``"diverging"`` are symmetric about 0; ``"one_sided"`` is a neutral-to-warm scale for non-negative weights. | `"auto"`   |
+| figsize         | (float, float)                           |                                                                                                                            | `None`     |
+
+## Notes {.doc-section .doc-section-notes}
+
+The implementations also take ``annotate``, ``title``, ``subtitle``,
+``caption`` and ``ax``; the dict one also ``labels`` (column labels)
+and ``design`` (a model or design matrix, enabling the SE column).
 
 ## Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                     | Description       |
-|--------|--------------------------|-------------------|
-|        | matplotlib.figure.Figure | The figure object |
+| Name   | Type                     | Description   |
+|--------|--------------------------|---------------|
+|        | matplotlib.figure.Figure |               |

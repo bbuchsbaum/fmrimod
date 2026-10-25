@@ -25,3 +25,11 @@ is never consumed as a string-keyed table at use time.
 ## Notes {.doc-section .doc-section-notes}
 
 This initial implementation targets CSV-backed effect-size data.
+
+``weights="ivw"`` takes the subject-level variances as known and
+``method`` chooses the between-subject variance estimator.
+``weights="equal"`` and ``"custom"`` are *relative* weights: the model
+is ``Var(y_i) = sigma^2 / w_i`` with ``sigma^2`` estimated per feature
+(as R's ``lm(weights=w)`` does), so equal weights give the one-sample
+t statistic, ``method`` and the variances are not used, and ``tau2``
+is NaN.

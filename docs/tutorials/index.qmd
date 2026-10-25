@@ -16,7 +16,7 @@ works through two runs of a published experiment.
 
 The FIAC tutorial explains how the design and contrast produce this map.
 For smaller examples you can run without a download, try
-[plotting and visualization](plotting-visualization.qmd),
+the [figure gallery](plot-gallery.qmd), [plotting and visualization](plotting-visualization.qmd),
 [estimating HRFs](estimating-hrfs.qmd), or
 [examining a group model](group-diagnostics.qmd).
 
@@ -37,6 +37,7 @@ For smaller examples you can run without a download, try
 
 | Tutorial | What you will do |
 | --- | --- |
+| [Figure gallery](plot-gallery.qmd) | Inspect the current design, contrast, fit, HRF, time-course, and residual plot families on one simulated study. |
 | [Plotting and visualization](plotting-visualization.qmd) | Compare HRFs, view design heatmaps and correlations, and inspect timing. |
 | [Estimate an HRF](estimating-hrfs.qmd) | Fit smooth FIR response curves and inspect uncertainty and smoothing. |
 | [Group diagnostics](group-diagnostics.qmd) | Compare subject maps and inspect surprise, influence, and review flags. |

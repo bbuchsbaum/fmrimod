@@ -8,7 +8,7 @@ import math
 from typing import Any, Callable, Dict, List, Optional, Union, cast
 
 from ..types import HRFProtocol
-from .aliases import HRFName, _normalize_hrf_name
+from .aliases import _ALIASES, HRFName, _normalize_hrf_name
 from .core import HRF
 
 logger = logging.getLogger(__name__)
@@ -235,12 +235,18 @@ def list_available_hrfs(
     if not details:
         return names
 
-    # First, find canonical names (first alphabetical name for each unique HRF).
-    id_to_primary = {}
+    # The primary name of each registered object is its canonical HRFName
+    # (an identity entry in the alias table), so ``spmg1`` is primary and
+    # ``spm``/``spm_canonical`` are aliases. Objects with no canonical name
+    # (e.g. user registrations) fall back to their first alphabetical name.
+    def _is_canonical(name: str) -> bool:
+        return _ALIASES.get(name) == name
+
+    id_to_primary: dict[int, str] = {}
     for name in names:
-        hrf = _HRF_REGISTRY[name]
-        hrf_id = id(hrf)
-        if hrf_id not in id_to_primary:
+        hrf_id = id(_HRF_REGISTRY[name])
+        current = id_to_primary.get(hrf_id)
+        if current is None or (_is_canonical(name) and not _is_canonical(current)):
             id_to_primary[hrf_id] = name
 
     result: List[dict[str, object]] = []
@@ -265,7 +271,7 @@ def list_available_hrfs(
             except (ValueError, TypeError):
                 pass
 
-        is_alias = id_to_primary[hrf_id] != name
+        is_alias = id_to_primary[hrf_id] != name or _ALIASES.get(name, name) != name
 
         result.append({
             "name": name,

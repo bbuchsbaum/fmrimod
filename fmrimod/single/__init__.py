@@ -14,6 +14,7 @@ The primary entry point is :func:`estimate_single_trial`.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -21,12 +22,12 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ._prewhiten import PrewhitenConfig
+from ._project import NuisanceProjector, build_nuisance_projector
 from ._trial_design import (
     PreparedTrialDesign,
     canonicalize_trial_major,
     prepare_trialwise_design,
 )
-from ._project import NuisanceProjector, build_nuisance_projector
 from ._types import (
     LssExtras,
     MixedExtras,
@@ -39,6 +40,7 @@ from ._types import (
     SingleTrialMethodLike,
     SingleTrialResult,
     SpatialDescriptor,
+    VoxelHrfExtras,
     VoxelHrfResult,
 )
 from .item import (
@@ -61,11 +63,11 @@ from .item import (
     item_slice_fold,
 )
 from .lsa import lsa_single_trial
-from .typed import fmri_lss
 from .lss import lss_single_trial
 from .mixed import mixed_single_trial
 from .oasis import oasis_single_trial
 from .sbhm.lwu_grid import LwuGrid, create_lwu_grid
+from .typed import fmri_lss
 from .voxel_hrf import estimate_hrf, estimate_voxel_hrf, lss_with_voxel_hrf
 
 if TYPE_CHECKING:
@@ -142,24 +144,6 @@ def estimate_single_trial(
         Trial-wise estimates, labels, method-specific diagnostics, and optional
         standard errors.
     """
-    # Optional prewhitening. Routes through fmrimod.ar.fit_noise +
-    # whiten_apply (the same engine the GLM solver uses) so Y, X,
-    # baseline_regressors, and confounds share one plan.
-    whitening_plan = None
-    if prewhiten is not None and prewhiten.method != "none":
-        from ._prewhiten import prewhiten_matrices
-
-        pw = prewhiten_matrices(
-            Y,
-            X,
-            confounds,
-            prewhiten,
-            baseline_regressors=baseline_regressors,
-        )
-        Y, X, confounds = pw.Y, pw.X, pw.confounds
-        baseline_regressors = pw.baseline_regressors
-        whitening_plan = pw.plan
-
     try:
         method_enum = (
             method
@@ -190,6 +174,65 @@ def estimate_single_trial(
             "only for method='lss' or method='lsa'."
         )
 
+    oasis_cfg: OasisConfig | None = None
+    if method_enum is SingleTrialMethod.OASIS:
+        if oasis_config is None:
+            oasis_cfg = (
+                OasisConfig(
+                    return_se=True,
+                    K=resolved_k,
+                    ridge_mode="none",
+                    ridge_x=0.0,
+                    ridge_b=0.0,
+                )
+                if return_se
+                else OasisConfig(K=resolved_k)
+            )
+        else:
+            oasis_cfg = oasis_config
+            if oasis_cfg.K == 1 and resolved_k > 1:
+                oasis_cfg = replace(oasis_cfg, K=resolved_k)
+            if return_se and not oasis_cfg.return_se:
+                oasis_cfg = replace(oasis_cfg, return_se=True)
+
+    # Optional prewhitening. Routes through fmrimod.ar.fit_noise +
+    # whiten_apply (the same engine the GLM solver uses) so Y, X,
+    # baseline_regressors, and confounds share one plan. The aggregate
+    # noise model sums trials per basis function (fmrilss a9d816e).
+    whitening_plan = None
+    intercept_whitened = False
+    if prewhiten is not None and prewhiten.method != "none":
+        from ._prewhiten import aggregate_trials, prewhiten_matrices
+
+        if include_intercept:
+            # Whiten the intercept with the same plan as the other baseline
+            # regressors (R lss() whitens Z, an intercept by default); adding
+            # it after whitening would leave an unwhitened mean regressor.
+            ones = np.ones((np.shape(X)[0], 1), dtype=np.float64)
+            baseline_regressors = (
+                ones
+                if baseline_regressors is None
+                else np.column_stack([ones, baseline_regressors])
+            )
+            include_intercept = False
+            intercept_whitened = True
+        noise_k = 1
+        if oasis_cfg is not None:
+            noise_k = oasis_cfg.K
+        elif method_enum is SingleTrialMethod.SBHM and sbhm_library is not None:
+            noise_k = int(sbhm_library.B.shape[1])
+        pw = prewhiten_matrices(
+            Y,
+            X,
+            confounds,
+            prewhiten,
+            baseline_regressors=baseline_regressors,
+            noise_trials=aggregate_trials(X, noise_k),
+        )
+        Y, X, confounds = pw.Y, pw.X, pw.confounds
+        baseline_regressors = pw.baseline_regressors
+        whitening_plan = pw.plan
+
     if method_enum is SingleTrialMethod.LSS:
         result = lss_single_trial(
             Y,
@@ -213,24 +256,7 @@ def estimate_single_trial(
             include_intercept=include_intercept,
         )
     elif method_enum is SingleTrialMethod.OASIS:
-        if oasis_config is None:
-            oasis_cfg = (
-                OasisConfig(
-                    return_se=True,
-                    K=resolved_k,
-                    ridge_mode="none",
-                    ridge_x=0.0,
-                    ridge_b=0.0,
-                )
-                if return_se
-                else OasisConfig(K=resolved_k)
-            )
-        else:
-            oasis_cfg = oasis_config
-            if oasis_cfg.K == 1 and resolved_k > 1:
-                oasis_cfg = replace(oasis_cfg, K=resolved_k)
-            if return_se and not oasis_cfg.return_se:
-                oasis_cfg = replace(oasis_cfg, return_se=True)
+        assert oasis_cfg is not None
         result = oasis_single_trial(
             Y,
             X,
@@ -268,6 +294,8 @@ def estimate_single_trial(
     else:
         raise ValueError(f"Unknown method: {method!r}")
 
+    if intercept_whitened and isinstance(result.extra, LssExtras):
+        result.extra = replace(result.extra, include_intercept=True)
     if whitening_plan is not None:
         result.extra = replace(result.extra, whitening_plan=whitening_plan)
     return result
@@ -291,6 +319,10 @@ def estimate_single_trial_from_dataset(
     sbhm_library: SbhmLibrary | None = None,
     include_intercept: bool = False,
     n_basis: int | None = None,
+    tr: float | Sequence[float] | None = None,
+    events: object = None,
+    mask: object = None,
+    slice_timing_offset: float | Sequence[float] | None = None,
 ) -> SingleTrialResult:
     """Estimate per-trial betas from an FmriDataset and trialwise spec.
 
@@ -302,47 +334,30 @@ def estimate_single_trial_from_dataset(
 
     Parameters
     ----------
-    dataset : FmriDataset
-        Typed dataset carrying time-series data and an event table.
-    spec : str, sequence of formula Term, or EventModelBuilder
-        Trialwise definition accepted by :func:`fmrimod.event_model`, such as
-        ``"trialwise()"`` or ``"trialwise(add_sum=True)"``. Typed
-        :class:`~fmrimod.spec.Spec` trees are not accepted by this wrapper.
+    dataset : FmriDataset or image source
+        Typed dataset carrying time-series data and an event table, or an
+        image source (NIfTI path/image, per-run list, array) together with
+        ``tr=``, ``events=`` and optionally ``mask=`` /
+        ``slice_timing_offset=``, as in :func:`fmrimod.fmri_lm`.
+    spec : trialwise() term, Spec, str, list of Term or EventModelBuilder
+        Trialwise specification. Accepts whatever
+        :func:`fmrimod.event_model` accepts: a string formula such as
+        ``"trialwise()"`` or ``"trialwise(add_sum=True)"``, a list of
+        :class:`~fmrimod.formula.base.Term` objects, or a builder.
+        A typed :func:`fmrimod.spec.trialwise` term (or a ``Spec`` holding
+        only event terms) is also accepted and lowered through
+        :func:`fmrimod.spec.compile_events`.
     method : SingleTrialMethod or literal string
         Estimator selector; see :func:`estimate_single_trial`.
-    confounds : NDArray, optional
-        Nuisance regressors with one row per time point.
-    return_se : bool, default False
-        Request standard errors from estimators that support them.
-    block : object, optional
-        Run assignment forwarded to :func:`fmrimod.event_model`. When omitted,
-        the wrapper uses the event table's ``run`` or ``block`` column, then
-        falls back to a single run.
-    durations : object, optional
-        Duration specification forwarded to :func:`fmrimod.event_model`.
-        Defaults to the event table's ``duration`` column when present.
-    precision : float, optional
-        Absolute convolution-grid step forwarded to
-        :func:`fmrimod.event_model`.
-    prewhiten : PrewhitenConfig, optional
-        AR prewhitening configuration forwarded to
-        :func:`estimate_single_trial`.
-    nuisance_projector : NuisanceProjector, optional
-        Precomputed nuisance projector for LSS estimation.
-    chunk_size : int, optional
-        Voxel chunk size for LSS beta-only solves.
-    oasis_config : OasisConfig, optional
-        OASIS estimator configuration.
-    sbhm_config : SbhmConfig, optional
-        SBHM pipeline configuration.
-    sbhm_library : SbhmLibrary, optional
-        Pre-built SBHM library required by the SBHM method.
-    include_intercept : bool, default False
-        Add an intercept to the LSS or LSA adjustment design.
-    n_basis : int, optional
-        HRF basis dimension forwarded to :func:`estimate_single_trial`.
-        Normally omit it: the wrapper infers the dimension from the compiled
-        ``trialwise`` design.
+    confounds, return_se, prewhiten, nuisance_projector, chunk_size,
+        oasis_config, sbhm_config, sbhm_library, include_intercept
+        Forwarded to :func:`estimate_single_trial`. When ``prewhiten.runs``
+        is unset it is filled from the dataset's sampling-frame runs;
+        supplied runs must match the frame's run boundaries.
+    block, durations, precision
+        Forwarded to :func:`fmrimod.event_model`. ``block`` and ``durations``
+        default to event-table column auto-detection (``run``/``block`` and
+        ``duration``).
 
     Returns
     -------
@@ -355,6 +370,17 @@ def estimate_single_trial_from_dataset(
         (the capability label describing the voxel space the betas live
         in). Matrix-first :func:`estimate_single_trial` callers continue
         to leave all four metadata fields ``None``.
+
+    Examples
+    --------
+    One LSS beta map per trial, straight from images::
+
+        >>> from fmrimod.spec import trialwise
+        >>> betas = fm.estimate_single_trial_from_dataset(
+        ...     img, trialwise(), tr=2.0, events=events, mask=mask,
+        ...     method="lss", include_intercept=True,
+        ... )
+        >>> betas.betas.shape          # (n_trials, n_voxels)
     """
     # Build the EventModel via the design module directly. The typed
     # fmrimod.spec compile path does not yet special-case trialwise() terms
@@ -363,8 +389,16 @@ def estimate_single_trial_from_dataset(
     # established design entry point is the working path for Slice 1.
     # Imports are local to avoid a fmrimod.single → fmrimod.design import
     # cycle at module load.
+    from ..dataset.constructors import coerce_dataset
     from ..design.event_model import event_model as _build_event_model
 
+    dataset = coerce_dataset(
+        dataset,
+        tr=tr,
+        events=events,
+        mask=mask,
+        slice_timing_offset=slice_timing_offset,
+    )
     events_df = getattr(dataset, "event_table", None)
     if events_df is None:
         raise ValueError(
@@ -374,28 +408,54 @@ def estimate_single_trial_from_dataset(
         )
 
     sampling_frame = cast(Any, dataset).get_sampling_frame()
+    if prewhiten is not None:
+        from ._prewhiten import with_frame_runs
+
+        # AR estimation and filtering must not span the frame's runs.
+        prewhiten = with_frame_runs(prewhiten, sampling_frame.blockids)
 
     resolved_block = block
     if resolved_block is None:
-        if "run" in events_df.columns:
-            resolved_block = "run"
-        elif "block" in events_df.columns:
-            resolved_block = "block"
-        else:
-            resolved_block = np.ones(len(events_df), dtype=int)
+        from ..dataset.constructors import require_run_labels
+
+        label = require_run_labels(events_df, int(getattr(dataset, "n_runs", 1)))
+        resolved_block = (
+            label if label is not None else np.ones(len(events_df), dtype=int)
+        )
 
     resolved_durations = durations
     if resolved_durations is None and "duration" in events_df.columns:
         resolved_durations = "duration"
 
-    event_model = _build_event_model(
-        formula=cast(Any, spec),
-        data=events_df,
-        block=cast(Any, resolved_block),
-        sampling_frame=sampling_frame,
-        durations=cast(Any, resolved_durations),
-        precision=precision,
-    )
+    from ..spec import Spec, Term, as_spec, compile_events
+
+    if isinstance(spec, (Spec, Term)):
+        typed = as_spec(spec)
+        if typed.baseline:
+            raise ValueError(
+                "estimate_single_trial_from_dataset: the typed spec carries "
+                "baseline terms (drift/intercept/confounds), which the "
+                "single-trial estimators do not take from the spec; pass "
+                "trialwise() alone and supply nuisance regressors via "
+                "confounds= (and include_intercept=True)."
+            )
+        event_model = compile_events(
+            typed,
+            data=events_df,
+            sampling_frame=sampling_frame,
+            block=resolved_block,
+            durations=resolved_durations,
+            precision=precision,
+        )
+    else:
+        event_model = _build_event_model(
+            formula=cast(Any, spec),
+            data=events_df,
+            block=cast(Any, resolved_block),
+            sampling_frame=sampling_frame,
+            durations=cast(Any, resolved_durations),
+            precision=precision,
+        )
 
     from ._trial_design import prepare_trialwise_design
 
@@ -611,6 +671,7 @@ __all__ = [
     "OasisExtras",
     "MixedExtras",
     "SbhmExtras",
+    "VoxelHrfExtras",
     "SingleTrialMethod",
     "SingleTrialMethodLike",
     "SpatialDescriptor",

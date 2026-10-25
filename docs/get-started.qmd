@@ -103,15 +103,14 @@ convolved with the SPM canonical HRF, which is what `basis="spmg1"` in the
 spec selected:
 
 ```{python}
-#| fig-cap: "The face-condition design regressor. Each event becomes one HRF
-#|   response: a rise to peak around 5 s after onset, then an undershoot."
+#| fig-cap: "The face-condition design regressor. Each event (tick and 2 s
+#|   bar below the trace) becomes one HRF response: a rise to peak around
+#|   5 s after onset, then an undershoot."
 #| fig-alt: "Line chart of the face-condition design regressor, with repeated
 #|   hemodynamic peaks followed by shallow undershoots."
-from fmrimod.visualization import plot_design_matrix
-
-# figsize is passed to the function, not set as a cell option: the plot
-# helper builds its own figure.
-fig, ax = plot_design_matrix(fit.model.event_model, figsize=(9, 3.2))
+# One row per condition, with ticks at the event onsets. The plot builds
+# its own figure, so figsize is passed to it rather than set as a cell option.
+fig = fit.model.event_model.plot(figsize=(9, 2.8))
 ```
 
 Reading this plot is how you check a design before trusting a fit: each peak

@@ -66,6 +66,7 @@ def test_meta_fe_matches_inverse_variance_mean() -> None:
         "I2",
         "Q",
         "beta_g",
+        "n_eff",
         "p_g",
         "se_g",
         "var_g",
@@ -124,6 +125,26 @@ def test_meta_fe_marks_underpowered_features_missing() -> None:
 
     assert np.isnan(out.assay("beta_g")[0, 0, 0])
     assert np.isnan(out.assay("p_g")[0, 0, 0])
+
+
+@pytest.mark.parametrize("reducer", [meta_fe, meta_re])
+def test_meta_reducers_report_effective_subject_count(reducer) -> None:
+    # fmrigds R/reducers-core.R:27-29,75-127; test-variance-floor.R:8-21:
+    # n_eff counts subjects with finite beta and a finite, positive variance,
+    # and is reported even where the fit is masked for too few subjects.
+    beta = np.array([[1.0, 2.0, 3.0, 4.0], [1.0, 2.0, 3.0, 4.0], [1.0, np.nan, 3.0, 4.0]])
+    var = np.array([[1e-20, 1e-12, 0.5, 1.0], [0.0, -1.0, 0.5, 1.0], [1.0, 1.0, np.inf, 1.0]])
+    ds = group_dataset(
+        {"beta": beta[:, :, None], "var": var[:, :, None]},
+        space=SampleLabelSpace(["v1", "v2", "v3"]),
+        subjects=["s1", "s2", "s3", "s4"],
+        contrasts=["c1"],
+    )
+
+    out = reducer(ds, min_subjects=3)
+
+    np.testing.assert_array_equal(out.assay("n_eff")[:, 0, 0], [4.0, 2.0, 2.0])
+    assert np.isnan(out.assay("beta_g")[1, 0, 0])
 
 
 def test_meta_fe_requires_beta_and_uncertainty() -> None:
@@ -196,6 +217,29 @@ def test_combine_lancaster_uses_subject_weights() -> None:
     assert out.assay("df")[0, 0, 0] == 6.0
     assert np.isfinite(out.assay("chi2")[0, 0, 0])
     assert out.metadata["reduce_method"] == "combine:lancaster"
+
+
+def test_combine_lancaster_stays_finite_for_tiny_p_values() -> None:
+    # fmrigds test-review-numeric.R ("Lancaster combiner stays finite"): the
+    # upper-tail quantile qchisq(p, df, lower.tail = FALSE), not qchisq(1 - p).
+    from scipy import stats as sp_stats
+
+    ds = group_dataset(
+        {"p": np.array([[[1e-17], [0.5]], [[1e-30], [0.5]]])},
+        space=SampleLabelSpace(["r1", "r2"]),
+        subjects=["s1", "s2"],
+        contrasts=["c1"],
+    )
+
+    out = combine_lancaster(ds, dfw=[1.0, 1.0])
+
+    for row, p_small in enumerate([1e-17, 1e-30]):
+        chi2 = sp_stats.chi2.isf(p_small, 2) + sp_stats.chi2.isf(0.5, 2)
+        np.testing.assert_allclose(out.assay("chi2")[row, 0, 0], chi2, rtol=1e-10)
+        np.testing.assert_allclose(
+            out.assay("p_g")[row, 0, 0], sp_stats.chi2.sf(chi2, 4), rtol=1e-10
+        )
+    assert out.assay("p_g")[0, 0, 0] > 0.0
 
 
 def test_combiner_registry_dispatch() -> None:
@@ -285,6 +329,55 @@ def test_meta_re_reg_reports_dl_tau2_and_dispatches() -> None:
     assert "coef:age" in direct.assays
 
 
+def _meta_reg_validity_dataset(var: np.ndarray):
+    x = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+    beta = np.array([0.4, -1.1, 0.9, -2.3, -5.5, 0.2])
+    subjects = [f"s{i}" for i in range(x.size)]
+    return group_dataset(
+        {"beta": beta.reshape(1, -1, 1), "var": np.asarray(var, float).reshape(1, -1, 1)},
+        space=SampleLabelSpace(["r1"]),
+        subjects=subjects,
+        contrasts=["c1"],
+        col_data=pd.DataFrame({"x": x}, index=subjects),
+    ), x, beta
+
+
+@pytest.mark.parametrize("reducer", [meta_fe_reg, meta_re_reg])
+def test_meta_reg_drops_subjects_without_a_positive_variance(reducer) -> None:
+    # fmrigds 7c7ecae (R/reducers-core.R meta:fe_reg / .meta_re_reg_dl_r): a
+    # subject enters only if beta and var are finite and var > 0.
+    var = np.array([0.5, 0.0, 0.8, -0.5, 1.2, 0.6])
+    ds, x, beta = _meta_reg_validity_dataset(var)
+    keep = var > 0
+    ref, _, _ = _meta_reg_validity_dataset(np.where(keep, var, np.nan))
+
+    out = reducer(ds, formula="~ x")
+    expected = reducer(ref, formula="~ x")
+    for name in ("coef:Intercept", "coef:x", "se_coef:x", "df_res"):
+        np.testing.assert_allclose(out.assay(name), expected.assay(name), rtol=1e-12)
+    assert out.assay("df_res")[0, 0, 0] == keep.sum() - 2
+
+    X = np.column_stack([np.ones(keep.sum()), x[keep]])
+    w = 1.0 / var[keep]
+    if reducer is meta_fe_reg:
+        coef = np.linalg.solve((X.T * w) @ X, X.T @ (w * beta[keep]))
+        np.testing.assert_allclose(out.assay("coef:x")[0, 0, 0], coef[1], rtol=1e-12)
+
+
+@pytest.mark.parametrize("reducer", [meta_fe_reg, meta_re_reg])
+def test_meta_reg_honours_min_subjects_and_floors_tiny_variance(reducer) -> None:
+    var = np.array([0.5, np.nan, 0.8, np.nan, 1.2, np.nan])
+    ds, _, _ = _meta_reg_validity_dataset(var)
+    assert np.isfinite(reducer(ds, formula="~ x").assay("coef:x")).all()
+    assert np.isnan(reducer(ds, formula="~ x", min_subjects=4).assay("coef:x")).all()
+
+    tiny, _, _ = _meta_reg_validity_dataset(np.array([0.5, 1e-30, 0.8, 0.3, 1.2, 0.6]))
+    floor, _, _ = _meta_reg_validity_dataset(np.array([0.5, 1e-12, 0.8, 0.3, 1.2, 0.6]))
+    np.testing.assert_array_equal(
+        reducer(tiny, formula="~ x").assay("coef:x"), reducer(floor, formula="~ x").assay("coef:x")
+    )
+
+
 def test_meta_reg_requires_covariates_for_non_intercept_formula() -> None:
     ds = group_dataset(
         {"beta": np.ones((1, 3, 1)), "se": np.ones((1, 3, 1))},
@@ -318,8 +411,10 @@ def test_perm_onesample_uses_supplied_sign_matrix() -> None:
 
     y = np.array([1.0, 2.0, 3.0])
     expected_t = np.mean(y) / (np.std(y, ddof=1) / np.sqrt(3))
+    # Row 0 is the identity relabelling, so it is left out of the null set
+    # (fmrigds .perm_first_row_is_identity; it would count the observed t twice).
     null_t = []
-    for s in signs:
+    for s in signs[1:]:
         sy = s * y
         null_t.append(np.mean(sy) / (np.std(sy, ddof=1) / np.sqrt(3)))
     expected_perm = (np.sum(np.abs(null_t) >= abs(expected_t)) + 1.0) / (
@@ -364,6 +459,86 @@ def test_perm_twosample_uses_supplied_group_matrix() -> None:
     np.testing.assert_allclose(out.assay("se_g")[0, 0, 0], expected_se)
     np.testing.assert_allclose(out.assay("t_g")[0, 0, 0], expected_t)
     assert out.metadata["reduce_method"] == "perm:twosample"
+
+
+def _perm_fixture():
+    rng = np.random.default_rng(22)
+    beta = rng.normal(0.3, 1.0, size=(8, 2))
+    ds = group_dataset(
+        {"beta": beta.T.reshape(2, 8, 1)},
+        space=SampleLabelSpace(["r1", "r2"]),
+        subjects=[f"s{i}" for i in range(8)],
+        contrasts=["c1"],
+    )
+    return ds, beta, rng
+
+
+def _one_sample_t(y: np.ndarray) -> float:
+    return float(np.mean(y) / (np.std(y, ddof=1) / np.sqrt(y.size)))
+
+
+def _welch_t(y: np.ndarray, g: np.ndarray) -> float:
+    a, b = y[g == 1], y[g == 0]
+    return float((a.mean() - b.mean()) / np.sqrt(a.var(ddof=1) / a.size + b.var(ddof=1) / b.size))
+
+
+@pytest.mark.parametrize("identity_first", [True, False])
+def test_perm_onesample_counts_the_observed_statistic_once(identity_first: bool) -> None:
+    # fmrigds 7c7ecae (.perm_first_row_is_identity, test-review-numeric.R:65-94):
+    # p = (1 + #null >= obs) / (1 + n_null), with an identity row 1 left out.
+    ds, beta, rng = _perm_fixture()
+    signs = rng.choice(np.array([-1, 1], dtype=np.int8), size=(20, 8))
+    signs[0, :] = 1 if identity_first else signs[0, :]
+    if not identity_first:
+        signs[0, 0] = -1
+    null_rows = signs[1:] if identity_first else signs
+
+    out = perm_onesample(ds, signs=signs)
+
+    for j in range(2):
+        t_obs = _one_sample_t(beta[:, j])
+        t_null = np.array([_one_sample_t(s * beta[:, j]) for s in null_rows])
+        expected = (1 + np.sum(np.abs(t_null) >= abs(t_obs))) / (1 + t_null.size)
+        np.testing.assert_allclose(out.assay("p_perm")[j, 0, 0], expected)
+
+    t_obs = np.array([_one_sample_t(beta[:, j]) for j in range(2)])
+    max_null = np.array([max(abs(_one_sample_t(s * beta[:, j])) for j in range(2)) for s in null_rows])
+    expected_fwer = (1 + np.sum(max_null[:, None] >= np.abs(t_obs), axis=0)) / (1 + max_null.size)
+    np.testing.assert_allclose(out.assay("p_fwer")[:, 0, 0], expected_fwer)
+
+
+def test_perm_onesample_generated_identity_row_follows_include_observed() -> None:
+    ds, beta, _ = _perm_fixture()
+    with_obs = perm_onesample(ds, n_perm=50, seed=8, include_observed=True)
+    rng = np.random.default_rng(8)
+    signs = rng.choice(np.array([-1, 1], dtype=np.int8), size=(50, 8))
+    t_obs = _one_sample_t(beta[:, 0])
+    t_null = np.array([_one_sample_t(s * beta[:, 0]) for s in signs[1:]])
+    np.testing.assert_allclose(
+        with_obs.assay("p_perm")[0, 0, 0],
+        (1 + np.sum(np.abs(t_null) >= abs(t_obs))) / (1 + t_null.size),
+    )
+
+
+@pytest.mark.parametrize("observed_first", [True, False])
+def test_perm_twosample_drops_row_one_only_when_it_is_the_observed_grouping(
+    observed_first: bool,
+) -> None:
+    ds, beta, rng = _perm_fixture()
+    group = np.repeat([0, 1], 4)
+    gmat = np.vstack([rng.permutation(group) for _ in range(15)]).astype(np.int8)
+    if observed_first:
+        gmat[0] = group
+    elif np.array_equal(gmat[0], group):
+        gmat[0] = gmat[0][::-1]
+    null_rows = gmat[1:] if observed_first else gmat
+
+    out = perm_twosample(ds, group=group, group_mat=gmat)
+
+    t_obs = _welch_t(beta[:, 0], group)
+    t_null = np.array([_welch_t(beta[:, 0], g) for g in null_rows])
+    expected = (1 + np.sum(np.abs(t_null) >= abs(t_obs) - 1e-12)) / (1 + t_null.size)
+    np.testing.assert_allclose(out.assay("p_perm")[0, 0, 0], expected)
 
 
 def test_permutation_reducers_dispatch_from_registry() -> None:
@@ -697,6 +872,79 @@ def test_lmm_ri_slope1_voxelwise_full_covariance_runs_natively() -> None:
     np.testing.assert_allclose(out.assay("corr_intercept_slope")[:, 0, 0], 0.0)
 
 
+def test_lmm_ri_flags_variance_ratio_pinned_at_r_search_bound() -> None:
+    # fmrigds 7c7ecae, tests/testthat/test-review-numeric.R:220-232: sample "a"
+    # has no within-subject noise, so the random-intercept variance ratio
+    # diverges. R's optimizer pins log(lambda) at its upper bound 10 and
+    # reports converged = 0; statsmodels returns a huge lambda with its own
+    # converged flag set, and raises no warning.
+    rng = np.random.default_rng(82)
+    subjects = [f"s{i:02d}" for i in range(1, 11)]
+    contrasts = ["c1", "c2", "c3"]
+    u = rng.normal(scale=5.0, size=10)
+    beta = np.empty((2, 10, 3), dtype=np.float64)
+    beta[0] = u[:, None] + rng.normal(scale=1e-9, size=(10, 3))
+    beta[1] = u[:, None] + rng.normal(scale=1.0, size=(10, 3))
+    ds = group_dataset(
+        {"beta": beta, "var": np.ones_like(beta)},
+        space=SampleLabelSpace(["a", "b"]),
+        subjects=subjects,
+        contrasts=contrasts,
+    )
+
+    out = lmm_ri(ds, formula="~ 1", theta_mode="voxelwise")
+
+    assert out.assay("lambda")[0, 0, 0] > np.exp(10.0)
+    assert out.assay("lambda")[1, 0, 0] < np.exp(10.0)
+    np.testing.assert_array_equal(out.assay("converged")[:, 0, 0], [0.0, 1.0])
+
+
+def _lmm_group_by_condition_dataset():
+    # fmrigds tests/testthat/test-review-numeric.R:287-325 (7c7ecae): 20
+    # subjects x 4 conditions, ~ group * condition.
+    rng = np.random.default_rng(91)
+    n_sub, n_rep = 20, 4
+    subjects = [f"s{i:02d}" for i in range(n_sub)]
+    contrasts = [f"c{i}" for i in range(n_rep)]
+    group = np.repeat(["A", "B"], n_sub // 2)
+    condition = np.arange(n_rep, dtype=np.float64)
+    u = rng.normal(scale=0.7, size=n_sub)
+    mu = 0.5 * (group == "B")[:, None] + 0.3 * condition[None, :] + u[:, None]
+    beta = mu[None, :, :] + rng.normal(scale=0.3, size=(2, n_sub, n_rep))
+    return group_dataset(
+        {"beta": beta},
+        space=SampleLabelSpace(["a", "b"]),
+        subjects=subjects,
+        contrasts=contrasts,
+        col_data=pd.DataFrame({"group": group}, index=subjects),
+        contrast_data=pd.DataFrame({"condition": condition}, index=contrasts),
+    )
+
+
+@pytest.mark.parametrize("reducer", ["ri", "ri_slope1"])
+def test_lmm_between_subject_terms_use_subject_level_df(reducer: str) -> None:
+    from scipy import stats as sp_stats
+
+    ds = _lmm_group_by_condition_dataset()
+    if reducer == "ri":
+        out = lmm_ri(ds, formula="~ group * condition", theta_mode="voxelwise")
+    else:
+        out = lmm_ri_slope1(
+            ds, formula="~ group * condition", slope="condition", theta_mode="voxelwise"
+        )
+
+    # Between-subject columns (constant within every subject): N - rank(X_between)
+    # = 20 - 2. Within-subject columns keep N*K - p = 80 - 4.
+    expected = {"Intercept": 18, "group[T.B]": 18, "condition": 76, "group[T.B]:condition": 76}
+    for name, df in expected.items():
+        np.testing.assert_array_equal(out.assay(f"df_coef:{name}")[:, 0, 0], df)
+        t = out.assay(f"t_coef:{name}")[:, 0, 0]
+        np.testing.assert_allclose(
+            out.assay(f"p_coef:{name}")[:, 0, 0], 2.0 * sp_stats.t.sf(np.abs(t), df), rtol=1e-12
+        )
+    np.testing.assert_array_equal(out.assay("df_res")[:, 0, 0], 76)
+
+
 def test_lmm_ri_records_partial_voxelwise_fit_failures(monkeypatch) -> None:
     ds = _lmm_repeated_dataset()
     calls = []
@@ -790,6 +1038,30 @@ def test_lmm_ri_slope1_records_partial_voxelwise_fit_failures(monkeypatch) -> No
     )
     np.testing.assert_allclose(out.assay("coef:time")[0, 0, 0], 0.5)
     assert np.isnan(out.assay("coef:time")[1, 0, 0])
+
+
+def test_lmm_ri_slope1_flags_slope_variance_beyond_r_search_bound(monkeypatch) -> None:
+    # R bounds the log relative SD of each Cholesky diagonal at 10
+    # (R/reducers-lmm.R:331-337, 404-407): a slope variance ratio beyond
+    # exp(20) is pinned there and reported as converged = 0 (7c7ecae).
+    ds = _lmm_slope_dataset()
+    slope_var = iter([0.10, 0.5 * np.exp(20.5)])
+
+    def fake_fit(y, X, groups, exog_re, *, reml, covariance="full"):
+        return SimpleNamespace(
+            fe_params=np.array([1.0, 0.5]),
+            bse_fe=np.array([0.20, 0.25]),
+            scale=0.5,
+            cov_re=np.array([[0.25, 0.0], [0.0, next(slope_var)]]),
+            llf=-1.25,
+            converged=True,
+        )
+
+    monkeypatch.setattr(group_reducers, "_fit_mixedlm_feature", fake_fit)
+
+    out = lmm_ri_slope1(ds, formula="~ time", slope="time", theta_mode="voxelwise")
+
+    np.testing.assert_array_equal(out.assay("converged")[:, 0, 0], [1.0, 0.0])
 
 
 def test_lmm_ri_slope1_raises_when_all_voxelwise_fits_fail(monkeypatch) -> None:

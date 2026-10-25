@@ -20,7 +20,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy import special as sp_special
 
-from .contrasts import ContrastResult
+from .contrasts import ContrastResult, _safe_t
 from .fmri_lm import FmriLm
 
 _METHODS = ("fixed", "ivw")
@@ -209,16 +209,26 @@ def combine_contrasts(
         effect_pool = estimate_stack.mean(axis=0)
         var_pool = var_stack.sum(axis=0) / (n_runs * n_runs)
     else:  # method == "ivw"
-        var_floor = np.maximum(var_stack, np.finfo(np.float64).tiny)
-        inv_var = 1.0 / var_floor
-        sum_inv_var = inv_var.sum(axis=0)
+        # A run with zero variance has infinite precision: take the limit
+        # of inverse-variance weighting (equal weight on the zero-variance
+        # runs, none on the others; fmrireg do_fixef) instead of an
+        # absolute variance floor.
+        zero_var = var_stack == 0.0
         with np.errstate(divide="ignore", invalid="ignore"):
+            weights = np.where(
+                np.any(zero_var, axis=0), zero_var.astype(np.float64), 1.0 / var_stack
+            )
+            sum_w = weights.sum(axis=0)
             effect_pool = np.where(
-                sum_inv_var > 0,
-                (estimate_stack * inv_var).sum(axis=0) / sum_inv_var,
+                sum_w > 0,
+                (estimate_stack * weights).sum(axis=0) / sum_w,
                 0.0,
             )
-            var_pool = np.where(sum_inv_var > 0, 1.0 / sum_inv_var, np.inf)
+            var_pool = np.where(
+                sum_w > 0,
+                (weights * weights * var_stack).sum(axis=0) / (sum_w * sum_w),
+                np.inf,
+            )
 
     se_pool = np.sqrt(np.maximum(var_pool, 0.0))
 
@@ -228,8 +238,7 @@ def combine_contrasts(
             raise ValueError("combine_contrasts: t-contrast df must be scalar")
         dfs.append(float(result.df))
     df_pool = float(sum(dfs))
-    with np.errstate(divide="ignore", invalid="ignore"):
-        t_pool = np.where(se_pool > 1e-15, effect_pool / se_pool, 0.0)
+    t_pool = _safe_t(effect_pool, se_pool)
     p_pool = 2.0 * sp_special.stdtr(df_pool, -np.abs(t_pool))
 
     return ContrastResult(

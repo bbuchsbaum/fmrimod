@@ -80,19 +80,57 @@ class AROptions:
     Parameters
     ----------
     struct : str
-        AR structure: ``"iid"`` (no AR), ``"ar1"``, ``"ar2"``, ``"arp"``.
+        AR structure: ``"iid"`` (no AR), ``"ar1"``, ``"ar2"``, ``"arp"``, or
+        ``"arma"`` (AR order ``p``, default 1).
     p : int or None
-        AR order when *struct* is ``"arp"``.
+        AR order when *struct* is ``"arp"`` or ``"arma"``.
     iter_gls : int
-        Number of GLS iterations.
+        Maximum number of GLS iterations. ``fmri_lm`` estimates the AR model
+        once, from the OLS residuals with fmriAR's residual-bias correction
+        for the design, and holds it fixed for the GLS solve (fmrireg
+        23c275f), so any value >= 1 gives the same fit; ``0`` fits OLS.
+        An ARMA model (``q > 0``) is refined up to ``iter_gls`` times,
+        stopping once its coefficients move by at most ``convergence_tol``.
     global_ar : bool
-        If ``True``, estimate a single global AR parameter set.
+        Alias for ``pooling="global"`` (fmrireg ``ar_options$global``).
     voxelwise : bool
-        If ``True``, estimate AR parameters per voxel.
+        If ``True``, estimate AR parameters per voxel and solve each voxel's
+        GLS with its own whitened design. ``fmri_lm`` supports this only with
+        ``pooling="run"``, ``iter_gls=1``, no censoring, no volume weights,
+        soft projection or robust fitting (fmrireg 3c2a9c2).
     exact_first : bool
-        If ``True``, use exact likelihood for the first *p* observations.
+        If ``True``, start every run and censoring segment with the exact
+        stationary initialisation of the AR model when whitening.
     censor : array-like or "auto" or None
         Timepoints to exclude from AR estimation.
+    pooling : {"run", "global", "parcel"}
+        Scope of a shared AR model: ``"run"`` (default) estimates one AR
+        model per run and ``"global"`` one model pooled across runs
+        (fmrireg ``noise_spec(pooling=)``). ``fmri_lm`` does not support
+        ``"parcel"``.
+    noise_pools : int or None
+        Voxelwise only: quantise the AR estimates into this many
+        equal-frequency pools, one GLS solve per pool.
+    bin_width : float or None
+        Voxelwise only: truncate each AR coefficient toward zero onto a grid
+        of this width before whitening, so voxels sharing a bin share one
+        solve. ``0.01`` is Nilearn's ``run_glm(noise_model="ar1", bins=100)``
+        rule (for AR(p > 1) the truncation applies per coefficient, where
+        Nilearn clusters with k-means instead). Trades a little accuracy
+        (|phi error| < width) for speed at large voxel counts; ``None``
+        (default) keeps the exact per-voxel estimates.
+    method : str
+        ``"ar"`` (default) or ``"arma"``, which requests an ARMA model like
+        ``q > 0``. ``fmri_lm`` does not support ``"afni"``.
+    q : int
+        MA order. ``q > 0`` (or ``struct``/``method`` ``"arma"``, which
+        default ``q`` to 1) makes ``fmri_lm`` fit an ARMA(p, q) model per
+        run by fmriAR's pooled Hannan-Rissanen estimator (fmrireg 3c2a9c2);
+        ``struct="iid"`` with ``q > 0`` is a pure MA model. ``fmri_lm``
+        supports this only with ``pooling="run"``, ``iter_gls >= 1`` and no
+        censoring, voxelwise covariance, noise pools or robust fitting.
+    convergence_tol : float
+        ARMA refinement stops once no coefficient moves by more than this.
     """
 
     struct: Literal["iid", "ar1", "ar2", "arp", "arma"] = "iid"
@@ -105,10 +143,11 @@ class AROptions:
     method: Literal["ar", "arma", "afni"] = "ar"
     q: int = 0
     p_max: int = 6
-    pooling: Literal["global", "run", "parcel"] = "global"
+    pooling: Literal["global", "run", "parcel"] = "run"
     convergence_tol: float = 5e-3
     parcels: Optional[NDArray[Any]] = None
     noise_pools: Optional[int] = None
+    bin_width: Optional[float] = None
 
     def __init__(
         self,
@@ -122,10 +161,11 @@ class AROptions:
         method: Literal["ar", "arma", "afni"] = "ar",
         q: int = 0,
         p_max: int = 6,
-        pooling: Literal["global", "run", "parcel"] = "global",
+        pooling: Literal["global", "run", "parcel"] = "run",
         convergence_tol: float = 5e-3,
         parcels: Optional[NDArray[Any]] = None,
         noise_pools: Optional[int] = None,
+        bin_width: Optional[float] = None,
         **kwargs: object,
     ) -> None:
         # R-compat alias: ar_options$global -> global_ar
@@ -151,6 +191,7 @@ class AROptions:
         self.convergence_tol = convergence_tol
         self.parcels = parcels
         self.noise_pools = noise_pools
+        self.bin_width = bin_width
         self.__post_init__()
 
     def __post_init__(self) -> None:
@@ -207,6 +248,26 @@ class AROptions:
         ):
             if not isinstance(value, (bool, np.bool_)):
                 raise ValueError(f"{key} must be a boolean scalar")
+        if self.bin_width is not None:
+            if isinstance(self.bin_width, (bool, np.bool_)) or not isinstance(
+                self.bin_width, (int, float, np.integer, np.floating)
+            ):
+                raise ValueError("bin_width must be a positive number or None")
+            self.bin_width = float(self.bin_width)
+            if not 0 < self.bin_width < 1:
+                raise ValueError("bin_width must be in (0, 1)")
+            if not self.voxelwise:
+                raise ValueError("bin_width requires voxelwise=True")
+            if self.noise_pools is not None:
+                raise ValueError("pass bin_width or noise_pools, not both")
+        # ``global_ar`` is the R-compat spelling of ``pooling="global"``.
+        if self.global_ar and self.pooling == "run":
+            self.pooling = "global"
+        elif self.global_ar and self.pooling != "global":
+            raise ValueError(
+                f"global_ar=True conflicts with pooling={self.pooling!r}"
+            )
+        self.global_ar = self.pooling == "global"
         if self.censor is not None:
             if isinstance(self.censor, str):
                 if self.censor != "auto":
@@ -241,7 +302,20 @@ class AROptions:
 
     @property
     def enabled(self) -> bool:
-        return self.struct != "iid"
+        # A pure MA model (struct="iid", q > 0) is temporal noise too.
+        return self.struct != "iid" or self.is_arma
+
+    @property
+    def is_arma(self) -> bool:
+        """True when an MA part is requested (``q > 0`` or ``"arma"``)."""
+        return self.q > 0 or self.struct == "arma" or self.method == "arma"
+
+    @property
+    def ma_order(self) -> int:
+        """Effective MA order: ``q``, or 1 when ARMA is requested by name."""
+        if self.q > 0:
+            return self.q
+        return 1 if self.is_arma else 0
 
 
 @dataclass
@@ -258,7 +332,8 @@ class VolumeWeightOptions:
     threshold : float
         DVARS threshold for weighting.
     weights : NDArray or None
-        Pre-computed weight vector (overrides method/threshold).
+        Pre-computed weight vector (overrides method/threshold). Supplying
+        it turns weighting on, as fmrireg ``weights_spec(values = w)``.
     """
 
     enabled: bool = False
@@ -286,6 +361,7 @@ class VolumeWeightOptions:
             if np.any(w < 0):
                 raise ValueError("weights must be non-negative")
             self.weights = w
+            self.enabled = True
 
 
 @dataclass

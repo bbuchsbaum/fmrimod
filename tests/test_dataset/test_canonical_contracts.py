@@ -86,6 +86,42 @@ def test_get_data_uses_rows_cols_matrix_slicing() -> None:
     )
 
 
+def test_boolean_selectors_act_as_masks() -> None:
+    """Logical row/column selectors are masks, not 0/1 positions.
+
+    R ``ec6efd3`` (ADR-010 selection algebra, ``R/axis-selection.R``): a
+    logical selector must match the axis length and act as a mask; numeric
+    positions must be whole.
+    """
+    mat = np.arange(40, dtype=np.float64).reshape(8, 5)
+    ds = dataset.matrix_dataset(mat, tr=2.0)
+    keep_rows = np.zeros(8, dtype=bool)
+    keep_rows[[5, 7]] = True
+    keep_cols = np.array([False, True, False, False, True])
+
+    np.testing.assert_array_equal(
+        ds.get_data(rows=keep_rows), ds.get_data(rows=[5, 7])
+    )
+    np.testing.assert_array_equal(
+        ds.get_data(cols=keep_cols), ds.get_data(cols=[1, 4])
+    )
+    backend = ds.storage_backend
+    np.testing.assert_array_equal(
+        backend.get_data(rows=keep_rows), mat[[5, 7]]
+    )
+    np.testing.assert_array_equal(
+        backend.get_data(cols=keep_cols), mat[:, [1, 4]]
+    )
+    with pytest.raises(ValueError, match="boolean mask length"):
+        ds.get_data(rows=keep_rows[:4])
+    with pytest.raises(ValueError, match="integers"):
+        ds.get_data(rows=np.array([2.7]))
+    with pytest.raises(ValueError, match="integers"):
+        backend.get_data(rows=np.array([2.7]))
+    # Python's negative-index and repeat semantics are kept.
+    np.testing.assert_array_equal(ds.get_data(rows=[-1, -1]), mat[[7, 7]])
+
+
 def test_run_access_uses_explicit_method() -> None:
     mat = np.arange(40, dtype=np.float64).reshape(20, 2)
     ds = fm.matrix_dataset(mat, tr=2.0, run_length=[8, 12])
@@ -125,3 +161,42 @@ def test_fmridataset_facade_identity_when_available() -> None:
     assert fmridataset.FmriDataset is dataset.FmriDataset
     assert fmridataset.matrix_dataset is dataset.matrix_dataset
     assert fmridataset.SamplingFrame is SamplingFrame
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [{"tr": float("nan")}, {"tr": 2.0, "start_time": float("nan")}, {"tr": float("inf")}],
+)
+def test_timing_must_be_finite(kwargs) -> None:
+    # fmridataset 99d19fe (ADR-004): TR positive and finite, start_time finite.
+    # Inventory v2 DS-08. All three entry points, so a constructor-only check
+    # cannot pass.
+    x = np.zeros((6, 2))
+    with pytest.raises(ValueError):
+        SamplingFrame(blocklens=[6], **kwargs)
+    with pytest.raises(ValueError):
+        dataset.matrix_dataset(x, **kwargs)
+    with pytest.raises(ValueError):
+        dataset.fmri_dataset(x, run_length=6, **kwargs)
+
+
+def test_dataset_start_time_must_be_non_negative() -> None:
+    # R splits a permissive fmrihrf sampling_frame from a strict fmridataset:
+    # a negative first-volume offset is refused at the dataset constructors.
+    x = np.zeros((6, 2))
+    SamplingFrame(blocklens=[6], tr=2.0, start_time=-1.0)  # still allowed
+    with pytest.raises(ValueError, match="start_time"):
+        dataset.matrix_dataset(x, tr=2.0, start_time=-1.0)
+    with pytest.raises(ValueError, match="start_time"):
+        dataset.fmri_dataset(x, tr=2.0, run_length=6, start_time=-1.0)
+
+
+def test_tr_spellings_agree_within_float_tolerance() -> None:
+    # fmridataset cce6a44: seconds compared with rtol sqrt(eps). Inventory DS-09.
+    x = np.zeros((6, 2))
+    ds = dataset.matrix_dataset(x, tr=0.1 * 3, TR=0.3)
+    np.testing.assert_allclose(ds.sampling_frame.tr, [0.3])
+    with pytest.raises(ValueError, match="agree"):
+        dataset.matrix_dataset(x, tr=0.3, TR=0.31)
+    sf = dataset.matrix_dataset(x, tr=2.0, start_time=0.1 * 3, slice_timing_offset=0.3)
+    np.testing.assert_allclose(sf.sampling_frame.start_time, [0.3])

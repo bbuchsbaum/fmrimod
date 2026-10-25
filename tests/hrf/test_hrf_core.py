@@ -15,6 +15,55 @@ from fmrimod.hrf.library import (
 )
 
 
+def _clamped_interior_bspline(t, n_basis, degree, span):
+    """Transcribed R ``hrf_bspline()`` reference, via Cox-de Boor recursion.
+
+    Builds the clamped ``n_basis + 2`` basis on ``[0, span]`` with evenly
+    spaced interior knots and drops the first and last functions. ``t ==
+    span`` takes the limit from the left, as ``splines::bs`` does.
+    """
+    t = np.asarray(t, dtype=float)
+    n_interior = n_basis + 1 - degree
+    knots = np.concatenate(
+        [
+            np.zeros(degree + 1),
+            np.linspace(0.0, span, n_interior + 2)[1:-1],
+            np.full(degree + 1, float(span)),
+        ]
+    )
+    last = np.flatnonzero(knots[:-1] < knots[1:])[-1]
+    basis = np.zeros((len(t), len(knots) - 1))
+    for i in range(len(knots) - 1):
+        closed = (i == last) & (t == knots[i + 1])
+        basis[:, i] = (knots[i] <= t) & ((t < knots[i + 1]) | closed)
+    for k in range(1, degree + 1):
+        nxt = np.zeros((len(t), len(knots) - 1 - k))
+        for i in range(len(knots) - 1 - k):
+            left = knots[i + k] - knots[i]
+            right = knots[i + k + 1] - knots[i + 1]
+            if left > 0:
+                nxt[:, i] += (t - knots[i]) / left * basis[:, i]
+            if right > 0:
+                nxt[:, i] += (knots[i + k + 1] - t) / right * basis[:, i + 1]
+        basis = nxt
+    basis[(t < 0) | (t > span)] = 0.0
+    return basis[:, 1:-1]
+
+
+def _r_fir_basis(t, n_basis, span):
+    """Transcribed R ``hrf_fir_generator()`` (``R/hrf.R:918-946``).
+
+    One-hot indicator of the bin ``[k * w, (k + 1) * w)`` holding each
+    ``0 <= t < span``; zero elsewhere, including at ``t == span``.
+    """
+    t = np.asarray(t, dtype=float)
+    width = span / n_basis
+    out = np.zeros((len(t), n_basis))
+    inside = np.flatnonzero(~np.isnan(t) & (t >= 0) & (t < span))
+    out[inside, np.minimum(np.floor(t[inside] / width), n_basis - 1).astype(int)] = 1.0
+    return out
+
+
 class TestHRFBase:
     """Test base HRF functionality."""
     
@@ -23,12 +72,12 @@ class TestHRFBase:
         assert isinstance(SPM_CANONICAL, HRF)
         assert SPM_CANONICAL.name == "SPMG1"
         assert SPM_CANONICAL.nbasis == 1
-        assert SPM_CANONICAL.span == 32.0  # SPM default kernel length
+        assert SPM_CANONICAL.span == 24.0  # R HRF_SPMG1 span
         assert SPM_CANONICAL.delay == 6.0
         assert SPM_CANONICAL.undershoot == 16.0
         assert SPM_CANONICAL.dispersion == 1.0
         assert SPM_CANONICAL.u_dispersion == 1.0
-        assert SPM_CANONICAL.ratio == pytest.approx(0.167)
+        assert SPM_CANONICAL.ratio == 1.0 / 6.0
     
     def test_spm_canonical_evaluation(self, time_grid):
         """Test SPM canonical HRF evaluation."""
@@ -88,10 +137,76 @@ class TestHRFBase:
         """Test B-spline HRF."""
         assert BSPLINE_HRF.name == "bspline"
         assert BSPLINE_HRF.nbasis == 5
-        
+
         result = BSPLINE_HRF(time_grid)
         assert result.shape == (len(time_grid), 5)
-    
+
+    @pytest.mark.parametrize("degree", [1, 2, 3])
+    def test_bspline_basis_is_interior_of_clamped_basis(self, degree):
+        """B-spline functions vanish at 0 and at ``span`` (fmrihrf ``18d418f``).
+
+        ``R/hrf-functions.R:48-87``: the N functions are the interior ones of
+        a clamped N+2 basis with evenly spaced knots on ``[0, span]``.
+        """
+        from fmrimod.hrf.functions import bspline_hrf
+
+        t = np.arange(0, 24.0001, 0.1)
+        basis = bspline_hrf(t, n_basis=6, degree=degree, span=24.0)
+        assert basis.shape == (len(t), 6)
+        np.testing.assert_array_equal(basis[0], np.zeros(6))
+        np.testing.assert_allclose(basis[-1], np.zeros(6), rtol=0, atol=1e-12)
+        np.testing.assert_allclose(
+            basis, _clamped_interior_bspline(t, 6, degree, 24.0), rtol=0, atol=1e-12
+        )
+
+    def test_tent_basis_peaks_at_evenly_spaced_knots(self):
+        """The degree-1 (tent) basis peaks at the interior knots."""
+        from fmrimod.hrf.generators import hrf_tent_generator
+
+        t = np.arange(0, 24.001, 0.01)
+        peaks = t[np.argmax(hrf_tent_generator(nbasis=5, span=24)(t), axis=0)]
+        np.testing.assert_allclose(peaks, [4.0, 8.0, 12.0, 16.0, 20.0], atol=1e-9)
+
+    def test_bspline_regressor_has_no_step_at_span_end(self):
+        """R test_hrf.R: a regressor from HRF_BSPLINE has no end-of-span step."""
+        from fmrimod.regressor import regressor
+
+        y = regressor([0.0], hrf=BSPLINE_HRF).evaluate(
+            np.arange(23, 25.0001, 0.1), precision=0.1
+        )
+        assert np.max(np.abs(np.diff(y, axis=0))) < 0.05
+
+    def test_bspline_rejects_too_few_functions(self):
+        """A cubic basis needs at least ``degree - 1`` interior functions."""
+        from fmrimod.hrf.functions import bspline_hrf
+
+        with pytest.raises(ValueError, match="at least 2"):
+            bspline_hrf(np.arange(0, 24.0, 1.0), n_basis=1, degree=3)
+        assert bspline_hrf(np.array([]), n_basis=5).shape == (0, 5)
+
+    @pytest.mark.parametrize("n_basis,span", [(12, 24.0), (12, 20.0), (7, 24.0)])
+    def test_fir_bins_are_right_open_at_span(self, n_basis, span):
+        """FIR bins are ``[k w, (k + 1) w)``; ``t == span`` is outside every bin.
+
+        R ``hrf_fir_generator()`` keeps only ``0 <= t < span`` (unchanged
+        since the v1 pin), so the last FIR column is not 1 at the end of
+        the span.
+        """
+        from fmrimod.hrf.functions import fir_basis
+
+        t = np.concatenate([np.arange(-1.0, span + 1.0001, 0.25), [np.nan]])
+        np.testing.assert_array_equal(
+            fir_basis(t, n_basis=n_basis, span=span), _r_fir_basis(t, n_basis, span)
+        )
+
+    def test_fir_regressor_is_zero_at_span_end(self):
+        """A point event's FIR response ends before ``t == span``."""
+        from fmrimod.hrf.library import FIR_HRF
+        from fmrimod.regressor import regressor
+
+        y = regressor([0.0], hrf=FIR_HRF).evaluate(np.array([23.9, 24.0]), precision=0.1)
+        np.testing.assert_allclose(y[:, -1], [1.0, 0.0], rtol=0, atol=1e-12)
+
     def test_evaluate_with_duration(self):
         """Test HRF evaluation with block duration."""
         t = np.arange(0, 20, 0.2)
@@ -147,28 +262,18 @@ class TestSPMGTypedFields:
         from fmrimod.hrf.spm_hrf import SPMG1_HRF
 
         hrf = SPMG1_HRF()
-        # The default SPMG1_HRF now uses the SPM standard parameterization
-        # (delay=6, undershoot=16, dispersion=1, u_dispersion=1, ratio=0.167);
-        # the legacy (p1=5, p2=15, a1=0.0833) form moved to SPMG1_HRF_Legacy.
+        # R HRF_SPMG1's parameterization (D2): delay=6, undershoot=16,
+        # dispersion=1, u_dispersion=1, ratio exactly 1/6.
         assert hrf.delay == 6.0
         assert hrf.undershoot == 16.0
         assert hrf.dispersion == 1.0
         assert hrf.u_dispersion == 1.0
-        assert hrf.ratio == pytest.approx(0.167)
+        assert hrf.ratio == 1.0 / 6.0
 
         field_names = {f.name for f in fields(hrf)}
         assert {
             "delay", "undershoot", "dispersion", "u_dispersion", "ratio"
         }.issubset(field_names)
-
-    def test_spmg1_legacy_preserves_old_fields(self):
-        """The legacy R-fmrireg parameterization stays available."""
-        from fmrimod.hrf.spm_hrf import SPMG1_HRF_Legacy
-
-        hrf = SPMG1_HRF_Legacy()
-        assert hrf.p1 == 5.0
-        assert hrf.p2 == 15.0
-        assert hrf.a1 == 0.0833
 
     def test_spmg1_constructor_overrides(self):
         from fmrimod.hrf.spm_hrf import SPMG1_HRF
@@ -278,6 +383,64 @@ class TestBasisHRFTypedFields:
 
         with pytest.raises(ValueError, match="theta0 must have length 3"):
             LWUBasisHRF(theta0=(1.0, 2.0))  # type: ignore[arg-type]
+
+
+class TestLWUBasisDomainEdges:
+    """Inventory v2 HRF-14 (fmrihrf ``5489369``, ``5b8e453``).
+
+    ``hrf_basis_lwu`` must work for every ``theta0`` that passes
+    validation, including the closed bounds of ``rho`` and ``sigma`` just
+    above 0.05, and reject NaN times.
+    """
+
+    t = np.linspace(0.0, 30.0, 61)
+
+    @staticmethod
+    def _analytic(tau, sigma, rho, t):
+        g1 = np.exp(-((t - tau) ** 2) / (2 * sigma**2))
+        u = t - tau - 2 * sigma
+        g2 = np.exp(-(u**2) / (2 * (1.6 * sigma) ** 2))
+        d_tau = g1 * (t - tau) / sigma**2 - rho * g2 * u / (1.6 * sigma) ** 2
+        d_sigma = g1 * (t - tau) ** 2 / sigma**3 - rho * g2 * (
+            u / (1.28 * sigma**2) + u**2 / (2.56 * sigma**3)
+        )
+        return d_tau, d_sigma, -g2
+
+    @pytest.mark.parametrize("rho", [0.0, 1e-6, 0.35, 1.4999, 1.5])
+    def test_rho_bounds(self, rho):
+        from fmrimod.hrf.functions import hrf_basis_lwu
+
+        basis = hrf_basis_lwu([6.0, 2.5, rho], self.t)
+        assert basis.shape == (len(self.t), 4)
+        assert np.all(np.isfinite(basis))
+        d_tau, d_sigma, d_rho = self._analytic(6.0, 2.5, rho, self.t)
+        np.testing.assert_allclose(basis[:, 3], d_rho, atol=1e-8)
+        np.testing.assert_allclose(basis[:, 1], d_tau, atol=1e-6)
+        np.testing.assert_allclose(basis[:, 2], d_sigma, atol=1e-6)
+
+    def test_sigma_just_above_lower_bound(self):
+        from fmrimod.hrf.functions import hrf_basis_lwu
+
+        sigma = 0.05 + 1e-7
+        t = np.linspace(5.5, 6.5, 41)
+        basis = hrf_basis_lwu([6.0, sigma, 0.35], t)
+        assert np.all(np.isfinite(basis))
+        _, d_sigma, _ = self._analytic(6.0, sigma, 0.35, t)
+        np.testing.assert_allclose(basis[:, 2], d_sigma, rtol=1e-4, atol=1e-4)
+
+    def test_nan_time_rejected(self):
+        from fmrimod.hrf.functions import hrf_basis_lwu
+
+        with pytest.raises(ValueError, match="NaN"):
+            hrf_basis_lwu([6.0, 2.5, 0.35], [0.0, np.nan, 2.0])
+
+    def test_out_of_domain_theta0_still_rejected(self):
+        from fmrimod.hrf.functions import hrf_basis_lwu
+
+        with pytest.raises(ValueError, match="rho"):
+            hrf_basis_lwu([6.0, 2.5, 1.6], self.t)
+        with pytest.raises(ValueError, match="sigma"):
+            hrf_basis_lwu([6.0, 0.05, 0.35], self.t)
 
 
 class TestDecoratorComposition:
@@ -564,7 +727,7 @@ class TestHRFStringRepresentation:
         str_repr = str(SPM_CANONICAL)
         assert "HRF(name='SPMG1'" in str_repr
         assert "nbasis=1" in str_repr
-        assert "span=32.0" in str_repr
+        assert "span=24.0" in str_repr
         assert "delay=6.0" in str_repr
     
     def test_repr(self):

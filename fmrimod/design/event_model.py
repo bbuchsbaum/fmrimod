@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import warnings
 from itertools import product as iter_product
-from typing import Any, Dict, List, Mapping, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -12,6 +12,7 @@ from numpy.typing import NDArray
 
 from .._warnings import call_safely, suppress_fmrimod_warnings
 from ..covariate import CovariateTerm, create_covariate_events
+from ..design_colmap import _hrf_basis_family
 from ..hrf.core import HRF
 from ..dispatch import get_hrf
 from ..events import (
@@ -43,6 +44,9 @@ from ..types import (
     ModelProtocol,
     SamplingInfo,
 )
+
+if TYPE_CHECKING:
+    from matplotlib.figure import Figure
 
 
 def _import_fmrimod() -> Any:
@@ -94,6 +98,42 @@ def _default_precision_from_sframe(sampling_info: object) -> float:
     if tr_arr.size == 0:
         return 0.3
     return float(np.min(tr_arr) / DEFAULT_PRECISION_OVERSAMPLING)
+
+
+def _term_key(name: str | None, tag: str | None, taken: Mapping[str, object]) -> str:
+    """Key of a term in name-keyed maps: its name, or its column tag once taken."""
+    key = str(name)
+    if key in taken and tag:
+        key = tag
+    return key
+
+
+def _plain_function_hrf(fn: Any) -> HRF:
+    """Wrap a plain function of time as an HRF (R ``gen_hrf(fn)``).
+
+    Like fmrihrf's ``.detect_nbasis()``, the basis width is the number of
+    columns ``fn`` returns on ``t = 1..10`` (1, with a warning, when that
+    evaluation fails). The HRF is named after the function; a lambda is
+    ``"custom"``.
+    """
+    from fmrimod.hrf.core import as_hrf
+
+    name = getattr(fn, "__name__", None)
+    if not name or name == "<lambda>":
+        name = "custom"
+    try:
+        probe = np.asarray(fn(np.arange(1.0, 11.0)))
+    except Exception as exc:
+        warnings.warn(
+            f"Could not determine nbasis for function {name} - defaulting to "
+            f"1. Evaluation failed: {exc}",
+            UserWarning,
+            stacklevel=3,
+        )
+        nbasis = 1
+    else:
+        nbasis = int(probe.shape[1]) if probe.ndim == 2 else 1
+    return as_hrf(fn, name=name, nbasis=nbasis)
 
 
 class EventModel(ModelProtocol):  # type: ignore[misc]
@@ -471,6 +511,11 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
 
         event_term = EventTerm(term_events, name=term.name)
         cast(Any, event_term)._is_covariate = True
+        # One condition per variable, named by the variable (not the
+        # prefixed event): the prefix/id is the term tag (R covariate()).
+        cast(Any, event_term)._covariate_conditions = [
+            continuous_token(name) for name in term.covariates
+        ]
         return event_term
 
     def _create_regular_event_term(self, term: Term) -> EventTerm:
@@ -638,7 +683,13 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         if hasattr(hrf, "nbasis") and hasattr(hrf, "evaluate"):
             if self._is_valid_fmrimod_hrf(hrf, fmrimod):
                 return hrf
-        return fmrimod.SPM_CANONICAL
+            return fmrimod.SPM_CANONICAL
+        if callable(hrf):
+            return _plain_function_hrf(hrf)
+        raise TypeError(
+            "HRF basis must be a basis name, an HRF object or a function of "
+            f"time; got {type(hrf).__name__} {hrf!r}"
+        )
 
     def _resolve_hrf_for_term(self, term: Term) -> Any:
         """Resolve a term HRF while honoring term-local HRF options."""
@@ -651,6 +702,7 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         if hrf_fun is not None:
             from ..hrf.core import as_hrf
 
+            self._warn_hrf_fun_precedence(term)
             try:
                 hrf_fun(np.asarray([0.0], dtype=np.float64))
             except TypeError:
@@ -674,6 +726,37 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
 
             hrf_obj = lag_hrf(hrf_obj, lag=lag)
         return hrf_obj
+
+    def _warn_hrf_fun_precedence(self, term: Term) -> None:
+        """Warn once per term when ``hrf_fun`` overrides a non-default basis.
+
+        R fmridesign ``hrf()`` (c69a829) warns when both a basis other than
+        the default ``"spmg1"`` (a name or an HRF object) and ``hrf_fun`` are
+        given, because ``hrf_fun`` takes precedence.
+        """
+        basis = term.hrf
+        if basis is None:
+            return
+        if isinstance(basis, str):
+            from ..hrf.aliases import _normalize_hrf_name
+
+            if basis.strip().lower() == "canonical":
+                return
+            try:
+                if _normalize_hrf_name(basis) == "spmg1":
+                    return
+            except ValueError:
+                pass
+        warned = self.__dict__.setdefault("_hrf_fun_warned", set())
+        if id(term) in warned:
+            return
+        warned.add(id(term))
+        warnings.warn(
+            f"Term '{term.name}': both a basis ({basis!r}) and `hrf_fun` were "
+            "specified; `hrf_fun` takes precedence.",
+            UserWarning,
+            stacklevel=3,
+        )
 
     def _hrf_for_event_data(
         self, hrf_obj: Any, hrf_fun: Any, event: Any, mask: Any = None
@@ -754,7 +837,17 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         for i, (term, event_term) in enumerate(zip(self.terms, event_terms)):
             # Compute design matrix columns for this term
             if isinstance(term, CovariateTerm):
-                X_term = event_term.design_matrix(self.sampling_points)
+                # One unconvolved column per variable (R covariate(x, y)),
+                # not the elementwise product an interaction term builds.
+                n_samples = len(self.sampling_points)
+                X_term = np.hstack(
+                    [
+                        np.asarray(
+                            event.design_matrix(self.sampling_points), dtype=float
+                        ).reshape(n_samples, -1)
+                        for event in event_term.events
+                    ]
+                )
             elif term.hrf is not None:
                 # Use proper fmrimod-based convolution
                 X_term = self._convolve_term(event_term, term)
@@ -778,12 +871,13 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
             # Track column indices for this term
             n_cols = X_term.shape[1]
             term_indices = list(range(current_col, current_col + n_cols))
-            column_indices[term.name] = term_indices
             current_col += n_cols
 
             # Generate term tag
             term_tag = make_term_tag(
-                term_name=term.name,
+                term_name=(
+                    term.covariate_tag if isinstance(term, CovariateTerm) else term.name
+                ),
                 event_names=term.events,
                 hrf_name=term.hrf if isinstance(term.hrf, str) else None,
                 basis_type=(
@@ -799,6 +893,9 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
                 )
             if term_tag:
                 existing_tags.append(term_tag)
+            # A later term reusing a name is keyed by its de-duplicated tag
+            # (``cond#1``) instead of overwriting the earlier term's columns.
+            column_indices[_term_key(term.name, term_tag, column_indices)] = term_indices
 
             # Generate condition tags
             cond_tags = self._get_condition_tags(event_term)
@@ -807,7 +904,8 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
             basis_name = None
             basis_total = None
             if isinstance(term, CovariateTerm):
-                term_col_names = cond_tags
+                # ``<tag>_<variable>`` (R covariate(): cov_x, motion_x).
+                term_col_names = make_column_names(term_tag, cond_tags, 1)
             elif (
                 hasattr(event_term, "_is_trialwise")
                 and cast(Any, event_term)._is_trialwise
@@ -817,7 +915,9 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
                     try:
                         hrf_obj = self._resolve_hrf_for_term(term)
                         nb = int(getattr(hrf_obj, "nbasis", 1) or 1)
-                        basis_name = getattr(hrf_obj, "name", type(hrf_obj).__name__)
+                        basis_name = _hrf_basis_family(
+                            getattr(hrf_obj, "name", type(hrf_obj).__name__)
+                        )
                         basis_total = nb
                     except Exception:
                         pass
@@ -843,7 +943,9 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
                     try:
                         hrf_obj = self._resolve_hrf_for_term(term)
                         nb = hrf_obj.nbasis
-                        basis_name = getattr(hrf_obj, "name", type(hrf_obj).__name__)
+                        basis_name = _hrf_basis_family(
+                            getattr(hrf_obj, "name", type(hrf_obj).__name__)
+                        )
                         basis_total = nb
                     except Exception:
                         pass
@@ -852,6 +954,11 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
 
                 term_col_names = make_column_names(term_tag, cond_tags, nb)
 
+            if len(term_col_names) != X_term.shape[1]:
+                raise ValueError(
+                    f"Term '{term.name}' built {X_term.shape[1]} design columns but "
+                    f"{len(term_col_names)} column names {term_col_names}"
+                )
             column_names.extend(term_col_names)
             column_facts.extend(
                 self._make_column_facts(
@@ -1863,6 +1970,13 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         if trialwise_cond is not None:
             return [str(c) for c in trialwise_cond]
 
+        if getattr(event_term, "_is_covariate", False):
+            # Covariates contribute one column per variable.
+            cov_conditions = getattr(event_term, "_covariate_conditions", None)
+            if cov_conditions is not None:
+                return list(cov_conditions)
+            return [continuous_token(event.name) for event in event_term.events]
+
         cond_tags = []
 
         if event_term.interaction:
@@ -2024,6 +2138,18 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         return pd.DataFrame(
             self.design_matrix, columns=self.column_names, index=self.sampling_points
         )
+
+    def plot(self, **kwargs: object) -> Figure:
+        """Plot the regressors against time; see
+        :func:`fmrimod.visualization.plot_event_model`.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+        """
+        from ..visualization.event_plot import plot_event_model
+
+        return plot_event_model(self, **kwargs)
 
     def summary(self) -> str:
         """Get a concise text summary of the model.
@@ -2663,7 +2789,7 @@ def _check_onsets_in_frame(
 
     message = (
         f"event_model(): {total} event(s) fall outside the sampling frame. "
-        "Events outside [0, blocklen x TR) contribute nearly empty regressors; "
+        "Events outside [0, blocklen x TR) contribute partial or empty regressors; "
         "check that onsets are on the scan clock.\n" + "\n".join(message_lines)
     )
     if strict:

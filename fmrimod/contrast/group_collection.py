@@ -20,7 +20,36 @@ def group_dataset_from_contrasts(
     *,
     covariates: pd.DataFrame | None = None,
 ) -> GroupDataset:
-    """Lower one first-level contrast per subject into a ``GroupDataset``."""
+    """Lower one first-level contrast per subject into a ``GroupDataset``.
+
+    :func:`fmrimod.fmri_group_lm` accepts the same mapping directly; call
+    this when you need the :class:`GroupDataset` itself (e.g. to attach
+    covariates or pick a different group reducer).
+
+    Parameters
+    ----------
+    contrasts
+        ``{subject_id: ContrastResult}`` from first-level
+        ``fit.contrast(...)`` calls, all for the same contrast and with
+        standard errors. A one-element sequence per subject is also accepted.
+    covariates
+        Optional subject-level table with a ``subject`` column matching the
+        mapping keys; stored as the dataset's ``col_data``.
+
+    Returns
+    -------
+    GroupDataset
+        Estimates and standard errors as group assays, with the authored
+        contrast intent kept as metadata.
+
+    Examples
+    --------
+    ::
+
+        per_subject = {sub: fit.contrast("face - house") for sub, fit in fits.items()}
+        gd = group_dataset_from_contrasts(per_subject, covariates=ages)
+        result = fm.fmri_group_lm(gd, formula="~ age")
+    """
     if not isinstance(contrasts, Mapping) or not contrasts:
         raise AdapterContractError("contrasts must be a non-empty subject mapping")
 

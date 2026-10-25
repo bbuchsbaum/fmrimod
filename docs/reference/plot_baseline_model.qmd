@@ -1,37 +1,49 @@
-# visualization.design_map.plot_baseline_model { #fmrimod.visualization.design_map.plot_baseline_model }
+# visualization.baseline_plot.plot_baseline_model { #fmrimod.visualization.baseline_plot.plot_baseline_model }
 
 ```python
-plot_baseline_model(model, term_name=None, title=None, figsize=None, **kwargs)
+plot_baseline_model(
+    model,
+    term=None,
+    title=None,
+    subtitle=None,
+    caption=None,
+    block_x='global',
+    drift_scale='raw',
+    figsize=None,
+    line_width=1.2,
+    term_name=None,
+)
 ```
 
-Plot baseline model terms over time.
+Plot the time-varying terms of a baseline model (R ``plot.baseline_model``).
 
-Shows drift, block, and nuisance terms as line plots,
-with faceting by block/run when applicable.
+One lane per term on a shared time axis: drift basis functions keep
+their colour in every run, nuisance regressors keep the names you
+supplied, and when those look like rigid-body motion parameters
+translations and rotations get separate lanes (their units differ).
+Each lane has a key at its right edge in column order (a legend below
+the plot past seven series). Lines never cross runs. Terms constant
+within every run (run intercepts, a global intercept) are left out and
+listed in the caption; request one with ``term`` to draw it. For
+spline and polynomial drift the caption gives a rough DCT-equivalent
+high-pass period, ``2 x run duration / columns``.
 
 ## Parameters {.doc-section .doc-section-parameters}
 
-| Name      | Type          | Description                                                              | Default    |
-|-----------|---------------|--------------------------------------------------------------------------|------------|
-| model     | BaselineModel | Baseline model to visualize                                              | _required_ |
-| term_name | str           | Specific term to plot ('drift', 'block', 'nuisance'). If None, plot all. | `None`     |
-| title     | str           | Custom title                                                             | `None`     |
-| figsize   | tuple         | Figure size                                                              | `None`     |
-| **kwargs  | object        | Additional arguments passed to plot functions                            | `{}`       |
+| Name        | Type                  | Description                                                                                                                          | Default    |
+|-------------|-----------------------|--------------------------------------------------------------------------------------------------------------------------------------|------------|
+| model       | BaselineModel         |                                                                                                                                      | _required_ |
+| term        | str                   | One term to draw (``"drift"``, ``"block"`` or ``"nuisance"``; an exact or unique partial match). ``term_name`` is an alias.          | `None`     |
+| title       | str                   | ``None`` uses the default; ``""`` removes it.                                                                                        | `None`     |
+| subtitle    | str                   | ``None`` uses the default; ``""`` removes it.                                                                                        | `None`     |
+| caption     | str                   | ``None`` uses the default; ``""`` removes it.                                                                                        | `None`     |
+| block_x     | (\'global\', \'run\') | Runs concatenated on one time axis, or one column per run.                                                                           | `"global"` |
+| drift_scale | (\'raw\', \'unit\')   | Plot drift as it enters the design, or divide each basis function by its peak within its run (the caption then gives the raw peaks). | `"raw"`    |
+| figsize     | (float, float)        |                                                                                                                                      | `None`     |
+| line_width  | float                 |                                                                                                                                      | `1.2`      |
 
 ## Returns {.doc-section .doc-section-returns}
 
-| Name   | Type                          | Description       |
-|--------|-------------------------------|-------------------|
-| fig    | matplotlib.figure.Figure      | The figure object |
-| axes   | array of matplotlib.axes.Axes | The axes objects  |
-
-## Examples {.doc-section .doc-section-examples}
-
-```python
->>> # Plot all baseline terms
->>> fig, axes = plot_baseline_model(baseline_model)
->>>
->>> # Plot only drift term
->>> fig, axes = plot_baseline_model(baseline_model, term_name='drift')
-```
+| Name   | Type                     | Description   |
+|--------|--------------------------|---------------|
+|        | matplotlib.figure.Figure |               |

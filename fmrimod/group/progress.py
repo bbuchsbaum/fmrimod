@@ -6,10 +6,11 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Protocol
+from ..utils.pickling import ReadOnlyMappingPickle
 
 
 @dataclass(frozen=True)
-class GroupProgressEvent:
+class GroupProgressEvent(ReadOnlyMappingPickle):
     """One progress notification from a group-analysis operation."""
 
     stage: str

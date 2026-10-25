@@ -43,6 +43,9 @@ class FmriMetaResult:
     method: str
     formula: str
     data: GroupData
+    n_obs: NDArray[np.intp] | None = None
+    """Subjects that entered each feature's fit after dropping non-finite
+    effects (and invalid variances for inverse-variance weights)."""
 
 
 def _as_formula(formula: str | object) -> str:
@@ -107,10 +110,6 @@ def _extract_feature_frames(
         else:
             v = np.asarray(aligned[var_col], dtype=np.float64)
 
-        if not np.all(np.isfinite(y)):
-            raise ValueError("Effect-size values must be finite")
-        if not np.all(np.isfinite(v)) or np.any(v <= 0):
-            raise ValueError("Effect variances must be finite and > 0")
 
         if group_cols:
             if isinstance(key, tuple):
@@ -289,6 +288,9 @@ def _solve_meta_wls(
     weight_mode: MetaWeights,
     weight_custom: Optional[NDArray[np.float64]] = None,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64], float]:
+    if weight_mode != "ivw":
+        return _solve_relative_wls(y, X, weight_mode, weight_custom)
+
     tau2 = 0.0
     if method in ("dl", "pm", "reml"):
         intercept_only = X.shape[1] == 1 and np.allclose(X[:, 0], 1.0)
@@ -309,16 +311,45 @@ def _solve_meta_wls(
                 "intercept-only formula (~ 1)."
             )
 
-    base_w = 1.0 / (v + tau2)
-    if weight_mode == "ivw":
-        w = base_w
-    elif weight_mode == "equal":
-        w = np.ones_like(base_w)
+    beta, XtWX_inv = _wls_fit(y, X, 1.0 / (v + tau2))
+    se = np.sqrt(np.clip(np.diag(XtWX_inv), 0.0, np.inf))
+    return beta, se, tau2
+
+
+def _solve_relative_wls(
+    y: NDArray[np.float64],
+    X: NDArray[np.float64],
+    weight_mode: MetaWeights,
+    weight_custom: NDArray[np.float64] | None,
+) -> tuple[NDArray[np.float64], NDArray[np.float64], float]:
+    """WLS with *relative* weights, ``Var(y_i) = sigma^2 / w_i``.
+
+    Port of fmrireg ``.meta_fit_core`` (``R/meta_fit.R``): the residual
+    scale is estimated per feature as ``lm(weights = w)`` does, so equal
+    weights give the one-sample / OLS group t. The sampling variances
+    and ``method`` are not used, and ``tau2`` is undefined (NaN).
+    """
+    if weight_mode == "equal":
+        w = np.ones(y.shape[0], dtype=np.float64)
     else:
         if weight_custom is None:
             raise ValueError("Custom weights requested but no weights were provided")
         w = weight_custom
 
+    beta, XtWX_inv = _wls_fit(y, X, w)
+    n, p = X.shape
+    resid = y - X @ beta
+    sigma2 = float(np.sum(w * resid * resid)) / (n - p) if n > p else np.nan
+    se = np.sqrt(np.clip(np.diag(XtWX_inv), 0.0, np.inf) * sigma2)
+    return beta, se, np.nan
+
+
+def _wls_fit(
+    y: NDArray[np.float64],
+    X: NDArray[np.float64],
+    w: NDArray[np.float64],
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Weighted least squares; returns ``(beta, (X'WX)^{-1})``."""
     if np.any(w <= 0) or not np.all(np.isfinite(w)):
         raise ValueError("Weights must be finite and > 0")
 
@@ -332,13 +363,11 @@ def _solve_meta_wls(
         warnings.warn(
             "Design is rank-deficient; using pseudo-inverse for meta-regression covariance",
             UserWarning,
-            stacklevel=2,
+            stacklevel=3,
         )
         XtWX_inv = np.linalg.pinv(XtWX)
 
-    beta = XtWX_inv @ XtWy
-    se = np.sqrt(np.clip(np.diag(XtWX_inv), 0.0, np.inf))
-    return beta, se, tau2
+    return XtWX_inv @ XtWy, XtWX_inv
 
 
 def _coerce_group_data(
@@ -396,6 +425,14 @@ def fmri_meta(
     Notes
     -----
     This initial implementation targets CSV-backed effect-size data.
+
+    ``weights="ivw"`` takes the subject-level variances as known and
+    ``method`` chooses the between-subject variance estimator.
+    ``weights="equal"`` and ``"custom"`` are *relative* weights: the model
+    is ``Var(y_i) = sigma^2 / w_i`` with ``sigma^2`` estimated per feature
+    (as R's ``lm(weights=w)`` does), so equal weights give the one-sample
+    t statistic, ``method`` and the variances are not used, and ``tau2``
+    is NaN.
     """
     data = _coerce_group_data(data, effect_cols)
     if robust != "none":
@@ -430,28 +467,41 @@ def fmri_meta(
     elif weights_custom is not None:
         raise ValueError("weights_custom can only be provided when weights='custom'")
 
-    coefs = np.zeros((n_features, p), dtype=np.float64)
-    ses = np.zeros((n_features, p), dtype=np.float64)
-    tau2 = np.zeros(n_features, dtype=np.float64)
+    coefs = np.full((n_features, p), np.nan, dtype=np.float64)
+    ses = np.full((n_features, p), np.nan, dtype=np.float64)
+    tau2 = np.full(n_features, np.nan, dtype=np.float64)
+    n_obs = np.zeros(n_features, dtype=np.intp)
     for idx, (y, v) in enumerate(feature_data):
         if custom_mat is not None:
             custom_w: Optional[NDArray[np.float64]] = custom_mat[:, idx]
         else:
             custom_w = custom_vec
+        # Subjects with a non-finite effect (or, for inverse-variance
+        # weights, a non-finite or non-positive variance) are dropped for
+        # this feature only (fmrireg meta_kernels.cpp fit_one). A feature
+        # that dropping leaves with no more subjects than predictors is
+        # unestimable (NaN); a design too small for complete data still
+        # errors in the solver.
+        keep = np.isfinite(y)
+        if weights == "ivw":
+            keep &= np.isfinite(v) & (v > 0)
+        n_obs[idx] = int(keep.sum())
+        if n_obs[idx] <= p and n_obs[idx] < y.shape[0]:
+            continue
         beta_i, se_i, tau2_i = _solve_meta_wls(
-            y=y,
-            X=X,
-            v=v,
+            y=y[keep],
+            X=X[keep],
+            v=v[keep],
             method=method,
             weight_mode=weights,
-            weight_custom=custom_w,
+            weight_custom=None if custom_w is None else custom_w[keep],
         )
         coefs[idx, :] = beta_i
         ses[idx, :] = se_i
         tau2[idx] = tau2_i
 
     with np.errstate(divide="ignore", invalid="ignore"):
-        z = np.where(ses > 0, coefs / ses, 0.0)
+        z = np.where(ses > 0, coefs / ses, np.where(np.isnan(ses), np.nan, 0.0))
     pvals = 2.0 * sp_stats.norm.sf(np.abs(z))
 
     return FmriMetaResult(
@@ -465,4 +515,5 @@ def fmri_meta(
         method=method,
         formula=formula,
         data=data,
+        n_obs=n_obs,
     )

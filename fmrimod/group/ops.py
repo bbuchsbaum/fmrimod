@@ -9,6 +9,8 @@ from typing import Any, Callable, Literal, Optional, cast
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
+from scipy import special as sp_special
+from scipy import stats as sp_stats
 
 from fmrimod.stats.inference import fdr_correction, p_to_z, z_to_p
 
@@ -102,15 +104,42 @@ def _require_assay(dataset: GroupDataset, name: str) -> NDArray[np.float64]:
     return dataset.assay(name)
 
 
+def _z_from_t(
+    t: NDArray[np.float64], df: NDArray[np.float64]
+) -> NDArray[np.float64]:
+    """Signed z with the same one-sided tail probability as ``t``.
+
+    Works on the log scale (fmrigds ``R/derive-stats.R``): ``isf(sf(|t|))``
+    loses all precision once the tail underflows relative to 1, for
+    example t = 12 with df = 100.
+    """
+    with np.errstate(invalid="ignore"):
+        log_tail = sp_stats.t.logcdf(-np.abs(t), df)
+    return cast("NDArray[np.float64]", -sp_special.ndtri_exp(log_tail) * np.sign(t))
+
+
+def _signed_z_from_p(
+    p: NDArray[np.float64], beta: NDArray[np.float64] | None
+) -> NDArray[np.float64]:
+    if beta is None:
+        raise AdapterContractError(
+            "derive cannot sign z from a two-sided p without the effect sign ('beta')"
+        )
+    return p_to_z(p) * np.sign(beta)
+
+
 def derive(
     dataset: GroupDataset,
     what: str | Iterable[str],
 ) -> GroupDataset:
     """Derive common statistics eagerly and return a new dataset.
 
-    Supported derivations are ``"var"``, ``"se"``, ``"t"``, ``"z"``, and
-    ``"p"``. ``"t"`` and ``"z"`` use ``beta / se`` when available; ``"p"``
-    uses the normal-theory ``z_to_p`` helper from :mod:`fmrimod.stats.inference`.
+    Supported derivations are ``"var"``, ``"se"``, ``"t"``, ``"z"``,
+    ``"p"`` and ``"z_from_p"``. ``"t"`` is ``beta / se``. ``"z"`` and
+    ``"p"`` come from ``{t, df}`` through the t distribution when both are
+    present, otherwise from ``beta / se`` (or an existing ``z``); a ``t``
+    without ``df`` is never treated as a z. ``"z_from_p"`` signs the
+    two-sided z by ``beta``.
     """
     requested = [what] if isinstance(what, str) else list(what)
     if not requested:
@@ -119,41 +148,68 @@ def derive(
     assays: dict[str, NDArray[np.float64]] = {
         name: np.array(arr, copy=True) for name, arr in dataset.assays.items()
     }
+
+    def need(name: str) -> NDArray[np.float64]:
+        if name not in assays:
+            raise AdapterContractError(f"derive requires assay '{name}'")
+        return assays[name]
+
+    def has_wald() -> bool:
+        return "beta" in assays and ("se" in assays or "var" in assays)
+
+    def wald_z() -> NDArray[np.float64]:
+        se_arr = assays.get("se")
+        if se_arr is None:
+            se_arr = np.sqrt(need("var"))
+            assays["se"] = se_arr
+        return need("beta") / se_arr
+
+    def has_t_df() -> bool:
+        return "t" in assays and "df" in assays
+
     for target in requested:
         if target == "var":
             if "var" not in assays:
-                se = _require_assay(dataset, "se")
+                se = need("se")
                 assays["var"] = se * se
         elif target == "se":
             if "se" not in assays:
-                var = _require_assay(dataset, "var")
-                assays["se"] = np.sqrt(var)
-        elif target in ("t", "z"):
-            if target not in assays:
-                beta = _require_assay(dataset, "beta")
-                se_arr = assays.get("se")
-                if se_arr is None:
-                    var = _require_assay(dataset, "var")
-                    se_arr = np.sqrt(var)
-                    assays["se"] = se_arr
-                assays[target] = beta / se_arr
+                assays["se"] = np.sqrt(need("var"))
+        elif target == "t":
+            if "t" not in assays:
+                assays["t"] = wald_z()
+        elif target == "z":
+            if "z" not in assays:
+                if has_t_df():
+                    assays["z"] = _z_from_t(assays["t"], assays["df"])
+                elif has_wald():
+                    assays["z"] = wald_z()
+                elif "p" in assays:
+                    assays["z"] = _signed_z_from_p(assays["p"], assays.get("beta"))
+                else:
+                    raise AdapterContractError(
+                        "derive 'z' requires {t, df}, {beta, se or var} or {p, beta}"
+                    )
         elif target == "p":
             if "p" not in assays:
-                if "z" not in assays:
-                    if "t" in assays:
-                        assays["z"] = assays["t"]
-                    else:
-                        beta = _require_assay(dataset, "beta")
-                        se_arr = assays.get("se")
-                        if se_arr is None:
-                            var = _require_assay(dataset, "var")
-                            se_arr = np.sqrt(var)
-                            assays["se"] = se_arr
-                        assays["z"] = beta / se_arr
-                assays["p"] = z_to_p(assays["z"])
+                if has_t_df():
+                    assays["p"] = 2.0 * sp_stats.t.sf(np.abs(assays["t"]), assays["df"])
+                elif "z" in assays:
+                    assays["p"] = z_to_p(assays["z"])
+                elif has_wald():
+                    assays["z"] = wald_z()
+                    assays["p"] = z_to_p(assays["z"])
+                elif "t" in assays:
+                    raise AdapterContractError(
+                        "derive 'p' from 't' requires a 'df' assay; a t statistic "
+                        "is not a z score"
+                    )
+                else:
+                    raise AdapterContractError(
+                        "derive 'p' requires {t, df}, z or {beta, se or var}"
+                    )
         elif target == "z_from_p":
-            p = _require_assay(dataset, "p")
-            assays["z"] = p_to_z(p)
+            assays["z"] = _signed_z_from_p(need("p"), assays.get("beta"))
         else:
             raise UnsupportedGroupFeatureError(
                 f"derive target '{target}' is not supported by native group ops"

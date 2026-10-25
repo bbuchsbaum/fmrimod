@@ -164,3 +164,68 @@ def test_fmridataset_nifti_backend_facade_is_identity_alias() -> None:
 
     assert facade.NiftiBackend is NiftiBackend
     assert facade.nifti_backend is backend_nifti_backend
+
+
+def _write_nifti(path, arr, affine):
+    nib = pytest.importorskip("nibabel")
+    nib.save(nib.Nifti1Image(arr, affine), path)
+    return str(path)
+
+
+def test_backend_dataset_checks_run_lengths_per_file(tmp_path) -> None:
+    # fmridataset 631cf0d (#81): run_length is checked against each file and
+    # the error names the run. Inventory v2 DS-10. The fixture's totals agree
+    # (13 == 13), so only a per-file comparison fails it. Runs are 0-based in
+    # fmrimod messages, so the first mismatching run is "Run 0".
+    from fmrimod.dataset import FmriDataset
+    from fmrimod.dataset.adapters import BackendAdapter
+    from fmrimod.sampling import SamplingFrame
+
+    aff = np.eye(4)
+    paths = [_write_nifti(tmp_path / f"run{i}.nii", np.full((2, 2, 2, n), float(i)), aff)
+             for i, n in enumerate((6, 7))]
+    mask = _write_nifti(tmp_path / "mask.nii", np.ones((2, 2, 2), "uint8"), aff)
+    be = nifti_backend(paths, mask)
+    be.open()
+    assert be.source_run_lengths == (6, 7)
+    with pytest.raises(ValueError, match="Run 0 has 7"):
+        BackendAdapter(be, SamplingFrame(blocklens=[7, 6], tr=2.0))
+    with pytest.raises(ValueError, match="Run 0 has 7"):
+        FmriDataset(be, sampling_frame=SamplingFrame(blocklens=[7, 6], tr=2.0))
+    ds = FmriDataset(be, sampling_frame=SamplingFrame(blocklens=[6, 7], tr=2.0))
+    assert ds.get_run_data(1)[:, 0].tolist() == [1.0] * 7
+    # One run spanning both files is a different split, not a per-file one.
+    FmriDataset(be, sampling_frame=SamplingFrame(blocklens=[13], tr=2.0))
+
+
+def test_backend_dataset_keeps_the_nifti_space(tmp_path) -> None:
+    # fmridataset 7dad6c0: a NIfTI-backed dataset keeps the backend's space,
+    # so results can go back to the grid. Inventory v2 DS-11. The header
+    # affine flips x, so an identity affine cannot pass.
+    from fmrimod.dataset import FmriDataset
+    from fmrimod.glm.spatial import SpatialContext
+    from fmrimod.sampling import SamplingFrame
+
+    aff = np.array([[-2.0, 0, 0, 90], [0, 2, 0, -126], [0, 0, 2, -72], [0, 0, 0, 1]])
+    p = _write_nifti(tmp_path / "b.nii", np.random.default_rng(0).normal(size=(3, 3, 2, 5)), aff)
+    m = _write_nifti(tmp_path / "m.nii", np.ones((3, 3, 2), "uint8"), aff)
+    be = nifti_backend(p, m)
+    be.open()
+    ds = FmriDataset(be, sampling_frame=SamplingFrame(blocklens=[5], tr=2.0))
+    np.testing.assert_allclose(ds.get_affine(), aff)
+    assert ds.get_mask().shape == (3, 3, 2)
+    ctx = SpatialContext.from_dataset(ds)
+    assert ctx is not None
+    np.testing.assert_allclose(ctx.affine, aff)
+
+
+def test_nifti_backend_refuses_a_source_in_another_space(tmp_path) -> None:
+    # Spatial identity (DS-07) on the NIfTI path: same shape, flipped affine.
+    aff = np.eye(4) * 2.0
+    aff[3, 3] = 1.0
+    flipped = aff.copy()
+    flipped[0, 0] = -2.0
+    p = _write_nifti(tmp_path / "b.nii", np.ones((2, 2, 2, 3)), flipped)
+    m = _write_nifti(tmp_path / "m.nii", np.ones((2, 2, 2), "uint8"), aff)
+    with pytest.raises(BackendIOError, match="space"):
+        nifti_backend(p, m).open()

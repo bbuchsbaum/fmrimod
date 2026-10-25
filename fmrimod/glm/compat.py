@@ -18,9 +18,9 @@ from numpy.typing import NDArray
 from scipy import optimize
 
 from ..model.config import FmriLmConfig
-from .contrasts import ContrastResult, contrast_f_vectorized, contrast_t_batch
+from .contrasts import ContrastResult, _safe_t, contrast_f_vectorized, contrast_t_batch
 from .fmri_lm import FmriLm, fmri_lm
-from .matrix import _design_matrix_from_model, _MatrixModel
+from .matrix import _design_and_runs_from_model, _MatrixModel
 from .solver import fast_lm_matrix, fast_preproject
 
 ArrayLike = Any
@@ -355,7 +355,7 @@ def compute_lm_contrasts_from_suffstats(
     B = XtXinv @ XtS_arr
     if sigma is None and sigma2 is None:
         sse = np.maximum(StS_arr - np.sum(B * XtS_arr, axis=0), 0.0)
-        sigma2 = np.maximum(sse / float(df), np.finfo(np.float64).eps)
+        sigma2 = sse / float(df)
     return compute_lm_contrasts(
         B,
         XtXinv,
@@ -401,18 +401,54 @@ def fit_glm_on_transformed_series(
     strategy: str = "external",
     engine: str = "runwise",
 ) -> FmriLm:
-    """Fit a GLM using a model design and externally supplied response matrix."""
-    del dataset
+    """Fit a GLM using a model design and externally supplied response matrix.
+
+    ``Y`` is the stacked response of every run of ``model``; a multi-run
+    model is fitted run by run on its full design, so AR estimation and
+    whitening restart at run boundaries exactly as in ``fmri_lm``. An
+    explicit ``dataset`` describes the columns of ``Y`` and is only
+    dimension-checked; it is never inferred from ``model`` because a
+    transformed response can live in a different feature space.
+    """
     Y_arr = np.asarray(Y, dtype=np.float64)
     if Y_arr.ndim == 1:
         Y_arr = Y_arr[:, np.newaxis]
-    X = _design_matrix_from_model(model)
+    X, run_lengths = _design_and_runs_from_model(model)
     if X.shape[0] != Y_arr.shape[0]:
         raise ValueError("Row mismatch between design matrix and response matrix")
-    fit = fmri_lm(_MatrixModel(X, Y_arr, source=model), cfg or FmriLmConfig(), engine=engine)
+    _validate_external_response_dataset(
+        dataset, Y_arr.shape, context="fit_glm_on_transformed_series()"
+    )
+    fit = fmri_lm(
+        _MatrixModel(X, Y_arr, source=model, run_lengths=run_lengths),
+        cfg or FmriLmConfig(),
+        engine=engine,
+    )
     cast(Any, fit).strategy = strategy
     cast(Any, fit).engine = engine
     return fit
+
+
+def _validate_external_response_dataset(
+    dataset: object, expected: tuple[int, ...], *, context: str
+) -> None:
+    """Check an explicit dataset's ``(timepoints, features)`` against ``Y``."""
+    if dataset is None:
+        return
+    lengths = getattr(dataset, "run_lengths", None)
+    if lengths is None:
+        lengths = getattr(dataset, "n_timepoints", None)
+    n_features = getattr(dataset, "n_voxels", None)
+    if lengths is None or n_features is None:
+        return
+    n_time = int(lengths) if isinstance(lengths, (int, np.integer)) else int(sum(lengths))
+    observed = (n_time, int(n_features))
+    if observed != tuple(int(v) for v in expected):
+        raise ValueError(
+            f"{context}: explicit dataset dimensions are {observed[0]} x "
+            f"{observed[1]}, but the external response is {expected[0]} x "
+            f"{expected[1]}"
+        )
 
 
 def fit_glm_with_config(
@@ -448,14 +484,26 @@ def fmri_ols_fit(
         Y_arr = Y_arr[:, np.newaxis]
     if X_arr.ndim != 2 or Y_arr.ndim != 2 or X_arr.shape[0] != Y_arr.shape[0]:
         raise ValueError("Y and X must be 2-D matrices with matching rows")
+    # A rank-deficient group design has no unique estimates: stop instead of
+    # returning pseudoinverse-split coefficients (fmrireg 3ed5e8d).
+    if not np.all(np.isfinite(X_arr)):
+        raise ValueError("X must contain only finite values")
+    rank_x = int(np.linalg.matrix_rank(X_arr))
+    if rank_x < X_arr.shape[1]:
+        raise ValueError(
+            f"X must have full column rank; got rank {rank_x} for "
+            f"{X_arr.shape[1]} columns (rank deficient)"
+        )
+    extra_parameter = 0 if voxelwise is None else 1
+    if X_arr.shape[0] - X_arr.shape[1] - extra_parameter <= 0:
+        raise ValueError("Non-positive residual degrees of freedom")
 
     if voxelwise is None:
         proj = fast_preproject(X_arr)
         lm = fast_lm_matrix(X_arr, Y_arr, proj)
         sigma = np.sqrt(lm.sigma2)
         se = sigma[np.newaxis, :] * np.sqrt(np.maximum(np.diag(proj.XtXinv), 0.0))[:, np.newaxis]
-        with np.errstate(divide="ignore", invalid="ignore"):
-            t_full = np.where(se > 1e-15, lm.betas / se, 0.0)
+        t_full = _safe_t(lm.betas, se)
         return {"beta": lm.betas, "se": se, "t": t_full, "df": lm.dfres, "XtXinv": proj.XtXinv}
 
     C = np.asarray(voxelwise, dtype=np.float64)
@@ -475,8 +523,7 @@ def fmri_ols_fit(
         sev = sigma[np.newaxis, :] * np.sqrt(np.maximum(np.diag(proj.XtXinv), 0.0))[:, np.newaxis]
         beta.append(lm.betas[:, 0])
         se.append(sev[:, 0])
-        with np.errstate(divide="ignore", invalid="ignore"):
-            t.append(np.where(sev[:, 0] > 1e-15, lm.betas[:, 0] / sev[:, 0], 0.0))
+        t.append(_safe_t(lm.betas[:, 0], sev[:, 0]))
         dfs.append(lm.dfres)
     names = [f"coef_{idx}" for idx in range(X_arr.shape[1])] + [voxel_name]
     return {
@@ -636,17 +683,29 @@ def hrf_smoothing_kernel(
     em = event_model(form, data=data, sampling_frame=sf, durations=tr)
     design = getattr(em, "design_matrix")
     X = np.asarray(design() if callable(design) else design, dtype=np.float64)
-    if method == "gram":
-        K = X @ X.T
-    else:
-        norms = np.sqrt(np.sum(X * X, axis=0))
-        Xn = X / np.where(norms > 0, norms, 1.0)
-        K = Xn @ Xn.T
-    if normalize:
-        diag = np.diag(K)
-        K = K / np.where(diag[:, np.newaxis] != 0, diag[:, np.newaxis], 1.0)
+    # Similarity between scans (rows of X); "cosine" is the scan cosine, i.e.
+    # the Gram matrix scaled symmetrically to unit diagonal (fmrireg 7c2a985).
+    K = X @ X.T
+    if method == "cosine" or normalize:
+        K = _unit_diagonal(K)
     keep = slice(n_buf, n_buf + int(length))
     return K[keep, keep]
+
+
+def _unit_diagonal(K: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Scale a Gram matrix to ``K[i, j] / sqrt(K[i, i] K[j, j])``.
+
+    A scan with no signal (``K[i, i] == 0``) is similar only to itself: its
+    row and column are 0 with a 1 on the diagonal, rather than NaN.
+    """
+    d = np.diag(K)
+    s = np.zeros_like(d)
+    signal = d > 0
+    s[signal] = 1.0 / np.sqrt(d[signal])
+    K = K * np.outer(s, s)
+    K = (K + K.T) / 2.0
+    np.fill_diagonal(K, 1.0)
+    return K
 
 
 def estimate(*args: object, **kwargs: object) -> None:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, cast
@@ -14,6 +14,7 @@ from numpy.typing import NDArray
 
 from fmrimod.sampling import SamplingFrame
 
+from .backend_protocol import _normalize_indices
 from .backends.bids_h5_backend import (
     BidsH5ScanBackend,
     CompressionMode,
@@ -22,6 +23,7 @@ from .backends.bids_h5_backend import (
     bids_h5_scan_backend,
     h5_shared_connection,
 )
+from .backends.concat_backend import ConcatBackend
 from .errors import BackendIOError, FmriDatasetError
 from .fmri_dataset import FmriDataset
 
@@ -120,6 +122,27 @@ def _read_scan_index(handle: Any) -> pd.DataFrame:
     return manifest
 
 
+def _read_scan_timing(
+    handle: Any,
+    scan_name: str,
+    default_tr: float,
+) -> tuple[float, float]:
+    """Return one scan's ``(tr, start_time)``.
+
+    TR is per scan (R ``52439b2``/``cce6a44``). A scan without
+    ``metadata/tr`` falls back to the archive TR, and one without
+    ``metadata/start_time`` to ``TR/2``, so archives written before per-scan
+    timing was recorded read as before.
+    """
+    tr_value = _read_optional_scalar(handle, f"scans/{scan_name}/metadata/tr")
+    tr = default_tr if tr_value is None else float(cast(Any, tr_value))
+    start_value = _read_optional_scalar(
+        handle, f"scans/{scan_name}/metadata/start_time"
+    )
+    start_time = tr / 2.0 if start_value is None else float(cast(Any, start_value))
+    return tr, start_time
+
+
 def _read_frame(group: Any, subgroup_name: str) -> pd.DataFrame | None:
     if subgroup_name not in group:
         return None
@@ -161,45 +184,6 @@ def _bind_frames(frames: list[pd.DataFrame | None]) -> pd.DataFrame:
     return pd.concat(non_empty, ignore_index=True, sort=False)
 
 
-class _BidsSubjectAdapter:
-    """Run-wise adapter over one subject's BIDS-HDF5 scan backends."""
-
-    def __init__(
-        self,
-        backends: Sequence[BidsH5ScanBackend],
-        sampling_frame: SamplingFrame,
-    ) -> None:
-        if not backends:
-            raise FmriDatasetError("BIDS-HDF5 subject requires at least one scan")
-        self._backends = list(backends)
-        self._sampling_frame = sampling_frame
-        for backend in self._backends:
-            backend.open()
-
-    def get_data(self, run: int) -> NDArray[np.float64]:
-        if run < 0 or run >= len(self._backends):
-            raise IndexError(f"Run {run} out of range [0, {len(self._backends)})")
-        return np.asarray(self._backends[run].get_data(), dtype=np.float64)
-
-    def get_mask(self) -> NDArray[np.bool_]:
-        return self._backends[0].get_mask()
-
-    def get_sampling_frame(self) -> SamplingFrame:
-        return self._sampling_frame
-
-    @property
-    def n_runs(self) -> int:
-        return len(self._backends)
-
-    @property
-    def n_timepoints(self) -> list[int]:
-        return [backend.n_time for backend in self._backends]
-
-    @property
-    def n_voxels(self) -> int:
-        return int(self._backends[0].get_mask().sum())
-
-
 def _make_scan_backends(
     manifest: pd.DataFrame,
     connection: SharedH5Connection,
@@ -209,14 +193,15 @@ def _make_scan_backends(
 ) -> dict[str, BidsH5ScanBackend]:
     out: dict[str, BidsH5ScanBackend] = {}
     for row in manifest.to_dict("records"):
+        name = str(row["scan_name"])
+        scan_tr, _start_time = _read_scan_timing(connection.handle, name, tr)
         metadata = {
             "subject": row["subject"],
             "task": row["task"],
             "session": row["session"] if row["session"] else None,
             "run": row["run"],
-            "tr": tr,
+            "tr": scan_tr,
         }
-        name = str(row["scan_name"])
         out[name] = bids_h5_scan_backend(
             h5_connection=connection,
             scan_group_path=f"/scans/{name}",
@@ -238,18 +223,28 @@ def _build_subject_dataset(
     events: list[pd.DataFrame | None] = []
     censors: list[NDArray[np.bool_]] = []
     run_lengths: list[int] = []
+    run_trs: list[float] = []
+    start_times: list[float] = []
 
     for run_id, row in enumerate(scan_rows.to_dict("records"), start=1):
         scan_name = str(row["scan_name"])
         scan_group = handle[f"scans/{scan_name}"]
         n_time = int(row["n_time"])
         run_lengths.append(n_time)
+        scan_tr, start_time = _read_scan_timing(handle, scan_name, tr)
+        run_trs.append(scan_tr)
+        start_times.append(start_time)
 
         event_frame = _read_frame(scan_group, "events") if row["has_events"] else None
         if event_frame is not None and len(event_frame) > 0:
             event_frame = event_frame.copy()
-            event_frame["run"] = row["run"]
+            # The BIDS ``run`` entity is a within-session label (two sessions
+            # can both hold run-1), so the ``run`` column that ``fmri_lm``
+            # picks as the block is the scan's 1-based position; the label is
+            # kept as ``bids_run`` (R 52439b2, ADR-004).
+            event_frame["run"] = run_id
             event_frame["run_id"] = run_id
+            event_frame["bids_run"] = row["run"]
             event_frame["subject_id"] = subject_id
             event_frame["task"] = row["task"]
             if row["session"]:
@@ -258,12 +253,16 @@ def _build_subject_dataset(
         censors.append(_read_censor(scan_group, n_time))
 
     backends = [scan_backends[str(name)] for name in scan_rows["scan_name"]]
-    frame = SamplingFrame(blocklens=run_lengths, tr=tr)
-    adapter = _BidsSubjectAdapter(backends, frame)
+    frame = SamplingFrame(blocklens=run_lengths, tr=run_trs, start_time=start_times)
+    if not backends:
+        raise FmriDatasetError("BIDS-HDF5 subject requires at least one scan")
+    for backend in backends:
+        backend.open()
     return FmriDataset(
-        adapter,
+        ConcatBackend(backends, part_label="Scan"),
         event_table=_bind_frames(events),
         censor=censors if censors else None,
+        sampling_frame=frame,
     )
 
 
@@ -352,10 +351,12 @@ class BidsH5StudyDataset:
         cols: NDArray[np.intp] | None = None,
     ) -> NDArray[np.float64]:
         data = np.vstack([dataset.get_data_matrix() for dataset in self.datasets])
-        if rows is not None:
-            data = data[np.asarray(rows, dtype=np.intp), :]
-        if cols is not None:
-            data = data[:, np.asarray(cols, dtype=np.intp)]
+        row_idx = _normalize_indices(rows, data.shape[0], "rows")
+        col_idx = _normalize_indices(cols, data.shape[1], "cols")
+        if row_idx is not None:
+            data = data[row_idx, :]
+        if col_idx is not None:
+            data = data[:, col_idx]
         return data
 
     def get_data(
@@ -470,10 +471,12 @@ class BidsH5StudyDataset:
                 dtype=np.float64,
             )
             data = data + offset[np.newaxis, :]
-        if rows is not None:
-            data = data[np.asarray(rows, dtype=np.intp), :]
-        if voxels is not None:
-            data = data[:, np.asarray(voxels, dtype=np.intp)]
+        row_idx = _normalize_indices(rows, data.shape[0], "rows")
+        voxel_idx = _normalize_indices(voxels, data.shape[1], "voxels")
+        if row_idx is not None:
+            data = data[row_idx, :]
+        if voxel_idx is not None:
+            data = data[:, voxel_idx]
         return data
 
     def encoding_info(self) -> dict[str, object] | None:

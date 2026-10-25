@@ -19,14 +19,22 @@ offsets. Scalar timing inputs are repeated across runs.
 
 ## Parameters {.doc-section .doc-section-parameters}
 
-| Name       | Type                         | Description                                                                                                                                                                                                                                             | Default   |
-|------------|------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|
-| blocklens  | int or array-like of int     | Number of scans in each run. Use ``n_scans`` as the compatibility alias.                                                                                                                                                                                | `None`    |
-| tr         | float or array-like of float | Repetition time in seconds for each run. Use ``TR`` as the compatibility alias.                                                                                                                                                                         | `None`    |
-| start_time | float or array-like of float | Acquisition offset in seconds for each run. Defaults to half the corresponding TR.                                                                                                                                                                      | `None`    |
-| precision  | float                        | Fine-grid step stored with the frame. This value is not automatically shared with HRF/regressor evaluation (default 0.33 s) or design construction (default ``min(TR) / 16``). Pass an explicit precision when two computations must use the same grid. | `0.1`     |
-| n_scans    | int or array-like of int     | Compatibility alias for ``blocklens``.                                                                                                                                                                                                                  | `None`    |
-| TR         | float or array-like of float | Compatibility alias for ``tr``.                                                                                                                                                                                                                         | `None`    |
+| Name       | Type                                  | Description                                                                                                                                                                                                                                                           | Default   |
+|------------|---------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|
+| blocklens  | Optional\[Union\[ArrayLike, int\]\]   | Number of scans per block/run (scalar, or one value per run). ``n_scans`` is accepted as an alias.                                                                                                                                                                    | `None`    |
+| tr         | Optional\[Union\[ArrayLike, float\]\] | Repetition time(s) in seconds (scalar or per run). ``TR`` is accepted as an alias.                                                                                                                                                                                    | `None`    |
+| start_time | Optional\[Union\[ArrayLike, float\]\] | Time of each run's first sample in seconds (default ``TR/2``, the BOLD-midpoint convention; Nilearn/SPM frame times use ``0.0``).                                                                                                                                     | `None`    |
+| precision  | float                                 | Fine-grid step used when a SamplingFrame drives design convolution (default 0.1 s). This is intentionally separate from the HRF/regressor evaluate default of 0.33 s (R ``HRF$evaluate``). Pass the frame's precision into evaluate/convolve when the two must match. | `0.1`     |
+
+## Examples {.doc-section .doc-section-examples}
+
+```python
+>>> sf = SamplingFrame(blocklens=[100, 100], TR=2.0)
+>>> sf.global_scan_times[:3]
+array([1., 3., 5.])
+>>> SamplingFrame(blocklens=100, TR=2.0, start_time=0.0).global_scan_times[:2]
+array([0., 2.])
+```
 
 ## Attributes
 
@@ -48,6 +56,7 @@ offsets. Scalar timing inputs are repeated across runs.
 | [concatenate](#fmrimod.sampling.SamplingFrame.concatenate) | Concatenate two sampling frames. |
 | [from_dict](#fmrimod.sampling.SamplingFrame.from_dict) | Create SamplingFrame from dictionary. |
 | [global_onsets](#fmrimod.sampling.SamplingFrame.global_onsets) | Convert block-relative onset times to global (experiment-wide) onset times. |
+| [plot](#fmrimod.sampling.SamplingFrame.plot) | Plot the runs over time; see |
 | [run_ids](#fmrimod.sampling.SamplingFrame.run_ids) | Return the run/block id for each scan. |
 | [sample_times](#fmrimod.sampling.SamplingFrame.sample_times) | Get time points for scans with optional filtering. |
 | [to_dict](#fmrimod.sampling.SamplingFrame.to_dict) | Convert to dictionary representation. |
@@ -150,6 +159,21 @@ Convert block-relative onset times to global (experiment-wide) onset times.
 | Name   | Type       | Description                                                         |
 |--------|------------|---------------------------------------------------------------------|
 |        | ValueError | If the inputs have different lengths or a block ID is out of range. |
+
+### plot { #fmrimod.sampling.SamplingFrame.plot }
+
+```python
+plot(**kwargs)
+```
+
+Plot the runs over time; see
+`fmrimod.visualization.plot_sampling_frame`.
+
+#### Returns {.doc-section .doc-section-returns}
+
+| Name   | Type                     | Description   |
+|--------|--------------------------|---------------|
+|        | matplotlib.figure.Figure |               |
 
 ### run_ids { #fmrimod.sampling.SamplingFrame.run_ids }
 

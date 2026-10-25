@@ -202,6 +202,9 @@ def matrix_dataset(
     *,
     event_table: "Optional[pd.DataFrame]" = None,
     mask: "Optional[NDArray[np.bool_]]" = None,
+    censor: "Union[NDArray[np.bool_], list[NDArray[np.bool_]], None]" = None,
+    start_time: "Union[float, Sequence[float], None]" = None,
+    slice_timing_offset: "Union[float, Sequence[float], None]" = None,
     TR: "Union[float, list[float], None]" = None,
 ) -> "FmriDataset":
     """Construct an in-memory FmriDataset from numpy matrix data.
@@ -218,6 +221,8 @@ def matrix_dataset(
         Event table attached to the resulting dataset.
     mask : ndarray, optional
         Spatial mask passed to the numpy adapter.
+    censor, start_time, slice_timing_offset, TR
+        Forwarded to :func:`fmrimod.dataset.matrix_dataset`.
     """
     from .dataset import matrix_dataset as _matrix_dataset
 
@@ -227,6 +232,9 @@ def matrix_dataset(
         run_length=run_length,
         event_table=event_table,
         mask=mask,
+        censor=censor,
+        start_time=start_time,
+        slice_timing_offset=slice_timing_offset,
         TR=TR,
     )
 
@@ -419,6 +427,7 @@ _LAZY_ATTRS: dict[str, tuple[str, str]] = {
         "create_design_matrix_from_benchmark",
     ),
     "data_chunks": ("fmrimod.dataset", "data_chunks"),
+    "bids_datasets": ("fmrimod.dataset.bids_fs", "bids_datasets"),
     "design_matrix": ("fmrimod.design.design_matrix", "design_matrix"),
     "design_plot": ("fmrimod.dataset", "design_plot"),
     "detect_group_data_format": ("fmrimod.dataset", "detect_group_data_format"),
@@ -748,6 +757,7 @@ __all__ = [
     "build_nuisance_projector",
     "estimate_single_trial",
     "estimate_single_trial_from_dataset",
+    "bids_datasets",
     "lss_single_trial",
     "lsa_single_trial",
     # Bootstrap

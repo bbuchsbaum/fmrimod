@@ -3,10 +3,32 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Optional, Union, cast
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
+
+if TYPE_CHECKING:
+    from matplotlib.figure import Figure
+
+# Seconds compare with relative tolerance sqrt(eps), as fmridataset does
+# (cce6a44), so 0.1 * 3 and 0.3 name the same TR.
+_SECONDS_RTOL = float(np.sqrt(np.finfo(np.float64).eps))
+
+
+def same_seconds(a: ArrayLike, b: ArrayLike) -> bool:
+    """True when two timing values (scalars or per-run vectors) agree.
+
+    Shapes must broadcast; values are compared with relative tolerance
+    ``sqrt(eps)`` and no absolute slack, so ``0`` only matches ``0``.
+    """
+    x = np.atleast_1d(np.asarray(a, dtype=np.float64))
+    y = np.atleast_1d(np.asarray(b, dtype=np.float64))
+    try:
+        np.broadcast_shapes(x.shape, y.shape)
+    except ValueError:
+        return False
+    return bool(np.allclose(x, y, rtol=_SECONDS_RTOL, atol=0.0))
 
 
 @dataclass(init=False)
@@ -18,24 +40,29 @@ class SamplingFrame:
 
     Parameters
     ----------
-    blocklens : int or array-like of int, optional
-        Number of scans in each run. Use ``n_scans`` as the compatibility
-        alias.
-    tr : float or array-like of float, optional
-        Repetition time in seconds for each run. Use ``TR`` as the
-        compatibility alias.
-    start_time : float or array-like of float, optional
-        Acquisition offset in seconds for each run. Defaults to half the
-        corresponding TR.
-    precision : float, default 0.1
-        Fine-grid step stored with the frame. This value is not automatically
-        shared with HRF/regressor evaluation (default 0.33 s) or design
-        construction (default ``min(TR) / 16``). Pass an explicit precision
-        when two computations must use the same grid.
-    n_scans : int or array-like of int, optional
-        Compatibility alias for ``blocklens``.
-    TR : float or array-like of float, optional
-        Compatibility alias for ``tr``.
+    blocklens
+        Number of scans per block/run (scalar, or one value per run).
+        ``n_scans`` is accepted as an alias.
+    tr
+        Repetition time(s) in seconds (scalar or per run). ``TR`` is
+        accepted as an alias.
+    start_time
+        Time of each run's first sample in seconds (default ``TR/2``, the
+        BOLD-midpoint convention; Nilearn/SPM frame times use ``0.0``).
+    precision
+        Fine-grid step used when a SamplingFrame drives design convolution
+        (default 0.1 s). This is intentionally separate from the
+        HRF/regressor evaluate default of 0.33 s (R ``HRF$evaluate``). Pass
+        the frame's precision into evaluate/convolve when the two must
+        match.
+
+    Examples
+    --------
+    >>> sf = SamplingFrame(blocklens=[100, 100], TR=2.0)
+    >>> sf.global_scan_times[:3]
+    array([1., 3., 5.])
+    >>> SamplingFrame(blocklens=100, TR=2.0, start_time=0.0).global_scan_times[:2]
+    array([0., 2.])
     """
 
     # Field types describe the post-__post_init__ invariant: every field is
@@ -62,15 +89,8 @@ class SamplingFrame:
             blocklens = n_scans
         if tr is None and TR is not None:
             tr = TR
-        if tr is not None and TR is not None:
-            tr_cmp = np.atleast_1d(np.asarray(tr, dtype=float))
-            tr_alias_cmp = np.atleast_1d(np.asarray(TR, dtype=float))
-            same_shape = tr_cmp.shape == tr_alias_cmp.shape
-            same_values = same_shape and np.allclose(tr_cmp, tr_alias_cmp)
-            if not same_values:
-                raise TypeError(
-                    "cannot provide both `tr` and `TR` with different values"
-                )
+        if tr is not None and TR is not None and not same_seconds(tr, TR):
+            raise TypeError("cannot provide both `tr` and `TR` with different values")
         if blocklens is None or tr is None:
             raise TypeError(
                 "SamplingFrame requires blocklens (or n_scans) and tr (or TR)"
@@ -86,14 +106,20 @@ class SamplingFrame:
     def __post_init__(self) -> None:
         """Validate and normalize inputs."""
         # Convert to numpy arrays
-        self.blocklens = np.atleast_1d(self.blocklens).astype(np.int64)
+        raw_blocklens = np.atleast_1d(np.asarray(self.blocklens, dtype=np.float64))
         self.tr = np.atleast_1d(self.tr).astype(np.float64)
 
-        # Validate inputs
-        if np.any(self.blocklens <= 0):
+        # Validate inputs on the raw values: casting first would silently
+        # truncate 10.5 -> 10 (fmrihrf dbcb920).
+        if np.any(raw_blocklens <= 0):
             raise ValueError("blocklens must be positive")
-        if np.any(self.tr <= 0):
-            raise ValueError("tr must be positive")
+        if not np.all(np.isfinite(raw_blocklens)) or np.any(
+            raw_blocklens != np.floor(raw_blocklens)
+        ):
+            raise ValueError("blocklens must be whole numbers of scans")
+        self.blocklens = raw_blocklens.astype(np.int64)
+        if not np.all(np.isfinite(self.tr)) or np.any(self.tr <= 0):
+            raise ValueError("tr must be positive and finite")
         if self.precision <= 0:
             raise ValueError("precision must be positive")
 
@@ -118,6 +144,8 @@ class SamplingFrame:
             self.start_time = (self.tr / 2.0).astype(np.float64)
         else:
             self.start_time = np.atleast_1d(self.start_time).astype(np.float64)
+            if not np.all(np.isfinite(self.start_time)):
+                raise ValueError("start_time must be finite")
             if len(self.start_time) == 1 and n_blocks > 1:
                 self.start_time = np.repeat(self.start_time, n_blocks)
             elif len(self.start_time) != n_blocks:
@@ -336,6 +364,18 @@ class SamplingFrame:
         start = self.start_time[block_idx]
 
         return cast("NDArray[np.float64]", start + np.arange(block_len) * tr)
+
+    def plot(self, **kwargs: object) -> Figure:
+        """Plot the runs over time; see
+        :func:`fmrimod.visualization.plot_sampling_frame`.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+        """
+        from .visualization.baseline_plot import plot_sampling_frame
+
+        return plot_sampling_frame(self, **kwargs)
 
     def __str__(self) -> str:
         """String representation of SamplingFrame."""

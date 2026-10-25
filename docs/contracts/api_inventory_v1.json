@@ -1,8 +1,8 @@
 {
   "counts": {
-    "all_names": 209,
+    "all_names": 210,
     "any_in_signature": 32,
-    "callable": 207,
+    "callable": 208,
     "classes": 22,
     "opaque_forwarder": 32
   },
@@ -333,7 +333,7 @@
       "name": "HrfTerm",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.spec.terms",
-      "runtime_signature": "(variables: 'Tuple[str, ...]', hrf: 'Union[HRF, str]' = 'spm', hrf_fun: 'Optional[Callable[..., object]]' = None, nbasis: 'Optional[int]' = None, contrasts: 'Tuple[ContrastSpec, ...]' = (), modulators: 'Tuple[str, ...]' = (), center_modulators: 'bool' = True, durations: 'Union[str, float, None]' = None, lag: 'float' = 0.0, subset: 'Optional[Predicate]' = None, prefix: 'Optional[str]' = None, id: 'Optional[str]' = None, norm: 'Optional[NormMode]' = None, normalize: 'bool' = False, summate: 'bool' = True) -> None",
+      "runtime_signature": "(variables: 'Tuple[str, ...]', hrf: 'Union[HRF, str]' = 'spm', hrf_fun: 'Optional[Callable[..., object]]' = None, nbasis: 'Optional[int]' = None, contrasts: 'Tuple[ContrastSpec, ...]' = (), modulators: 'Tuple[str, ...]' = (), center_modulators: 'bool' = True, pool_modulators: 'bool' = False, durations: 'Union[str, float, None]' = None, lag: 'float' = 0.0, subset: 'Optional[Predicate]' = None, prefix: 'Optional[str]' = None, id: 'Optional[str]' = None, norm: 'Optional[NormMode]' = None, normalize: 'bool' = False, summate: 'bool' = True) -> None",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -729,6 +729,21 @@
       "used_by_public_seam_artifact": "release_1_0_api_spine"
     },
     {
+      "compatibility_status": "spine",
+      "has_any_in_signature": false,
+      "has_untagged_kwargs_dict": false,
+      "is_callable": true,
+      "is_class": false,
+      "is_function": true,
+      "name": "bids_datasets",
+      "opaque_forwarder": false,
+      "owner_module": "fmrimod.dataset.bids_fs",
+      "runtime_signature": "(root: 'str | Path', task: 'str', *, space: 'str | None' = None, subjects: 'Sequence[str] | None' = None, derivatives: 'str | Path' = 'derivatives/fmriprep', desc: 'str' = 'preproc', slice_timing_offset: 'float | None' = None) -> 'dict[str, FmriDataset]'",
+      "signature_source": "inspect.signature",
+      "tier": "spine",
+      "used_by_public_seam_artifact": "review_pending"
+    },
+    {
       "compatibility_status": "compat",
       "has_any_in_signature": false,
       "has_untagged_kwargs_dict": false,
@@ -813,7 +828,7 @@
       "name": "coef_image",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', coef: 'Union[int, str]' = 0, statistic: 'AccessorStatistic' = 'estimate', mask: 'Optional[NDArray[np.bool_]]' = None, type: 'AccessorTarget' = 'estimates') -> 'NDArray[np.float64]'",
+      "runtime_signature": "(x: 'object', coef: 'Union[int, str]' = 0, statistic: 'AccessorStatistic' = 'estimate', mask: 'Optional[NDArray[np.bool_]]' = None, type: 'AccessorTarget' = 'betas') -> 'NDArray[np.float64]'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -828,7 +843,7 @@
       "name": "coef_images",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', statistic: 'AccessorStatistic' = 'estimate', type: 'AccessorTarget' = 'estimates', coefs: 'Optional[Sequence[str]]' = None, mask: 'Optional[NDArray[np.bool_]]' = None) -> 'Dict[str, NDArray[np.float64]]'",
+      "runtime_signature": "(x: 'object', statistic: 'AccessorStatistic' = 'estimate', type: 'AccessorTarget' = 'betas', coefs: 'Optional[Sequence[str]]' = None, mask: 'Optional[NDArray[np.bool_]]' = None) -> 'Dict[str, NDArray[np.float64]]'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -993,7 +1008,7 @@
       "name": "confounds",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.spec.builders",
-      "runtime_signature": "(*columns: 'str', source: 'Optional[pd.DataFrame]' = None) -> 'Confounds'",
+      "runtime_signature": "(*columns: 'str', source: 'Optional[Union[pd.DataFrame, Sequence[pd.DataFrame]]]' = None) -> 'Confounds'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -1218,7 +1233,7 @@
       "name": "estimate_single_trial_from_dataset",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.single",
-      "runtime_signature": "(dataset: 'object', spec: 'object', *, method: 'SingleTrialMethodLike' = 'lss', confounds: 'NDArray[np.float64] | None' = None, return_se: 'bool' = False, block: 'object' = None, durations: 'object' = None, precision: 'float | None' = None, prewhiten: 'PrewhitenConfig | None' = None, nuisance_projector: 'NuisanceProjector | None' = None, chunk_size: 'int | None' = None, oasis_config: 'OasisConfig | None' = None, sbhm_config: 'SbhmConfig | None' = None, sbhm_library: 'SbhmLibrary | None' = None, include_intercept: 'bool' = False, n_basis: 'int | None' = None) -> 'SingleTrialResult'",
+      "runtime_signature": "(dataset: 'object', spec: 'object', *, method: 'SingleTrialMethodLike' = 'lss', confounds: 'NDArray[np.float64] | None' = None, return_se: 'bool' = False, block: 'object' = None, durations: 'object' = None, precision: 'float | None' = None, prewhiten: 'PrewhitenConfig | None' = None, nuisance_projector: 'NuisanceProjector | None' = None, chunk_size: 'int | None' = None, oasis_config: 'OasisConfig | None' = None, sbhm_config: 'SbhmConfig | None' = None, sbhm_library: 'SbhmLibrary | None' = None, include_intercept: 'bool' = False, n_basis: 'int | None' = None, tr: 'float | Sequence[float] | None' = None, events: 'object' = None, mask: 'object' = None, slice_timing_offset: 'float | Sequence[float] | None' = None) -> 'SingleTrialResult'",
       "signature_source": "inspect.signature",
       "tier": "spine",
       "used_by_public_seam_artifact": "release_1_0_api_spine"
@@ -1428,7 +1443,7 @@
       "name": "fit_noise",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.ar.estimation",
-      "runtime_signature": "(resid: 'Optional[NDArray[np.float64]]' = None, Y: 'Optional[NDArray[np.float64]]' = None, X: 'Optional[NDArray[np.float64]]' = None, runs: 'Optional[NDArray[Any]]' = None, censor: 'Optional[NDArray[Any]]' = None, method: 'str' = 'ar', p: 'object' = 'auto', q: 'int' = 0, p_max: 'int' = 6, exact_first: 'str' = 'ar1', pooling: 'str' = 'global', parcels: 'Optional[NDArray[Any]]' = None, parcel_sets: 'Optional[dict[str, Any]]' = None, multiscale: 'object' = None, ms_mode: 'Optional[str]' = None, p_target: 'Optional[int]' = None, beta: 'float' = 0.5, hr_iter: 'int' = 0, step1: 'str' = 'yw', design: 'Optional[NDArray[np.float64]]' = None, acvf_correction: 'Optional[Any]' = None, correction_max_lag: 'int' = 25) -> \"'WhiteningPlan'\"",
+      "runtime_signature": "(resid: 'Optional[NDArray[np.float64]]' = None, Y: 'Optional[NDArray[np.float64]]' = None, X: 'Optional[NDArray[np.float64]]' = None, runs: 'Optional[NDArray[Any]]' = None, censor: 'Optional[NDArray[Any]]' = None, method: 'str' = 'ar', p: 'object' = 'auto', q: 'int | str' = 0, p_max: 'int' = 6, q_max: 'int' = 2, exact_first: 'str' = 'ar1', pooling: 'str' = 'global', parcels: 'Optional[NDArray[Any]]' = None, parcel_sets: 'Optional[dict[str, Any]]' = None, multiscale: 'object' = None, ms_mode: 'Optional[str]' = None, p_target: 'Optional[int]' = None, beta: 'float' = 0.5, hr_iter: 'int' = 0, step1: 'str' = 'yw', design: 'Optional[NDArray[np.float64]]' = None, acvf_correction: 'Optional[Any]' = None, correction_max_lag: 'int' = 25) -> \"'WhiteningPlan'\"",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -1473,7 +1488,7 @@
       "name": "fmri_dataset",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.constructors",
-      "runtime_signature": "(img: 'object' = None, *, mask: 'object' = None, tr: 'float | Sequence[float] | None' = None, events: 'pd.DataFrame | None' = None, censor: 'NDArray[np.bool_] | list[NDArray[np.bool_]] | None' = None, start_time: 'float | Sequence[float] | None' = None, slice_timing_offset: 'float | Sequence[float] | None' = None, run_length: 'int | Sequence[int] | None' = None, data_source: 'DatasetProtocol | None' = None, event_table: 'pd.DataFrame | None' = None) -> 'FmriDataset'",
+      "runtime_signature": "(img: 'object' = None, *, mask: 'object' = None, tr: 'float | Sequence[float] | None' = None, events: 'pd.DataFrame | Sequence[pd.DataFrame] | None' = None, censor: 'NDArray[np.bool_] | list[NDArray[np.bool_]] | None' = None, start_time: 'float | Sequence[float] | None' = None, slice_timing_offset: 'float | Sequence[float] | None' = None, run_length: 'int | Sequence[int] | None' = None, confounds: 'pd.DataFrame | Sequence[pd.DataFrame] | None' = None, data_source: 'DatasetProtocol | None' = None, event_table: 'pd.DataFrame | None' = None) -> 'FmriDataset'",
       "signature_source": "inspect.signature",
       "tier": "spine",
       "used_by_public_seam_artifact": "release_1_0_api_spine"
@@ -1488,7 +1503,7 @@
       "name": "fmri_group_lm",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.group.typed",
-      "runtime_signature": "(data: 'Union[NDArray[np.floating], GroupDataset]', *, intercept_only: 'bool' = True, formula: 'Optional[str]' = None, design_matrix: 'Optional[Any]' = None, subjects: 'Optional[Sequence[Any]]' = None, contrasts: 'Optional[Sequence[Any]]' = None, space: 'Optional[VoxelSpace]' = None, n_jobs: 'int' = 1, chunk_size: 'Optional[int]' = None) -> 'GroupLmResult'",
+      "runtime_signature": "(data: 'Union[NDArray[np.floating], GroupDataset, Mapping[str, Any], Sequence[Any]]', *, intercept_only: 'bool' = True, formula: 'Optional[str]' = None, design_matrix: 'Optional[Any]' = None, subjects: 'Optional[Sequence[Any]]' = None, contrasts: 'Optional[Sequence[Any]]' = None, space: 'Optional[VoxelSpace]' = None, n_jobs: 'int' = 1, chunk_size: 'Optional[int]' = None, covariates: 'Optional[Any]' = None, mask: 'object' = None) -> 'GroupLmResult'",
       "signature_source": "inspect.signature",
       "tier": "spine",
       "used_by_public_seam_artifact": "tier_a_group_level_t"
@@ -1518,7 +1533,7 @@
       "name": "fmri_lm",
       "opaque_forwarder": true,
       "owner_module": "fmrimod.glm.fmri_lm",
-      "runtime_signature": "(spec_or_model: \"'Spec | Term | str | Sequence[object] | FmriModelLike'\", dataset_or_config: \"'FmriDataset | FmriLmConfig | None'\" = None, *, baseline: 'object' = None, block: 'Optional[Union[str, NDArray[np.float64]]]' = None, durations: 'Optional[Union[str, float, NDArray[np.float64]]]' = None, precision: 'Optional[float]' = None, config: 'Optional[FmriLmConfig]' = None, ar: \"Optional[Union[str, 'AROptions']]\" = None, engine: 'EngineSelector' = RunwiseEngineOptions(n_jobs=1, blas_threads=None, compute_dtype=<class 'numpy.float64'>, cache_projections=False, chunk_size=5000, name='runwise'), **engine_kwargs: 'object') -> 'FmriLm'",
+      "runtime_signature": "(spec_or_model: \"'Spec | Term | str | Sequence[object] | FmriModelLike'\", dataset_or_config: \"'FmriDataset | FmriLmConfig | None'\" = None, *, baseline: 'object' = None, block: 'Optional[Union[str, NDArray[np.float64]]]' = None, durations: 'Optional[Union[str, float, NDArray[np.float64]]]' = None, precision: 'Optional[float]' = None, config: 'Optional[FmriLmConfig]' = None, ar: \"Optional[Union[str, 'AROptions']]\" = None, engine: 'EngineSelector' = RunwiseEngineOptions(n_jobs=1, blas_threads=None, compute_dtype=<class 'numpy.float64'>, cache_projections=False, chunk_size=5000, name='runwise'), tr: 'Optional[Union[float, Sequence[float]]]' = None, events: 'object' = None, mask: 'object' = None, slice_timing_offset: 'Optional[Union[float, Sequence[float]]]' = None, scale: \"Literal['psc'] | None\" = None, **engine_kwargs: 'object') -> 'FmriLm'",
       "signature_source": "inspect.signature",
       "tier": "spine_review",
       "used_by_public_seam_artifact": "release_1_0_api_spine"
@@ -2058,7 +2073,7 @@
       "name": "group_data_from_nifti",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.group_data",
-      "runtime_signature": "(beta_paths: 'Optional[Sequence[str] | str]' = None, se_paths: 'Optional[Sequence[str] | str]' = None, var_paths: 'Optional[Sequence[str] | str]' = None, t_paths: 'Optional[Sequence[str] | str]' = None, df: 'Optional[Sequence[int] | int]' = None, subjects: 'Optional[Sequence[str]]' = None, covariates: 'Optional[pd.DataFrame]' = None, mask: 'Optional[str]' = None, target_space: 'Optional[str]' = None, validate: 'bool' = True) -> 'GroupData'",
+      "runtime_signature": "(beta_paths: 'Optional[Sequence[str] | str]' = None, se_paths: 'Optional[Sequence[str] | str]' = None, var_paths: 'Optional[Sequence[str] | str]' = None, t_paths: 'Optional[Sequence[str] | str]' = None, df: 'Optional[Sequence[float] | float]' = None, subjects: 'Optional[Sequence[str]]' = None, covariates: 'Optional[pd.DataFrame]' = None, mask: 'Optional[str]' = None, target_space: 'Optional[str]' = None, validate: 'bool' = True) -> 'GroupData'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -2418,7 +2433,7 @@
       "name": "matrix_dataset",
       "opaque_forwarder": false,
       "owner_module": "fmrimod",
-      "runtime_signature": "(data: 'Union[NDArray[np.float64], Sequence[NDArray[np.float64]]]', tr: 'Union[float, list[float], None]' = None, run_length: 'Union[int, list[int], None]' = None, *, event_table: 'Optional[pd.DataFrame]' = None, mask: 'Optional[NDArray[np.bool_]]' = None, TR: 'Union[float, list[float], None]' = None) -> 'FmriDataset'",
+      "runtime_signature": "(data: 'Union[NDArray[np.float64], Sequence[NDArray[np.float64]]]', tr: 'Union[float, list[float], None]' = None, run_length: 'Union[int, list[int], None]' = None, *, event_table: 'Optional[pd.DataFrame]' = None, mask: 'Optional[NDArray[np.bool_]]' = None, censor: 'Union[NDArray[np.bool_], list[NDArray[np.bool_]], None]' = None, start_time: 'Union[float, Sequence[float], None]' = None, slice_timing_offset: 'Union[float, Sequence[float], None]' = None, TR: 'Union[float, list[float], None]' = None) -> 'FmriDataset'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -2508,7 +2523,7 @@
       "name": "p_values",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', type: 'AccessorTarget' = 'estimates') -> 'EstimateOrContrastMap'",
+      "runtime_signature": "(x: 'object', type: 'AccessorTarget' = 'betas') -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -2583,7 +2598,7 @@
       "name": "pvalues",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', type: 'AccessorTarget' = 'estimates') -> 'EstimateOrContrastMap'",
+      "runtime_signature": "(x: 'object', type: 'AccessorTarget' = 'betas') -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -2778,7 +2793,7 @@
       "name": "se",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', type: 'AccessorStandardErrorTarget' = 'estimates') -> 'EstimateOrContrastMap'",
+      "runtime_signature": "(x: 'object', type: 'AccessorStandardErrorTarget' = 'betas') -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -2928,7 +2943,7 @@
       "name": "spm_canonical",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.hrf.functions",
-      "runtime_signature": "(t: 'ArrayLike', *, delay: 'float' = 6.0, undershoot: 'float' = 16.0, dispersion: 'float' = 1.0, u_dispersion: 'float' = 1.0, ratio: 'float' = 0.167) -> 'NDArray[np.float64]'",
+      "runtime_signature": "(t: 'ArrayLike', *, delay: 'float' = 6.0, undershoot: 'float' = 16.0, dispersion: 'float' = 1.0, u_dispersion: 'float' = 1.0, ratio: 'float' = 0.16666666666666666) -> 'NDArray[np.float64]'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -2943,7 +2958,7 @@
       "name": "standard_error",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', type: 'AccessorStandardErrorTarget' = 'estimates') -> 'EstimateOrContrastMap'",
+      "runtime_signature": "(x: 'object', type: 'AccessorStandardErrorTarget' = 'betas') -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -2958,7 +2973,7 @@
       "name": "stats",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.stats",
-      "runtime_signature": "(x: 'object', type: 'str' = 'estimates') -> 'EstimateOrContrastMap'",
+      "runtime_signature": "(x: 'object', type: 'str' = 'betas') -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -3003,7 +3018,7 @@
       "name": "tidy",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', type: 'AccessorTarget' = 'estimates') -> 'pd.DataFrame'",
+      "runtime_signature": "(x: 'object', type: 'AccessorTarget' = 'betas') -> 'pd.DataFrame'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -3138,7 +3153,7 @@
       "name": "zscores",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', type: 'AccessorTarget' = 'estimates') -> 'EstimateOrContrastMap'",
+      "runtime_signature": "(x: 'object', type: 'AccessorTarget' = 'betas') -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"

@@ -38,9 +38,15 @@ def _hrf():
 
 
 def _integral_truth(grid, onsets, duration, hrf, amplitude=1.0):
-    """amplitude * sum_events integral_0^duration h(t - onset - u) du."""
+    """amplitude * sum_events integral_0^duration h(t - onset - u) du.
+
+    ``h`` is zero beyond ``hrf.span``, as a regressor's kernel is (R's
+    test_issue45.R oracles use span-bounded shapes too).
+    """
 
     def h_at(x):
+        if x > hrf.span:
+            return 0.0
         return float(np.asarray(hrf(np.array([x]))).ravel()[0])
 
     out = np.zeros(len(grid), dtype=np.float64)
@@ -149,8 +155,10 @@ def test_regressor_path_agrees_with_hrf_evaluate_path():
     so the two disagreed by a factor of ``1/precision`` (100x at 0.01).
     """
     hrf = _hrf()
-    grid = np.arange(0, 60, 1.0)
     onset, duration = 10.0, 5.0
+    # A regressor truncates its kernel at ``span``; ``HRF.evaluate`` does not
+    # (R's evaluate.HRF doesn't either). Compare where no truncation applies.
+    grid = np.arange(0, onset + hrf.span + 1.0, 1.0)
 
     for summate in (True, False):
         reg = regressor(onsets=[onset], hrf=hrf, duration=duration, summate=summate)

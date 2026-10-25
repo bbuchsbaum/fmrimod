@@ -8,6 +8,7 @@ import numpy as np
 
 from .core import HRF, HrfParamValue, _with_metadata, as_hrf, bind_basis
 from .decorators import block_hrf, lag_hrf
+from .functions import _weighted_times
 
 
 def gen_hrf(
@@ -75,8 +76,8 @@ def gen_hrf(
         # Already an HRF
         base_hrf = hrf
     
-    # Apply block if specified
-    if width > 0:
+    # Apply block if specified (block_hrf rejects negative widths)
+    if width != 0:
         base_hrf = block_hrf(base_hrf, width, precision=precision, half_life=half_life, summate=summate)
 
     # Apply lag if specified
@@ -416,9 +417,11 @@ def weighted_generator(
 
     Args:
         weights: Numeric sequence of weights (>= 2 elements).
-        width: Total window duration (ignored when *times* is given).
+        width: Total window duration (ignored when *times* is given). With
+            ``'constant'`` the weights fill equal bins covering
+            ``[0, width)``.
         times: Explicit time points for each weight.
-        method: 'constant' or 'linear'.
+        method: 'constant' (right-open bins) or 'linear'.
         normalize: Scale weights to sum/integrate to 1.
         name: Optional custom name.
 
@@ -434,21 +437,19 @@ def weighted_generator(
 
     if times is not None:
         _times = np.asarray(times, dtype=np.float64)
-        _span = float(_times[-1])
     elif width is not None:
-        _times = np.linspace(0, width, len(_weights))
-        _span = float(width)
+        if width <= 0:
+            raise ValueError("`width` must be positive.")
+        _times = _weighted_times(len(_weights), width, method)
     else:
         raise ValueError("Either `width` or `times` must be provided.")
 
-    if name is None:
-        name = f"weighted[w={_span:.2g}, {len(_weights)} wts]"
-
     from .library import WeightedHRF
 
+    # WeightedHRF derives span (the last constant bin edge, or the last
+    # linear time) and the default name.
     return WeightedHRF(
-        name=name,
-        span=_span,
+        name=name or "",
         weights=tuple(float(x) for x in _weights),
         times=tuple(float(x) for x in _times),
         method=cast(Literal["constant", "linear"], method),

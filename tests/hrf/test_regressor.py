@@ -31,7 +31,7 @@ class TestRegressor:
         assert_array_equal(reg.onsets, onsets)
         assert len(reg.duration) == 3
         assert len(reg.amplitude) == 3
-        assert reg.span == 32.0  # Default SPMG1 span (SPM standard)
+        assert reg.span == 24.0  # Default SPMG1 span (R HRF_SPMG1)
         assert reg.summate is True
 
     def test_regressor_is_frozen(self):
@@ -124,8 +124,12 @@ class TestRegressor:
         with pytest.raises(ValueError, match="onsets must contain finite"):
             regressor([10, np.inf, 30])
         
-        with pytest.raises(ValueError, match="onsets must be non-negative"):
-            regressor([10, -5, 30])
+
+    def test_negative_onsets_contribute_response_tail(self):
+        """An event before t=0 (e.g. after dummy-scan removal) keeps its tail."""
+        reg = regressor([-4.0, 30.0], hrf=get_hrf("spmg1"))
+        y = reg.evaluate(np.arange(0, 20, 2.0))
+        assert y[0] > 0  # the pre-scan event's response is still rising
     
     def test_invalid_duration(self):
         """Test error on invalid durations."""
@@ -147,7 +151,7 @@ class TestRegressor:
         """A user-supplied span must not be overwritten by the HRF default."""
         reg = regressor([10, 30], hrf="spmg1", span=12.0)
 
-        assert reg.hrf.span == 32.0
+        assert reg.hrf.span == 24.0
         assert reg.span == 12.0
     
     def test_hrf_string(self):
@@ -520,3 +524,151 @@ class TestRegressorDesign:
         """Test error on invalid input type."""
         with pytest.raises(TypeError, match="regressors must be"):
             regressor_design("not a regressor", [0, 1, 2])
+
+
+def _box_hrf() -> HRF:
+    """Flat kernel ``1[0 <= t <= 1]`` with span 1."""
+    from fmrimod.hrf import as_hrf
+
+    return as_hrf(
+        lambda t: np.where((np.asarray(t) >= 0) & (np.asarray(t) <= 1), 1.0, 0.0),
+        span=1.0,
+        name="box",
+    )
+
+
+class TestConvolutionWindowEdge:
+    """fmrihrf ``b901bca`` (``src/neural_input.cpp:24-40,114``, test_regressor.R
+    "a block at the start of the convolution window keeps its mass")."""
+
+    def test_block_at_window_start_keeps_its_mass(self):
+        # The fine window starts one span before the first grid point; a
+        # block starting on that edge used to gain half a fine bin of mass.
+        reg = regressor([0.0], hrf=_box_hrf(), duration=0.5)
+        at_edge = reg.evaluate(np.array([1.0, 2.0, 3.0]), precision=0.1)
+        inside = reg.evaluate(np.array([0.5, 1.0, 2.0, 3.0]), precision=0.1)[1:]
+        np.testing.assert_allclose(at_edge, inside, rtol=0, atol=1e-10)
+        assert at_edge[0] == pytest.approx(0.5, abs=1e-10)
+
+    def test_block_starting_before_window_is_kept(self):
+        # Starts half a fine bin before the window but overlaps it through
+        # its duration, so the event filter must use onset + duration.
+        reg = regressor([0.0], hrf=_box_hrf(), duration=0.5)
+        at_edge = reg.evaluate(np.array([1.05, 2.05]), precision=0.1)
+        inside = reg.evaluate(np.array([0.55, 1.05, 2.05]), precision=0.1)[1:]
+        np.testing.assert_allclose(at_edge, inside, rtol=0, atol=1e-10)
+        assert at_edge[0] > 0.4
+
+
+class TestPerEventKernelSupport:
+    """fmrihrf ``daca7ba`` (``R/evaluate-helpers.R:119-131``,
+    test_spmg_correctness.R "loop block support agrees with an independent
+    finite-kernel integral")."""
+
+    def test_list_hrf_truncates_kernel_at_span_before_integration(self):
+        from fmrimod.hrf import as_hrf
+
+        # Non-zero past its span: only the regressor's [0, span] support counts.
+        h = as_hrf(lambda t: (np.asarray(t) >= 0) * 1.0, span=2.0, name="flat_tail")
+        grid = np.arange(6.0)
+        expected = np.array([0.0, 1.0, 2.0, 1.0, 0.0, 0.0])  # box * box
+
+        per_event = regressor([0.0], hrf=[h], duration=2.0).evaluate(grid, precision=0.001)
+        conv = regressor([0.0], hrf=h, duration=2.0).evaluate(grid, precision=0.001)
+        assert np.max(np.abs(per_event - expected)) < 2e-3
+        assert np.max(np.abs(conv - expected)) < 2e-3
+        assert np.max(np.abs(per_event - conv)) < 2e-3
+
+
+class TestEmptyRegressorConsistency:
+    """Inventory v2 HRF-11 (fmrihrf ``b7ce497``, ``304f1fb``)."""
+
+    def test_list_hrf_with_all_events_dropped_keeps_first_hrf(self):
+        from fmrimod.hrf import HRF_SPMG3
+
+        reg = regressor([1, 2], hrf=[HRF_SPMG3], amplitude=0)
+        single = regressor([1, 2], hrf=HRF_SPMG3, amplitude=0)
+        assert reg.filtered_all
+        assert reg.nbasis == 3
+        assert reg.span == single.span
+        assert reg.evaluate(np.arange(6.0)).shape == (6, 3)
+        assert_array_equal(reg.evaluate(np.arange(6.0)), 0.0)
+
+    def test_per_event_hrf_list_all_dropped_keeps_first_hrf(self):
+        from fmrimod.hrf import HRF_SPMG2, HRF_SPMG3
+
+        hrf_a = HRF_SPMG3
+        hrf_b = get_hrf("spmg3")
+        reg = regressor([1, 2], hrf=[hrf_a, hrf_b], amplitude=[0, 0])
+        assert reg.nbasis == 3
+        assert reg.span == regressor([1], hrf=hrf_a, amplitude=0).span
+        assert reg.evaluate(np.arange(4.0)).shape == (4, 3)
+        # A length-1 list of a two-basis HRF keeps both columns.
+        assert HRF_SPMG2.nbasis == 2
+        reg2 = regressor([1], hrf=[HRF_SPMG2], amplitude=0)
+        assert reg2.evaluate(np.arange(4.0)).shape == (4, 2)
+
+    def test_regressor_set_with_no_levels_is_zero_columns(self):
+        rset = regressor_set([], [])
+        out = rset.evaluate(np.arange(6.0))
+        assert out.shape == (6, 0)
+        assert regressor_design(rset, np.arange(6.0)).shape == (6, 0)
+
+
+class TestRegressorSetColumnNames:
+    """Inventory v2 HRF-12 (fmrihrf ``a8556ff``, #63)."""
+
+    def test_single_basis_names_are_levels(self):
+        rset = regressor_set([10, 20], ["a", "b"])
+        assert rset.column_names == ["a", "b"]
+
+    def test_multi_basis_names(self):
+        from fmrimod.hrf import HRF_SPMG2
+
+        rset = regressor_set([10, 20], ["x", "y"], hrf=HRF_SPMG2)
+        assert rset.column_names == ["x_basis1", "x_basis2", "y_basis1", "y_basis2"]
+        assert len(rset.column_names) == rset.evaluate(np.arange(30.0)).shape[1]
+
+    def test_regressor_design_frame_uses_set_names(self):
+        import pandas as pd
+
+        from fmrimod.hrf import HRF_SPMG2
+
+        rset = regressor_set([10, 20], ["x", "y"], hrf=HRF_SPMG2)
+        grid = np.arange(30.0)
+        # Default return type is unchanged.
+        assert isinstance(regressor_design(rset, grid), np.ndarray)
+        frame = regressor_design(rset, grid, column_names=None, as_frame=True)
+        assert isinstance(frame, pd.DataFrame)
+        assert list(frame.columns) == rset.column_names
+        assert_array_equal(frame.to_numpy(), rset.evaluate(grid))
+        with_icpt = regressor_design(rset, grid, include_intercept=True, as_frame=True)
+        assert list(with_icpt.columns) == ["intercept", *rset.column_names]
+
+    def test_empty_set_has_no_names(self):
+        assert regressor_set([], []).column_names == []
+
+
+class TestInputValidationHRF16:
+    """Inventory v2 HRF-16 (fmrihrf ``aaf58d0``, ``dff54b9``)."""
+
+    @pytest.mark.parametrize(
+        "bad", [None, "yes", 1, 0.0, float("nan"), np.array([True])]
+    )
+    def test_summate_must_be_a_bool(self, bad):
+        with pytest.raises(TypeError, match="summate"):
+            regressor([1.0], summate=bad)
+        with pytest.raises(TypeError, match="summate"):
+            regressor_set([1.0], ["a"], summate=bad)
+
+    def test_summate_accepts_numpy_bool(self):
+        assert regressor([1.0], summate=np.bool_(False)).summate is False
+        assert regressor([1.0], summate=True).summate is True
+
+    def test_negative_block_width_rejected(self):
+        from fmrimod.hrf import HRF_SPMG1, block_hrf, gen_hrf
+
+        with pytest.raises(ValueError, match="width"):
+            gen_hrf(HRF_SPMG1, width=-1)
+        with pytest.raises(ValueError, match="width"):
+            block_hrf(HRF_SPMG1, -1)

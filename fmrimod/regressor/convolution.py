@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import warnings
+from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
 import scipy.signal
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 
 from ..hrf import HRF
 from ..utils.cache import cached_hrf_eval
@@ -152,16 +153,29 @@ def _add_hat_step(
     both endpoints placed at their exact sub-bin positions. Both properties
     matter: bin-aligned trapezoid weights quantise the block edges, and exact
     edges with plain rectangle weights drop the quadrature to first order.
+
+    The hats of bins 0 and ``n_bins - 1`` reach one bin beyond the window, so
+    a position within one bin before the window still covers part of bin 0's
+    hat, and a position past bin ``n_bins`` covers every hat in the window.
+    ``diff`` needs ``n_bins + 3`` slots (R ``addHatStep``, fmrihrf
+    ``b901bca``).
     """
-    if pos <= 0.0:
-        return  # nothing accumulated yet
-    max_pos = float(n_bins - 1)
-    if pos > max_pos:
-        pos = max_pos
+    if pos <= -1.0:
+        return  # left of every hat
+    v = coef * dt
+
+    if pos < 0.0:
+        # Only the left tail of bin 0's hat lies before pos.
+        w = v * 0.5 * (1.0 + pos) * (1.0 + pos)
+        diff[0] += w
+        diff[1] -= w
+        return
+
+    if pos > float(n_bins):
+        pos = float(n_bins)
 
     a = int(np.floor(pos))
     f = pos - float(a)
-    v = coef * dt
 
     # Full weight on every bin strictly left of a.
     if a > 0:
@@ -210,24 +224,30 @@ def _build_neural_input(
 
     n_bins = len(time)
     t0 = float(time[0])
-    max_pos = float(n_bins - 1)
+    end_pos = float(n_bins)  # no bin's hat reaches past this
 
-    # Difference array with two guard slots (see _add_hat_step).
-    diff = np.zeros(n_bins + 2, dtype=np.float64)
+    # Difference array with three guard slots (see _add_hat_step).
+    diff = np.zeros(n_bins + 3, dtype=np.float64)
 
     for onset, duration, amplitude in zip(onsets, durations, amplitudes):
         d = float(duration)
         pos_s = (float(onset) - t0) / dt
-        if pos_s > max_pos:
+        if pos_s >= end_pos:
             continue  # starts past the window
 
         if not (d > 0.0):
             # Impulse of unit mass, split linearly across the two bracketing
             # bins. Snapping it to the nearest bin instead cost up to dt/2 of
             # onset error, which at the default precision of 0.33 s was ~12%
-            # of peak for an onset that fell between bins.
+            # of peak for an onset that fell between bins. Within one bin
+            # before the window only the share of bin 0 is kept.
+            if pos_s <= -1.0:
+                continue
             if pos_s < 0.0:
-                pos_s = 0.0
+                w = float(amplitude) * (1.0 + pos_s)
+                diff[0] += w
+                diff[1] -= w
+                continue
             a = int(np.floor(pos_s))
             f = pos_s - float(a)
             w0 = float(amplitude) * (1.0 - f)
@@ -239,7 +259,7 @@ def _build_neural_input(
             continue
 
         pos_e = (float(onset) + d - t0) / dt
-        if pos_e <= 0.0:
+        if pos_e <= -1.0:
             continue  # ends before the window
 
         # Block weights are the difference of the two running hat integrals,
@@ -270,6 +290,37 @@ def _convolve(
     )
 
 
+@dataclass
+class _SupportHRF(HRF):
+    """``base`` truncated to the finite kernel support ``[0, span]``.
+
+    The conv engine samples each kernel on ``0..span`` only. The per-event
+    path must use the same finite kernel, and must truncate *before* block
+    integration: a block near the end of the span mixes supported and
+    unsupported lags (R ``eval_loop`` ``bounded()``, fmrihrf ``daca7ba``).
+    """
+
+    name: str = ""
+    nbasis: int = 1
+    span: float = 24.0
+    base: HRF | None = None
+
+    def __post_init__(self) -> None:
+        if self.base is None:
+            raise ValueError("_SupportHRF requires `base`")
+        self.name = self.base.name
+        self.nbasis = self.base.nbasis
+
+    def __call__(self, t: ArrayLike) -> NDArray[np.float64]:
+        assert self.base is not None  # for type checkers; __post_init__ guarantees
+        t = np.asarray(t, dtype=np.float64)
+        values = np.array(self.base(t), dtype=np.float64)
+        outside = (t < 0) | (t > self.span)
+        if np.any(outside):
+            values[outside] = 0.0
+        return values
+
+
 def convolve_hrf_per_event(
     grid: NDArray[np.float64],
     onsets: NDArray[np.float64],
@@ -291,7 +342,7 @@ def convolve_hrf_per_event(
         durations: Per-event durations.
         amplitudes: Per-event amplitudes.
         hrfs: List of HRF objects, one per event.
-        span: Maximum HRF span.
+        span: Kernel support; every HRF is truncated to ``[0, span]``.
         precision: Fine-grid resolution.
         summate: Sum overlapping responses if True.
 
@@ -312,9 +363,11 @@ def convolve_hrf_per_event(
         if not np.any(mask):
             continue
 
-        # Evaluate the HRF at relative times for the affected grid points
+        # Evaluate the span-truncated HRF at relative times for the affected
+        # grid points, so a block integrates the same finite kernel the conv
+        # path samples.
         t_eval = rel_times[mask]
-        hrf_vals = hrf.evaluate(
+        hrf_vals = _SupportHRF(base=hrf, span=span).evaluate(
             t_eval, duration=dur, precision=precision, summate=summate
         )
 

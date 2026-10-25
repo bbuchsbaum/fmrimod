@@ -10,59 +10,54 @@ import numpy as np
 import pandas as pd
 from numpy.typing import ArrayLike, NDArray
 
-from fmrimod.sampling import SamplingFrame
+from fmrimod.sampling import SamplingFrame, same_seconds
 
-from .backend_protocol import StorageBackend
+from .backend_protocol import BackendDims, StorageBackend
 from .backends.latent_backend import InMemoryLatentBackend, LatentBackend
 from .errors import ConfigError
 from .fmri_dataset import FmriDataset
 
 
-class _LatentAdapter:
-    """Adapt latent backends to the current run-wise dataset protocol."""
+class _LatentVoxelBackend(StorageBackend):
+    """Voxel-space view of a latent backend: reads reconstruct voxels.
 
-    def __init__(self, backend: StorageBackend, sampling_frame: SamplingFrame) -> None:
-        self.backend = backend
-        self._sampling_frame = sampling_frame
+    ``FmriDataset`` reads through this view, so run-wise and ``rows``/``cols``
+    access return reconstructed voxel data; the latent scores stay
+    reachable through :class:`LatentDataset`'s explicit methods.
+    """
 
-    def _run_rows(self, run: int) -> NDArray[np.intp]:
-        if run < 0 or run >= self.n_runs:
-            raise IndexError(f"Run {run} out of range [0, {self.n_runs})")
-        start = int(np.sum(self.run_lengths[:run]))
-        end = start + int(self.run_lengths[run])
-        return np.arange(start, end, dtype=np.intp)
-
-    def get_data(self, run: int) -> NDArray[np.float64]:
-        """Return reconstructed voxel data for one run."""
-        method = getattr(self.backend, "reconstruct_voxels", None)
-        if method is None:
+    def __init__(self, latent: StorageBackend) -> None:
+        if getattr(latent, "reconstruct_voxels", None) is None:
             raise ConfigError("latent backend does not expose reconstruct_voxels")
-        data = method(rows=self._run_rows(run))
-        return np.asarray(data, dtype=np.float64)
+        self.latent = latent
+
+    def open(self) -> None:
+        self.latent.open()
+
+    def close(self) -> None:
+        self.latent.close()
+
+    def get_dims(self) -> BackendDims:
+        return self.latent.get_dims()
 
     def get_mask(self) -> NDArray[np.bool_]:
-        """Return the voxel mask from the latent backend."""
-        return np.asarray(self.backend.get_mask(), dtype=np.bool_)
-
-    def get_sampling_frame(self) -> SamplingFrame:
-        """Return the sampling frame."""
-        return self._sampling_frame
+        return np.asarray(self.latent.get_mask(), dtype=np.bool_)
 
     @property
-    def n_runs(self) -> int:
-        return int(self._sampling_frame.n_blocks)
+    def source_run_lengths(self) -> tuple[int, ...] | None:
+        lengths = getattr(self.latent, "run_lengths", None)
+        return None if lengths is None else tuple(int(v) for v in lengths)
 
-    @property
-    def run_lengths(self) -> list[int]:
-        return [int(v) for v in self._sampling_frame.blocklens]
+    def get_data(
+        self,
+        rows: NDArray[np.intp] | None = None,
+        cols: NDArray[np.intp] | None = None,
+    ) -> NDArray[np.float64]:
+        data = cast(Any, self.latent).reconstruct_voxels(rows=rows, voxels=cols)
+        return np.asarray(data, dtype=np.float64)
 
-    @property
-    def n_timepoints(self) -> list[int]:
-        return self.run_lengths
-
-    @property
-    def n_voxels(self) -> int:
-        return int(self.backend.get_mask().sum())
+    def get_metadata(self) -> dict[str, object]:
+        return self.latent.get_metadata()
 
 
 class LatentDataset(FmriDataset):
@@ -83,19 +78,23 @@ class LatentDataset(FmriDataset):
     ) -> None:
         if backend.get_dims().time != sampling_frame.n_scans:
             raise ValueError("sampling frame length must match latent score rows")
+        self._latent = backend
         super().__init__(
-            _LatentAdapter(backend, sampling_frame),
+            _LatentVoxelBackend(backend),
             event_table=event_table,
             censor=censor,
+            sampling_frame=sampling_frame,
         )
 
     @property
     def backend(self) -> StorageBackend:
         """Underlying latent storage backend."""
-        backend = self.storage_backend
-        if backend is None:  # pragma: no cover - impossible for _LatentAdapter
-            raise ConfigError("latent dataset has no storage backend")
-        return cast(StorageBackend, backend)
+        return self._latent
+
+    @property
+    def storage_backend(self) -> StorageBackend:
+        """The latent backend (scores and loadings), not the voxel view."""
+        return self._latent
 
     @property
     def TR(self) -> float:  # noqa: N802
@@ -125,8 +124,7 @@ class LatentDataset(FmriDataset):
 
     def get_scores(self, run: int = 0) -> NDArray[np.float64]:
         """Return latent scores for one run."""
-        rows = cast(_LatentAdapter, self._source)._run_rows(run)
-        return self.get_latent_scores(rows=rows)
+        return self.get_latent_scores(rows=self.run_rows(run))
 
     def get_spatial_loadings(
         self,
@@ -266,7 +264,7 @@ def get_component_info(dataset: LatentDataset) -> dict[str, object]:
 def _resolve_tr(tr: float, TR: float | None) -> float:  # noqa: N803
     if TR is None:
         return float(tr)
-    if tr != 1.0 and not np.isclose(float(tr), float(TR)):
+    if tr != 1.0 and not same_seconds(tr, TR):
         raise ValueError("tr and TR must agree when both are supplied")
     return float(TR)
 

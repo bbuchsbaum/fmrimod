@@ -4,32 +4,16 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import cast
 
 import numpy as np
 from numpy.typing import NDArray
 
-from fmrimod.dataset.backend_protocol import BackendDims, StorageBackend
+from fmrimod.dataset.backend_protocol import (
+    BackendDims,
+    StorageBackend,
+    _normalize_indices,
+)
 from fmrimod.dataset.errors import BackendIOError, ConfigError
-
-
-def _validate_indices(
-    indices: NDArray[np.intp] | Sequence[int] | int | float | None,
-    upper: int,
-    name: str,
-) -> NDArray[np.intp] | None:
-    if indices is None:
-        return None
-    arr = np.atleast_1d(np.asarray(indices))
-    if not np.issubdtype(arr.dtype, np.integer):
-        if not np.issubdtype(arr.dtype, np.floating):
-            raise ValueError(f"{name} indices must be integers")
-        if not np.all(arr.astype(np.int64) == arr):
-            raise ValueError(f"{name} indices must be integers")
-    result = arr.astype(np.intp, copy=False)
-    if np.any(result < 0) or np.any(result >= upper):
-        raise ValueError(f"{name} indices must be within [0, {upper - 1}]")
-    return cast("NDArray[np.intp]", result)
 
 
 class LatentBackend(StorageBackend):
@@ -185,8 +169,8 @@ class LatentBackend(StorageBackend):
         """Return latent scores in ``timepoints x components`` orientation."""
         self._require_open("get_data")
         basis = self._basis()
-        row_idx = _validate_indices(rows, basis.shape[0], "rows")
-        col_idx = _validate_indices(cols, basis.shape[1], "cols")
+        row_idx = _normalize_indices(rows, basis.shape[0], "rows")
+        col_idx = _normalize_indices(cols, basis.shape[1], "cols")
         data = basis
         if row_idx is not None:
             data = data[row_idx, :]
@@ -202,8 +186,8 @@ class LatentBackend(StorageBackend):
         """Return reconstructed voxel data in ``timepoints x voxels`` orientation."""
         self._require_open("reconstruct_voxels")
         dims = self.get_dims()
-        row_idx = _validate_indices(rows, dims.time, "rows")
-        voxel_idx = _validate_indices(voxels, dims.spatial[0], "voxels")
+        row_idx = _normalize_indices(rows, dims.time, "rows")
+        voxel_idx = _normalize_indices(voxels, dims.spatial[0], "voxels")
 
         if self._data is not None:
             data = self._data
@@ -229,7 +213,7 @@ class LatentBackend(StorageBackend):
         """Return spatial loadings in ``voxels x components`` orientation."""
         self._require_open("get_loadings")
         assert self._loadings is not None
-        comp_idx = _validate_indices(components, self._loadings.shape[1], "components")
+        comp_idx = _normalize_indices(components, self._loadings.shape[1], "components")
         if comp_idx is None:
             return self._loadings.copy()
         return self._loadings[:, comp_idx]
@@ -337,8 +321,8 @@ class InMemoryLatentBackend(StorageBackend):
         rows: NDArray[np.intp] | None = None,
         cols: NDArray[np.intp] | None = None,
     ) -> NDArray[np.float64]:
-        row_idx = _validate_indices(rows, self._scores.shape[0], "rows")
-        col_idx = _validate_indices(cols, self._scores.shape[1], "cols")
+        row_idx = _normalize_indices(rows, self._scores.shape[0], "rows")
+        col_idx = _normalize_indices(cols, self._scores.shape[1], "cols")
         data = self._scores
         if row_idx is not None:
             data = data[row_idx, :]
@@ -352,8 +336,8 @@ class InMemoryLatentBackend(StorageBackend):
         voxels: NDArray[np.intp] | None = None,
     ) -> NDArray[np.float64]:
         dims = self.get_dims()
-        row_idx = _validate_indices(rows, dims.time, "rows")
-        voxel_idx = _validate_indices(voxels, dims.spatial[0], "voxels")
+        row_idx = _normalize_indices(rows, dims.time, "rows")
+        voxel_idx = _normalize_indices(voxels, dims.spatial[0], "voxels")
         scores = self._scores if row_idx is None else self._scores[row_idx, :]
         if self._loadings is None:
             data = scores
@@ -373,7 +357,7 @@ class InMemoryLatentBackend(StorageBackend):
     ) -> NDArray[np.float64]:
         if self._loadings is None:
             return np.eye(self._scores.shape[1], dtype=np.float64)
-        comp_idx = _validate_indices(components, self._loadings.shape[1], "components")
+        comp_idx = _normalize_indices(components, self._loadings.shape[1], "components")
         if comp_idx is None:
             return self._loadings.copy()
         return self._loadings[:, comp_idx]

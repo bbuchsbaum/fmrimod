@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from numpy.typing import NDArray
 
 from .errors import ConfigError
+from .space import VolumeSpace
 
 
 @dataclass(frozen=True)
@@ -43,6 +45,40 @@ class BackendDims:
     def n_spatial(self) -> int:
         """Total number of spatial elements."""
         return int(np.prod(self.spatial))
+
+
+def _normalize_indices(
+    indices: NDArray[Any] | Sequence[int] | int | None,
+    upper: int,
+    name: str,
+) -> NDArray[np.intp] | None:
+    """Resolve a ``rows=``/``cols=`` selector to non-negative positions.
+
+    A boolean selector is a mask and must match the axis length; numeric
+    positions must be whole. Python's negative-index and repeat semantics are
+    kept (R ``ec6efd3`` selection law, minus R's negative-exclusion rule).
+    ``None`` means "the whole axis" and is returned unchanged.
+    """
+    if indices is None:
+        return None
+    arr = np.atleast_1d(np.asarray(indices))
+    if arr.dtype == np.bool_:
+        if arr.shape != (upper,):
+            raise ValueError(
+                f"{name} boolean mask length ({arr.size}) must equal {upper}"
+            )
+        return cast("NDArray[np.intp]", np.flatnonzero(arr))
+    if arr.size == 0:
+        return np.empty(0, dtype=np.intp)
+    if np.issubdtype(arr.dtype, np.floating):
+        if not np.all(np.isfinite(arr)) or np.any(arr != np.round(arr)):
+            raise ValueError(f"{name} indices must be integers")
+    elif not np.issubdtype(arr.dtype, np.integer):
+        raise ValueError(f"{name} indices must be integers")
+    out = arr.reshape(-1).astype(np.intp)
+    if np.any(out < -upper) or np.any(out >= upper):
+        raise ValueError(f"{name} indices must be within [{-upper}, {upper - 1}]")
+    return cast("NDArray[np.intp]", np.where(out < 0, out + upper, out))
 
 
 class StorageBackend(ABC):
@@ -85,6 +121,24 @@ class StorageBackend(ABC):
     @abstractmethod
     def get_metadata(self) -> dict[str, object]:
         """Return backend metadata."""
+
+    @property
+    def space(self) -> VolumeSpace:
+        """Spatial identity of the columns.
+
+        The default covers sources without geometry: the reported grid and
+        mask, no affine, and a flat mask. Image backends override it.
+        """
+        dims = self.get_dims()
+        return VolumeSpace(dims.spatial, self.get_mask(), affine=None)
+
+    @property
+    def source_run_lengths(self) -> tuple[int, ...] | None:
+        """Rows contributed by each underlying file or source, when known.
+
+        ``None`` means the backend has no natural run boundaries.
+        """
+        return None
 
     def validate(self) -> bool:
         """Check backend invariants and raise ``ConfigError`` on failure."""

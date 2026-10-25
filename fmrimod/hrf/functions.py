@@ -8,21 +8,16 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from scipy import interpolate, special, stats
 
-# Constant used in legacy SPM canonical HRF parameterization (kept only
-# for the ``spm_canonical_legacy`` path; the new SPM-form canonical
-# uses scipy's gamma pdf directly).
-_SPM_C = 1.274527e-13
-
-
-# Default parameters for the SPM canonical HRF (SPM ``spm_hrf`` /
-# Nilearn ``_gamma_difference_hrf`` defaults — kept as module-level
-# constants so the typed spec, library defaults, and the basis-set
-# subclasses all agree).
+# Default parameters for the SPM canonical HRF, as R fmrihrf's
+# ``HRF_SPMG1`` defines it (steward decision D2): ratio exactly 1/6 and a
+# 24 s span. Nilearn uses ratio 0.167 and a 32 s kernel. Module-level so
+# the typed spec, library defaults and basis classes all agree.
 _SPM_DEFAULT_DELAY: float = 6.0
 _SPM_DEFAULT_UNDERSHOOT: float = 16.0
 _SPM_DEFAULT_DISPERSION: float = 1.0
 _SPM_DEFAULT_U_DISPERSION: float = 1.0
-_SPM_DEFAULT_RATIO: float = 0.167
+_SPM_DEFAULT_RATIO: float = 1.0 / 6.0
+_SPM_DEFAULT_SPAN: float = 24.0
 
 
 def _causal(t: NDArray[np.float64], values: NDArray[np.float64]) -> NDArray[np.float64]:
@@ -43,53 +38,6 @@ def _causal(t: NDArray[np.float64], values: NDArray[np.float64]) -> NDArray[np.f
     return values
 
 
-def spm_canonical_legacy(
-    t: ArrayLike,
-    p1: float = 5.0,
-    p2: float = 15.0,
-    a1: float = 0.0833,
-    dispersion: float = 1.0,
-) -> NDArray[np.float64]:
-    """Legacy SPM canonical HRF (R ``fmrireg`` parameterization).
-
-    Implements the simplified double-gamma form
-    ``exp(-t) * (a1 * t^p1 - C * t^p2)`` with ``C = 1.274527e-13``.
-    This is the form fmrimod shipped before the SPM-canonical
-    alignment work; the realised canonical's peak/undershoot
-    *ratio* is ~4600 (vs SPM's ~10) and the peak time is ``p1``
-    (vs SPM's ``delay - 1 = 5``), making correlation with SPM /
-    Nilearn realised columns only ~0.91 on identical events.
-
-    Kept on the public surface as ``basis="spm_legacy"`` for
-    callers that pinned the old shape; new code should use
-    :func:`spm_canonical` (the SPM-form double gamma) instead.
-
-    Args:
-        t: Time points in seconds
-        p1: First exponent parameter (default 5)
-        p2: Second exponent parameter (default 15)
-        a1: Amplitude scaling factor (default 0.0833)
-        dispersion: Width-scale parameter (default 1.0). Evaluated at
-            ``t * dispersion``, matching the legacy dispersion-derivative
-            implementation used by ``SPMG3_HRF_Legacy``.
-
-    Returns:
-        Legacy HRF values at time points t.
-    """
-    t = np.asarray(t, dtype=np.float64)
-    result = np.zeros_like(t)
-    mask = t >= 0
-    if np.any(mask):
-        sigma = float(dispersion)
-        if sigma <= 0:
-            raise ValueError(
-                f"spm_canonical_legacy: dispersion must be positive, " f"got {sigma!r}"
-            )
-        t_pos = t[mask] * sigma
-        result[mask] = np.exp(-t_pos) * (a1 * t_pos**p1 - _SPM_C * t_pos**p2)
-    return result
-
-
 def spm_canonical(
     t: ArrayLike,
     *,
@@ -101,15 +49,15 @@ def spm_canonical(
 ) -> NDArray[np.float64]:
     """SPM canonical HRF — the standard double-gamma form.
 
-    Matches SPM's ``spm_hrf`` and Nilearn's
-    ``_gamma_difference_hrf`` with the same parameter names and
-    defaults: a peak gamma with shape ``delay / dispersion`` and
+    R fmrihrf's ``hrf_spmg1`` and SPM's ``spm_hrf``, with Nilearn's
+    ``_gamma_difference_hrf`` parameter names: a peak gamma with shape ``delay / dispersion`` and
     scale ``dispersion``, minus a smaller undershoot gamma with
     shape ``undershoot / u_dispersion`` and scale ``u_dispersion``,
     weighted by ``ratio``.
 
-    At the SPM defaults (delay=6, undershoot=16, dispersion=1,
-    u_dispersion=1, ratio=0.167) the response peaks near 5 s and
+    At the defaults (delay=6, undershoot=16, dispersion=1,
+    u_dispersion=1, ratio=1/6) this is R's
+    ``exp(-t) * (t^5 / 120 - t^15 / (6 * 15!))``. The response peaks near 5 s and
     has an undershoot near 16 s with peak/undershoot magnitude
     ratio ~10:1.
 
@@ -123,20 +71,13 @@ def spm_canonical(
             it earlier (SPM convention).
         u_dispersion: Dispersion for the undershoot gamma
             (default 1.0).
-        ratio: Undershoot/peak amplitude ratio (default 0.167 =
-            1/6, the SPM default).
+        ratio: Undershoot/peak mass ratio (default exactly 1/6, as in
+            R and SPM; Nilearn rounds it to 0.167).
 
     Returns:
         HRF values at time points t. Not normalized — apply
         ``norm="spm"`` for the area-normalized form used by
         Nilearn's realised regressors.
-
-    Notes:
-        Migrated from the legacy form ``exp(-t) * (a1*t^p1 - C*t^p2)``
-        in early 2026 to align fmrimod's default SPM HRF with SPM
-        and Nilearn. The previous behavior is preserved as
-        :func:`spm_canonical_legacy` and reachable via
-        ``basis="spm_legacy"``.
     """
     t = np.asarray(t, dtype=np.float64)
     if dispersion <= 0 or u_dispersion <= 0:
@@ -231,69 +172,57 @@ def bspline_hrf(
 ) -> NDArray[np.float64]:
     """B-spline basis set for HRF.
 
-    Interior knots are placed at quantiles of a uniform grid over ``[0, span]``,
-    matching R ``hrf_bspline()``. They are a function of ``span`` alone, so the
-    basis does not change with the grid the caller passes.
+    The ``n_basis`` functions are the interior functions of a clamped
+    B-spline basis of ``n_basis + 2`` functions on ``[0, span]`` with evenly
+    spaced knots, matching R ``hrf_bspline()``. The two boundary functions
+    are dropped, so every basis function (and every fitted HRF) is zero at
+    onset and at ``span``. The knots depend on ``span`` alone, never on the
+    grid the caller passes.
 
     Args:
         t: Time points in seconds
-        n_basis: Number of basis functions
+        n_basis: Number of basis functions (at least ``max(1, degree - 1)``)
         degree: Degree of B-splines (3 for cubic)
         span: Temporal span of the basis set
 
     Returns:
-        Matrix of B-spline basis functions evaluated at t
+        Matrix of B-spline basis functions evaluated at t (zero outside
+        ``[0, span]``)
+
+    Raises:
+        ValueError: If ``n_basis < max(1, degree - 1)``.
     """
+    n_basis = int(n_basis)
+    degree = int(degree)
+    min_basis = max(1, degree - 1)
+    if n_basis < min_basis:
+        raise ValueError(
+            f"n_basis must be at least {min_basis} for degree = {degree}"
+        )
+
     t = np.atleast_1d(np.asarray(t, dtype=np.float64))
+    out = np.zeros((len(t), n_basis), dtype=np.float64)
 
     # Evaluate only inside [0, span] and keep zeros outside.
     valid = (t >= 0) & (t <= span)
     if not np.any(valid):
-        return np.zeros((len(t), int(n_basis)), dtype=np.float64)
+        return out
 
-    t_valid = t[valid]
-    ord_ = degree + 1
-    n_interior = max(0, int(n_basis) - ord_ + 1)
-
-    if n_interior > 0:
-        # Interior knots come from `span`, not from the caller's `t`. Deriving
-        # them from `t` (what splines::bs() does when `knots` is omitted) made
-        # the basis a function of the evaluation grid: the same experiment
-        # analysed on two grids got two different bases, and a grid of one or
-        # two points collapsed the knots onto those points. Mirrors R
-        # hrf_bspline(): quantiles of seq(0, span).
-        probs = np.arange(1, n_interior + 1, dtype=np.float64) / (n_interior + 1)
-        ref_grid = np.arange(0.0, np.floor(float(span)) + 1.0)
-        interior_knots = np.quantile(ref_grid, probs)
-    else:
-        interior_knots = np.array([], dtype=np.float64)
-
+    # Clamped basis with n_basis + 2 functions; only the first and last are
+    # non-zero at t = 0 and t = span, so dropping them leaves n_basis
+    # functions that vanish at both ends.
+    n_interior = n_basis + 1 - degree
+    interior_knots = np.linspace(0.0, float(span), n_interior + 2)[1:-1]
     knots = np.concatenate(
         [
-            np.repeat(0.0, ord_),
-            interior_knots.astype(np.float64),
-            np.repeat(float(span), ord_),
+            np.repeat(0.0, degree + 1),
+            interior_knots,
+            np.repeat(float(span), degree + 1),
         ]
     )
-
-    # Build the full basis then drop the first column (intercept=FALSE),
-    # matching splines::bs(..., intercept = FALSE).
-    n_basis_full = len(knots) - degree - 1
-    basis_full = np.zeros((len(t_valid), n_basis_full), dtype=np.float64)
-
-    for i in range(n_basis_full):
-        c = np.zeros(n_basis_full, dtype=np.float64)
-        c[i] = 1.0
-        bspl = interpolate.BSpline(knots, c, degree, extrapolate=False)
-        basis_full[:, i] = np.nan_to_num(bspl(t_valid), nan=0.0)
-
-    if n_basis_full > int(n_basis):
-        basis_valid = basis_full[:, 1 : (int(n_basis) + 1)]
-    else:
-        basis_valid = basis_full
-
-    out = np.zeros((len(t), int(n_basis)), dtype=np.float64)
-    out[valid, : basis_valid.shape[1]] = basis_valid
+    n_full = n_basis + 2
+    full = interpolate.BSpline(knots, np.eye(n_full), degree, extrapolate=False)
+    out[valid] = np.nan_to_num(full(t[valid]), nan=0.0)[:, 1:-1]
     return out
 
 
@@ -407,7 +336,10 @@ def fir_basis(
 ) -> NDArray[np.float64]:
     """Finite Impulse Response (FIR) basis set.
 
-    Creates a basis of boxcar functions.
+    Column ``k`` is the indicator of the right-open bin
+    ``[k * w, (k + 1) * w)`` with ``w = span / n_basis``, matching R
+    ``hrf_fir_generator()``. ``t == span`` lies outside every bin, so the
+    basis is zero there, as it is before onset.
 
     Args:
         t: Time points in seconds
@@ -417,22 +349,15 @@ def fir_basis(
     Returns:
         Matrix of FIR basis functions evaluated at t
     """
-    t = np.asarray(t, dtype=np.float64)
-
-    # Create bin edges
-    bin_width = span / n_basis
-    bins = np.arange(n_basis + 1) * bin_width
-
-    # Create basis functions
+    t = np.atleast_1d(np.asarray(t, dtype=np.float64))
+    n_basis = int(n_basis)
     basis = np.zeros((len(t), n_basis))
 
-    for i in range(n_basis):
-        # Boxcar function for this bin
-        basis[:, i] = ((t >= bins[i]) & (t < bins[i + 1])).astype(float)
-
-    # Handle edge case where t == span
-    if n_basis > 0:
-        basis[t == span, -1] = 1.0
+    inside = np.flatnonzero(~np.isnan(t) & (t >= 0) & (t < span))
+    if n_basis > 0 and len(inside) > 0:
+        bin_width = span / n_basis
+        bin_index = np.minimum(np.floor(t[inside] / bin_width), n_basis - 1)
+        basis[inside, bin_index.astype(np.intp)] = 1.0
 
     return basis
 
@@ -443,6 +368,11 @@ def mexhat_hrf(
     center: float = 6.0,
 ) -> NDArray[np.float64]:
     """Mexican hat (Ricker) wavelet HRF.
+
+    ``2 / (sqrt(3 sigma) pi^(1/4)) (1 - z^2) exp(-z^2 / 2)`` with
+    ``z = (t - center) / sigma``. The constant gives the un-truncated wavelet
+    unit L2 norm, and the response is zero before onset (fmrihrf
+    ``7e5f7ec``).
 
     Args:
         t: Time points in seconds
@@ -609,9 +539,10 @@ def hrf_time(
 
 
 def hrf_mexhat(t: ArrayLike, mean: float = 6.0, sd: float = 2.0) -> NDArray[np.float64]:
-    """Mexican hat wavelet HRF.
+    """Mexican hat wavelet HRF (R ``hrf_mexhat`` argument names).
 
-    Computes the Mexican hat (Ricker) wavelet at given time points.
+    The causal, unit-L2 Ricker wavelet of :func:`mexhat_hrf` with
+    ``center=mean`` and ``sigma=sd``; there is one implementation.
 
     Args:
         t: Time points in seconds
@@ -619,13 +550,9 @@ def hrf_mexhat(t: ArrayLike, mean: float = 6.0, sd: float = 2.0) -> NDArray[np.f
         sd: Width parameter
 
     Returns:
-        HRF values at time points
+        HRF values at time points (zero for ``t < 0``)
     """
-    t = np.asarray(t, dtype=np.float64)
-    t0 = t - mean
-    a = (1 - (t0 / sd) ** 2) * np.exp(-(t0**2) / (2 * sd**2))
-    scale = np.sqrt(2 / (3 * sd * np.pi ** (1 / 4)))
-    return cast("NDArray[np.float64]", scale * a)
+    return mexhat_hrf(t, sigma=sd, center=mean)
 
 
 def hrf_inv_logit(
@@ -840,28 +767,31 @@ def hrf_basis_lwu(
             "use normalize(LWUBasisHRF(...), mode)."
         )
 
-    tau0, sigma0, rho0 = theta0
+    if np.any(np.isnan(t)):
+        raise ValueError("t must not contain NaN values")
 
-    # Primary HRF at expansion point
+    tau0, sigma0, rho0 = (float(v) for v in theta0)
+
+    # Primary HRF at expansion point (also validates sigma0 and rho0)
     h0 = hrf_lwu(t, tau0, sigma0, rho0, normalize="none")
 
-    # Compute partial derivatives numerically
-    eps = 1e-5
+    # Partial derivatives in closed form. Finite differences would step
+    # outside the validated domain at rho in {0, 1.5} or sigma just above
+    # 0.05 (R steps one-sidedly there, fmrihrf 5489369); the analytic
+    # Jacobian is exact everywhere in the domain.
+    #   h = g1 - rho * g2,  g1 = exp(-d^2 / (2 s^2)),  d = t - tau
+    #   g2 = exp(-u^2 / (2 (1.6 s)^2)),  u = t - tau - 2 s
+    d = t - tau0
+    u = d - 2.0 * sigma0
+    s_u = 1.6 * sigma0
+    g1 = np.exp(-(d**2) / (2.0 * sigma0**2))
+    g2 = np.exp(-(u**2) / (2.0 * s_u**2))
 
-    # Partial derivative w.r.t. tau
-    h_tau_plus = hrf_lwu(t, tau0 + eps, sigma0, rho0)
-    h_tau_minus = hrf_lwu(t, tau0 - eps, sigma0, rho0)
-    dh_dtau = (h_tau_plus - h_tau_minus) / (2 * eps)
-
-    # Partial derivative w.r.t. sigma
-    h_sigma_plus = hrf_lwu(t, tau0, sigma0 + eps, rho0)
-    h_sigma_minus = hrf_lwu(t, tau0, sigma0 - eps, rho0)
-    dh_dsigma = (h_sigma_plus - h_sigma_minus) / (2 * eps)
-
-    # Partial derivative w.r.t. rho
-    h_rho_plus = hrf_lwu(t, tau0, sigma0, rho0 + eps)
-    h_rho_minus = hrf_lwu(t, tau0, sigma0, rho0 - eps)
-    dh_drho = (h_rho_plus - h_rho_minus) / (2 * eps)
+    dh_dtau = g1 * d / sigma0**2 - rho0 * g2 * u / s_u**2
+    # d/ds of -u^2 / (2 (1.6 s)^2) = 2u / (1.6 s)^2 + u^2 / (1.6^2 s^3)
+    dg2_dsigma = g2 * (2.0 * u / s_u**2 + u**2 / (1.6**2 * sigma0**3))
+    dh_dsigma = g1 * d**2 / sigma0**3 - rho0 * dg2_dsigma
+    dh_drho = -g2
 
     # Stack as columns
     basis = np.column_stack([h0, dh_dtau, dh_dsigma, dh_drho])
@@ -903,6 +833,31 @@ def boxcar_hrf(
     return np.where((t >= 0) & (t < width), amplitude, 0.0)
 
 
+def _weighted_times(
+    n_weights: int, width: float, method: str
+) -> NDArray[np.float64]:
+    """Times of ``n_weights`` weights spread over ``width`` (R ``hrf_weighted``).
+
+    ``"constant"`` splits ``[0, width)`` into ``n_weights`` equal bins and
+    returns their starts; ``"linear"`` places the weights at evenly spaced
+    points from 0 to ``width``.
+    """
+    if method == "constant":
+        return np.linspace(0.0, float(width), n_weights + 1)[:-1]
+    return np.linspace(0.0, float(width), n_weights)
+
+
+def _weighted_edges(times: ArrayLike) -> NDArray[np.float64]:
+    """Right-open bin edges of the ``"constant"`` method.
+
+    Weight ``i`` covers ``[times[i], times[i + 1])`` and the last bin is as
+    wide as the one before it, so with ``width`` the window closes exactly at
+    ``width``.
+    """
+    times_arr = np.asarray(times, dtype=np.float64)
+    return np.append(times_arr, times_arr[-1] + (times_arr[-1] - times_arr[-2]))
+
+
 def weighted_hrf(
     t: ArrayLike,
     weights: Sequence[float],
@@ -916,8 +871,15 @@ def weighted_hrf(
     Creates a flexible HRF that maps weights to time points with no
     built-in hemodynamic delay.  Two specification modes are supported:
 
-    * ``width + weights``: weights are evenly spaced from 0 to *width*.
-    * ``times + weights``: explicit time points for each weight.
+    * ``width + weights``: with ``"constant"`` the weights fill ``n`` equal
+      bins covering ``[0, width)``; with ``"linear"`` they sit at evenly
+      spaced points from 0 to *width*.
+    * ``times + weights``: explicit time points for each weight. With
+      ``"constant"`` weight ``i`` covers ``[times[i], times[i + 1])`` and the
+      last bin is as wide as the one before it.
+
+    Constant bins are right-open, so the end of the window carries no stray
+    sample.
 
     Args:
         t: Time points in seconds at which to evaluate.
@@ -955,7 +917,7 @@ def weighted_hrf(
     elif width is not None:
         if width <= 0:
             raise ValueError("`width` must be positive.")
-        times_arr = np.linspace(0, width, len(weights_arr))
+        times_arr = _weighted_times(len(weights_arr), width, method)
     else:
         raise ValueError("Either `width` or `times` must be provided.")
 
@@ -965,11 +927,16 @@ def weighted_hrf(
             "scale weights explicitly or use normalize(weighted_generator(...), mode)."
         )
 
-    # Build interpolation function and evaluate
     t = np.asarray(t, dtype=np.float64)
-    kind = "zero" if method == "constant" else "linear"
+    if method == "constant":
+        # Weight i on [edges[i], edges[i + 1]); zero outside (NaN -> 0).
+        idx = np.searchsorted(_weighted_edges(times_arr), t, side="right") - 1
+        inside = (idx >= 0) & (idx < len(weights_arr))
+        values = weights_arr[np.clip(idx, 0, len(weights_arr) - 1)]
+        return np.where(inside, values, 0.0)
+
     interp_func = interpolate.interp1d(
-        times_arr, weights_arr, kind=kind, bounds_error=False, fill_value=0.0
+        times_arr, weights_arr, kind="linear", bounds_error=False, fill_value=0.0
     )
     result = interp_func(t)
     # Ensure zero outside the domain

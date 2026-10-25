@@ -15,7 +15,9 @@ import numpy as np
 from numpy.typing import NDArray
 
 from ...sampling import SamplingFrame
+from ..backends.nifti_backend import NiftiBackend
 from ..errors import ConfigError
+from ..mask_utils import as_mask
 
 
 class NibabelAdapter:
@@ -28,10 +30,12 @@ class NibabelAdapter:
     mask : Nifti1Image or NDArray[bool], optional
         Brain mask.  If ``None``, all non-zero voxels in the first
         volume of the first run are used.
-    tr : float
-        Repetition time in seconds.
-    start_time : float
-        Onset time of the first volume (default 0).
+    tr : float or sequence of float
+        Repetition time in seconds, or one value per run.
+    start_time : float, sequence of float, or None
+        Onset time of the first volume (default 0), or one value per run.
+        ``None`` applies the :class:`SamplingFrame` default of ``TR/2`` per
+        run.
 
     Examples
     --------
@@ -45,8 +49,8 @@ class NibabelAdapter:
         self,
         images: Sequence[Any],
         mask: Optional[object] = None,
-        tr: float = 2.0,
-        start_time: float = 0.0,
+        tr: float | Sequence[float] = 2.0,
+        start_time: float | Sequence[float] | None = 0.0,
     ) -> None:
         try:
             __import__("nibabel")
@@ -62,48 +66,42 @@ class NibabelAdapter:
             images = [images]
         self._images = list(images)
 
-        # Build or accept mask
+        # Mask: the first volume's non-zero voxels, a boolean array, or an
+        # image. Every run (and an image mask) must share run 0's grid and
+        # affine; NiftiBackend checks that and reads volumes lazily.
         if mask is None:
-            first_vol = self._images[0].get_fdata()[..., 0]
-            self._mask = first_vol != 0
+            mask_source: Any = as_mask(np.asarray(self._images[0].dataobj[..., 0]))
         elif isinstance(mask, np.ndarray):
-            self._mask = mask.astype(bool)
+            mask_source = as_mask(mask)
         else:
-            # Assume nibabel image
-            self._mask = np.asarray(cast(Any, mask).get_fdata(), dtype=bool)
+            mask_source = mask
+        self.backend = NiftiBackend(self._images, mask_source)
+        self.backend.open()
 
-        self._tr = tr
-        self._start_time = start_time
-        self._n_voxels = int(self._mask.sum())
-
-        # Cache time-point counts
-        self._n_timepoints = [img.shape[-1] for img in self._images]
-
-        # Affine from first image
-        self._affine = self._images[0].affine
+        self._n_timepoints = [int(img.shape[-1]) for img in self._images]
+        self._sampling_frame = SamplingFrame(
+            blocklens=self._n_timepoints, tr=tr, start_time=start_time
+        )
+        self._starts = np.concatenate([[0], np.cumsum(self._n_timepoints)])
 
     def get_data(self, run: int) -> NDArray[np.float64]:
         """Load run data as ``(time, voxels)``."""
-        data_4d = self._images[run].get_fdata()
-        # (nx, ny, nz, nt) → (nt, n_voxels)
-        data_2d = data_4d[self._mask].T  # (nt, V)
-        return np.asarray(data_2d, dtype=np.float64)
+        if run < 0 or run >= self.n_runs:
+            raise IndexError(f"Run {run} out of range [0, {self.n_runs})")
+        rows = np.arange(self._starts[run], self._starts[run + 1], dtype=np.intp)
+        return self.backend.get_data(rows=rows)
 
     def get_mask(self) -> NDArray[np.bool_]:
         """Return the 3-D boolean brain mask."""
-        return cast("NDArray[np.bool_]", self._mask)
+        return self.backend.space.mask_array()
 
     def get_affine(self) -> NDArray[np.float64]:
         """Return the NIfTI affine matrix."""
-        return cast("NDArray[np.float64]", self._affine)
+        return cast("NDArray[np.float64]", self.backend.space.affine)
 
     def get_sampling_frame(self) -> SamplingFrame:
         """Return the sampling frame for this dataset."""
-        return SamplingFrame(
-            blocklens=self._n_timepoints,
-            tr=self._tr,
-            start_time=self._start_time,
-        )
+        return self._sampling_frame
 
     @property
     def n_runs(self) -> int:
@@ -115,4 +113,4 @@ class NibabelAdapter:
 
     @property
     def n_voxels(self) -> int:
-        return self._n_voxels
+        return int(self.backend.space.n_voxels)

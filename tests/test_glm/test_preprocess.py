@@ -217,3 +217,68 @@ def test_extract_nuisance_timeseries_path_mask_maps_via_dataset_mask(tmp_path):
 
     nuisance = extract_nuisance_timeseries(y, mask_path, dataset_mask=dataset_mask)
     np.testing.assert_array_equal(nuisance, y[:, [0, 1]])
+
+
+def _two_run_weighted_fit_inputs(n: int = 60):
+    import pandas as pd
+
+    rng = np.random.default_rng(8)
+    onsets = np.arange(4.0, 100.0, 12.0)
+    cond = np.array(["A", "B"] * 10)[: len(onsets)]
+    events = pd.DataFrame(
+        {
+            "onset": np.concatenate([onsets, onsets]),
+            "condition": np.concatenate([cond, cond]),
+            "duration": 0.0,
+            "run": np.repeat([1, 2], len(onsets)),
+        }
+    )
+    Y = rng.standard_normal((2 * n, 4)) + 100.0
+    ds = fmrimod.fmri_dataset(Y, tr=2.0, events=events, run_length=[n, n])
+    w = np.random.default_rng(30).uniform(0.3, 1.0, 2 * n)
+    w[[2, 3, 49, 60, 61, 100]] = 0.0
+    return ds, w
+
+
+def test_zero_volume_weights_carry_no_residual_df():
+    # fmrireg 60f8430 (#226) / fb00ab1 (D3): as in stats::lm.wfit, a
+    # zero-weight volume is not an observation.
+    from fmrimod.model.config import FmriLmConfig, VolumeWeightOptions
+
+    ds, w = _two_run_weighted_fit_inputs()
+    fit = fmrimod.fmri_lm(
+        "hrf(condition)",
+        ds,
+        config=FmriLmConfig(volume_weights=VolumeWeightOptions(enabled=True, weights=w)),
+    )
+
+    expected = 0
+    for run, rows in enumerate((slice(0, 60), slice(60, 120))):
+        X_r = fit.model.design_matrix_array(run=run)
+        active = w[rows] > 0
+        expected += int(active.sum()) - np.linalg.matrix_rank(X_r[active])
+    assert fit.residual_df == expected
+    for run_result in fit.run_results:
+        np.testing.assert_allclose(run_result.sigma2, run_result.rss / run_result.dfres)
+
+
+def test_volume_weight_vector_alone_enables_weighting():
+    # fmrireg e30837e: a weight vector alone turns volume weighting on.
+    from fmrimod.model.config import FmriLmConfig, VolumeWeightOptions
+
+    ds, w = _two_run_weighted_fit_inputs()
+    implied = fmrimod.fmri_lm(
+        "hrf(condition)",
+        ds,
+        config=FmriLmConfig(volume_weights=VolumeWeightOptions(weights=w)),
+    )
+    explicit = fmrimod.fmri_lm(
+        "hrf(condition)",
+        ds,
+        config=FmriLmConfig(volume_weights=VolumeWeightOptions(enabled=True, weights=w)),
+    )
+    unweighted = fmrimod.fmri_lm("hrf(condition)", ds)
+
+    assert implied.config.volume_weights.enabled is True
+    np.testing.assert_array_equal(implied.betas, explicit.betas)
+    assert np.max(np.abs(implied.betas - unweighted.betas)) > 1e-3

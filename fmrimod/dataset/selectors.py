@@ -10,6 +10,7 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from .fmri_dataset import FmriDataset
+from .mask_utils import mask_to_logical
 
 
 class SeriesSelector(ABC):
@@ -52,7 +53,7 @@ class ROISelector(SeriesSelector):
     """Select voxels falling within a full-volume ROI mask."""
 
     def __init__(self, roi_mask: NDArray[np.bool_]) -> None:
-        self.roi_mask = np.asarray(roi_mask, dtype=np.bool_).ravel()
+        self.roi_mask = mask_to_logical(roi_mask)
 
     def __repr__(self) -> str:
         return f"ROISelector(n_selected={int(self.roi_mask.sum())}, size={self.roi_mask.size})"
@@ -146,7 +147,7 @@ class MaskSelector(SeriesSelector):
     """Select voxels by a boolean mask in full-volume or masked space."""
 
     def __init__(self, mask: NDArray[np.bool_]) -> None:
-        self.mask = np.asarray(mask, dtype=np.bool_).ravel()
+        self.mask = mask_to_logical(mask)
 
     def __repr__(self) -> str:
         return f"MaskSelector(n_selected={int(self.mask.sum())}, size={self.mask.size})"

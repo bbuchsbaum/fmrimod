@@ -1,0 +1,287 @@
+"""R parity for pooled Hannan-Rissanen ARMA noise models (fmriAR 0.4.2).
+
+Inventory v2 row AR-03 ported fmriAR's ``.hr_arma_pooled`` (``617bd87``,
+``a75a5de``): every voxel is a replicate series, lags stay inside contiguous
+run/censor segments, and ``sigma2`` is the mean squared exact-whitened
+residual. These cases run ``fit_noise`` + ``whiten_apply`` on identical data
+in both packages and compare coefficients, ``sigma2`` and the whitened
+matrices; the order-selection grid is also compared on the private fitters.
+
+Under ``p="auto"`` / ``q="auto"`` (AR-13, AR-23) both packages choose the
+order by BIC over ``0..p_max`` x ``0..q_max`` on the pooled regression, so
+those cases also compare the selected order.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+from scipy.signal import lfilter
+
+from fmrimod.ar.estimation import fit_noise
+from fmrimod.ar.hr_arma import _hr_arma_pooled
+from fmrimod.ar.whitening import whiten_apply
+
+from .conftest import _unavailable
+
+pytestmark = pytest.mark.rpy2
+
+# Observed agreement is 1e-13 or better except ARMA(3, 2) with refinement
+# (2.5e-11 on coefficients). The assertions use atol=1e-9 (rtol=1e-9 for
+# sigma2), which leaves room for BLAS differences.
+
+
+@pytest.fixture
+def r_call(request):
+    """Call an fmriAR function on numpy inputs; return plain R objects.
+
+    ``cross_testing.utils`` installs a global numpy/pandas converter that turns
+    a classed R list (an ``fmriAR_plan``) into a Python dict, so every call
+    runs under rpy2's default converter instead.
+    """
+    try:
+        import rpy2.robjects as ro
+        from rpy2.robjects.conversion import localconverter
+    except Exception as exc:  # ImportError, or rpy2 present without a usable R
+        _unavailable(request.config, f"rpy2/R not available - skipping fmriAR parity: {exc}")
+    try:
+        with localconverter(ro.default_converter):
+            ro.r("suppressMessages(library(fmriAR))")
+    except Exception as exc:  # pragma: no cover - environment-specific
+        _unavailable(request.config, f"R fmriAR package not available: {exc}")
+
+    def to_r(value):
+        if isinstance(value, np.ndarray) and value.ndim == 2:
+            a = np.asarray(value, dtype=np.float64)
+            return ro.r["matrix"](
+                ro.FloatVector(a.ravel(order="F")), nrow=a.shape[0], ncol=a.shape[1]
+            )
+        if isinstance(value, np.ndarray) and value.dtype == bool:
+            return ro.BoolVector(value.tolist())
+        if isinstance(value, np.ndarray | range):
+            return ro.IntVector([int(v) for v in value])
+        if isinstance(value, list):
+            return ro.r["list"](*[ro.r["list"](**{k: to_r(v) for k, v in u.items()})
+                                  for u in value])
+        return ro.NULL if value is None else value
+
+    def to_np(value):
+        if isinstance(value, ro.vectors.ListVector):
+            return [to_np(v) for v in value]
+        a = np.asarray(list(value), dtype=np.float64)
+        dim = ro.r["dim"](value)
+        if dim is not ro.NULL:
+            nrow, ncol = (int(d) for d in dim)
+            a = a.reshape(ncol, nrow).T
+        return a
+
+    def call(fn, *args, **kwargs):
+        with localconverter(ro.default_converter):
+            return ro.r(fn)(*[to_r(a) for a in args], **{k: to_r(v) for k, v in kwargs.items()})
+
+    def field(obj, name):
+        with localconverter(ro.default_converter):
+            return to_np(obj.rx2(name))
+
+    call.field = field
+    return call
+
+
+def _arma_noise(rng, n, V, phi, theta, shared=0.0):
+    e = rng.standard_normal((n + 200, V))
+    y = lfilter(np.r_[1.0, theta], np.r_[1.0, -np.asarray(phi)], e, axis=0)[200:]
+    if shared:
+        s = lfilter([1.0], [1.0, -0.9], rng.standard_normal(n + 200))[200:]
+        y = y + shared * s[:, None]
+    return y
+
+
+def _dataset(name):
+    rng = np.random.default_rng(20261024 if name == "d1" else 7)
+    if name == "d1":
+        lens, V = [150, 120, 180, 140], 40
+        R = np.vstack([_arma_noise(rng, n, V, [0.5, -0.2], [0.4], shared=0.3) for n in lens])
+    else:
+        lens, V = [200, 160, 220], 25
+        R = np.vstack([_arma_noise(rng, n, V, [0.6], [-0.3]) for n in lens])
+        R = R * rng.uniform(0.5, 3.0, V)
+    n = R.shape[0]
+    X = np.column_stack([np.ones(n), rng.standard_normal((n, 2))])
+    censor = np.zeros(n, dtype=bool)
+    censor[rng.choice(np.arange(5, n - 5), size=12, replace=False)] = True
+    censor[40:44] = True
+    runs = np.repeat(np.arange(1, len(lens) + 1), lens)
+    return R, X, runs, censor
+
+
+CASES = [
+    # (data, p, q, pooling, censor, hr_iter, search bounds)
+    ("d1", 2, 1, "run", False, 0, {}),
+    ("d1", 2, 1, "global", False, 0, {}),
+    ("d1", 2, 1, "run", True, 0, {}),
+    ("d1", 2, 1, "global", True, 0, {}),
+    ("d1", 2, 1, "global", False, 1, {}),
+    ("d2", 1, 1, "run", False, 0, {}),
+    ("d2", 1, 1, "global", True, 0, {}),
+    ("d2", 0, 2, "global", False, 0, {}),
+    ("d1", 3, 2, "run", True, 2, {}),
+    ("d1", "auto", "auto", "global", False, 0, {}),
+    ("d1", "auto", "auto", "run", True, 0, {}),
+    ("d2", "auto", "auto", "global", True, 1, {}),
+    ("d2", "auto", 1, "run", False, 0, {}),
+    ("d1", 2, "auto", "global", True, 0, {}),
+    ("d1", "auto", "auto", "global", False, 0, {"p_max": 3, "q_max": 1}),
+    ("d2", "auto", "auto", "run", True, 0, {"p_max": 1, "q_max": 3}),
+]
+
+
+@pytest.mark.parametrize(
+    ("data", "p", "q", "pooling", "use_censor", "hr_iter", "bounds"), CASES
+)
+def test_fit_noise_arma_matches_fmriar(
+    r_call, data, p, q, pooling, use_censor, hr_iter, bounds
+):
+    R, X, runs, censor = _dataset(data)
+    cen = censor if use_censor else None
+
+    r_plan = r_call(
+        "fmriAR::fit_noise", resid=R, runs=runs, censor=cen, method="arma",
+        p=p, q=q, pooling=pooling, hr_iter=hr_iter, **bounds,
+    )
+    r_white = r_call("fmriAR::whiten_apply", r_plan, X, R, runs=runs, censor=cen)
+
+    plan = fit_noise(
+        resid=R, runs=runs, censor=cen, method="arma", p=p, q=q,
+        pooling=pooling, hr_iter=hr_iter, **bounds,
+    )
+    white = whiten_apply(plan, X, R, runs=runs, censor=cen)
+
+    assert plan.order == tuple(int(v) for v in r_call.field(r_plan, "order"))
+    r_phi = r_call.field(r_plan, "phi")
+    r_theta = r_call.field(r_plan, "theta")
+    assert len(plan.phi) == len(r_phi)
+    for ours, theirs in zip(plan.phi, r_phi, strict=True):
+        np.testing.assert_allclose(ours, theirs, rtol=0, atol=1e-9)
+    for ours, theirs in zip(plan.theta, r_theta, strict=True):
+        np.testing.assert_allclose(ours, theirs, rtol=0, atol=1e-9)
+    np.testing.assert_allclose(
+        np.ravel(np.asarray(plan.sigma2, dtype=np.float64)),
+        np.ravel(r_call.field(r_plan, "sigma2")),
+        rtol=1e-9,
+    )
+    np.testing.assert_allclose(white.Y, r_call.field(r_white, "Y"), rtol=0, atol=1e-9)
+    np.testing.assert_allclose(white.X, r_call.field(r_white, "X"), rtol=0, atol=1e-9)
+
+
+@pytest.mark.parametrize("data", ["d1", "d2"])
+@pytest.mark.parametrize("hr_iter", [0, 1])
+def test_pooled_hr_order_grid_matches_fmriar(r_call, data, hr_iter):
+    # Two segments per run (a split at frame 37) so selection runs on
+    # segment-respecting rows, as under censoring.
+    R, _, runs, _ = _dataset(data)
+    mats = [R[runs == r] for r in np.unique(runs)]
+    starts = np.array([0, 37])
+
+    r_fit = r_call(
+        "fmriAR:::.hr_arma_pooled",
+        [{"mat": m, "starts0": starts} for m in mats],
+        range(5),
+        range(3),
+        iter=hr_iter,
+    )
+    fit = _hr_arma_pooled([(m, starts) for m in mats], range(5), range(3), n_iter=hr_iter)
+
+    assert fit.order == tuple(int(v) for v in r_call.field(r_fit, "order"))
+    np.testing.assert_allclose(fit.phi, r_call.field(r_fit, "phi"), rtol=0, atol=1e-9)
+    np.testing.assert_allclose(fit.theta, r_call.field(r_fit, "theta"), rtol=0, atol=1e-9)
+    np.testing.assert_allclose(fit.sigma2, np.ravel(r_call.field(r_fit, "sigma2"))[0], rtol=1e-9)
+
+
+# -- Other fmriAR 0.4.2 audit rows checkable against R -------------------------
+
+
+@pytest.mark.parametrize("se_type", ["iid", "hc0"])
+def test_sandwich_rank_deficient_matches_fmriar(r_call, se_type):
+    """AR-18: aliased columns get NA SEs and NA XtX_inv rows, as in R."""
+    from fmrimod.ar.diagnostics import sandwich_from_whitened_resid
+
+    rng = np.random.default_rng(1)
+    n = 120
+    x, z = rng.standard_normal(n), rng.standard_normal(n)
+    X = np.column_stack([np.ones(n), x, 2 * x, z, x + z])
+    Y = rng.standard_normal((n, 3)) * (1 + np.abs(x[:, None]))
+    r_out = r_call("fmriAR::sandwich_from_whitened_resid", X, Y, type=se_type)
+    out = sandwich_from_whitened_resid(X, Y, type=se_type)
+    r_se = r_call.field(r_out, "se")
+    np.testing.assert_array_equal(np.isnan(out["se"]), np.isnan(r_se))
+    # numerical_floor: same QR pivoting and solve as R; only float64 rounding differs.
+    np.testing.assert_allclose(out["se"], r_se, rtol=1e-10, equal_nan=True)
+    np.testing.assert_allclose(
+        out["XtX_inv"], r_call.field(r_out, "XtX_inv"), rtol=1e-9, equal_nan=True
+    )
+    assert out["df"] == int(r_call.field(r_out, "df")[0])
+
+
+def test_enforce_invertible_ma_matches_fmriar(r_call):
+    """AR-19: reflection plus the 1/0.99 radial bound, on fixed and random theta."""
+    from rpy2 import robjects as ro
+
+    from fmrimod.ar.numhelpers import enforce_invertible_ma
+
+    rng = np.random.default_rng(9107)
+    cases = [[-1.0], [1.0], [0.0, -1.0], [-0.995], [0.4, 0.1], [1.2, 0.5]]
+    cases += [rng.normal(scale=1.5, size=q).tolist() for q in (1, 2, 3) for _ in range(10)]
+    for th in cases:
+        ours = enforce_invertible_ma(np.array(th))
+        theirs = np.array(
+            list(r_call("fmriAR:::enforce_invertible_ma", ro.FloatVector(th))),
+            dtype=np.float64,
+        )
+        # numerical_floor: polyroot vs numpy roots agree to float64 rounding.
+        np.testing.assert_allclose(ours, theirs, rtol=0, atol=1e-10, err_msg=str(th))
+
+
+@pytest.mark.parametrize("phi", [1.0, 1.2, -1.0, 0.6])
+def test_exact_start_nonstationary_ar1_matches_fmriar(r_call, phi):
+    """AR-21: a non-stationary AR(1) exact start is the conditional recursion."""
+    from rpy2 import robjects as ro
+
+    from fmrimod.ar.whitening import arma_whiten_segments
+
+    y = np.arange(1.0, 6.0)[:, None]
+    r_out = r_call(
+        "fmriAR:::arma_whiten_inplace", y, np.zeros((5, 0)), ro.FloatVector([phi]),
+        ro.FloatVector([]), ro.IntVector([0]), exact_first=True, parallel=False,
+    )
+    ours = arma_whiten_segments(
+        y, np.array([phi]), np.array([]), np.array([0]), exact_first_ar1=True
+    )
+    np.testing.assert_allclose(ours, r_call.field(r_out, "Y"), rtol=0, atol=1e-12)
+
+
+@pytest.mark.parametrize(
+    ("p", "q", "n", "iter_"),
+    [(1, 1, 300, 0), (2, 1, 300, 1), (0, 2, 500, 0), (1, 1, 40, 0)],
+)
+def test_single_series_hr_matches_fmriar(r_call, p, q, n, iter_):
+    """AR-22: the regression starts after the long-AR burn-in; sigma2 over its rows.
+
+    ``p_big`` is passed explicitly: fmriAR's C++ default
+    (``max(8, p + q + 5)``) and its R fallback / fmrimod default (which add
+    ``ceil(10 log10 n)``) differ.
+    """
+    from rpy2 import robjects as ro
+
+    from fmrimod.ar.hr_arma import hr_arma
+
+    rng = np.random.default_rng(9114 + n)
+    y = lfilter([1.0, 0.4], [1.0, -0.5], rng.standard_normal(n + 200))[200:]
+    p_big = 8 if n < 100 else 25
+    r_fit = r_call(
+        "fmriAR:::hr_arma", ro.FloatVector(y), p, q, p_big=p_big, iter=iter_
+    )
+    fit = hr_arma(y, p=p, q=q, p_big=p_big, n_iter=iter_)
+    # numerical_floor: identical regressions; only least-squares rounding differs.
+    np.testing.assert_allclose(fit["phi"], r_call.field(r_fit, "phi"), rtol=0, atol=1e-10)
+    np.testing.assert_allclose(fit["theta"], r_call.field(r_fit, "theta"), rtol=0, atol=1e-10)
+    np.testing.assert_allclose(fit["sigma2"], r_call.field(r_fit, "sigma2")[0], rtol=1e-10)

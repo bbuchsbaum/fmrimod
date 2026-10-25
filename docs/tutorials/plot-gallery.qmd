@@ -1,0 +1,273 @@
+---
+title: "Figure gallery"
+subtitle: "Every fmrimod plot, from design to fit, in one visual language."
+jupyter: python3
+execute:
+  freeze: auto
+---
+
+{{< include ../_plot-setup.qmd >}}
+
+The gallery shows the current plotting APIs on a shared simulated study:
+event regressors, design structure, contrasts, HRF bases, fitted signals, and
+residual diagnostics. Built-in plots return a Matplotlib `Figure` and use the
+library's shared plotting style. The code behind each figure is expandable.
+
+On narrow screens, scroll plots horizontally to read their labels, or select
+a plot for a complete view. These displays help inspect the specified model;
+they do not replace checks on the data or assumptions.
+
+The examples share one simulated study: three runs of 110 scans (TR 2 s),
+three conditions (face, house, scene) and a reaction-time modulator, with
+real effects for face and house in about 40% of 400 voxels.
+
+```{python}
+#| code-fold: true
+#| code-summary: "Simulate the study"
+import numpy as np
+import pandas as pd
+
+import fmrimod as fm
+from fmrimod.spec import drift, hrf
+
+rng = np.random.default_rng(7)
+n_runs, n_scans, tr, n_vox = 3, 110, 2.0, 400
+
+rows = []
+for run in range(1, n_runs + 1):
+    onsets = np.arange(8.0, n_scans * tr - 20, 12.0)
+    conditions = np.resize(["face", "house", "scene"], len(onsets))
+    rng.shuffle(conditions)
+    for onset, condition in zip(onsets, conditions):
+        rows.append({"onset": onset, "duration": 0.0, "trial_type": condition,
+                     "run": run, "rt": rng.normal()})
+events = pd.DataFrame(rows)
+spec = hrf("trial_type") + hrf("rt") + drift()
+
+# Build the design once, then simulate data from it.
+shape = fm.matrix_dataset(np.zeros((n_runs * n_scans, n_vox)), tr=tr,
+                          run_length=[n_scans] * n_runs, event_table=events)
+X = fm.fmri_lm(spec, shape).model.design_matrix_array()
+n_event = 4
+B = np.zeros((X.shape[1], n_vox))
+active = rng.random(n_vox) < 0.4
+for j, amp in enumerate([1.0, 0.6, 0.0, 0.3]):
+    B[j] = active * amp * rng.gamma(2.0, 1.0, n_vox) * 1.5
+B[n_event:] = rng.normal(scale=2, size=(X.shape[1] - n_event, n_vox))
+noise = rng.normal(size=(X.shape[0], n_vox))
+for t in range(1, noise.shape[0]):
+    noise[t] += 0.3 * noise[t - 1]
+Y = X @ B + 1.2 * noise + 100
+
+dataset = fm.matrix_dataset(Y, tr=tr, run_length=[n_scans] * n_runs,
+                            event_table=events)
+fit = fm.fmri_lm(spec, dataset)
+model = fit.model
+```
+
+## Design
+
+### Event regressors
+
+One row per regressor, coloured by condition; ticks mark onsets and rows of
+the same term share the scale on the right.
+
+```{python}
+#| fig-alt: "Event regressors by condition, with onset and duration marks across three simulated runs."
+#| fig-cap: "Simulated study: condition regressors with event timing and run boundaries."
+fig = model.event_model.plot()
+plt.show()
+```
+
+### Design matrix
+
+Each column scaled by its maximum absolute value, grouped by term, with runs
+separated. The bars underneath compare each column's peak with the largest
+in its term, so a nearly flat column stands out.
+
+```{python}
+#| fig-alt: "Design matrix grouped by model term, with run separators and a strip showing relative column magnitudes."
+#| fig-cap: "Simulated event design: columns are scaled separately; the magnitude strip preserves their relative peaks."
+from fmrimod.visualization import correlation_map, design_map
+
+fig = design_map(model.event_model)
+plt.show()
+```
+
+### Regressor correlations
+
+Lower triangle of Pearson correlations with the variance inflation factor on
+the diagonal; strong pairs are outlined and high VIFs flagged in orange.
+
+```{python}
+#| fig-alt: "Lower-triangular regressor correlation map with variance inflation factors on the diagonal."
+#| fig-cap: "Correlations and VIFs for the simulated event design. Inspect these alongside numerical rank."
+fig = correlation_map(model.event_model)
+plt.show()
+```
+
+### Contrast weights
+
+Weights per contrast, with each row's sum and the contrast's standard error
+per unit noise for this design.
+
+```{python}
+#| fig-alt: "Contrast weight rows with weight sums and design-based standard-error multipliers."
+#| fig-cap: "Named contrasts in the simulated design. The margin reports weight sums and standard error per unit noise."
+from fmrimod.contrast import contrast_set, one_against_all_contrast, pair_contrast
+from fmrimod.contrast import plot_contrasts
+
+contrasts = contrast_set(
+    pair_contrast("trial_type == 'face'", "trial_type == 'house'", name="face_vs_house"),
+    *one_against_all_contrast(["face", "house", "scene"], "trial_type"),
+)
+contrast_fit = fm.fmri_lm(hrf("trial_type", contrasts=contrasts), dataset)
+fig = plot_contrasts(contrast_fit.model.event_model)
+plt.show()
+```
+
+### Baseline and acquisition
+
+```{python}
+#| fig-alt: "Drift and nuisance time courses across three runs, with constant baseline terms described in the caption."
+#| fig-cap: "Baseline columns for the simulated multi-run study."
+from fmrimod.visualization import plot_baseline_model, plot_sampling_frame
+
+fig = plot_baseline_model(model.baseline_model)
+plt.show()
+```
+
+```{python}
+#| fig-alt: "Three consecutive acquisition runs with scan counts and repetition times."
+#| fig-cap: "Acquisition timing used to construct the simulated dataset."
+fig = plot_sampling_frame(model.sampling_frame)
+plt.show()
+```
+
+## HRFs and regressors
+
+### Basis sets
+
+Multi-basis HRFs expand to one curve per basis function, labelled directly.
+
+```{python}
+#| fig-alt: "SPMG3 canonical, temporal-derivative and dispersion-derivative basis curves on shared axes."
+#| fig-cap: "SPMG3 basis curves on a shared axis; signs and amplitude scales remain visible."
+from fmrimod.hrf import get_hrf
+from fmrimod.plotting import plot_hrfs, plot_regressors
+
+fig = plot_hrfs(get_hrf("spmg3"))
+plt.show()
+```
+
+```{python}
+#| fig-alt: "Three stacked panels for the SPMG3 canonical response and derivative basis curves."
+#| fig-cap: "The same HRF basis in stacked panels, using each panel’s amplitude scale."
+fig = plot_hrfs(get_hrf("spmg3"), layout="stack")
+plt.show()
+```
+
+### Comparing HRFs
+
+```{python}
+#| fig-alt: "SPM canonical, Gaussian and gamma HRF shapes with their native amplitudes."
+#| fig-cap: "Three HRF choices with native amplitude conventions; these curves are not peak-normalized."
+fig = plot_hrfs(get_hrf("spmg1"), get_hrf("gaussian"), get_hrf("gamma"))
+plt.show()
+```
+
+### Regressors
+
+Event bars show each event from onset to offset.
+
+```{python}
+#| fig-alt: "Stacked convolved regressors with event bars showing onset and duration."
+#| fig-cap: "Two example regressors with different onset schedules and event durations."
+from fmrimod.regressor import regressor
+
+a = regressor(onsets=[10, 30, 50, 70], hrf=get_hrf("spmg1"), duration=[0, 4, 0, 8])
+b = regressor(onsets=[20, 40, 60], hrf=get_hrf("spmg1"))
+fig = plot_regressors(a, b, labels=["A", "B"], layout="stack")
+plt.show()
+```
+
+## Fitted models
+
+### Model regressors over time
+
+```{python}
+#| fig-alt: "Full event and baseline regressors for the simulated model across acquisition time."
+#| fig-cap: "The full model used for the simulated fit, including baseline terms."
+fig = model.plot()
+plt.show()
+```
+
+### t-statistics across voxels
+
+Each dot is a voxel; dashed lines mark the critical t, and the margin gives
+the share of voxels beyond it.
+
+```{python}
+#| fig-alt: "Coefficient t-statistics across simulated voxels, with uncorrected critical-value reference lines."
+#| fig-cap: "Coefficient statistics in simulated data. Reference lines are per-voxel thresholds, not a multiple-comparison correction."
+fig = fit.plot("betas")
+plt.show()
+```
+
+### Estimated hemodynamic response
+
+The fitted response at the voxel with the largest |t|, with pointwise 95%
+bands; a curve whose band covers zero at its peak is dashed and marked n.s.
+
+```{python}
+#| fig-alt: "Fitted HRF response curves at a selected voxel with pointwise uncertainty bands."
+#| fig-cap: "Response at the voxel selected by the largest absolute t statistic. Pointwise bands do not account for that selection."
+fig = fit.plot("hrf")
+plt.show()
+```
+
+### Observed and fitted signal
+
+```{python}
+#| fig-alt: "Observed and model-fitted BOLD time courses for a feature in the simulated study."
+#| fig-cap: "Observed and fitted signals from the simulated study."
+fig = fit.plot("timecourse")
+plt.show()
+```
+
+### Residual autocorrelation
+
+Residual autocorrelation at lags 1 to 10 against the white-noise range for
+this design; the subtitle counts voxels that fail a portmanteau test.
+
+```{python}
+#| fig-alt: "Residual autocorrelation across lags with white-noise reference bands and a portmanteau-test summary."
+#| fig-cap: "Residual autocorrelation after the simulated fit. White-noise reference bands do not establish that the residual model is correct."
+fig = fit.plot("residuals")
+plt.show()
+```
+
+## Styling your own figures
+
+`theme()` draws your own matplotlib figures in the same style, and
+`set_theme()` overrides fmrimod's defaults (for example the font or base
+size) for every figure.
+
+```{python}
+#| fig-alt: "Three sinusoidal curves drawn with the public fmrimod plotting theme and palette."
+#| fig-cap: "An ordinary Matplotlib figure using the library theme; curves are illustrative sinusoids."
+import matplotlib.pyplot as plt
+
+from fmrimod.visualization import palette, theme
+
+with theme():
+    fig, ax = plt.subplots(figsize=(6, 2.6))
+    for colour, shift in zip(palette(3), (0, 1, 2)):
+        ax.plot(np.arange(20), np.sin(np.arange(20) / 3 + shift), color=colour)
+    ax.set_title("My figure in the fmrimod style")
+plt.show()
+```
+
+
+See [group examination](group-diagnostics.qmd) for subject influence and
+[HRF estimation](estimating-hrfs.qmd) for smooth FIR curve estimates.

@@ -59,8 +59,7 @@ bands with the event table before fitting any data.
 #| fig-cap: "The compiled event design. Color encodes regressor amplitude; it does not show an estimated BOLD effect."
 from fmrimod.visualization import design_map
 
-fig, ax = design_map(event_model, figsize=(6, 4), cmap="viridis")
-ax.set_title("")
+fig = design_map(event_model, figsize=(6, 5), scale="none", title="")
 plt.show()
 ```
 

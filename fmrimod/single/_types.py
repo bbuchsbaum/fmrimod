@@ -109,8 +109,8 @@ class SingleTrialExtras:
     of being dumped into an untyped ``dict[str, Any]``. ``whitening_plan``
     is the one cross-cutting field — it is set by the AR-whitening dispatch
     path regardless of method, so it lives on the base and every subclass
-    inherits it. Methods with no own diagnostics (LSA, voxel-HRF LSS) use
-    this base directly.
+    inherits it. Methods with no own diagnostics (LSA) use this base
+    directly.
     """
 
     whitening_plan: Optional["WhiteningPlan"] = None
@@ -129,6 +129,18 @@ class OasisExtras(SingleTrialExtras):
     """OASIS solver diagnostics (``K`` = HRF basis rank)."""
 
     K: int = 1
+
+
+@dataclass(frozen=True)
+class VoxelHrfExtras(SingleTrialExtras):
+    """Voxel-HRF LSS metadata carried over from the :class:`VoxelHrfResult`.
+
+    ``degenerate`` flags voxels whose HRF shape had no identifiable
+    positive peak: their betas are not in peak-response units.
+    """
+
+    degenerate: NDArray[np.bool_] | None = None
+    normalization: str | None = None
 
 
 @dataclass(frozen=True)
@@ -180,7 +192,8 @@ class SingleTrialResult:
     extra : SingleTrialExtras
         Method-specific diagnostics as a typed frozen dataclass
         (:class:`LssExtras`, :class:`OasisExtras`, :class:`MixedExtras`,
-        :class:`SbhmExtras`, or the bare base for LSA / voxel-HRF LSS).
+        :class:`SbhmExtras`, :class:`VoxelHrfExtras`, or the bare base
+        for LSA).
     trial_table : pandas.DataFrame or None
         Per-trial event metadata aligned with ``betas`` rows. Populated
         only when the result was produced by
@@ -338,13 +351,26 @@ class VoxelHrfResult:
     Attributes
     ----------
     coefficients : NDArray, shape ``(n_basis, n_voxels)``
-        Basis coefficients per voxel.
+        Basis coefficients per voxel. From :func:`estimate_voxel_hrf` they
+        are positive-peak-normalized HRF shape weights.
     basis : object
-        HRF basis object from ``fmrimod.hrf``.
+        HRF basis object from ``fmrimod.hrf``, or an ``(L, n_basis)`` array
+        of basis samples.
     conditions : list of str
         Condition labels.
+    amplitude_scale : NDArray, shape ``(n_voxels,)``, optional
+        Signed scale removed from each raw pooled-fit coefficient column
+        (``raw = coefficients * amplitude_scale``).
+    degenerate : NDArray of bool, shape ``(n_voxels,)``, optional
+        Voxels whose shape has no positive peak of at least 5% of its
+        largest absolute deflection; they are scaled by that deflection.
+    normalization : str, optional
+        Coefficient scale, ``"positive-peak"`` for :func:`estimate_voxel_hrf`.
     """
 
     coefficients: NDArray[np.float64]
     basis: Any
     conditions: list[str]
+    amplitude_scale: NDArray[np.float64] | None = None
+    degenerate: NDArray[np.bool_] | None = None
+    normalization: str | None = None

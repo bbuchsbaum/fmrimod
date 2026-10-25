@@ -116,11 +116,11 @@ class TestWeightedHRF:
     def test_normalize_constant(self):
         """``normalize=True`` retired; callers scale weights explicitly."""
         t = np.array([0.0, 1.0, 2.0, 3.0])
-        # The retired flag divided weights so sum(weights[:-1]) == 1; do that
-        # by hand.
-        weights = np.array([1.0, 1.0, 1.0, 1.0]) / 3.0
+        # R's flag divides by the sum of all n bin weights (fmrihrf 18d418f);
+        # do that by hand.
+        weights = np.array([1.0, 1.0, 1.0, 1.0]) / 4.0
         y = weighted_hrf(t, weights=weights, width=3.0, method="constant")
-        assert y[0] == pytest.approx(1.0 / 3.0, abs=0.01)
+        assert y[0] == pytest.approx(0.25)
 
         with pytest.raises(ValueError, match="normalize=True.*retired"):
             weighted_hrf(t, weights=[1.0, 1.0, 1.0, 1.0], width=3.0,
@@ -167,7 +167,55 @@ class TestWeightedHRF:
         assert hrf.nbasis == 1
         assert hrf.span == 4.0
         assert hrf.weights == (1.0, 2.0, 1.0)
+        # Constant method: three equal bins over [0, 4), times are bin starts.
+        np.testing.assert_allclose(hrf.times, [0.0, 4.0 / 3.0, 8.0 / 3.0])
+
+    def test_constant_width_uses_every_weight(self):
+        """``width`` splits ``[0, width)`` into n equal right-open bins.
+
+        fmrihrf ``18d418f`` (``R/hrf-functions.R:745-755``, test_hrf.R
+        "width divides the window into equal bins").
+        """
+        y = weighted_hrf(
+            np.array([1.49, 1.5, 2.99, 3.0, 4.49, 4.5]),
+            weights=[1, 2, 3, 0],
+            width=6.0,
+        )
+        np.testing.assert_array_equal(y, [1, 2, 2, 3, 3, 0])
+
+        hrf = weighted_generator([0.1, 0.3, 1, 1, 0.3, 0.1], width=10)
+        t = np.arange(0, 12.0001, 0.01)
+        last_bin = (t >= 8.34) & (t < 10)
+        np.testing.assert_array_equal(hrf(t[last_bin]), np.full(last_bin.sum(), 0.1))
+        np.testing.assert_array_equal(hrf(np.array([10.0, 10.5])), [0.0, 0.0])
+        assert hrf.span == 10.0
+
+    def test_constant_times_last_bin_matches_previous(self):
+        """With ``times`` the last bin is as wide as the one before it."""
+        hrf = weighted_generator([1, 2, 2, 1], times=[4, 6, 8, 10])
+        np.testing.assert_array_equal(
+            hrf(np.array([3.9, 5.0, 7.0, 9.0, 11.0, 12.0])), [0, 1, 2, 2, 1, 0]
+        )
+        assert hrf.span == 12.0
+        np.testing.assert_array_equal(
+            weighted_hrf(np.array([11.0, 12.0]), [1, 2, 2, 1], times=[4, 6, 8, 10]),
+            [1.0, 0.0],
+        )
+
+    def test_weighted_hrf_gen_normalize_sums_every_weight(self):
+        """R ``hrf_weighted(normalize=TRUE)`` divides by the sum of all n weights."""
+        from fmrimod.hrf_dispatch import weighted_hrf_gen
+
+        gen = weighted_hrf_gen("t", "w", relative=True, normalize=True)
+        (hrf,) = gen({"onset": [0.0], "t": [[0.0, 1.0, 2.0]], "w": [[1.0, 2.0, 1.0]]})
+        np.testing.assert_allclose(hrf(np.array([0.5, 1.5, 2.5, 3.0])), [0.25, 0.5, 0.25, 0.0])
+
+    def test_linear_span_is_last_time(self):
+        """The linear method is unchanged: weights sit on the points themselves."""
+        hrf = weighted_generator([1, 2, 1], width=4.0, method="linear")
         assert hrf.times == (0.0, 2.0, 4.0)
+        assert hrf.span == 4.0
+        np.testing.assert_allclose(hrf(np.array([1.0, 4.0, 4.5])), [1.5, 1.0, 0.0])
 
     def test_registry(self):
         hrf = get_hrf("weighted", weights=[1, 2, 1], width=4.0)
@@ -231,15 +279,45 @@ class TestTentGenerator:
         assert hrf.span == 12.0
 
     def test_partition_of_unity(self):
-        """Tent functions should approximately sum to 1 in the interior.
+        """Tent functions sum to 1 between the first and last interior knots.
 
-        With R-compatible bs(intercept=FALSE), the first basis function is
-        dropped so sums at the left boundary are < 1.  Check the true
-        interior where all retained bases overlap.
+        The basis drops both boundary functions of the clamped N+2 basis
+        (fmrihrf 18d418f), so sums fall below 1 only within one knot
+        spacing (20 / 9 s here) of either end of the span.
         """
         hrf = tent_generator(nbasis=8, span=20.0)
-        # Stay well inside the span so the dropped intercept basis has no effect
         t = np.linspace(3, 17, 80)
         y = hrf(t)
         row_sums = y.sum(axis=1)
-        np.testing.assert_allclose(row_sums, 1.0, atol=0.05)
+        np.testing.assert_allclose(row_sums, 1.0, rtol=0, atol=1e-12)
+
+
+# ── mexican hat ─────────────────────────────────────────────────────
+
+class TestMexhatHRF:
+    """fmrihrf ``7e5f7ec`` (``R/hrf-functions.R:146-151``): unit-L2 Ricker, causal."""
+
+    def test_peak_uses_unit_l2_constant(self):
+        from fmrimod.hrf import HRF_MEXHAT
+
+        expected = 2.0 / (np.sqrt(6.0) * np.pi**0.25)
+        np.testing.assert_allclose(HRF_MEXHAT(np.array([6.0])), [expected], rtol=1e-14)
+
+    @pytest.mark.parametrize("sd", [0.5, 2.0, 3.5])
+    def test_unit_l2_norm(self, sd):
+        from fmrimod.hrf.functions import hrf_mexhat
+
+        dt = 0.001
+        mean = 15.0 * sd  # far enough from onset that the causal mask clips nothing
+        t = np.arange(mean - 12 * sd, mean + 12 * sd + dt / 2, dt)
+        assert np.sum(hrf_mexhat(t, mean=mean, sd=sd) ** 2) * dt == pytest.approx(1.0, abs=1e-6)
+
+    def test_causal_and_single_implementation(self):
+        from fmrimod.hrf import HRF_MEXHAT
+        from fmrimod.hrf.functions import hrf_mexhat, mexhat_hrf
+
+        np.testing.assert_array_equal(HRF_MEXHAT(np.array([-3.0, -0.5])), [0.0, 0.0])
+        t = np.arange(-4.0, 20.0, 0.25)
+        np.testing.assert_array_equal(
+            hrf_mexhat(t, mean=6.0, sd=2.0), mexhat_hrf(t, sigma=2.0, center=6.0)
+        )

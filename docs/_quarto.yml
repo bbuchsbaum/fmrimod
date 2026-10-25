@@ -96,6 +96,12 @@ project:
     - "reference/plot_baseline_model.qmd"
     - "reference/plot_sampling_frame.qmd"
     - "reference/plot_contrasts.qmd"
+    - "reference/plot_event_model.qmd"
+    - "reference/design_correlations.qmd"
+    - "reference/design_vif.qmd"
+    - "reference/plot_fit.qmd"
+    - "reference/hrf_curves.qmd"
+    - "reference/regressor_curves.qmd"
   post-render:
     - python ../scripts/normalize_docs_html.py
   preview:
@@ -173,6 +179,7 @@ website:
           contents:
             - tutorials/plotting-visualization.qmd
             - tutorials/group-diagnostics.qmd
+            - tutorials/plot-gallery.qmd
             - tutorials/simulation.qmd
             - tutorials/bids-io.qmd
             - tutorials/benchmark-datasets.qmd

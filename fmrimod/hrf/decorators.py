@@ -106,8 +106,8 @@ class BlockedHRF(HRF):
     def __post_init__(self) -> None:
         if self.base is None:
             raise ValueError("BlockedHRF requires `base`")
-        if not np.isfinite(self.width):
-            raise ValueError("width must be finite")
+        if not np.isfinite(self.width) or self.width < 0:
+            raise ValueError("width must be finite and non-negative")
         if not np.isfinite(self.precision) or self.precision <= 0:
             raise ValueError("precision must be finite and positive")
         if self.half_life <= 0:
@@ -178,26 +178,31 @@ def block_hrf(
 ) -> HRF:
     """Create a blocked/sustained version of an HRF.
 
-    Returns a :class:`BlockedHRF` whose ``base`` is the original. For
-    ``width <= precision`` the original HRF is returned unchanged.
+    Returns a :class:`BlockedHRF` whose ``base`` is the original. Every
+    positive ``width`` is integrated, including widths below ``precision``
+    (a two-point trapezoid); only ``width == 0`` returns the original
+    impulse response unchanged.
 
     Args:
         hrf: The HRF to block.
-        width: Duration of the block in seconds (must be finite).
+        width: Duration of the block in seconds (finite and non-negative).
         precision: Temporal precision for convolution (must be finite and positive).
         half_life: Half-life for exponential decay (default: no decay).
         summate: If True, responses accumulate; if False, averaged.
         normalize: If True, normalize result to unit peak per basis.
 
     Returns:
-        Typed blocked HRF (or the original ``hrf`` when ``width <= precision``).
+        Typed blocked HRF (or the original ``hrf`` when ``width == 0``).
+
+    Raises:
+        ValueError: If ``width`` is negative or not finite.
     """
     if normalize:
         raise ValueError(
             "block_hrf(normalize=True) is retired; "
             "use normalize(block_hrf(...), 'unit_peak_per_basis')."
         )
-    if width <= precision:
+    if width == 0:
         return hrf
     return BlockedHRF(
         base=hrf,

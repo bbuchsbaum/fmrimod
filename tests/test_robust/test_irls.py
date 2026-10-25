@@ -63,11 +63,13 @@ class TestRobustRefit:
 
         fit_result, weights = robust_refit(model, config, initial)
 
-        assert weights.shape == (n, 1)
+        # One row weight per volume, the weights of the final WLS solve
+        # (fmrireg fb00ab1: robust_weights_final is a length-n vector).
+        assert weights.shape == (n,)
         assert np.all(np.isfinite(weights))
         assert np.all((weights >= 0.0) & (weights <= 1.0))
-        assert weights[:4, 0].mean() < 0.2
-        assert weights[4:, 0].mean() > 0.8
+        assert weights[:4].mean() < 0.2
+        assert weights[4:].mean() > 0.8
 
         ols_slope_error = abs(initial["betas"][1, 0] - true_beta[1])
         robust_slope_error = abs(fit_result["betas"][1, 0] - true_beta[1])
@@ -87,7 +89,7 @@ class TestRobustRefit:
         model = _DummyModel([Y])
 
         _fit_result, weights = robust_refit(model, config, initial)
-        assert np.max(weights[:3, 0]) < 1e-6
+        assert np.max(weights[:3]) < 1e-6
 
     def test_clean_data_stays_close_to_ols(self, rng: np.random.Generator) -> None:
         n = 150
@@ -122,4 +124,4 @@ class TestRobustRefit:
         fit_result, weights = robust_refit(model, config, initial)
         assert np.all(np.isfinite(fit_result["betas"]))
         assert np.all(np.isfinite(weights))
-        assert weights.shape == (n, 1)
+        assert weights.shape == (n,)

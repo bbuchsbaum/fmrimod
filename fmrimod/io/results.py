@@ -185,13 +185,8 @@ def _infer_mask_and_affine(
         inferred_mask = dataset.get_mask()
 
     inferred_affine = affine
-    if inferred_affine is None and dataset is not None:
-        if hasattr(dataset, "get_affine"):
-            inferred_affine = dataset.get_affine()
-        else:
-            source = getattr(dataset, "_source", None)
-            if source is not None and hasattr(source, "get_affine"):
-                inferred_affine = source.get_affine()
+    if inferred_affine is None and dataset is not None and hasattr(dataset, "get_affine"):
+        inferred_affine = dataset.get_affine()
 
     if inferred_mask is None:
         raise ValueError(

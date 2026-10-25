@@ -98,7 +98,10 @@ The palette combines warm paper and green-black ink with muted teal and a comple
 
 **Reading and headings:** Source Serif 4, with Georgia and serif fallbacks. Regular and italic font files are local.
 
-**Navigation and captions:** the system sans-serif stack. **Code:** the theme's monospace stack. Plot labels use DejaVu Sans.
+**Navigation and captions:** the system sans-serif stack. **Code:** the theme's monospace stack. Plot labels use DejaVu Sans. Built-in plot helpers use the library palette in
+`fmrimod/visualization/style.py` (blue, orange, green, ochre, purple, cyan,
+and magenta); custom tutorial figures use the plot tokens above. Preserve
+series identity within an analysis rather than recoloring its panels independently.
 
 The body uses a 17px root and 1.7 line height; article paragraphs are capped at 72ch. Titles use regular-weight serif type with balanced wrapping. Figure captions use 0.79rem sans-serif type and a 1.65 line height.
 

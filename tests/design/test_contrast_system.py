@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from fmrimod.events import EventFactor, EventVariable, EventTerm
+from fmrimod.contrast.errors import ContrastError
 from fmrimod.contrast import (
     contrast,
     unit_contrast,
@@ -56,6 +57,12 @@ def simple_factor_3_levels():
 def simple_term_3_levels(simple_factor_3_levels):
     """Create a simple EventTerm with 3 levels."""
     return EventTerm([simple_factor_3_levels])
+
+
+# Numeric values of the ``time`` levels for polynomial contrasts. R
+# ``poly_contrast`` needs a ``value_map`` (or numeric levels) to place the
+# levels on the trend axis (fmridesign b7a4fc5).
+TIME_VALUES = {'t1': 1, 't2': 2, 't3': 3, 't4': 4}
 
 
 @pytest.fixture
@@ -448,7 +455,8 @@ class TestContrastWeightsReal:
 
     def test_poly_contrast_linear(self, term_4_levels):
         """Test linear polynomial contrast."""
-        spec = poly_contrast(Formula("time"), name="linear_time", degree=1)
+        spec = poly_contrast(Formula("time"), name="linear_time", degree=1,
+                             value_map=TIME_VALUES)
         con = contrast_weights(spec, term_4_levels)
 
         assert con.name == "linear_time"
@@ -459,7 +467,8 @@ class TestContrastWeightsReal:
 
     def test_poly_contrast_quadratic(self, term_4_levels):
         """Test quadratic polynomial contrast."""
-        spec = poly_contrast(Formula("time"), name="quad_time", degree=2)
+        spec = poly_contrast(Formula("time"), name="quad_time", degree=2,
+                             value_map=TIME_VALUES)
         con = contrast_weights(spec, term_4_levels)
 
         assert con.name == "quad_time"
@@ -476,7 +485,8 @@ class TestContrastWeightsReal:
 
     def test_poly_contrast_cubic(self, term_4_levels):
         """Test cubic polynomial contrast."""
-        spec = poly_contrast(Formula("time"), name="cubic_time", degree=3)
+        spec = poly_contrast(Formula("time"), name="cubic_time", degree=3,
+                             value_map=TIME_VALUES)
         con = contrast_weights(spec, term_4_levels)
 
         assert con.name == "cubic_time"
@@ -496,7 +506,8 @@ class TestContrastWeightsReal:
     def test_poly_contrast_degree_too_high(self, simple_term_3_levels):
         """Test that polynomial degree validation works."""
         # 3 levels, degree 3 should fail (need at least degree+1 levels)
-        spec = poly_contrast(Formula("condition"), name="too_high", degree=3)
+        spec = poly_contrast(Formula("condition"), name="too_high", degree=3,
+                             value_map={"A": 1, "B": 2, "C": 3})
 
         with pytest.raises(ValueError, match="too high"):
             contrast_weights(spec, simple_term_3_levels)
@@ -546,27 +557,42 @@ class TestContrastWeightsReal:
         assert con.weights.shape == (1, 0)
 
     def test_interaction_contrast_2x2(self):
-        """Test 2x2 interaction contrast."""
-        # Create 2x2 factorial design
+        """Test 2x2 interaction contrast on two crossed factors."""
+        onsets = np.array([1.0, 2.0, 3.0, 4.0])
+        letter = EventFactor(name='letter', onsets=onsets,
+                             values=['A', 'A', 'B', 'B'], durations=1.0)
+        num = EventFactor(name='num', onsets=onsets,
+                          values=['1', '2', '1', '2'], durations=1.0)
+        term = EventTerm([letter, num])
+
+        spec = interaction_contrast(Formula("letter * num"), name="interaction_2x2")
+        con = contrast_weights(spec, term)
+
+        assert con.name == "interaction_2x2"
+        assert con.condnames == [
+            'letter.A_num.1', 'letter.A_num.2', 'letter.B_num.1', 'letter.B_num.2',
+        ]
+        # 2x2 interaction pattern: [1, -1, -1, 1]
+        np.testing.assert_array_equal(con.weights[:, 0], [1.0, -1.0, -1.0, 1.0])
+
+    def test_interaction_contrast_needs_two_named_factors(self):
+        """A single factor that merely has four levels is not a 2x2 design.
+
+        R ``interaction_contrast`` codes the factors named in ``A`` (fmridesign
+        648bac1); naming one factor is an error rather than a guess from the
+        cell count.
+        """
         factor = EventFactor(
             name='design',
             onsets=np.array([1.0, 2.0, 3.0, 4.0]),
-            values=['A1', 'A2', 'B1', 'B2'],  # Simulating 2x2
+            values=['A1', 'A2', 'B1', 'B2'],
             durations=1.0
         )
         term = EventTerm([factor])
 
         spec = interaction_contrast(Formula("design"), name="interaction_2x2")
-        con = contrast_weights(spec, term)
-
-        assert con.name == "interaction_2x2"
-        assert con.weights.shape == (4, 1)
-
-        # 2x2 interaction pattern: [1, -1, -1, 1]
-        assert con.weights[0, 0] == 1.0
-        assert con.weights[1, 0] == -1.0
-        assert con.weights[2, 0] == -1.0
-        assert con.weights[3, 0] == 1.0
+        with pytest.raises(ValueError, match="two factors"):
+            contrast_weights(spec, term)
 
     def test_contrast_set_weights_computation(self, simple_term_3_levels):
         """Test computing weights for entire contrast set."""
@@ -609,26 +635,19 @@ class TestContrastWeightsReal:
             assert np.abs(np.sum(con.weights)) < 1e-10
 
     def test_one_against_all_with_real_term(self, simple_term_3_levels):
-        """Test one-against-all contrasts applied to real term.
+        """One-against-all contrasts on a real term match R fmridesign.
 
-        Note: Currently the != operator in formulas is not implemented,
-        so one_against_all_contrast creates contrasts that only select
-        the positive condition (not a proper one-vs-all). This is a known
-        limitation - the contrasts won't sum to zero.
+        The ``!=`` side selects the other levels, so level ``i`` gets 1 and
+        each other level ``-1/2`` (R test-contrast-set-nesting.R).
         """
         levels = ["A", "B", "C"]
         cset = one_against_all_contrast(levels, facname="condition")
 
-        # Currently these act as unit contrasts (selecting single condition)
-        # because the != formula doesn't match anything
-        for spec in cset:
-            with pytest.warns(UserWarning, match="Mask B is empty"):
-                con = contrast_weights(spec, simple_term_3_levels)
-            # Each contrast selects one condition with weight 1
-            # (not a true one-vs-all because != is not implemented)
-            assert con.weights.shape == (3, 1)
-            # Sum is 1, not 0 (unit contrast behavior)
-            assert np.abs(np.sum(con.weights) - 1.0) < 1e-10
+        for i, spec in enumerate(cset):
+            con = contrast_weights(spec, simple_term_3_levels)
+            expected = np.full(3, -0.5)
+            expected[i] = 1.0
+            np.testing.assert_allclose(con.weights[:, 0], expected)
 
     def test_contrast_is_fcontrast_property(self, term_4_levels):
         """Test Contrast.is_fcontrast property."""
@@ -642,7 +661,8 @@ class TestContrastWeightsReal:
         assert not con_t.is_fcontrast
 
         # F-contrast (multiple columns)
-        spec_f = poly_contrast(Formula("time"), name="poly", degree=2)
+        spec_f = poly_contrast(Formula("time"), name="poly", degree=2,
+                               value_map=TIME_VALUES)
         con_f = contrast_weights(spec_f, term_4_levels)
         assert con_f.is_fcontrast
 
@@ -667,22 +687,16 @@ class TestContrastEdgeCases:
 
         # Use formula that doesn't match any conditions
         spec = unit_contrast(Formula("nonexistent == 'Z'"), name="test")
-        with pytest.warns(UserWarning, match="No conditions were selected"):
-            con = contrast_weights(spec, term)
-
-        # Should handle gracefully - creates zero weights
-        assert con.weights.shape[0] == 2  # Still has 2 conditions
-        assert np.all(con.weights == 0)  # But all weights are zero
+        # A contrast that selects nothing is an error, never zero weights
+        # (REG-A-18; fmridesign .calculate_mask_weights stops here).
+        with pytest.raises(ContrastError, match="No conditions were selected"):
+            contrast_weights(spec, term)
 
     def test_no_matching_conditions_unit_contrast(self, simple_term_3_levels):
         """Test unit contrast when no conditions match."""
         spec = unit_contrast(Formula("condition == 'Z'"), name="nonexistent")
-        with pytest.warns(UserWarning, match="No conditions were selected"):
-            con = contrast_weights(spec, simple_term_3_levels)
-
-        # Should create zero weights
-        assert con.weights.shape == (3, 1)
-        assert np.all(con.weights == 0)
+        with pytest.raises(ContrastError, match="'nonexistent'"):
+            contrast_weights(spec, simple_term_3_levels)
 
     def test_contrast_repr(self, simple_term_3_levels):
         """Test Contrast.__repr__ method."""
@@ -762,9 +776,12 @@ class TestContrastIntegration:
     def test_polynomial_trend_analysis(self, term_4_levels):
         """Test polynomial trend analysis with multiple degrees."""
         # Linear, quadratic, and cubic trends
-        c_lin = poly_contrast(Formula("time"), name="linear", degree=1)
-        c_quad = poly_contrast(Formula("time"), name="quadratic", degree=2)
-        c_cubic = poly_contrast(Formula("time"), name="cubic", degree=3)
+        c_lin = poly_contrast(Formula("time"), name="linear", degree=1,
+                              value_map=TIME_VALUES)
+        c_quad = poly_contrast(Formula("time"), name="quadratic", degree=2,
+                               value_map=TIME_VALUES)
+        c_cubic = poly_contrast(Formula("time"), name="cubic", degree=3,
+                                value_map=TIME_VALUES)
 
         cset = contrast_set(c_lin, c_quad, c_cubic)
         results = contrast_weights(cset, term_4_levels)

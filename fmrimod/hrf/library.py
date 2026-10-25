@@ -23,6 +23,7 @@ from scipy import interpolate
 from ..hrf_dispatch import SimpleHRF
 from .core import HRF, HrfParamValue
 from .functions import (
+    _weighted_edges,
     boxcar_hrf,
     bspline_hrf,
     fir_basis,
@@ -43,9 +44,6 @@ from .spm_hrf import (
     SPMG1_HRF,
     SPMG2_HRF,
     SPMG3_HRF,
-    SPMG1_HRF_Legacy,
-    SPMG2_HRF_Legacy,
-    SPMG3_HRF_Legacy,
 )
 
 # --- Single-basis kernels --------------------------------------------------
@@ -363,7 +361,10 @@ class WeightedHRF(HRF):
         self.weights = tuple(float(x) for x in weights)
         self.times = tuple(float(x) for x in times)
         if self.span == 0.0:
-            self.span = float(times[-1])
+            # A constant weight covers its whole right-open bin, so the
+            # response ends at the last bin edge, not at the last time.
+            last = _weighted_edges(times)[-1] if self.method == "constant" else times[-1]
+            self.span = float(last)
         if not self.name:
             self.name = f"weighted[w={self.span:.2g}, {len(self.weights)} wts]"
 
@@ -433,18 +434,11 @@ class EmpiricalHRF(HRF):
 
 # --- Singleton instances ---------------------------------------------------
 
-# Default SPM HRF basis using the SPM/Nilearn standard parameterization
-# (delay=6, undershoot=16, dispersion=1, u_dispersion=1, ratio=0.167).
-# See ``fmrimod/hrf/spm_hrf.py`` for the migration note.
+# SPM canonical family as R fmrihrf defines it (delay=6, undershoot=16,
+# dispersion=1, u_dispersion=1, ratio=1/6, span=24); see ``spm_hrf.py``.
 SPM_CANONICAL = SPMG1_HRF()
 SPM_WITH_DERIVATIVE = SPMG2_HRF()
 SPM_WITH_DISPERSION = SPMG3_HRF()
-
-# Legacy R-fmrireg parameterization, reachable via ``basis="spm_legacy"``
-# / ``"spmg1_legacy"`` / ``"spmg2_legacy"`` / ``"spmg3_legacy"``.
-SPM_CANONICAL_LEGACY = SPMG1_HRF_Legacy()
-SPM_WITH_DERIVATIVE_LEGACY = SPMG2_HRF_Legacy()
-SPM_WITH_DISPERSION_LEGACY = SPMG3_HRF_Legacy()
 
 GAMMA_HRF = GammaHRF()
 GAUSSIAN_HRF = GaussianHRF()
@@ -473,12 +467,6 @@ PREDEFINED_HRFS = {
     "spm_canonical": SPM_CANONICAL,
     "spmg2": SPM_WITH_DERIVATIVE,
     "spmg3": SPM_WITH_DISPERSION,
-    # Legacy R-fmrireg parameterization (pre-2026 alignment).
-    "spm_legacy": SPM_CANONICAL_LEGACY,
-    "spmg1_legacy": SPM_CANONICAL_LEGACY,
-    "spm_canonical_legacy": SPM_CANONICAL_LEGACY,
-    "spmg2_legacy": SPM_WITH_DERIVATIVE_LEGACY,
-    "spmg3_legacy": SPM_WITH_DISPERSION_LEGACY,
     "gamma": GAMMA_HRF,
     "gaussian": GAUSSIAN_HRF,
     "bspline": BSPLINE_HRF,

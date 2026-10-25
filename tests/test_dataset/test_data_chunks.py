@@ -93,3 +93,45 @@ def test_fmridataset_chunk_facade_identity() -> None:
     assert facade_collect_chunks is collect_chunks
     assert facade_exec_strategy is exec_strategy
     assert facade_voxel_index_chunks is voxel_index_chunks
+
+
+def test_data_chunks_voxel_ind_is_linear_index_on_3d_mask() -> None:
+    """``voxel_ind`` is the in-mask voxel's linear index, not its x index.
+
+    R legacy ``3ae565e:R/data_chunks.R`` uses ``which(mask > 0)``. The voxels
+    sit at (1, 1, 1) and (2, 0, 1), whose x indices ``[1, 2]`` differ from
+    their linear indices ``[7, 9]``.
+    """
+    ni = pytest.importorskip("neuroim")
+    shape = (3, 2, 2)
+    mask = np.zeros(shape, dtype=bool)
+    mask[1, 1, 1] = True
+    mask[2, 0, 1] = True
+    space = ni.NeuroSpace(dim=shape + (5,), spacing=(1, 1, 1, 1), origin=(0, 0, 0, 0))
+    vec = ni.DenseNeuroVec(np.random.default_rng(0).normal(size=shape + (5,)), space)
+    ds = fmrimod.dataset.fmri_dataset(vec, mask=mask, tr=2.0)
+
+    chunk = data_chunks(ds, nchunks=1).collect()[0]
+    np.testing.assert_array_equal(chunk.voxel_ind, np.flatnonzero(mask))
+    np.testing.assert_array_equal(chunk.voxel_ind, [7, 9])
+    np.testing.assert_array_equal(
+        chunk.data, ds.get_data_matrix()[:, [0, 1]]
+    )
+    runwise = data_chunks(ds, runwise=True).collect()[0]
+    np.testing.assert_array_equal(runwise.voxel_ind, [7, 9])
+
+
+def test_data_chunks_on_an_empty_mask_plans_zero_chunks() -> None:
+    # fmridataset a814330: an emptied feature axis plans zero blocks instead of
+    # crashing. Inventory v2 DS-12. nchunks must report 0, so catching the
+    # error inside collect() cannot pass.
+    import warnings
+
+    from fmrimod.dataset import data_chunks, matrix_dataset
+
+    ds = matrix_dataset(np.zeros((6, 3)), tr=2.0, mask=np.zeros(3, dtype=bool))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        chunks = data_chunks(ds, nchunks=2)
+    assert chunks.nchunks == 0
+    assert chunks.collect() == []

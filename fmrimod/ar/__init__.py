@@ -2,6 +2,7 @@
 
 from .afni import afni_phi_ar3, afni_phi_ar5, afni_restricted_plan
 from .acvf import (
+    DesignResidualMismatchError,
     acvf_bias_matrix,
     noise_acvf,
     pooled_acvf_segments,
@@ -9,6 +10,7 @@ from .acvf import (
 )
 from .diagnostics import acorr_diagnostics, sandwich_from_whitened_resid
 from .estimation import (
+    ArEstimationFallbackWarning,
     estimate_ar,
     estimate_ar_bic,
     estimate_ar_voxelwise,
@@ -65,6 +67,7 @@ __all__ = [
     "pooled_acvf_segments",
     "noise_acvf",
     "acvf_bias_matrix",
+    "DesignResidualMismatchError",
     "sigma2_from_gamma_phi",
     # Estimation
     "estimate_ar",
@@ -72,6 +75,7 @@ __all__ = [
     "estimate_ar_voxelwise",
     "estimate_ar_bic",
     "fit_noise",
+    "ArEstimationFallbackWarning",
     # ARMA
     "hr_arma",
     # Whitening
