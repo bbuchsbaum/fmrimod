@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, fields, is_dataclass, replace
-from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence, Union, cast
+from typing import TYPE_CHECKING, Callable, Optional, Sequence, Union, cast
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
+
     from .normalization import NormMode
 
 
@@ -157,17 +160,26 @@ class HRF(ABC):
 
     def plot(
         self,
-        time: Any = None,
+        time: ArrayLike | None = None,
         normalize: bool = False,
         show_peak: bool = True,
-        ax: Any = None,
-        **kwargs: object,
-    ) -> Any:
-        """Plot this HRF.  See :func:`fmrimod.plotting.plot_hrf`."""
+        ax: Axes | None = None,
+        *,
+        title: str | None = None,
+        subtitle: str | None = None,
+        figsize: tuple[float, float] | None = None,
+    ) -> Figure:
+        """Plot this HRF and return the matplotlib Figure.
+
+        A single-basis HRF is drawn with its peak annotated; a multi-basis
+        HRF shows every basis function, labelled at its peak. See
+        :func:`fmrimod.plotting.plot_hrf`.
+        """
         from ..plotting import plot_hrf
 
         return plot_hrf(
-            self, time=time, normalize=normalize, show_peak=show_peak, ax=ax, **kwargs
+            self, time=time, normalize=normalize, show_peak=show_peak, ax=ax,
+            title=title, subtitle=subtitle, figsize=figsize,
         )
 
     # -- Fluent decorators (return new HRF, mirror fmrihrf's gen_hrf chain) --
