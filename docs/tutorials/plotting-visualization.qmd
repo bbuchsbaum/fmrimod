@@ -21,7 +21,7 @@ from fmrimod.hrf import get_hrf
 from fmrimod.plotting import plot_hrf, plot_hrfs
 from fmrimod.spec import compile as compile_spec
 from fmrimod.spec import hrf
-from fmrimod.visualization import plot_design_matrix, plot_sampling_frame
+from fmrimod.visualization import plot_event_model, plot_sampling_frame
 
 events = pd.DataFrame({
     "onset": [0.0, 10.0, 20.0, 30.0],
@@ -34,13 +34,13 @@ event_model, _ = compile_spec(hrf("condition", basis="spmg1"), data=events, samp
 
 ```{python}
 #| fig-width: 7
-#| fig-height: 3.0
-#| fig-cap: "Realized face and scene regressors on the acquisition grid. The
-#|   alternating peaks make the event order and HRF overlap visible before
-#|   the model is fitted."
-#| fig-alt: "Line chart of alternating face and scene design regressors over
-#|   sixty seconds, with overlapping hemodynamic peaks."
-fig, ax = plot_design_matrix(event_model, figsize=(7, 3))
+#| fig-height: 3.2
+#| fig-cap: "Realized face and scene regressors on the acquisition grid, one
+#|   row per condition. Ticks under each row mark that condition's onsets and
+#|   bars their 2 s durations, so each response can be traced to its event."
+#| fig-alt: "Two stacked line charts, face above scene, each showing two
+#|   hemodynamic responses over sixty seconds with onset ticks underneath."
+fig = plot_event_model(event_model, figsize=(7, 3.2))
 plt.show()
 ```
 

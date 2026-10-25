@@ -370,126 +370,6 @@ def correlation_map(
     return fig, ax
 
 
-def plot_design_matrix(
-    model: EventModel,
-    term_name: Optional[str] = None,
-    figsize: Optional[Tuple[float, float]] = None,
-    separate_regressors: bool = True,
-    **kwargs: object
-) -> tuple[Figure, Axes]:
-    """Plot time series of design matrix regressors.
-    
-    Creates line plots showing the time course of regressors in the
-    design matrix.
-    
-    Parameters
-    ----------
-    model : EventModel
-        Event model containing the design matrix
-    term_name : str, optional
-        Name of specific term to plot. If None, plots all terms
-    figsize : tuple of float, optional
-        Figure size as (width, height)
-    separate_regressors : bool, default=True
-        Whether to plot regressors in separate subplots when many exist
-    **kwargs
-        Additional arguments passed to plot functions
-    
-    Returns
-    -------
-    fig : matplotlib.figure.Figure
-        The figure object
-    axes : matplotlib.axes.Axes or array of Axes
-        The axes object(s)
-    
-    Examples
-    --------
-    >>> # Plot all regressors
-    >>> fig, axes = plot_design_matrix(model)
-    >>> 
-    >>> # Plot specific term only
-    >>> fig, ax = plot_design_matrix(model, term_name='condition')
-    """
-    if not HAS_MATPLOTLIB:
-        raise ImportError(
-            "Matplotlib is required for visualization. "
-            "Install it with: pip install matplotlib"
-        )
-    
-    # Get design matrix and time points
-    X = model.design_matrix
-    time_points = model.sampling_points
-    
-    # Select columns if term specified
-    if term_name is not None:
-        # Find columns matching term name
-        import re
-        pattern = rf"^{re.escape(term_name)}[_.\[]|^{re.escape(term_name)}$"
-        matching_cols = [i for i, col in enumerate(model.column_names) 
-                        if re.match(pattern, col)]
-        
-        if not matching_cols:
-            raise ValueError(f"No columns found matching term name: {term_name}")
-        
-        X = X[:, matching_cols]
-        col_names = [model.column_names[i] for i in matching_cols]
-    else:
-        col_names = model.column_names
-    
-    n_regressors = X.shape[1]
-    
-    # Determine layout
-    if n_regressors > 6 and separate_regressors:
-        # Use subplots
-        n_cols = min(3, n_regressors)
-        n_rows = (n_regressors + n_cols - 1) // n_cols
-        
-        if figsize is None:
-            figsize = (n_cols * 4, n_rows * 3)
-        
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize, squeeze=False)
-        axes = axes.flatten()
-        
-        # Plot each regressor
-        for i in range(n_regressors):
-            ax = axes[i]
-            ax.plot(time_points, X[:, i], linewidth=2, **kwargs)
-            ax.set_title(col_names[i], fontsize=10)
-            ax.set_xlabel('Time (s)')
-            ax.set_ylabel('Value')
-            ax.grid(True, alpha=0.3)
-        
-        # Hide unused subplots
-        for i in range(n_regressors, len(axes)):
-            axes[i].set_visible(False)
-        
-    else:
-        # Single plot with all regressors
-        if figsize is None:
-            figsize = (10, 6)
-        
-        fig, ax = plt.subplots(figsize=figsize)
-        
-        # Plot all regressors
-        for i in range(n_regressors):
-            ax.plot(time_points, X[:, i], label=col_names[i], linewidth=2, **kwargs)
-        
-        ax.set_xlabel('Time (s)', fontsize=12)
-        ax.set_ylabel('Value', fontsize=12)
-        ax.set_title(f'Design Matrix Time Series: {model.name}', fontsize=14, fontweight='bold')
-        ax.grid(True, alpha=0.3)
-        
-        # Legend
-        if n_regressors <= 10:
-            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-        
-        axes = ax
-    
-    plt.tight_layout()
-    
-    return fig, axes
-
-
 # Convenience function to plot all visualizations
 def plot_model_summary(
     model: EventModel,
@@ -538,8 +418,10 @@ def plot_model_summary(
     results['correlation_map'] = (corr_fig, corr_ax)
     
     # Time series
-    ts_fig, ts_ax = plot_design_matrix(model)
-    results['time_series'] = (ts_fig, ts_ax)
+    from .event_plot import plot_event_model
+
+    ts_fig = plot_event_model(model)
+    results['time_series'] = (ts_fig, np.array(ts_fig.axes))
 
     return results
 

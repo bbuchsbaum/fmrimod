@@ -8,10 +8,10 @@ from .design_map import (
     correlation_map,
     design_map,
     plot_baseline_model,
-    plot_design_matrix,
     plot_sampling_frame,
 )
 from .fit_plots import plot_fit, plot_fmri_model
+from .event_plot import plot_design_matrix, plot_event_model
 from .style import cmap, colour_map, palette, set_theme, theme
 
 __all__ = [
@@ -24,6 +24,7 @@ __all__ = [
     "plot_design_matrix",
     "plot_fit",
     "plot_fmri_model",
+    "plot_event_model",
     "plot_sampling_frame",
     "set_theme",
     "theme",

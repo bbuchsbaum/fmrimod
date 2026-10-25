@@ -2125,6 +2125,18 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
             self.design_matrix, columns=self.column_names, index=self.sampling_points
         )
 
+    def plot(self, **kwargs: Any) -> Any:
+        """Plot the regressors against time; see
+        :func:`fmrimod.visualization.plot_event_model`.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+        """
+        from ..visualization.event_plot import plot_event_model
+
+        return plot_event_model(self, **kwargs)
+
     def summary(self) -> str:
         """Get a concise text summary of the model.
 

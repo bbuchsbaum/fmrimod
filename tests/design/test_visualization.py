@@ -17,10 +17,7 @@ from fmrimod import event_model
 from fmrimod.events.factor import EventFactor
 from fmrimod.events.variable import EventVariable
 from fmrimod.visualization import design_map, correlation_map
-from fmrimod.visualization.design_map import (
-    plot_design_matrix, 
-    plot_model_summary
-)
+from fmrimod.visualization.design_map import plot_model_summary
 
 
 @pytest.mark.skipif(not HAS_MATPLOTLIB, reason="matplotlib not installed")
@@ -170,58 +167,6 @@ class TestCorrelationMap:
         assert len(texts) > 0
         
         plt.close(fig)
-
-
-@pytest.mark.skipif(not HAS_MATPLOTLIB, reason="matplotlib not installed")
-class TestPlotDesignMatrix:
-    """Test plot_design_matrix function."""
-    
-    @pytest.fixture
-    def complex_model(self):
-        """Create model with multiple regressors."""
-        n_scans = 100
-        # Create data with consistent lengths
-        data = pd.DataFrame({
-            'onset': [10, 20, 30, 40, 50, 60, 70, 80],
-            'condition': ['A', 'B', 'C', 'A', 'B', 'C', 'A', 'B'],
-            'rating': [1, 2, 3, 4, 5, 4, 3, 2]
-        })
-        
-        model = event_model(
-            "condition + rating",
-            data=data,
-            tr=2.0,
-            n_scans=n_scans
-        )
-        return model
-    
-    def test_plot_all_regressors(self, complex_model):
-        """Test plotting all regressors."""
-        fig, axes = plot_design_matrix(complex_model)
-        
-        assert isinstance(fig, matplotlib.figure.Figure)
-        
-        # With many regressors, should use subplots
-        if isinstance(axes, np.ndarray):
-            assert len(axes) >= complex_model.design_matrix.shape[1]
-        
-        plt.close(fig)
-    
-    def test_plot_specific_term(self, complex_model):
-        """Test plotting specific term only."""
-        fig, ax = plot_design_matrix(
-            complex_model,
-            term_name='condition'
-        )
-        
-        assert isinstance(fig, matplotlib.figure.Figure)
-        
-        plt.close(fig)
-    
-    def test_plot_nonexistent_term(self, complex_model):
-        """Test error for non-existent term."""
-        with pytest.raises(ValueError, match="No columns found"):
-            plot_design_matrix(complex_model, term_name='nonexistent')
 
 
 @pytest.mark.skipif(not HAS_MATPLOTLIB, reason="matplotlib not installed")

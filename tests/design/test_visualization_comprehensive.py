@@ -292,111 +292,6 @@ class TestCorrelationMapComprehensive:
             assert any(r != 0 for r in rotations)
 
 
-class TestPlotDesignMatrixComprehensive:
-    """Comprehensive tests for plot_design_matrix function."""
-
-    @pytest.fixture
-    def simple_model(self):
-        """Simple model for testing."""
-        data = pd.DataFrame({
-            'onset': [10, 30, 50],
-            'condition': ['A', 'B', 'A']
-        })
-        return event_model("condition", data=data, tr=2.0, n_scans=60)
-
-    @pytest.fixture
-    def complex_model(self):
-        """Complex model with many regressors."""
-        data = pd.DataFrame({
-            'onset': [5, 10, 15, 20, 25, 30, 35, 40],
-            'condition': ['A', 'B', 'C', 'D', 'A', 'B', 'C', 'D'],
-            'rating': [1, 2, 3, 4, 5, 4, 3, 2]
-        })
-        return event_model("condition + rating", data=data, tr=2.0, n_scans=80)
-
-    def test_plot_design_matrix_returns_figure(self, simple_model):
-        """Test that plot_design_matrix returns figure."""
-        fig, axes = plot_design_matrix(simple_model)
-
-        assert isinstance(fig, matplotlib.figure.Figure)
-
-    def test_plot_design_matrix_all_regressors(self, simple_model):
-        """Test plotting all regressors."""
-        fig, axes = plot_design_matrix(simple_model)
-
-        # Should create plot(s) for all regressors
-        assert fig is not None
-
-    def test_plot_design_matrix_has_lines(self, simple_model):
-        """Test that line plots are created."""
-        fig, axes = plot_design_matrix(simple_model, separate_regressors=False)
-
-        # axes might be a single Axes or array of Axes
-        if isinstance(axes, matplotlib.axes.Axes):
-            lines = axes.get_lines()
-            assert len(lines) > 0, "Should have line plots"
-
-    def test_plot_design_matrix_specific_term(self, complex_model):
-        """Test plotting specific term only."""
-        fig, axes = plot_design_matrix(complex_model, term_name='condition')
-
-        assert isinstance(fig, matplotlib.figure.Figure)
-
-    def test_plot_design_matrix_nonexistent_term(self, simple_model):
-        """Test error for non-existent term."""
-        with pytest.raises(ValueError, match="No columns found"):
-            plot_design_matrix(simple_model, term_name='nonexistent')
-
-    def test_plot_design_matrix_separate_regressors_true(self, complex_model):
-        """Test separate subplots for regressors."""
-        fig, axes = plot_design_matrix(complex_model, separate_regressors=True)
-
-        # With many regressors, should use subplots
-        if isinstance(axes, np.ndarray):
-            assert len(axes) > 1
-
-    def test_plot_design_matrix_separate_regressors_false(self, simple_model):
-        """Test all regressors in one plot."""
-        fig, axes = plot_design_matrix(simple_model, separate_regressors=False)
-
-        assert isinstance(axes, matplotlib.axes.Axes)
-
-    def test_plot_design_matrix_custom_figsize(self, simple_model):
-        """Test custom figure size."""
-        figsize = (12, 6)
-        fig, axes = plot_design_matrix(simple_model, figsize=figsize)
-
-        assert fig.get_figwidth() == 12
-        assert fig.get_figheight() == 6
-
-    def test_plot_design_matrix_few_regressors(self):
-        """Test with very few regressors (1 term)."""
-        data = pd.DataFrame({
-            'onset': [10, 30],
-            'condition': ['A', 'A']
-        })
-        model = event_model("condition", data=data, tr=2.0, n_scans=50)
-
-        fig, axes = plot_design_matrix(model)
-
-        assert isinstance(fig, matplotlib.figure.Figure)
-
-    def test_plot_design_matrix_many_regressors(self):
-        """Test with many regressors (8+ columns)."""
-        # Create model with interaction to get many columns
-        data = pd.DataFrame({
-            'onset': np.arange(0, 40, 2),
-            'cond1': ['A', 'B'] * 10,
-            'cond2': ['X', 'Y', 'Z'] * 6 + ['X', 'Y']
-        })
-        model = event_model("cond1 + cond2", data=data, tr=2.0, n_scans=80)
-
-        fig, axes = plot_design_matrix(model, separate_regressors=True)
-
-        # Should create multiple subplots
-        assert isinstance(fig, matplotlib.figure.Figure)
-
-
 class TestPlotBaselineModel:
     """Tests for plot_baseline_model function."""
 
@@ -872,7 +767,7 @@ class TestVisualizationEdgeCases:
         # fig2, ax2 = correlation_map(model)
         # assert isinstance(fig2, matplotlib.figure.Figure)
 
-        fig3, ax3 = plot_design_matrix(model)
+        fig3 = plot_design_matrix(model)
         assert isinstance(fig3, matplotlib.figure.Figure)
 
     def test_very_few_scans(self):
