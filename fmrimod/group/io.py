@@ -75,6 +75,58 @@ def _write_json_dataset(group: h5py.Group, name: str, value: object) -> None:
     )
 
 
+def _dtype_schema(dtype: Any) -> dict[str, object]:
+    if isinstance(dtype, pd.CategoricalDtype):
+        return {
+            "dtype": "category",
+            "categories": dtype.categories.tolist(),
+            "categories_dtype": str(dtype.categories.dtype),
+            "ordered": bool(dtype.ordered),
+        }
+    return {"dtype": str(dtype)}
+
+
+def _axis_frame_schema(frame: pd.DataFrame) -> dict[str, object]:
+    return {
+        "index": _dtype_schema(frame.index.dtype),
+        "columns": [_dtype_schema(dtype) for dtype in frame.dtypes],
+    }
+
+
+def _restore_dtype(values: Any, spec: Mapping[str, Any]) -> Any:
+    dtype = str(spec["dtype"])
+    if dtype == "category":
+        categories = pd.Index(spec["categories"]).astype(str(spec["categories_dtype"]))
+        target: Any = pd.CategoricalDtype(categories, ordered=bool(spec["ordered"]))
+        values = values.astype(categories.dtype)
+        return values.astype(target)
+    if dtype.startswith("datetime64"):
+        resolved = pd.api.types.pandas_dtype(dtype)
+        if isinstance(resolved, pd.DatetimeTZDtype):
+            # ISO strings carry offsets; parse to UTC, then back to the zone.
+            parsed = pd.to_datetime(values, utc=True)
+            accessor = parsed.dt if isinstance(parsed, pd.Series) else parsed
+            return accessor.tz_convert(resolved.tz).astype(resolved)
+        return pd.to_datetime(values).astype(resolved)
+    return values.astype(dtype)
+
+
+def _apply_axis_frame_schema(
+    frame: pd.DataFrame, schema: Mapping[str, Any]
+) -> pd.DataFrame:
+    columns = schema.get("columns", [])
+    if len(columns) != frame.shape[1]:
+        raise GroupSchemaError(
+            "axis_data schema lists "
+            f"{len(columns)} columns but the JSON frame has {frame.shape[1]}"
+        )
+    out = frame.copy()
+    for pos, spec in enumerate(columns):
+        out.isetitem(pos, _restore_dtype(out.iloc[:, pos], spec))
+    out.index = _restore_dtype(out.index, schema["index"])
+    return out
+
+
 def _write_axis_frame(parent: h5py.Group, name: str, frame: pd.DataFrame | None) -> None:
     if frame is None:
         return
@@ -87,6 +139,7 @@ def _write_axis_frame(parent: h5py.Group, name: str, frame: pd.DataFrame | None)
         data=frame.to_json(orient="split", date_format="iso"),
         dtype=_string_dtype(),
     )
+    _write_json_dataset(group, "schema", _axis_frame_schema(frame))
 
 
 def _read_axis_frame(parent: h5py.Group, name: str) -> pd.DataFrame | None:
@@ -97,7 +150,16 @@ def _read_axis_frame(parent: h5py.Group, name: str) -> pd.DataFrame | None:
     orient = orient_raw.decode("utf-8") if isinstance(orient_raw, bytes) else str(orient_raw)
     if orient != "split":
         raise GroupSchemaError(f"Unsupported axis_data JSON orient: {orient}")
-    frame = pd.read_json(StringIO(_read_text_dataset(group, "json")), orient="split")
+    text = StringIO(_read_text_dataset(group, "json"))
+    if "schema" in group:
+        # Typed files: read verbatim and restore the recorded dtypes, so
+        # JSON inference cannot turn "007" into 7 or a categorical into str.
+        frame = pd.read_json(text, orient="split", dtype=False, convert_axes=False)
+        frame = _apply_axis_frame_schema(
+            frame, json.loads(_read_text_dataset(group, "schema"))
+        )
+    else:
+        frame = pd.read_json(text, orient="split")
     index_name = group.attrs.get("index_name")
     if isinstance(index_name, bytes):
         index_name = index_name.decode("utf-8")

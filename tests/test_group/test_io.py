@@ -91,6 +91,38 @@ def test_hdf5_roundtrip_axis_metadata_and_provenance(tmp_path) -> None:
     assert got.metadata["hdf5_provenance"]["assays"] == ["beta"]
 
 
+def test_hdf5_roundtrip_axis_data_keeps_column_types(tmp_path) -> None:
+    # fmrigds 8b145f9 (test-review-io.R:242-265, 397-421): factor levels and
+    # zero-padded string ids survive I/O; JSON dtype inference must not turn
+    # "007" into 7 or a categorical into plain strings.
+    subjects = ["007", "010", "100"]
+    col_data = pd.DataFrame(
+        {
+            "group": pd.Categorical(["a", "b", "a"], categories=["b", "a"]),
+            "site": pd.Categorical(["x", "y", "x"], categories=["y", "x"], ordered=True),
+            "code": ["007", "010", "100"],
+            "age": [30.5, 40.0, 22.25],
+            "n_runs": [2, 3, 4],
+            "patient": [True, False, True],
+        },
+        index=pd.Index(subjects, name="subject"),
+    )
+    ds = group_dataset(
+        {"beta": np.ones((1, 3, 1))},
+        space=SampleLabelSpace(["r1"]),
+        subjects=subjects,
+        contrasts=["c1"],
+        col_data=col_data,
+    )
+    path = tmp_path / "typed_axis.h5"
+
+    write_hdf5(ds, path)
+    got = read_hdf5(path)
+
+    assert got.subjects == ("007", "010", "100")
+    pd.testing.assert_frame_equal(got.col_data, col_data)
+
+
 def test_write_out_dispatches_to_hdf5(tmp_path) -> None:
     ds = group_dataset(
         {"beta": np.ones((1, 1, 1))},
