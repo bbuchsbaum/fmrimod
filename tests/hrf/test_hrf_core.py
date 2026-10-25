@@ -395,6 +395,64 @@ class TestBasisHRFTypedFields:
             LWUBasisHRF(theta0=(1.0, 2.0))  # type: ignore[arg-type]
 
 
+class TestLWUBasisDomainEdges:
+    """Inventory v2 HRF-14 (fmrihrf ``5489369``, ``5b8e453``).
+
+    ``hrf_basis_lwu`` must work for every ``theta0`` that passes
+    validation, including the closed bounds of ``rho`` and ``sigma`` just
+    above 0.05, and reject NaN times.
+    """
+
+    t = np.linspace(0.0, 30.0, 61)
+
+    @staticmethod
+    def _analytic(tau, sigma, rho, t):
+        g1 = np.exp(-((t - tau) ** 2) / (2 * sigma**2))
+        u = t - tau - 2 * sigma
+        g2 = np.exp(-(u**2) / (2 * (1.6 * sigma) ** 2))
+        d_tau = g1 * (t - tau) / sigma**2 - rho * g2 * u / (1.6 * sigma) ** 2
+        d_sigma = g1 * (t - tau) ** 2 / sigma**3 - rho * g2 * (
+            u / (1.28 * sigma**2) + u**2 / (2.56 * sigma**3)
+        )
+        return d_tau, d_sigma, -g2
+
+    @pytest.mark.parametrize("rho", [0.0, 1e-6, 0.35, 1.4999, 1.5])
+    def test_rho_bounds(self, rho):
+        from fmrimod.hrf.functions import hrf_basis_lwu
+
+        basis = hrf_basis_lwu([6.0, 2.5, rho], self.t)
+        assert basis.shape == (len(self.t), 4)
+        assert np.all(np.isfinite(basis))
+        d_tau, d_sigma, d_rho = self._analytic(6.0, 2.5, rho, self.t)
+        np.testing.assert_allclose(basis[:, 3], d_rho, atol=1e-8)
+        np.testing.assert_allclose(basis[:, 1], d_tau, atol=1e-6)
+        np.testing.assert_allclose(basis[:, 2], d_sigma, atol=1e-6)
+
+    def test_sigma_just_above_lower_bound(self):
+        from fmrimod.hrf.functions import hrf_basis_lwu
+
+        sigma = 0.05 + 1e-7
+        t = np.linspace(5.5, 6.5, 41)
+        basis = hrf_basis_lwu([6.0, sigma, 0.35], t)
+        assert np.all(np.isfinite(basis))
+        _, d_sigma, _ = self._analytic(6.0, sigma, 0.35, t)
+        np.testing.assert_allclose(basis[:, 2], d_sigma, rtol=1e-4, atol=1e-4)
+
+    def test_nan_time_rejected(self):
+        from fmrimod.hrf.functions import hrf_basis_lwu
+
+        with pytest.raises(ValueError, match="NaN"):
+            hrf_basis_lwu([6.0, 2.5, 0.35], [0.0, np.nan, 2.0])
+
+    def test_out_of_domain_theta0_still_rejected(self):
+        from fmrimod.hrf.functions import hrf_basis_lwu
+
+        with pytest.raises(ValueError, match="rho"):
+            hrf_basis_lwu([6.0, 2.5, 1.6], self.t)
+        with pytest.raises(ValueError, match="sigma"):
+            hrf_basis_lwu([6.0, 0.05, 0.35], self.t)
+
+
 class TestDecoratorComposition:
     """Decorators return typed subclasses that preserve the base HRF.
 
