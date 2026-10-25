@@ -17,6 +17,7 @@ from .fmri_dataset import FmriDataset
 from .group_data import GroupData
 from .latent import LatentDataset as LatentDataset
 from .latent import latent_dataset as _latent_dataset
+from .mask_utils import as_mask
 
 # An HRF specifier mirrors what the registry / `gen_hrf` accept.
 HrfSpec = Union[HRF, Callable[..., NDArray[np.float64]], str]
@@ -194,7 +195,7 @@ def read_nifti_full(gd: GroupData, use_mask: Optional[bool] = None) -> Dict[str,
 
     mask = None
     if gd.data.get("mask") is not None:
-        mask = np.asarray(read_image(gd.data["mask"], type="vol").as_array()) > 0
+        mask = as_mask(read_image(gd.data["mask"], type="vol").as_array())
     if use_mask is None:
         use_mask = mask is not None
 

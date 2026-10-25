@@ -15,6 +15,7 @@ from .bids_h5 import BidsH5StudyDataset, bids_h5_dataset
 from .constructors import matrix_dataset
 from .errors import ConfigError
 from .fmri_dataset import FmriDataset
+from .mask_utils import mask_to_logical
 from .study import StudyDataset
 
 CompressionMode = Literal["parcellated", "latent"]
@@ -299,7 +300,7 @@ def _summarise_bids_matrix(
     if mask is not None:
         if mask.size != n_voxels:
             raise ValueError(f"mask length does not match voxel count for '{source}'")
-        mask_bool = np.asarray(mask, dtype=np.bool_)
+        mask_bool = mask_to_logical(mask)
         matrix = matrix[:, mask_bool]
 
     if clusters is None:
