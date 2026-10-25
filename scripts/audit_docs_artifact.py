@@ -103,6 +103,9 @@ def audit(root: Path) -> list[str]:
                     f"found {len(page.images)} images"
                 )
 
+        if re.search(r"\{fig-(?:alt|cap)\s*=", raw):
+            failures.append(f"{relative}: raw figure metadata leaked into HTML")
+
         if any(role in raw for role in RAW_SPHINX_ROLES):
             failures.append(f"{relative}: raw Sphinx role leaked into HTML")
         if "quarto-document-content" not in page.ids:

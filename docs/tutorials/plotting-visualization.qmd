@@ -47,11 +47,8 @@ event_model, _ = compile_spec(hrf("condition", basis="spmg1"), data=events, samp
 ```{python}
 #| fig-width: 7
 #| fig-height: 3.2
-#| fig-cap: "Realized face and scene regressors on the acquisition grid, one
-#|   row per condition. Ticks under each row mark that condition's onsets and
-#|   bars their 2 s durations, so each response can be traced to its event."
-#| fig-alt: "Two stacked line charts, face above scene, each showing two
-#|   hemodynamic responses over sixty seconds with onset ticks underneath."
+#| fig-cap: "Realized face and scene regressors on the acquisition grid, one row per condition. Ticks under each row mark that condition's onsets and bars their 2 s durations, so each response can be traced to its event."
+#| fig-alt: "Two stacked line charts, face above scene, each showing two hemodynamic responses over sixty seconds with onset ticks underneath."
 fig = plot_event_model(event_model, figsize=(7, 3.2))
 plt.show()
 ```
@@ -71,12 +68,8 @@ nearly flat next to the rest of its term is marked in orange.
 ```{python}
 #| fig-width: 5.4
 #| fig-height: 6.6
-#| fig-cap: "The face and scene columns of the design matrix, scans running
-#|   downward. Bars under the matrix compare each column's peak with the
-#|   largest in its term."
-#| fig-alt: "Heatmap with two columns, face and scene, showing alternating
-#|   red bands where each condition's responses occur, with a colour bar
-#|   below."
+#| fig-cap: "The face and scene columns of the design matrix, scans running downward. Bars under the matrix compare each column's peak with the largest in its term."
+#| fig-alt: "Heatmap with two columns, face and scene, showing alternating red bands where each condition's responses occur, with a colour bar below."
 fig = design_map(event_model)
 plt.show()
 ```
@@ -95,11 +88,8 @@ more turn orange.
 ```{python}
 #| fig-width: 5.4
 #| fig-height: 3.6
-#| fig-cap: "Pairwise correlation and diagonal VIF values for the alternating
-#|   face and scene regressors. Inspect these alongside numerical rank;
-#|   pairwise correlations alone do not establish estimability."
-#| fig-alt: "A single shaded cell giving the face-scene correlation, with the
-#|   variance inflation factor of each regressor on the diagonal."
+#| fig-cap: "Pairwise correlation and diagonal VIF values for the alternating face and scene regressors. Inspect these alongside numerical rank; pairwise correlations alone do not establish estimability."
+#| fig-alt: "A single shaded cell giving the face-scene correlation, with the variance inflation factor of each regressor on the diagonal."
 fig = correlation_map(event_model)
 plt.show()
 ```
@@ -122,10 +112,8 @@ here the weights are given by hand, with the model supplying the design.
 ```{python}
 #| fig-width: 6.5
 #| fig-height: 2.6
-#| fig-cap: "A face-versus-scene comparison and the face effect alone. The
-#|   comparison sums to zero; the single-condition contrast does not."
-#| fig-alt: "Two rows of contrast weights over the face and scene columns,
-#|   with sum and standard-error columns at the right."
+#| fig-cap: "A face-versus-scene comparison and the face effect alone. The comparison sums to zero; the single-condition contrast does not."
+#| fig-alt: "Two rows of contrast weights over the face and scene columns, with sum and standard-error columns at the right."
 from fmrimod.contrast import plot_contrasts
 
 fig = plot_contrasts(
@@ -147,10 +135,8 @@ run without events or with an empty tail stands out.
 ```{python}
 #| fig-width: 7.6
 #| fig-height: 2.9
-#| fig-cap: "Three runs on one time axis. The third run is 20 scans short
-#|   (bold), and the ticks under each bar show where the events fall."
-#| fig-alt: "Three horizontal bars, one per run, laid end to end on a time
-#|   axis, with small onset ticks beneath each bar."
+#| fig-cap: "Three runs on one time axis. The third run is 20 scans short (bold), and the ticks under each bar show where the events fall."
+#| fig-alt: "Three horizontal bars, one per run, laid end to end on a time axis, with small onset ticks beneath each bar."
 runs = fm.SamplingFrame(blocklens=[60, 60, 40], TR=1.0)
 run_events = pd.DataFrame({
     "onset": [5.0, 20.0, 40.0, 8.0, 30.0, 50.0, 12.0],
@@ -173,10 +159,8 @@ together with the high-pass period the drift basis roughly corresponds to.
 ```{python}
 #| fig-width: 7.6
 #| fig-height: 4.0
-#| fig-cap: "Cubic polynomial drift, three columns per run. Each run gets its
-#|   own copy, and no line crosses a run boundary."
-#| fig-alt: "Line chart of three polynomial drift curves repeated in each of
-#|   three runs, with a key at the right edge."
+#| fig-cap: "Cubic polynomial drift, three columns per run. Each run gets its own copy, and no line crosses a run boundary."
+#| fig-alt: "Line chart of three polynomial drift curves repeated in each of three runs, with a key at the right edge."
 baseline = fm.baseline_model(basis="poly", degree=3, sframe=runs)
 fig = baseline.plot()
 plt.show()
@@ -194,11 +178,8 @@ matplotlib `Figure`.
 ```{python}
 #| fig-width: 6
 #| fig-height: 3.8
-#| fig-cap: "Normalized SPM canonical HRF: a positive peak followed by a
-#|   smaller undershoot. This is the response shape used by the design above."
-#| fig-alt: "Line chart of the normalized SPM canonical hemodynamic response,
-#|   rising to one positive peak near five seconds, annotated with the peak
-#|   time, and falling through a shallow undershoot."
+#| fig-cap: "Normalized SPM canonical HRF: a positive peak followed by a smaller undershoot. This is the response shape used by the design above."
+#| fig-alt: "Line chart of the normalized SPM canonical hemodynamic response, rising to one positive peak near five seconds, annotated with the peak time, and falling through a shallow undershoot."
 fig = plot_hrf(get_hrf("spmg1"), normalize=True)
 plt.show()
 ```
@@ -209,11 +190,8 @@ you can see what each column of a multi-basis term models.
 ```{python}
 #| fig-width: 7
 #| fig-height: 4.2
-#| fig-cap: "The SPMG3 basis: the canonical response with its temporal and
-#|   dispersion derivatives, which absorb small shifts in latency and width."
-#| fig-alt: "Three curves labelled canonical, temporal deriv. and dispersion
-#|   deriv.; the derivatives oscillate around zero within the canonical
-#|   response's time window."
+#| fig-cap: "The SPMG3 basis: the canonical response with its temporal and dispersion derivatives, which absorb small shifts in latency and width."
+#| fig-alt: "Three curves labelled canonical, temporal deriv. and dispersion deriv.; the derivatives oscillate around zero within the canonical response's time window."
 fig = plot_hrfs(get_hrf("spmg3"))
 plt.show()
 ```

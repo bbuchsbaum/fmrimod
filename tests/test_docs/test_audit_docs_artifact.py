@@ -32,6 +32,8 @@ def test_declared_plot_cannot_disappear_from_rendered_page(tmp_path):
     assert any("declared plot outputs" in finding for finding in MODULE.audit(artifact))
     page.write_text(html.format(content='<img src="model.png" alt="Model diagnostic">'))
     assert MODULE.audit(artifact) == []
+    page.write_text(html.format(content='<img src="model.png" alt="Model">{fig-alt=broken}'))
+    assert any("figure metadata leaked" in finding for finding in MODULE.audit(artifact))
 
 
 def test_empty_artifact_cannot_pass(tmp_path):
