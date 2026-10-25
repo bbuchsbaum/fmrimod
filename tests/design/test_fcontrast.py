@@ -203,3 +203,69 @@ class TestFcontrasts:
         assert len(fcon) == 1
         assert 'condition' in fcon
         assert 'rating' not in fcon
+
+
+class TestFcontrastsMultiBasisAndSingleLevel:
+    """Inventory v2 DES-11 (R fmridesign 4415504 #25, f63135b)."""
+
+    @staticmethod
+    def _df():
+        return pd.DataFrame({
+            "onset": [2.0, 20.0, 40.0, 60.0, 80.0, 100.0],
+            "cond": ["A", "B", "C", "A", "B", "C"],
+            "go": "go",
+        })
+
+    @staticmethod
+    def _sum3():
+        return np.array([[1.0, 0.0], [0.0, 1.0], [-1.0, -1.0]])
+
+    @pytest.mark.parametrize(
+        "formula,nb",
+        [
+            ("onset ~ hrf(cond, basis='spmg3')", 3),
+            ("onset ~ hrf(cond, basis='fir', nbasis=4)", 4),
+        ],
+    )
+    def test_multibasis_term_expands_with_kronecker(self, formula, nb):
+        from fmrimod import event_model
+
+        em = event_model(formula, data=self._df(), tr=2.0, n_scans=70)
+        fcon = Fcontrasts(em)
+        assert "cond#cond" in fcon
+        F = fcon["cond#cond"]
+        assert F.shape == (3 * nb, 2 * nb)
+        np.testing.assert_array_equal(F, np.kron(self._sum3(), np.eye(nb)))
+
+    def test_multibasis_term_embedded_in_term_columns(self):
+        from fmrimod import event_model
+
+        em = event_model(
+            "onset ~ hrf(go) + hrf(cond, basis='spmg2')",
+            data=self._df(), tr=2.0, n_scans=70,
+        )
+        fcon = Fcontrasts(em)
+        F = fcon["cond#cond"]
+        cols = em.column_indices["cond"]
+        assert F.shape == (em.design_matrix.shape[1], 4)
+        np.testing.assert_array_equal(F[cols, :], np.kron(self._sum3(), np.eye(2)))
+        other = np.setdiff1d(np.arange(F.shape[0]), cols)
+        assert np.all(F[other, :] == 0)
+
+    def test_single_level_factor_term_is_skipped_not_fatal(self):
+        from fmrimod import event_model
+
+        em = event_model(
+            "onset ~ hrf(cond:go) + hrf(cond)", data=self._df(), tr=2.0, n_scans=70
+        )
+        fcon = Fcontrasts(em)
+        assert "cond#cond" in fcon
+        np.testing.assert_array_equal(
+            fcon["cond#cond"][em.column_indices["cond"], :], self._sum3()
+        )
+        # The constant factor enters through its 1x1 margin: cond:go tests cond.
+        assert "cond:go#cond" in fcon
+        assert "cond:go#go" not in fcon
+        np.testing.assert_array_equal(
+            fcon["cond:go#cond"][em.column_indices["cond:go"], :], self._sum3()
+        )
