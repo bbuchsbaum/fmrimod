@@ -24,11 +24,14 @@ function, so figures look the same whatever the user's global style.
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Hashable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from typing import Any
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from matplotlib.colors import Colormap
 
 INK: dict[str, str] = {
     "text": "#1C232E",
@@ -165,13 +168,13 @@ def palette(n: int, kind: str = "categorical") -> list[str]:
     raise ValueError(f"kind must be 'categorical', 'ordered' or 'diverging', got {kind!r}")
 
 
-def colour_map(keys: Sequence[Any]) -> dict[Any, str]:
+def colour_map(keys: Sequence[Hashable]) -> dict[Hashable, str]:
     """Stable colour per key in first-appearance order (R ``.fd_colour_map``)."""
     uniq = list(dict.fromkeys(keys))
     return dict(zip(uniq, palette(len(uniq)), strict=False))
 
 
-def cmap(kind: str = "diverging") -> Any:
+def cmap(kind: str = "diverging") -> Colormap:
     """Matplotlib colormap for ``"diverging"``, ``"magnitude"`` or ``"grey"``."""
     from matplotlib.colors import LinearSegmentedColormap
 
@@ -207,7 +210,7 @@ def _available_fonts() -> list[str]:
     return _FONTS_CACHE
 
 
-def _default_rc(base_size: float = BASE_SIZE) -> dict[str, Any]:
+def _default_rc(base_size: float = BASE_SIZE) -> dict[str, object]:
     from cycler import cycler
 
     return {
@@ -267,10 +270,10 @@ def _default_rc(base_size: float = BASE_SIZE) -> dict[str, Any]:
     }
 
 
-_THEME_OVERRIDE: dict[str, Any] | None = None
+_THEME_OVERRIDE: dict[str, object] | None = None
 
 
-def theme_rc(base_size: float = BASE_SIZE) -> dict[str, Any]:
+def theme_rc(base_size: float = BASE_SIZE) -> dict[str, object]:
     """The rc dict fmrimod plots draw under (defaults plus :func:`set_theme`)."""
     rc = _default_rc(base_size)
     if _THEME_OVERRIDE:
@@ -278,7 +281,7 @@ def theme_rc(base_size: float = BASE_SIZE) -> dict[str, Any]:
     return rc
 
 
-def set_theme(rc: Mapping[str, Any] | None = None) -> None:
+def set_theme(rc: Mapping[str, object] | None = None) -> None:
     """Override rc keys for every fmrimod figure; ``None`` restores the default.
 
     >>> set_theme({"font.size": 12, "font.sans-serif": ["Arial"]})

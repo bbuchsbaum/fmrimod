@@ -24,12 +24,21 @@ import math
 import re
 import textwrap
 from collections.abc import Sequence
-from typing import Any
+from contextlib import AbstractContextManager
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
 from .style import BASE_SIZE, INK, theme_rc
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
+    from matplotlib.legend import Legend
+    from matplotlib.text import Text
+    from matplotlib.ticker import Formatter
+    from matplotlib.transforms import Bbox
 
 TIMES = "×"
 DOT = "·"
@@ -39,7 +48,7 @@ GE = "≥"
 PM = "±"
 
 
-def require_matplotlib() -> Any:
+def require_matplotlib() -> object:
     try:
         import matplotlib.pyplot as plt
     except ImportError as exc:  # pragma: no cover - matplotlib is a hard dep
@@ -86,8 +95,8 @@ def new_figure(
     *,
     figsize: tuple[float, float] | None = None,
     base_size: float = BASE_SIZE,
-    **subplot_kw: Any,
-) -> tuple[Any, Any]:
+    **subplot_kw: object,
+) -> tuple[Figure, Axes | np.ndarray]:
     """``plt.subplots`` under the fmrimod theme.
 
     The rc context is entered here and stays in force for drawing because
@@ -102,7 +111,7 @@ def new_figure(
     return fig, axes
 
 
-def themed(base_size: float = BASE_SIZE) -> Any:
+def themed(base_size: float = BASE_SIZE) -> AbstractContextManager[None]:
     """``with themed(): ...`` draws under the fmrimod theme."""
     import matplotlib as mpl
 
@@ -110,7 +119,7 @@ def themed(base_size: float = BASE_SIZE) -> Any:
 
 
 def finish(
-    fig: Any,
+    fig: Figure,
     title: str | None = None,
     subtitle: str | None = None,
     caption: str | None = None,
@@ -118,7 +127,7 @@ def finish(
     base_size: float = BASE_SIZE,
     layout: bool = True,
     title_width: int | None = None,
-) -> Any:
+) -> Figure:
     """Lay out ``fig`` and add the header and caption.
 
     The header is aligned to the figure's left edge (R
@@ -129,7 +138,8 @@ def finish(
     w_in, h_in = fig.get_size_inches()
     pad = 0.10
     chars = max(int(w_in * 72 / (base_size * 0.52)), 20)
-    title = wrap(title, title_width or chars - 4)
+    t_chars = max(int(w_in * 72 / (base_size * 1.25 * 0.6)), 16)
+    title = wrap(title, title_width or t_chars)
     subtitle = wrap(subtitle, chars)
     caption = wrap(caption, int(chars * 1.18))
 
@@ -183,47 +193,50 @@ def finish(
 def budget_breaks(
     lo: float, hi: float, *, stack: bool = False, floor: float = 0.0
 ) -> np.ndarray:
-    """Few, round, evenly spaced y ticks (R fmrihrf ``.budget_breaks``).
+    """Evenly spaced round y breaks under a label budget (R ``.budget_breaks``).
 
-    At most four labels on an overlay; on a stacked panel three when it
-    crosses zero, else two. ``floor`` reserves the bottom fraction of the
-    axis (for event marks) so no label lands there.
+    The first grid, fine to coarse, with at most 4 labels (5 when only that
+    labels both signs; 3 or 2 on a stacked panel), at least 12% (22%
+    stacked) of the range apart, and labels on both sides of zero when the
+    data cross it. ``floor`` is the bottom fraction of the axis kept free
+    for event marks.
     """
-    rng = hi - lo
+    lower = lo + floor * (hi - lo)
+    upper = hi
+    rng = upper - lower
     if not np.isfinite(rng) or rng <= 0:
-        return np.array([lo])
-    crosses = lo < -0.1 * rng
+        return np.array([0.0 if lo <= 0 <= hi else lo])
+    crosses = lower < -0.1 * rng and upper > 0
     budget = (3 if crosses else 2) if stack else 4
-    min_gap = (0.22 if stack else 0.12) * rng
-    usable_lo = lo + floor * rng
-    k0 = math.floor(math.log10(rng))
-    best = None
-    # An overlay may use one extra label when that is the only way to label
-    # both signs (R .budget_breaks).
-    for allowed in (budget, budget + 1) if not stack else (budget,):
-        for k in range(k0 - 2, k0 + 2):
-            for m in (1, 2, 2.5, 5):
-                step = m * 10.0**k
-                if step < min_gap:
-                    continue
-                ticks = np.arange(math.ceil(usable_lo / step), math.floor(hi / step) + 1) * step
-                if ticks.size == 0:
-                    continue
-                both = (ticks < 0).any() and (ticks > 0).any()
-                if (ticks.size <= allowed and (both or not crosses)
-                        and (best is None or ticks.size > best.size)):
-                    best = ticks
-            if best is not None and best.size >= 2:
-                break
-        if best is not None:
-            break
-    if best is None:
-        step = 10.0 ** math.floor(math.log10(rng))
-        best = np.arange(math.ceil(usable_lo / step), math.floor(hi / step) + 1) * step
-    return np.round(best, 12)
+    gap = 0.22 if stack else 0.12
+    k = math.floor(math.log10(rng))
+    steps = sorted(m * 10.0**e for m in (1, 2, 2.5, 5) for e in range(k - 2, k + 2))
+
+    def grid(step: float) -> np.ndarray:
+        b = np.arange(math.ceil(lower / step - 1e-9), math.floor(upper / step + 1e-9) + 1) * step
+        b[np.abs(b) < step * 1e-9] = 0.0
+        return np.round(b, 12)
+
+    fallback = None
+    for step in steps:
+        b = grid(step)
+        if not b.size or b.size > budget or (b.size > 1 and step < gap * rng):
+            continue
+        if not crosses or ((b < 0).any() and (b > 0).any()):
+            return b
+        if fallback is None:
+            fallback = b
+    if crosses and not stack:
+        for step in steps:
+            b = grid(step)
+            if b.size <= budget + 1 and step >= gap * rng and (b < 0).any() and (b > 0).any():
+                return b
+    if fallback is not None:
+        return fallback
+    return grid(10.0 ** math.floor(math.log10(rng)))
 
 
-def axis_number_formatter(ticks: Sequence[float]) -> Any:
+def axis_number_formatter(ticks: Sequence[float]) -> Formatter:
     """One decimal precision for the whole axis, true minus, no ``0.0``."""
     from matplotlib.ticker import FuncFormatter
 
@@ -236,7 +249,7 @@ def axis_number_formatter(ticks: Sequence[float]) -> Any:
     else:
         decimals = 6
 
-    def fmt(v: float, _pos: Any = None) -> str:
+    def fmt(v: float, _pos: object = None) -> str:
         if abs(v) < 10 ** (-decimals - 1):
             return "0"
         return f"{v:.{decimals}f}".replace("-", MINUS)
@@ -244,7 +257,7 @@ def axis_number_formatter(ticks: Sequence[float]) -> Any:
     return FuncFormatter(fmt)
 
 
-def budget_yticks(ax: Any, *, stack: bool = False, floor: float = 0.0) -> np.ndarray:
+def budget_yticks(ax: Axes, *, stack: bool = False, floor: float = 0.0) -> np.ndarray:
     """Apply :func:`budget_breaks` and its formatter to ``ax``'s y axis."""
     lo, hi = ax.get_ylim()
     ticks = budget_breaks(lo, hi, stack=stack, floor=floor)
@@ -257,14 +270,14 @@ def budget_yticks(ax: Any, *, stack: bool = False, floor: float = 0.0) -> np.nda
 _TIME_STEPS = (5, 10, 15, 30, 60, 120, 300, 600, 1200, 1800, 3600)
 
 
-def mmss(seconds: float, _pos: Any = None) -> str:
+def mmss(seconds: float, _pos: object = None) -> str:
     s = int(round(float(seconds)))
     sign = MINUS if s < 0 else ""
     s = abs(s)
     return f"{sign}{s // 60}:{s % 60:02d}"
 
 
-def time_axis(ax: Any, t_min: float, t_max: float, *, target: int = 6, label: str | None = "Time (min:s)") -> None:
+def time_axis(ax: Axes, t_min: float, t_max: float, *, target: int = 6, label: str | None = "Time (min:s)") -> None:
     """m:ss labels at round steps, about ``target`` per axis."""
     from matplotlib.ticker import FixedLocator, FuncFormatter
 
@@ -279,7 +292,7 @@ def time_axis(ax: Any, t_min: float, t_max: float, *, target: int = 6, label: st
 
 
 def run_axis(
-    ax: Any,
+    ax: Axes,
     bounds: Sequence[float],
     *,
     labels: Sequence[str] | None = None,
@@ -307,12 +320,12 @@ def run_axis(
             spine.set_visible(False)
 
 
-def zero_line(ax: Any, *, colour: str | None = None, lw: float = 0.6) -> None:
+def zero_line(ax: Axes, *, colour: str | None = None, lw: float = 0.6) -> None:
     ax.axhline(0.0, color=colour or INK["zero"], linewidth=lw, zorder=1.4)
 
 
 def onset_rug(
-    ax: Any,
+    ax: Axes,
     onsets: Sequence[float],
     *,
     colour: str | None = None,
@@ -329,7 +342,7 @@ def onset_rug(
 
 
 def event_bars(
-    ax: Any,
+    ax: Axes,
     onsets: Sequence[float],
     durations: Sequence[float] | float,
     *,
@@ -356,8 +369,8 @@ def event_bars(
                                edgecolor="none", alpha=alpha, zorder=2.5))
 
 
-def halo_text(ax: Any, x: float, y: float, text: str, *, colour: str, size: float = 8.8,
-              weight: str = "bold", ha: str = "center", va: str = "bottom", **kw: Any) -> Any:
+def halo_text(ax: Axes, x: float, y: float, text: str, *, colour: str, size: float = 8.8,
+              weight: str = "bold", ha: str = "center", va: str = "bottom", **kw: object) -> Text:
     """Text with a white halo so it reads over lines and grids."""
     import matplotlib.patheffects as pe
 
@@ -366,7 +379,7 @@ def halo_text(ax: Any, x: float, y: float, text: str, *, colour: str, size: floa
 
 
 def place_labels(
-    ax: Any,
+    ax: Axes,
     curves: Sequence[tuple[np.ndarray, np.ndarray]],
     texts: Sequence[str],
     colours: Sequence[str],
@@ -381,7 +394,7 @@ def place_labels(
     """
     fig = ax.figure
     fig.canvas.draw_idle()
-    placed: list[Any] = []
+    placed: list[Bbox] = []
     y_lo, y_hi = ax.get_ylim()
     x_lo, x_hi = ax.get_xlim()
     dy = 0.045 * (y_hi - y_lo)
@@ -418,14 +431,14 @@ def place_labels(
         placed.append(chosen)
 
 
-def row_label(ax: Any, text: str, *, size: float | None = None, colour: str | None = None) -> None:
+def row_label(ax: Axes, text: str, *, size: float | None = None, colour: str | None = None) -> None:
     """Horizontal, right-aligned row label left of a small-multiple panel."""
     ax.set_ylabel(text, rotation=0, ha="right", va="center", labelpad=6,
                   fontsize=size or BASE_SIZE * 0.85, color=colour or INK["text"])
 
 
-def legend_bottom(ax: Any, handles: Sequence[Any] | None = None, labels: Sequence[str] | None = None,
-                  ncol: int | None = None) -> Any:
+def legend_bottom(ax: Axes, handles: Sequence[object] | None = None, labels: Sequence[str] | None = None,
+                  ncol: int | None = None) -> Legend | None:
     h, lab = ax.get_legend_handles_labels() if handles is None else (handles, labels)
     if not h:
         return None
@@ -491,7 +504,7 @@ def basis_label(basis_name: str | None, ix: int | None, total: int | None) -> st
     return f"b{int(ix)}"
 
 
-def _baseline_label(name: str, run: Any) -> tuple[str, str]:
+def _baseline_label(name: str, run: object) -> tuple[str, str]:
     stem = re.sub(r"^base_", "", name)
     stem = re.sub(r"_block_\d+$", "", stem)
     stem = re.sub(r"^constant\d*$", "intercept", stem)
@@ -500,7 +513,7 @@ def _baseline_label(name: str, run: Any) -> tuple[str, str]:
     return group, label
 
 
-def column_info(model: Any) -> pd.DataFrame:
+def column_info(model: object) -> pd.DataFrame:
     """One row per design column with labels and groupings for plotting.
 
     Accepts an ``EventModel``, ``BaselineModel``, ``FmriModel`` or a fit
@@ -522,7 +535,7 @@ def column_info(model: Any) -> pd.DataFrame:
             bl = model
         else:
             ev = model
-    typed: list[Any] = []
+    typed: list[object] = []
     if ev is not None:
         from ..design.columns import _event_columns
 

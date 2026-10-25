@@ -446,48 +446,9 @@ def _series_palette(n: int, palette: PaletteKind, ordered_hint: bool) -> tuple[s
 
 
 def _budget_breaks(lo: float, hi: float, *, stack: bool = False, floor: float = 0.0) -> NDArray[np.float64]:
-    """Evenly spaced round y breaks under a label budget (R ``.budget_breaks``).
+    from .visualization._helpers import budget_breaks
 
-    The first grid, fine to coarse, with at most 4 labels (5 when only that
-    labels both signs; 3 or 2 on a stacked panel), at least 12% (22%
-    stacked) of the range apart, and labels on both sides of zero when the
-    data cross it. ``floor`` is the bottom fraction of the axis kept free
-    for event marks.
-    """
-    lower = lo + floor * (hi - lo)
-    upper = hi
-    rng = upper - lower
-    if not np.isfinite(rng) or rng <= 0:
-        return np.array([0.0 if lo <= 0 <= hi else lo])
-    crosses = lower < -0.1 * rng and upper > 0
-    budget = (3 if crosses else 2) if stack else 4
-    gap = 0.22 if stack else 0.12
-    k = math.floor(math.log10(rng))
-    steps = sorted(m * 10.0**e for m in (1, 2, 2.5, 5) for e in range(k - 2, k + 2))
-
-    def grid(step: float) -> NDArray[np.float64]:
-        b = np.arange(math.ceil(lower / step - 1e-9), math.floor(upper / step + 1e-9) + 1) * step
-        b[np.abs(b) < step * 1e-9] = 0.0
-        return np.round(b, 12)
-
-    fallback = None
-    for step in steps:
-        b = grid(step)
-        if not b.size or b.size > budget or (b.size > 1 and step < gap * rng):
-            continue
-        if not crosses or ((b < 0).any() and (b > 0).any()):
-            return b
-        if fallback is None:
-            fallback = b
-    if crosses and not stack:
-        for step in steps:
-            b = grid(step)
-            if b.size <= budget + 1 and step >= gap * rng and (b < 0).any() and (b > 0).any():
-                return b
-    if fallback is not None:
-        return fallback
-    step = 10.0 ** math.floor(math.log10(rng))
-    return grid(step)
+    return budget_breaks(lo, hi, stack=stack, floor=floor)
 
 
 def _set_budget_yticks(ax: Axes, *, stack: bool, floor: float) -> None:
