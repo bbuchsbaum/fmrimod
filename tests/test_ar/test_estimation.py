@@ -111,6 +111,39 @@ class TestFitNoise:
         plan = fit_noise(resid=resid, censor=censor, method="ar", p=1)
         assert plan.censor is not None
 
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            [2.5],
+            [3, np.nan],
+            [3, np.inf],
+            np.array([True, False]),
+            np.array([3, None], dtype=object),
+            np.array([True, None], dtype=object),
+        ],
+    )
+    def test_censor_rejects_malformed_input(self, bad):
+        """AR-15 (fmriAR 617bd87): no silent truncation or NA pass-through."""
+        from fmrimod.ar import noise_acvf
+
+        resid = _sim_ar1(200, 0.5)
+        with pytest.raises(ValueError, match="censor"):
+            fit_noise(resid=resid, censor=bad, p=1)
+        with pytest.raises(ValueError, match="censor"):
+            noise_acvf(resid, censor=bad, max_lag=3)
+
+    def test_censor_out_of_range_indices_are_dropped(self):
+        """AR-15/AR-29: out-of-range indices are ignored, whole floats accepted."""
+        resid = _sim_ar1(200, 0.5)
+        ref = fit_noise(resid=resid, p=1)
+        plan = fit_noise(resid=resid, censor=[-1, 999], p=1)
+        assert plan.censor is None
+        np.testing.assert_array_equal(plan.phi[0], ref.phi[0])
+        a = fit_noise(resid=resid, censor=np.array([10.0, 50.0]), p=1)
+        b = fit_noise(resid=resid, censor=[10, 50], p=1)
+        np.testing.assert_array_equal(a.censor, [10, 50])
+        np.testing.assert_array_equal(a.phi[0], b.phi[0])
+
     def test_exact_first(self):
         resid = _sim_ar1(200, 0.5)
         plan = fit_noise(resid=resid, method="ar", p=1, exact_first="ar1")

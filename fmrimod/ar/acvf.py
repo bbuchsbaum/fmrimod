@@ -143,13 +143,23 @@ def _normalize_censor(
     """Sorted unique 0-based censored frames inside ``[0, n)``, or ``None``.
 
     A boolean mask is converted with ``flatnonzero``: casting it to integers
-    (fmriAR 617bd87) censors frames 0 and 1 instead of the flagged ones.
+    (fmriAR 617bd87) censors frames 0 and 1 instead of the flagged ones. A
+    mask must have one entry per timepoint; indices must be finite whole
+    numbers (``2.5`` is refused rather than truncated). Missing values
+    (``None``/NaN) are refused in either form; out-of-range indices are
+    dropped.
     """
     if censor is None:
         return None
     c = np.asarray(censor)
     if c.size == 0:
         return None
+    if c.dtype == object:
+        items = c.ravel().tolist()
+        if any(v is None for v in items):
+            raise ValueError(f"'{arg}' contains NA")
+        if all(isinstance(v, (bool, np.bool_)) for v in items):
+            c = c.astype(bool)
     if c.dtype == bool:
         if c.size != n:
             raise ValueError(
@@ -158,7 +168,16 @@ def _normalize_censor(
             )
         idx = np.flatnonzero(c)
     else:
-        idx = np.unique(np.asarray(c, dtype=np.intp).ravel())
+        try:
+            cf = np.asarray(c, dtype=np.float64).ravel()
+        except (TypeError, ValueError):
+            cf = np.array([np.nan])
+        if np.any(~np.isfinite(cf)) or np.any(cf != np.trunc(cf)):
+            raise ValueError(
+                f"'{arg}' must be whole-number timepoint indices or a "
+                "boolean mask"
+            )
+        idx = np.unique(cf.astype(np.intp))
     idx = idx[(idx >= 0) & (idx < n)].astype(np.intp, copy=False)
     return idx if idx.size else None
 
