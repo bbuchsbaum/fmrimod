@@ -961,3 +961,59 @@ def test_bids_na_confounds_and_trial_types() -> None:
     with pytest.warns(UserWarning, match="dropped 1 event"):
         ds = fm.bids_datasets(bids.root, bids.task, space=bids.space)["01"]
     assert np.isnan(ds.confounds[0]["trans_x"].iloc[5])
+
+
+def test_scaled_backend_honours_selector_contract() -> None:
+    import fmrimod as fm
+
+    inp = make_inputs(seed=23, n_runs=2, n_scans=40, shape=(5, 5, 4))
+    ds = fm.fmri_dataset(
+        inp.imgs, mask=inp.mask_img, tr=inp.tr, events=inp.events
+    ).with_scaling("psc")
+    backend = ds._backend
+    full = backend.get_data()
+    n, v = full.shape
+    rows = np.zeros(n, dtype=bool)
+    rows[[0, 5, n - 1]] = True
+    cols = np.zeros(v, dtype=bool)
+    cols[[1, v - 2]] = True
+    np.testing.assert_allclose(backend.get_data(rows=rows, cols=cols), full[rows][:, cols])
+    # A negative row in run 2 is scaled by run 2's mean, not the last run's.
+    np.testing.assert_allclose(backend.get_data(rows=[-n]), full[[0]])
+    np.testing.assert_allclose(backend.get_data(cols=[-1]), full[:, [-1]])
+
+
+def test_null_space_check_uses_economy_svd_for_tall_designs(
+    one_run, monkeypatch
+) -> None:
+    import fmrimod as fm
+    from fmrimod.spec import hrf
+
+    calls = []
+    svd = np.linalg.svd
+
+    def recording_svd(a, full_matrices=True, **kw):
+        calls.append((a.shape, full_matrices))
+        return svd(a, full_matrices=full_matrices, **kw)
+
+    fit = fm.fmri_lm(hrf("trial_type"), _dataset(one_run))
+    monkeypatch.setattr(np.linalg, "svd", recording_svd)
+    fit.contrast("face - house")
+    tall = [full for shape, full in calls if shape[0] > shape[1]]
+    assert tall and not any(tall)
+
+
+def test_clusters_use_spacing_and_origin_without_affine() -> None:
+    from fmrimod.glm.spatial import SpatialContext
+    from fmrimod.glm.thresholding import threshold_map
+
+    mask = np.ones((6, 6, 6), dtype=bool)
+    ctx = SpatialContext(
+        mask=mask, spatial_shape=(6, 6, 6), spacing=(2.0, 2.0, 2.0),
+        origin=(-6.0, 0.0, 10.0),
+    )
+    z = np.zeros(mask.sum())
+    z[np.ravel_multi_index((3, 2, 1), mask.shape)] = 6.0
+    table = threshold_map(z, ctx, method="none", height=3.0).clusters()
+    assert table["volume_mm3"].iloc[0] == pytest.approx(8.0)
+    assert tuple(table[["x", "y", "z"]].iloc[0]) == (0.0, 4.0, 12.0)

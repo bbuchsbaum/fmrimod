@@ -105,7 +105,7 @@ class ThresholdedMap:
         """
         spatial = self._require_spatial()
         volume = spatial.reconstruct(self.z, fill=0.0)
-        affine = spatial.affine if spatial.affine is not None else np.eye(4)
+        affine = _voxel_to_world(spatial)
         voxel_mm3 = float(abs(np.linalg.det(affine[:3, :3])))
         rows: list[dict[str, float | int]] = []
         for sign in (1, -1) if self.two_sided else (1,):
@@ -159,6 +159,20 @@ class ThresholdedMap:
                 "SpatialContext) to cluster or write NIfTI"
             )
         return self.spatial
+
+
+def _voxel_to_world(spatial: SpatialContext) -> NDArray[np.float64]:
+    """The context's affine, else one built from its spacing and origin.
+
+    Mirrors :meth:`SpatialContext.to_neuro_space`, so the cluster table and
+    the NIfTI output agree on geometry.
+    """
+    if spatial.affine is not None:
+        return np.asarray(spatial.affine, dtype=np.float64)
+    affine = np.eye(4)
+    affine[:3, :3] = np.diag(spatial.spacing or (1.0, 1.0, 1.0))
+    affine[:3, 3] = spatial.origin or (0.0, 0.0, 0.0)
+    return affine
 
 
 def height_threshold(

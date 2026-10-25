@@ -1021,7 +1021,10 @@ class FmriLm:
             if X is not None and X.ndim == 2 and X.shape[1] == self.n_coefficients:
                 X = X[np.all(np.isfinite(X), axis=1)]
                 if X.size:
-                    _, svals, vt = np.linalg.svd(X, full_matrices=True)
+                    # Economy SVD for tall designs: the full U would be
+                    # n x n. Wide designs need the full right basis.
+                    wide = X.shape[0] < X.shape[1]
+                    _, svals, vt = np.linalg.svd(X, full_matrices=wide)
                     tol = (
                         svals.max() * max(X.shape) * np.finfo(float).eps
                         if svals.size
