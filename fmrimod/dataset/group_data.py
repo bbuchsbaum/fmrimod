@@ -14,7 +14,6 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass, field
-from numbers import Integral
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, cast
 
@@ -83,6 +82,16 @@ def _validate_files(paths: Sequence[str], *, name: str, validate: bool) -> None:
 
 def _nifti_shape(path: str) -> tuple[int, int, int]:
     """Read the first three spatial dimensions from a NIfTI file."""
+    return _nifti_grid(path)[0]
+
+
+# fmrigds R/adapter-nifti.R:578-603 (.nifti_check_grids): images share a grid
+# when their voxel-to-world affines agree elementwise within this tolerance.
+_NIFTI_AFFINE_TOL = 1e-4
+
+
+def _nifti_grid(path: str) -> tuple[tuple[int, int, int], np.ndarray]:
+    """Read the spatial dimensions and voxel-to-world affine of a NIfTI file."""
     try:
         from neuroim import read_image  # type: ignore[import-untyped]
     except Exception as exc:  # pragma: no cover - optional dependency behavior
@@ -91,11 +100,29 @@ def _nifti_shape(path: str) -> tuple[int, int, int]:
             "Install neuroim-python to validate NIfTI group data."
         ) from exc
 
-    data = np.asarray(read_image(path, type="vol").as_array())
+    vol = read_image(path, type="vol")
+    data = np.asarray(vol.as_array())
     if data.ndim < 3:
         raise ValueError(f"Expected at least 3D NIfTI file, got shape {data.shape}")
 
-    return tuple(int(v) for v in data.shape[:3])  # type: ignore[return-value]
+    shape = cast("tuple[int, int, int]", tuple(int(v) for v in data.shape[:3]))
+    return shape, np.asarray(vol.trans, dtype=np.float64)
+
+
+def _nifti_df_values(df: float | Sequence[float], n_subjects: int) -> list[float]:
+    """Coerce t-map degrees of freedom to one positive float per subject."""
+    raw = [df] if np.ndim(df) == 0 else list(cast("Sequence[float]", df))
+    try:
+        values = [float(v) for v in raw]
+    except (TypeError, ValueError) as exc:
+        raise ValueError("df must be numeric") from exc
+    if len(values) == 1:
+        values = values * n_subjects
+    if len(values) != n_subjects:
+        raise ValueError("Length of df must be 1 or equal to number of subjects")
+    if not all(np.isfinite(v) and v > 0 for v in values):
+        raise ValueError("df must be positive and finite")
+    return values
 
 
 def _infer_subject_ids(paths: Sequence[str]) -> List[str]:
@@ -207,7 +234,7 @@ def group_data_from_nifti(
     se_paths: Optional[Sequence[str] | str] = None,
     var_paths: Optional[Sequence[str] | str] = None,
     t_paths: Optional[Sequence[str] | str] = None,
-    df: Optional[Sequence[int] | int] = None,
+    df: Optional[Sequence[float] | float] = None,
     subjects: Optional[Sequence[str]] = None,
     covariates: Optional[pd.DataFrame] = None,
     mask: Optional[str] = None,
@@ -267,13 +294,20 @@ def group_data_from_nifti(
         subjects = _coerce_subjects(subjects, n_subjects)
 
     if validate:
-        reference_shape = _nifti_shape(validate_paths[0])
+        reference_shape, reference_affine = _nifti_grid(validate_paths[0])
         for path in validate_paths[1:]:
-            shape = _nifti_shape(path)
+            shape, affine = _nifti_grid(path)
             if shape != reference_shape:
                 raise ValueError(
                     f"NIfTI dimensions mismatch for {path}: expected {reference_shape}, "
                     f"got {shape}"
+                )
+            if affine.shape != reference_affine.shape or not np.allclose(
+                affine, reference_affine, rtol=0.0, atol=_NIFTI_AFFINE_TOL
+            ):
+                raise ValueError(
+                    f"NIfTI voxel-to-world affine mismatch for {path}: all images must "
+                    "share the first image's grid (resample/register them first)"
                 )
 
         if mask is not None:
@@ -285,14 +319,7 @@ def group_data_from_nifti(
 
     covariates = _validate_covariates(covariates, n_subjects)
 
-    if df is None:
-        df_values = None
-    elif isinstance(df, Integral):
-        df_values = [int(df)] * n_subjects
-    else:
-        df_values = list(cast("Sequence[int]", df))
-        if len(df_values) != n_subjects:
-            raise ValueError("Length of df must be 1 or equal to number of subjects")
+    df_values = None if df is None else _nifti_df_values(df, n_subjects)
 
     return GroupData(
         format="nifti",
