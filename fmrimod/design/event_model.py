@@ -895,6 +895,11 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
 
                 term_col_names = make_column_names(term_tag, cond_tags, nb)
 
+            if len(term_col_names) != X_term.shape[1]:
+                raise ValueError(
+                    f"Term '{term.name}' built {X_term.shape[1]} design columns but "
+                    f"{len(term_col_names)} column names {term_col_names}"
+                )
             column_names.extend(term_col_names)
             column_facts.extend(
                 self._make_column_facts(

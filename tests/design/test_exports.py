@@ -86,7 +86,8 @@ def test_fmridesign_top_level_evaluate_helper():
     basis = fmrimod.Poly(degree=2)
     out = fmrimod.evaluate(basis, np.array([0.0, 1.0]))
 
-    assert out.shape == (2, 2)
+    # Two points cannot determine the quadratic, but every basis column is kept.
+    assert out.shape == (2, basis.n_basis) == (2, 3)
 
 
 def test_condition_map_event_model_top_level():

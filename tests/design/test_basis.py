@@ -349,3 +349,30 @@ class TestIntegration:
             X = basis.evaluate(x)
             assert X.shape[0] == len(x)
             assert X.shape[1] == basis.n_basis
+
+
+class TestSingleEventBasisShape:
+    """Inventory v2 DES-15 (R fmridesign d3dd33d keeps a 1 x n_basis matrix)."""
+
+    def test_single_value_poly_keeps_every_basis_column(self):
+        for intercept in (False, True):
+            basis = Poly(degree=2, intercept=intercept)
+            assert basis.evaluate(np.array([0.3])).shape == (1, basis.n_basis)
+
+    def test_single_event_poly_subset_design_has_one_column_per_name(self):
+        import pandas as pd
+
+        from fmrimod import event_model
+        from fmrimod.formula.base import Term
+
+        data = pd.DataFrame({
+            "onset": np.arange(0, 100, 10.0),
+            "x": np.linspace(-1, 1, 10),
+            "keep": [False] * 4 + [True] + [False] * 5,
+        })
+        term = Term("x", hrf="spmg1")
+        term.basis = Poly(degree=2, intercept=False)
+        term._kwargs["subset"] = "keep"
+        em = event_model([term], data=data, tr=2.0, n_scans=60)
+        assert em.design_matrix.shape[1] == len(em.column_names) == 2
+        assert len(em.column_facts) == 2
