@@ -214,6 +214,7 @@ def test_sandwich_rank_deficient_matches_fmriar(r_call, se_type):
     out = sandwich_from_whitened_resid(X, Y, type=se_type)
     r_se = r_call.field(r_out, "se")
     np.testing.assert_array_equal(np.isnan(out["se"]), np.isnan(r_se))
+    # numerical_floor: same QR pivoting and solve as R; only float64 rounding differs.
     np.testing.assert_allclose(out["se"], r_se, rtol=1e-10, equal_nan=True)
     np.testing.assert_allclose(
         out["XtX_inv"], r_call.field(r_out, "XtX_inv"), rtol=1e-9, equal_nan=True
@@ -236,6 +237,7 @@ def test_enforce_invertible_ma_matches_fmriar(r_call):
             list(r_call("fmriAR:::enforce_invertible_ma", ro.FloatVector(th))),
             dtype=np.float64,
         )
+        # numerical_floor: polyroot vs numpy roots agree to float64 rounding.
         np.testing.assert_allclose(ours, theirs, rtol=0, atol=1e-10, err_msg=str(th))
 
 
@@ -279,6 +281,7 @@ def test_single_series_hr_matches_fmriar(r_call, p, q, n, iter_):
         "fmriAR:::hr_arma", ro.FloatVector(y), p, q, p_big=p_big, iter=iter_
     )
     fit = hr_arma(y, p=p, q=q, p_big=p_big, n_iter=iter_)
+    # numerical_floor: identical regressions; only least-squares rounding differs.
     np.testing.assert_allclose(fit["phi"], r_call.field(r_fit, "phi"), rtol=0, atol=1e-10)
     np.testing.assert_allclose(fit["theta"], r_call.field(r_fit, "theta"), rtol=0, atol=1e-10)
     np.testing.assert_allclose(fit["sigma2"], r_call.field(r_fit, "sigma2")[0], rtol=1e-10)

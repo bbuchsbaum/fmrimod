@@ -1,13 +1,13 @@
 {
   "counts": {
     "by_classification": {
-      "baseline_default": 318,
-      "justified": 49,
+      "baseline_default": 320,
+      "justified": 58,
       "unclassified": 8,
       "unjustified": 0
     },
     "files_scanned": 110,
-    "total_call_sites": 375
+    "total_call_sites": 386
   },
   "rows": [
     {
@@ -3132,6 +3132,105 @@
       "lineno": 197,
       "value": 1e-09,
       "value_repr": "1e-09"
+    },
+    {
+      "classification": "justified",
+      "context_marker_found": true,
+      "file": "cross_testing/test_fmriar_arma_parity.py",
+      "kwarg": "rtol",
+      "lineno": 218,
+      "value": 1e-10,
+      "value_repr": "1e-10"
+    },
+    {
+      "classification": "justified",
+      "context_marker_found": true,
+      "file": "cross_testing/test_fmriar_arma_parity.py",
+      "kwarg": "rtol",
+      "lineno": 220,
+      "value": 1e-09,
+      "value_repr": "1e-09"
+    },
+    {
+      "classification": "justified",
+      "context_marker_found": true,
+      "file": "cross_testing/test_fmriar_arma_parity.py",
+      "kwarg": "atol",
+      "lineno": 241,
+      "value": 1e-10,
+      "value_repr": "1e-10"
+    },
+    {
+      "classification": "justified",
+      "context_marker_found": true,
+      "file": "cross_testing/test_fmriar_arma_parity.py",
+      "kwarg": "rtol",
+      "lineno": 241,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "cross_testing/test_fmriar_arma_parity.py",
+      "kwarg": "atol",
+      "lineno": 259,
+      "value": 1e-12,
+      "value_repr": "1e-12"
+    },
+    {
+      "classification": "baseline_default",
+      "context_marker_found": false,
+      "file": "cross_testing/test_fmriar_arma_parity.py",
+      "kwarg": "rtol",
+      "lineno": 259,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "justified",
+      "context_marker_found": true,
+      "file": "cross_testing/test_fmriar_arma_parity.py",
+      "kwarg": "atol",
+      "lineno": 285,
+      "value": 1e-10,
+      "value_repr": "1e-10"
+    },
+    {
+      "classification": "justified",
+      "context_marker_found": true,
+      "file": "cross_testing/test_fmriar_arma_parity.py",
+      "kwarg": "rtol",
+      "lineno": 285,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "justified",
+      "context_marker_found": true,
+      "file": "cross_testing/test_fmriar_arma_parity.py",
+      "kwarg": "atol",
+      "lineno": 286,
+      "value": 1e-10,
+      "value_repr": "1e-10"
+    },
+    {
+      "classification": "justified",
+      "context_marker_found": true,
+      "file": "cross_testing/test_fmriar_arma_parity.py",
+      "kwarg": "rtol",
+      "lineno": 286,
+      "value": 0.0,
+      "value_repr": "0.0"
+    },
+    {
+      "classification": "justified",
+      "context_marker_found": true,
+      "file": "cross_testing/test_fmriar_arma_parity.py",
+      "kwarg": "rtol",
+      "lineno": 287,
+      "value": 1e-10,
+      "value_repr": "1e-10"
     },
     {
       "classification": "baseline_default",
