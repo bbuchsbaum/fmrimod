@@ -535,7 +535,23 @@ class RegressorSet:
     
     regressors: List[Regressor]
     levels: List[str]
-    
+
+    @property
+    def column_names(self) -> list[str]:
+        """Design-matrix column names, in :meth:`evaluate` column order.
+
+        One name per level for single-basis HRFs, ``<level>_basis<k>`` for
+        multi-basis HRFs (fmrihrf ``regset_column_names``, #63).
+        """
+        names: list[str] = []
+        for level, reg in zip(self.levels, self.regressors, strict=True):
+            nb = reg.nbasis
+            if nb == 1:
+                names.append(level)
+            else:
+                names.extend(f"{level}_basis{k}" for k in range(1, nb + 1))
+        return names
+
     @overload
     def evaluate(
         self,

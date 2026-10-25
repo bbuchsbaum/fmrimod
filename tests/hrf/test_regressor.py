@@ -609,3 +609,37 @@ class TestEmptyRegressorConsistency:
         out = rset.evaluate(np.arange(6.0))
         assert out.shape == (6, 0)
         assert regressor_design(rset, np.arange(6.0)).shape == (6, 0)
+
+
+class TestRegressorSetColumnNames:
+    """Inventory v2 HRF-12 (fmrihrf ``a8556ff``, #63)."""
+
+    def test_single_basis_names_are_levels(self):
+        rset = regressor_set([10, 20], ["a", "b"])
+        assert rset.column_names == ["a", "b"]
+
+    def test_multi_basis_names(self):
+        from fmrimod.hrf import HRF_SPMG2
+
+        rset = regressor_set([10, 20], ["x", "y"], hrf=HRF_SPMG2)
+        assert rset.column_names == ["x_basis1", "x_basis2", "y_basis1", "y_basis2"]
+        assert len(rset.column_names) == rset.evaluate(np.arange(30.0)).shape[1]
+
+    def test_regressor_design_frame_uses_set_names(self):
+        import pandas as pd
+
+        from fmrimod.hrf import HRF_SPMG2
+
+        rset = regressor_set([10, 20], ["x", "y"], hrf=HRF_SPMG2)
+        grid = np.arange(30.0)
+        # Default return type is unchanged.
+        assert isinstance(regressor_design(rset, grid), np.ndarray)
+        frame = regressor_design(rset, grid, column_names=None, as_frame=True)
+        assert isinstance(frame, pd.DataFrame)
+        assert list(frame.columns) == rset.column_names
+        assert_array_equal(frame.to_numpy(), rset.evaluate(grid))
+        with_icpt = regressor_design(rset, grid, include_intercept=True, as_frame=True)
+        assert list(with_icpt.columns) == ["intercept", *rset.column_names]
+
+    def test_empty_set_has_no_names(self):
+        assert regressor_set([], []).column_names == []

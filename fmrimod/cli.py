@@ -367,7 +367,7 @@ def _cli_design(args: list[str]) -> int:
     )
     if hasattr(design, "toarray"):
         design = design.toarray()
-    rows = _values_to_rows(grid, np.asarray(design), column_names=_design_column_names(rset))
+    rows = _values_to_rows(grid, np.asarray(design), column_names=rset.column_names)
     _write_cli_table(rows, json_output=bool(opts.get("json")), output=opts.get("output"))
     return 0
 
@@ -634,16 +634,6 @@ def _values_to_rows(
             row[name] = _json_scalar(value)
         rows.append(row)
     return rows
-
-
-def _design_column_names(rset: Any) -> list[str]:
-    names: list[str] = []
-    for level, reg in zip(rset.levels, rset.regressors):
-        if reg.nbasis == 1:
-            names.append(level)
-        else:
-            names.extend(f"{level}_basis{i}" for i in range(1, reg.nbasis + 1))
-    return names
 
 
 def _write_cli_table(
