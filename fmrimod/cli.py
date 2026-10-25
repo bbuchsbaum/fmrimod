@@ -12,7 +12,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence, cast
+from typing import Any, Iterable, Mapping, NamedTuple, Sequence, cast
 
 import numpy as np
 import pandas as pd
@@ -120,94 +120,208 @@ def _cli_main(args: list[str]) -> int:
     )
 
 
+class _CliOption(NamedTuple):
+    """One command-line option: ``metavar=None`` marks a boolean flag."""
+
+    name: str
+    metavar: str | None
+    help: str
+    default: object = None
+    negatable: bool = False
+
+
+class _CliCommand(NamedTuple):
+    usage: str
+    options: tuple[_CliOption, ...]
+    notes: tuple[str, ...] = ()
+
+
+_O = _CliOption
+_JSON = _O("json", None, "Write JSON instead of CSV")
+_OUTPUT = _O("output", "FILE", "Write output to FILE instead of stdout")
+_HRF = _O("hrf", "NAME", "HRF name from `fmrihrf list`", "spmg1")
+_NBASIS = _O("nbasis", "N", "Basis count for generated HRFs", "5")
+_METHOD = _O("method", "METHOD", "conv, fft, direct, Rconv, or loop", "conv")
+_START_TIME = _O("start-time", "LIST", "First acquisition offset(s); default TR / 2")
+
+# The single option table: the parser, the defaults and the help text are
+# all generated from it, so help cannot drift from what is accepted
+# (fmrihrf 8af0c2d).
+_CLI_COMMANDS: dict[str, _CliCommand] = {
+    "list": _CliCommand(
+        "Usage: fmrihrf list [--details] [--json] [--output FILE]",
+        (
+            _O("details", None, "Include descriptions from the HRF registry"),
+            _JSON,
+            _OUTPUT,
+        ),
+    ),
+    "eval": _CliCommand(
+        "Usage: fmrihrf eval [options]",
+        (
+            _HRF,
+            _O("from", "SEC", "Grid start in seconds", "0"),
+            _O("to", "SEC", "Grid end in seconds", "32"),
+            _O("by", "SEC", "Grid step in seconds", "0.5"),
+            _O("times", "LIST", "Comma-separated grid values; overrides from/to/by"),
+            _NBASIS,
+            _O("span", "SEC", "HRF span in seconds", "24"),
+            _O("lag", "SEC", "Shift HRF by this many seconds", "0"),
+            _O("width", "SEC", "Block HRF width in seconds", "0"),
+            _O("amplitude", "VALUE", "Event amplitude for HRF evaluation", "1"),
+            _O("duration", "SEC", "Event duration for HRF evaluation", "0"),
+            _O("precision", "SEC", "Internal block precision", "0.2"),
+            _O("normalize", None, "Normalize columns to unit peak"),
+            _O(
+                "summate",
+                None,
+                "Summate the block response (the default; --no-summate averages)",
+                True,
+                negatable=True,
+            ),
+            _JSON,
+            _OUTPUT,
+        ),
+    ),
+    "regressor": _CliCommand(
+        "Usage: fmrihrf regressor [options]",
+        (
+            _O("onsets", "LIST", "Comma-separated onset times in seconds"),
+            _O("events", "FILE", "CSV/TSV with onset[,duration,amplitude] columns"),
+            _HRF,
+            _O("blocklens", "LIST", "Scans per block for acquisition grid"),
+            _O("tr", "LIST", "Repetition time(s) in seconds"),
+            _START_TIME,
+            _O("from", "SEC", "Grid start when no sampling frame is supplied", "0"),
+            _O(
+                "to",
+                "SEC",
+                "Grid end when no sampling frame is supplied; "
+                "default last onset + span",
+            ),
+            _O("by", "SEC", "Grid step when no sampling frame is supplied", "1"),
+            _O("duration", "LIST", "Event duration(s) when --events is not used", "0"),
+            _O("amplitude", "LIST", "Event amplitude(s) when --events is not used", "1"),
+            _NBASIS,
+            _O("span", "SEC", "HRF/regressor span in seconds", "24"),
+            _O("precision", "SEC", "Internal convolution precision", "0.33"),
+            _METHOD,
+            _O("normalize", None, "Normalize output columns to unit peak"),
+            _JSON,
+            _OUTPUT,
+        ),
+    ),
+    "design": _CliCommand(
+        "Usage: fmrihrf design --events FILE --blocklens LIST --tr LIST [options]",
+        (
+            _O("events", "FILE", "CSV/TSV events table"),
+            _O("condition", "COL", "Condition column name", "condition"),
+            _O("onset", "COL", "Onset column name", "onset"),
+            _O("block", "COL", "Block column name", "block"),
+            _O("duration", "COL", "Duration column name", "duration"),
+            _O("amplitude", "COL", "Amplitude column name", "amplitude"),
+            _O("blocklens", "LIST", "Scans per block"),
+            _O("tr", "LIST", "Repetition time(s) in seconds"),
+            _START_TIME,
+            _HRF,
+            _NBASIS,
+            _O("span", "SEC", "HRF/regressor span in seconds", "24"),
+            _O("precision", "SEC", "Internal convolution precision", "0.33"),
+            _METHOD,
+            _O(
+                "sparse",
+                None,
+                "Return sparse design internally before writing dense output",
+            ),
+            _JSON,
+            _OUTPUT,
+        ),
+        (
+            "The events file must include onset, condition, and block columns.",
+            "Duration and amplitude columns are used when present; a column named",
+            "with --duration or --amplitude must exist.",
+        ),
+    ),
+}
+del _O
+
+
+def _accepted_options(command: str) -> set[str]:
+    """Every ``--name`` the parser accepts for ``command``."""
+    names: set[str] = set()
+    for opt in _CLI_COMMANDS[command].options:
+        names.add(opt.name)
+        if opt.negatable:
+            names.add(f"no-{opt.name}")
+    return names
+
+
+def _parse_command(command: str, args: Sequence[str]) -> dict[str, object]:
+    """Parse ``args`` for ``command`` and fill in the table's defaults."""
+    options = _CLI_COMMANDS[command].options
+    opts = _parse_cli_args(
+        args,
+        flags={o.name for o in options if o.metavar is None},
+        values={o.name for o in options if o.metavar is not None},
+        false_flags={o.name for o in options if o.negatable},
+    )
+    return _defaults(
+        opts, {o.name: o.default for o in options if o.default is not None}
+    )
+
+
+def _command_help(spec: _CliCommand) -> list[str]:
+    lines = [spec.usage, ""]
+    if spec.notes:
+        lines.extend([*spec.notes, ""])
+    lines.append("Options:")
+    entries: list[tuple[str, str]] = []
+    for opt in spec.options:
+        label = f"--{opt.name}" + (f" {opt.metavar}" if opt.metavar else "")
+        text = opt.help
+        if opt.metavar is not None and opt.default is not None:
+            text = f"{text} [{opt.default}]"
+        entries.append((label, text))
+        if opt.negatable:
+            entries.append((f"--no-{opt.name}", f"Turn off --{opt.name}"))
+    width = max(len(label) for label, _ in entries) + 2
+    lines.extend(f"  {label:<{width}}{text}" for label, text in entries)
+    return lines
+
+
+_MAIN_HELP = (
+    "Usage: fmrihrf <command> [options]",
+    "",
+    "Commands:",
+    "  list        List available HRFs and basis generators",
+    "  eval        Evaluate an HRF or basis over a time grid",
+    "  regressor   Build and evaluate one event regressor",
+    "  design      Build a condition design matrix from an events table",
+    "",
+    "Run `fmrihrf help <command>` for command-specific options.",
+)
+
+
 def _cli_help(command: str | None = None) -> int:
-    topic = command or "main"
-    help_text = {
-        "main": [
-            "Usage: fmrihrf <command> [options]",
-            "",
-            "Commands:",
-            "  list        List available HRFs and basis generators",
-            "  eval        Evaluate an HRF or basis over a time grid",
-            "  regressor   Build and evaluate one event regressor",
-            "  design      Build a condition design matrix from an events table",
-            "",
-            "Run `fmrihrf help <command>` for command-specific options.",
-        ],
-        "list": [
-            "Usage: fmrihrf list [--details] [--json] [--output FILE]",
-        ],
-        "eval": [
-            "Usage: fmrihrf eval [options]",
-            "  --hrf NAME          HRF name from `fmrihrf list` [spmg1]",
-            "  --from SEC          Grid start in seconds [0]",
-            "  --to SEC            Grid end in seconds [32]",
-            "  --by SEC            Grid step in seconds [0.5]",
-            "  --times LIST        Comma-separated grid values",
-            "  --output FILE       Write output to FILE instead of stdout",
-        ],
-        "regressor": [
-            "Usage: fmrihrf regressor [options]",
-            "  --onsets LIST       Comma-separated onset times in seconds",
-            "  --blocklens LIST    Scans per block for acquisition grid",
-            "  --tr LIST           Repetition time(s) in seconds",
-            "  --output FILE       Write output to FILE instead of stdout",
-        ],
-        "design": [
-            "Usage: fmrihrf design --events FILE --blocklens LIST --tr LIST [options]",
-        ],
-    }
-    if topic not in help_text:
-        raise CliUsageError(f"Unknown help topic: {topic}")
-    print("\n".join(help_text[topic]))
+    if command is None or command == "main":
+        lines = list(_MAIN_HELP)
+    elif command in _CLI_COMMANDS:
+        lines = _command_help(_CLI_COMMANDS[command])
+    else:
+        raise CliUsageError(f"Unknown help topic: {command}")
+    print("\n".join(lines))
     return 0
 
 
 def _cli_list(args: list[str]) -> int:
-    opts = _parse_cli_args(args, flags={"details", "json"}, values={"output"})
+    opts = _parse_command("list", args)
     rows = list_available_hrfs(details=True)
     _write_cli_table(cast(Any, rows), json_output=bool(opts.get("json")), output=opts.get("output"))
     return 0
 
 
 def _cli_eval(args: list[str]) -> int:
-    opts = _parse_cli_args(
-        args,
-        flags={"normalize", "json", "summate"},
-        false_flags={"summate"},
-        values={
-            "hrf",
-            "from",
-            "to",
-            "by",
-            "times",
-            "nbasis",
-            "span",
-            "lag",
-            "width",
-            "amplitude",
-            "duration",
-            "precision",
-            "output",
-        },
-    )
-    opts = _defaults(
-        opts,
-        {
-            "hrf": "spmg1",
-            "from": "0",
-            "to": "32",
-            "by": "0.5",
-            "nbasis": "5",
-            "span": "24",
-            "lag": "0",
-            "width": "0",
-            "amplitude": "1",
-            "duration": "0",
-            "precision": "0.2",
-            "summate": True,
-        },
-    )
+    opts = _parse_command("eval", args)
 
     grid = _grid_from_options(opts)
     hrf = cast(Any, _get_cli_hrf(opts))
@@ -227,41 +341,7 @@ def _cli_eval(args: list[str]) -> int:
 
 
 def _cli_regressor(args: list[str]) -> int:
-    opts = _parse_cli_args(
-        args,
-        flags={"normalize", "json"},
-        values={
-            "onsets",
-            "events",
-            "hrf",
-            "blocklens",
-            "tr",
-            "start-time",
-            "from",
-            "to",
-            "by",
-            "duration",
-            "amplitude",
-            "nbasis",
-            "span",
-            "precision",
-            "method",
-            "output",
-        },
-    )
-    opts = _defaults(
-        opts,
-        {
-            "hrf": "spmg1",
-            "by": "1",
-            "duration": "0",
-            "amplitude": "1",
-            "nbasis": "5",
-            "span": "24",
-            "precision": "0.33",
-            "method": "conv",
-        },
-    )
+    opts = _parse_command("regressor", args)
 
     events = _events_for_regressor(opts)
     hrf = _get_cli_hrf(opts, allow_decorators=False)
@@ -288,46 +368,21 @@ def _cli_regressor(args: list[str]) -> int:
 
 
 def _cli_design(args: list[str]) -> int:
-    opts = _parse_cli_args(
-        args,
-        flags={"sparse", "json"},
-        values={
-            "events",
-            "condition",
-            "onset",
-            "block",
-            "duration",
-            "amplitude",
-            "blocklens",
-            "tr",
-            "start-time",
-            "hrf",
-            "nbasis",
-            "span",
-            "precision",
-            "method",
-            "output",
-        },
-    )
-    opts = _defaults(
-        opts,
-        {
-            "condition": "condition",
-            "onset": "onset",
-            "block": "block",
-            "duration": "duration",
-            "amplitude": "amplitude",
-            "hrf": "spmg1",
-            "nbasis": "5",
-            "span": "24",
-            "precision": "0.33",
-            "method": "conv",
-        },
-    )
+    opts = _parse_command("design", args)
     _require_options(opts, ("events", "blocklens", "tr"))
 
     events = _read_events_table(str(opts["events"]))
-    _require_columns(events, (str(opts["onset"]), str(opts["condition"]), str(opts["block"])))
+    # The default duration/amplitude columns are optional; renamed ones are
+    # not (fmrihrf 742b1f1).
+    renamed = [
+        str(opts[name]) for name in ("duration", "amplitude") if str(opts[name]) != name
+    ]
+    _require_columns(
+        events,
+        dict.fromkeys(
+            [str(opts["onset"]), str(opts["condition"]), str(opts["block"]), *renamed]
+        ),
+    )
     sf = _sampling_frame_from_options(opts)
     hrf = _get_cli_hrf(opts, allow_decorators=False)
 

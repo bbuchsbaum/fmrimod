@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -129,6 +130,65 @@ def test_design_command_creates_condition_columns_from_events_table(tmp_path):
     assert status == 0
     assert list(out.columns) == ["time", "A", "B"]
     assert len(out) == 6
+
+
+def _write_events(tmp_path, text):
+    events = tmp_path / "events.csv"
+    events.write_text(text, encoding="utf-8")
+    return events
+
+
+def test_design_renamed_duration_or_amplitude_column_must_exist(tmp_path, capsys):
+    """Inventory v2 HRF-15 (fmrihrf ``742b1f1``)."""
+    events = _write_events(tmp_path, "onset,condition,block\n0,A,1\n4,B,1\n")
+    base = ["design", "--events", str(events), "--blocklens", "6", "--tr", "1"]
+
+    # The default duration/amplitude columns stay optional.
+    assert fmrihrf_cli([*base, "--output", str(tmp_path / "ok.csv")]) == 0
+    capsys.readouterr()
+
+    for option in ("--duration", "--amplitude"):
+        status = fmrihrf_cli([*base, option, "dur_s"])
+        err = capsys.readouterr().err
+        assert status == 1
+        assert "Missing required column" in err
+        assert "dur_s" in err
+
+
+_HELP_OPTION = re.compile(r"^\s+--([a-z][a-z-]*)", re.M)
+
+
+@pytest.mark.parametrize("command", ["list", "eval", "regressor", "design"])
+def test_help_lists_exactly_the_accepted_options(command, capsys):
+    """Inventory v2 HRF-15 (fmrihrf ``8af0c2d``): help matches the parser."""
+    from fmrimod.cli import CliUsageError, _accepted_options
+
+    assert fmrihrf_cli(["help", command]) == 0
+    listed = set(_HELP_OPTION.findall(capsys.readouterr().out))
+    accepted = _accepted_options(command)
+    assert listed == accepted
+
+    # Every listed option is really accepted by the parser, and an option
+    # outside the set is rejected.
+    from fmrimod.cli import _parse_command
+
+    for name in listed:
+        try:
+            _parse_command(command, [f"--{name}", "1"])
+        except CliUsageError as exc:
+            assert "Unknown option" not in str(exc), name
+    with pytest.raises(CliUsageError, match="Unknown option"):
+        _parse_command(command, ["--definitely-not-an-option"])
+
+
+def test_help_shows_defaults(capsys):
+    fmrihrf_cli(["help", "eval"])
+    out = capsys.readouterr().out
+    assert "--nbasis" in out and "[5]" in out
+    assert "--no-summate" in out
+    fmrihrf_cli(["help", "design"])
+    out = capsys.readouterr().out
+    assert "--duration COL" in out and "[duration]" in out
 
 
 def test_install_cli_copies_wrapper_and_refuses_accidental_overwrite(tmp_path):
