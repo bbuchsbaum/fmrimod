@@ -16,6 +16,7 @@ from fmrimod.dataset.backend_protocol import (
     _normalize_indices,
 )
 from fmrimod.dataset.errors import BackendIOError, ConfigError
+from fmrimod.dataset.mask_utils import as_mask, mask_to_logical
 from fmrimod.dataset.space import VolumeSpace
 
 
@@ -51,8 +52,8 @@ class NiftiBackend(StorageBackend):
 
     ``source`` is one or more paths or in-memory nibabel images, read lazily
     volume by volume. ``mask_source`` is a path, a nibabel image, or a 3-D
-    array (which takes the first source's affine); image masks keep their
-    voxels with values above zero. Every source must share the mask's grid
+    array (which takes the first source's affine). Masks are binarised by
+    :func:`~fmrimod.dataset.mask_utils.as_mask` (non-zero and not NaN). Every source must share the mask's grid
     and affine.
     """
 
@@ -83,7 +84,7 @@ class NiftiBackend(StorageBackend):
 
         mask_label = _source_label(self._mask_source)
         if isinstance(self._mask_source, np.ndarray):
-            mask_data = np.asarray(self._mask_source, dtype=bool)
+            mask_data = as_mask(self._mask_source)
             mask_affine = np.asarray(self._image(self._source[0]).affine, dtype=np.float64)
             mask_label = "<ndarray mask>"
         else:
@@ -104,7 +105,7 @@ class NiftiBackend(StorageBackend):
             )
         spatial_shape = tuple(int(v) for v in mask_data.shape[:3])
         mask_volume = mask_data[..., 0] if mask_data.ndim > 3 else mask_data
-        self._mask_vec = mask_volume.reshape(-1) > 0
+        self._mask_vec = mask_to_logical(mask_volume)
 
         total_time = 0
         self._file_time_dims = []

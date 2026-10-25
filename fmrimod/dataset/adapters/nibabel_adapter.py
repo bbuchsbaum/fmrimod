@@ -17,6 +17,7 @@ from numpy.typing import NDArray
 from ...sampling import SamplingFrame
 from ..backends.nifti_backend import NiftiBackend
 from ..errors import ConfigError
+from ..mask_utils import as_mask
 
 
 class NibabelAdapter:
@@ -69,9 +70,9 @@ class NibabelAdapter:
         # image. Every run (and an image mask) must share run 0's grid and
         # affine; NiftiBackend checks that and reads volumes lazily.
         if mask is None:
-            mask_source: Any = np.asarray(self._images[0].dataobj[..., 0]) != 0
+            mask_source: Any = as_mask(np.asarray(self._images[0].dataobj[..., 0]))
         elif isinstance(mask, np.ndarray):
-            mask_source = mask.astype(bool)
+            mask_source = as_mask(mask)
         else:
             mask_source = mask
         self.backend = NiftiBackend(self._images, mask_source)

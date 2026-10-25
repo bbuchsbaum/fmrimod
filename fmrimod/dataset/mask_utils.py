@@ -1,14 +1,37 @@
-"""Canonical mask conversion helpers."""
+"""Canonical mask conversion helpers.
+
+Every mask that enters ``fmrimod.dataset`` (arrays, NIfTI or NeuroVol images,
+default masks from a first volume) is binarised by one rule, R's
+``which(as.logical(x))`` (fmridataset ``read-bids-bold.R``,
+``nifti-array-source.R``): a voxel is in the mask when its value is non-zero,
+negatives included, and NaN is out.
+"""
 
 from __future__ import annotations
 
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 
 
-def mask_to_logical(mask: NDArray[np.generic]) -> NDArray[np.bool_]:
-    """Convert a mask representation to a flat boolean vector."""
-    return np.asarray(mask, dtype=np.bool_).ravel()
+def as_mask(values: ArrayLike) -> NDArray[np.bool_]:
+    """Binarise mask values, keeping their shape.
+
+    Booleans pass through; numbers are in when non-zero and not NaN.
+    """
+    arr = np.asarray(values)
+    if arr.dtype == np.bool_:
+        return arr.copy()
+    if np.issubdtype(arr.dtype, np.number):
+        out = arr != 0
+        if np.issubdtype(arr.dtype, np.inexact):
+            out &= ~np.isnan(arr)
+        return np.asarray(out, dtype=np.bool_)
+    return np.asarray(arr, dtype=np.bool_)
+
+
+def mask_to_logical(mask: ArrayLike) -> NDArray[np.bool_]:
+    """Convert a mask representation to a flat boolean vector (see :func:`as_mask`)."""
+    return as_mask(mask).ravel()
 
 
 def mask_to_volume(
@@ -22,4 +45,4 @@ def mask_to_volume(
             f"Mask length ({mask_vec.size}) doesn't match spatial "
             f"dimensions {dims} (product={expected})"
         )
-    return np.asarray(mask_vec, dtype=np.bool_).reshape(dims)
+    return as_mask(mask_vec).reshape(dims)
