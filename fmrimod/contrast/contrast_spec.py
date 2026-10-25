@@ -500,12 +500,20 @@ def column_contrast(
         Contrast name
     where : Formula, optional
         Currently unused, kept for API consistency
-        
+
     Returns
     -------
     ColumnContrastSpec
         Column contrast specification
-        
+
+    Notes
+    -----
+    For a contrast attached to a model term, patterns are matched against
+    the term's design-matrix column names (``cond_cond.A_b01``) first and,
+    only if they match none of them, against the term-level condition
+    names (``cond.A_b01``). A pattern that selects different columns in the
+    two namespaces is an error: anchor it on the design-matrix names.
+
     Examples
     --------
     >>> # Test main effect of continuous RT
