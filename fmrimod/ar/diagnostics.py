@@ -112,7 +112,9 @@ def sandwich_from_whitened_resid(
     beta : NDArray, optional
         Coefficients ``(p, V)``.  Estimated if ``None``.
     type : str
-        ``"iid"`` or ``"hc0"`` (robust sandwich).
+        ``"iid"`` or ``"hc0"`` (robust sandwich). Coefficients that are not
+        estimable because ``Xw`` is rank deficient get NaN standard errors
+        and NaN rows/columns in ``XtX_inv``, as ``lm()`` reports ``NA``.
     df_mode : str
         ``"rankX"`` or ``"n-p"``.
     runs : NDArray, optional
@@ -127,33 +129,66 @@ def sandwich_from_whitened_resid(
     Yw = np.asarray(Yw, dtype=np.float64)
     if Yw.ndim == 1:
         Yw = Yw[:, np.newaxis]
+    if Xw.ndim != 2 or Xw.shape[0] != Yw.shape[0]:
+        raise ValueError("Xw and Yw must have the same number of rows")
+    se_type = str(type).lower()
+    if se_type not in ("iid", "hc0"):
+        raise ValueError(f"type must be 'iid' or 'hc0', got {type!r}")
 
     n, p_dim = Xw.shape
     v = Yw.shape[1]
 
-    XtX = Xw.T @ Xw
-    XtX_inv = np.linalg.inv(XtX)
+    # Estimable columns as R's lm() finds them; aliased ones get NaN.
+    est = _estimable_columns(Xw)
+    rank_X = int(est.size)
+    Xe = Xw[:, est]
+    XtX_e = np.linalg.inv(Xe.T @ Xe) if rank_X else np.zeros((0, 0))
+    XtX_inv = np.full((p_dim, p_dim), np.nan)
+    XtX_inv[np.ix_(est, est)] = XtX_e
 
     if beta is None:
-        beta = XtX_inv @ (Xw.T @ Yw)
-
-    E = Yw - Xw @ beta
-    rank_X = np.linalg.matrix_rank(Xw)
+        beta_e = XtX_e @ (Xe.T @ Yw)
+    else:
+        beta = np.asarray(beta, dtype=np.float64)
+        if beta.ndim == 1:
+            beta = beta[:, np.newaxis]
+        if beta.shape != (p_dim, v):
+            raise ValueError(f"beta must have shape {(p_dim, v)}, got {beta.shape}")
+        beta_e = beta[est]
+    E = Yw - Xe @ beta_e
     df = n - rank_X if df_mode == "rankX" else n - p_dim
-
-    if type == "iid":
-        sigma2 = np.sum(E**2, axis=0) / df
-        se = np.sqrt(np.outer(np.diag(XtX_inv), sigma2))
-        return {"se": se, "sigma2": sigma2, "XtX_inv": XtX_inv, "df": df, "type": "iid"}
-
-    # HC0 sandwich
-    se = np.empty((p_dim, v))
-    for j in range(v):
-        e = E[:, j]
-        Xe = Xw * e[:, np.newaxis]
-        meat = Xe.T @ Xe
-        V = XtX_inv @ meat @ XtX_inv
-        se[:, j] = np.sqrt(np.diag(V))
-
     sigma2 = np.sum(E**2, axis=0) / df
-    return {"se": se, "sigma2": sigma2, "XtX_inv": XtX_inv, "df": df, "type": "hc0"}
+
+    se = np.full((p_dim, v), np.nan)
+    if se_type == "iid":
+        se[est] = np.sqrt(np.outer(np.diag(XtX_e), sigma2))
+    else:
+        # HC0: Var(beta_k) = sum_t H_kt^2 e_t^2 with H = (X'X)^-1 X'.
+        H = XtX_e @ Xe.T
+        se[est] = np.sqrt((H * H) @ (E * E))
+    return {"se": se, "sigma2": sigma2, "XtX_inv": XtX_inv, "df": df, "type": se_type}
+
+
+def _estimable_columns(X: NDArray[np.float64], tol: float = 1e-7) -> NDArray[np.intp]:
+    """Columns R's ``qr()`` (LINPACK ``dqrdc2``) keeps, in their original order.
+
+    A column is aliased when its norm after projection on the columns kept
+    before it falls below ``tol`` times its own norm. Unlike full column
+    pivoting, this drops the *later* of two collinear columns, so the
+    non-estimable coefficient is the one ``lm()`` reports as ``NA``.
+    """
+    n, p = X.shape
+    Q = np.zeros((n, 0))
+    keep: list[int] = []
+    for j in range(p):
+        col = X[:, j]
+        norm0 = float(np.linalg.norm(col))
+        if norm0 == 0.0 or not np.isfinite(norm0):
+            continue
+        r = col - Q @ (Q.T @ col)
+        r = r - Q @ (Q.T @ r)  # re-orthogonalise
+        rn = float(np.linalg.norm(r))
+        if rn > tol * norm0:
+            keep.append(j)
+            Q = np.column_stack([Q, r / rn])
+    return np.array(keep, dtype=np.intp)

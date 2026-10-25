@@ -195,3 +195,27 @@ def test_pooled_hr_order_grid_matches_fmriar(r_call, data, hr_iter):
     np.testing.assert_allclose(fit.phi, r_call.field(r_fit, "phi"), rtol=0, atol=1e-9)
     np.testing.assert_allclose(fit.theta, r_call.field(r_fit, "theta"), rtol=0, atol=1e-9)
     np.testing.assert_allclose(fit.sigma2, np.ravel(r_call.field(r_fit, "sigma2"))[0], rtol=1e-9)
+
+
+# -- Other fmriAR 0.4.2 audit rows checkable against R -------------------------
+
+
+@pytest.mark.parametrize("se_type", ["iid", "hc0"])
+def test_sandwich_rank_deficient_matches_fmriar(r_call, se_type):
+    """AR-18: aliased columns get NA SEs and NA XtX_inv rows, as in R."""
+    from fmrimod.ar.diagnostics import sandwich_from_whitened_resid
+
+    rng = np.random.default_rng(1)
+    n = 120
+    x, z = rng.standard_normal(n), rng.standard_normal(n)
+    X = np.column_stack([np.ones(n), x, 2 * x, z, x + z])
+    Y = rng.standard_normal((n, 3)) * (1 + np.abs(x[:, None]))
+    r_out = r_call("fmriAR::sandwich_from_whitened_resid", X, Y, type=se_type)
+    out = sandwich_from_whitened_resid(X, Y, type=se_type)
+    r_se = r_call.field(r_out, "se")
+    np.testing.assert_array_equal(np.isnan(out["se"]), np.isnan(r_se))
+    np.testing.assert_allclose(out["se"], r_se, rtol=1e-10, equal_nan=True)
+    np.testing.assert_allclose(
+        out["XtX_inv"], r_call.field(r_out, "XtX_inv"), rtol=1e-9, equal_nan=True
+    )
+    assert out["df"] == int(r_call.field(r_out, "df")[0])
