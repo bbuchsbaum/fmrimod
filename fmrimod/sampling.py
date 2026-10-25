@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Optional, Union, cast
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
+
+if TYPE_CHECKING:
+    from matplotlib.figure import Figure
 
 # Seconds compare with relative tolerance sqrt(eps), as fmridataset does
 # (cce6a44), so 0.1 * 3 and 0.3 name the same TR.
@@ -326,6 +329,18 @@ class SamplingFrame:
         start = self.start_time[block_idx]
 
         return cast("NDArray[np.float64]", start + np.arange(block_len) * tr)
+
+    def plot(self, **kwargs: object) -> Figure:
+        """Plot the runs over time; see
+        :func:`fmrimod.visualization.plot_sampling_frame`.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+        """
+        from .visualization.baseline_plot import plot_sampling_frame
+
+        return plot_sampling_frame(self, **kwargs)
 
     def __str__(self) -> str:
         """String representation of SamplingFrame."""

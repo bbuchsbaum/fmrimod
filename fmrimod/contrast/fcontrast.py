@@ -5,7 +5,7 @@ from __future__ import annotations
 import itertools
 import warnings
 from functools import reduce, singledispatch
-from typing import Any, Dict, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, cast
 
 import numpy as np
 
@@ -16,6 +16,10 @@ from ..events.factor import EventFactor
 from ..events.term import EventTerm
 from ..events.variable import EventVariable
 from ..types import Array
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
 
 
 @singledispatch
@@ -282,123 +286,113 @@ def _term_nbasis(model: EventModel, term_indices_vec: list[int]) -> int:
 
 
 @singledispatch
-def plot_Fcontrasts(x: Any,
-                    figsize: Optional[tuple[float, float]] = None,
-                    cmap: str = 'RdBu_r') -> None:
-    """Plot F-contrast matrices as heatmaps.
+def plot_Fcontrasts(x: object,
+                    figsize: tuple[float, float] | None = None,
+                    *,
+                    annotate: bool | None = None,
+                    title: str | None = None,
+                    subtitle: str | None = None,
+                    caption: str | None = None,
+                    absolute_limits: bool = False,
+                    rotate_x_text: bool = True,
+                    ax: Axes | None = None) -> Figure:
+    """Plot F-contrast matrices as one heatmap, one row per component.
 
-    This is a generic function that dispatches based on the type of x.
+    Dispatches on ``x``: a dict from :func:`Fcontrasts` (name to ``p x k``
+    matrix) or an ``EventModel`` (its :func:`Fcontrasts`, labelled from its
+    columns, with standard errors from its design). Drawn in the style of
+    :func:`~fmrimod.contrast.plot_contrasts`: components numbered under the
+    contrast name, rules between contrasts, and ``sum w`` / ``SE x sigma``
+    margin columns.
 
     Parameters
     ----------
     x : Dict[str, Array] or EventModel
-        F-contrast matrices from Fcontrasts() or an EventModel
     figsize : tuple, optional
-        Figure size (width, height)
-    cmap : str, optional
-        Colormap name (default: 'RdBu_r')
+    annotate : bool, optional
+        Print the weights (default up to 40 columns).
+    title, subtitle, caption : str, optional
+        ``None`` uses the default; ``""`` removes it.
+    absolute_limits : bool
+        Fix the fill at [-1, 1].
+    rotate_x_text : bool
+        Angle column labels when they would overlap.
+    ax : matplotlib Axes, optional
+    labels, design
+        For a dict: column labels, and a model or design matrix for the SE
+        column.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
 
     Examples
     --------
-    >>> # From dict
-    >>> fcon = Fcontrasts(model)
-    >>> plot_Fcontrasts(fcon)
-    >>>
-    >>> # From EventModel directly
-    >>> model = event_model("condition * group", data=df)
-    >>> plot_Fcontrasts(model)
+    >>> fig = plot_Fcontrasts(Fcontrasts(model))
+    >>> fig = plot_Fcontrasts(model)
     """
     raise NotImplementedError(f"plot_Fcontrasts not implemented for {type(x)}")
 
 
 @plot_Fcontrasts.register(dict)
-def _plot_fcontrasts_dict(fcontrasts: Dict[str, Array],
-                         figsize: Optional[tuple[float, float]] = None,
-                         cmap: str = 'RdBu_r') -> None:
-    """Plot F-contrast matrices from dictionary.
+def _plot_fcontrasts_dict(fcontrasts: dict[str, Array],
+                          figsize: tuple[float, float] | None = None,
+                          *,
+                          labels: list[str] | None = None,
+                          design: object = None,
+                          annotate: bool | None = None,
+                          title: str | None = None,
+                          subtitle: str | None = None,
+                          caption: str | None = None,
+                          absolute_limits: bool = False,
+                          rotate_x_text: bool = True,
+                          ax: Axes | None = None) -> Figure:
+    """Plot F-contrast matrices from a dictionary (name to ``p x k``)."""
+    from .plot_contrasts import _design_and_runs, _dict_rows, render_contrasts
 
-    Parameters
-    ----------
-    fcontrasts : Dict[str, Array]
-        F-contrast matrices from Fcontrasts()
-    figsize : tuple, optional
-        Figure size (width, height)
-    cmap : str, optional
-        Colormap name (default: 'RdBu_r')
-    """
-    import matplotlib.pyplot as plt
-
-    n_contrasts = len(fcontrasts)
-    if n_contrasts == 0:
+    if not fcontrasts:
         raise ValueError("No F-contrasts to plot")
-
-    # Determine subplot layout
-    ncols = min(3, n_contrasts)
-    nrows = (n_contrasts + ncols - 1) // ncols
-
-    if figsize is None:
-        figsize = (5 * ncols, 4 * nrows)
-
-    fig, axes = plt.subplots(nrows, ncols, figsize=figsize, squeeze=False)
-    axes = axes.flatten()
-
-    # Hide unused subplots
-    for i in range(n_contrasts, len(axes)):
-        axes[i].set_visible(False)
-
-    # Plot each contrast
-    for i, (name, matrix) in enumerate(fcontrasts.items()):
-        ax = axes[i]
-
-        # Determine color scale
-        vmax = np.abs(matrix).max()
-        if vmax == 0:
-            vmax = 1
-
-        # Plot heatmap
-        im = ax.imshow(matrix.T, aspect='auto', cmap=cmap,
-                       vmin=-vmax, vmax=vmax)
-
-        # Add colorbar
-        plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-
-        # Labels
-        ax.set_title(name)
-        ax.set_xlabel('Design Matrix Columns')
-        ax.set_ylabel('Contrast Columns')
-
-        # Add grid
-        ax.set_xticks(np.arange(matrix.shape[0]) - 0.5, minor=True)
-        ax.set_yticks(np.arange(matrix.shape[1]) - 0.5, minor=True)
-        ax.grid(which='minor', color='gray', linestyle='-', linewidth=0.5, alpha=0.3)
-
-    plt.tight_layout()
-    if plt.isinteractive():
-        plt.show()
+    rows, p = _dict_rows(fcontrasts, f_always=True)
+    col_labels = list(labels) if labels is not None else [f"Reg{i + 1}" for i in range(p)]
+    X, run = _design_and_runs(design, p)
+    return render_contrasts(rows, col_labels, None, X, run, figsize=figsize, annotate=annotate, title=title,
+                            subtitle=subtitle, caption=caption, absolute_limits=absolute_limits,
+                            rotate_x_text=rotate_x_text, ax=ax, default_title="F-contrast weights")
 
 
 def _plot_fcontrasts_event_model(model: EventModel,
-                                figsize: Optional[tuple[float, float]] = None,
-                                cmap: str = 'RdBu_r') -> None:
-    """Plot F-contrasts for an EventModel.
+                                 figsize: tuple[float, float] | None = None,
+                                 *,
+                                 annotate: bool | None = None,
+                                 title: str | None = None,
+                                 subtitle: str | None = None,
+                                 caption: str | None = None,
+                                 absolute_limits: bool = False,
+                                 rotate_x_text: bool = True,
+                                 ax: Axes | None = None) -> Figure:
+    """Plot the F-contrasts of an ``EventModel``."""
+    from ..visualization._design_common import (
+        design_columns,
+        model_design_matrix,
+        model_sampling_frame,
+        timeline,
+    )
+    from .plot_contrasts import _dict_rows, render_contrasts
 
-    Parameters
-    ----------
-    model : EventModel
-        Event model to compute and plot F-contrasts for
-    figsize : tuple, optional
-        Figure size (width, height)
-    cmap : str, optional
-        Colormap name (default: 'RdBu_r')
-    """
-    # Get F-contrasts from the model
     fcon = Fcontrasts(model)
-
     if not fcon:
         raise ValueError("No F-contrasts could be generated from this model")
-
-    # Delegate to dict plotting function
-    return _plot_fcontrasts_dict(fcon, figsize=figsize, cmap=cmap)
+    rows, p = _dict_rows(fcon, f_always=True)
+    for r in rows:
+        if "#" in r.name:
+            r.term, r.name = r.name.split("#", 1)
+    ci = design_columns(model)
+    ci = ci[ci["kind"] == "event"].reset_index(drop=True)
+    X = model_design_matrix(model)
+    run = timeline(model_sampling_frame(model), X.shape[0]).run
+    return render_contrasts(rows, list(ci["full_label"]), ci, X, run, figsize=figsize, annotate=annotate,
+                            title=title, subtitle=subtitle, caption=caption, absolute_limits=absolute_limits,
+                            rotate_x_text=rotate_x_text, ax=ax, default_title="F-contrast weights")
 
 
 # Register the EventModel implementation

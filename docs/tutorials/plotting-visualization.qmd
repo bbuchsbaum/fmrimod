@@ -21,7 +21,13 @@ from fmrimod.hrf import get_hrf
 from fmrimod.plotting import plot_hrf, plot_hrfs
 from fmrimod.spec import compile as compile_spec
 from fmrimod.spec import hrf
-from fmrimod.visualization import plot_design_matrix, plot_sampling_frame
+from fmrimod.visualization import (
+    correlation_map,
+    design_correlations,
+    design_map,
+    plot_event_model,
+    plot_sampling_frame,
+)
 
 events = pd.DataFrame({
     "onset": [0.0, 10.0, 20.0, 30.0],
@@ -34,31 +40,144 @@ event_model, _ = compile_spec(hrf("condition", basis="spmg1"), data=events, samp
 
 ```{python}
 #| fig-width: 7
-#| fig-height: 3.0
-#| fig-cap: "Realized face and scene regressors on the acquisition grid. The
-#|   alternating peaks make the event order and HRF overlap visible before
-#|   the model is fitted."
-#| fig-alt: "Line chart of alternating face and scene design regressors over
-#|   sixty seconds, with overlapping hemodynamic peaks."
-fig, ax = plot_design_matrix(event_model, figsize=(7, 3))
+#| fig-height: 3.2
+#| fig-cap: "Realized face and scene regressors on the acquisition grid, one
+#|   row per condition. Ticks under each row mark that condition's onsets and
+#|   bars their 2 s durations, so each response can be traced to its event."
+#| fig-alt: "Two stacked line charts, face above scene, each showing two
+#|   hemodynamic responses over sixty seconds with onset ticks underneath."
+fig = plot_event_model(event_model, figsize=(7, 3.2))
+plt.show()
+```
+
+`style="overlay"` puts every regressor on one amplitude axis instead, and
+`style="heatmap"` (chosen automatically for large designs such as
+trialwise models) draws one raster row per regressor.
+
+## Read the Design Matrix
+
+`design_map()` draws the matrix itself, one row per scan and one column per
+regressor, the way SPM shows it. Each column is divided by its largest
+absolute value so columns in different units share one colour scale; the
+grey bars underneath keep the real magnitudes visible, and a column that is
+nearly flat next to the rest of its term is marked in orange.
+
+```{python}
+#| fig-width: 5.4
+#| fig-height: 6.6
+#| fig-cap: "The face and scene columns of the design matrix, scans running
+#|   downward. Bars under the matrix compare each column's peak with the
+#|   largest in its term."
+#| fig-alt: "Heatmap with two columns, face and scene, showing alternating
+#|   red bands where each condition's responses occur, with a colour bar
+#|   below."
+fig = design_map(event_model)
+plt.show()
+```
+
+The same call works on a `BaselineModel`, where drift and intercept columns
+are grouped by run, and on a full `FmriModel`.
+
+## Check Collinearity
+
+`correlation_map()` shows every pair of regressors once, as the lower
+triangle of the correlation matrix. Pairs at or above `|r| = 0.5` are
+outlined, and the diagonal carries each column's variance inflation factor
+(VIF), which catches collinearity that no single pair reveals; VIFs of 5 or
+more turn orange.
+
+```{python}
+#| fig-width: 5.4
+#| fig-height: 3.6
+#| fig-cap: "Face and scene regressors correlate at r = -0.43 because their
+#|   responses alternate within one short run, yet both VIFs stay near 1.2,
+#|   so the two effects can still be estimated separately."
+#| fig-alt: "A single shaded cell giving the face-scene correlation, with the
+#|   variance inflation factor of each regressor on the diagonal."
+fig = correlation_map(event_model)
+plt.show()
+```
+
+The numbers are available without a plot:
+
+```{python}
+design_correlations(event_model).round(2)
+```
+
+## Check Contrast Weights
+
+`plot_contrasts()` lays each contrast out as a row of weights over the same
+columns. Two margin columns check every row: `sum w` (a non-zero sum, in
+orange, means the contrast is not a pure comparison) and `SE ×σ`, the
+standard error the design gives the contrast per unit of noise; lower is
+better. An `EventModel` with contrasts on its terms can be passed directly;
+here the weights are given by hand, with the model supplying the design.
+
+```{python}
+#| fig-width: 6.5
+#| fig-height: 2.6
+#| fig-cap: "A face-versus-scene comparison and the face effect alone. The
+#|   comparison sums to zero; the single-condition contrast does not."
+#| fig-alt: "Two rows of contrast weights over the face and scene columns,
+#|   with sum and standard-error columns at the right."
+from fmrimod.contrast import plot_contrasts
+
+fig = plot_contrasts(
+    {"face_vs_scene": [1, -1], "face": [1, 0]},
+    labels=["face", "scene"],
+    design=event_model,
+)
 plt.show()
 ```
 
 ## Plot the Sampling Frame
 
 The sampling-frame plot is useful when a model has multiple runs or unusual
-TRs. It reads the timing object already used by design construction.
+TRs. It reads the timing object already used by design construction. Here
+three runs, one of them shorter: the odd run is set in bold and the caption
+says why, and passing the event table draws each onset under its run, so a
+run without events or with an empty tail stands out.
 
 ```{python}
-#| fig-width: 7
-#| fig-height: 2.0
-#| fig-cap: "Acquisition samples for a single 60-volume run at TR = 1 s. A
-#|   break or timing irregularity would be visible here before convolution."
-#| fig-alt: "Sampling-frame plot showing sixty evenly spaced acquisition
-#|   samples in one run."
-fig, ax = plot_sampling_frame(sampling, figsize=(7, 2))
+#| fig-width: 7.6
+#| fig-height: 2.9
+#| fig-cap: "Three runs on one time axis. The third run is 20 scans short
+#|   (bold), and the ticks under each bar show where the events fall."
+#| fig-alt: "Three horizontal bars, one per run, laid end to end on a time
+#|   axis, with small onset ticks beneath each bar."
+runs = fm.SamplingFrame(blocklens=[60, 60, 40], TR=1.0)
+run_events = pd.DataFrame({
+    "onset": [5.0, 20.0, 40.0, 8.0, 30.0, 50.0, 12.0],
+    "run": [1, 1, 1, 2, 2, 2, 3],
+})
+fig = plot_sampling_frame(runs, events=run_events)
 plt.show()
 ```
+
+`style="grid"` shows each run's scans as cells on a within-run axis instead,
+and `style="lane"` packs the runs into one annotated row.
+
+## Plot the Baseline Model
+
+The baseline model holds the drift, intercept and nuisance columns. Its
+plot draws every time-varying term on the shared time axis, one panel per
+term, and lists the constant terms (here the run intercepts) in the caption,
+together with the high-pass period the drift basis roughly corresponds to.
+
+```{python}
+#| fig-width: 7.6
+#| fig-height: 4.0
+#| fig-cap: "Cubic polynomial drift, three columns per run. Each run gets its
+#|   own copy, and no line crosses a run boundary."
+#| fig-alt: "Line chart of three polynomial drift curves repeated in each of
+#|   three runs, with a key at the right edge."
+baseline = fm.baseline_model(basis="poly", degree=3, sframe=runs)
+fig = baseline.plot()
+plt.show()
+```
+
+`design_map(baseline)` and `correlation_map(baseline)` show the same columns
+as a matrix and as within-run correlations.
 
 ## Plot an HRF
 

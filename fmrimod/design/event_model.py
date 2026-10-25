@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import warnings
 from itertools import product as iter_product
-from typing import Any, Dict, List, Mapping, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -44,6 +44,9 @@ from ..types import (
     ModelProtocol,
     SamplingInfo,
 )
+
+if TYPE_CHECKING:
+    from matplotlib.figure import Figure
 
 
 def _import_fmrimod() -> Any:
@@ -2124,6 +2127,18 @@ class EventModel(ModelProtocol):  # type: ignore[misc]
         return pd.DataFrame(
             self.design_matrix, columns=self.column_names, index=self.sampling_points
         )
+
+    def plot(self, **kwargs: object) -> Figure:
+        """Plot the regressors against time; see
+        :func:`fmrimod.visualization.plot_event_model`.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+        """
+        from ..visualization.event_plot import plot_event_model
+
+        return plot_event_model(self, **kwargs)
 
     def summary(self) -> str:
         """Get a concise text summary of the model.
