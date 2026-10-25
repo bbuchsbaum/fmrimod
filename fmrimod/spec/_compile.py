@@ -110,6 +110,7 @@ def _covariate_term_to_event_model_term(term: CovariateTerm) -> EventModelTerm:
         list(term.variables),
         prefix=term.prefix,
         name=term.id,
+        id=term.id,
     )
     # EventModel's covariate helper historically reads from the same data
     # frame as ordinary events. Typed covariates carry their own sampled

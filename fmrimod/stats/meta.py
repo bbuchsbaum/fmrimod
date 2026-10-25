@@ -43,6 +43,9 @@ class FmriMetaResult:
     method: str
     formula: str
     data: GroupData
+    n_obs: NDArray[np.intp] | None = None
+    """Subjects that entered each feature's fit after dropping non-finite
+    effects (and invalid variances for inverse-variance weights)."""
 
 
 def _as_formula(formula: str | object) -> str:
@@ -107,10 +110,6 @@ def _extract_feature_frames(
         else:
             v = np.asarray(aligned[var_col], dtype=np.float64)
 
-        if not np.all(np.isfinite(y)):
-            raise ValueError("Effect-size values must be finite")
-        if not np.all(np.isfinite(v)) or np.any(v <= 0):
-            raise ValueError("Effect variances must be finite and > 0")
 
         if group_cols:
             if isinstance(key, tuple):
@@ -468,28 +467,41 @@ def fmri_meta(
     elif weights_custom is not None:
         raise ValueError("weights_custom can only be provided when weights='custom'")
 
-    coefs = np.zeros((n_features, p), dtype=np.float64)
-    ses = np.zeros((n_features, p), dtype=np.float64)
-    tau2 = np.zeros(n_features, dtype=np.float64)
+    coefs = np.full((n_features, p), np.nan, dtype=np.float64)
+    ses = np.full((n_features, p), np.nan, dtype=np.float64)
+    tau2 = np.full(n_features, np.nan, dtype=np.float64)
+    n_obs = np.zeros(n_features, dtype=np.intp)
     for idx, (y, v) in enumerate(feature_data):
         if custom_mat is not None:
             custom_w: Optional[NDArray[np.float64]] = custom_mat[:, idx]
         else:
             custom_w = custom_vec
+        # Subjects with a non-finite effect (or, for inverse-variance
+        # weights, a non-finite or non-positive variance) are dropped for
+        # this feature only (fmrireg meta_kernels.cpp fit_one). A feature
+        # that dropping leaves with no more subjects than predictors is
+        # unestimable (NaN); a design too small for complete data still
+        # errors in the solver.
+        keep = np.isfinite(y)
+        if weights == "ivw":
+            keep &= np.isfinite(v) & (v > 0)
+        n_obs[idx] = int(keep.sum())
+        if n_obs[idx] <= p and n_obs[idx] < y.shape[0]:
+            continue
         beta_i, se_i, tau2_i = _solve_meta_wls(
-            y=y,
-            X=X,
-            v=v,
+            y=y[keep],
+            X=X[keep],
+            v=v[keep],
             method=method,
             weight_mode=weights,
-            weight_custom=custom_w,
+            weight_custom=None if custom_w is None else custom_w[keep],
         )
         coefs[idx, :] = beta_i
         ses[idx, :] = se_i
         tau2[idx] = tau2_i
 
     with np.errstate(divide="ignore", invalid="ignore"):
-        z = np.where(ses > 0, coefs / ses, 0.0)
+        z = np.where(ses > 0, coefs / ses, np.where(np.isnan(ses), np.nan, 0.0))
     pvals = 2.0 * sp_stats.norm.sf(np.abs(z))
 
     return FmriMetaResult(
@@ -503,4 +515,5 @@ def fmri_meta(
         method=method,
         formula=formula,
         data=data,
+        n_obs=n_obs,
     )

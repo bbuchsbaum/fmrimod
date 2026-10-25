@@ -39,6 +39,44 @@ def _split_baseline_column_name(
     return None, None
 
 
+_RUN_SUFFIX_PATTERN = re.compile(r"_\d+$")
+
+
+def _baseline_column_runs(
+    term: Any, term_role: str, n_cols: int
+) -> list[int | None] | None:
+    """Run (1-based) of each column of a baseline term, from its ``colind``.
+
+    A column listed under exactly one block belongs to that run; a column
+    listed under several blocks (a global intercept or constant drift) is
+    shared and has no run (R fmridesign 1ecaf91/fa40860). With a single run
+    the block bookkeeping cannot tell the two apart, so a drift or intercept
+    column whose name carries no run suffix (``constant_global``,
+    ``base_constant``) is treated as shared. ``None`` when ``colind`` does
+    not cover the term's columns.
+    """
+    colind = getattr(term, "colind", None)
+    if not colind:
+        return None
+    blocks_of: dict[int, list[int]] = {}
+    for block, cols in enumerate(colind, start=1):
+        for col in cols:
+            blocks_of.setdefault(int(col), []).append(block)
+    if set(blocks_of) != set(range(n_cols)):
+        return None
+    names = [str(c) for c in term.design_matrix.columns]
+    runs: list[int | None] = []
+    for col in range(n_cols):
+        blocks = blocks_of[col]
+        shared = len(blocks) > 1 or (
+            len(colind) == 1
+            and term_role in ("drift", "block")
+            and _RUN_SUFFIX_PATTERN.search(names[col]) is None
+        )
+        runs.append(None if shared else blocks[0])
+    return runs
+
+
 def design_colmap(x: object) -> pd.DataFrame:
     """Get structured column metadata for a design matrix.
 
@@ -61,18 +99,22 @@ def design_colmap(x: object) -> pd.DataFrame:
         - ``term_tag`` : str or None -- Term tag this column belongs to.
         - ``term_index`` : int or None -- 1-based term index.
         - ``condition`` : str -- Condition label (term tag stripped).
-        - ``run`` : int or None -- Run index (if block-diagonal).
+        - ``run`` : int or None -- Run of a per-run (block-diagonal)
+          baseline column; ``None`` for columns shared by all runs.
         - ``role`` : str -- ``'task'``, ``'intercept'``, ``'drift'``,
-          ``'nuisance'``, or ``'baseline'``.
+          ``'confound'`` (nuisance regressors), or ``'baseline'``.
         - ``model_source`` : str -- ``'event'`` or ``'baseline'``.
-        - ``basis_name`` : str or None -- HRF/basis name.
+        - ``basis_name`` : str or None -- For event columns, the HRF basis
+          family as spelled in ``hrf(basis=...)`` (``'spmg3'``, ``'fir'``,
+          ...), also when the HRF is lagged; other HRFs keep their name.
         - ``basis_ix`` : int or None -- 1-based basis index.
         - ``basis_total`` : int or None -- Total basis functions.
         - ``basis_label`` : str or None -- Human-readable basis label
           (e.g., ``'canonical'``, ``'derivative'``).
         - ``pretty_name`` : str -- Display-friendly column name.
-        - ``is_block_diagonal`` : bool -- Whether the column is
-          block-diagonal (non-zero in only one run).
+        - ``is_block_diagonal`` : bool -- Whether the column belongs to a
+          single run (``False`` for event columns and for baseline columns
+          shared by all runs, such as a global intercept).
         - ``modulation_type`` : str or None -- Modulation type.
         - ``modulation_id`` : str or None -- Modulation identifier.
 
@@ -215,7 +257,9 @@ def _colmap_event_model(model: Any) -> pd.DataFrame:
                     hrf_obj = term.hrf
 
                 nb = hrf_obj.nbasis
-                bn = getattr(hrf_obj, 'name', str(type(hrf_obj).__name__))
+                bn = _hrf_basis_family(
+                    getattr(hrf_obj, 'name', str(type(hrf_obj).__name__))
+                )
             except Exception:
                 nb = 1
                 bn = None
@@ -231,19 +275,9 @@ def _colmap_event_model(model: Any) -> pd.DataFrame:
     basis_label: list[Optional[str]] = [None] * n_cols
     for i in range(n_cols):
         bix = basis_ix[i]
-        bn = basis_name[i]
         if bix is None:
             continue
-        if bn and 'SPMG3' in str(bn):
-            labels = ['canonical', 'derivative', 'dispersion']
-            basis_label[i] = labels[min(bix - 1, 2)]
-        elif bn and 'SPMG2' in str(bn):
-            labels = ['canonical', 'derivative']
-            basis_label[i] = labels[min(bix - 1, 1)]
-        elif bn and 'FIR' in str(bn):
-            basis_label[i] = f"lag_{bix-1:02d}"
-        else:
-            basis_label[i] = f"component_{bix:02d}"
+        basis_label[i] = _basis_label(basis_name[i], bix) or f"component_{bix:02d}"
 
     return pd.DataFrame({
         'col': range(1, n_cols + 1),
@@ -325,17 +359,42 @@ _META_COLUMNS = [
 ]
 
 
+# Basis families named in lower case, as spelled in ``hrf(basis=...)``
+# (R fmridesign ``.hrf_basis_families``).
+_HRF_BASIS_FAMILIES = (
+    "spmg1", "spmg2", "spmg3", "gamma", "gaussian",
+    "bspline", "tent", "fir", "fourier", "daguerre",
+)
+_HRF_DECORATIONS = re.compile(r"(_lag\([^)]*\)|_block\([^)]*\)|_norm)+$")
+_HRF_NBASIS_SUFFIX = re.compile(r"_N\d+$")
+
+
+def _hrf_basis_family(name: str | None) -> str | None:
+    """The ``basis_name`` recorded for an HRF (R ``.hrf_basis_name``).
+
+    Lag, block and normalisation decorations are dropped, and a built-in
+    basis is reported by its ``hrf(basis=...)`` family in lower case
+    (``SPMG3_lag(2.0)`` -> ``spmg3``, ``fir_N3`` -> ``fir``). Other HRFs keep
+    their own (undecorated) name.
+    """
+    if name is None:
+        return None
+    base = _HRF_DECORATIONS.sub("", str(name))
+    family = _HRF_NBASIS_SUFFIX.sub("", base).lower()
+    return family if family in _HRF_BASIS_FAMILIES else base
+
+
 def _basis_label(basis_name: Optional[str], basis_ix: Optional[int]) -> Optional[str]:
     if basis_name is None or basis_ix is None:
         return None
-    label = str(basis_name)
-    if "SPMG3" in label:
+    family = _hrf_basis_family(basis_name)
+    if family == "spmg3":
         labels = ["canonical", "derivative", "dispersion"]
         return labels[min(max(int(basis_ix), 1), 3) - 1]
-    if "SPMG2" in label:
+    if family == "spmg2":
         labels = ["canonical", "derivative"]
         return labels[min(max(int(basis_ix), 1), 2) - 1]
-    if "FIR" in label:
+    if family == "fir":
         return f"lag_{int(basis_ix) - 1:02d}"
     return f"component_{int(basis_ix):02d}"
 
@@ -409,6 +468,7 @@ def _colmap_baseline_model(model: Any) -> pd.DataFrame:
     roles: list[str] = []
     term_tags: list[str | None] = []
     runs: list[int | None] = []
+    block_diag: list[bool] = []
     cursor = 0
     terms = getattr(model, "terms", {}) or {}
     for term_name in BASELINE_TERM_ORDER:
@@ -423,14 +483,17 @@ def _colmap_baseline_model(model: Any) -> pd.DataFrame:
         if block_cols == 0:
             continue
         block_role = role_map.get(term_name, "baseline")
+        col_runs = _baseline_column_runs(term, term_name, block_cols)
         for local in range(block_cols):
             full_name = cn[cursor + local] if cursor + local < len(cn) else None
             roles.append(block_role)
-            user_name, run_id = _split_baseline_column_name(
+            user_name, name_run = _split_baseline_column_name(
                 full_name, term_role=term_name
             )
             term_tags.append(user_name)
+            run_id = col_runs[local] if col_runs is not None else name_run
             runs.append(run_id)
+            block_diag.append(run_id is not None)
         cursor += block_cols
 
     # Any trailing columns (defensive — should not normally happen)
@@ -439,6 +502,7 @@ def _colmap_baseline_model(model: Any) -> pd.DataFrame:
         roles.append("baseline")
         term_tags.append(None)
         runs.append(None)
+        block_diag.append(False)
         cursor += 1
 
     return pd.DataFrame({
@@ -455,7 +519,7 @@ def _colmap_baseline_model(model: Any) -> pd.DataFrame:
         'basis_total': [None] * n_cols,
         'basis_label': [None] * n_cols,
         'pretty_name': cn,
-        'is_block_diagonal': [True] * n_cols,
+        'is_block_diagonal': block_diag,
         'modulation_type': [None] * n_cols,
         'modulation_id': [None] * n_cols,
     })

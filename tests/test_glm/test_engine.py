@@ -262,3 +262,87 @@ class TestReducedRankEngine:
         eng = get_engine("reduced_rank")
         with pytest.raises(ValueError, match="dataset"):
             eng.preflight(object(), FmriLmConfig())
+
+
+# ---------------------------------------------------------------------------
+# REG-A-16: OLS-only engines refuse configurations they cannot honour
+# ---------------------------------------------------------------------------
+
+
+def _two_run_dataset(censor=None):
+    import pandas as pd
+
+    import fmrimod as fm
+
+    rng = np.random.default_rng(5)
+    n = 60
+    onsets = np.arange(4.0, 100.0, 12.0)
+    conds = np.array(["A", "B"] * 10)[: len(onsets)]
+    events = pd.DataFrame(
+        {
+            "onset": np.concatenate([onsets, onsets]),
+            "condition": np.concatenate([conds, conds]),
+            "duration": 0.0,
+            "run": np.repeat([1, 2], len(onsets)),
+        }
+    )
+    Y = rng.normal(size=(2 * n, 4)) + 100.0
+    return fm.fmri_dataset(Y, tr=2.0, events=events, run_length=[n, n], censor=censor)
+
+
+def _volume_weights():
+    from fmrimod.model.config import VolumeWeightOptions
+
+    w = np.ones(120)
+    w[[3, 4, 5, 90]] = 0.0
+    return VolumeWeightOptions(enabled=True, weights=w)
+
+
+@pytest.mark.parametrize(
+    "engine",
+    [ReducedRankEngineOptions(rank=1), SketchEngineOptions(sketch_size=40, seed=1)],
+    ids=["reduced_rank", "sketch"],
+)
+@pytest.mark.parametrize(
+    "case, feature",
+    [
+        ("ar1", "AR modeling"),
+        ("huber", "robust fitting"),
+        ("volume_weights", "volume weights"),
+        ("censor", "frame censoring"),
+    ],
+)
+def test_ols_only_engines_reject_unsupported_configuration(engine, case, feature):
+    """Never fit silently without the option, never crash after the fit."""
+    import fmrimod as fm
+    from fmrimod.glm.errors import UnsupportedEngineConfiguration
+    from fmrimod.model.config import AROptions, RobustOptions
+
+    censor = None
+    config = FmriLmConfig()
+    if case == "ar1":
+        config = FmriLmConfig(ar=AROptions(struct="ar1"))
+    elif case == "huber":
+        config = FmriLmConfig(robust=RobustOptions(type="huber"))
+    elif case == "volume_weights":
+        config = FmriLmConfig(volume_weights=_volume_weights())
+    else:
+        censor = np.zeros(120, dtype=bool)
+        censor[[3, 4, 5, 90]] = True
+    ds = _two_run_dataset(censor=censor)
+
+    with pytest.raises(UnsupportedEngineConfiguration, match=feature) as excinfo:
+        fm.fmri_lm("hrf(condition)", ds, config=config, engine=engine)
+    assert excinfo.value.engine in {"reduced_rank", "sketch"}
+
+
+@pytest.mark.parametrize(
+    "engine",
+    [ReducedRankEngineOptions(rank=1), SketchEngineOptions(sketch_size=40, seed=1)],
+    ids=["reduced_rank", "sketch"],
+)
+def test_ols_only_engines_still_fit_plain_ols(engine):
+    import fmrimod as fm
+
+    fit = fm.fmri_lm("hrf(condition)", _two_run_dataset(), engine=engine)
+    assert np.all(np.isfinite(fit.betas))

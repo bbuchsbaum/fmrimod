@@ -182,3 +182,25 @@ class TestRunAvgACVF:
         y = np.random.randn(100)
         gamma = run_avg_acvf(y, max_lag=3)
         assert len(gamma) == 4
+
+
+def test_enforce_invertible_ma_moves_unit_roots_off_the_circle():
+    """AR-19 (fmriAR 617bd87): every root ends at modulus >= 1/0.99."""
+    from fmrimod.ar.numhelpers import enforce_invertible_ma
+
+    def min_mod(th):
+        return float(np.min(np.abs(np.roots(np.r_[1.0, th][::-1]))))
+
+    for th in ([-1.0], [1.0], [0.0, -1.0], [-0.995]):
+        assert min_mod(enforce_invertible_ma(np.array(th))) >= 1 / 0.99 - 1e-8
+    rng = np.random.default_rng(9107)
+    for _ in range(50):
+        th = enforce_invertible_ma(rng.normal(scale=1.5, size=3))
+        assert min_mod(th) >= 1 / 0.99 - 1e-8
+    keep = np.array([0.4, 0.1])
+    np.testing.assert_array_equal(enforce_invertible_ma(keep), keep)
+    np.testing.assert_array_equal(
+        enforce_invertible_ma(np.array([0.3, np.nan])), [0.0, 0.0]
+    )
+    # bound=1 restores pure reflection (a unit root stays on the circle).
+    np.testing.assert_allclose(enforce_invertible_ma(np.array([-1.0]), bound=1.0), [-1.0])

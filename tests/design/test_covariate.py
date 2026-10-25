@@ -361,10 +361,76 @@ class TestMultiVariableCovariate:
         for k, var in enumerate(['x', 'y', 'z']):
             np.testing.assert_allclose(X[:, k], cov[var])
         assert model.column_names == ['motion_x', 'motion_y', 'motion_z']
-        assert model.conditions()[0] == ['motion_x', 'motion_y', 'motion_z']
+        # Conditions are the variables; the prefix is the term tag (DES-18).
+        assert model.conditions()[0] == ['x', 'y', 'z']
 
-    def test_single_variable_covariate_unchanged(self, cov):
+    def test_single_variable_covariate_uses_cov_tag(self, cov):
         data = cov.assign(onset=2.0, cond='A')
         model = event_model([CovariateTerm('x')], data=data, tr=2.0, n_scans=self.n_scans)
-        assert model.column_names == ['x']
+        assert model.column_names == ['cov_x']
         np.testing.assert_allclose(model.design_matrix[:, 0], cov['x'])
+
+
+class TestCovariateNaming:
+    """Covariate column-name grammar ``<tag>_<variable>`` (inventory v2 DES-18).
+
+    R fmridesign 6907d0b/61e2b62: the term tag defaults to ``cov``; ``id``
+    (then ``prefix``) replaces it, and each variable is a condition tag.
+    Paired with the DES-02 check that each column is its own variable.
+    """
+
+    n_scans = 40
+
+    @pytest.fixture
+    def cov(self):
+        rng = np.random.default_rng(1)
+        return pd.DataFrame({
+            'x': rng.normal(size=self.n_scans),
+            'y': rng.normal(size=self.n_scans),
+        })
+
+    def _typed(self, cov, **kwargs):
+        from fmrimod.spec import compile_events, hrf
+        from fmrimod.spec import covariate as spec_covariate
+
+        sf = SamplingFrame(blocklens=[self.n_scans], tr=2.0)
+        ev = pd.DataFrame({'onset': [2.0, 20.0], 'cond': ['A', 'B'], 'run': 1})
+        return compile_events(
+            hrf('cond') + spec_covariate('x', 'y', source=cov, **kwargs), ev, sf,
+            block='run', durations=None, precision=None,
+        )
+
+    @pytest.mark.parametrize(
+        'kwargs,names',
+        [
+            ({}, ['cov_x', 'cov_y']),
+            ({'prefix': 'motion'}, ['motion_x', 'motion_y']),
+            ({'id': 'alignment'}, ['alignment_x', 'alignment_y']),
+        ],
+    )
+    def test_typed_covariate_names(self, cov, kwargs, names):
+        em = self._typed(cov, **kwargs)
+        assert em.column_names[2:] == names
+        X = em.design_matrix
+        np.testing.assert_allclose(X[:, 2], cov['x'])
+        np.testing.assert_allclose(X[:, 3], cov['y'])
+        facts = em.column_facts[2:]
+        assert [f['condition'] for f in facts] == ['x', 'y']
+        assert {f['term_tag'] for f in facts} == {names[0].split('_')[0]}
+
+    @pytest.mark.parametrize(
+        'kwargs,names',
+        [
+            ({}, ['cov_x', 'cov_y']),
+            ({'prefix': 'motion'}, ['motion_x', 'motion_y']),
+            ({'id': 'alignment'}, ['alignment_x', 'alignment_y']),
+        ],
+    )
+    def test_legacy_covariate_names(self, cov, kwargs, names):
+        data = cov.assign(onset=2.0, cond='A')
+        model = event_model(
+            [covariate('x', 'y', **kwargs)], data=data, tr=2.0, n_scans=self.n_scans,
+        )
+        assert model.column_names == names
+        assert model.conditions()[0] == ['x', 'y']
+        np.testing.assert_allclose(model.design_matrix[:, 1], cov['y'])

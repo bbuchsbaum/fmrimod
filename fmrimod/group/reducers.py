@@ -70,6 +70,8 @@ from ._reducers_lmm import (
     _lmm_fixed_design,
     _lmm_not_available,
     _lmm_result_dataset,
+    _lmm_ri_converged,
+    _lmm_ri_slope1_converged,
     _raise_if_all_lmm_fits_failed,
 )
 from ._reducers_policy import (
@@ -175,6 +177,8 @@ def meta_fe(
     }
     for arr in assays.values():
         arr[bad] = np.nan
+    # Valid-subject count, reported unmasked (R/reducers-core.R:27-29,85,125).
+    assays["n_eff"] = np.asarray(k, dtype=np.float64).copy()
 
     return _reduced_dataset(
         dataset,
@@ -230,6 +234,8 @@ def meta_re(
     }
     for arr in assays.values():
         arr[bad] = np.nan
+    # Valid-subject count, reported unmasked (R/reducers-core.R:27-29,85,125).
+    assays["n_eff"] = np.asarray(k, dtype=np.float64).copy()
 
     return _reduced_dataset(
         dataset,
@@ -1315,10 +1321,10 @@ def lmm_ri(
         sigma2[feature_idx] = scale
         vc_intercept[feature_idx] = vc_i
         log_lik[feature_idx] = float(result.llf)
-        converged[feature_idx] = (
-            1.0 if bool(getattr(result, "converged", False)) else 0.0
-        )
         lambda_intercept[feature_idx] = vc_i / scale if scale > 0 else np.nan
+        converged[feature_idx] = _lmm_ri_converged(
+            result, lambda_intercept[feature_idx]
+        )
 
     _raise_if_all_lmm_fits_failed(
         method="lmm:ri",
@@ -1460,12 +1466,19 @@ def lmm_ri_slope1(
         vc_slope[feature_idx] = vc_s
         vc_cov[feature_idx] = vc_is
         log_lik[feature_idx] = float(result.llf)
-        converged[feature_idx] = (
-            1.0 if bool(getattr(result, "converged", False)) else 0.0
-        )
         lambda_intercept[feature_idx] = vc_i / scale if scale > 0 else np.nan
         lambda_slope[feature_idx] = vc_s / scale if scale > 0 else np.nan
         lambda_cov[feature_idx] = vc_is / scale if scale > 0 else np.nan
+        converged[feature_idx] = _lmm_ri_slope1_converged(
+            result,
+            np.array(
+                [
+                    [lambda_intercept[feature_idx], lambda_cov[feature_idx]],
+                    [lambda_cov[feature_idx], lambda_slope[feature_idx]],
+                ]
+            ),
+            covariance=covariance,
+        )
         denom = np.sqrt(vc_i * vc_s)
         corr[feature_idx] = vc_is / denom if denom > 0 else 0.0
 

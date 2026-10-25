@@ -126,6 +126,14 @@ class Regressor:
         """Validate and process inputs after initialization."""
         _set = object.__setattr__
 
+        # summate must be a single bool: None/NaN/ints would otherwise be
+        # read as False by the conv path (fmrihrf aaf58d0).
+        if not isinstance(self.summate, (bool, np.bool_)):
+            raise TypeError(
+                f"summate must be a bool, got {type(self.summate).__name__}"
+            )
+        _set(self, "summate", bool(self.summate))
+
         # Convert inputs to numpy arrays
         _set(self, "onsets", np.asarray(self.onsets, dtype=np.float64))
         _set(self, "duration", np.asarray(self.duration, dtype=np.float64))
@@ -164,6 +172,7 @@ class Regressor:
         # --- Handle list-of-HRFs (trial-varying) ---
         hrf_value = self.hrf
         _hrf_is_list = isinstance(hrf_value, list)
+        first_hrf: HRF | None = None
         if isinstance(hrf_value, list):
             for i, h in enumerate(hrf_value):
                 if not isinstance(h, HRF):
@@ -172,6 +181,7 @@ class Regressor:
                         f"got {type(h).__name__}. Use the regressor() factory "
                         "to coerce strings or callables."
                     )
+            first_hrf = hrf_value[0] if len(hrf_value) > 0 else None
             # Recycle length-1 list
             if len(hrf_value) == 1 and n_onsets > 0:
                 hrf_value = hrf_value * n_onsets
@@ -206,6 +216,13 @@ class Regressor:
                     _set(self, "hrf", [hrf_list[i] for i in keep_indices])
         else:
             _set(self, "filtered_all", True)
+
+        # With no events left there is nothing to vary per trial: keep the
+        # first supplied HRF as an ordinary single HRF so nbasis and span
+        # survive (an empty per-event list has neither; fmrihrf b7ce497).
+        if _hrf_is_list and len(self.onsets) == 0 and first_hrf is not None:
+            _set(self, "hrf", first_hrf)
+            _hrf_is_list = False
 
         # Ensure HRF is valid (single-HRF case)
         if not _hrf_is_list and not isinstance(self.hrf, HRF):
@@ -526,7 +543,23 @@ class RegressorSet:
     
     regressors: List[Regressor]
     levels: List[str]
-    
+
+    @property
+    def column_names(self) -> list[str]:
+        """Design-matrix column names, in :meth:`evaluate` column order.
+
+        One name per level for single-basis HRFs, ``<level>_basis<k>`` for
+        multi-basis HRFs (fmrihrf ``regset_column_names``, #63).
+        """
+        names: list[str] = []
+        for level, reg in zip(self.levels, self.regressors, strict=True):
+            nb = reg.nbasis
+            if nb == 1:
+                names.append(level)
+            else:
+                names.extend(f"{level}_basis{k}" for k in range(1, nb + 1))
+        return names
+
     @overload
     def evaluate(
         self,
@@ -575,8 +608,12 @@ class RegressorSet:
                 result = result[:, np.newaxis]
             results.append(result)
         
-        # Combine results
-        design_matrix = np.hstack(results)
+        # Combine results; no levels means a len(grid) x 0 matrix
+        # (fmrihrf 304f1fb), not an hstack error.
+        if results:
+            design_matrix = np.hstack(results)
+        else:
+            design_matrix = np.zeros((len(np.atleast_1d(grid)), 0))
         
         if sparse:
             return csr_matrix(design_matrix)

@@ -2058,7 +2058,7 @@
       "name": "group_data_from_nifti",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.dataset.group_data",
-      "runtime_signature": "(beta_paths: 'Optional[Sequence[str] | str]' = None, se_paths: 'Optional[Sequence[str] | str]' = None, var_paths: 'Optional[Sequence[str] | str]' = None, t_paths: 'Optional[Sequence[str] | str]' = None, df: 'Optional[Sequence[int] | int]' = None, subjects: 'Optional[Sequence[str]]' = None, covariates: 'Optional[pd.DataFrame]' = None, mask: 'Optional[str]' = None, target_space: 'Optional[str]' = None, validate: 'bool' = True) -> 'GroupData'",
+      "runtime_signature": "(beta_paths: 'Optional[Sequence[str] | str]' = None, se_paths: 'Optional[Sequence[str] | str]' = None, var_paths: 'Optional[Sequence[str] | str]' = None, t_paths: 'Optional[Sequence[str] | str]' = None, df: 'Optional[Sequence[float] | float]' = None, subjects: 'Optional[Sequence[str]]' = None, covariates: 'Optional[pd.DataFrame]' = None, mask: 'Optional[str]' = None, target_space: 'Optional[str]' = None, validate: 'bool' = True) -> 'GroupData'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -2508,7 +2508,7 @@
       "name": "p_values",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', type: 'AccessorTarget' = 'estimates') -> 'EstimateOrContrastMap'",
+      "runtime_signature": "(x: 'object', type: 'AccessorTarget' = 'betas') -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -2583,7 +2583,7 @@
       "name": "pvalues",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', type: 'AccessorTarget' = 'estimates') -> 'EstimateOrContrastMap'",
+      "runtime_signature": "(x: 'object', type: 'AccessorTarget' = 'betas') -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -2778,7 +2778,7 @@
       "name": "se",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', type: 'AccessorStandardErrorTarget' = 'estimates') -> 'EstimateOrContrastMap'",
+      "runtime_signature": "(x: 'object', type: 'AccessorStandardErrorTarget' = 'betas') -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -2943,7 +2943,7 @@
       "name": "standard_error",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', type: 'AccessorStandardErrorTarget' = 'estimates') -> 'EstimateOrContrastMap'",
+      "runtime_signature": "(x: 'object', type: 'AccessorStandardErrorTarget' = 'betas') -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -2958,7 +2958,7 @@
       "name": "stats",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.stats",
-      "runtime_signature": "(x: 'object', type: 'str' = 'estimates') -> 'EstimateOrContrastMap'",
+      "runtime_signature": "(x: 'object', type: 'str' = 'betas') -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -3003,7 +3003,7 @@
       "name": "tidy",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', type: 'AccessorTarget' = 'estimates') -> 'pd.DataFrame'",
+      "runtime_signature": "(x: 'object', type: 'AccessorTarget' = 'betas') -> 'pd.DataFrame'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"
@@ -3138,7 +3138,7 @@
       "name": "zscores",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.accessors",
-      "runtime_signature": "(x: 'object', type: 'AccessorTarget' = 'estimates') -> 'EstimateOrContrastMap'",
+      "runtime_signature": "(x: 'object', type: 'AccessorTarget' = 'betas') -> 'EstimateOrContrastMap'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"

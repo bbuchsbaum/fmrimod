@@ -35,7 +35,12 @@ from fmrimod.glm.errors import FmriCapabilityError, UnsupportedEngineConfigurati
 from fmrimod.glm.solver import LmResult, Projection, fast_lm_matrix, fast_preproject
 from fmrimod.model.config import AROptions, FmriLmConfig
 
-from .estimation import _quantise_to_noise_pools, fit_noise
+from .acvf import DesignResidualMismatchError
+from .estimation import (
+    ArEstimationFallbackWarning,
+    _quantise_to_noise_pools,
+    fit_noise,
+)
 from .plan import plan_from_phi
 from .whitening import whiten_apply
 
@@ -94,7 +99,9 @@ def validate_ar_config(model: object, config: FmriLmConfig) -> None:
 
     Voxelwise AR follows fmrireg's narrow contract
     (``.validate_builtin_voxelwise_noise``, 3c2a9c2), plus robust fitting,
-    which needs one design per run here.
+    which needs one design per run here. ARMA (``q > 0``) follows fmrireg's
+    narrow MA contract (``noise_spec``, ``fmri_lm_control``, 3c2a9c2).
+    Options no fitting path reads are refused rather than ignored.
     """
     ar = config.ar
     if ar.voxelwise and not ar.enabled:
@@ -103,6 +110,26 @@ def validate_ar_config(model: object, config: FmriLmConfig) -> None:
             "or another AR structure"
         )
     if not ar.enabled:
+        return
+    if ar.method == "afni":
+        raise UnsupportedEngineConfiguration(
+            engine="runwise",
+            feature="AROptions(method='afni')",
+            repair=(
+                "fmri_lm estimates AR/ARMA models from the data; build an AFNI "
+                "plan with fmrimod.ar.afni_restricted_plan and whiten directly"
+            ),
+            current_capability=("method='ar'", "method='arma'"),
+        )
+    if ar.parcels is not None:
+        raise UnsupportedEngineConfiguration(
+            engine="runwise",
+            feature="AROptions(parcels=...)",
+            repair="drop parcels; fmri_lm does not support parcel pooling",
+            current_capability=("pooling='run'", "pooling='global'"),
+        )
+    if ar.is_arma:
+        _validate_arma_config(model, config)
         return
     if ar.pooling == "parcel":
         raise UnsupportedEngineConfiguration(
@@ -153,6 +180,41 @@ def validate_ar_config(model: object, config: FmriLmConfig) -> None:
         )
 
 
+def _validate_arma_config(model: object, config: FmriLmConfig) -> None:
+    """fmrireg's narrow MA contract: runwise, run pooling, no censoring,
+    voxelwise covariance, noise pools or robust fitting, ``iter_gls >= 1``."""
+    ar = config.ar
+    blockers = []
+    if ar.pooling != "run":
+        blockers.append(f"pooling={ar.pooling!r}")
+    if ar.voxelwise:
+        blockers.append("voxelwise covariance")
+    if ar.censor is not None or _dataset_censors(model):
+        blockers.append("censoring")
+    if ar.iter_gls < 1:
+        blockers.append(f"iter_gls={ar.iter_gls}")
+    if ar.noise_pools is not None:
+        blockers.append("noise_pools")
+    if config.robust.enabled:
+        blockers.append("robust fitting")
+    if blockers:
+        raise UnsupportedEngineConfiguration(
+            engine="runwise",
+            feature=f"ARMA noise (q > 0) with {', '.join(blockers)}",
+            repair=(
+                "use ARMA with pooling='run', iter_gls >= 1 and no censoring, "
+                "voxelwise covariance, noise pools or robust fitting, or set "
+                "q=0 for an AR model"
+            ),
+            current_capability=(
+                "pooling='run'",
+                "iter_gls>=1",
+                "no censoring",
+                "no voxelwise covariance, noise pools or robust fitting",
+            ),
+        )
+
+
 def iterative_gls(
     model: object,  # FmriModel
     config: FmriLmConfig,
@@ -181,13 +243,16 @@ def iterative_gls(
         The AR coefficients the whitening applied: ``(p,)`` for one run or
         global pooling, ``(n_runs, p)`` for run pooling; voxelwise
         ``(p, V)`` for one run, ``(n_runs, p, V)`` otherwise. Empty when
-        ``iter_gls=0``.
+        ``iter_gls=0``. For an ARMA model the fit also holds the MA
+        coefficients under ``"ma_params"``, shaped like ``ar_params``.
     """
     ar_opts = config.ar
     if ar_opts.iter_gls < 1:
         return initial_fit, np.array([], dtype=np.float64)
 
     runs = _run_matrices(model, initial_fit)
+    if ar_opts.is_arma:
+        return _iterative_arma_gls(runs, ar_opts, config.solver)
     order = ar_opts.ar_order
     if ar_opts.voxelwise:
         phis = [_voxelwise_phi(rm, order, ar_opts.noise_pools) for rm in runs]
@@ -198,6 +263,59 @@ def iterative_gls(
     phis = _shared_phi(runs, ar_opts)
     fit = _solve_shared(runs, phis, ar_opts.exact_first, config.solver)
     single = len(phis) == 1 or ar_opts.pooling == "global"
+    return fit, phis[0] if single else np.stack(phis)
+
+
+def _iterative_arma_gls(
+    runs: list[_RunMatrices], ar_opts: AROptions, solver: Any
+) -> tuple[dict[str, Any], NDArray[np.float64]]:
+    """Runwise ARMA(p, q) GLS (fmrireg ``.iterative_ar_gls_via_fmriAR``).
+
+    Per run, the ARMA model is estimated by fmriAR's pooled Hannan-Rissanen
+    regression from the OLS residuals. Up to ``iter_gls - 1`` refinements
+    re-estimate it from the unwhitened residuals ``Y - X b_gls`` of the GLS
+    fit, stopping once no coefficient moves by more than
+    ``convergence_tol``. ARMA has no residual-bias correction, so iterating
+    is meaningful here, unlike for AR.
+    """
+    p, q = ar_opts.ar_order, ar_opts.ma_order
+    exact = "ar1" if ar_opts.exact_first else "none"
+    phis, thetas = [], []
+    for rm in runs:
+        finite = np.all(np.isfinite(rm.resid), axis=0)
+        if not np.any(finite):
+            phis.append(np.zeros(p))
+            thetas.append(np.zeros(q))
+            continue
+        Y, resid = rm.Y[:, finite], rm.resid[:, finite]
+        prev: NDArray[np.float64] | None = None
+        for it in range(ar_opts.iter_gls):
+            plan = fit_noise(
+                resid, method="arma", p=p, q=q, pooling="global", exact_first=exact
+            )
+            phi = np.zeros(p)
+            theta = np.zeros(q)
+            phi[: len(plan.phi[0])] = plan.phi[0][:p]
+            theta[: len(plan.theta[0])] = plan.theta[0][:q]
+            params = np.concatenate([phi, theta])
+            if prev is not None and np.max(np.abs(params - prev)) <= ar_opts.convergence_tol:
+                break
+            prev = params
+            if it < ar_opts.iter_gls - 1:
+                wr = whiten_apply(
+                    plan_from_phi(phi, theta=theta, exact_first=ar_opts.exact_first),
+                    rm.X,
+                    Y,
+                )
+                assert wr.X is not None and wr.Y is not None
+                proj = fast_preproject(wr.X, check_finite=False, method=solver)
+                betas = fast_lm_matrix(wr.X, wr.Y, proj, check_finite=False).betas
+                resid = Y - rm.X @ betas
+        phis.append(phi)
+        thetas.append(theta)
+    fit = _solve_shared(runs, phis, ar_opts.exact_first, solver, thetas=thetas)
+    single = len(runs) == 1
+    fit["ma_params"] = thetas[0] if single else np.stack(thetas)
     return fit, phis[0] if single else np.stack(phis)
 
 
@@ -343,15 +461,28 @@ def _estimate_phi(
             design=design,
             correction_max_lag=_correction_lag_budget(order, rdf),
         )
+    except DesignResidualMismatchError:
+        # The residuals are not this design's OLS residuals: a wiring bug,
+        # not a data problem, so it must not degrade to an unwhitened fit.
+        raise
     except (ValueError, np.linalg.LinAlgError) as err:
         warnings.warn(
             f"AR({order}) estimation failed ({err}); fitting without AR whitening.",
-            UserWarning,
+            ArEstimationFallbackWarning,
             stacklevel=4,
         )
         return np.zeros(order, dtype=np.float64)
     phi = np.zeros(order, dtype=np.float64)
     est = np.asarray(plan.phi[0] if plan.phi else [], dtype=np.float64)[:order]
+    if est.size == 0 and order > 0:
+        # fit_noise returns no coefficients for zero-variance residuals or
+        # too few usable lags: a fallback, not an estimate of zero.
+        warnings.warn(
+            f"AR({order}) estimation failed (no usable autocovariance); "
+            "fitting without AR whitening.",
+            ArEstimationFallbackWarning,
+            stacklevel=4,
+        )
     phi[: est.size] = np.where(np.isfinite(est), est, 0.0)
     return phi
 
@@ -478,13 +609,18 @@ def _whiten(
     phi: NDArray[np.float64],
     exact_first: bool,
     cols: NDArray[np.intp] | None = None,
+    theta: NDArray[np.float64] | None = None,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Whiten a run's design and data, restarting at every censoring gap.
 
     Voxels with non-finite data (``na_action="propagate"``) stay non-finite.
     """
     Y = rm.Y if cols is None else rm.Y[:, cols]
-    plan = plan_from_phi(np.asarray(phi, dtype=np.float64), exact_first=exact_first)
+    plan = plan_from_phi(
+        np.asarray(phi, dtype=np.float64),
+        theta=None if theta is None else np.asarray(theta, dtype=np.float64),
+        exact_first=exact_first,
+    )
     finite = np.all(np.isfinite(Y), axis=0)
     wr = whiten_apply(plan, rm.X, Y[:, finite], runs=cast(Any, rm.segments))
     assert wr.X is not None and wr.Y is not None
@@ -514,16 +650,19 @@ def _solve_shared(
     phis: list[NDArray[np.float64]],
     exact_first: bool,
     solver: Any,
+    thetas: list[NDArray[np.float64]] | None = None,
 ) -> dict[str, Any]:
-    """GLS of every run with its phi, pooled across runs."""
+    """GLS of every run with its phi (and theta), pooled across runs."""
     from fmrimod.glm.strategies import _pool_run_results
 
     run_results = []
     projections = []
     residuals = []
     run_X = []
-    for rm, phi in zip(runs, phis, strict=True):
-        Xw, Yw = _whiten(rm, phi, exact_first)
+    if thetas is None:
+        thetas = [np.array([], dtype=np.float64)] * len(runs)
+    for rm, phi, theta in zip(runs, phis, thetas, strict=True):
+        Xw, Yw = _whiten(rm, phi, exact_first, theta=theta)
         proj = fast_preproject(Xw, check_finite=False, method=solver)
         proj = _with_observation_df(proj, rm.obs_weights)
         result = fast_lm_matrix(Xw, Yw, proj, return_fitted=True, check_finite=False)

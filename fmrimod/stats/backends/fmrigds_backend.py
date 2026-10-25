@@ -201,8 +201,17 @@ class FmrigdsBackend:
             raise NotImplementedError(
                 "fmrigds backend currently supports method='fe' or 'dl' in this bridge phase"
             )
-        if str(request.weights) == "custom":
+        weights = str(request.weights)
+        if weights == "custom":
             raise NotImplementedError("fmrigds backend does not yet support custom weights")
+        if weights != "ivw":
+            # The bridge runs inverse-variance meta:* reducers; R fmrigds
+            # reduce() refuses other schemes rather than ignore them
+            # (e359af6, R/verb-reduce.R:239-262).
+            raise NotImplementedError(
+                f"fmrigds backend supports only weights='ivw' (got {weights!r}); "
+                "its meta:fe/meta:re reducers are inverse-variance weighted"
+            )
         if request.robust != "none":
             raise NotImplementedError("fmrigds backend does not yet support robust != 'none'")
         if request.combine is not None:

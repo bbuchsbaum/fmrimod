@@ -16,6 +16,7 @@ claims them.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any, Dict, Optional, cast
 
 import numpy as np
@@ -27,16 +28,32 @@ from ..model.config import FmriLmConfig
 from .fmri_lm import FmriLm, fmri_lm
 
 
+def _run_slices(run_lengths: Sequence[int]) -> list[slice]:
+    stops = np.cumsum([0, *run_lengths])
+    return [slice(int(a), int(b)) for a, b in zip(stops[:-1], stops[1:], strict=True)]
+
+
 class _MatrixDataset:
-    def __init__(self, Y: NDArray[np.float64]) -> None:
+    def __init__(
+        self,
+        Y: NDArray[np.float64],
+        run_lengths: Sequence[int] | None = None,
+    ) -> None:
         self._Y = Y
-        self.n_timepoints = [int(Y.shape[0])]
-        self.n_runs = 1
+        lengths = [int(Y.shape[0])] if run_lengths is None else [int(n) for n in run_lengths]
+        if sum(lengths) != Y.shape[0]:
+            raise ValueError(
+                f"run lengths {lengths} do not add up to the {Y.shape[0]} response rows"
+            )
+        self.n_timepoints = lengths
+        self.run_lengths = lengths
+        self.n_runs = len(lengths)
+        self._slices = _run_slices(lengths)
 
     def get_data(self, run: int = 0) -> NDArray[np.float64]:
-        if run != 0:
-            raise IndexError("matrix dataset has one run")
-        return self._Y
+        if not 0 <= run < self.n_runs:
+            raise IndexError(f"matrix dataset has {self.n_runs} run(s)")
+        return self._Y[self._slices[run]]
 
     def get_censor(self, run: int = 0) -> None:
         return None
@@ -48,16 +65,21 @@ class _MatrixModel:
         X: NDArray[np.float64],
         Y: NDArray[np.float64],
         source: object = None,
+        run_lengths: Sequence[int] | None = None,
     ) -> None:
         self._X = X
-        self.dataset = _MatrixDataset(Y)
-        self.n_runs = 1
+        self.dataset = _MatrixDataset(Y, run_lengths)
+        self.n_runs = self.dataset.n_runs
+        self._slices = self.dataset._slices
         self._source = source
 
-    def design_matrix_array(self, run: int = 0) -> NDArray[np.float64]:
-        if run != 0:
-            raise IndexError("matrix model has one run")
-        return self._X
+    def design_matrix_array(self, run: int | None = 0) -> NDArray[np.float64]:
+        """Run ``run``'s rows of the design (all rows when ``run`` is None)."""
+        if run is None:
+            return self._X
+        if not 0 <= run < self.n_runs:
+            raise IndexError(f"matrix model has {self.n_runs} run(s)")
+        return self._X[self._slices[run]]
 
     def design_matrix(self) -> pd.DataFrame:
         return pd.DataFrame(self._X, columns=self._column_names())
@@ -114,10 +136,30 @@ def _source_design_matrix(source: object) -> object:
 
 
 def _design_matrix_from_model(model: object) -> NDArray[np.float64]:
+    return _design_and_runs_from_model(model)[0]
+
+
+def _design_and_runs_from_model(
+    model: object,
+) -> tuple[NDArray[np.float64], list[int] | None]:
+    """Full design of ``model`` and its per-run row counts.
+
+    A multi-run model gives every run's design stacked, with the run
+    lengths, so AR estimation and whitening restart at run boundaries as
+    in ``fmri_lm`` (fmrireg d0f0aa1 ``run_indices``). A single-run model
+    gives its design and ``None``.
+    """
     if hasattr(model, "design_matrix_array"):
-        return np.asarray(model.design_matrix_array(run=0), dtype=np.float64)
+        n_runs = getattr(model, "n_runs", 1)
+        if isinstance(n_runs, (int, np.integer)) and int(n_runs) > 1:
+            blocks = [
+                np.asarray(model.design_matrix_array(run=r), dtype=np.float64)
+                for r in range(int(n_runs))
+            ]
+            return np.vstack(blocks), [int(b.shape[0]) for b in blocks]
+        return np.asarray(model.design_matrix_array(run=0), dtype=np.float64), None
     if hasattr(model, "design_matrix"):
-        return np.asarray(model.design_matrix(), dtype=np.float64)
+        return np.asarray(model.design_matrix(), dtype=np.float64), None
     raise TypeError("model must provide design_matrix_array() or design_matrix()")
 
 

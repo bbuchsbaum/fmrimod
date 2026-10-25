@@ -215,7 +215,7 @@ def test_standard_error_rejects_F_target():
         fmrimod.standard_error(fit, type="F")
     msg = str(excinfo.value)
     valid_set, _, _ = msg.partition("; got ")
-    assert "'estimates'" in valid_set and "'contrasts'" in valid_set
+    assert "'betas'" in valid_set and "'contrasts'" in valid_set
     assert "'F'" not in valid_set
 
 
@@ -271,7 +271,7 @@ def test_legacy_string_inputs_still_work_without_warning():
         warnings.simplefilter("always")
         fmrimod.ar_parameters(fit, scope="average")
         fmrimod.ar_parameters(fit, scope="per_run")
-        fmrimod.standard_error(fit, type="estimates")
+        fmrimod.standard_error(fit, type="betas")
         fmrimod.stats(fit, type="contrasts")
         fmrimod.stats(fit, type="F")
         fmrimod.coef_image(fit, coef=0, statistic="estimate")
@@ -279,3 +279,36 @@ def test_legacy_string_inputs_still_work_without_warning():
     assert not deprecation, (
         f"canonical strings should not trigger deprecation warnings; got {deprecation!r}"
     )
+
+
+def test_betas_is_canonical_per_coefficient_target():
+    """REG-A-19: ``type="betas"`` is canonical; ``"estimates"`` is deprecated.
+
+    fmrireg 0.3.0 (f101073, #217) renamed the per-coefficient family because
+    ``stats(fit, "estimates")`` returned t-values, not estimates.
+    """
+    fit = _fitted_result()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        betas_t = fmrimod.stats(fit, type="betas")
+        betas_se = fmrimod.standard_error(fit, type="betas")
+        betas_p = fmrimod.p_values(fit, type="betas")
+        betas_tidy = fmrimod.tidy(fit, type="betas")
+        default_t = fmrimod.stats(fit)
+    np.testing.assert_array_equal(betas_t, fit.tstat())
+    np.testing.assert_array_equal(default_t, betas_t)
+
+    for fn, canonical in (
+        (fmrimod.stats, betas_t),
+        (fmrimod.standard_error, betas_se),
+        (fmrimod.p_values, betas_p),
+    ):
+        with pytest.warns(DeprecationWarning, match="'estimates' is deprecated"):
+            legacy = fn(fit, type="estimates")
+        np.testing.assert_array_equal(legacy, canonical)
+    with pytest.warns(DeprecationWarning, match="use type='betas'"):
+        legacy_tidy = fmrimod.tidy(fit, type="estimates")
+    pd.testing.assert_frame_equal(legacy_tidy, betas_tidy)
+
+    with pytest.raises(ValueError, match="'betas'"):
+        fmrimod.stats(fit, type="coefficients")

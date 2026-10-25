@@ -179,7 +179,17 @@ class Poly(ParametricBasis):
         signs[signs == 0] = 1
         Q = Q * signs
 
-        return cast(Array, Q)
+        # Fewer points than basis functions (e.g. a single event) leave some
+        # directions undetermined; the reduced QR then drops columns. Keep the
+        # (n, n_basis) shape and give the undetermined directions zero weight
+        # rather than an arbitrary unit vector.
+        out = np.zeros((n, self.n_basis))
+        k = Q.shape[1]
+        out[:, :k] = Q
+        diag = np.abs(np.diag(R))
+        tol = max(n, self.n_basis) * np.finfo(float).eps * max(float(diag.max(initial=0.0)), 1.0)
+        out[:, np.flatnonzero(diag <= tol)] = 0.0
+        return cast(Array, out)
 
 
 class NaturalPoly(Poly):

@@ -617,9 +617,12 @@ def whiten_apply(
     else:
         run_codes(runs, n)
 
-    # Resolve censor: None inherits the plan's set, an explicit empty one
+    # Resolve censor: None inherits the plan's set, but only for data of the
+    # length the plan was fitted on (fmriAR 617bd87); an explicit empty set
     # means no censoring; a boolean mask must not be cast to 0/1 indices.
-    censor_idx = _normalize_censor(plan.censor if censor is None else censor, n)
+    if censor is None and plan.censor is not None and plan.n_time == n:
+        censor = plan.censor
+    censor_idx = _normalize_censor(censor, n)
 
     # --- Parcel plan ---
     if plan.pooling == "parcel":
@@ -701,16 +704,24 @@ def whiten_apply(
             if len(c_in):
                 censor_by_run[ri] = c_in - start
 
-    phi_list = plan.phi or []
-    theta_list = plan.theta or []
-    # Expand single-element lists for global pooling
-    if len(phi_list) == 1:
-        phi_list = phi_list * len(rsplits)
-    if len(theta_list) == 1:
-        theta_list = theta_list * len(rsplits)
-    # Pad if needed
-    while len(theta_list) < len(rsplits):
-        theta_list.append(np.array([], dtype=np.float64))
+    # One coefficient set broadcasts to every run; a per-run plan must match
+    # the data's run count. Pairing runs with the wrong (or no) coefficients
+    # silently left an extra run unwhitened (fmriAR 617bd87). An empty list
+    # means no AR/MA part.
+    n_runs = len(rsplits)
+    coef_lists = {"phi": list(plan.phi or []), "theta": list(plan.theta or [])}
+    for name, coefs in coef_lists.items():
+        k = len(coefs)
+        if k not in (0, 1, n_runs):
+            raise ValueError(
+                f"whiten_apply: the plan has {k} '{name}' sets (one per run it "
+                f"was fitted on) but the data have {n_runs} runs"
+            )
+        if k == 0:
+            coefs.append(np.array([], dtype=np.float64))
+        if len(coefs) == 1:
+            coef_lists[name] = coefs * n_runs
+    phi_list, theta_list = coef_lists["phi"], coef_lists["theta"]
 
     Xw = np.empty_like(X)
     Yw = np.empty_like(Y)
@@ -719,10 +730,8 @@ def whiten_apply(
         row_sel = _row_selector(idx)
         Xr = X[row_sel]
         Yr = Y[row_sel]
-        phi_r = phi_list[ri] if ri < len(phi_list) else np.array([], dtype=np.float64)
-        theta_r = (
-            theta_list[ri] if ri < len(theta_list) else np.array([], dtype=np.float64)
-        )
+        phi_r = phi_list[ri]
+        theta_r = theta_list[ri]
 
         seg_starts = _sub_run_starts(len(idx), censor_by_run[ri])
 

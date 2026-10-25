@@ -19,7 +19,12 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from fmrimod.naming import continuous_token, level_token, make_cond_tag
+from fmrimod.naming import (
+    add_basis_suffix,
+    continuous_token,
+    level_token,
+    make_cond_tag,
+)
 
 from ..types import Array
 from .basis_filter import apply_basis_filter
@@ -34,6 +39,7 @@ from .contrast_spec import (
     PolyContrastSpec,
     UnitContrastSpec,
 )
+from .errors import ContrastError, DesignProvenanceError
 
 # Tolerance for sum-to-zero checks
 CONTRAST_TOLERANCE = 1e-8
@@ -733,11 +739,11 @@ def _(x: UnitContrastSpec, term: Any, **kwargs: object) -> Contrast:
     nA: int = int(np.sum(mask_A))
 
     if nA == 0:
-        warnings.warn(
+        raise ContrastError(
             f"Unit contrast '{x.name}': No conditions were selected by formula. "
-            f"Formula: '{formula_expr}', Conditions: {all_condnames}"
+            f"Formula: '{formula_expr}', Conditions: {all_condnames}",
+            contrast=x.name,
         )
-        weights_vec = np.zeros(len(all_condnames))
     else:
         # Unit contrast: selected conditions get equal positive weight summing to 1
         weights_vec = np.zeros(len(all_condnames))
@@ -787,8 +793,10 @@ def _(x: PairContrastSpec, term: Any, **kwargs: object) -> Contrast:
     try:
         weights_vec = _calculate_mask_weights(base_condnames, mask_A, mask_B)
     except ValueError as e:
-        warnings.warn(f"Contrast '{x.name}': {e}")
-        weights_vec = np.zeros(len(base_condnames))
+        raise ContrastError(
+            f"Contrast '{x.name}': {e} Conditions: {base_condnames}",
+            contrast=x.name,
+        ) from e
 
     weights = weights_vec.reshape(-1, 1)
 
@@ -828,54 +836,8 @@ def _(x: ColumnContrastSpec, term: Any, **kwargs: object) -> Contrast:
         weights = np.zeros((0, 1))
         return Contrast(term, x.name, weights, [], x)
     
-    # Find matching columns
-    idx_A = [i for i, name in enumerate(all_colnames) 
-             if re.search(x.pattern_A, name)]
-    nA = len(idx_A)
-    
-    if nA == 0:
-        warnings.warn(
-            f"Pattern '{x.pattern_A}' matched no columns in term "
-            f"'{getattr(term, 'varname', 'unknown')}'"
-        )
-    
-    idx_B = []
-    if x.pattern_B is not None:
-        idx_B = [i for i, name in enumerate(all_colnames)
-                 if re.search(x.pattern_B, name)]
-        nB = len(idx_B)
-        
-        if nB == 0:
-            warnings.warn(
-                f"Pattern '{x.pattern_B}' matched no columns in term "
-                f"'{getattr(term, 'varname', 'unknown')}'"
-            )
-        
-        # Check for overlap
-        if set(idx_A) & set(idx_B):
-            raise ValueError(
-                f"Patterns '{x.pattern_A}' and '{x.pattern_B}' match "
-                "overlapping columns"
-            )
-    
-    # Create masks
-    mask_A = np.zeros(len(all_colnames), dtype=bool)
-    mask_A[idx_A] = True
-    
-    mask_B = None
-    if x.pattern_B is not None:
-        mask_B = np.zeros(len(all_colnames), dtype=bool)
-        mask_B[idx_B] = True
-    
-    # Calculate weights
-    try:
-        weights_vec = _calculate_mask_weights(all_colnames, mask_A, mask_B)
-    except ValueError as e:
-        warnings.warn(f"Column contrast '{x.name}': {e}")
-        weights_vec = np.zeros(len(all_colnames))
-    
-    weights = weights_vec.reshape(-1, 1)
-    
+    term_label = str(getattr(term, "varname", None) or getattr(term, "name", "unknown"))
+    weights = _column_contrast_weights(x, all_colnames, all_colnames, term_label)
     return Contrast(
         term=term,
         name=x.name,
@@ -883,6 +845,87 @@ def _(x: ColumnContrastSpec, term: Any, **kwargs: object) -> Contrast:
         condnames=all_colnames,
         contrast_spec=x
     )
+
+
+def _match_column_pattern(
+    pattern: str,
+    which: str,
+    colnames_full: Sequence[str],
+    condnames: Sequence[str],
+    contrast_name: str,
+    term_label: str,
+) -> list[int]:
+    """Columns a ``column_contrast`` pattern selects (R ``.match_column_pattern``).
+
+    The design-matrix column names are tried first and the term-level
+    condition names only when the pattern matches none of them. A pattern
+    that matches in both namespaces must select the same columns.
+    """
+    regex = re.compile(pattern)
+    idx_full = [i for i, name in enumerate(colnames_full) if regex.search(name)]
+    same_ns = list(colnames_full) == list(condnames)
+    idx_cond = (
+        idx_full if same_ns else [i for i, name in enumerate(condnames) if regex.search(name)]
+    )
+    if idx_full:
+        if idx_cond and idx_cond != idx_full:
+            raise ValueError(
+                f"Column contrast '{contrast_name}': {which} ('{pattern}') is "
+                f"ambiguous for term '{term_label}': it selects design-matrix "
+                f"columns {[colnames_full[i] for i in idx_full]} but term-level "
+                f"condition names {[condnames[i] for i in idx_cond]}. Anchor the "
+                f"pattern on the design-matrix column names, e.g. "
+                f"'^{re.escape(colnames_full[idx_full[0]])}$'."
+            )
+        return idx_full
+    if idx_cond:
+        return idx_cond
+    message = (
+        f"Pattern '{pattern}' matched no columns in term '{term_label}'. "
+        f"Available columns: {', '.join(colnames_full)}."
+    )
+    if not same_ns:
+        message += f" The term-level condition names were also tried: {', '.join(condnames)}."
+    warnings.warn(message, stacklevel=3)
+    return []
+
+
+def _column_contrast_weights(
+    x: ColumnContrastSpec,
+    colnames_full: Sequence[str],
+    condnames: Sequence[str],
+    term_label: str,
+) -> NDArray[np.float64]:
+    """One weight column over a term's columns for a ``column_contrast``."""
+    idx_A = _match_column_pattern(
+        x.pattern_A, "pattern_A", colnames_full, condnames, x.name, term_label
+    )
+    idx_B: list[int] = []
+    if x.pattern_B is not None:
+        idx_B = _match_column_pattern(
+            x.pattern_B, "pattern_B", colnames_full, condnames, x.name, term_label
+        )
+        if set(idx_A) & set(idx_B):
+            raise ValueError(
+                f"Patterns '{x.pattern_A}' and '{x.pattern_B}' match "
+                "overlapping columns"
+            )
+
+    mask_A = np.zeros(len(condnames), dtype=bool)
+    mask_A[idx_A] = True
+    mask_B = None
+    if x.pattern_B is not None:
+        mask_B = np.zeros(len(condnames), dtype=bool)
+        mask_B[idx_B] = True
+
+    try:
+        weights_vec = _calculate_mask_weights(list(condnames), mask_A, mask_B)
+    except ValueError as e:
+        raise ContrastError(
+            f"Column contrast '{x.name}': {e} Columns: {list(colnames_full)}",
+            contrast=x.name,
+        ) from e
+    return cast(NDArray[np.float64], np.asarray(weights_vec, dtype=float).reshape(-1, 1))
 
 
 @contrast_weights.register(PolyContrastSpec)
@@ -1178,11 +1221,11 @@ def _(x: ContrastFormulaSpec, term: Any, **kwargs: object) -> Contrast:
     try:
         weights_vec = _evaluate_formula_expression(formula_expr, all_condnames)
     except Exception as e:
-        warnings.warn(
-            f"Formula contrast '{x.name}': Failed to parse formula '{formula_expr}': {e}. "
-            "Using zero weights."
-        )
-        weights_vec = np.zeros(len(all_condnames))
+        raise ContrastError(
+            f"Formula contrast '{x.name}': cannot evaluate formula "
+            f"'{formula_expr}': {e}. Available conditions: {all_condnames}",
+            contrast=x.name,
+        ) from e
     if where_mask is not None:
         weights_vec = np.where(where_mask, weights_vec, 0.0)
 
@@ -1238,9 +1281,11 @@ def _evaluate_formula_expression(formula_expr: str, condnames: List[str]) -> NDA
     # Parse the formula expression into an AST
     try:
         tree = ast.parse(preprocessed, mode='eval')
-    except SyntaxError:
+    except SyntaxError as exc:
         # Try treating it as a simple condition name
         mask = _match_conditions_to_formula(condnames, formula_expr)
+        if not mask.any():
+            raise ValueError(f"unparseable formula ({exc.msg})") from exc
         weights = np.zeros(len(condnames), dtype=float)
         weights[mask] = 1.0
         return weights
@@ -1308,6 +1353,8 @@ def _eval_formula_ast(node: ast.AST, condnames: List[str]) -> NDArray[Any]:
             expr_str = _reconstruct_compare(node)
 
         mask = _match_conditions_to_formula(condnames, expr_str)
+        if not mask.any():
+            raise ValueError(f"{expr_str!r} matches no condition")
         weights = np.zeros(len(condnames), dtype=float)
         weights[mask] = 1.0
         return weights
@@ -1316,6 +1363,8 @@ def _eval_formula_ast(node: ast.AST, condnames: List[str]) -> NDArray[Any]:
         # Simple variable name: "A"
         var_name = node.id
         mask = _match_conditions_to_formula(condnames, var_name)
+        if not mask.any():
+            raise ValueError(f"unknown name {var_name!r} matches no condition")
         weights = np.zeros(len(condnames), dtype=float)
         weights[mask] = 1.0
         return weights
@@ -1397,11 +1446,14 @@ def _(x: ContrastSet, term: Any, **kwargs: object) -> Dict[str, Contrast]:
     for contrast_spec in x:
         try:
             con = contrast_weights(contrast_spec, term, **kwargs)
-            results[con.name] = con
+        except DesignProvenanceError:
+            raise
         except Exception as e:
-            warnings.warn(
-                f"Failed to compute weights for contrast '{contrast_spec.name}': {e}"
-            )
+            raise ContrastError(
+                f"Failed to compute weights for contrast '{contrast_spec.name}': {e}",
+                contrast=contrast_spec.name,
+            ) from e
+        results[con.name] = con
 
     return results
 
@@ -1453,15 +1505,23 @@ def _contrast_weights_event_model(model: Any, **kwargs: object) -> Dict[str, Any
         term_contrasts = {}
         for contrast_spec in specs:
             try:
-                local_contrast = contrast_weights(contrast_spec, event_term, **kwargs)
-                offset_weights = layout.embed(local_contrast, ncol, key)
+                if isinstance(contrast_spec, ColumnContrastSpec):
+                    # Patterns address the realized design columns (R 53772f6).
+                    local_contrast, offset_weights = layout.column_contrast(
+                        contrast_spec, event_term, model.column_names, key
+                    )
+                else:
+                    local_contrast = contrast_weights(contrast_spec, event_term, **kwargs)
+                    offset_weights = layout.embed(local_contrast, ncol, key)
+            except DesignProvenanceError:
+                raise
             except Exception as e:
-                warnings.warn(
+                raise ContrastError(
                     f"Failed to compute contrast '{contrast_spec.name}' "
                     f"for term '{key}': {e}",
-                    stacklevel=2,
-                )
-                continue
+                    contrast=contrast_spec.name,
+                    term=str(key),
+                ) from e
 
             full_contrast = Contrast(
                 term=term,
@@ -1526,6 +1586,7 @@ class _TermColumns:
     """
 
     def __init__(self, term_facts: list[dict[str, Any]], base_condnames: list[str]) -> None:
+        self.facts = term_facts
         self.indices = [int(f["index"]) for f in term_facts]
         self.by_name = {str(f["name"]): int(f["index"]) for f in term_facts}
         self.columns: dict[str, dict[int, int]] = {}
@@ -1551,6 +1612,41 @@ class _TermColumns:
         if label in self.by_name:
             return [self.by_name[label]]
         return None
+
+    def term_level_names(self) -> list[str]:
+        """Term-level name of each column, ``condition_tag[_b##]``, in column order."""
+        base_of = {realized: base for base, realized in self.alias.items()}
+        names = []
+        for fact in self.facts:
+            name = base_of.get(str(fact["condition"]), str(fact["condition"]))
+            if int(fact.get("basis_total") or 1) > 1 and fact.get("basis_ix") is not None:
+                name = add_basis_suffix([name], int(fact["basis_total"]))[int(fact["basis_ix"]) - 1]
+            names.append(name)
+        return names
+
+    def column_contrast(
+        self,
+        spec: ColumnContrastSpec,
+        event_term: Any,
+        column_names: Sequence[str],
+        term_key: str,
+    ) -> tuple[Contrast, NDArray[np.float64]]:
+        """Resolve a ``column_contrast`` over this term's columns.
+
+        Matches the design-matrix names first, then the term-level names
+        (R ``contrast_weights.column_contrast_spec``). Returns the term-level
+        contrast and its full-design weights.
+        """
+        condnames = self.term_level_names()
+        full = [column_names[i] for i in self.indices]
+        weights = _column_contrast_weights(spec, full, condnames, term_key)
+        out = np.zeros((len(column_names), weights.shape[1]))
+        out[self.indices, :] = weights
+        local = Contrast(
+            term=event_term, name=spec.name, weights=weights,
+            condnames=condnames, contrast_spec=spec,
+        )
+        return local, out
 
     def embed(self, local: Contrast, ncol: int, term_key: str) -> NDArray[np.float64]:
         """Place a term-level contrast into the full design (R ``.embed_term_weights``)."""

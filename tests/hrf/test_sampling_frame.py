@@ -248,6 +248,21 @@ class TestSamplingFrameValidation:
         with pytest.raises(ValueError, match="blocklens must be positive"):
             SamplingFrame(blocklens=[50, -10, 100], tr=2.0)
     
+    def test_blocklens_must_be_whole_numbers(self):
+        """Fractional or infinite block lengths are rejected, not truncated.
+
+        Inventory v2 HRF-13 (fmrihrf ``dbcb920``).
+        """
+        with pytest.raises(ValueError, match="whole"):
+            SamplingFrame(blocklens=[100, 10.5], tr=2)
+        with pytest.raises(ValueError, match="whole"):
+            SamplingFrame(blocklens=[np.inf], tr=2)
+        with pytest.raises(ValueError, match="whole"):
+            SamplingFrame(blocklens=[np.nan], tr=2)
+        sf = SamplingFrame(blocklens=[10, 20.0], tr=2)
+        assert sf.blocklens.tolist() == [10, 20]
+        assert len(sf.samples) == 30
+
     def test_invalid_tr(self):
         """Test validation of TR."""
         with pytest.raises(ValueError, match="tr must be positive"):

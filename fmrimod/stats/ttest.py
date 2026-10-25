@@ -27,6 +27,9 @@ class FmriTTestResult:
     feature_names: list[str]
     engine: str
     meta_result: Optional[object] = None
+    n_obs: NDArray[np.intp] | None = None
+    """Subjects that entered each feature's test after dropping subjects
+    with a non-finite effect for that feature."""
 
 
 def _extract_csv_feature_effects(
@@ -73,8 +76,6 @@ def _extract_csv_feature_effects(
             )
         aligned = by_subj.loc[subjects]
         y = np.asarray(aligned[effect_col], dtype=np.float64)
-        if not np.all(np.isfinite(y)):
-            raise ValueError("Effect values must be finite")
 
         if group_cols:
             if isinstance(key, tuple):
@@ -170,6 +171,7 @@ def fmri_ttest(
             feature_names=meta_result.feature_names,
             engine="meta",
             meta_result=meta_result,
+            n_obs=meta_result.n_obs,
         )
 
     if resolved_engine in ("classic", "welch"):
@@ -178,11 +180,20 @@ def fmri_ttest(
                 "Welch engine is not implemented yet in this parity slice"
             )
         feature_names, vectors = _extract_csv_feature_effects(data, effect_name="beta")
-        estimates = np.zeros(len(vectors), dtype=np.float64)
-        ses = np.zeros(len(vectors), dtype=np.float64)
-        stats = np.zeros(len(vectors), dtype=np.float64)
-        pvals = np.zeros(len(vectors), dtype=np.float64)
+        estimates = np.full(len(vectors), np.nan, dtype=np.float64)
+        ses = np.full(len(vectors), np.nan, dtype=np.float64)
+        stats = np.full(len(vectors), np.nan, dtype=np.float64)
+        pvals = np.full(len(vectors), np.nan, dtype=np.float64)
+        n_obs = np.zeros(len(vectors), dtype=np.intp)
+        if data.n_subjects < 2:
+            raise ValueError("Classic t-test requires at least 2 subjects")
         for i, y in enumerate(vectors):
+            # Complete cases per feature (fmrireg ebf57cb, B7): a subject
+            # with a non-finite effect is dropped for this feature only.
+            y = y[np.isfinite(y)]
+            n_obs[i] = y.shape[0]
+            if y.shape[0] < 2:
+                continue
             est, se, tval, pval = _classic_one_sample(y)
             estimates[i] = est
             ses[i] = se
@@ -196,6 +207,7 @@ def fmri_ttest(
             feature_names=feature_names,
             engine="classic",
             meta_result=None,
+            n_obs=n_obs,
         )
 
     raise ValueError("engine must be one of: auto, meta, classic, welch")

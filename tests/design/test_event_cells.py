@@ -769,8 +769,9 @@ class TestEventBasisConstruction:
             basis=basis
         )
 
-        # Poly(degree=3) should give 3 basis functions (linear, quadratic, cubic - no intercept)
-        assert event.n_basis == 3
+        # Poly(degree=3) has an intercept by default: 4 basis functions. Three
+        # points cannot determine the cubic, but the column is kept (DES-15).
+        assert event.n_basis == basis.n_basis == 4
 
     def test_basis_names_property(self):
         """Test basis_names property."""

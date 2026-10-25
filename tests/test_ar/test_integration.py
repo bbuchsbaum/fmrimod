@@ -565,3 +565,118 @@ class TestVoxelwiseAr:
                 ds,
                 config=FmriLmConfig(ar=AROptions(voxelwise=True)),
             )
+
+
+# -- fmri_lm ARMA GLS (REG-A-14) -----------------------------------------------
+
+
+def _arma_dataset(n=180, V=6, n_runs=2, seed=82203, phi=0.4, theta=0.3, **kwargs):
+    from scipy.signal import lfilter
+
+    rng = np.random.default_rng(seed)
+    E = lfilter([1.0, theta], [1.0, -phi], rng.standard_normal((n * n_runs + 200, V)), axis=0)
+    Y = E[200:] + 100.0
+    return fm.fmri_dataset(
+        Y, tr=2.0, events=_events(n_runs), run_length=[n] * n_runs, **kwargs
+    )
+
+
+def _arma_gls(X, Y, phi, theta, exact_first=False):
+    from fmrimod.ar.plan import plan_from_phi
+
+    plan = plan_from_phi(np.asarray(phi), theta=np.asarray(theta), exact_first=exact_first)
+    wr = whiten_apply(plan, X, Y)
+    return np.linalg.lstsq(wr.X, wr.Y, rcond=None)[0]
+
+
+class TestArmaFmriLm:
+    """REG-A-14 (fmrireg 3c2a9c2): q > 0 is fitted as ARMA, never as AR(p)."""
+
+    @pytest.mark.parametrize(
+        "opts",
+        [
+            {"struct": "arma", "p": 1, "q": 1},
+            {"struct": "ar1", "method": "arma", "q": 1},
+            {"struct": "ar1", "q": 1},
+        ],
+        ids=["struct", "method", "q"],
+    )
+    def test_arma_is_fitted_with_per_run_theta(self, opts):
+        ds = _arma_dataset()
+        ar1 = _ar_fit(ds)
+        fit = fm.fmri_lm(
+            "hrf(condition)", ds, config=FmriLmConfig(ar=AROptions(iter_gls=2, **opts))
+        )
+        phi, theta = np.asarray(fit.ar_params), np.asarray(fit.ma_params)
+        assert phi.shape == (2, 1) and theta.shape == (2, 1)
+        assert np.all(np.isfinite(phi)) and np.all(np.isfinite(theta))
+        assert np.all(np.abs(theta - 0.3) < 0.2)
+        assert np.max(np.abs(fit.betas - ar1.betas)) > 1e-6
+        # Each run's betas are its GLS under the reported ARMA(1, 1).
+        for r in range(2):
+            X, Y = _run_xy(fit, ds, r)
+            np.testing.assert_allclose(
+                fit.run_results[r].betas,
+                _arma_gls(X, Y, phi[r], theta[r]),
+                rtol=0,
+                atol=1e-8,
+            )
+        assert np.all(np.isfinite(fit.se()))
+
+    def test_first_estimate_comes_from_the_ols_residuals(self):
+        ds = _arma_dataset(n_runs=1)
+        fit = fm.fmri_lm(
+            "hrf(condition)", ds, config=FmriLmConfig(ar=AROptions(struct="ar1", q=1))
+        )
+        X, Y = _run_xy(fit, ds, 0)
+        R = Y - X @ np.linalg.lstsq(X, Y, rcond=None)[0]
+        plan = fit_noise(R, method="arma", p=1, q=1, pooling="global")
+        np.testing.assert_allclose(fit.ar_params, plan.phi[0], rtol=0, atol=1e-12)
+        np.testing.assert_allclose(fit.ma_params, plan.theta[0], rtol=0, atol=1e-12)
+
+    def test_pure_ma_is_not_mistaken_for_iid(self):
+        ds = _arma_dataset(n_runs=1, phi=0.0, theta=0.5)
+        fit = fm.fmri_lm(
+            "hrf(condition)", ds, config=FmriLmConfig(ar=AROptions(struct="iid", q=1))
+        )
+        ols = fm.fmri_lm("hrf(condition)", ds)
+        assert np.asarray(fit.ar_params).size == 0
+        assert abs(float(np.asarray(fit.ma_params).ravel()[0]) - 0.5) < 0.2
+        assert np.max(np.abs(fit.betas - ols.betas)) > 1e-6
+
+    def test_ar_fit_has_no_ma_params(self):
+        assert _ar_fit(_ar_dataset([0.4], n=60, V=4)).ma_params is None
+
+    @pytest.mark.parametrize(
+        ("ar", "extra", "match"),
+        [
+            ({"pooling": "global"}, {}, "pooling='global'"),
+            ({"voxelwise": True}, {}, "voxelwise"),
+            ({"censor": [10]}, {}, "censoring"),
+            ({"iter_gls": 0}, {}, "iter_gls"),
+            ({"noise_pools": 4}, {}, "noise_pools"),
+            ({}, {"robust": RobustOptions(type="huber")}, "robust"),
+            ({}, {"censor": True}, "censoring"),
+        ],
+        ids=["global", "voxelwise", "censor", "iter0", "pools", "robust", "ds-censor"],
+    )
+    def test_outside_the_narrow_contract_is_refused(self, ar, extra, match):
+        extra = dict(extra)
+        kwargs = {}
+        if extra.pop("censor", False):
+            censor = np.zeros(60, dtype=bool)
+            censor[10] = True
+            kwargs["censor"] = [censor]
+        ds = _ar_dataset([0.4], n=60, V=4, **kwargs)
+        opts = AROptions(struct="ar1", q=1, **ar)
+        with pytest.raises(UnsupportedEngineConfiguration, match=match):
+            fm.fmri_lm("hrf(condition)", ds, config=FmriLmConfig(ar=opts, **extra))
+
+    def test_options_no_path_reads_are_refused(self):
+        ds = _ar_dataset([0.4], n=60, V=4)
+        for opts in (
+            AROptions(struct="ar1", method="afni"),
+            AROptions(struct="ar1", parcels=np.ones(4)),
+        ):
+            with pytest.raises(UnsupportedEngineConfiguration):
+                fm.fmri_lm("hrf(condition)", ds, config=FmriLmConfig(ar=opts))

@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pandas as pd
+import pytest
 
 from fmrimod.dataset import group_data_from_csv
 from fmrimod.stats.backends import fmrigds_backend
@@ -84,3 +85,22 @@ def test_build_bridge_payload_csv_injects_axis_columns_and_covariates(tmp_path):
     cov_df = pd.read_csv(inp["covariates_path"])
     assert list(cov_df.columns)[0] == "subject"
     assert cov_df["subject"].tolist() == ["s1", "s2"]
+
+
+@pytest.mark.parametrize("weights", ["equal", "custom"])
+def test_fmrigds_backend_refuses_non_ivw_weights_before_rscript(monkeypatch, weights):
+    # fmrigds e359af6, R/verb-reduce.R:239-262: reduce() now errors for weight
+    # schemes an inverse-variance meta:* reducer would silently ignore.
+    def no_rscript(*args, **kwargs):
+        raise AssertionError("Rscript must not be invoked")
+
+    monkeypatch.setattr(fmrigds_backend.subprocess, "run", no_rscript)
+    gd = group_data_from_csv(
+        pd.DataFrame({"subject": ["s1", "s2"], "beta": [0.2, 0.3], "se": [0.1, 0.1]}),
+        effect_cols={"beta": "beta", "se": "se"},
+        subject_col="subject",
+    )
+    req = GroupFitRequest(data=gd, model="meta", method="fe", weights=weights)
+
+    with pytest.raises(NotImplementedError, match="weights"):
+        fmrigds_backend.FmrigdsBackend().fit(req)

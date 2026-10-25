@@ -161,7 +161,7 @@ class SeedTargetLmResult:
         from fmrimod.accessors import p_values
 
         seed_row = self.fit.n_coefficients - 1
-        p = cast("NDArray[np.float64]", p_values(self.fit, type="estimates"))
+        p = cast("NDArray[np.float64]", p_values(self.fit, type="betas"))
         return pd.DataFrame(
             {
                 "target": list(self.target_names),

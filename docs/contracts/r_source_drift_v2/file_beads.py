@@ -288,6 +288,10 @@ BEADS: list[Bead] = [
         "CLI options, validation; HRF-16's width part landed in lane 1d). "
         + _red("fmrihrf.md", "HRF-06, HRF-10 to HRF-16"),
         ("drift-v2", "wave2", "fmrihrf"),
+        closed=(
+            "Fixed on branch claude/wave2-drift-rows: HRF-13 ab38ff2, HRF-11 3a039de, HRF-12 870cac3, "
+            "HRF-16 0c78a36, HRF-14 5c50407, HRF-15 be8d181, HRF-06 3380a25. HRF-10 waits on D8."
+        ),
     ),
     Bead(
         "bd-01M5PS5JM4J8A2JKZX9WHN96RA",
@@ -299,6 +303,11 @@ BEADS: list[Bead] = [
         "basis aliases). Check the DES-02 commit for overlap with DES-18. "
         + _red("fmridesign.md", "DES-11 to DES-13, DES-15 to DES-21"),
         ("drift-v2", "wave2", "fmridesign"),
+        closed=(
+            "Fixed on branch claude/wave2-drift-rows: DES-11 d71b6ed, DES-12 f339fa3, DES-13 61669de, "
+            "DES-15 ab77d09, DES-16 d5878c5, DES-17 2eabce8, DES-18 db31cee, DES-19 5319e59, "
+            "DES-20 11c11a6, DES-21 31c3f4c."
+        ),
     ),
     Bead(
         "bd-01M5PS5JM4J8A2JKZX9WHN96RB",
@@ -311,6 +320,11 @@ BEADS: list[Bead] = [
         + _red("fmrireg_fit_core.md and fmrireg_group_output.md",
                "REG-A-14, REG-A-16 to REG-A-19, REG-B-09, REG-B-10, REG-B-12"),
         ("drift-v2", "wave2", "fmrireg"),
+        closed=(
+            "Fixed on branch claude/wave2-drift-rows: REG-A-19 bf34b7a, REG-A-18 e7ed219, "
+            "REG-A-16 108c951, REG-B-10 2190ac4, REG-B-12 da182e4, REG-B-09 d522b18, "
+            "REG-A-14 2fcaa9d, REG-A-17 f43bb8c."
+        ),
     ),
     Bead(
         "bd-01M5PS5JM4J8A2JKZX9WHN96RC",
@@ -321,6 +335,10 @@ BEADS: list[Bead] = [
         "_normalize_censor. AR-13 landed with AR-23 in c50c542. AR-17 is S2. "
         + _red("fmriar.md", "AR-14 to AR-16, AR-18 to AR-22"),
         ("drift-v2", "wave2", "fmriAR"),
+        closed=(
+            "Fixed on branch claude/wave2-drift-rows: AR-14 a09714a, AR-15 c1964b1, AR-16 fe51ad1, "
+            "AR-18 cc5f895, AR-19 35ef65e, AR-20 ba95577, AR-21 2c9cb78 (test pin), AR-22 8fa630a."
+        ),
     ),
     Bead(
         "bd-01M5PS5JM4J8A2JKZX9WHN96RD",
@@ -330,6 +348,10 @@ BEADS: list[Bead] = [
         "source validation, n_eff assay; GDS-12 affects the R bridge only). "
         + _red("fmrigds.md", "GDS-08 to GDS-12"),
         ("drift-v2", "wave2", "fmrigds"),
+        closed=(
+            "Fixed on branch claude/wave2-drift-rows: GDS-08 efca281, GDS-09 8370463, "
+            "GDS-10 3ef1b99, GDS-11 29892b4, GDS-12 2acd93f."
+        ),
     ),
     Bead(
         "bd-01M5PS5JM4J8A2JKZX9WHN96RE",

@@ -143,13 +143,23 @@ def _normalize_censor(
     """Sorted unique 0-based censored frames inside ``[0, n)``, or ``None``.
 
     A boolean mask is converted with ``flatnonzero``: casting it to integers
-    (fmriAR 617bd87) censors frames 0 and 1 instead of the flagged ones.
+    (fmriAR 617bd87) censors frames 0 and 1 instead of the flagged ones. A
+    mask must have one entry per timepoint; indices must be finite whole
+    numbers (``2.5`` is refused rather than truncated). Missing values
+    (``None``/NaN) are refused in either form; out-of-range indices are
+    dropped.
     """
     if censor is None:
         return None
     c = np.asarray(censor)
     if c.size == 0:
         return None
+    if c.dtype == object:
+        items = c.ravel().tolist()
+        if any(v is None for v in items):
+            raise ValueError(f"'{arg}' contains NA")
+        if all(isinstance(v, (bool, np.bool_)) for v in items):
+            c = c.astype(bool)
     if c.dtype == bool:
         if c.size != n:
             raise ValueError(
@@ -158,7 +168,16 @@ def _normalize_censor(
             )
         idx = np.flatnonzero(c)
     else:
-        idx = np.unique(np.asarray(c, dtype=np.intp).ravel())
+        try:
+            cf = np.asarray(c, dtype=np.float64).ravel()
+        except (TypeError, ValueError):
+            cf = np.array([np.nan])
+        if np.any(~np.isfinite(cf)) or np.any(cf != np.trunc(cf)):
+            raise ValueError(
+                f"'{arg}' must be whole-number timepoint indices or a "
+                "boolean mask"
+            )
+        idx = np.unique(cf.astype(np.intp))
     idx = idx[(idx >= 0) & (idx < n)].astype(np.intp, copy=False)
     return idx if idx.size else None
 
@@ -462,6 +481,58 @@ def acvf_bias_core(
     return A
 
 
+class DesignResidualMismatchError(ValueError):
+    """``resid`` is not OLS-residualised by the ``design`` given for correction.
+
+    fmriAR's condition class ``fmriAR_design_residual_mismatch`` (ca27f27).
+    """
+
+
+def _validate_design_residuals(
+    resid: NDArray[np.float64], design: NDArray[np.float64], tol: float = 1e-6
+) -> float:
+    """Refuse residuals that are not numerically orthogonal to ``design``.
+
+    The design correction is derived for OLS residuals ``(I - QQ') y``; any
+    other residual operator (a raw series, WLS) asks it to undo a projection
+    that did not occur. Orthogonality is necessary, not sufficient: residuals
+    of a nested design also pass, so provenance stays the caller's job
+    (fmriAR ``.validate_design_residuals``). The test is relative to the
+    residual norm and uses the rank-revealing column space, so rescaling,
+    reordering or aliasing design columns cannot change the verdict.
+    """
+    resid = np.asarray(resid, dtype=np.float64)
+    if resid.ndim == 1:
+        resid = resid[:, np.newaxis]
+    design = np.asarray(design, dtype=np.float64)
+    if design.ndim == 1:
+        design = design[:, np.newaxis]
+    if design.shape[0] != resid.shape[0]:
+        raise ValueError(
+            f"'design' must have one row per timepoint in 'resid' "
+            f"({resid.shape[0]}), not {design.shape[0]}"
+        )
+    if np.any(~np.isfinite(design)):
+        raise ValueError("'design' contains NA, NaN, or Inf")
+    if design.size == 0 or resid.size == 0:
+        return 0.0
+    q, r, _ = scipy_linalg.qr(design, mode="economic", pivoting=True)
+    d = np.abs(np.diag(r))
+    rank = int(np.sum(d > _QR_RANK_TOL * d[0])) if d.size and d[0] > 0 else 0
+    resid_norm = float(np.linalg.norm(resid))
+    if rank == 0 or not np.isfinite(resid_norm) or resid_norm == 0:
+        return 0.0
+    rel = float(np.linalg.norm(q[:, :rank].T @ resid)) / resid_norm
+    if not np.isfinite(rel) or rel > tol:
+        raise DesignResidualMismatchError(
+            f"'resid' is not orthogonal to 'design' (relative projection "
+            f"{rel:.3g}). Design-based ACVF correction requires residuals "
+            "numerically compatible with OLS residualization by this design; "
+            "omit 'design' or supply the matching OLS residuals."
+        )
+    return rel
+
+
 def acvf_bias_matrix(
     design: NDArray[np.float64],
     runs: Optional[NDArray[Any]] = None,
@@ -747,6 +818,7 @@ def noise_acvf(
 
     corr_by_run: Optional[list[Optional[NDArray[np.float64]]]] = None
     if design is not None:
+        _validate_design_residuals(resid, design)
         mats = acvf_bias_matrix(
             design, runs=runs, censor=censor, max_lag=int(min(correction_max_lag, n))
         )

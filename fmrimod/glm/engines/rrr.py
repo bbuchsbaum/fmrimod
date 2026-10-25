@@ -13,6 +13,7 @@ from ...lowrank.rrr import ReducedRankConfig, ReducedRankResult, fit_reduced_ran
 from ...model.config import FmriLmConfig
 from ..engine import EngineResult, register_engine
 from ..solver import fast_preproject
+from ._capability import require_unweighted_ols
 
 if TYPE_CHECKING:
     from ..fmri_lm import FmriModelLike
@@ -206,6 +207,12 @@ class ReducedRankEngine:
             raise ValueError("Model must have a 'dataset' attribute")
         if not hasattr(model, "design_matrix_array"):
             raise ValueError("Model must provide 'design_matrix_array()'")
+        require_unweighted_ols(
+            self.name,
+            model,
+            config,
+            current_capability=("OLS reduced-rank regression",),
+        )
 
 
 def _resolve_explicit_columns(

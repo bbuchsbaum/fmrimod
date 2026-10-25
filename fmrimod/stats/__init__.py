@@ -68,7 +68,7 @@ class _CallableStatsModule(types.ModuleType):
     def __call__(
         self,
         x: object,
-        type: str = "estimates",
+        type: str = "betas",
     ) -> EstimateOrContrastMap:
         from fmrimod.accessors import stats as _accessor_stats
 

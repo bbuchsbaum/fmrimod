@@ -118,3 +118,53 @@ def test_solve_correction_pins_near_null_directions_by_the_zero_tail():
     np.testing.assert_allclose(U[:, keep].T @ (A @ x), U[:, keep].T @ g, atol=1e-10)
     tail = slice(A.shape[0] - int(np.ceil(0.25 * A.shape[0])), A.shape[0])
     np.testing.assert_allclose(Vt[~keep][:, tail] @ x[tail], 0.0, atol=1e-10)
+
+
+def _ols_resid(X: np.ndarray, Y: np.ndarray) -> np.ndarray:
+    return Y - X @ np.linalg.lstsq(X, Y, rcond=None)[0]
+
+
+def test_design_correction_rejects_residuals_from_the_wrong_operator():
+    """AR-14 (fmriAR ca27f27): raw series and WLS residuals are refused."""
+    import pytest
+
+    from fmrimod.ar import DesignResidualMismatchError, fit_noise, noise_acvf
+
+    rng = np.random.default_rng(707)
+    n = 120
+    X = np.column_stack([_design(n, 707), rng.standard_normal((n, 3))])
+    Y = rng.standard_normal((n, 5))
+    R = _ols_resid(X, Y)
+    fit_noise(R, p=1, design=X)
+    fit_noise(1e8 * R, p=1, design=X)
+
+    with pytest.raises(DesignResidualMismatchError, match="not orthogonal"):
+        fit_noise(Y, p=1, design=X)
+    with pytest.raises(DesignResidualMismatchError, match="matching OLS residuals"):
+        noise_acvf(Y, max_lag=5, design=X)
+    w = np.linspace(0.5, 1.5, n)
+    beta_w = np.linalg.solve(X.T @ (w[:, None] * X), X.T @ (w[:, None] * Y))
+    with pytest.raises(DesignResidualMismatchError):
+        fit_noise(Y - X @ beta_w, p=1, design=X)
+    assert issubclass(DesignResidualMismatchError, ValueError)
+
+
+def test_design_residual_check_obeys_column_space_invariants():
+    """AR-14: rank-deficient, column-mixed, rescaled and tiny residuals pass."""
+    from fmrimod.ar.acvf import _validate_design_residuals
+
+    rng = np.random.default_rng(708)
+    n = 90
+    X = _design(n)
+    Xd = np.column_stack([X, X[:, 1], np.zeros(n)])
+    R = _ols_resid(Xd, rng.standard_normal((n, 6)))
+    R0, X0 = R.copy(), Xd.copy()
+    _validate_design_residuals(R, Xd)
+    _validate_design_residuals(R.mean(axis=1), Xd)
+    _validate_design_residuals(R @ rng.standard_normal((6, 3)), Xd)
+    Xe = Xd[:, [2, 0, 4, 1, 3, 5]] * np.array([2, 0.5, 3, 1.5, 0.75, 1])
+    _validate_design_residuals(R, Xe)
+    _validate_design_residuals(1e-10 * R, Xd)
+    _validate_design_residuals(1e-10 * R, 1e-10 * Xd)
+    np.testing.assert_array_equal(R, R0)
+    np.testing.assert_array_equal(Xd, X0)

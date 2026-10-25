@@ -22,6 +22,7 @@ from ...lowrank.engine import LowRankConfig, fit_sketched
 from ...model.config import FmriLmConfig
 from ..engine import EngineResult, register_engine
 from ..solver import fast_preproject
+from ._capability import require_unweighted_ols
 
 
 @register_engine
@@ -181,6 +182,12 @@ class SketchEngine:
     def preflight(self, model: "FmriModelLike", config: FmriLmConfig) -> None:
         if not hasattr(model, "dataset"):
             raise ValueError("Model must have a 'dataset' attribute")
+        require_unweighted_ols(
+            self.name,
+            model,
+            config,
+            current_capability=("OLS on a sketched time axis",),
+        )
 
 
 def _cov_unscaled(result: SketchLmResult, X: NDArray[np.float64]) -> NDArray[np.float64]:

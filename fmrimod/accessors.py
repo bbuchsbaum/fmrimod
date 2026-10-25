@@ -17,16 +17,23 @@ AccessorScope = Literal["raw", "per_run", "average"]
 multi-run AR parameter array along its last axis, ``"average"`` collapses
 runs by ``nanmean``. Passed strings outside this set raise ``ValueError``."""
 
-AccessorTarget = Literal["estimates", "contrasts", "F"]
+AccessorTarget = Literal["betas", "contrasts", "F"]
 """Valid values for the ``type`` parameter on the statistic accessors.
 
-``"estimates"`` selects per-coefficient statistics, ``"contrasts"``
+``"betas"`` selects per-coefficient statistics, ``"contrasts"``
 selects named t-contrast results, and ``"F"`` selects named F-contrast
 results. Functions that do not produce F statistics (currently only
-:func:`standard_error`) reject ``"F"``."""
+:func:`standard_error`) reject ``"F"``.
 
-AccessorStandardErrorTarget = Literal["estimates", "contrasts"]
+The legacy spelling ``"estimates"`` still resolves to ``"betas"`` but emits
+a ``DeprecationWarning``: it was misleading because ``stats(fit,
+"estimates")`` returns t-statistics, not coefficient estimates (fmrireg
+0.3.0, #217)."""
+
+AccessorStandardErrorTarget = Literal["betas", "contrasts"]
 """Valid values for ``standard_error(..., type=...)`` and ``se``."""
+
+_DEPRECATED_TARGET_ALIASES: dict[str, str] = {"estimates": "betas"}
 
 AccessorStatistic = Literal["estimate", "stat", "se", "pvalue"]
 """Valid canonical values for :func:`coef_image`'s ``statistic`` parameter.
@@ -53,7 +60,7 @@ _VALID_STATISTICS: frozenset[str] = frozenset(
 EstimateOrContrastMap = Union[NDArray[np.float64], Dict[str, NDArray[np.float64]]]
 """Common accessor return shape.
 
-For ``type='estimates'`` the accessor returns a per-coefficient float
+For ``type='betas'`` the accessor returns a per-coefficient float
 array; for ``type='contrasts'`` or ``type='F'`` it returns a dict
 keyed by contrast name. The union names that contract explicitly so
 callers no longer have to read the body to learn what comes back."""
@@ -75,8 +82,21 @@ def _normalize_scope(scope: str) -> AccessorScope:
     return cast(AccessorScope, scope)
 
 
+def _resolve_target_alias(target: str) -> str:
+    canonical = _DEPRECATED_TARGET_ALIASES.get(target)
+    if canonical is None:
+        return target
+    warnings.warn(
+        f"type={target!r} is deprecated; use type={canonical!r} instead.",
+        DeprecationWarning,
+        stacklevel=4,
+    )
+    return canonical
+
+
 def _normalize_standard_error_target(target: str) -> AccessorStandardErrorTarget:
-    valid = {"estimates", "contrasts"}
+    valid = {"betas", "contrasts"}
+    target = _resolve_target_alias(target)
     if target not in valid:
         valid_repr = ", ".join(repr(value) for value in sorted(valid))
         raise ValueError(f"type must be one of {valid_repr}; got {target!r}")
@@ -84,7 +104,8 @@ def _normalize_standard_error_target(target: str) -> AccessorStandardErrorTarget
 
 
 def _normalize_target(target: str) -> AccessorTarget:
-    valid = {"estimates", "contrasts", "F"}
+    valid = {"betas", "contrasts", "F"}
+    target = _resolve_target_alias(target)
     if target not in valid:
         valid_repr = ", ".join(repr(value) for value in sorted(valid))
         raise ValueError(f"type must be one of {valid_repr}; got {target!r}")
@@ -169,11 +190,11 @@ def ar_parameters(
 
 
 def standard_error(
-    x: object, type: AccessorStandardErrorTarget = "estimates"
+    x: object, type: AccessorStandardErrorTarget = "betas"
 ) -> EstimateOrContrastMap:
     """Return standard errors for coefficient estimates or contrasts."""
     type = _normalize_standard_error_target(type)
-    if type == "estimates":
+    if type == "betas":
         method = getattr(x, "se", None)
         if callable(method):
             return cast("EstimateOrContrastMap", method())
@@ -188,18 +209,18 @@ def standard_error(
 
 
 def se(
-    x: object, type: AccessorStandardErrorTarget = "estimates"
+    x: object, type: AccessorStandardErrorTarget = "betas"
 ) -> EstimateOrContrastMap:
     """Alias for :func:`standard_error`."""
     return standard_error(x, type=type)
 
 
 def stats(
-    x: object, type: AccessorTarget = "estimates"
+    x: object, type: AccessorTarget = "betas"
 ) -> EstimateOrContrastMap:
     """Return coefficient, t-contrast, or F-contrast statistics."""
     type = _normalize_target(type)
-    if type == "estimates":
+    if type == "betas":
         method = getattr(x, "tstat", None)
         if callable(method):
             return cast("EstimateOrContrastMap", method())
@@ -212,12 +233,12 @@ def stats(
 
 
 def p_values(
-    x: object, type: AccessorTarget = "estimates"
+    x: object, type: AccessorTarget = "betas"
 ) -> EstimateOrContrastMap:
     """Return two-sided p-values for coefficient estimates or contrasts."""
     type = _normalize_target(type)
-    if type == "estimates":
-        t = cast("NDArray[np.float64]", stats(x, type="estimates"))
+    if type == "betas":
+        t = cast("NDArray[np.float64]", stats(x, type="betas"))
         # A robust fit's inference df is sum(w) - rank, not its residual df.
         inference_df = getattr(x, "_inference_df", None)
         df = float(
@@ -238,20 +259,20 @@ def p_values(
 
 
 def pvalues(
-    x: object, type: AccessorTarget = "estimates"
+    x: object, type: AccessorTarget = "betas"
 ) -> EstimateOrContrastMap:
     """Alias for :func:`p_values`."""
     return p_values(x, type=type)
 
 
 def zscores(
-    x: object, type: AccessorTarget = "estimates"
+    x: object, type: AccessorTarget = "betas"
 ) -> EstimateOrContrastMap:
     """Convert two-sided p-values and statistic signs to z scores."""
     type = _normalize_target(type)
-    if type == "estimates":
-        t = cast("NDArray[np.float64]", stats(x, type="estimates"))
-        p = cast("NDArray[np.float64]", p_values(x, type="estimates"))
+    if type == "betas":
+        t = cast("NDArray[np.float64]", stats(x, type="betas"))
+        p = cast("NDArray[np.float64]", p_values(x, type="betas"))
         return cast(
             "EstimateOrContrastMap",
             sp_stats.norm.isf(np.clip(p, 1e-300, 1.0) / 2.0) * np.sign(t),
@@ -292,11 +313,11 @@ def coef_image(
     if statistic == "estimate":
         values = _coef_matrix(x, include_baseline=True)
     elif statistic == "se":
-        values = standard_error(x, type="estimates")
+        values = standard_error(x, type="betas")
     elif statistic == "stat":
-        values = stats(x, type="estimates")
+        values = stats(x, type="betas")
     else:  # statistic == "pvalue"
-        values = p_values(x, type="estimates")
+        values = p_values(x, type="betas")
 
     names = coef_names(x, include_baseline=True)
     idx = names.index(coef) if isinstance(coef, str) else int(coef)
@@ -418,14 +439,14 @@ def get_contrasts(x: object) -> list[str]:
     return []
 
 
-def tidy(x: object, type: AccessorTarget = "estimates") -> pd.DataFrame:
+def tidy(x: object, type: AccessorTarget = "betas") -> pd.DataFrame:
     """Return a long-form DataFrame of estimates, SEs, statistics, and p-values."""
     type = _normalize_target(type)
-    if type == "estimates":
+    if type == "betas":
         estimates = _coef_matrix(x, include_baseline=True)
-        se_vals = cast(NDArray[np.float64], standard_error(x, type="estimates"))
-        stat_vals = cast(NDArray[np.float64], stats(x, type="estimates"))
-        p_vals = cast(NDArray[np.float64], p_values(x, type="estimates"))
+        se_vals = cast(NDArray[np.float64], standard_error(x, type="betas"))
+        stat_vals = cast(NDArray[np.float64], stats(x, type="betas"))
+        p_vals = cast(NDArray[np.float64], p_values(x, type="betas"))
         names = coef_names(x, include_baseline=True)
         rows = []
         for coef_idx, name in enumerate(names):

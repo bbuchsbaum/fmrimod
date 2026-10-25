@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import itertools
+import warnings
 from functools import reduce, singledispatch
 from typing import Any, Dict, Optional, cast
 
@@ -177,57 +178,29 @@ def _fcontrasts_event_term(
     
     if not cat_events:
         return {}
-    
-    # Create C (unit) and D (contrast) matrices for each categorical event
-    C_matrices = {}
-    D_matrices = {}
-    
-    for ev_raw in cat_events:
-        ev = cast(Any, ev_raw)
-        n_levels = len(ev.levels)
-        C_matrices[ev.name] = _unit_vector(n_levels)
-        D_matrices[ev.name] = _contrast_sum_matrix(n_levels)
 
-    # Get expected row names in Kronecker order
-    level_lists = [cast(Any, ev).levels for ev in cat_events]
-    level_grid = list(itertools.product(*level_lists))
-    cat_cond_names = [':'.join(combo) for combo in level_grid]
-    expected_rows = len(level_grid)
-    
-    # Compute main effects matrices
-    main_effects = {}
-    for i, ev_raw in enumerate(cat_events):
-        ev = cast(Any, ev_raw)
-        # Start with C matrices for all events
-        mat_list = [C_matrices[cast(Any, e).name] for e in cat_events]
-        # Replace the i-th with D matrix
-        mat_list[i] = D_matrices[ev.name]
+    # Rows follow the term's cells: the first factor varies slowest, which is
+    # what reducing the factor list with np.kron produces.
+    n_levels = [len(cast(Any, ev).levels) for ev in cat_events]
+    names = [cast(Any, ev).name for ev in cat_events]
+    C_matrices = [_unit_vector(n) for n in n_levels]
+    # A single-level factor is constant: it enters every contrast through its
+    # 1 x 1 margin and has no effect of its own (R fmridesign f63135b).
+    testable = [i for i, n in enumerate(n_levels) if n >= 2]
+    if not testable:
+        return {}
 
-        # Kronecker product
-        result = reduce(np.kron, mat_list)
-        main_effects[ev.name] = result
-    
-    # Start with main effects
-    all_contrasts = main_effects.copy()
-    
-    # Compute interaction effects if requested
-    if len(cat_events) > 1:
-        # Generate all combinations of 2 or more events, up to max_inter
-        for k in range(2, min(len(cat_events) + 1, max_inter + 1)):
-            for combo in itertools.combinations(range(len(cat_events)), k):
-                # Start with C matrices
-                mat_list = [C_matrices[cast(Any, e).name] for e in cat_events]
-                # Replace selected indices with D matrices
-                for idx in combo:
-                    mat_list[idx] = D_matrices[cast(Any, cat_events[idx]).name]
+    def _effect(ix: tuple[int, ...]) -> Array:
+        mat_list = list(C_matrices)
+        for idx in ix:
+            mat_list[idx] = _contrast_sum_matrix(n_levels[idx])
+        return cast(Array, reduce(np.kron, mat_list))
 
-                # Kronecker product
-                result = reduce(np.kron, mat_list)
+    all_contrasts = {names[i]: _effect((i,)) for i in testable}
+    for k in range(2, min(len(testable), max_inter) + 1):
+        for combo in itertools.combinations(testable, k):
+            all_contrasts[':'.join(names[idx] for idx in combo)] = _effect(combo)
 
-                # Create interaction name
-                inter_name = ':'.join(cast(Any, cat_events[idx]).name for idx in combo)
-                all_contrasts[inter_name] = result
-    
     return all_contrasts
 
 
@@ -272,27 +245,40 @@ def _fcontrasts_event_model(model: EventModel, **kwargs: object) -> Dict[str, Ar
             fcon_local = Fcontrasts(event_term)
             
             if fcon_local:
+                nb = _term_nbasis(model, term_indices_vec)
                 # Map each local contrast to full design matrix space
                 for con_name, con_matrix in fcon_local.items():
-                    # Create full-size contrast matrix
-                    out = np.zeros((ncond, con_matrix.shape[1]))
-                    
-                    # Get column names for this term
-                    term_cols = [model.column_names[idx] for idx in term_indices_vec]
-                    
-                    # Check dimensions
+                    # A multi-basis HRF has nb condition-major columns per
+                    # cell; test the effect jointly in every basis function
+                    # (R fmridesign 4415504: kronecker(C, diag(nb))).
+                    if nb > 1:
+                        con_matrix = np.kron(con_matrix, np.eye(nb))
+
                     if con_matrix.shape[0] != len(term_indices_vec):
-                        # Skip if dimensions don't match
+                        warnings.warn(
+                            f"F-contrast '{con_name}' for term '{term_name}' has "
+                            f"{con_matrix.shape[0]} rows, but the term has "
+                            f"{len(term_indices_vec)} design columns. Skipping.",
+                            UserWarning,
+                            stacklevel=2,
+                        )
                         continue
-                    
-                    # Map contrast to full matrix
+
+                    out = np.zeros((ncond, con_matrix.shape[1]))
                     out[term_indices_vec, :] = con_matrix
-                    
-                    # Create full contrast name
-                    full_name = f"{term_name}#{con_name}"
-                    all_fcontrasts[full_name] = out
-    
+                    all_fcontrasts[f"{term_name}#{con_name}"] = out
+
     return all_fcontrasts
+
+
+def _term_nbasis(model: EventModel, term_indices_vec: list[int]) -> int:
+    """Basis functions per cell of a term, read from its column facts."""
+    facts = model.column_facts
+    totals = {facts[idx].get("basis_total") for idx in term_indices_vec}
+    if len(totals) != 1:
+        return 1
+    total = totals.pop()
+    return int(total) if total else 1
 
 
 @singledispatch
