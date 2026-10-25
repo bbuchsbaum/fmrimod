@@ -84,6 +84,30 @@ def _sanitize_label(label: str) -> str:
     return re.sub(r"[^a-zA-Z0-9]", "", label)
 
 
+def _require_distinct_labels(names: Sequence[str], *, context: str) -> None:
+    """Raise if two names sanitise to the same BIDS label (or to none).
+
+    Distinct names such as ``"A_vs_B"`` and ``"A-vs-B"`` both become
+    ``contrast-AvsB``, so the second map would silently overwrite the first
+    (fmrireg 875ddf7). Checked before anything is written.
+    """
+    seen: dict[str, str] = {}
+    for name in names:
+        label = _sanitize_label(str(name))
+        if not label:
+            raise ValueError(
+                f"{context}: {name!r} has no alphanumeric characters and "
+                "cannot be used as a BIDS label"
+            )
+        previous = seen.get(label)
+        if previous is not None:
+            raise ValueError(
+                f"Sanitized label collision in {context}: {previous!r} and "
+                f"{name!r} both map to {label!r}"
+            )
+        seen[label] = str(name)
+
+
 def _bids_filename(
     entities: BidsEntities,
     suffix: str,
@@ -244,12 +268,13 @@ def write_betas(
     list of Path
         Paths to written files.
     """
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
     p, V = betas.shape
     if column_names is None:
         column_names = [f"reg{i:03d}" for i in range(p)]
+    _require_distinct_labels(column_names, context="beta column names")
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     written: list[Path] = []
     for i, name in enumerate(column_names):
@@ -312,6 +337,8 @@ def write_contrasts(
     -------
     list of Path
     """
+    _require_distinct_labels(list(contrasts), context="contrast names")
+
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
