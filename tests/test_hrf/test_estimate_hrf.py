@@ -193,3 +193,26 @@ def test_trialwise_formula_is_rejected():
             k=6,
             lam=1.0,
         )
+
+
+def test_public_dispatch_preserves_compat_reference_orientation():
+    """The smooth-FIR dispatcher must retain the current voxel helper's ref_hrf."""
+    from fmrimod.hrf import HRF_SPMG1, HRF_SPMG2
+    from fmrimod.single.voxel_hrf import estimate_hrf as voxel_estimate_hrf
+
+    times = np.arange(25.0)
+    basis = HRF_SPMG2(times)
+    design = np.zeros((160, 8))
+    for trial, onset in enumerate([8, 43, 78, 113]):
+        design[onset:onset + 25, trial * 2:trial * 2 + 2] = basis
+    response = design @ np.tile([[1.0], [0.2]], (4, 1))
+    reversed_reference = -np.asarray(HRF_SPMG1(times)).reshape(-1)
+    expected = voxel_estimate_hrf(
+        response, design, basis, K=2, output="result", ref_hrf=reversed_reference,
+    )
+    actual = fm.estimate_hrf(
+        response, design, basis, K=2, output="result", ref_hrf=reversed_reference,
+    )
+    assert np.all(expected.amplitude_scale < 0)
+    np.testing.assert_allclose(actual.amplitude_scale, expected.amplitude_scale)
+    np.testing.assert_allclose(actual.coefficients, expected.coefficients)

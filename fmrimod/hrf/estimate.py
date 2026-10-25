@@ -14,7 +14,7 @@ from typing import Any, Literal, cast
 
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 from patsy import bs as patsy_bs
 from scipy import linalg
 from scipy import stats as sp_stats
@@ -840,6 +840,7 @@ def estimate_hrf(
             fixed=fixed if isinstance(fixed, np.ndarray) else fixed,
             block=block,
             dataset=dataset,
+            ref_hrf=cast(HRF | ArrayLike | None, extra.pop("ref_hrf", None)),
         )
 
     if form is None or dataset is None:
@@ -856,6 +857,7 @@ def estimate_hrf(
             fixed=fixed if isinstance(fixed, np.ndarray) else None,
             block=block,
             dataset=dataset,
+            ref_hrf=cast(HRF | ArrayLike | None, extra.pop("ref_hrf", None)),
         )
 
     fir_basis: HrfBasisName = "bspline"

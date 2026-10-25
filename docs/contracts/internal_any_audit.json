@@ -27423,7 +27423,7 @@
     },
     {
       "coercion_exemption": null,
-      "endlineno": 881,
+      "endlineno": 883,
       "has_any_annotation": true,
       "has_var_args_any": false,
       "has_var_kwargs": true,
