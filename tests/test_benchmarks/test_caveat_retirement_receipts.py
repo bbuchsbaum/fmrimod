@@ -16,6 +16,7 @@ EXPECTED_RETIRED_IDS = {
     "localizer-tstat-variance-outliers",
     "fitlins-ar1-coefficient-binning",
     "second-level-normal-vs-t-pvalues",
+    "spmg1-x10-scale",
 }
 
 _COMMIT_PATTERN = re.compile(r"^[0-9a-f]{7,40}$")

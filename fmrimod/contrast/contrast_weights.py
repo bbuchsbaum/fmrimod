@@ -38,6 +38,7 @@ from .contrast_spec import (
     PairContrastSpec,
     PolyContrastSpec,
     UnitContrastSpec,
+    _check_unique_contrast_names,
 )
 from .errors import ContrastError, DesignProvenanceError
 
@@ -616,6 +617,9 @@ def _cell_contrast(
     return weights
 
 
+_COMPARISON_RE = re.compile(r"^\s*(\w+)\s*(==|!=)\s*['\"]([^'\"]+)['\"]\s*$")
+
+
 def _parse_formula_condition(formula_expr: str) -> tuple[Optional[str], Optional[str]]:
     """Parse a formula expression to extract factor name and level.
 
@@ -638,9 +642,9 @@ def _parse_formula_condition(formula_expr: str) -> tuple[Optional[str], Optional
         return None, None
 
     # Try to match pattern: variable == 'value' or variable == "value"
-    match = re.match(r"^\s*(\w+)\s*==\s*['\"]([^'\"]+)['\"]\s*$", formula_expr)
-    if match:
-        return match.group(1), match.group(2)
+    match = _COMPARISON_RE.match(formula_expr)
+    if match and match.group(2) == "==":
+        return match.group(1), match.group(3)
 
     # Try to match just a variable name
     match = re.match(r"^\s*(\w+)\s*$", formula_expr)
@@ -673,6 +677,19 @@ def _match_conditions_to_formula(condnames: List[str], formula_expr: str) -> NDA
         # Match all conditions
         mask[:] = True
         return mask
+
+    # ``factor != 'level'`` selects the factor's other levels: the
+    # complement of ``factor == 'level'`` among the conditions that carry
+    # the factor (all conditions when none is prefixed with a factor name).
+    comparison = _COMPARISON_RE.match(formula_expr)
+    if comparison and comparison.group(2) == "!=":
+        factor_name, level_name = comparison.group(1), comparison.group(3)
+        equal = _match_conditions_to_formula(condnames, f"{factor_name} == '{level_name}'")
+        carries = re.compile(rf"(^|_){re.escape(factor_name)}\.")
+        has_factor = np.array([bool(carries.search(c)) for c in condnames], dtype=bool)
+        if not has_factor.any():
+            has_factor[:] = True
+        return has_factor & ~equal
 
     # Parse the formula
     factor_name, level_name = _parse_formula_condition(formula_expr)
@@ -711,6 +728,37 @@ def _match_conditions_to_formula(condnames: List[str], formula_expr: str) -> NDA
     return mask
 
 
+_SIMPLE_FORMULA_RE = re.compile(r"^\s*\w+\s*$")
+
+
+def _formula_condition_mask(
+    formula: object, term: Any, condnames: list[str], contrast_name: str
+) -> NDArray[np.bool_]:
+    """Conditions a ``pair_contrast`` / ``unit_contrast`` side selects.
+
+    Keywords, bare names and single ``factor == / != 'level'`` comparisons
+    go through :func:`_match_conditions_to_formula`. Any other predicate
+    (``condition in ['A', 'B']``, ``a == 'x' and b != 'y'``, ...) is
+    evaluated on the term's categorical cells, as R evaluates the formula
+    with the cell table as data; terms without cells, or predicates that
+    cannot be evaluated on them, fall back to the matcher.
+    """
+    raw = str(getattr(formula, "expr", formula))
+    if (
+        raw.strip().lower() in ("all", "~1", "*")
+        or _SIMPLE_FORMULA_RE.match(raw)
+        or _COMPARISON_RE.match(raw)
+    ):
+        return _match_conditions_to_formula(condnames, raw)
+    info = _condition_cells(term, condnames)
+    if info is not None:
+        try:
+            return _eval_cell_predicate(formula, info[0], "formula", contrast_name)
+        except ValueError:
+            pass
+    return _match_conditions_to_formula(condnames, raw)
+
+
 @contrast_weights.register(UnitContrastSpec)
 def _(x: UnitContrastSpec, term: Any, **kwargs: object) -> Contrast:
     """Compute weights for unit contrast."""
@@ -725,7 +773,7 @@ def _(x: UnitContrastSpec, term: Any, **kwargs: object) -> Contrast:
     # Parse the A formula to find matching conditions
     if x.A is not None:
         formula_expr = x.A.expr if hasattr(x.A, 'expr') else str(x.A)
-        mask_A = _match_conditions_to_formula(all_condnames, formula_expr)
+        mask_A = _formula_condition_mask(x.A, term, all_condnames, x.name)
     else:
         # No formula - select all conditions
         mask_A = np.ones(len(all_condnames), dtype=bool)
@@ -773,14 +821,12 @@ def _(x: PairContrastSpec, term: Any, **kwargs: object) -> Contrast:
 
     # Parse formulas to find matching conditions
     if x.A is not None:
-        formula_A_expr = x.A.expr if hasattr(x.A, 'expr') else str(x.A)
-        mask_A = _match_conditions_to_formula(base_condnames, formula_A_expr)
+        mask_A = _formula_condition_mask(x.A, term, base_condnames, x.name)
     else:
         mask_A = np.zeros(len(base_condnames), dtype=bool)
 
     if x.B is not None:
-        formula_B_expr = x.B.expr if hasattr(x.B, 'expr') else str(x.B)
-        mask_B = _match_conditions_to_formula(base_condnames, formula_B_expr)
+        mask_B = _formula_condition_mask(x.B, term, base_condnames, x.name)
     else:
         mask_B = np.zeros(len(base_condnames), dtype=bool)
 
@@ -1441,6 +1487,9 @@ def _(x: ContrastSet, term: Any, **kwargs: object) -> Dict[str, Contrast]:
     dict
         Dictionary mapping contrast names to Contrast objects
     """
+    # A set built by contrast_set() is unique; one grown by list methods
+    # (``append``/``extend``) may not be.
+    _check_unique_contrast_names(x, "contrast_weights()")
     results = {}
 
     for contrast_spec in x:
@@ -1497,6 +1546,9 @@ def _contrast_weights_event_model(model: Any, **kwargs: object) -> Dict[str, Any
         specs = _term_contrast_specs(term)
         if not specs:
             continue
+        # Results are keyed by name within the term (and ``term#name``
+        # downstream), so a repeated name would overwrite.
+        _check_unique_contrast_names(specs, f"Term '{term.name}' contrasts")
 
         term_facts = [f for f in facts if f["term_index"] == index + 1]
         layout = _TermColumns(term_facts, _get_conditions(event_term, expand_basis=False))

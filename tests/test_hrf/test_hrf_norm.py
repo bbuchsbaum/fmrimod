@@ -43,7 +43,8 @@ def test_unit_peak_norm_yields_peak_one():
 
 def test_unit_integral_norm_yields_continuous_integral_one():
     h = normalize(HRF_SPMG1, "unit_integral")
-    t = np.linspace(0.0, 32.0, 1601)
+    # The integral is one over the kernel's own support, its span.
+    t = np.linspace(0.0, HRF_SPMG1.span, 1201)
     vals = h(t)
     trapezoid = getattr(np, "trapezoid", None) or np.trapz
     assert trapezoid(vals, t) == pytest.approx(1.0, rel=1e-3)

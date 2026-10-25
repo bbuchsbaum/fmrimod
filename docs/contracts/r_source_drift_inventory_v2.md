@@ -368,8 +368,13 @@ User-visible behaviour changes:
   non-orthogonal design residuals and fractional block lengths now raise.
 
 Judgement calls:
-- DES-19 keeps duplicate contrast names, as R's test does; raising
-  needs a steward call.
+- DES-19: the maintainer decided (2026-10-25) that duplicate contrast
+  names raise `ContrastError` (a `ValueError`) naming each repeated name
+  and its positions, in `contrast_set()` after flattening and among the
+  contrasts attached to one model term. This diverges from R, whose test
+  keeps them (`contrast_set(a, contrast_set(a))` equals
+  `contrast_set(a, a)`) and whose name-keyed results then overwrite; the
+  R side should get the same fix.
 - DES-20 includes the model's F-contrasts, as R does.
 - HRF-12's named frame is opt-in (`as_frame=`), so the default return type
   is unchanged.
@@ -387,9 +392,11 @@ Follow-ups found during wave 2 (not inventory rows):
   but passes `design=config.design` to `fit_noise`.
 - Poly/BSpline event bases are refit per run even without `subset=`
   (`_subset_event_term`); belongs with D3.
-- `!=` in pair-contrast formulas matches nothing, so
-  `one_against_all_contrast` returns level-vs-baseline weights with a
-  "Mask B is empty" warning.
+- `!=` in pair-contrast formulas matched nothing, so
+  `one_against_all_contrast` returned level-vs-baseline weights with a
+  "Mask B is empty" warning. Fixed 2026-10-25: `!=` selects the other
+  levels and other predicates (`in`, `and`, ...) are evaluated on the
+  term's cells, as R does; one-vs-all now gives R's `c(1, -1/2, -1/2)`.
 - `design_colmap` reports `modulation_type="amplitude"` for covariate
   columns; R reports `covariate`.
 
@@ -409,6 +416,9 @@ Follow-ups found during wave 2 (not inventory rows):
   24) and SPMG2's second column (onset-shift derivative like Nilearn and SPM,
   or analytic dh/dt like R); decide whether the `*_Legacy` SPMG classes stay.
   Re-baseline the AGENTS.md `cross_testing/` note once R is available.
+  **Decided (a), follow R, and remove the legacy classes** on 2026-10-25;
+  see [`decisions/0005-spmg-conventions.md`](decisions/0005-spmg-conventions.md).
+  HRF-09 is done and `spmg1-x10-scale` is retired.
 - **D3. Contrast semantics** (DES-01, DES-10, DES-14, v1 zero-event
   subset). Port R's embedding of term-attached contrasts, or retire them in
   favour of the fit-level contrast path. Decide whether subsetted

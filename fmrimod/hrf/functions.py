@@ -8,26 +8,16 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from scipy import interpolate, special, stats
 
-def _spm_undershoot_scale(p2: float) -> float:
-    """Legacy SPM undershoot normaliser ``1 / (6 * Gamma(p2 + 1))``.
-
-    Only the ``spm_canonical_legacy`` path (and its analytic derivatives)
-    uses it; the SPM-form canonical uses scipy's gamma pdf directly. It was
-    hard-coded to ``1 / (6 * 15!)`` (``1.274527e-13``), which scaled the
-    undershoot wrongly for any ``p2 != 15`` (fmrihrf ``d19ba00``).
-    """
-    return float(1.0 / (6.0 * special.gamma(p2 + 1.0)))
-
-
-# Default parameters for the SPM canonical HRF (SPM ``spm_hrf`` /
-# Nilearn ``_gamma_difference_hrf`` defaults — kept as module-level
-# constants so the typed spec, library defaults, and the basis-set
-# subclasses all agree).
+# Default parameters for the SPM canonical HRF, as R fmrihrf's
+# ``HRF_SPMG1`` defines it (steward decision D2): ratio exactly 1/6 and a
+# 24 s span. Nilearn uses ratio 0.167 and a 32 s kernel. Module-level so
+# the typed spec, library defaults and basis classes all agree.
 _SPM_DEFAULT_DELAY: float = 6.0
 _SPM_DEFAULT_UNDERSHOOT: float = 16.0
 _SPM_DEFAULT_DISPERSION: float = 1.0
 _SPM_DEFAULT_U_DISPERSION: float = 1.0
-_SPM_DEFAULT_RATIO: float = 0.167
+_SPM_DEFAULT_RATIO: float = 1.0 / 6.0
+_SPM_DEFAULT_SPAN: float = 24.0
 
 
 def _causal(t: NDArray[np.float64], values: NDArray[np.float64]) -> NDArray[np.float64]:
@@ -48,55 +38,6 @@ def _causal(t: NDArray[np.float64], values: NDArray[np.float64]) -> NDArray[np.f
     return values
 
 
-def spm_canonical_legacy(
-    t: ArrayLike,
-    p1: float = 5.0,
-    p2: float = 15.0,
-    a1: float = 0.0833,
-    dispersion: float = 1.0,
-) -> NDArray[np.float64]:
-    """Legacy SPM canonical HRF (R ``fmrireg`` parameterization).
-
-    Implements the simplified double-gamma form
-    ``exp(-t) * (a1 * t^p1 - C * t^p2)`` with ``C = 1 / (6 * Gamma(p2 + 1))``
-    (``1.274527e-13`` at the default ``p2 = 15``).
-    This is the form fmrimod shipped before the SPM-canonical
-    alignment work; the realised canonical's peak/undershoot
-    *ratio* is ~4600 (vs SPM's ~10) and the peak time is ``p1``
-    (vs SPM's ``delay - 1 = 5``), making correlation with SPM /
-    Nilearn realised columns only ~0.91 on identical events.
-
-    Kept on the public surface as ``basis="spm_legacy"`` for
-    callers that pinned the old shape; new code should use
-    :func:`spm_canonical` (the SPM-form double gamma) instead.
-
-    Args:
-        t: Time points in seconds
-        p1: First exponent parameter (default 5)
-        p2: Second exponent parameter (default 15)
-        a1: Amplitude scaling factor (default 0.0833)
-        dispersion: Width-scale parameter (default 1.0). Evaluated at
-            ``t * dispersion``, matching the legacy dispersion-derivative
-            implementation used by ``SPMG3_HRF_Legacy``.
-
-    Returns:
-        Legacy HRF values at time points t.
-    """
-    t = np.asarray(t, dtype=np.float64)
-    result = np.zeros_like(t)
-    mask = t >= 0
-    if np.any(mask):
-        sigma = float(dispersion)
-        if sigma <= 0:
-            raise ValueError(
-                f"spm_canonical_legacy: dispersion must be positive, " f"got {sigma!r}"
-            )
-        t_pos = t[mask] * sigma
-        c = _spm_undershoot_scale(p2)
-        result[mask] = np.exp(-t_pos) * (a1 * t_pos**p1 - c * t_pos**p2)
-    return result
-
-
 def spm_canonical(
     t: ArrayLike,
     *,
@@ -108,15 +49,15 @@ def spm_canonical(
 ) -> NDArray[np.float64]:
     """SPM canonical HRF — the standard double-gamma form.
 
-    Matches SPM's ``spm_hrf`` and Nilearn's
-    ``_gamma_difference_hrf`` with the same parameter names and
-    defaults: a peak gamma with shape ``delay / dispersion`` and
+    R fmrihrf's ``hrf_spmg1`` and SPM's ``spm_hrf``, with Nilearn's
+    ``_gamma_difference_hrf`` parameter names: a peak gamma with shape ``delay / dispersion`` and
     scale ``dispersion``, minus a smaller undershoot gamma with
     shape ``undershoot / u_dispersion`` and scale ``u_dispersion``,
     weighted by ``ratio``.
 
-    At the SPM defaults (delay=6, undershoot=16, dispersion=1,
-    u_dispersion=1, ratio=0.167) the response peaks near 5 s and
+    At the defaults (delay=6, undershoot=16, dispersion=1,
+    u_dispersion=1, ratio=1/6) this is R's
+    ``exp(-t) * (t^5 / 120 - t^15 / (6 * 15!))``. The response peaks near 5 s and
     has an undershoot near 16 s with peak/undershoot magnitude
     ratio ~10:1.
 
@@ -130,20 +71,13 @@ def spm_canonical(
             it earlier (SPM convention).
         u_dispersion: Dispersion for the undershoot gamma
             (default 1.0).
-        ratio: Undershoot/peak amplitude ratio (default 0.167 =
-            1/6, the SPM default).
+        ratio: Undershoot/peak mass ratio (default exactly 1/6, as in
+            R and SPM; Nilearn rounds it to 0.167).
 
     Returns:
         HRF values at time points t. Not normalized — apply
         ``norm="spm"`` for the area-normalized form used by
         Nilearn's realised regressors.
-
-    Notes:
-        Migrated from the legacy form ``exp(-t) * (a1*t^p1 - C*t^p2)``
-        in early 2026 to align fmrimod's default SPM HRF with SPM
-        and Nilearn. The previous behavior is preserved as
-        :func:`spm_canonical_legacy` and reachable via
-        ``basis="spm_legacy"``.
     """
     t = np.asarray(t, dtype=np.float64)
     if dispersion <= 0 or u_dispersion <= 0:

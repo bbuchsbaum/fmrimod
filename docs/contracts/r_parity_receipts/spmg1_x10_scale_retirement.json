@@ -1,0 +1,144 @@
+{
+  "receipt": "spmg1-x10-scale retirement",
+  "date": "2026-10-25",
+  "fmrimod_commit": "b13e503",
+  "decision": "docs/contracts/decisions/0005-spmg-conventions.md",
+  "environment": {
+    "R": "4.3.3",
+    "fmrihrf": "0.4.0.9000",
+    "FMRIMOD_REQUIRE_R": "1"
+  },
+  "gate": "standard cross_testing gate: no allow_rescale, no SPM-convention plugin",
+  "summary": {
+    "passed": 31,
+    "failed": 0,
+    "error": 0,
+    "skipped": 0
+  },
+  "tests": [
+    {
+      "test": "cross_testing/test_regressor_equivalence.TestRegressorEquivalence::test_regressor_with_durations",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_regressor_equivalence.TestRegressorEquivalence::test_regressor_sparse_output",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_regressor_equivalence.TestRegressorEquivalence::test_regressor_set_with_names",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_regressor_equivalence.TestRegressorEquivalence::test_regressor_with_amplitudes",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_regressor_equivalence.TestRegressorEquivalence::test_regressor_summation",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_regressor_equivalence.TestRegressorEquivalence::test_multi_block_regressor",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_regressor_equivalence.TestRegressorEquivalence::test_regressor_set_basic",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_regressor_equivalence.TestRegressorEquivalence::test_basic_regressor",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_complex_scenarios.TestComplexScenarios::test_concatenated_runs",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_complex_scenarios.TestComplexScenarios::test_hrf_library_glm",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_complex_scenarios.TestComplexScenarios::test_mixed_event_types",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_complex_scenarios.TestComplexScenarios::test_full_glm_pipeline",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_complex_scenarios.TestComplexScenarios::test_multi_block_experiment",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_complex_scenarios.TestComplexScenarios::test_regularized_estimation",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_hrf_equivalence.TestHRFEquivalence::test_hrf_library[spmg2]",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_hrf_equivalence.TestHRFEquivalence::test_hrf_library[spmg3]",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_hrf_equivalence.TestHRFEquivalence::test_hrf_attributes",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_hrf_equivalence.TestHRFEquivalence::test_hrf_library[spmg1]",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_hrf_equivalence.TestHRFEquivalence::test_spmg2",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_hrf_equivalence.TestHRFEquivalence::test_spmg3",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_hrf_equivalence.TestHRFEquivalence::test_hrf_library[gamma]",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_hrf_equivalence.TestHRFEquivalence::test_gaussian_hrf",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_hrf_equivalence.TestHRFEquivalence::test_time_hrf",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_hrf_equivalence.TestHRFEquivalence::test_hrf_library[gaussian]",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_hrf_equivalence.TestHRFEquivalence::test_spm_canonical",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_hrf_equivalence.TestHRFEquivalence::test_gamma_hrf_parameters",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_hrf_equivalence.TestHRFEquivalence::test_mexhat_hrf",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_performance.TestPerformance::test_design_matrix_construction",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_performance.TestPerformance::test_hrf_evaluation_performance",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_performance.TestPerformance::test_large_scale_evaluation",
+      "outcome": "passed"
+    },
+    {
+      "test": "cross_testing/test_performance.TestPerformance::test_sparse_operations",
+      "outcome": "passed"
+    }
+  ]
+}

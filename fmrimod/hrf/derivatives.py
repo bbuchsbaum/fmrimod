@@ -8,7 +8,6 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from .core import HRF
-from .functions import _spm_undershoot_scale
 
 
 @runtime_checkable
@@ -141,186 +140,127 @@ def _numeric_derivative(hrf: HRF, t: ArrayLike, order: int = 1) -> NDArray[np.fl
     return result
 
 
-# Analytic derivative functions for specific HRF types
+# Analytic derivative functions for the SPM canonical family
 
 
-def spmg1_derivative(t: ArrayLike, p1: float = 5, p2: float = 15, a1: float = 0.0833) -> NDArray[np.float64]:
-    """Analytic derivative of SPM canonical HRF (SPMG1).
+def _gamma_pdf_and_log_slope(
+    t: NDArray[np.float64], shape: float, scale: float
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Gamma pdf and ``d log g / dt = (shape - 1) / t - 1 / scale`` at ``t > 0``."""
+    from scipy import stats
 
-    Args:
-        t: Time points
-        p1: Shape parameter for positive gamma
-        p2: Shape parameter for negative gamma
-        a1: Amplitude scaling factor
+    return stats.gamma.pdf(t, shape, scale=scale), (shape - 1.0) / t - 1.0 / scale
 
-    Returns:
-        Derivative values at time points t
+
+def _spm_component_derivative(
+    t: NDArray[np.float64], shape: float, scale: float, order: int
+) -> NDArray[np.float64]:
+    g, slope = _gamma_pdf_and_log_slope(t, shape, scale)
+    if order == 1:
+        return g * slope
+    return g * (slope**2 - (shape - 1.0) / t**2)
+
+
+def spmg1_derivative(
+    t: ArrayLike,
+    *,
+    delay: float = 6.0,
+    undershoot: float = 16.0,
+    dispersion: float = 1.0,
+    u_dispersion: float = 1.0,
+    ratio: float = 1.0 / 6.0,
+    order: Literal[1, 2] = 1,
+) -> NDArray[np.float64]:
+    """Analytic time derivative of :func:`~fmrimod.hrf.functions.spm_canonical`.
+
+    ``order=1`` gives ``dh/dt`` and ``order=2`` gives ``d2h/dt2``. At the
+    defaults these are R fmrihrf's ``hrf_spmg1_deriv`` and
+    ``hrf_spmg1_second_deriv`` (``P1=5, P2=15, A1=1/120``), and ``order=1``
+    is the second column of :class:`~fmrimod.hrf.spm_hrf.SPMG2_HRF`.
     """
+    if order not in (1, 2):
+        raise ValueError(f"order must be 1 or 2, got {order!r}")
     t = np.asarray(t, dtype=np.float64)
     ret = np.zeros_like(t)
-    pos = t >= 0
-
+    pos = t > 0
     if np.any(pos):
         t_pos = t[pos]
-        c = _spm_undershoot_scale(p2)
-        ret[pos] = np.exp(-t_pos) * (
-            a1 * t_pos**(p1 - 1) * (p1 - t_pos) -
-            c * t_pos**(p2 - 1) * (p2 - t_pos)
+        peak = _spm_component_derivative(t_pos, delay / dispersion, dispersion, order)
+        under = _spm_component_derivative(
+            t_pos, undershoot / u_dispersion, u_dispersion, order
         )
-
+        ret[pos] = peak - ratio * under
     return ret
 
 
-def spmg1_second_derivative(t: ArrayLike, p1: float = 5, p2: float = 15, a1: float = 0.0833) -> NDArray[np.float64]:
-    """Analytic second derivative of SPM canonical HRF.
-
-    Args:
-        t: Time points
-        p1: Shape parameter for positive gamma
-        p2: Shape parameter for negative gamma
-        a1: Amplitude scaling factor
-
-    Returns:
-        Second derivative values at time points t
-    """
-    t = np.asarray(t, dtype=np.float64)
-    ret = np.zeros_like(t)
-    pos = t >= 0
-
-    if np.any(pos):
-        t_pos = t[pos]
-        c = _spm_undershoot_scale(p2)
-        # Components and their derivatives
-        d1 = a1 * t_pos**(p1 - 1) * (p1 - t_pos)
-        d2 = c * t_pos**(p2 - 1) * (p2 - t_pos)
-        d1_prime = a1 * ((p1 - 1) * t_pos**(p1 - 2) * (p1 - t_pos) - t_pos**(p1 - 1))
-        d2_prime = c * ((p2 - 1) * t_pos**(p2 - 2) * (p2 - t_pos) - t_pos**(p2 - 1))
-
-        ret[pos] = np.exp(-t_pos) * (d1_prime - d2_prime - (d1 - d2))
-
-    return ret
+def spmg1_second_derivative(
+    t: ArrayLike,
+    *,
+    delay: float = 6.0,
+    undershoot: float = 16.0,
+    dispersion: float = 1.0,
+    u_dispersion: float = 1.0,
+    ratio: float = 1.0 / 6.0,
+) -> NDArray[np.float64]:
+    """Analytic ``d2h/dt2`` of the SPM canonical (R ``hrf_spmg1_second_deriv``)."""
+    return spmg1_derivative(
+        t, delay=delay, undershoot=undershoot, dispersion=dispersion,
+        u_dispersion=u_dispersion, ratio=ratio, order=2,
+    )
 
 
-# Step size for the SPM dispersion derivative finite difference. SPM uses
-# 0.01 here (see ``spm_get_bf.m`` case "hrf (with time and dispersion
-# derivatives)"); matching that keeps the realised basis comparable to SPM
-# and to Nilearn (which inherits the SPM convention).
-_SPM_DISPERSION_DX = 0.01
+# SPM ``spm_get_bf.m`` (and Nilearn, and R fmrihrf) use dx = 0.01 for the
+# dispersion perturbation.
+_SPM_DISP_DX = 0.01
 
 
 def spmg1_dispersion_derivative(
     t: ArrayLike,
-    p1: float = 5,
-    p2: float = 15,
-    a1: float = 0.0833,
-    dx: float = _SPM_DISPERSION_DX,
+    *,
+    delay: float = 6.0,
+    undershoot: float = 16.0,
+    dispersion: float = 1.0,
+    u_dispersion: float = 1.0,
+    ratio: float = 1.0 / 6.0,
+    dx: float = _SPM_DISP_DX,
 ) -> NDArray[np.float64]:
-    """SPM informed-basis dispersion derivative ``-∂h/∂σ`` at ``σ=1``.
+    """SPM dispersion basis column ``(h(disp) - h(disp + dx)) / dx``.
 
-    Computed by finite difference against the dispersion parameter, with
-    SPM's sign convention ``(h(σ=1) - h(σ=1+dx)) / dx`` (note that this
-    is the *negative* forward difference, i.e. ``-∂h/∂σ``). Matches
-    Nilearn's ``spm_dispersion_derivative`` (which uses the same sign
-    convention) and SPM's ``spm_get_bf`` case "hrf (with time and
-    dispersion derivatives)".
-
-    This differs from :func:`spmg1_second_derivative` — the previous
-    third basis column of :class:`SPMG3_HRF`, which is the second
-    *time* derivative ``∂²h/∂t²``. Same name in some literature, but
-    a different function with a different interpretation
-    (curvature, not width change).
-
-    Args:
-        t: Time points.
-        p1: First exponent parameter of the canonical (default 5).
-        p2: Second exponent parameter (default 15).
-        a1: Amplitude scaling factor (default 0.0833).
-        dx: Finite-difference step in the dispersion parameter
-            (default ``_SPM_DISPERSION_DX = 0.01``).
-
-    Returns:
-        Dispersion-derivative values at time points ``t``.
+    Only the peak gamma's dispersion is perturbed, so the undershoot
+    cancels. This is SPM ``spm_get_bf``'s and Nilearn's
+    ``spm_dispersion_derivative``, and at the defaults R fmrihrf's
+    ``hrf_spmg1_dispersion_deriv`` (the third column of ``HRF_SPMG3``).
     """
-    from .functions import spm_canonical_legacy as _canon
+    from .functions import spm_canonical as _canon
 
-    h0 = _canon(t, p1=p1, p2=p2, a1=a1, dispersion=1.0)
-    h1 = _canon(t, p1=p1, p2=p2, a1=a1, dispersion=1.0 + dx)
+    params = {
+        "delay": delay, "undershoot": undershoot,
+        "u_dispersion": u_dispersion, "ratio": ratio,
+    }
+    h0 = _canon(t, dispersion=dispersion, **params)
+    h1 = _canon(t, dispersion=dispersion + dx, **params)
     return (h0 - h1) / dx
 
 
-# ---------------------------------------------------------------------------
-# SPM-form finite-difference derivatives (new default basis)
-# ---------------------------------------------------------------------------
-
-
-# SPM ``spm_get_bf.m`` uses dt=0.1 for the time derivative perturbation
-# and dt=0.01 for the dispersion perturbation. Nilearn inherits both
-# values. We mirror them so the realised columns line up.
-_SPM_TIME_DX = 0.1
-_SPM_DISP_DX_SPM = 0.01
-
-
-def spmg1_temporal_derivative_spm(
+def spmg1_dispersion_time_derivative(
     t: ArrayLike,
     *,
     delay: float = 6.0,
     undershoot: float = 16.0,
     dispersion: float = 1.0,
     u_dispersion: float = 1.0,
-    ratio: float = 0.167,
-    dx: float = _SPM_TIME_DX,
+    ratio: float = 1.0 / 6.0,
+    dx: float = _SPM_DISP_DX,
 ) -> NDArray[np.float64]:
-    """SPM temporal-derivative basis column (finite difference in delay).
+    """Time derivative of :func:`spmg1_dispersion_derivative`.
 
-    Matches SPM ``spm_get_bf`` case "hrf (with time derivative)" and
-    Nilearn's ``spm_time_derivative``:
-    ``(h(delay=d) - h(delay=d+dx)) / dx`` with ``dx = 0.1``. This is
-    the negative-forward difference and approximates ``-∂h/∂delay``.
-
-    Differs from the legacy analytic ∂h/∂t (which acts on time
-    instead of the delay parameter); the legacy form is available as
-    :func:`spmg1_derivative` for callers using the legacy canonical.
+    R fmrihrf's ``hrf_spmg1_dispersion_time_deriv``: the third column of
+    ``deriv(HRF_SPMG3)``.
     """
-    from .functions import spm_canonical as _canon
-
-    h0 = _canon(
-        t, delay=delay, undershoot=undershoot,
-        dispersion=dispersion, u_dispersion=u_dispersion, ratio=ratio,
-    )
-    h1 = _canon(
-        t, delay=delay + dx, undershoot=undershoot,
-        dispersion=dispersion, u_dispersion=u_dispersion, ratio=ratio,
-    )
-    return (h0 - h1) / dx
-
-
-def spmg1_dispersion_derivative_spm(
-    t: ArrayLike,
-    *,
-    delay: float = 6.0,
-    undershoot: float = 16.0,
-    dispersion: float = 1.0,
-    u_dispersion: float = 1.0,
-    ratio: float = 0.167,
-    dx: float = _SPM_DISP_DX_SPM,
-) -> NDArray[np.float64]:
-    """SPM dispersion-derivative basis column (finite difference in dispersion).
-
-    Matches SPM ``spm_get_bf`` case "hrf (with time and dispersion
-    derivatives)" and Nilearn's ``spm_dispersion_derivative``:
-    ``(h(disp=1) - h(disp=1+dx)) / dx`` with ``dx = 0.01``. SPM and
-    Nilearn perturb only the peak dispersion (p(3)), leaving the
-    undershoot dispersion (p(4)) unchanged; this implementation does
-    the same.
-    """
-    from .functions import spm_canonical as _canon
-
-    h0 = _canon(
-        t, delay=delay, undershoot=undershoot,
-        dispersion=dispersion, u_dispersion=u_dispersion, ratio=ratio,
-    )
-    h1 = _canon(
-        t, delay=delay, undershoot=undershoot,
-        dispersion=dispersion + dx, u_dispersion=u_dispersion, ratio=ratio,
-    )
-    return (h0 - h1) / dx
+    params = {
+        "delay": delay, "undershoot": undershoot,
+        "u_dispersion": u_dispersion, "ratio": ratio,
+    }
+    d0 = spmg1_derivative(t, dispersion=dispersion, **params)
+    d1 = spmg1_derivative(t, dispersion=dispersion + dx, **params)
+    return (d0 - d1) / dx

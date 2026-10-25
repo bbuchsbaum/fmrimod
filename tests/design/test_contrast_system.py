@@ -635,26 +635,19 @@ class TestContrastWeightsReal:
             assert np.abs(np.sum(con.weights)) < 1e-10
 
     def test_one_against_all_with_real_term(self, simple_term_3_levels):
-        """Test one-against-all contrasts applied to real term.
+        """One-against-all contrasts on a real term match R fmridesign.
 
-        Note: Currently the != operator in formulas is not implemented,
-        so one_against_all_contrast creates contrasts that only select
-        the positive condition (not a proper one-vs-all). This is a known
-        limitation - the contrasts won't sum to zero.
+        The ``!=`` side selects the other levels, so level ``i`` gets 1 and
+        each other level ``-1/2`` (R test-contrast-set-nesting.R).
         """
         levels = ["A", "B", "C"]
         cset = one_against_all_contrast(levels, facname="condition")
 
-        # Currently these act as unit contrasts (selecting single condition)
-        # because the != formula doesn't match anything
-        for spec in cset:
-            with pytest.warns(UserWarning, match="Mask B is empty"):
-                con = contrast_weights(spec, simple_term_3_levels)
-            # Each contrast selects one condition with weight 1
-            # (not a true one-vs-all because != is not implemented)
-            assert con.weights.shape == (3, 1)
-            # Sum is 1, not 0 (unit contrast behavior)
-            assert np.abs(np.sum(con.weights) - 1.0) < 1e-10
+        for i, spec in enumerate(cset):
+            con = contrast_weights(spec, simple_term_3_levels)
+            expected = np.full(3, -0.5)
+            expected[i] = 1.0
+            np.testing.assert_allclose(con.weights[:, 0], expected)
 
     def test_contrast_is_fcontrast_property(self, term_4_levels):
         """Test Contrast.is_fcontrast property."""

@@ -47,43 +47,36 @@ def test_acquisition_onsets_matches_r_edge_cases():
 
 
 def test_deriv_matches_spmg_analytic_contracts():
-    """``deriv`` returns the time-derivative of each basis column.
+    """``deriv`` returns R's analytic derivatives for the SPMG family.
 
-    After the SPM canonical alignment, the default SPMG classes use
-    the SPM standard parameterization so their time-derivatives no
-    longer coincide with the legacy ``spmg1_derivative`` /
-    ``spmg1_second_derivative`` analytic forms (which apply to the
-    legacy canonical, available via :class:`SPMG1_HRF_Legacy`). The
-    contract for the SPM-form HRFs is reduced to:
-
-    - The basis evaluated at ``t`` returns a finite array with the
-      right shape.
-    - The numeric time-derivative is finite and roughly
-      antisymmetric about the canonical's peak.
+    R fmrihrf ``deriv.SPMG1_HRF`` / ``deriv.SPMG2_HRF`` /
+    ``deriv.SPMG3_HRF``: dh/dt; [dh/dt, d2h/dt2]; and SPMG2's columns
+    followed by the time derivative of the dispersion column. Each must
+    also agree with a central difference of the basis itself.
     """
-    from fmrimod.hrf.spm_hrf import SPMG1_HRF_Legacy
-    from fmrimod.hrf.derivatives import spmg1_derivative, spmg1_second_derivative
+    from fmrimod.hrf.derivatives import spmg1_dispersion_time_derivative
 
     t = np.arange(0, 20.5, 0.5)
 
-    # SPM-form basis: shape + finiteness only.
     d1 = deriv(SPM_CANONICAL, t)
-    assert d1.shape == t.shape
-    assert np.all(np.isfinite(d1))
+    np.testing.assert_allclose(d1, spmg1_derivative(t))
     assert d1[0] == pytest.approx(0)
 
     d2 = deriv(SPM_WITH_DERIVATIVE, t)
-    assert d2.shape == (len(t), 2)
-    assert np.all(np.isfinite(d2))
+    np.testing.assert_allclose(
+        d2, np.column_stack([spmg1_derivative(t), spmg1_second_derivative(t)])
+    )
 
     d3 = deriv(SPM_WITH_DISPERSION, t)
-    assert d3.shape == (len(t), 3)
-    assert np.all(np.isfinite(d3))
+    np.testing.assert_allclose(d3[:, :2], d2)
+    np.testing.assert_allclose(d3[:, 2], spmg1_dispersion_time_derivative(t))
 
-    # Legacy basis: pinned analytic identities still hold.
-    legacy = SPMG1_HRF_Legacy()
-    d1_legacy = deriv(legacy, t)
-    np.testing.assert_allclose(d1_legacy, spmg1_derivative(t))
+    # The analytic forms are the time derivatives of the basis columns.
+    h = 1e-5
+    tt = t[1:]
+    for basis, d in ((SPM_CANONICAL, d1), (SPM_WITH_DERIVATIVE, d2), (SPM_WITH_DISPERSION, d3)):
+        numeric = (np.asarray(basis(tt + h)) - np.asarray(basis(tt - h))) / (2 * h)
+        np.testing.assert_allclose(numeric, d[1:], atol=1e-8)
 
 
 def test_deriv_handles_numeric_and_edge_cases():

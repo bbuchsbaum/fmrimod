@@ -72,12 +72,12 @@ class TestHRFBase:
         assert isinstance(SPM_CANONICAL, HRF)
         assert SPM_CANONICAL.name == "SPMG1"
         assert SPM_CANONICAL.nbasis == 1
-        assert SPM_CANONICAL.span == 32.0  # SPM default kernel length
+        assert SPM_CANONICAL.span == 24.0  # R HRF_SPMG1 span
         assert SPM_CANONICAL.delay == 6.0
         assert SPM_CANONICAL.undershoot == 16.0
         assert SPM_CANONICAL.dispersion == 1.0
         assert SPM_CANONICAL.u_dispersion == 1.0
-        assert SPM_CANONICAL.ratio == pytest.approx(0.167)
+        assert SPM_CANONICAL.ratio == 1.0 / 6.0
     
     def test_spm_canonical_evaluation(self, time_grid):
         """Test SPM canonical HRF evaluation."""
@@ -262,28 +262,18 @@ class TestSPMGTypedFields:
         from fmrimod.hrf.spm_hrf import SPMG1_HRF
 
         hrf = SPMG1_HRF()
-        # The default SPMG1_HRF now uses the SPM standard parameterization
-        # (delay=6, undershoot=16, dispersion=1, u_dispersion=1, ratio=0.167);
-        # the legacy (p1=5, p2=15, a1=0.0833) form moved to SPMG1_HRF_Legacy.
+        # R HRF_SPMG1's parameterization (D2): delay=6, undershoot=16,
+        # dispersion=1, u_dispersion=1, ratio exactly 1/6.
         assert hrf.delay == 6.0
         assert hrf.undershoot == 16.0
         assert hrf.dispersion == 1.0
         assert hrf.u_dispersion == 1.0
-        assert hrf.ratio == pytest.approx(0.167)
+        assert hrf.ratio == 1.0 / 6.0
 
         field_names = {f.name for f in fields(hrf)}
         assert {
             "delay", "undershoot", "dispersion", "u_dispersion", "ratio"
         }.issubset(field_names)
-
-    def test_spmg1_legacy_preserves_old_fields(self):
-        """The legacy R-fmrireg parameterization stays available."""
-        from fmrimod.hrf.spm_hrf import SPMG1_HRF_Legacy
-
-        hrf = SPMG1_HRF_Legacy()
-        assert hrf.p1 == 5.0
-        assert hrf.p2 == 15.0
-        assert hrf.a1 == 0.0833
 
     def test_spmg1_constructor_overrides(self):
         from fmrimod.hrf.spm_hrf import SPMG1_HRF
@@ -737,7 +727,7 @@ class TestHRFStringRepresentation:
         str_repr = str(SPM_CANONICAL)
         assert "HRF(name='SPMG1'" in str_repr
         assert "nbasis=1" in str_repr
-        assert "span=32.0" in str_repr
+        assert "span=24.0" in str_repr
         assert "delay=6.0" in str_repr
     
     def test_repr(self):

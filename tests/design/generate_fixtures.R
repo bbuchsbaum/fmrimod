@@ -8,6 +8,9 @@ library(fmridesign)
 library(fmrihrf)
 library(jsonlite)
 
+# Base R gained %||% in 4.4; define it for older R.
+if (!exists("%||%", baseenv())) `%||%` <- function(x, y) if (is.null(x)) y else x
+
 # Set seed for reproducibility
 set.seed(42)
 
@@ -407,9 +410,20 @@ dm_poly <- design_matrix(bmod_poly)
 bmod_const <- baseline_model(basis = "constant", sframe = sf9)
 dm_const <- design_matrix(bmod_const)
 
-# DCT basis from R (internal function, use namespace)
+# DCT basis. fmridesign removed its unused internal dctbasis() in 9581850;
+# this is that function verbatim, so the fixture keeps its definition.
+dctbasis <- function(n, p = n, const = FALSE) {
+  m <- 1:n
+  ret <- do.call(cbind, lapply(2:p, function(k) {
+    (2 / n)^(1 / 2) * cos(((2 * m - 1) * k * pi) / (2 * n))
+  }))
+  if (const) {
+    ret <- cbind((1 / n)^.5, ret)
+  }
+  ret
+}
 n_timepoints <- 200
-dct_mat <- fmridesign:::dctbasis(n_timepoints, p = 5)
+dct_mat <- dctbasis(n_timepoints, p = 5)
 
 fixture9 <- list(
   description = "Baseline model: polynomial drift and DCT basis",
