@@ -138,6 +138,84 @@ def _write_events(tmp_path, text):
     return events
 
 
+def test_design_response_does_not_spill_into_next_run(tmp_path, capsys):
+    """Inventory v2 HRF-06 (fmrihrf ``a8556ff``, #62)."""
+    events = _write_events(tmp_path, "onset,condition,block\n230,a,1\n")
+    status = fmrihrf_cli(
+        ["design", "--events", str(events), "--blocklens", "120,120", "--tr", "2", "--json"]
+    )
+    rows = json.loads(capsys.readouterr().out)
+    assert status == 0
+    assert len(rows) == 240
+    values = [row["a"] for row in rows]
+    assert any(v != 0 for v in values[:120])
+    assert all(v == 0 for v in values[120:])
+
+
+def test_design_equals_per_run_regressor_sets(tmp_path, capsys):
+    """Each run is evaluated on its own run-local grid and stacked."""
+    import numpy as np
+
+    from fmrimod.hrf import get_hrf
+    from fmrimod.regressor.core import Regressor, RegressorSet
+    from fmrimod.sampling import SamplingFrame
+
+    table = pd.DataFrame(
+        {
+            "onset": [5.0, 20.0, 55.0, 3.0, 17.3, 40.0],
+            "condition": ["a", "b", "a", "a", "a", "a"],
+            "block": [1, 1, 1, 2, 2, 2],
+            "duration": [0.0, 2.0, 0.0, 1.0, 0.0, 3.0],
+        }
+    )
+    events = tmp_path / "events.csv"
+    table.to_csv(events, index=False)
+    status = fmrihrf_cli(
+        [
+            "design", "--events", str(events), "--blocklens", "30,40",
+            "--tr", "2,1.5", "--hrf", "spmg3", "--json",
+        ]
+    )
+    rows = json.loads(capsys.readouterr().out)
+    assert status == 0
+    got = pd.DataFrame(rows).drop(columns="time")
+
+    sf = SamplingFrame(blocklens=[30, 40], tr=[2.0, 1.5])
+    hrf = get_hrf("spmg3")
+    expected = []
+    for b in (1, 2):
+        run = table[table["block"] == b]
+        regs = [
+            Regressor(
+                onsets=run.loc[run["condition"] == lev, "onset"].to_numpy(float),
+                hrf=hrf,
+                duration=run.loc[run["condition"] == lev, "duration"].to_numpy(float),
+                amplitude=np.ones(int((run["condition"] == lev).sum())),
+                span=24.0,
+            )
+            for lev in ("a", "b")
+        ]
+        rset = RegressorSet(regressors=regs, levels=["a", "b"])
+        expected.append(
+            rset.evaluate(sf.sample_times(global_time=False, blockids=b - 1))
+        )
+    expected = np.vstack(expected)
+
+    assert list(got.columns) == RegressorSet(regressors=regs, levels=["a", "b"]).column_names
+    # Run 2 has no "b" events: its b columns are zero, not missing.
+    np.testing.assert_allclose(got.to_numpy(), expected, rtol=0, atol=1e-10)
+    np.testing.assert_array_equal(got.to_numpy()[30:, 3:], 0.0)
+
+
+def test_design_rejects_out_of_range_block(tmp_path, capsys):
+    events = _write_events(tmp_path, "onset,condition,block\n5,a,3\n")
+    status = fmrihrf_cli(
+        ["design", "--events", str(events), "--blocklens", "10,10", "--tr", "2"]
+    )
+    assert status == 1
+    assert "block" in capsys.readouterr().err
+
+
 def test_design_renamed_duration_or_amplitude_column_must_exist(tmp_path, capsys):
     """Inventory v2 HRF-15 (fmrihrf ``742b1f1``)."""
     events = _write_events(tmp_path, "onset,condition,block\n0,A,1\n4,B,1\n")

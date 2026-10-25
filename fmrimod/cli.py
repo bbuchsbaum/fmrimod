@@ -19,8 +19,7 @@ import pandas as pd
 from numpy.typing import NDArray
 
 from .hrf.registry import get_hrf, list_available_hrfs
-from .regressor.core import regressor, regressor_set
-from .regressor.design import regressor_design
+from .regressor.core import RegressorSet, _as_factor_levels, regressor
 from .sampling import SamplingFrame
 
 
@@ -389,39 +388,65 @@ def _cli_design(args: list[str]) -> int:
     blockids = events[str(opts["block"])].to_numpy(int)
     if blockids.size and np.min(blockids) >= 1:
         blockids = blockids - 1
-    global_event_onsets = sf.global_onsets(
-        events[str(opts["onset"])].to_numpy(float),
-        blockids,
-    )
+    if blockids.size and (np.min(blockids) < 0 or np.max(blockids) >= sf.n_blocks):
+        raise CliDomainError(
+            f"`{opts['block']}` values must be valid block indices for "
+            f"{sf.n_blocks} block(s)"
+        )
 
+    n_events = len(events)
+    onsets = events[str(opts["onset"])].to_numpy(float)
     duration = (
         events[str(opts["duration"])].to_numpy(float)
         if str(opts["duration"]) in events
-        else 0.0
+        else np.zeros(n_events)
     )
     amplitude = (
         events[str(opts["amplitude"])].to_numpy(float)
         if str(opts["amplitude"]) in events
-        else 1.0
+        else np.ones(n_events)
     )
-    rset = regressor_set(
-        onsets=global_event_onsets,
-        fac=events[str(opts["condition"])].to_numpy(),
-        hrf=cast(Any, hrf),
-        duration=duration,
-        amplitude=amplitude,
-        span=_as_scalar_numeric(opts["span"], "span"),
+    keys, labels = _as_factor_levels(events[str(opts["condition"])].to_numpy())
+    fac = events[str(opts["condition"])].to_numpy()
+    if np.issubdtype(fac.dtype, np.number):
+        fac = fac.astype(np.float64)
+    else:
+        fac = fac.astype(str)
+    span = _as_scalar_numeric(opts["span"], "span")
+    precision = _as_scalar_numeric(opts["precision"], "precision")
+    method = _match_choice(
+        opts["method"], {"conv", "fft", "direct", "loop", "Rconv"}, "method"
     )
+
+    # Each run is convolved on its own (fmrihrf a8556ff, #62): run-local
+    # onsets on that run's run-local scan times, so no response carries
+    # into the next run. Every run keeps every condition level, so the runs
+    # stack into one table with the same columns.
+    blocks = []
+    for b in range(sf.n_blocks):
+        in_run = blockids == b
+        rset = RegressorSet(
+            regressors=[
+                regressor(
+                    onsets=onsets[in_run & (fac == key)],
+                    hrf=cast(Any, hrf),
+                    duration=duration[in_run & (fac == key)],
+                    amplitude=amplitude[in_run & (fac == key)],
+                    span=span,
+                )
+                for key in keys
+            ],
+            levels=labels,
+        )
+        blocks.append(
+            rset.evaluate(
+                sf.sample_times(global_time=False, blockids=b),
+                precision=precision,
+                method=cast(Any, method),
+            )
+        )
+    design = np.vstack(blocks)
     grid = sf.sample_times(global_time=True)
-    design = cast(Any, regressor_design)(
-        rset,
-        grid,
-        precision=_as_scalar_numeric(opts["precision"], "precision"),
-        method=_match_choice(opts["method"], {"conv", "fft", "direct", "loop", "Rconv"}, "method"),
-        sparse=bool(opts.get("sparse")),
-    )
-    if hasattr(design, "toarray"):
-        design = design.toarray()
     rows = _values_to_rows(grid, np.asarray(design), column_names=rset.column_names)
     _write_cli_table(rows, json_output=bool(opts.get("json")), output=opts.get("output"))
     return 0
