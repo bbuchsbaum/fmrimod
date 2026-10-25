@@ -148,4 +148,4 @@ def test_errors_and_given_axes(em):
 def test_model_summary_returns_figures(em):
     out = plot_model_summary(em)
     assert set(out) == {"design_map", "correlation_map", "time_series"}
-    assert isinstance(out["design_map"], Figure) and isinstance(out["time_series"], Figure)
+    assert all(isinstance(f, Figure) for f in out.values())

@@ -21,7 +21,13 @@ from fmrimod.hrf import get_hrf
 from fmrimod.plotting import plot_hrf, plot_hrfs
 from fmrimod.spec import compile as compile_spec
 from fmrimod.spec import hrf
-from fmrimod.visualization import design_map, plot_event_model, plot_sampling_frame
+from fmrimod.visualization import (
+    correlation_map,
+    design_correlations,
+    design_map,
+    plot_event_model,
+    plot_sampling_frame,
+)
 
 events = pd.DataFrame({
     "onset": [0.0, 10.0, 20.0, 30.0],
@@ -71,6 +77,32 @@ plt.show()
 
 The same call works on a `BaselineModel`, where drift and intercept columns
 are grouped by run, and on a full `FmriModel`.
+
+## Check Collinearity
+
+`correlation_map()` shows every pair of regressors once, as the lower
+triangle of the correlation matrix. Pairs at or above `|r| = 0.5` are
+outlined, and the diagonal carries each column's variance inflation factor
+(VIF), which catches collinearity that no single pair reveals; VIFs of 5 or
+more turn orange.
+
+```{python}
+#| fig-width: 5.4
+#| fig-height: 3.6
+#| fig-cap: "Face and scene regressors correlate at r = -0.43 because their
+#|   responses alternate within one short run, yet both VIFs stay near 1.2,
+#|   so the two effects can still be estimated separately."
+#| fig-alt: "A single shaded cell giving the face-scene correlation, with the
+#|   variance inflation factor of each regressor on the diagonal."
+fig = correlation_map(event_model)
+plt.show()
+```
+
+The numbers are available without a plot:
+
+```{python}
+design_correlations(event_model).round(2)
+```
 
 ## Plot the Sampling Frame
 

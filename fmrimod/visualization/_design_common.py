@@ -454,7 +454,7 @@ def cbar_axes(
         pos = ax.get_position()
         fh, fw = fig.get_figheight(), fig.get_figwidth()
         h = height_pt / 72 / fh
-        w = min(width_in / fw, pos.width)
+        w = width_in / fw
         if where == "top":
             y0 = pos.y1 + gap_pt / 72 / fh
         else:
@@ -537,6 +537,44 @@ def finish_figure(fig: Any, title: str | None, subtitle: str | None, caption: st
     return fig
 
 
+def header_width(subtitle: str | None, title: str | None = None, cap: float = 9.0) -> float:
+    """Figure width (inches) that fits the header lines unwrapped, up to ``cap``."""
+    lines = [ln for t in (title, subtitle) if t for ln in t.split("\n")]
+    if not lines:
+        return 0.0
+    return min(max(len(ln) for ln in lines) / 13.0 + 0.4, cap)
+
+
+def finish_to_panel(fig: Any, ax: Any, title: str | None, subtitle: str | None, caption: str | None,
+                    *, width_in: float | None = None, height_in: float | None = None,
+                    min_width: float = 0.0) -> Any:
+    """:func:`finish_figure`, then resize the figure so ``ax`` is exactly
+    ``width_in`` x ``height_in`` inches (square cells without fixing the
+    aspect, which would fight ``tight_layout``), and lay out again. A
+    figure narrower than ``min_width`` is widened and the axes kept at its
+    size, anchored left."""
+    finish_figure(fig, title, subtitle, caption)
+    for _ in range(3):
+        pos = ax.get_position()
+        w, h = fig.get_size_inches()
+        dw = 0.0 if width_in is None else width_in - pos.width * w
+        dh = 0.0 if height_in is None else height_in - pos.height * h
+        new_w = max(w + dw, min_width, 2.0)
+        if abs(new_w - w) < 0.02 and abs(dh) < 0.02:
+            break
+        for t in list(fig.texts):
+            t.remove()
+        fig.set_size_inches(new_w, max(h + dh, 1.5))
+        finish_figure(fig, title, subtitle, caption)
+    if width_in is not None:
+        pos = ax.get_position()
+        w = fig.get_figwidth()
+        if pos.width * w > width_in + 0.02:
+            ax.set_position([pos.x0, pos.y0, width_in / w, pos.height])
+            fit_spanners(fig)
+    return fig
+
+
 def fd_cmap(kind: str = "diverging") -> Any:
     """:func:`style.cmap` without the ``set_bad`` call that matplotlib 3.11
     flags as pending deprecation (uses ``with_extremes``)."""
@@ -576,9 +614,11 @@ __all__ = [
     "fit_spanners",
     "fmt_tr",
     "finish_figure",
+    "finish_to_panel",
     "fmt_weight",
     "freeze_fonts",
     "groups_of",
+    "header_width",
     "is_baseline_model",
     "model_design_matrix",
     "model_sampling_frame",

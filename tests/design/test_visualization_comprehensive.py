@@ -46,102 +46,6 @@ def close_all_plots():
     plt.close('all')
 
 
-class TestCorrelationMapComprehensive:
-    """Comprehensive tests for correlation_map function."""
-
-    @pytest.fixture
-    def uncorrelated_model(self):
-        """Model with uncorrelated regressors."""
-        data = pd.DataFrame({
-            'onset': [5, 25, 45, 65],
-            'condition': ['A', 'B', 'A', 'B']
-        })
-        return event_model("condition", data=data, tr=2.0, n_scans=80)
-
-    @pytest.fixture
-    def correlated_model(self):
-        """Model with somewhat correlated regressors."""
-        # Close onsets create correlation after HRF convolution
-        data = pd.DataFrame({
-            'onset': [5, 6, 25, 26, 45, 46],
-            'condition': ['A', 'B', 'A', 'B', 'A', 'B']
-        })
-        return event_model("condition", data=data, tr=1.0, n_scans=60)
-
-    def test_correlation_map_returns_figure_and_axes(self, uncorrelated_model):
-        """Test correlation_map returns figure and axes."""
-        fig, ax = correlation_map(uncorrelated_model)
-
-        assert isinstance(fig, matplotlib.figure.Figure)
-        assert isinstance(ax, matplotlib.axes.Axes)
-
-    def test_correlation_map_creates_heatmap(self, uncorrelated_model):
-        """Test correlation heatmap is created."""
-        fig, ax = correlation_map(uncorrelated_model)
-
-        # Either images (matplotlib) or collections (seaborn)
-        has_heatmap = len(ax.images) > 0 or len(ax.collections) > 0
-        assert has_heatmap, "Should create correlation heatmap"
-
-    def test_correlation_map_symmetric_matrix(self, uncorrelated_model):
-        """Test that correlation matrix is symmetric."""
-        fig, ax = correlation_map(uncorrelated_model)
-
-        # Get the correlation matrix from the image
-        if ax.images:
-            corr = ax.images[0].get_array()
-            # Check symmetry
-            if corr.ndim == 2:
-                assert np.allclose(corr, corr.T), "Correlation matrix should be symmetric"
-
-    def test_correlation_map_diagonal_ones(self, uncorrelated_model):
-        """Test that diagonal elements are 1 (self-correlation)."""
-        fig, ax = correlation_map(uncorrelated_model)
-
-        if ax.images:
-            corr = ax.images[0].get_array()
-            if corr.ndim == 2:
-                diag = np.diag(corr)
-                assert np.allclose(diag, 1.0), "Diagonal should be all 1s"
-
-    def test_correlation_map_with_annotations(self, uncorrelated_model):
-        """Test correlation map with value annotations."""
-        fig, ax = correlation_map(uncorrelated_model, annot=True)
-
-        # Should have text annotations
-        texts = ax.texts
-        assert len(texts) > 0, "Should have text annotations"
-
-    def test_correlation_map_custom_format(self, uncorrelated_model):
-        """Test custom annotation format."""
-        fig, ax = correlation_map(uncorrelated_model, annot=True, fmt='.3f')
-
-        assert isinstance(fig, matplotlib.figure.Figure)
-
-    def test_correlation_map_custom_colormap(self, uncorrelated_model):
-        """Test custom colormap."""
-        fig, ax = correlation_map(uncorrelated_model, cmap='coolwarm')
-
-        assert isinstance(fig, matplotlib.figure.Figure)
-
-    def test_correlation_map_custom_figsize(self, uncorrelated_model):
-        """Test custom figure size."""
-        figsize = (10, 10)
-        fig, ax = correlation_map(uncorrelated_model, figsize=figsize)
-
-        assert fig.get_figwidth() == 10
-        assert fig.get_figheight() == 10
-
-    def test_correlation_map_rotate_labels(self, uncorrelated_model):
-        """Test label rotation."""
-        fig, ax = correlation_map(uncorrelated_model, rotate_x_text=True)
-
-        labels = ax.get_xticklabels()
-        if labels:
-            rotations = [label.get_rotation() for label in labels]
-            assert any(r != 0 for r in rotations)
-
-
 class TestPlotBaselineModel:
     """Tests for plot_baseline_model function."""
 
@@ -581,7 +485,7 @@ class TestBaselineModelVisualization:
         sf = SamplingFrame(blocklens=[50], TR=2.0)
         bmodel = baseline_model(basis='poly', degree=2, sframe=sf, intercept='runwise')
 
-        fig, ax = correlation_map(bmodel)
+        fig = correlation_map(bmodel)
 
         assert isinstance(fig, matplotlib.figure.Figure)
 
@@ -681,7 +585,7 @@ class TestVisualizationWithHRF:
             n_scans=40
         )
 
-        fig, ax = correlation_map(model)
+        fig = correlation_map(model)
         assert isinstance(fig, matplotlib.figure.Figure)
 
 

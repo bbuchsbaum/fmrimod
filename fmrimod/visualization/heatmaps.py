@@ -17,6 +17,8 @@ import pandas as pd
 
 from ._design_common import (
     DIVERGING_MID,
+    GE,
+    PM,
     Group,
     boundaries,
     cbar_axes,
@@ -24,9 +26,12 @@ from ._design_common import (
     design_columns,
     draw_spanners,
     fd_cmap,
+    fd_num,
     finish_figure,
+    finish_to_panel,
     fmt_tr,
     groups_of,
+    header_width,
     is_baseline_model,
     model_design_matrix,
     model_sampling_frame,
@@ -34,9 +39,10 @@ from ._design_common import (
     plural,
     range_label,
     resolve,
+    text_colour,
     timeline,
 )
-from ._helpers import DOT, mmss, new_figure, themed
+from ._helpers import DOT, MINUS, mmss, new_figure, themed
 from .style import BASE_SIZE, INK, WARN
 
 # --------------------------------------------------------------------------
@@ -331,13 +337,258 @@ def design_map(
     return fig
 
 
+# --------------------------------------------------------------------------
+# correlation_map
+# --------------------------------------------------------------------------
+
+
+def _fmt_r(r: float, digits: int) -> str:
+    """Correlation without the leading zero: ``.28``, ``−.3``; ``0`` for zero."""
+    if not np.isfinite(r):
+        return ""
+    if round(abs(r), digits) >= 1:
+        return (MINUS if r < 0 else "") + "1"
+    s = f"{r:.{digits}f}"
+    s = s.replace("0.", ".", 1) if s.lstrip("-").startswith("0.") else s
+    if s.lstrip("-").strip(".0") == "":
+        return "0"
+    return s.replace("-", MINUS)
+
+
+def correlation_map(
+    model: Any,
+    rotate_x_text: bool = True,
+    method: str = "pearson",
+    half_matrix: bool = True,
+    limits: str = "fixed",
+    annotate: bool | None = None,
+    flag_threshold: float = 0.5,
+    vif_threshold: float = 5.0,
+    title: str | None = None,
+    subtitle: str | None = None,
+    caption: str | None = None,
+    within_run: bool | None = None,
+    figsize: tuple[float, float] | None = None,
+    ax: Any = None,
+    annot: bool | None = None,
+) -> Any:
+    """Pairwise regressor correlations as a lower triangle (R ``correlation_map``).
+
+    The fill is the diverging palette fixed at [-1, 1] with a neutral zero;
+    up to 20 columns each cell also prints r (two decimals up to 10
+    columns). Cells with ``|r| >= flag_threshold`` are outlined and counted
+    in the subtitle, which also names the most correlated pair. Pairwise
+    correlations miss multicollinearity, so the diagonal shows each
+    column's variance inflation factor with per-run intercepts
+    (:func:`~fmrimod.visualization.design_stats.design_vif`); VIFs at or
+    above ``vif_threshold`` and aliased columns are flagged in the warning
+    colour. Columns keep design order and are grouped by term, so the map
+    lines up with :func:`design_map`.
+
+    Parameters
+    ----------
+    model : EventModel, BaselineModel or FmriModel
+    rotate_x_text : bool
+        Angle column labels when they would overlap.
+    method : {"pearson", "spearman"}
+        Correlation method (VIFs are always linear).
+    half_matrix : bool
+        Lower triangle only (default) or every off-diagonal cell.
+    limits : {"fixed", "data"}
+        Fill over [-1, 1], or symmetric up to the largest ``|r|``.
+    annotate : bool, optional
+        Print r in the cells; default when there are at most 20 columns
+        (12 for a baseline model). ``annot`` is an alias.
+    flag_threshold, vif_threshold : float
+        Outline cells at or above this ``|r|``; flag VIFs at or above this.
+    within_run : bool, optional
+        Correlate within runs with run intercepts removed (see
+        :func:`~fmrimod.visualization.design_stats.design_correlations`).
+        Defaults to ``True`` for a baseline model, ``False`` otherwise.
+    title, subtitle, caption : str, optional
+        ``None`` uses the default; ``""`` removes it.
+    figsize : (float, float), optional
+    ax : matplotlib Axes, optional
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+    """
+    from matplotlib.colors import Normalize
+    from matplotlib.patches import Rectangle
+
+    from .design_stats import correlation_matrix, vif, within_run_correlations
+
+    if annot is not None:
+        if annotate is not None:
+            raise ValueError("Supply `annotate` or `annot`, not both.")
+        annotate = annot
+    if limits not in ("fixed", "data"):
+        raise ValueError(f"limits must be 'fixed' or 'data', got {limits!r}")
+    if method not in ("pearson", "spearman"):
+        raise ValueError(f"method must be 'pearson' or 'spearman', got {method!r}")
+    is_bl = is_baseline_model(model)
+    if within_run is None:
+        within_run = is_bl
+    X_all = model_design_matrix(model)
+    ci = display_columns(model)
+    X = X_all[:, ci["col"].to_numpy(dtype=int)]
+    n = X.shape[0]
+    run = timeline(model_sampling_frame(model), n).run
+    n_runs = len(np.unique(run))
+    hidden = None
+    if within_run:
+        keep = (ci["term"] != "block").to_numpy()
+        X, ci = X[:, keep], ci[keep].reset_index(drop=True)
+        if X.shape[1] < 2:
+            raise ValueError("Fewer than two columns remain to correlate after removing run intercepts.")
+        R, hidden, _ = within_run_correlations(X, run, method)
+    else:
+        R = correlation_matrix(X, method)
+    p = X.shape[1]
+    labs = list(ci["full_label"])
+
+    low = R.copy()
+    low[np.triu_indices(p)] = np.nan
+    max_r = float(np.nanmax(np.abs(low))) if np.isfinite(low).any() else np.nan
+    limit = 1.0 if (limits == "fixed" or not np.isfinite(max_r) or max_r == 0) else max_r
+    n_flag = int(np.nansum(np.abs(low) >= flag_threshold))
+    vifs = vif(X, run) if p <= 150 else np.full(p, np.nan)
+    aliased = np.isinf(vifs)
+    high_vif = aliased | (np.isfinite(vifs) & (vifs >= vif_threshold))
+    vif_lab = ["aliased" if a else ("" if not np.isfinite(v) else fd_num(v, 2)) for v, a in zip(vifs, aliased, strict=False)]
+    if p <= 10:
+        vif_lab = [f"VIF {s}" if np.isfinite(v) else s for s, v in zip(vif_lab, vifs, strict=False)]
+    elif p > 20:
+        vif_lab = [""] * p
+    else:
+        vif_lab = ["!" if a else s for s, a in zip(vif_lab, aliased, strict=False)]
+
+    if subtitle is None:
+        if p < 2:
+            subtitle = "Only one regressor: nothing to correlate"
+        elif hidden is not None and hidden[np.tril_indices(p, -1)].all() and np.isfinite(np.diag(R)).any():
+            subtitle = "No two regressors share a run: nothing to correlate within runs"
+        elif not np.isfinite(max_r):
+            subtitle = "No regressor varies: correlations are undefined"
+        else:
+            i, j = np.argwhere(np.abs(low) == max_r)[0]
+            subtitle = (f"Max abs r = {max_r:.2f}: {labs[j]} vs {labs[i]} {DOT} {n_flag} "
+                        f"{'pair' if n_flag == 1 else 'pairs'} at abs r {GE} {flag_threshold:g}")
+            if high_vif.any():
+                subtitle += (f"\nVIF {GE} {vif_threshold:g} or aliased: "
+                             + name_or_count([labs[k] for k in np.flatnonzero(high_vif)], "column"))
+    subtitle = resolve(subtitle, None)
+    if caption is None:
+        what = "Spearman rank" if method == "spearman" else "Pearson"
+        if within_run:
+            body = (" r within runs (columns centred within each run, run intercepts removed; "
+                    "run-specific columns correlated on their own run)")
+        else:
+            body = f" r across all {n:,} scans" + (" (runs concatenated)" if n_runs > 1 else "")
+        caption = (f"{what}{body}.\nDiagonal: variance inflation factor of each column, with run means removed"
+                   + (" (per-run intercepts)" if n_runs > 1 else "") + ".")
+    caption = resolve(caption, None)
+    title = resolve(title, "Baseline regressor correlations" if is_bl else "Regressor correlations")
+
+    groups = groups_of(ci["term"], ci["term_label"])
+    bounds = boundaries(groups)
+    if annotate is None:
+        annotate = p <= (12 if is_bl else 20)
+    digits = 2 if p <= 10 else 1
+    fs = BASE_SIZE * (0.92 if p <= 8 else 0.8 if p <= 14 else 0.66)
+
+    cell = 0.6 if p * 0.6 <= 5 else 5.0 / p
+    panel = p * cell
+    own = ax is None
+    if own:
+        lab_w = min(max(len(s) for s in labs) * 0.075, 2.6) if labs else 0.5
+        rot_guess = max(len(s) for s in labs) * 0.075 > cell * 0.9
+        bottom = (min(max(len(s) for s in labs) * 0.055, 1.9) if rot_guess else 0.25) + 0.25
+        w = figsize[0] if figsize else max(panel + lab_w + 0.6, 5.4)
+        h = figsize[1] if figsize else panel + bottom + 1.45 + (0.4 if p <= 10 else 0.0) + 0.45
+        fig, ax = new_figure(figsize=(w, h))
+    else:
+        fig = ax.figure
+
+    mask = np.tril(np.ones((p, p), dtype=bool), -1) if half_matrix else ~np.eye(p, dtype=bool)
+    if hidden is not None:
+        mask &= ~hidden
+    Z = np.ma.masked_where(~mask | ~np.isfinite(R), R)
+    with themed():
+        cm = fd_cmap("diverging").with_extremes(bad=(0, 0, 0, 0))
+        norm = Normalize(-limit, limit, clip=True)
+        # Undefined (NaN) pairs that are drawn get the neutral band colour.
+        undefined = mask & ~np.isfinite(R)
+        mesh = ax.pcolormesh(np.arange(p + 1) - 0.5, np.arange(p + 1) - 0.5, Z, cmap=cm, norm=norm,
+                             edgecolors="white", linewidth=0.8 if p <= 30 else 0.15)
+        for i, j in np.argwhere(undefined):
+            ax.add_patch(Rectangle((j - 0.5, i - 0.5), 1, 1, facecolor=INK["band"], edgecolor="white",
+                                   linewidth=0.8))
+        ax.set_xlim(-0.5, p - 0.5)
+        ax.set_ylim(p - 0.5, -0.5)
+        ax.grid(False)
+        for b in bounds:
+            if half_matrix:
+                if b + 1 < p - 0.5:
+                    ax.plot([b, b], [b + 1, p - 0.5], color=INK["muted"], linewidth=0.9, zorder=3)
+                ax.plot([-0.5, b], [b, b], color=INK["muted"], linewidth=0.9, zorder=3)
+            else:
+                ax.plot([b, b], [-0.5, p - 0.5], color=INK["muted"], linewidth=0.9, zorder=3)
+                ax.plot([-0.5, p - 0.5], [b, b], color=INK["muted"], linewidth=0.9, zorder=3)
+        inset = 0.06
+        lw = 1.6 if p <= 30 else 0.8
+        for i, j in np.argwhere(mask & np.isfinite(R) & (np.abs(np.nan_to_num(R)) >= flag_threshold)):
+            ax.add_patch(Rectangle((j - 0.5 + inset, i - 0.5 + inset), 1 - 2 * inset, 1 - 2 * inset,
+                                   facecolor="none", edgecolor=INK["text"], linewidth=lw, zorder=4))
+        for k in np.flatnonzero(high_vif):
+            ax.add_patch(Rectangle((k - 0.5 + inset, k - 0.5 + inset), 1 - 2 * inset, 1 - 2 * inset,
+                                   facecolor="none", edgecolor=WARN, linewidth=lw, zorder=4))
+        if annotate:
+            for i, j in np.argwhere(mask & np.isfinite(R)):
+                v = R[i, j]
+                ax.text(j, i, _fmt_r(v, digits), ha="center", va="center", fontsize=fs,
+                        color=text_colour(v / limit), zorder=5)
+        for k in range(p):
+            if vif_lab[k]:
+                ax.text(k, k, vif_lab[k], ha="center", va="center", fontsize=fs * 0.8,
+                        color=WARN if high_vif[k] else INK["muted"], zorder=5)
+        shown = _thin(p, 60)
+        ax.set_yticks(shown)
+        ax.set_yticklabels([labs[k] for k in shown], color=INK["text2"], fontsize=BASE_SIZE * 0.82)
+        rot, ha = _x_label_rotation([labs[k] for k in shown], min(4.5, panel), rotate_x_text)
+        ax.set_xticks(shown)
+        ax.set_xticklabels([labs[k] for k in shown], rotation=rot, ha=ha, color=INK["muted"],
+                           fontsize=BASE_SIZE * 0.82,
+                           rotation_mode="anchor" if rot and rot < 90 else "default")
+        ax.tick_params(length=0)
+        draw_spanners(ax, groups, text_pt=6, rule_pt=3)
+        legend = "Spearman r" if method == "spearman" else "r"
+        if limit != 1.0:
+            legend = f"r ({PM}max abs r)"
+        ticks = [-1, -0.5, 0, 0.5, 1] if limit == 1.0 else None
+        if p <= 10 or not half_matrix:
+            cax = cbar_axes(ax, "bottom", width_in=1.5, gap_pt=8)
+            colourbar(fig, cax, mesh, legend, ticks=ticks)
+        else:
+            cax = ax.inset_axes([0.6, 0.9, 0.38, 0.022])
+            colourbar(fig, cax, mesh, legend, ticks=ticks, label_side="top")
+        if own and figsize is None:
+            finish_to_panel(fig, ax, title, subtitle, caption, width_in=panel, height_in=panel,
+                            min_width=header_width(subtitle, title))
+        else:
+            if not own:
+                ax.set_aspect("equal")
+            finish_figure(fig, title, subtitle, caption, own=own, ax=ax)
+    return fig
+
+
 def plot_model_summary(model: Any, figsize: tuple[float, float] | None = None) -> dict[str, Any]:
     """The design map, correlation map and regressor plot of a model.
 
     Returns a dict with ``"design_map"``, ``"correlation_map"`` and
     ``"time_series"`` figures.
     """
-    from .design_map import correlation_map
     from .event_plot import plot_event_model
 
     return {
@@ -347,4 +598,4 @@ def plot_model_summary(model: Any, figsize: tuple[float, float] | None = None) -
     }
 
 
-__all__ = ["design_map", "display_columns", "plot_model_summary"]
+__all__ = ["correlation_map", "design_map", "display_columns", "plot_model_summary"]
