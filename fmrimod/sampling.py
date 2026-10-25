@@ -327,6 +327,18 @@ class SamplingFrame:
 
         return cast("NDArray[np.float64]", start + np.arange(block_len) * tr)
 
+    def plot(self, **kwargs: Any) -> Any:
+        """Plot the runs over time; see
+        :func:`fmrimod.visualization.plot_sampling_frame`.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+        """
+        from .visualization.baseline_plot import plot_sampling_frame
+
+        return plot_sampling_frame(self, **kwargs)
+
     def __str__(self) -> str:
         """String representation of SamplingFrame."""
         lines = [

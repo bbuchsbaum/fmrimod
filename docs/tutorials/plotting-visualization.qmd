@@ -133,18 +133,51 @@ plt.show()
 ## Plot the Sampling Frame
 
 The sampling-frame plot is useful when a model has multiple runs or unusual
-TRs. It reads the timing object already used by design construction.
+TRs. It reads the timing object already used by design construction. Here
+three runs, one of them shorter: the odd run is set in bold and the caption
+says why, and passing the event table draws each onset under its run, so a
+run without events or with an empty tail stands out.
 
 ```{python}
-#| fig-width: 7
-#| fig-height: 2.0
-#| fig-cap: "Acquisition samples for a single 60-volume run at TR = 1 s. A
-#|   break or timing irregularity would be visible here before convolution."
-#| fig-alt: "Sampling-frame plot showing sixty evenly spaced acquisition
-#|   samples in one run."
-fig, ax = plot_sampling_frame(sampling, figsize=(7, 2))
+#| fig-width: 7.6
+#| fig-height: 2.9
+#| fig-cap: "Three runs on one time axis. The third run is 20 scans short
+#|   (bold), and the ticks under each bar show where the events fall."
+#| fig-alt: "Three horizontal bars, one per run, laid end to end on a time
+#|   axis, with small onset ticks beneath each bar."
+runs = fm.SamplingFrame(blocklens=[60, 60, 40], TR=1.0)
+run_events = pd.DataFrame({
+    "onset": [5.0, 20.0, 40.0, 8.0, 30.0, 50.0, 12.0],
+    "run": [1, 1, 1, 2, 2, 2, 3],
+})
+fig = plot_sampling_frame(runs, events=run_events)
 plt.show()
 ```
+
+`style="grid"` shows each run's scans as cells on a within-run axis instead,
+and `style="lane"` packs the runs into one annotated row.
+
+## Plot the Baseline Model
+
+The baseline model holds the drift, intercept and nuisance columns. Its
+plot draws every time-varying term on the shared time axis, one panel per
+term, and lists the constant terms (here the run intercepts) in the caption,
+together with the high-pass period the drift basis roughly corresponds to.
+
+```{python}
+#| fig-width: 7.6
+#| fig-height: 4.0
+#| fig-cap: "Cubic polynomial drift, three columns per run. Each run gets its
+#|   own copy, and no line crosses a run boundary."
+#| fig-alt: "Line chart of three polynomial drift curves repeated in each of
+#|   three runs, with a key at the right edge."
+baseline = fm.baseline_model(basis="poly", degree=3, sframe=runs)
+fig = baseline.plot()
+plt.show()
+```
+
+`design_map(baseline)` and `correlation_map(baseline)` show the same columns
+as a matrix and as within-run correlations.
 
 ## Plot an HRF
 

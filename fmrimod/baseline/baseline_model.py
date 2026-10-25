@@ -10,7 +10,7 @@ import warnings
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Literal, Optional, cast
+from typing import Any, Literal, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -208,6 +208,18 @@ class BaselineModel(ReadOnlyMappingPickle):
         """Compatibility alias used by generic column extractors."""
         return self.column_names
     
+    def plot(self, **kwargs: Any) -> Any:
+        """Plot the time-varying baseline terms; see
+        :func:`fmrimod.visualization.plot_baseline_model`.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+        """
+        from ..visualization.baseline_plot import plot_baseline_model
+
+        return plot_baseline_model(self, **kwargs)
+
     def __repr__(self) -> str:
         """Rich string representation matching R's print.baseline_model()."""
         lines = ["BaselineModel"]

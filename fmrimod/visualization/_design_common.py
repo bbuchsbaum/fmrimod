@@ -171,10 +171,18 @@ def timeline(sframe: Any, n_rows: int, block_x: str = "global") -> Timeline:
                              "TR": [1.0], "first_scan": [1], "last_scan": [n_rows]})
         return Timeline(np.ones(n_rows, dtype=int), np.arange(1, n_rows + 1, dtype=float), runs,
                         "scan", np.array([1.0]))
-    tr = np.broadcast_to(np.asarray(sframe.tr, dtype=float), bl.shape).copy()
+    tr_src = getattr(sframe, "tr", None)
+    if tr_src is None:
+        tr_src = getattr(sframe, "TR", 1.0)
+    tr = np.broadcast_to(np.asarray(tr_src, dtype=float), bl.shape).copy()
     run = np.repeat(np.arange(1, len(bl) + 1), bl)
-    time = np.asarray(sframe.sample_times(global_time=(block_x == "global")), dtype=float)
     dur = bl * tr
+    if hasattr(sframe, "sample_times"):
+        time = np.asarray(sframe.sample_times(global_time=(block_x == "global")), dtype=float)
+    else:  # a duck-typed frame: scans at TR/2 + k TR within each run
+        offset = np.repeat(np.concatenate([[0.0], np.cumsum(dur)[:-1]]) if block_x == "global" else 0.0 * dur, bl)
+        within = np.concatenate([np.arange(b) * t + t / 2 for b, t in zip(bl, tr, strict=False)])
+        time = offset + within
     if block_x == "global":
         end = np.cumsum(dur)
         start = np.concatenate([[0.0], end[:-1]])

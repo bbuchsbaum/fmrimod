@@ -11,6 +11,7 @@ from .design_map import (
 )
 from .fit_plots import plot_fit, plot_fmri_model
 from .design_map import plot_baseline_model, plot_sampling_frame
+from .baseline_plot import plot_baseline_model, plot_sampling_frame
 from .design_stats import design_correlations, design_vif
 from .event_plot import plot_design_matrix, plot_event_model
 from .heatmaps import correlation_map, design_map, plot_model_summary
