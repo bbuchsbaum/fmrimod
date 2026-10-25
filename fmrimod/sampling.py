@@ -103,12 +103,18 @@ class SamplingFrame:
     def __post_init__(self) -> None:
         """Validate and normalize inputs."""
         # Convert to numpy arrays
-        self.blocklens = np.atleast_1d(self.blocklens).astype(np.int64)
+        raw_blocklens = np.atleast_1d(np.asarray(self.blocklens, dtype=np.float64))
         self.tr = np.atleast_1d(self.tr).astype(np.float64)
 
-        # Validate inputs
-        if np.any(self.blocklens <= 0):
+        # Validate inputs on the raw values: casting first would silently
+        # truncate 10.5 -> 10 (fmrihrf dbcb920).
+        if np.any(raw_blocklens <= 0):
             raise ValueError("blocklens must be positive")
+        if not np.all(np.isfinite(raw_blocklens)) or np.any(
+            raw_blocklens != np.floor(raw_blocklens)
+        ):
+            raise ValueError("blocklens must be whole numbers of scans")
+        self.blocklens = raw_blocklens.astype(np.int64)
         if not np.all(np.isfinite(self.tr)) or np.any(self.tr <= 0):
             raise ValueError("tr must be positive and finite")
         if self.precision <= 0:
