@@ -2928,7 +2928,7 @@
       "name": "spm_canonical",
       "opaque_forwarder": false,
       "owner_module": "fmrimod.hrf.functions",
-      "runtime_signature": "(t: 'ArrayLike', *, delay: 'float' = 6.0, undershoot: 'float' = 16.0, dispersion: 'float' = 1.0, u_dispersion: 'float' = 1.0, ratio: 'float' = 0.167) -> 'NDArray[np.float64]'",
+      "runtime_signature": "(t: 'ArrayLike', *, delay: 'float' = 6.0, undershoot: 'float' = 16.0, dispersion: 'float' = 1.0, u_dispersion: 'float' = 1.0, ratio: 'float' = 0.16666666666666666) -> 'NDArray[np.float64]'",
       "signature_source": "inspect.signature",
       "tier": "compat",
       "used_by_public_seam_artifact": "review_pending"

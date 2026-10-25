@@ -150,18 +150,16 @@ rpy2 3.6 needs R >= 4.4. With an older R (Ubuntu 24.04 ships 4.3.3), pin
 their repos the same way.
 
 Baseline (2026-10-25, fmrihrf 0.4.0.9000 `5b63d6a`, fmriAR 0.4.2, fmrilss
-0.2.0; receipt `docs/contracts/r_parity_run_2026-10-25.md`): 54 R-backed
-tests run and 19 fail, all from steward decision D2 (SPMG conventions):
-- 15 use SPMG1, where fmrimod's undershoot ratio is 0.167 (R: exactly 1/6)
-  and its span 32 s (R: 24 s);
-- 4 use SPMG2/SPMG3, where fmrimod's temporal-derivative column is an
-  onset-shift derivative (R: analytic dh/dt).
+0.2.0; receipt `docs/contracts/r_parity_run_2026-10-25.md`): all 65
+R-backed tests pass. The 19 SPMG failures of the first run were closed by
+steward decision D2 (decision note 0005: SPMG bases follow R fmrihrf).
+Two non-R tests fail (`test_tier_d_showcase`, the FitLins CLI tree).
+Establish a baseline before attributing any `cross_testing/` failure to
+your own diff.
 
-Given the same HRF, the regressor and convolution engines agree with R to
-1e-16. Two non-R tests also fail (`test_tier_d_showcase`, the FitLins CLI
-tree). The old "factor of 10" note described the `*_Legacy` SPMG classes,
-not current `spmg1`. Establish a baseline before attributing any
-`cross_testing/` failure to your own diff.
+The R fmridesign fixtures in `tests/design/fixtures/` come from
+`tests/design/generate_fixtures.R` (run from `tests/design`; needs R
+fmridesign installed, e.g. `R CMD INSTALL` from a clone).
 
 ## Issue Tracking — mote
 

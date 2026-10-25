@@ -60,3 +60,21 @@ R CMD INSTALL path/to/fmrihrf path/to/fmriAR path/to/fmrilss
 uv pip install --python .venv/bin/python "rpy2==3.5.17"
 FMRIMOD_REQUIRE_R=1 .venv/bin/python -m pytest cross_testing/
 ```
+
+## After D2 (same day)
+
+Steward decision D2 chose R's conventions
+([`decisions/0005-spmg-conventions.md`](decisions/0005-spmg-conventions.md)).
+Rerun with the same R environment, plus R fmridesign 0.6.1.9000
+(`4c02760`) for the regenerated `tests/design/fixtures/`:
+
+| Suite | Before D2 | After D2 |
+| --- | --- | --- |
+| `FMRIMOD_REQUIRE_R=1 pytest cross_testing/`: R-backed tests | 54 run, 19 fail | 65 run, 0 fail |
+| `tests/design/test_r_parity.py` | 6 strict xfails (stale fixtures) | 27 pass, 1 xfail (modulator centring, not an HRF) |
+| SPMG1/2/3 and `deriv()` vs R `HRF_SPMG*` on `t = 0..30` | ratio/span/col-2 differences | max abs diff ≤ 3e-14 |
+
+The experiment plugin `r_parity_receipts/spm_r_conventions_plugin.py` is
+removed: it set R's ratio and span, which are now the defaults (it is in
+git history at `251577e`). The `spmg1-x10-scale` caveat is retired on
+this evidence (`CAVEAT_RETIREMENTS.md`).

@@ -409,6 +409,9 @@ Follow-ups found during wave 2 (not inventory rows):
   24) and SPMG2's second column (onset-shift derivative like Nilearn and SPM,
   or analytic dh/dt like R); decide whether the `*_Legacy` SPMG classes stay.
   Re-baseline the AGENTS.md `cross_testing/` note once R is available.
+  **Decided (a), follow R, and remove the legacy classes** on 2026-10-25;
+  see [`decisions/0005-spmg-conventions.md`](decisions/0005-spmg-conventions.md).
+  HRF-09 is done and `spmg1-x10-scale` is retired.
 - **D3. Contrast semantics** (DES-01, DES-10, DES-14, v1 zero-event
   subset). Port R's embedding of term-attached contrasts, or retire them in
   favour of the fit-level contrast path. Decide whether subsetted

@@ -209,11 +209,11 @@ class TestTrialwiseHrfOptions:
         ref = event_model("onset ~ hrf(tid, lag=4)", data=per_trial, tr=2.0, n_scans=80)
         np.testing.assert_allclose(X4, ref.design_matrix, atol=1e-12)
         # A 4 s lag at TR=2 moves each regressor down by exactly 2 scans.
-        # Compared over the first 28 s after each onset, i.e. inside the
-        # unlagged HRF span (32 s) minus the lag.
+        # Compared over the first 20 s after each onset, i.e. inside the
+        # unlagged HRF span (24 s) minus the lag.
         times = np.arange(80) * 2.0
         for j, onset in enumerate(trial_data['onset']):
-            rows = np.flatnonzero((times >= onset) & (times < onset + 28.0))
+            rows = np.flatnonzero((times >= onset) & (times < onset + 20.0))
             np.testing.assert_allclose(X4[rows + 2, j], X0[rows, j], atol=1e-12)
             assert np.max(np.abs(X0[rows, j])) > 0.1
 

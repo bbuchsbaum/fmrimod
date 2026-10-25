@@ -69,7 +69,7 @@ class TestHRFParamsDictRemoved:
         s = str(SPM_CANONICAL)
         assert s.startswith("HRF(name='SPMG1'")
         assert "delay=6.0" in s
-        assert "ratio=0.167" in s
+        assert "ratio=0.1666" in s
         assert "params=" not in s
         assert "param_names=" not in s
 

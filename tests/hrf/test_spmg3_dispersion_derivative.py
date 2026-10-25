@@ -3,7 +3,8 @@
 History: fmrimod's :class:`SPMG3_HRF` originally placed the second
 time derivative ``∂²h/∂t²`` in its third basis column, inheriting
 that convention from R ``fmrireg::HRF_SPMG3``. The SPM informed-
-basis definition (matching Nilearn) is the *dispersion derivative*
+basis definition (matching Nilearn, and R fmrihrf since ``daca7ba``)
+is the *dispersion derivative*
 ``∂h/∂σ`` taken at ``σ=1`` with the negative-forward sign
 ``(h(σ=1) - h(σ=1+dx)) / dx`` — a finite difference in the
 dispersion (width) parameter, not the second derivative in time.
@@ -28,7 +29,6 @@ import pytest
 import fmrimod as fm
 from fmrimod.hrf.derivatives import (
     spmg1_dispersion_derivative,
-    spmg1_dispersion_derivative_spm,
     spmg1_second_derivative,
 )
 from fmrimod.hrf.functions import spm_canonical
@@ -107,9 +107,6 @@ def test_spm_dispersion_derivative_is_not_second_time_derivative() -> None:
     t = np.linspace(0, 20, 201)
     hrf = SPMG3_HRF()
     disp_col = hrf(t)[:, 2]
-    # SPM canonical's second time derivative computed on the legacy form
-    # — we only want a distinguishing-shape check, not numerical
-    # equivalence between the two parameterizations.
     second_time = spmg1_second_derivative(t)
 
     # The two have opposite signs on the rising flank — they are not
@@ -124,18 +121,11 @@ def test_spm_dispersion_derivative_is_not_second_time_derivative() -> None:
 
 
 def test_spm_dispersion_derivative_function_matches_class_column() -> None:
-    """``spmg1_dispersion_derivative_spm`` and SPMG3()(t)[:,2] match exactly.
-
-    The new SPMG3 (post canonical alignment) uses the SPM dispersion
-    derivative (finite difference w.r.t. dispersion parameter), so the
-    module-level helper that matches the class column is
-    :func:`spmg1_dispersion_derivative_spm`, not the legacy
-    :func:`spmg1_dispersion_derivative`.
-    """
+    """``spmg1_dispersion_derivative`` and SPMG3()(t)[:,2] match exactly."""
     t = np.linspace(0, 24, 49)
     h = SPMG3_HRF()
     from_class = h(t)[:, 2]
-    from_function = spmg1_dispersion_derivative_spm(
+    from_function = spmg1_dispersion_derivative(
         t, delay=h.delay, undershoot=h.undershoot,
         dispersion=h.dispersion, u_dispersion=h.u_dispersion, ratio=h.ratio,
     )

@@ -134,11 +134,9 @@ def hrf(
 
     Notes
     -----
-    Informed basis sets (``basis="spmg2"`` / ``"spmg3"``) use the
-    SPM/Nilearn finite-difference derivatives: the temporal derivative
-    is taken in the delay parameter, and the dispersion derivative is
-    taken in the dispersion parameter. Use the ``*_legacy`` bases for
-    the pre-alignment R-fmrireg analytic-derivative behavior.
+    Informed basis sets (``basis="spmg2"`` / ``"spmg3"``) follow R
+    fmrihrf: the second column is the analytic time derivative
+    ``dh/dt`` and the third (SPMG3) is SPM's dispersion difference.
 
     Examples
     --------
