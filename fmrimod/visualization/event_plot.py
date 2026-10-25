@@ -27,6 +27,7 @@ from ._design_common import (
     design_columns,
     fd_cmap,
     fd_num,
+    finish_figure,
     fmt_tr,
     model_design_matrix,
     model_sampling_frame,
@@ -39,7 +40,6 @@ from ._design_common import (
 from ._helpers import (
     DOT,
     budget_breaks,
-    finish,
     new_figure,
     row_label,
     run_axis,
@@ -469,7 +469,7 @@ def _stacked(*, model: Any, X: np.ndarray, ci: pd.DataFrame, tl: Timeline, row_k
                 if facet and ncols > 1:
                     for c in range(1, ncols):
                         axes[i, c].set_xlabel("")
-        finish(fig, title, subtitle, caption)
+        finish_figure(fig, title, subtitle, caption)
     return fig
 
 
@@ -515,10 +515,7 @@ def _overlay(*, model: Any, X: np.ndarray, ci: pd.DataFrame, tl: Timeline, row_k
             ax.legend(handles, labels, loc="lower left", bbox_to_anchor=(0.0, 1.07 if tl.n_runs > 1 else 1.0),
                       ncol=min(ncol, p), frameon=False, handlelength=1.4, columnspacing=1.4,
                       borderaxespad=0.0)
-        if own:
-            finish(fig, title, subtitle, caption)
-        elif title:
-            ax.set_title(title)
+        finish_figure(fig, title, subtitle, caption, own=own, ax=ax)
     return fig
 
 
@@ -623,10 +620,7 @@ def _heatmap(*, model: Any, X: np.ndarray, ci: pd.DataFrame, tl: Timeline, row_k
             if show_r:
                 parts.append("max r: largest correlation with any other regressor (orange when 0.5 or more).")
             caption = " ".join(parts)
-        if own:
-            finish(fig, title, subtitle, caption or None)
-        elif title:
-            ax.set_title(title)
+        finish_figure(fig, title, subtitle, caption or None, own=own, ax=ax)
     return fig
 
 

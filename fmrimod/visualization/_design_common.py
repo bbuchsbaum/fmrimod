@@ -16,8 +16,18 @@ import numpy as np
 import pandas as pd
 
 from ._helpers import DOT, MINUS, TIMES, column_info
-from .style import BASE_SIZE, CATEGORICAL, INK, colour_map, ramp, shade, tints
+from .style import (
+    BASE_SIZE,
+    CATEGORICAL,
+    DIVERGING,
+    INK,
+    colour_map,
+    ramp,
+    shade,
+    tints,
+)
 
+DIVERGING_MID = DIVERGING[3]
 NDASH = "–"
 SIGMA = "σ"
 GE = "≥"
@@ -477,7 +487,7 @@ def colourbar(
     cb.ax.grid(False)
     if label:
         if label_side == "left":
-            cb.ax.text(-0.04, 0.5, label, transform=cb.ax.transAxes, ha="right", va="center",
+            cb.ax.text(-0.04, 0.5, label, transform=cb.ax.transAxes, ha="right", va="center", clip_on=False,
                        fontsize=BASE_SIZE * 0.85, color=INK["text2"])
         else:
             cb.ax.set_title(label, loc="left", fontsize=BASE_SIZE * 0.85, color=INK["text2"],
@@ -489,6 +499,42 @@ def _bar_formatter() -> Any:
     from matplotlib.ticker import FuncFormatter
 
     return FuncFormatter(lambda v, _p=None: fd_num(v, 2) if abs(v) > 1e-12 else "0")
+
+
+def freeze_fonts(fig: Any) -> Any:
+    """Pin every text in ``fig`` to the theme's font list.
+
+    Text created under :func:`themed` stores the generic ``sans-serif``
+    family, which matplotlib resolves against the rc in force when the
+    figure is *drawn* (usually outside the theme) while layouts measured
+    inside the theme are cached, so labels can overrun their anchors.
+    Pinning the family makes drawing independent of the caller's rc.
+    """
+    from matplotlib.text import Text
+
+    from .style import theme_rc
+
+    fonts = theme_rc()["font.sans-serif"]
+    for t in fig.findobj(Text):
+        if t.get_fontfamily() in (["sans-serif"], ("sans-serif",)) or "sans-serif" in t.get_fontfamily():
+            t.set_fontfamily(fonts)
+    return fig
+
+
+def finish_figure(fig: Any, title: str | None, subtitle: str | None, caption: str | None,
+                  *, own: bool = True, ax: Any = None) -> Any:
+    """Pin fonts, lay out with the header and caption (own figure) or put
+    the title on ``ax``, then shorten spanner labels that overflow."""
+    from ._helpers import finish
+
+    freeze_fonts(fig)
+    if own:
+        finish(fig, title, subtitle, caption)
+    elif title and ax is not None:
+        ax.set_title(title)
+    freeze_fonts(fig)
+    fit_spanners(fig)
+    return fig
 
 
 def fd_cmap(kind: str = "diverging") -> Any:
@@ -513,6 +559,7 @@ def signed_norm(limit: float, lower: float | None = None) -> Any:
 
 
 __all__ = [
+    "DIVERGING_MID",
     "GE",
     "NDASH",
     "PM",
@@ -528,7 +575,9 @@ __all__ = [
     "fd_num",
     "fit_spanners",
     "fmt_tr",
+    "finish_figure",
     "fmt_weight",
+    "freeze_fonts",
     "groups_of",
     "is_baseline_model",
     "model_design_matrix",

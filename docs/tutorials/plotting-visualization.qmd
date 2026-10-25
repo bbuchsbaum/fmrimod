@@ -21,7 +21,7 @@ from fmrimod.hrf import get_hrf
 from fmrimod.plotting import plot_hrf, plot_hrfs
 from fmrimod.spec import compile as compile_spec
 from fmrimod.spec import hrf
-from fmrimod.visualization import plot_event_model, plot_sampling_frame
+from fmrimod.visualization import design_map, plot_event_model, plot_sampling_frame
 
 events = pd.DataFrame({
     "onset": [0.0, 10.0, 20.0, 30.0],
@@ -43,6 +43,34 @@ event_model, _ = compile_spec(hrf("condition", basis="spmg1"), data=events, samp
 fig = plot_event_model(event_model, figsize=(7, 3.2))
 plt.show()
 ```
+
+`style="overlay"` puts every regressor on one amplitude axis instead, and
+`style="heatmap"` (chosen automatically for large designs such as
+trialwise models) draws one raster row per regressor.
+
+## Read the Design Matrix
+
+`design_map()` draws the matrix itself, one row per scan and one column per
+regressor, the way SPM shows it. Each column is divided by its largest
+absolute value so columns in different units share one colour scale; the
+grey bars underneath keep the real magnitudes visible, and a column that is
+nearly flat next to the rest of its term is marked in orange.
+
+```{python}
+#| fig-width: 5.4
+#| fig-height: 6.6
+#| fig-cap: "The face and scene columns of the design matrix, scans running
+#|   downward. Bars under the matrix compare each column's peak with the
+#|   largest in its term."
+#| fig-alt: "Heatmap with two columns, face and scene, showing alternating
+#|   red bands where each condition's responses occur, with a colour bar
+#|   below."
+fig = design_map(event_model)
+plt.show()
+```
+
+The same call works on a `BaselineModel`, where drift and intercept columns
+are grouped by run, and on a full `FmriModel`.
 
 ## Plot the Sampling Frame
 

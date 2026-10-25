@@ -46,156 +46,6 @@ def close_all_plots():
     plt.close('all')
 
 
-class TestDesignMapComprehensive:
-    """Comprehensive tests for design_map function."""
-
-    @pytest.fixture
-    def simple_model(self):
-        """Simple model with 1 categorical variable."""
-        data = pd.DataFrame({
-            'onset': [5, 15, 25, 35],
-            'condition': ['A', 'B', 'A', 'B']
-        })
-        return event_model("condition", data=data, tr=2.0, n_scans=50)
-
-    @pytest.fixture
-    def multi_term_model(self):
-        """Model with multiple terms."""
-        data = pd.DataFrame({
-            'onset': [5, 10, 15, 20, 25, 30, 35, 40],
-            'condition': ['A', 'B', 'C', 'A', 'B', 'C', 'A', 'B'],
-            'rating': [1, 2, 3, 4, 5, 4, 3, 2]
-        })
-        return event_model("condition + rating", data=data, tr=2.0, n_scans=60)
-
-    @pytest.fixture
-    def multi_block_model(self):
-        """Model with multiple blocks/runs."""
-        data1 = pd.DataFrame({
-            'onset': [5, 15],
-            'condition': ['A', 'B']
-        })
-        data2 = pd.DataFrame({
-            'onset': [5, 15],
-            'condition': ['A', 'B']
-        })
-
-        # Create with block structure
-        model = event_model("condition", data=data1, tr=2.0, n_scans=30)
-        return model
-
-    def test_design_map_returns_figure_and_axes(self, simple_model):
-        """Test that design_map returns matplotlib figure and axes."""
-        fig, ax = design_map(simple_model)
-
-        assert isinstance(fig, matplotlib.figure.Figure)
-        assert isinstance(ax, matplotlib.axes.Axes)
-
-    def test_design_map_creates_heatmap(self, simple_model):
-        """Test that heatmap image is created."""
-        fig, ax = design_map(simple_model)
-
-        images = ax.get_images()
-        assert len(images) == 1, "Should create one heatmap image"
-
-    def test_design_map_has_correct_labels(self, simple_model):
-        """Test axis labels are correct."""
-        fig, ax = design_map(simple_model)
-
-        assert ax.get_xlabel() == 'Regressors'
-        assert ax.get_ylabel() == 'Scan Number'
-        assert 'Design Matrix' in ax.get_title()
-
-    def test_design_map_with_block_separators(self, simple_model):
-        """Test design_map with block separators enabled."""
-        # This tests the parameter is accepted
-        fig, ax = design_map(simple_model, block_separators=True)
-
-        assert isinstance(fig, matplotlib.figure.Figure)
-
-    def test_design_map_without_block_separators(self, simple_model):
-        """Test design_map with block separators disabled."""
-        fig, ax = design_map(simple_model, block_separators=False)
-
-        assert isinstance(fig, matplotlib.figure.Figure)
-
-    def test_design_map_custom_figsize(self, simple_model):
-        """Test custom figure size."""
-        figsize = (12, 8)
-        fig, ax = design_map(simple_model, figsize=figsize)
-
-        assert fig.get_figwidth() == 12
-        assert fig.get_figheight() == 8
-
-    def test_design_map_custom_colormap(self, simple_model):
-        """Test custom colormap."""
-        fig, ax = design_map(simple_model, cmap='coolwarm')
-
-        images = ax.get_images()
-        assert len(images) == 1
-        assert images[0].get_cmap().name == 'coolwarm'
-
-    def test_design_map_with_fill_limits(self, simple_model):
-        """Test design_map with custom color scale limits."""
-        fig, ax = design_map(simple_model, fill_limits=(-2, 2))
-
-        images = ax.get_images()
-        clim = images[0].get_clim()
-        assert clim[0] == -2
-        assert clim[1] == 2
-
-    def test_design_map_with_fill_midpoint(self, simple_model):
-        """Test diverging colormap with midpoint."""
-        fig, ax = design_map(simple_model, fill_midpoint=0)
-
-        images = ax.get_images()
-        clim = images[0].get_clim()
-        # Should be symmetric around midpoint
-        assert clim[0] + clim[1] == pytest.approx(0, abs=1e-10)
-
-    def test_design_map_rotate_x_text_true(self, simple_model):
-        """Test x-axis label rotation enabled."""
-        fig, ax = design_map(simple_model, rotate_x_text=True)
-
-        labels = ax.get_xticklabels()
-        if labels:
-            # At least one label should be rotated
-            rotations = [label.get_rotation() for label in labels]
-            assert any(r != 0 for r in rotations)
-
-    def test_design_map_rotate_x_text_false(self, simple_model):
-        """Test x-axis label rotation disabled."""
-        fig, ax = design_map(simple_model, rotate_x_text=False)
-
-        labels = ax.get_xticklabels()
-        if labels:
-            rotations = [label.get_rotation() for label in labels]
-            assert all(r == 0 for r in rotations)
-
-    def test_design_map_multi_term_model(self, multi_term_model):
-        """Test design_map with model having multiple terms."""
-        fig, ax = design_map(multi_term_model)
-
-        assert isinstance(fig, matplotlib.figure.Figure)
-
-        # Check that multiple columns are represented
-        n_cols = multi_term_model.design_matrix.shape[1]
-        assert len(ax.get_xticklabels()) >= 2
-
-    def test_design_map_large_model(self):
-        """Test design_map with larger model (many scans)."""
-        data = pd.DataFrame({
-            'onset': np.arange(0, 200, 5),
-            'condition': ['A', 'B'] * 20
-        })
-        model = event_model("condition", data=data, tr=1.0, n_scans=200)
-
-        fig, ax = design_map(model)
-
-        assert isinstance(fig, matplotlib.figure.Figure)
-        # Should automatically adjust figure size for large models
-
-
 class TestCorrelationMapComprehensive:
     """Comprehensive tests for correlation_map function."""
 
@@ -722,7 +572,7 @@ class TestBaselineModelVisualization:
         sf = SamplingFrame(blocklens=[50], TR=2.0)
         bmodel = baseline_model(basis='poly', degree=2, sframe=sf)
 
-        fig, ax = design_map(bmodel)
+        fig = design_map(bmodel)
 
         assert isinstance(fig, matplotlib.figure.Figure)
 
@@ -759,7 +609,7 @@ class TestVisualizationEdgeCases:
         model = event_model("condition", data=data, tr=2.0, n_scans=50)
 
         # Design map and plot_design_matrix should work
-        fig1, ax1 = design_map(model)
+        fig1 = design_map(model)
         assert isinstance(fig1, matplotlib.figure.Figure)
 
         # Correlation map with single regressor is a scalar, may not work
@@ -778,7 +628,7 @@ class TestVisualizationEdgeCases:
         })
         model = event_model("condition", data=data, tr=2.0, n_scans=10)
 
-        fig, ax = design_map(model)
+        fig = design_map(model)
         assert isinstance(fig, matplotlib.figure.Figure)
 
     def test_many_columns(self):
@@ -793,7 +643,7 @@ class TestVisualizationEdgeCases:
         model = event_model("condition", data=data, tr=1.0, n_scans=100)
 
         # Should handle many columns without error
-        fig, ax = design_map(model)
+        fig = design_map(model)
         assert isinstance(fig, matplotlib.figure.Figure)
 
 
@@ -814,7 +664,7 @@ class TestVisualizationWithHRF:
             n_scans=40
         )
 
-        fig, ax = design_map(model)
+        fig = design_map(model)
         assert isinstance(fig, matplotlib.figure.Figure)
 
     def test_hrf_canonical(self):

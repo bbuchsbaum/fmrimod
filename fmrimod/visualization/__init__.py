@@ -6,12 +6,12 @@ a matplotlib theme and shared idioms from the R plot overhaul.
 
 from .design_map import (
     correlation_map,
-    design_map,
     plot_baseline_model,
     plot_sampling_frame,
 )
 from .fit_plots import plot_fit, plot_fmri_model
 from .event_plot import plot_design_matrix, plot_event_model
+from .heatmaps import design_map, plot_model_summary
 from .style import cmap, colour_map, palette, set_theme, theme
 
 __all__ = [
@@ -25,6 +25,7 @@ __all__ = [
     "plot_fit",
     "plot_fmri_model",
     "plot_event_model",
+    "plot_model_summary",
     "plot_sampling_frame",
     "set_theme",
     "theme",
