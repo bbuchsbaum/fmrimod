@@ -851,6 +851,33 @@ def test_lmm_ri_slope1_voxelwise_full_covariance_runs_natively() -> None:
     np.testing.assert_allclose(out.assay("corr_intercept_slope")[:, 0, 0], 0.0)
 
 
+def test_lmm_ri_flags_variance_ratio_pinned_at_r_search_bound() -> None:
+    # fmrigds 7c7ecae, tests/testthat/test-review-numeric.R:220-232: sample "a"
+    # has no within-subject noise, so the random-intercept variance ratio
+    # diverges. R's optimizer pins log(lambda) at its upper bound 10 and
+    # reports converged = 0; statsmodels returns a huge lambda with its own
+    # converged flag set, and raises no warning.
+    rng = np.random.default_rng(82)
+    subjects = [f"s{i:02d}" for i in range(1, 11)]
+    contrasts = ["c1", "c2", "c3"]
+    u = rng.normal(scale=5.0, size=10)
+    beta = np.empty((2, 10, 3), dtype=np.float64)
+    beta[0] = u[:, None] + rng.normal(scale=1e-9, size=(10, 3))
+    beta[1] = u[:, None] + rng.normal(scale=1.0, size=(10, 3))
+    ds = group_dataset(
+        {"beta": beta, "var": np.ones_like(beta)},
+        space=SampleLabelSpace(["a", "b"]),
+        subjects=subjects,
+        contrasts=contrasts,
+    )
+
+    out = lmm_ri(ds, formula="~ 1", theta_mode="voxelwise")
+
+    assert out.assay("lambda")[0, 0, 0] > np.exp(10.0)
+    assert out.assay("lambda")[1, 0, 0] < np.exp(10.0)
+    np.testing.assert_array_equal(out.assay("converged")[:, 0, 0], [0.0, 1.0])
+
+
 def _lmm_group_by_condition_dataset():
     # fmrigds tests/testthat/test-review-numeric.R:287-325 (7c7ecae): 20
     # subjects x 4 conditions, ~ group * condition.
@@ -990,6 +1017,30 @@ def test_lmm_ri_slope1_records_partial_voxelwise_fit_failures(monkeypatch) -> No
     )
     np.testing.assert_allclose(out.assay("coef:time")[0, 0, 0], 0.5)
     assert np.isnan(out.assay("coef:time")[1, 0, 0])
+
+
+def test_lmm_ri_slope1_flags_slope_variance_beyond_r_search_bound(monkeypatch) -> None:
+    # R bounds the log relative SD of each Cholesky diagonal at 10
+    # (R/reducers-lmm.R:331-337, 404-407): a slope variance ratio beyond
+    # exp(20) is pinned there and reported as converged = 0 (7c7ecae).
+    ds = _lmm_slope_dataset()
+    slope_var = iter([0.10, 0.5 * np.exp(20.5)])
+
+    def fake_fit(y, X, groups, exog_re, *, reml, covariance="full"):
+        return SimpleNamespace(
+            fe_params=np.array([1.0, 0.5]),
+            bse_fe=np.array([0.20, 0.25]),
+            scale=0.5,
+            cov_re=np.array([[0.25, 0.0], [0.0, next(slope_var)]]),
+            llf=-1.25,
+            converged=True,
+        )
+
+    monkeypatch.setattr(group_reducers, "_fit_mixedlm_feature", fake_fit)
+
+    out = lmm_ri_slope1(ds, formula="~ time", slope="time", theta_mode="voxelwise")
+
+    np.testing.assert_array_equal(out.assay("converged")[:, 0, 0], [1.0, 0.0])
 
 
 def test_lmm_ri_slope1_raises_when_all_voxelwise_fits_fail(monkeypatch) -> None:
