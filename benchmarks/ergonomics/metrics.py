@@ -74,6 +74,7 @@ class RuntimeProfile:
     warnings_emitted: int
     warning_messages: list[str]
     docs: list[DocEntry] = field(default_factory=list)
+    peak_mb: float | None = None
 
 
 def _body_source(func: Callable[..., Any]) -> tuple[str, ast.FunctionDef]:
@@ -235,8 +236,14 @@ def profile_runtime(
     library: str,
     *,
     repeats: int = 3,
+    measure_memory: bool = False,
 ) -> tuple[Any, RuntimeProfile]:
-    """Run ``func(inputs)`` once traced, then ``repeats`` times for timing."""
+    """Run ``func(inputs)`` once traced, then ``repeats`` times for timing.
+
+    With ``measure_memory`` one extra call runs under :mod:`tracemalloc`
+    (NumPy reports its buffers to it) and ``peak_mb`` records the largest
+    amount allocated during the call, inputs excluded.
+    """
     recorder = _CallRecorder(func.__code__, LIBRARY_PREFIXES[library])
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
@@ -262,6 +269,21 @@ def profile_runtime(
             func(inputs)
             samples.append(time.perf_counter() - start)
 
+    peak_mb = None
+    if measure_memory:
+        import gc
+        import tracemalloc
+
+        gc.collect()
+        tracemalloc.start()
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                func(inputs)
+            peak_mb = tracemalloc.get_traced_memory()[1] / 2**20
+        finally:
+            tracemalloc.stop()
+
     docs = [_doc_entry(name, obj) for name, obj in sorted(recorder.seen.items())]
     return result, RuntimeProfile(
         first_call_seconds=first,
@@ -270,4 +292,5 @@ def profile_runtime(
         warnings_emitted=len(caught),
         warning_messages=messages,
         docs=docs,
+        peak_mb=peak_mb,
     )

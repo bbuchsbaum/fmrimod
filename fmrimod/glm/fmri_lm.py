@@ -1297,6 +1297,7 @@ def fmri_lm(
     events: object = None,
     mask: object = None,
     slice_timing_offset: Optional[Union[float, Sequence[float]]] = None,
+    scale: Literal["psc"] | None = None,
     **engine_kwargs: object,
 ) -> FmriLm:
     """Fit a GLM to fMRI data.
@@ -1363,6 +1364,12 @@ def fmri_lm(
         :class:`~fmrimod.glm.engine.SketchEngineOptions`, and
         :class:`~fmrimod.glm.engine.ReducedRankEngineOptions`. Legacy string
         engine names remain accepted for compatibility.
+    scale
+        ``None`` (default) fits the data in its own units, as R fmrireg
+        does. ``"psc"`` first rescales each voxel to percent signal change
+        of its run mean, ``100 * (y / mean - 1)`` (Nilearn's default
+        ``signal_scaling=0``), so effects are comparable across subjects
+        and scanners; use it when betas go on to a group analysis.
     tr, events, mask, slice_timing_offset
         Image shorthand: when the second argument is an image source
         (NIfTI image or path, NeuroVec, array, or a per-run sequence of
@@ -1425,6 +1432,13 @@ def fmri_lm(
             mask=mask,
             slice_timing_offset=slice_timing_offset,
         )
+
+    if scale is not None:
+        if dataset is None or not hasattr(dataset, "with_scaling"):
+            raise ValueError(
+                "fmri_lm: scale= needs a dataset or image input, not a prebuilt model"
+            )
+        dataset = dataset.with_scaling(scale)  # type: ignore[union-attr]
 
     # -- Resolve first positional: realized design vs. spec vs. model -------
     from ..design import RealizedDesign
@@ -1714,7 +1728,7 @@ _NILEARN_KEYWORDS = {
     "mask_img": "use mask=",
     "slice_time_ref": "use slice_timing_offset= (seconds; 0.0 is frame start)",
     "smoothing_fwhm": "fmrimod fits preprocessed data; smooth first (e.g. nilearn.image.smooth_img)",
-    "signal_scaling": "fmrimod fits the data in its own units; scale the images first if you need percent signal change",
+    "signal_scaling": "use scale='psc' (percent signal change of the run mean, Nilearn's signal_scaling=0)",
     "standardize": "fmrimod does not standardize voxel time series",
     "minimize_memory": "not needed",
     "target_affine": "resample the images first",

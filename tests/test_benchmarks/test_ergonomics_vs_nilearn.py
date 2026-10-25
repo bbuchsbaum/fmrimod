@@ -823,3 +823,141 @@ def test_to_img_and_contrast_spellings(one_run) -> None:
     assert fit.contrast("drift1").stat.shape == res.stat.shape
     batch = fit.compute_contrasts({"fh": "face - house"})
     np.testing.assert_allclose(batch["fh"].stat, res.stat)
+
+
+# ---------------------------------------------------------------------------
+# 8. round 6: opt-in signal scaling, AR memory, BIDS n/a handling
+# ---------------------------------------------------------------------------
+
+
+def test_psc_scaling_is_opt_in_and_matches_nilearn(one_run) -> None:
+    import warnings
+
+    import nibabel as nib
+    from nilearn.glm.first_level import FirstLevelModel
+
+    import fmrimod as fm
+    from fmrimod.spec import drift, hrf
+
+    spec = hrf("trial_type") + drift()
+    ds = _dataset(one_run)
+    raw = fm.fmri_lm(spec, ds)
+    psc = fm.fmri_lm(spec, ds, scale="psc")
+    # Default unchanged; scaling changes betas but not inference.
+    assert not np.allclose(raw.betas, psc.betas)
+    np.testing.assert_allclose(
+        raw.contrast("face - house").stat, psc.contrast("face - house").stat,
+        rtol=1e-6, atol=1e-8,
+    )
+    # A 10x brighter scanner gives the same percent-signal-change betas.
+    bright_img = nib.Nifti1Image(
+        np.asarray(one_run.img.dataobj) * 10.0, one_run.img.affine
+    )
+    bright = fm.fmri_dataset(
+        bright_img, mask=one_run.mask_img, tr=one_run.tr, events=one_run.events[0]
+    )
+    np.testing.assert_allclose(
+        fm.fmri_lm(spec, bright, scale="psc").betas, psc.betas, rtol=1e-5, atol=1e-5
+    )  # float32 images: x10 is not exact
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        flm = FirstLevelModel(
+            t_r=one_run.tr, mask_img=one_run.mask_img, signal_scaling=0,
+            noise_model="ols", drift_model="cosine", high_pass=1 / 128,
+            minimize_memory=False,
+        ).fit(one_run.img, events=one_run.events[0])
+    nl = np.asarray(flm.compute_contrast("face - house", output_type="effect_size")
+                    .dataobj)[one_run.mask]
+    fm_effect = psc.contrast("face - house").estimate
+    assert np.corrcoef(nl, fm_effect)[0, 1] > 0.99
+    with pytest.raises(ValueError, match="psc"):
+        fm.fmri_lm(spec, ds, scale="zscore")
+
+
+def test_chunked_ar_solves_equal_single_chunk(monkeypatch) -> None:
+    import fmrimod as fm
+    import fmrimod.ar.acvf as acvf
+    import fmrimod.ar.integration as integration
+    from fmrimod.model.config import AROptions, FmriLmConfig, RobustOptions
+    from fmrimod.spec import drift, hrf
+
+    inp = make_inputs(seed=19, ar=0.4, n_scans=80, shape=(8, 8, 6))
+    ds = fm.fmri_dataset(inp.img, mask=inp.mask_img, tr=inp.tr, events=inp.events[0])
+    spec = hrf("trial_type") + drift()
+    robust = FmriLmConfig(ar=AROptions(struct="ar1"), robust=RobustOptions(type="huber"))
+    robust_off = FmriLmConfig(robust=RobustOptions(type="huber"))
+    fits = {}
+    for chunked in (False, True):
+        if chunked:
+            monkeypatch.setattr(integration, "_SOLVE_CHUNK", 37)
+            monkeypatch.setattr(acvf, "_ACVF_CHUNK", 29)
+        fits[chunked] = {ar: fm.fmri_lm(spec, ds, ar=ar) for ar in ("ar1", "ar1_voxelwise")}
+        # Robust IRLS restarts from the AR fit's whitened residuals.
+        fits[chunked]["robust"] = fm.fmri_lm(spec, ds, config=robust)
+        fits[chunked]["unwhitened"] = fm.fmri_lm(spec, ds, config=robust_off)
+    # Robust from a stored-residual restart equals robust on an AR fit whose
+    # residuals were never chunked (pins the in-place residual write).
+    assert not np.allclose(fits[True]["robust"].betas, fits[True]["unwhitened"].betas)
+    for ar in ("ar1", "ar1_voxelwise", "robust"):
+        a, b = fits[False][ar], fits[True][ar]
+        scale = np.abs(a.betas).max()
+        np.testing.assert_allclose(a.betas, b.betas, rtol=0, atol=1e-10 * scale)
+        np.testing.assert_allclose(
+            a.contrast("face - house").stat, b.contrast("face - house").stat,
+            rtol=1e-8, atol=1e-8,
+        )
+
+
+def test_negative_onsets_match_nilearn_regressor() -> None:
+    import warnings
+
+    from nilearn.glm.first_level import compute_regressor
+
+    import fmrimod as fm
+    from fmrimod.spec import hrf
+
+    frame_times = np.arange(40) * 2.0
+    for onset, duration in [(-4.0, 0.0), (-6.0, 8.0)]:
+        events = pd.DataFrame(
+            {"onset": [onset, 30.0], "duration": [duration, 1.0], "trial_type": ["a", "b"]}
+        )
+        with pytest.warns(UserWarning, match="outside the sampling frame"):
+            X = fm.design_matrix(
+                hrf("trial_type"), events=events, n_scans=40, tr=2.0, start_time=0.0
+            )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            ref, _ = compute_regressor(
+                np.array([[onset], [duration], [1.0]]), "spm", frame_times
+            )
+        column = np.asarray(X)[:, 0]
+        assert column[0] > 0
+        assert np.corrcoef(column, ref[:, 0])[0, 1] > 0.999
+
+
+def test_bids_na_confounds_and_trial_types() -> None:
+    import fmrimod as fm
+    from benchmarks.ergonomics.inputs import make_bids_inputs
+    from fmrimod.spec import confounds, hrf
+
+    bids = make_bids_inputs(n_subjects=1, n_runs=1, shape=(6, 6, 5), n_scans=60)
+    events_path = next(bids.root.rglob("*_events.tsv"))
+    events = pd.read_csv(events_path, sep="\t")
+    events.loc[0, "trial_type"] = np.nan
+    events.to_csv(events_path, sep="\t", index=False, na_rep="n/a")
+    with pytest.warns(UserWarning, match="dropped 1 event"):
+        ds = fm.bids_datasets(bids.root, bids.task, space=bids.space)["01"]
+    conf = ds.confounds[0]
+    assert conf["framewise_displacement"].iloc[0] == 0.0
+    assert not conf.isna().any().any()
+    fit = fm.fmri_lm(hrf("trial_type") + confounds("framewise_displacement"), ds)
+    assert np.isfinite(fit.contrast("face - house").stat).all()
+
+    # A gap after the first row is not a fMRIPrep convention: it stays NaN.
+    conf_path = next(bids.root.rglob("*_desc-confounds_timeseries.tsv"))
+    table = pd.read_csv(conf_path, sep="\t", na_values="n/a")
+    table.loc[5, "trans_x"] = np.nan
+    table.to_csv(conf_path, sep="\t", index=False, na_rep="n/a")
+    with pytest.warns(UserWarning, match="dropped 1 event"):
+        ds = fm.bids_datasets(bids.root, bids.task, space=bids.space)["01"]
+    assert np.isnan(ds.confounds[0]["trans_x"].iloc[5])

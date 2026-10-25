@@ -330,7 +330,10 @@ def _estimate_phi(
     finite = np.logical_and.reduce([np.all(np.isfinite(r), axis=0) for r in resid])
     if not np.any(finite):
         return np.zeros(order, dtype=np.float64)
-    stacked = np.vstack([r[:, finite] for r in resid])
+    if len(resid) == 1 and finite.all():
+        stacked = resid[0]  # no copy: (n, V) is large at full-brain size
+    else:
+        stacked = np.vstack([r[:, finite] for r in resid])
     run_labels = (
         np.repeat(np.arange(len(resid)), [r.shape[0] for r in resid])
         if len(resid) > 1
@@ -418,11 +421,13 @@ def _voxelwise_yule_walker(
     ok = finite.copy()
     if order < 1 or n <= order + 1 or not np.any(ok):
         return phi, np.zeros(V, dtype=bool)
-    x = np.where(finite, resid, 0.0)
-    x = x - x.mean(axis=0, keepdims=True)
-    gamma = np.stack(
-        [np.einsum("tv,tv->v", x[k:], x[: n - k]) / (n - k) for k in range(order + 1)]
-    )
+    gamma = np.zeros((order + 1, V), dtype=np.float64)
+    for start in range(0, V, _SOLVE_CHUNK):
+        sl = slice(start, min(start + _SOLVE_CHUNK, V))
+        x = np.where(finite[sl], resid[:, sl], 0.0)
+        x -= x.mean(axis=0, keepdims=True)
+        for k in range(order + 1):
+            gamma[k, sl] = np.einsum("tv,tv->v", x[k:], x[: n - k]) / (n - k)
     g0 = gamma[0]
     ok &= np.isfinite(g0) & (g0 > 1e-12 * max(float(np.nanmax(np.abs(g0))), 1e-300))
     safe_g0 = np.where(ok, g0, 1.0)
@@ -534,15 +539,38 @@ def _solve_shared(
     residuals = []
     run_X = []
     for rm, phi in zip(runs, phis, strict=True):
-        Xw, Yw = _whiten(rm, phi, exact_first)
+        # The design is whitened and factored once; the data are whitened
+        # and solved in column chunks so peak memory stays a few chunks
+        # above the output, not several full (n, V) copies.
+        V = rm.Y.shape[1]
+        Xw, _ = _whiten(rm, phi, exact_first, np.arange(min(V, 1)))
         proj = fast_preproject(Xw, check_finite=False, method=solver)
         proj = _with_observation_df(proj, rm.obs_weights)
-        result = fast_lm_matrix(Xw, Yw, proj, return_fitted=True, check_finite=False)
+        betas = np.empty((Xw.shape[1], V), dtype=np.float64)
+        rss = np.empty(V, dtype=np.float64)
+        sigma2 = np.empty(V, dtype=np.float64)
+        resid = np.empty((Xw.shape[0], V), dtype=np.float64)
+        dfres, rank = proj.dfres, proj.rank
+        for start in range(0, V, _SOLVE_CHUNK):
+            stop = min(start + _SOLVE_CHUNK, V)
+            _, Yw = _whiten(rm, phi, exact_first, np.arange(start, stop))
+            chunk = fast_lm_matrix(
+                Xw, Yw, proj, return_fitted=True, check_finite=False
+            )
+            assert chunk.fitted is not None
+            betas[:, start:stop] = chunk.betas
+            rss[start:stop] = chunk.rss
+            sigma2[start:stop] = chunk.sigma2
+            # A slice, not an index array: out= must be a view of resid.
+            np.subtract(Yw, chunk.fitted, out=resid[:, start:stop])
+            dfres, rank = chunk.dfres, chunk.rank
+        result = LmResult(
+            betas=betas, rss=rss, sigma2=sigma2, dfres=dfres, rank=rank
+        )
         result.obs_weights = rm.obs_weights
-        assert result.fitted is not None
         run_results.append(result)
         projections.append(proj)
-        residuals.append(Yw - result.fitted)
+        residuals.append(resid)
         run_X.append(Xw)
 
     pooled = _pool_run_results(run_results, projections)
@@ -559,6 +587,8 @@ def _solve_shared(
 
 
 _BATCH_MIN_GROUPS = 32
+# Voxel columns whitened and solved together in the shared-AR GLS.
+_SOLVE_CHUNK = 16384
 
 
 def _solve_voxelwise_batched(
@@ -590,7 +620,7 @@ def _solve_voxelwise_batched(
     # A handful of shared coefficients (noise pools) is cheaper per group.
     if np.unique(ph.T, axis=0).shape[0] <= _BATCH_MIN_GROUPS:
         return None
-    Y = rm.Y[:, finite]
+    cols_all = np.flatnonzero(finite)
 
     def whiten_with(
         coeffs: NDArray[np.float64], Z: NDArray[np.float64]
@@ -600,14 +630,13 @@ def _solve_voxelwise_batched(
         assert wr.Y is not None
         return wr.Y
 
-    X = rm.X[:, live]
-    ops_X = [X]
-    ops_Y = [Y]
+    units = []
     for k in range(order):
         unit = np.zeros(order, dtype=np.float64)
         unit[k] = 1.0
-        ops_X.append(whiten_with(unit, X) - X)
-        ops_Y.append(whiten_with(unit, Y) - Y)
+        units.append(unit)
+    X = rm.X[:, live]
+    ops_X = [X] + [whiten_with(unit, X) - X for unit in units]
     # Self-check: the operator must be linear in phi on this run's layout.
     probe = np.linspace(0.3, -0.2, order)
     direct = whiten_with(probe, X)
@@ -615,39 +644,54 @@ def _solve_voxelwise_batched(
     if not np.allclose(direct, combined, rtol=1e-12, atol=1e-12):
         return None
 
-    c = np.vstack([np.ones((1, ph.shape[1])), ph])  # (order + 1, V')
     m = order + 1
-    G = np.zeros((ph.shape[1], p, p), dtype=np.float64)
-    rhs = np.zeros((ph.shape[1], p), dtype=np.float64)
-    for j in range(m):
-        for k in range(m):
-            w = c[j] * c[k]
-            G += w[:, None, None] * (ops_X[j].T @ ops_X[k])[None]
-            rhs += (w * (ops_X[j].T @ ops_Y[k])).T
-    try:
-        betas = np.linalg.solve(G, rhs[..., None])[..., 0].T  # (p, V')
-        cov = np.linalg.inv(G)
-    except np.linalg.LinAlgError:
-        return None
-    # Accumulate in place: the residual matrix is (n, V), so temporaries
-    # dominate the cost at full-brain voxel counts.
-    resid = ops_Y[0] - ops_X[0] @ betas
-    for j in range(1, m):
-        term = ops_X[j] @ betas
-        np.subtract(ops_Y[j], term, out=term)
-        term *= c[j]
-        resid += term
-    rss = np.einsum("tv,tv->v", resid, resid)
+    cross_X = [[ops_X[j].T @ ops_X[k] for k in range(m)] for j in range(m)]
+    nv = cols_all.size
+    betas_live = np.empty((p, nv), dtype=np.float64)
+    cov_live = np.empty((nv, p, p), dtype=np.float64)
+    gram_live = np.empty((nv, p, p), dtype=np.float64)
+    rss = np.empty(nv, dtype=np.float64)
+    resid = np.empty((n, nv), dtype=np.float64)
+    # Voxel columns in chunks: the (n, V) whitened copies per AR lag would
+    # otherwise dominate memory at full-brain size.
+    for start in range(0, nv, _SOLVE_CHUNK):
+        sl = slice(start, min(start + _SOLVE_CHUNK, nv))
+        Yc = rm.Y[:, cols_all[sl]]
+        ops_Y = [Yc] + [whiten_with(unit, Yc) - Yc for unit in units]
+        c = np.vstack([np.ones((1, Yc.shape[1])), ph[:, sl]])
+        G = np.zeros((Yc.shape[1], p, p), dtype=np.float64)
+        rhs = np.zeros((Yc.shape[1], p), dtype=np.float64)
+        for j in range(m):
+            for k in range(m):
+                w = c[j] * c[k]
+                G += w[:, None, None] * cross_X[j][k][None]
+                rhs += (w * (ops_X[j].T @ ops_Y[k])).T
+        try:
+            betas = np.linalg.solve(G, rhs[..., None])[..., 0].T  # (p, chunk)
+            cov = np.linalg.inv(G)
+        except np.linalg.LinAlgError:
+            return None
+        # Accumulate in place to keep temporaries to one chunk.
+        r = ops_Y[0] - ops_X[0] @ betas
+        for j in range(1, m):
+            term = ops_X[j] @ betas
+            np.subtract(ops_Y[j], term, out=term)
+            term *= c[j]
+            r += term
+        betas_live[:, sl] = betas
+        cov_live[sl] = cov
+        gram_live[sl] = G
+        rss[sl] = np.einsum("tv,tv->v", r, r)
+        resid[:, sl] = r
     if p < p_full:
-        nv = betas.shape[1]
         full_betas = np.zeros((p_full, nv))
-        full_betas[live] = betas
+        full_betas[live] = betas_live
         full_cov = np.zeros((nv, p_full, p_full))
-        full_cov[np.ix_(np.arange(nv), live, live)] = cov
+        full_cov[np.ix_(np.arange(nv), live, live)] = cov_live
         full_gram = np.zeros((nv, p_full, p_full))
-        full_gram[np.ix_(np.arange(nv), live, live)] = G
-        betas, cov, G = full_betas, full_cov, full_gram
-    return finite, (betas, rss, cov, G, resid)
+        full_gram[np.ix_(np.arange(nv), live, live)] = gram_live
+        return finite, (full_betas, rss, full_cov, full_gram, resid)
+    return finite, (betas_live, rss, cov_live, gram_live, resid)
 
 
 def _solve_voxelwise(
@@ -671,21 +715,27 @@ def _solve_voxelwise(
     for rm, phi in zip(runs, phis, strict=True):
         n, p = rm.X.shape
         V = rm.Y.shape[1]
-        betas = np.full((p, V), np.nan)
-        rss = np.full(V, np.nan)
-        cov = np.full((V, p, p), np.nan)
-        gram = np.full((V, p, p), np.nan)
-        resid = np.full((n, V), np.nan)
         batched = None if exact_first else _solve_voxelwise_batched(rm, phi)
-        if batched is not None:
-            done, (b_betas, b_rss, b_cov, b_gram, b_resid) = batched
-            betas[:, done] = b_betas
-            rss[done] = b_rss
-            cov[done] = b_cov
-            gram[done] = b_gram
-            resid[:, done] = b_resid
+        if batched is not None and batched[0].all():
+            # Every voxel solved in the batch: use its arrays as they are
+            # (at full-brain size a NaN-filled copy costs seconds and GBs).
+            done = batched[0]
+            betas, rss, cov, gram, resid = batched[1]
         else:
-            done = np.zeros(V, dtype=bool)
+            betas = np.full((p, V), np.nan)
+            rss = np.full(V, np.nan)
+            cov = np.full((V, p, p), np.nan)
+            gram = np.full((V, p, p), np.nan)
+            resid = np.full((n, V), np.nan)
+            if batched is not None:
+                done, (b_betas, b_rss, b_cov, b_gram, b_resid) = batched
+                betas[:, done] = b_betas
+                rss[done] = b_rss
+                cov[done] = b_cov
+                gram[done] = b_gram
+                resid[:, done] = b_resid
+            else:
+                done = np.zeros(V, dtype=bool)
         remaining = np.flatnonzero(~done)
         groups, inverse = np.unique(phi[:, remaining].T, axis=0, return_inverse=True)
         inverse = np.asarray(inverse).ravel()

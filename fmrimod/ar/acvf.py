@@ -206,6 +206,10 @@ def pooled_acvf_segments(
     if nv == 0 or nc == 0:
         return PooledAcvf(num=num, pairs=pairs)
 
+    if center_id is None and nc > _ACVF_CHUNK:
+        # Wide inputs (full-brain voxels): centre and accumulate lag products
+        # in column chunks instead of materialising a centred copy.
+        return _pooled_acvf_chunked(mat, np.asarray(seg_id), max_lag)
     if center_id is None:
         mat = mat - mat.mean(axis=0, keepdims=True)
     else:
@@ -238,6 +242,39 @@ def pooled_acvf_segments(
             total += float(np.vdot(mat[a + lg : b + lg], mat[a:b]))
         num[lg] = total / nc
         pairs[lg] = float(n_ok)
+    return PooledAcvf(num=num, pairs=pairs)
+
+
+_ACVF_CHUNK = 8192
+
+
+def _pooled_acvf_chunked(
+    mat: NDArray[np.float64], seg: NDArray[Any], max_lag: int
+) -> PooledAcvf:
+    """:func:`pooled_acvf_segments` (column-mean centring) over column chunks."""
+    nv, nc = mat.shape
+    num = np.zeros(max_lag + 1, dtype=np.float64)
+    pairs = np.zeros(max_lag + 1, dtype=np.float64)
+    pairs[0] = float(nv)
+    runs_by_lag: list[list[tuple[int, int]]] = [[]]
+    for lg in range(1, max_lag + 1):
+        if nv <= lg:
+            runs_by_lag.append([])
+            continue
+        ok = seg[lg:] == seg[:-lg]
+        pairs[lg] = float(np.sum(ok))
+        edges = np.diff(np.concatenate([[0], ok.astype(np.int8), [0]]))
+        runs_by_lag.append(
+            list(zip(np.flatnonzero(edges == 1), np.flatnonzero(edges == -1), strict=True))
+        )
+    for start in range(0, nc, _ACVF_CHUNK):
+        block = mat[:, start : start + _ACVF_CHUNK]
+        block = block - block.mean(axis=0, keepdims=True)
+        num[0] += float(np.vdot(block, block))
+        for lg in range(1, max_lag + 1):
+            for a, b in runs_by_lag[lg]:
+                num[lg] += float(np.vdot(block[a + lg : b + lg], block[a:b]))
+    num /= nc
     return PooledAcvf(num=num, pairs=pairs)
 
 

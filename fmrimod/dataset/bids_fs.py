@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import re
+import warnings
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -181,7 +182,20 @@ def _events_for(root: Path, bold: Path) -> pd.DataFrame:
     path = func / "func" / f"{_raw_stem(bold)}_events.tsv"
     if not path.exists():
         raise FileNotFoundError(f"events file not found: {path}")
-    return pd.read_csv(path, sep="\t", na_values="n/a")
+    events = pd.read_csv(path, sep="\t", na_values="n/a")
+    if "trial_type" in events.columns:
+        unlabelled = events["trial_type"].isna()
+        if unlabelled.any():
+            # BIDS allows "n/a" trial types (e.g. fixation rows); they name
+            # no condition, so they cannot become a regressor.
+            warnings.warn(
+                f"{path.name}: dropped {int(unlabelled.sum())} event(s) with "
+                "trial_type 'n/a'",
+                UserWarning,
+                stacklevel=2,
+            )
+            events = events.loc[~unlabelled].reset_index(drop=True)
+    return events
 
 
 def _confounds_for(bold: Path) -> pd.DataFrame | None:
@@ -189,8 +203,27 @@ def _confounds_for(bold: Path) -> pd.DataFrame | None:
     for suffix in ("desc-confounds_timeseries", "desc-confounds_regressors"):
         path = bold.with_name(f"{stem}_{suffix}.tsv")
         if path.exists():
-            return pd.read_csv(path, sep="\t", na_values="n/a")
+            return _fill_leading_na(pd.read_csv(path, sep="\t", na_values="n/a"))
     return None
+
+
+def _fill_leading_na(table: pd.DataFrame) -> pd.DataFrame:
+    """Zero the leading ``n/a`` rows fMRIPrep writes for derivative columns.
+
+    Derivatives and framewise displacement have no value at the first
+    volume (``trans_x_derivative1``, ``framewise_displacement``, ...), so
+    fMRIPrep writes ``n/a`` there. Only the leading run of missing values in
+    each column is filled; a gap later in a column is left for the model to
+    reject.
+    """
+    filled = table.copy()
+    for name in filled.columns:
+        column = filled[name]
+        if not pd.api.types.is_numeric_dtype(column) or not column.isna().iloc[0]:
+            continue
+        leading = column.isna().cummin()
+        filled.loc[leading, name] = 0.0
+    return filled
 
 
 def _repetition_time(root: Path, bold: Path) -> float:

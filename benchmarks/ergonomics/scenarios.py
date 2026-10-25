@@ -771,6 +771,7 @@ class Scenario:
     min_correlation: float
     notes: tuple[str, ...] = field(default_factory=tuple)
     large_inputs: Callable[[], Any] | None = None
+    full_brain_inputs: Callable[[], Any] | None = None
 
 
 SCENARIOS: tuple[Scenario, ...] = (
@@ -784,6 +785,7 @@ SCENARIOS: tuple[Scenario, ...] = (
         extract_nilearn_stat,
         0.999,
         large_inputs=lambda: make_inputs(seed=1, shape=(34, 34, 28), n_scans=300),
+        full_brain_inputs=lambda: make_inputs(seed=1, shape=(64, 64, 40), n_scans=300),
         notes=(
             "By design: the default noise model is OLS (R fmrireg's `iid`), where Nilearn's `FirstLevelModel` uses AR(1); pass `ar=\"ar1_voxelwise\"` for Nilearn's model.",
             "By design: the sampling grid starts at TR/2 (R fmrihrf #94); Nilearn/SPM/FitLins use frame start, so cross-tool comparisons pass `slice_timing_offset=0.0`.",
@@ -842,6 +844,9 @@ SCENARIOS: tuple[Scenario, ...] = (
         extract_fmrimod_stat,
         extract_nilearn_stat,
         0.9999,
+        full_brain_inputs=lambda: make_inputs(
+            seed=6, ar=0.4, shape=(64, 64, 40), n_scans=300
+        ),
         large_inputs=lambda: make_inputs(
             seed=6, ar=0.4, shape=(34, 34, 28), n_scans=300
         ),

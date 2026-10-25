@@ -124,8 +124,12 @@ class TestRegressor:
         with pytest.raises(ValueError, match="onsets must contain finite"):
             regressor([10, np.inf, 30])
         
-        with pytest.raises(ValueError, match="onsets must be non-negative"):
-            regressor([10, -5, 30])
+
+    def test_negative_onsets_contribute_response_tail(self):
+        """An event before t=0 (e.g. after dummy-scan removal) keeps its tail."""
+        reg = regressor([-4.0, 30.0], hrf=get_hrf("spmg1"))
+        y = reg.evaluate(np.arange(0, 20, 2.0))
+        assert y[0] > 0  # the pre-scan event's response is still rising
     
     def test_invalid_duration(self):
         """Test error on invalid durations."""
