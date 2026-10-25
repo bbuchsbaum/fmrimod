@@ -255,3 +255,30 @@ def test_exact_start_nonstationary_ar1_matches_fmriar(r_call, phi):
         y, np.array([phi]), np.array([]), np.array([0]), exact_first_ar1=True
     )
     np.testing.assert_allclose(ours, r_call.field(r_out, "Y"), rtol=0, atol=1e-12)
+
+
+@pytest.mark.parametrize(
+    ("p", "q", "n", "iter_"),
+    [(1, 1, 300, 0), (2, 1, 300, 1), (0, 2, 500, 0), (1, 1, 40, 0)],
+)
+def test_single_series_hr_matches_fmriar(r_call, p, q, n, iter_):
+    """AR-22: the regression starts after the long-AR burn-in; sigma2 over its rows.
+
+    ``p_big`` is passed explicitly: fmriAR's C++ default
+    (``max(8, p + q + 5)``) and its R fallback / fmrimod default (which add
+    ``ceil(10 log10 n)``) differ.
+    """
+    from rpy2 import robjects as ro
+
+    from fmrimod.ar.hr_arma import hr_arma
+
+    rng = np.random.default_rng(9114 + n)
+    y = lfilter([1.0, 0.4], [1.0, -0.5], rng.standard_normal(n + 200))[200:]
+    p_big = 8 if n < 100 else 25
+    r_fit = r_call(
+        "fmriAR:::hr_arma", ro.FloatVector(y), p, q, p_big=p_big, iter=iter_
+    )
+    fit = hr_arma(y, p=p, q=q, p_big=p_big, n_iter=iter_)
+    np.testing.assert_allclose(fit["phi"], r_call.field(r_fit, "phi"), rtol=0, atol=1e-10)
+    np.testing.assert_allclose(fit["theta"], r_call.field(r_fit, "theta"), rtol=0, atol=1e-10)
+    np.testing.assert_allclose(fit["sigma2"], r_call.field(r_fit, "sigma2")[0], rtol=1e-10)

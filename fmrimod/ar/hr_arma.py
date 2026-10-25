@@ -154,7 +154,13 @@ def hr_arma(
     phi = np.zeros(p, dtype=np.float64) if p > 0 else np.array([], dtype=np.float64)
     theta = np.zeros(q, dtype=np.float64) if q > 0 else np.array([], dtype=np.float64)
     m = max(p, q)
-    idx = slice(m, n)
+    # The long-AR residuals start from a zero pre-sample, so the first p_big
+    # are poor innovation proxies: start the regression after that burn-in
+    # when the series can afford it (fmriAR 617bd87, hr_arma_fit_cpp).
+    burn = max(m, p_big + q) if q > 0 else m
+    if n - burn < 10 * (p + q + 1):
+        burn = m
+    idx = slice(burn, n)
     z_y = y[idx]
     Ylags = _lag_matrix(y, p)
     Yblock = Ylags[idx]
@@ -190,7 +196,8 @@ def hr_arma(
         if len(theta):
             theta = enforce_invertible_ma(theta)
 
-    sigma2 = float(np.mean(ehat ** 2))
+    # Innovation variance over the regression rows.
+    sigma2 = float(np.mean(ehat[idx] ** 2))
 
     return {
         "phi": phi,
