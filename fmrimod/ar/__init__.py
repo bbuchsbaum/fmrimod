@@ -10,6 +10,7 @@ from .acvf import (
 )
 from .diagnostics import acorr_diagnostics, sandwich_from_whitened_resid
 from .estimation import (
+    ArEstimationFallbackWarning,
     estimate_ar,
     estimate_ar_bic,
     estimate_ar_voxelwise,
@@ -74,6 +75,7 @@ __all__ = [
     "estimate_ar_voxelwise",
     "estimate_ar_bic",
     "fit_noise",
+    "ArEstimationFallbackWarning",
     # ARMA
     "hr_arma",
     # Whitening

@@ -36,7 +36,11 @@ from fmrimod.glm.solver import LmResult, Projection, fast_lm_matrix, fast_prepro
 from fmrimod.model.config import AROptions, FmriLmConfig
 
 from .acvf import DesignResidualMismatchError
-from .estimation import _quantise_to_noise_pools, fit_noise
+from .estimation import (
+    ArEstimationFallbackWarning,
+    _quantise_to_noise_pools,
+    fit_noise,
+)
 from .plan import plan_from_phi
 from .whitening import whiten_apply
 
@@ -464,12 +468,21 @@ def _estimate_phi(
     except (ValueError, np.linalg.LinAlgError) as err:
         warnings.warn(
             f"AR({order}) estimation failed ({err}); fitting without AR whitening.",
-            UserWarning,
+            ArEstimationFallbackWarning,
             stacklevel=4,
         )
         return np.zeros(order, dtype=np.float64)
     phi = np.zeros(order, dtype=np.float64)
     est = np.asarray(plan.phi[0] if plan.phi else [], dtype=np.float64)[:order]
+    if est.size == 0 and order > 0:
+        # fit_noise returns no coefficients for zero-variance residuals or
+        # too few usable lags: a fallback, not an estimate of zero.
+        warnings.warn(
+            f"AR({order}) estimation failed (no usable autocovariance); "
+            "fitting without AR whitening.",
+            ArEstimationFallbackWarning,
+            stacklevel=4,
+        )
     phi[: est.size] = np.where(np.isfinite(est), est, 0.0)
     return phi
 

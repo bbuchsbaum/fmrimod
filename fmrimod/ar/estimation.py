@@ -7,12 +7,29 @@ Provides Yule-Walker estimation of AR coefficients, either globally
 from __future__ import annotations
 
 import numbers
+import warnings
 from typing import Any, Optional, cast
 
 import numpy as np
 from numpy.typing import NDArray
 
 from .plan import WhiteningPlan
+
+
+class ArEstimationFallbackWarning(UserWarning):
+    """An AR estimate failed and phi = 0 (no whitening) is used instead.
+
+    fmrireg's warning class ``fmrireg_ar_estimation_failed`` (1016dba): a
+    fallback must be distinguishable from a genuine zero estimate.
+    """
+
+
+def _warn_ar_fallback(order: int, reason: str, stacklevel: int = 3) -> None:
+    warnings.warn(
+        f"AR({order}) estimation failed ({reason}); fitting without AR whitening.",
+        ArEstimationFallbackWarning,
+        stacklevel=stacklevel,
+    )
 
 
 def estimate_ar_yule_walker(
@@ -42,6 +59,7 @@ def estimate_ar_yule_walker(
     n, V = residuals.shape
 
     if n <= order:
+        _warn_ar_fallback(order, f"{n} timepoints for order {order}", 4)
         return np.zeros(order, dtype=np.float64)
 
     # Pool autocorrelations across voxels
@@ -56,6 +74,7 @@ def estimate_ar_yule_walker(
     # Normalise to correlation. Only zero variance is degenerate: an absolute
     # floor left data in small units unwhitened (fmrireg 0f9138b).
     if not autocorr[0] > 0:
+        _warn_ar_fallback(order, "the residuals have zero variance", 4)
         return np.zeros(order, dtype=np.float64)
     rho = autocorr / autocorr[0]
 
@@ -71,7 +90,8 @@ def estimate_ar_yule_walker(
     try:
         phi = np.linalg.solve(R, r)
     except np.linalg.LinAlgError:
-        phi = np.zeros(order, dtype=np.float64)
+        _warn_ar_fallback(order, "singular Yule-Walker system", 4)
+        return np.zeros(order, dtype=np.float64)
 
     # Clamp to ensure stationarity
     phi = _enforce_stationarity(phi)
@@ -101,8 +121,10 @@ def estimate_ar_voxelwise(
     phi_all = np.zeros((order, V), dtype=np.float64)
 
     if n <= order:
+        _warn_ar_fallback(order, f"{n} timepoints for order {order}", 4)
         return phi_all
 
+    failed = 0
     for v in range(V):
         r_v = residuals[:, v]
         autocorr = np.array(
@@ -112,6 +134,7 @@ def estimate_ar_voxelwise(
             ]
         )
         if not autocorr[0] > 0:
+            failed += 1
             continue
         rho = autocorr / autocorr[0]
 
@@ -127,8 +150,15 @@ def estimate_ar_voxelwise(
             phi_v = _enforce_stationarity(phi_v)
             phi_all[:, v] = phi_v
         except np.linalg.LinAlgError:
-            pass
+            failed += 1
 
+    if failed:
+        _warn_ar_fallback(
+            order,
+            f"zero variance or a singular Yule-Walker system in {failed} of "
+            f"{V} voxels, which get phi = 0",
+            4,
+        )
     return phi_all
 
 

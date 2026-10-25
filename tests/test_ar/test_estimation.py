@@ -222,3 +222,52 @@ class TestYuleWalkerScaleInvariance:
         flat = np.zeros((50, 3))
         np.testing.assert_array_equal(estimate_ar_yule_walker(flat, 2), [0.0, 0.0])
         np.testing.assert_array_equal(estimate_ar_voxelwise(flat, 1), [[0.0, 0.0, 0.0]])
+
+
+class TestArEstimationFallbackWarns:
+    """REG-A-17 (fmrireg 1016dba): a fallback to phi = 0 is never silent."""
+
+    def test_zero_variance_residual_warns(self):
+        from fmrimod.ar import ArEstimationFallbackWarning
+        from fmrimod.ar.estimation import estimate_ar
+
+        assert issubclass(ArEstimationFallbackWarning, UserWarning)
+        with pytest.warns(ArEstimationFallbackWarning, match="AR"):
+            phi = estimate_ar(np.zeros((50, 3)), 1)
+        np.testing.assert_array_equal(phi, [0.0])
+
+    def test_too_few_timepoints_warns(self):
+        from fmrimod.ar.estimation import estimate_ar
+
+        with pytest.warns(UserWarning, match="AR"):
+            estimate_ar(np.ones((2, 3)), 2)
+        with pytest.warns(UserWarning, match="AR"):
+            estimate_ar(np.ones((2, 3)), 2, voxelwise=True)
+
+    def test_singular_yule_walker_system_warns(self, monkeypatch):
+        # The pooled Toeplitz system of a nonzero series is positive definite,
+        # so force the solver's singular branch directly.
+        import fmrimod.ar.estimation as est
+
+        def singular(*_args, **_kwargs):
+            raise np.linalg.LinAlgError("Singular matrix")
+
+        monkeypatch.setattr(est.np.linalg, "solve", singular)
+        resid = _sim_ar1(100, 0.5)
+        with pytest.warns(UserWarning, match="AR"):
+            np.testing.assert_array_equal(est.estimate_ar(resid, 2), [0.0, 0.0])
+        with pytest.warns(UserWarning, match=r"AR\(2\).*3 of 3 voxels"):
+            est.estimate_ar(resid[:, :3], 2, voxelwise=True)
+
+    def test_valid_data_at_any_scale_does_not_warn(self):
+        import warnings
+
+        from fmrimod.ar.estimation import estimate_ar
+
+        resid = _sim_ar1(200, 0.5)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            a = estimate_ar(resid, 1)
+            b = estimate_ar(1e-9 * resid, 1)
+            estimate_ar(resid, 1, voxelwise=True)
+        np.testing.assert_allclose(a, b, rtol=1e-10)
