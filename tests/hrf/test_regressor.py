@@ -574,3 +574,38 @@ class TestPerEventKernelSupport:
         assert np.max(np.abs(per_event - expected)) < 2e-3
         assert np.max(np.abs(conv - expected)) < 2e-3
         assert np.max(np.abs(per_event - conv)) < 2e-3
+
+
+class TestEmptyRegressorConsistency:
+    """Inventory v2 HRF-11 (fmrihrf ``b7ce497``, ``304f1fb``)."""
+
+    def test_list_hrf_with_all_events_dropped_keeps_first_hrf(self):
+        from fmrimod.hrf import HRF_SPMG3
+
+        reg = regressor([1, 2], hrf=[HRF_SPMG3], amplitude=0)
+        single = regressor([1, 2], hrf=HRF_SPMG3, amplitude=0)
+        assert reg.filtered_all
+        assert reg.nbasis == 3
+        assert reg.span == single.span
+        assert reg.evaluate(np.arange(6.0)).shape == (6, 3)
+        assert_array_equal(reg.evaluate(np.arange(6.0)), 0.0)
+
+    def test_per_event_hrf_list_all_dropped_keeps_first_hrf(self):
+        from fmrimod.hrf import HRF_SPMG2, HRF_SPMG3
+
+        hrf_a = HRF_SPMG3
+        hrf_b = get_hrf("spmg3")
+        reg = regressor([1, 2], hrf=[hrf_a, hrf_b], amplitude=[0, 0])
+        assert reg.nbasis == 3
+        assert reg.span == regressor([1], hrf=hrf_a, amplitude=0).span
+        assert reg.evaluate(np.arange(4.0)).shape == (4, 3)
+        # A length-1 list of a two-basis HRF keeps both columns.
+        assert HRF_SPMG2.nbasis == 2
+        reg2 = regressor([1], hrf=[HRF_SPMG2], amplitude=0)
+        assert reg2.evaluate(np.arange(4.0)).shape == (4, 2)
+
+    def test_regressor_set_with_no_levels_is_zero_columns(self):
+        rset = regressor_set([], [])
+        out = rset.evaluate(np.arange(6.0))
+        assert out.shape == (6, 0)
+        assert regressor_design(rset, np.arange(6.0)).shape == (6, 0)
