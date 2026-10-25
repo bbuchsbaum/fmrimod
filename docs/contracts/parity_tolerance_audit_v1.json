@@ -3138,7 +3138,7 @@
       "context_marker_found": false,
       "file": "cross_testing/test_hrf_equivalence.py",
       "kwarg": "rtol",
-      "lineno": 175,
+      "lineno": 178,
       "value": 1e-08,
       "value_repr": "1e-08"
     },
