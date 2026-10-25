@@ -47,7 +47,9 @@ def test_nested_set_weights_through_the_model():
     em = event_model([term], data=ev, tr=1.0, n_scans=60)
     weights = contrast_weights(em)["condition"]
     assert list(weights) == [c.name for c in combined]
-    np.testing.assert_allclose(weights["intelligibility"].offset_weights[:, 0], [-1, 0, 1])
+    expected = [[-1, 0, 1], [1, -0.5, -0.5], [-0.5, 1, -0.5], [-0.5, -0.5, 1]]
+    for con, exp in zip(combined, expected, strict=True):
+        np.testing.assert_allclose(weights[con.name].offset_weights[:, 0], exp)
 
 
 def test_recursive_flattening_keeps_order_duplicates_and_drops_empty_sets():

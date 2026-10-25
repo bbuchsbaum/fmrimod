@@ -387,9 +387,11 @@ Follow-ups found during wave 2 (not inventory rows):
   but passes `design=config.design` to `fit_noise`.
 - Poly/BSpline event bases are refit per run even without `subset=`
   (`_subset_event_term`); belongs with D3.
-- `!=` in pair-contrast formulas matches nothing, so
-  `one_against_all_contrast` returns level-vs-baseline weights with a
-  "Mask B is empty" warning.
+- `!=` in pair-contrast formulas matched nothing, so
+  `one_against_all_contrast` returned level-vs-baseline weights with a
+  "Mask B is empty" warning. Fixed 2026-10-25: `!=` selects the other
+  levels and other predicates (`in`, `and`, ...) are evaluated on the
+  term's cells, as R does; one-vs-all now gives R's `c(1, -1/2, -1/2)`.
 - `design_colmap` reports `modulation_type="amplitude"` for covariate
   columns; R reports `covariate`.
 
