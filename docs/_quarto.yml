@@ -148,6 +148,7 @@ website:
         - section: "Inspect and integrate"
           contents:
             - tutorials/plotting-visualization.qmd
+            - tutorials/plot-gallery.qmd
             - tutorials/simulation.qmd
             - tutorials/bids-io.qmd
             - tutorials/benchmark-datasets.qmd

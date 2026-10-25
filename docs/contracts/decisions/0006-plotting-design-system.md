@@ -72,4 +72,5 @@ separators; it failed on `FmriModel`).
 - Breaking: plot functions return `Figure` instead of `Axes` or
   `(Figure, Axes)`; `**kwargs` passed straight to matplotlib are gone
   (styling comes from the theme).
+- `import fmrimod` no longer imports matplotlib (plots import it lazily).
 - Drift v2 rows HRF-21, DES-24, DES-35, REG-B-17 and REG-B-27 are done.
