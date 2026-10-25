@@ -314,3 +314,55 @@ def test_hrf_smoothing_kernel_gram_and_scan_cosine_match_reference():
     np.testing.assert_allclose(
         kernel(normalize=False, method="cosine"), ref[keep, keep], rtol=0.0, atol=1e-12
     )
+
+
+def _two_run_ar_model():
+    from fmrimod.model.config import AROptions
+
+    rng = np.random.default_rng(3)
+    n = 80
+    onsets = np.arange(4.0, 150.0, 14.0)
+    conds = np.array(["A", "B"] * 10)[: len(onsets)]
+    events = pd.DataFrame(
+        {
+            "onset": np.concatenate([onsets, onsets]),
+            "condition": np.concatenate([conds, conds]),
+            "duration": 0.0,
+            "run": np.repeat([1, 2], len(onsets)),
+        }
+    )
+    y = rng.normal(size=(2 * n, 5))
+    for t in range(1, 2 * n):
+        y[t] += 0.5 * y[t - 1]
+    y += 100.0
+    ds = fmrimod.fmri_dataset(y, tr=2.0, events=events, run_length=[n, n])
+    cfg = FmriLmConfig(ar=AROptions(struct="ar1"))
+    ref = fmrimod.fmri_lm("hrf(condition)", ds, config=cfg)
+    return ref, y, cfg, ds
+
+
+def test_fit_glm_with_config_fits_a_multirun_model_run_by_run():
+    """REG-B-12: the full design and per-run rows reach the solver.
+
+    fmrireg d0f0aa1 passes ``run_indices`` so AR restarts at run boundaries;
+    a two-run fit must equal ``fmri_lm`` on the same model (same phi, same
+    betas), not raise a row mismatch from the run-0 design.
+    """
+    ref, y, cfg, _ = _two_run_ar_model()
+    assert ref.model.n_runs == 2
+
+    out = fmrimod.fit_glm_with_config(ref.model, y, cfg)
+
+    np.testing.assert_allclose(out.ar_params, ref.ar_params, rtol=0, atol=1e-8)
+    np.testing.assert_allclose(out.betas, ref.betas, rtol=0, atol=1e-8)
+    np.testing.assert_allclose(out.sigma, ref.sigma, rtol=0, atol=1e-8)
+    assert np.asarray(out.ar_params).shape[0] == 2
+
+
+def test_fit_glm_with_config_dimension_checks_an_explicit_dataset():
+    ref, y, cfg, ds = _two_run_ar_model()
+    # The matching dataset is accepted ...
+    fmrimod.fit_glm_with_config(ref.model, y, cfg, dataset=ds)
+    # ... but one describing a different feature space is not.
+    with pytest.raises(ValueError, match="explicit dataset dimensions are 160 x 5"):
+        fmrimod.fit_glm_with_config(ref.model, y[:, :3], cfg, dataset=ds)
