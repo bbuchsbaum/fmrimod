@@ -154,7 +154,11 @@ class FitProvenance:
         if payload.get("schema_version") != "FitProvenance/v1":
             raise ValueError("unsupported FitProvenance schema_version")
         ar_payload = payload.get("ar_config")
-        ar_config = None if ar_payload is None else AROptions(**dict(cast("Mapping[str, Any]", ar_payload)))
+        ar_config = (
+            None
+            if ar_payload is None
+            else AROptions(**dict(cast("Mapping[str, Any]", ar_payload)))
+        )
         return cls(
             fmrimod_version=str(payload["fmrimod_version"]),
             solver_path=str(payload["solver_path"]),
@@ -252,8 +256,7 @@ class CompleteFitProvenance:
         errors = provenance.completeness_errors
         if errors:
             raise IncompleteFitProvenanceError(
-                "FitProvenance is incomplete for exact replay: "
-                + "; ".join(errors)
+                "FitProvenance is incomplete for exact replay: " + "; ".join(errors)
             )
         return cls(provenance=provenance)
 
@@ -299,7 +302,9 @@ def _seed_provenance(
     return None, "not_randomized"
 
 
-def _mask_mode_provenance(model: "FmriModelLike") -> tuple[Optional[MaskMode], CarryStatus]:
+def _mask_mode_provenance(
+    model: "FmriModelLike",
+) -> tuple[Optional[MaskMode], CarryStatus]:
     """Infer mask mode from the fitted dataset without adding new API."""
     dataset = getattr(model, "dataset", None)
     if dataset is None or not hasattr(dataset, "get_mask"):
@@ -360,6 +365,7 @@ def _build_fit_provenance(
         design_source=design_source,
         design_source_status=design_source_status,
     )
+
 
 if TYPE_CHECKING:
     from fmrimod.contrast.contrast_spec import ContrastSpec
@@ -496,9 +502,7 @@ def _contrast_spec_weights_to_fit_weights(
     if arr.ndim == 1:
         return arr
     if arr.ndim != 2:
-        raise ValueError(
-            f"ContrastSpec weights must be 1-D or 2-D; got {arr.ndim}-D"
-        )
+        raise ValueError(f"ContrastSpec weights must be 1-D or 2-D; got {arr.ndim}-D")
     if arr.shape[1] == 1:
         return arr[:, 0]
     return arr.T
@@ -682,9 +686,7 @@ class FmriLm:
                     for i in proj.aliased_indices
                 )
             else:
-                aliased = tuple(
-                    f"col_{i}" for i in proj.aliased_indices
-                )
+                aliased = tuple(f"col_{i}" for i in proj.aliased_indices)
             runs.append(
                 RunConditionReport(
                     run=run_idx,
@@ -841,8 +843,10 @@ class FmriLm:
                 ),
             )
 
-        if isinstance(spec, (list, tuple)) and spec and all(
-            isinstance(row, str) for row in spec
+        if (
+            isinstance(spec, (list, tuple))
+            and spec
+            and all(isinstance(row, str) for row in spec)
         ):
             matrix = np.vstack([self._string_weights(row) for row in spec])
             cname = name or " ; ".join(spec)
@@ -1075,13 +1079,21 @@ class FmriLm:
         self._warn_if_not_estimable(weights, name)
         if weights.ndim == 1:
             result = contrast_t(
-                weights, self.betas, self.XtXinv, self.sigma,
-                self._inference_df(), name=name,
+                weights,
+                self.betas,
+                self.XtXinv,
+                self.sigma,
+                self._inference_df(),
+                name=name,
             )
         else:
             result = contrast_f_vectorized(
-                weights, self.betas, self.XtXinv, self.sigma,
-                self._inference_df(), name=name,
+                weights,
+                self.betas,
+                self.XtXinv,
+                self.sigma,
+                self._inference_df(),
+                name=name,
             )
         if intent is None:
             intent = ContrastIntent(
@@ -1092,9 +1104,7 @@ class FmriLm:
             )
         column_details = self._touched_column_details(weights)
         result.intent = intent
-        result.touched_columns = tuple(
-            str(column["name"]) for column in column_details
-        )
+        result.touched_columns = tuple(str(column["name"]) for column in column_details)
         result.touched_column_details = column_details
         result.spatial = self._spatial_context()
         self.contrasts[name] = result
@@ -1171,9 +1181,8 @@ class FmriLm:
                 out[cname] = self.contrasts[cname]
                 continue
             if not isinstance(w, np.ndarray) and not (
-                isinstance(w, (list, tuple)) and all(
-                    isinstance(x, (int, float, np.number)) for x in np.ravel(w)
-                )
+                isinstance(w, (list, tuple))
+                and all(isinstance(x, (int, float, np.number)) for x in np.ravel(w))
             ):
                 # Strings and typed contrast values take the full path.
                 out[cname] = self.contrast(w, name=cname)
@@ -1388,13 +1397,26 @@ def fmri_lm(
         of its run mean, ``100 * (y / mean - 1)`` (Nilearn's default
         ``signal_scaling=0``), so effects are comparable across subjects
         and scanners; use it when betas go on to a group analysis.
-    tr, events, mask, slice_timing_offset
-        Image shorthand: when the second argument is an image source
-        (NIfTI image or path, NeuroVec, array, or a per-run sequence of
-        those) rather than an :class:`FmriDataset`, these are forwarded to
-        :func:`fmrimod.fmri_dataset` to build it. ``events`` may be one
-        table with a ``run`` column or a list of per-run tables. Not valid
-        together with a prebuilt dataset.
+    tr : float or sequence of float, optional
+        Image shorthand: repetition time in seconds, one value or one per
+        run. Used when the second argument is an image source (NIfTI image
+        or path, NeuroVec, array, or a per-run sequence of those) rather
+        than an :class:`FmriDataset`; the shorthand arguments are forwarded
+        to :func:`fmrimod.fmri_dataset` to build it. Passing ``tr``,
+        ``events``, ``mask`` or ``slice_timing_offset`` together with a
+        prebuilt dataset raises.
+    events : DataFrame or sequence of DataFrame, optional
+        Image shorthand: one event table with a ``run`` column, or a list
+        of per-run tables.
+    mask : array or image, optional
+        Image shorthand: brain mask (array, image, or NIfTI path) forwarded to
+        :func:`fmrimod.fmri_dataset`, which defaults to the non-zero voxels
+        of the first volume.
+    slice_timing_offset : float or sequence of float, optional
+        Image shorthand: time in seconds of each scan's sample within its
+        TR, forwarded to :func:`fmrimod.fmri_dataset`. The default there is
+        ``TR/2``; pass ``0.0`` for the frame-start convention of Nilearn
+        and SPM.
     **engine_kwargs
         Legacy keyword bag forwarded to the engine's ``fit()`` method when
         ``engine`` is a string. Do not mix with typed engine options.
@@ -1500,6 +1522,7 @@ def fmri_lm(
     # ``FmriLmConfig(ar=AROptions(struct="ar1"))``.
     if ar is not None:
         from ..model.config import AROptions as _AROptions
+
         if isinstance(ar, str):
             struct, _, mode = ar.partition("_")
             if mode not in ("", "voxelwise", "binned"):
@@ -1648,9 +1671,7 @@ def _warn_if_ill_conditioned(fit: "FmriLm") -> None:
         if run.is_full_rank:
             continue
         names = (
-            ", ".join(run.aliased_columns)
-            if run.aliased_columns
-            else "<unidentified>"
+            ", ".join(run.aliased_columns) if run.aliased_columns else "<unidentified>"
         )
         parts.append(
             f"run={run.run}: rank={run.rank}/{run.n_columns}, "
@@ -1671,9 +1692,7 @@ def _warn_if_ill_conditioned(fit: "FmriLm") -> None:
     )
 
 
-def _replace_ar_on_config(
-    config: FmriLmConfig, ar: "AROptions"
-) -> FmriLmConfig:
+def _replace_ar_on_config(config: FmriLmConfig, ar: "AROptions") -> FmriLmConfig:
     """Return a copy of ``config`` with only the ``ar`` slot replaced.
 
     ``FmriLmConfig`` is constructed positionally, so the simplest
@@ -1682,6 +1701,7 @@ def _replace_ar_on_config(
     shorthand.
     """
     from dataclasses import fields, replace as _dc_replace
+
     try:
         return _dc_replace(config, ar=ar)
     except TypeError:
@@ -1720,9 +1740,7 @@ def _concatenated_design_is_full_rank(fit: "FmriLm") -> bool:
     if len(projections) <= 1:
         return False
     try:
-        X = np.asarray(
-            fit.model.design_matrix_array(run=None), dtype=np.float64
-        )
+        X = np.asarray(fit.model.design_matrix_array(run=None), dtype=np.float64)
     except Exception:  # pragma: no cover - design probe is best-effort
         return False
     if X.size == 0 or X.shape[1] == 0:
@@ -1785,7 +1803,9 @@ def _bind_dataset_confounds(spec: "Spec | Term", dataset: object) -> "Spec":
     from ..spec import Confounds, as_spec
 
     typed = as_spec(spec)
-    unbound = [t for t in typed.baseline if isinstance(t, Confounds) and t.source is None]
+    unbound = [
+        t for t in typed.baseline if isinstance(t, Confounds) and t.source is None
+    ]
     if not unbound:
         return typed
     tables = getattr(dataset, "confounds", None)
