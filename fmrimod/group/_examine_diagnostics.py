@@ -268,7 +268,9 @@ def diagnose_linear(
                 scale = 1.0
             if not np.isfinite(scale) or scale < 0:
                 continue
-            pred_var = float(vb[i] + tau_b + scale * (Xv[j] @ a_minus @ Xv[j]))
+            # Observation noise is scale * vb[i]: OLS has vb = 1 and an estimated
+            # deleted-fit variance; known-variance paths have scale = 1.
+            pred_var = float(scale * vb[i] + tau_b + scale * (Xv[j] @ a_minus @ Xv[j]))
             if not np.isfinite(pred_var) or pred_var <= degeneracy:
                 continue
             slots["expected"][i, b] = expected
