@@ -20,6 +20,7 @@ exactly what "downweight an outlier" means numerically.
 ## Inspect scale and weights
 
 ```{python}
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 

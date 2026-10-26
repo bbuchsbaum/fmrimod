@@ -29,6 +29,11 @@ variance. Subject 09 has a noisy map and large variance. Subject 10 has an
 inverted map. Features here are synthetic labels, not brain coordinates.
 
 ```{python}
+#| fig-width: 9
+#| fig-height: 3.5
+#| fig-alt: "Subject effect profiles across forty synthetic features. Most follow a shared sine curve, subject 09 is noisy, and subject 10 follows an inverted curve."
+#| fig-cap: "Simulated subject maps. Subject 08 overlaps the cohort pattern despite its unusually small reported variance. The profile alone cannot reveal its weight in the group model."
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from fmrimod.group import SampleLabelSpace, examine_group, group_dataset
@@ -49,13 +54,7 @@ cohort = group_dataset(
     space=SampleLabelSpace([f"feature-{i + 1}" for i in feature]),
     subjects=subjects, contrasts=["task"],
 )
-```
 
-```{python}
-#| fig-width: 9
-#| fig-height: 3.5
-#| fig-alt: "Subject effect profiles across forty synthetic features. Most follow a shared sine curve, subject 09 is noisy, and subject 10 follows an inverted curve."
-#| fig-cap: "Simulated subject maps. Subject 08 overlaps the cohort pattern despite its unusually small reported variance. The profile alone cannot reveal its weight in the group model."
 fig, ax = plt.subplots(figsize=(9, 3.5))
 for i in range(7):
     ax.plot(feature + 1, beta[:, i, 0], color="#aeb8b7", alpha=0.65, linewidth=1)

@@ -23,6 +23,7 @@ conditions. Condition B has twice the amplitude of condition A in the first
 feature. The second feature has a smaller response to both conditions.
 
 ```{python}
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import fmrimod as fm

@@ -13,12 +13,13 @@ event timing, column structure, correlations, and contrast weights. These
 helpers return Matplotlib figures. For the fitted-model plots, see the
 [figure gallery](plot-gallery.qmd).
 
-On narrow screens, scroll plots horizontally to read their labels. Select a
-plot for the complete view.
-
 ## Follow events into regressors
 
 ```{python}
+#| fig-width: 7
+#| fig-height: 3.2
+#| fig-cap: "Realized face and scene regressors on the acquisition grid, one row per condition. Ticks under each row mark that condition's onsets and bars their 2 s durations, so each response can be traced to its event."
+#| fig-alt: "Two stacked line charts, face above scene, each showing two hemodynamic responses over sixty seconds with onset ticks underneath."
 import matplotlib.pyplot as plt
 import pandas as pd
 
@@ -42,13 +43,7 @@ events = pd.DataFrame({
 })
 sampling = fm.SamplingFrame(blocklens=60, TR=1.0)
 event_model, _ = compile_spec(hrf("condition", basis="spmg1"), data=events, sampling_frame=sampling)
-```
 
-```{python}
-#| fig-width: 7
-#| fig-height: 3.2
-#| fig-cap: "Realized face and scene regressors on the acquisition grid, one row per condition. Ticks under each row mark that condition's onsets and bars their 2 s durations, so each response can be traced to its event."
-#| fig-alt: "Two stacked line charts, face above scene, each showing two hemodynamic responses over sixty seconds with onset ticks underneath."
 fig = plot_event_model(event_model, figsize=(7, 3.2))
 plt.show()
 ```

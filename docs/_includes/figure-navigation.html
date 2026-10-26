@@ -1,10 +1,70 @@
 <script>
-// Give wide scientific figures an explicit keyboard scrolling target.
+// Wide scientific figures scroll inside their column on narrow screens. Only a
+// figure that actually overflows becomes a keyboard scroll target with a hint.
 document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('.cell-output-display figure > p:has(a.lightbox)').forEach((preview) => {
-    preview.tabIndex = 0;
-    preview.setAttribute('role', 'region');
-    preview.setAttribute('aria-label', 'Scientific figure. Scroll horizontally to inspect details, or follow the image link for the complete view.');
+  // Unlabelled figures scroll in their <p>; labelled (fig-...) figures have no
+  // <p>, so the cell output itself is the scroll container.
+  const previews = [...new Set([...document.querySelectorAll('.cell-output-display a.lightbox')]
+    .map((link) => link.closest('figure > p') || link.closest('.cell-output-display')))];
+  const update = () => previews.forEach((preview) => {
+    const scrolls = preview.scrollWidth > preview.clientWidth + 1;
+    preview.classList.toggle('fm-scrolls', scrolls);
+    let hint = preview.previousElementSibling;
+    if (!hint || !hint.classList.contains('fm-scroll-hint')) hint = null;
+    if (scrolls) {
+      preview.tabIndex = 0;
+      preview.setAttribute('role', 'region');
+      preview.setAttribute('aria-label', 'Figure wider than the page; scroll sideways to see all of it.');
+      if (!hint) {
+        hint = document.createElement('p');
+        hint.className = 'fm-scroll-hint';
+        hint.setAttribute('aria-hidden', 'true');
+        hint.textContent = 'Wider than the screen \u2014 scroll \u2192';
+        preview.before(hint);
+      }
+    } else {
+      preview.removeAttribute('tabindex');
+      preview.removeAttribute('role');
+      preview.removeAttribute('aria-label');
+      if (hint) hint.remove();
+    }
   });
+  update();
+  window.addEventListener('resize', update);
+  window.addEventListener('load', update);
+});
+</script>
+<script>
+// Navbar and chrome fixes that Quarto 1.7 does not expose as options.
+document.addEventListener('DOMContentLoaded', () => {
+  // A top-level navbar link to this exact page wins the active state over the
+  // section ("Tutorials") that also contains it.
+  const page = (url) => url.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
+  const here = page(new URL(window.location.href));
+  const links = [...document.querySelectorAll('#navbarCollapse .nav-link[href]')];
+  const exact = links.find((link) => page(new URL(link.getAttribute('href'), window.location.href)) === here);
+  if (exact) {
+    links.forEach((link) => {
+      link.classList.remove('active');
+      link.removeAttribute('aria-current');
+    });
+    exact.classList.add('active');
+    exact.setAttribute('aria-current', 'page');
+  }
+  // The phone title bar is a label, not a second page heading.
+  const barTitle = document.querySelector('h1.quarto-secondary-nav-title');
+  if (barTitle) {
+    const label = document.createElement('span');
+    label.className = barTitle.className;
+    label.textContent = barTitle.textContent.trim()
+      || document.querySelector('main h1')?.textContent.trim()
+      || '';
+    barTitle.replaceWith(label);
+  }
+  // The search button Quarto injects has no accessible name.
+  const nameSearch = () => document.querySelectorAll('.aa-DetachedSearchButton:not([aria-label])')
+    .forEach((button) => button.setAttribute('aria-label', 'Search the documentation'));
+  nameSearch();
+  new MutationObserver(nameSearch).observe(document.body, { childList: true, subtree: true });
 });
 </script>

@@ -13,9 +13,8 @@ event regressors, design structure, contrasts, HRF bases, fitted signals, and
 residual diagnostics. Built-in plots return a Matplotlib `Figure` and use the
 library's shared plotting style. The code behind each figure is expandable.
 
-On narrow screens, scroll plots horizontally to read their labels, or select
-a plot for a complete view. These displays help inspect the specified model;
-they do not replace checks on the data or assumptions.
+These displays help inspect the specified model; they do not replace checks
+on the data or assumptions.
 
 The examples share one simulated study: three runs of 110 scans (TR 2 s),
 three conditions (face, house, scene) and a reaction-time modulator, with
@@ -24,6 +23,7 @@ real effects for face and house in about 40% of 400 voxels.
 ```{python}
 #| code-fold: true
 #| code-summary: "Simulate the study"
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 

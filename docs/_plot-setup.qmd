@@ -2,9 +2,15 @@
 #| include: false
 from pathlib import Path
 import matplotlib.pyplot as plt
+from matplotlib_inline.backend_inline import set_matplotlib_formats
 
 _style = Path("assets/fmrimod.mplstyle")
 if not _style.exists():
     _style = Path("../assets/fmrimod.mplstyle")
 plt.style.use(_style)
+# Quarto's fig-dpi/fig-format setup calls IPython.display.set_matplotlib_formats,
+# which IPython 9 removed, so it fails silently and figures render at 1x.
+# Retina PNGs keep CSS size at figure.dpi and double the pixels.
+plt.rcParams["figure.dpi"] = 100
+set_matplotlib_formats("retina")
 ```
