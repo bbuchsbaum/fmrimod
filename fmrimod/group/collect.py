@@ -92,12 +92,17 @@ def collect_results(
     n_sample = first_flat.size
     beta = np.empty((n_sample, len(subjects), 1), dtype=np.float64)
     beta[:, 0, 0] = first_flat
+    def check_geometry(kind: str, sid: str, shape_j: tuple[int, int, int], aff_j: NDArray[np.float64]) -> None:
+        # Same voxel count is not enough: a different 3-D shape or affine
+        # would flatten the map onto the wrong voxels of the beta grid.
+        if shape_j != shape:
+            raise AdapterContractError(f"{kind} map shape mismatch for {sid}: {shape_j} vs beta grid {shape}")
+        if not np.allclose(aff_j, affine):
+            raise AdapterContractError(f"{kind} map affine mismatch for {sid}")
+
     for j, sid in enumerate(subjects[1:], start=1):
         flat, aff_j, shape_j = _load_map(beta_by_sub[sid])
-        if flat.size != n_sample or shape_j != shape:
-            raise AdapterContractError(f"map shape mismatch for {sid}")
-        if not np.allclose(aff_j, affine):
-            raise AdapterContractError(f"affine mismatch for {sid}")
+        check_geometry("beta", sid, shape_j, aff_j)
         beta[:, j, 0] = flat
     assays: dict[str, NDArray[np.float64]] = {"beta": beta}
     if se_paths:
@@ -105,9 +110,8 @@ def collect_results(
         if set(se_by_sub) == set(beta_by_sub):
             se = np.empty_like(beta)
             for j, sid in enumerate(subjects):
-                flat, _, _ = _load_map(se_by_sub[sid])
-                if flat.size != n_sample:
-                    raise AdapterContractError(f"se map shape mismatch for {sid}")
+                flat, aff_j, shape_j = _load_map(se_by_sub[sid])
+                check_geometry("se", sid, shape_j, aff_j)
                 se[:, j, 0] = flat
             assays["se"] = se
             assays["var"] = se * se
