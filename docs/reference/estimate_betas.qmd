@@ -16,8 +16,7 @@ estimate_betas(
 
 Estimate trial-wise betas.
 
-.. deprecated::
-    Use `fmrimod.single.estimate_single_trial` instead.
+**Deprecated**: Use `fmrimod.single.estimate_single_trial` instead.
 
 Dispatcher for OLS and LSS beta estimation.
 

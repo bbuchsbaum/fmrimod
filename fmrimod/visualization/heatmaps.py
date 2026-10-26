@@ -504,6 +504,8 @@ def correlation_map(
     fs = BASE_SIZE * (0.92 if p <= 8 else 0.8 if p <= 14 else 0.66)
 
     cell = 0.6 if p * 0.6 <= 5 else 5.0 / p
+    # A two- or three-column matrix would otherwise be smaller than its header.
+    cell = max(cell, 2.0 / max(p, 1))
     panel = p * cell
     own = ax is None
     if own:
@@ -530,6 +532,10 @@ def correlation_map(
         for i, j in np.argwhere(undefined):
             ax.add_patch(Rectangle((j - 0.5, i - 0.5), 1, 1, facecolor=INK["band"], edgecolor="white",
                                    linewidth=0.8))
+        # The diagonal holds each column's VIF; a neutral cell gives the label a home.
+        for k in range(p):
+            ax.add_patch(Rectangle((k - 0.5, k - 0.5), 1, 1, facecolor=INK["band"], edgecolor="white",
+                                   linewidth=0.8 if p <= 30 else 0.15, zorder=1))
         ax.set_xlim(-0.5, p - 0.5)
         ax.set_ylim(p - 0.5, -0.5)
         ax.grid(False)
@@ -567,13 +573,15 @@ def correlation_map(
                            fontsize=BASE_SIZE * 0.82,
                            rotation_mode="anchor" if rot and rot < 90 else "default")
         ax.tick_params(length=0)
-        draw_spanners(ax, groups, text_pt=6, rule_pt=3)
+        # A single term spans every column and says nothing the axis labels do not.
+        if sum(1 for g in groups if g.label) > 1:
+            draw_spanners(ax, groups, text_pt=6, rule_pt=3)
         legend = "Spearman r" if method == "spearman" else "r"
         if limit != 1.0:
             legend = f"r ({PM}max abs r)"
         ticks = [-1, -0.5, 0, 0.5, 1] if limit == 1.0 else None
         if p <= 10 or not half_matrix:
-            cax = cbar_axes(ax, "bottom", width_in=1.5, gap_pt=8)
+            cax = cbar_axes(ax, "bottom", width_in=min(1.5, panel), gap_pt=8)
             colourbar(fig, cax, mesh, legend, ticks=ticks)
         else:
             cax = ax.inset_axes([0.6, 0.9, 0.38, 0.022])

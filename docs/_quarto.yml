@@ -199,7 +199,6 @@ format:
       light: [_theme-base.scss]
       dark: [_theme-base.scss, _theme-night.scss]
     css: styles.css
-    include-in-header: _includes/quarto-color-scheme-compat.html
     include-before-body: _includes/skip-link.html
     include-after-body: _includes/figure-navigation.html
     toc: true
@@ -214,11 +213,11 @@ format:
     code-overflow: wrap
     code-link: true
     code-annotations: hover
-    highlight-style:
-      light: github
-      dark: github-dark
+    # A light/dark map here makes Quarto 1.7 emit no highlighting CSS at all;
+    # the single name gets its own dark variant.
+    highlight-style: github
     lightbox: true
-    fig-align: center
+    fig-align: left
     fig-cap-location: bottom
     fig-format: svg
     fig-dpi: 200

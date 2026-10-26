@@ -12,8 +12,18 @@
   font-weight: 400;
   font-display: swap;
 }
+/* Georgia scaled to Source Serif 4's advance widths and vertical metrics, so the
+   web font swapping in after first paint does not rewrap text (layout shift). */
+@font-face {
+  font-family: 'Source Serif 4 Fallback';
+  src: local('Georgia');
+  size-adjust: 107.67%;
+  ascent-override: 96.22%;
+  descent-override: 31.11%;
+  line-gap-override: 0%;
+}
 :root {
-  --fm-reading-font: 'Source Serif 4', Georgia, serif;
+  --fm-reading-font: 'Source Serif 4', 'Source Serif 4 Fallback', Georgia, serif;
   --fm-ui-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 body { font-family: var(--fm-reading-font); }
@@ -31,14 +41,18 @@ h1, .quarto-title .title { font-size: 2.65rem; line-height: 1.13; }
 h2 { font-size: 1.85rem; margin-top: 3rem; border: 0; padding-bottom: 0; }
 h3 { font-size: 1.35rem; }
 .quarto-title-block { margin-bottom: 2.3rem; }
-.quarto-title .subtitle { max-width: 60ch; font-size: 1.15rem; color: var(--bs-secondary-color); }
-main.content > p, main.content section > p { max-width: 72ch; }
+.quarto-title .subtitle { max-width: 36.5rem; font-size: 1.15rem; color: var(--bs-secondary-color); }
+/* Measures in rem, not ch: ch follows the active font, so a ch measure changes
+   (and rewraps text) when Source Serif replaces its fallback. 38rem = 72ch of Source Serif. */
+main.content > p, main.content section > p { max-width: 38rem; }
 .navbar, .sidebar, #TOC, .nav-footer, .quarto-navigation-tool, .page-navigation,
 .quarto-secondary-nav, .quarto-listing, .quarto-search-panel {
   font-family: var(--fm-ui-font);
 }
 .navbar { padding-block: .65rem; background: var(--bs-body-bg) !important; }
 .navbar .navbar-brand { font-family: var(--fm-reading-font); font-size: 1.6rem; font-weight: 400; }
+/* Fixed brand width: the serif swap-in must not push the nav links sideways. */
+.navbar .navbar-brand { width: 7rem; margin-right: 1rem; }
 .navbar .nav-link { font-size: .87rem; }
 .navbar .navbar-toggler { color: var(--bs-body-color); border-color: var(--bs-border-color); }
 .navbar .quarto-navbar-tools .quarto-navigation-tool { color: var(--bs-body-color); }
@@ -73,13 +87,15 @@ table { font-family: var(--fm-ui-font); font-size: .78rem; font-variant-numeric:
 .skip-link:focus { transform: translateY(0); }
 /* The homepage is a sequence of figure plates, with reading beside the data. */
 .atlas-intro { padding: 2.5rem 0 1rem; max-width: 50rem; }
-.atlas-intro h1 { font-size: 3.5rem; line-height: 1.08; max-width: 18ch; margin: 0 0 1rem; }
-.atlas-intro > p { font-size: 1.2rem; max-width: 60ch; }
+.atlas-intro h1 { font-size: 3.5rem; line-height: 1.08; max-width: 33.3rem; margin: 0 0 1rem; }
+.atlas-intro > p { font-size: 1.2rem; max-width: 38rem; }
 .reading-links { display: flex; flex-wrap: wrap; gap: .7rem 2rem; font-family: var(--fm-ui-font); font-size: .88rem; margin-top: 1.4rem; }
 .figure-plate { display: grid; grid-template-columns: minmax(0, 3fr) minmax(13rem, 1fr); gap: 2.2rem; align-items: center;
   margin: 1.5rem 0 3.5rem; padding: 1.8rem 0; border-block: 1px solid var(--bs-border-color); }
 .figure-plate > *, .figure-plate p { min-width: 0; }
 .figure-plate img { display: block; width: 100%; height: auto; }
+/* Reserve the static FIAC plate's box before it loads (1838x1044 asset). */
+img[src$="fiac-sentence-effect.png"] { width: 100%; height: auto; aspect-ratio: 1838 / 1044; }
 .figure-plate h2 { font-size: 1.45rem; margin-top: 0; }
 .plate-note { font-size: .96rem; }
 .plate-note p:last-child { margin-bottom: 0; }
@@ -95,7 +111,7 @@ table { font-family: var(--fm-ui-font); font-size: .78rem; font-variant-numeric:
 main.content section.level1 > h1 { overflow-wrap: anywhere; }
 @media (max-width: 991px) {
   .figure-plate { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
-  .plate-note { max-width: 65ch; }
+  .plate-note { max-width: 33rem; }
   .atlas-intro { padding-top: 1.4rem; }
 }
 @media (max-width: 576px) {
@@ -118,7 +134,9 @@ main.content section.level1 > h1 { overflow-wrap: anywhere; }
 .reading-links > p { display: flex; flex-wrap: wrap; gap: .7rem 2rem; margin: 0; }
 /* Parameter tables can contain identifiers wider than the article on a phone. */
 main.content > section { min-width: 0; }
-main.content section > table { display: block; max-width: 100%; overflow-x: auto; }
+@media (max-width: 576px) {
+  main.content section > table { display: block; max-width: 100%; overflow-x: auto; }
+}
 .navbar-toggler-icon { background-image: none !important; width: 1rem; height: .8rem;
   border-block: 1px solid currentColor; position: relative; }
 .navbar-toggler-icon::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid currentColor; }
@@ -134,14 +152,68 @@ main.content section > table { display: block; max-width: 100%; overflow-x: auto
 .page-navigation .nav-page-text { min-width: 0; overflow-wrap: anywhere; white-space: normal; }
 .page-navigation .bi { flex-shrink: 0; }
 @media (max-width: 576px) {
-  /* Keep plot labels near their authored size; captions keep the page measure. */
-  .cell-output-display .quarto-figure figure > p { overflow-x: auto; max-width: 100%; }
-  .cell-output-display .quarto-figure figure > p > a.lightbox { display: block; width: max-content; }
-  .cell-output-display .quarto-figure figure img { min-width: 44rem; max-width: none; }
-}
-@media (max-width: 576px) {
-  .cell-output-display .quarto-figure figure img { width: 44rem; }
+  /* Show plots at their authored CSS size (never enlarged); wider ones scroll. */
+  .cell-output-display figure > p { overflow-x: auto; max-width: 100%; }
+  .cell-output-display figure > p > a.lightbox { display: block; width: max-content; }
+  .cell-output-display figure img { max-width: 44rem; }
   /* The homepage supplies an overview; tutorials supply the scrollable detail. */
-  .atlas-body .cell-output-display .quarto-figure figure img { width: 100%; min-width: 0; max-width: 100%; }
+  .atlas-body .cell-output-display .quarto-figure figure img { width: 100%; max-width: 100%; }
   .atlas-body .cell-output-display .quarto-figure figure > p > a.lightbox { width: auto; }
 }
+/* The phone title bar inherits article h1 sizing otherwise; a fixed height lets
+   the body offset be reserved in CSS instead of shifting when quarto.js measures it. */
+.quarto-secondary-nav { height: 2.75rem; padding-block: 0; }
+.quarto-secondary-nav > .container-fluid { height: 100%; align-items: center; }
+/* Quarto hides the in-page title below lg because the bar repeated it at h1 size;
+   the bar is now a compact label, so the article keeps its own title. */
+@media (max-width: 991.98px) {
+  .quarto-title h1.title.d-none { display: block !important; }
+}
+.quarto-secondary-nav .quarto-secondary-nav-title {
+  font-family: var(--fm-ui-font); font-size: .95rem; letter-spacing: 0; line-height: 1.2;
+  margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+@media (max-width: 991.98px) {
+  /* Measured at 390px: collapsed navbar 79px, bar 2.75rem + 3px. */
+  body.nav-fixed:has(#quarto-header .quarto-secondary-nav) { padding-top: calc(79px + 2.75rem + 3px); }
+}
+
+/* Code folds: the toggle is a control, so it gets body-colour text (AA in both themes). */
+.cell details > summary { font-family: var(--fm-ui-font); font-size: .86rem; color: var(--bs-body-color); }
+/* Navbar links sit on a dark bar; a solid ring stays visible there. */
+.navbar .nav-link:focus-visible, .navbar .quarto-navigation-tool:focus-visible,
+.navbar .aa-DetachedSearchButton:focus-visible {
+  outline: 2px solid currentColor; outline-offset: 2px; box-shadow: none;
+}
+/* Lightbox: retina PNGs must not open edge to edge under the controls. */
+.glightbox-container .gslide-image img { max-width: min(92vw, 72rem) !important; max-height: 86vh !important; }
+.glightbox-container .gprev.disabled, .glightbox-container .gnext.disabled { display: none; }
+/* Homepage plates fill their column at every width. */
+.atlas-body .cell-output-display .quarto-figure figure img { width: 100%; height: auto; }
+/* Overflowing figures get a one-line hint (added by _includes/figure-navigation.html). */
+.fm-scroll-hint { font-family: var(--fm-ui-font); font-size: .75rem; color: var(--bs-secondary-color); margin: 0 0 .3rem; }
+
+/* API section tables (Parameters, Returns, ...): quartodoc's 3/9/83/3% colgroup
+   crushes Name and Type, so columns size from their content instead. A long
+   unbreakable identifier scrolls the table inside its own box rather than
+   pushing the page sideways or being split mid-word. */
+@media (min-width: 577px) {
+  section.doc-section > table { display: block; max-width: 100%; overflow-x: auto; }
+  section.doc-section > table col { width: auto !important; }
+}
+
+/* Syntax colours: GitHub's palette fails AA on this code background (keywords
+   4.18:1, None 3.19:1, dark comments 2.85:1) and paints builtins such as
+   `compile` red. A quiet palette from the site's ink and teal; every token is
+   >= 5.3:1 on #f5f5ef (light) and >= 6.6:1 on #203031 (dark). */
+pre code span:is(.kw, .im, .cf) { color: #1d5c55; }
+pre code span:is(.st, .ss, .ch, .sc, .vs) { color: #7a4513; }
+pre code span:is(.co, .do, .an, .cv, .in) { color: #5c6766; font-style: italic; }
+pre code span:is(.cn, .dv, .fl, .bn, .dt) { color: #8a3b2c; }
+pre code span:is(.fu, .at) { color: #2d4a7a; }
+pre code span:is(.bu, .va, .op, .ot, .ex, .pp) { color: var(--bs-body-color); }
+body.quarto-dark pre code span:is(.kw, .im, .cf) { color: #92c9bb; }
+body.quarto-dark pre code span:is(.st, .ss, .ch, .sc, .vs) { color: #e3bf8f; }
+body.quarto-dark pre code span:is(.co, .do, .an, .cv, .in) { color: #a9b8b1; }
+body.quarto-dark pre code span:is(.cn, .dv, .fl, .bn, .dt) { color: #eaa995; }
+body.quarto-dark pre code span:is(.fu, .at) { color: #a9c2ea; }

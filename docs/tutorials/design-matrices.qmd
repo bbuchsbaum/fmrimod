@@ -9,6 +9,7 @@ jupyter: python3
 ## Create events
 
 ```{python}
+import matplotlib.pyplot as plt
 import pandas as pd
 import fmrimod as fm
 from fmrimod.spec import hrf, compile as compile_spec

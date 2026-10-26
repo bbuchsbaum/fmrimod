@@ -15,15 +15,17 @@ fmri_lss(
 
 Run Mumford LSS single-trial estimation through the typed Spec surface.
 
-The headline shape::
+The headline shape:
 
-    spec = (
-        trialwise(basis="spm")
-        + drift("poly", degree=2)
-        + intercept(per="run")
-    )
-    result = fm.fmri_lss(spec, dataset)
-    result.betas   # (n_trials, n_voxels) per-trial single-trial estimates
+```python
+spec = (
+    trialwise(basis="spm")
+    + drift("poly", degree=2)
+    + intercept(per="run")
+)
+result = fm.fmri_lss(spec, dataset)
+result.betas   # (n_trials, n_voxels) per-trial single-trial estimates
+```
 
 The compile step realises the design, the per-trial columns are
 pulled out via the typed ``cols.where(term="trial")`` lookup, the

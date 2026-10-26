@@ -58,11 +58,13 @@ from the specification and dataset events, then delegates to
 
 ## Examples {.doc-section .doc-section-examples}
 
-One LSS beta map per trial, straight from images::
+One LSS beta map per trial, straight from images:
 
-    >>> from fmrimod.spec import trialwise
-    >>> betas = fm.estimate_single_trial_from_dataset(
-    ...     img, trialwise(), tr=2.0, events=events, mask=mask,
-    ...     method="lss", include_intercept=True,
-    ... )
-    >>> betas.betas.shape          # (n_trials, n_voxels)
+```pycon
+>>> from fmrimod.spec import trialwise
+>>> betas = fm.estimate_single_trial_from_dataset(
+...     img, trialwise(), tr=2.0, events=events, mask=mask,
+...     method="lss", include_intercept=True,
+... )
+>>> betas.betas.shape          # (n_trials, n_voxels)
+```

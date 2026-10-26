@@ -148,3 +148,36 @@ def test_options_and_errors(em):
         correlation_map(em, limits="wide")
     fig2, ax2 = plt.subplots()
     assert correlation_map(em, ax=ax2) is fig2
+
+
+@pytest.fixture
+def two_column_model():
+    ev = pd.DataFrame({"onset": [0.0, 10.0, 20.0, 30.0], "condition": ["face", "scene"] * 2, "duration": 2.0})
+    model, _ = fm.spec.compile(
+        fm.spec.hrf("condition", basis="spmg1"), data=ev, sampling_frame=fm.SamplingFrame(blocklens=60, TR=1.0)
+    )
+    return model
+
+
+def test_small_map_has_filled_vif_diagonal_and_no_lone_spanner(two_column_model):
+    from matplotlib.patches import Rectangle
+
+    from fmrimod.visualization.style import INK
+
+    fig = correlation_map(two_column_model)
+    ax = fig.axes[0]
+    band = [p for p in ax.patches if isinstance(p, Rectangle) and to_hex(p.get_facecolor()) == INK["band"].lower()]
+    assert len(band) == 2  # one neutral cell under each VIF label
+    # A single term ("condition") spans every column: no spanner label is drawn.
+    assert not [t for t in fig.texts + ax.texts if t.get_text() == "condition"]
+
+
+def test_small_map_colourbar_fits_under_panel(two_column_model):
+    fig = correlation_map(two_column_model)
+    fig.canvas.draw()
+    ax, cax = fig.axes[0], fig.axes[-1]
+    panel = ax.get_window_extent()
+    bar = cax.get_window_extent()
+    assert bar.x0 >= panel.x0 - 1 and bar.x1 <= panel.x1 + 1
+    # Two columns get at least a two-inch matrix, not two 0.6 in cells.
+    assert panel.width / fig.dpi >= 1.95

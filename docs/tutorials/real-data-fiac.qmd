@@ -263,16 +263,14 @@ scale. The display threshold of `|t| >= 2` is descriptive; it is not corrected
 for multiple comparisons.
 
 ```{python}
-sentence_t_vol = results["sentence_effect"].to_neurovol("stat")
-background_vol = ni.concat(*analysis_vecs).mean()
-```
-
-```{python}
 #| label: fig-fiac-sentence-effect
 #| fig-alt: "A centered two-by-four montage of axial FIAC brain slices from z equals 32 through 88 millimeters. On the participant's mean functional image, red areas show positive same-sentence minus different-sentence t statistics of at least 2 and blue areas show negative values of at most minus 2."
 #| fig-cap: "Sentence statistic (same sentence minus different sentence) from one neuroim-backed, two-run fmrimod model. The BOLD data were smoothed at 6 mm FWHM before fitting; colors show absolute t statistics of at least 2 for spatial orientation, not corrected inference."
 #| fig-width: 11
 #| fig-height: 6
+sentence_t_vol = results["sentence_effect"].to_neurovol("stat")
+background_vol = ni.concat(*analysis_vecs).mean()
+
 display_threshold = 2.0
 display_limit = 5.0
 slice_indices = (8, 10, 12, 14, 16, 18, 20, 22)

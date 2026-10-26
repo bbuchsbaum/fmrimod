@@ -25,8 +25,9 @@ covariates or pick a different group reducer).
 
 ## Examples {.doc-section .doc-section-examples}
 
-::
 
-    per_subject = {sub: fit.contrast("face - house") for sub, fit in fits.items()}
-    gd = group_dataset_from_contrasts(per_subject, covariates=ages)
-    result = fm.fmri_group_lm(gd, formula="~ age")
+```python
+per_subject = {sub: fit.contrast("face - house") for sub, fit in fits.items()}
+gd = group_dataset_from_contrasts(per_subject, covariates=ages)
+result = fm.fmri_group_lm(gd, formula="~ age")
+```

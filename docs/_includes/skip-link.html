@@ -9,5 +9,11 @@
       heroCopy.prepend(title);
       titleBlock.remove();
     }
+    // Move focus, not only the scroll position, so the next Tab starts in the article.
+    const target = document.getElementById("quarto-document-content");
+    if (target) {
+      target.setAttribute("tabindex", "-1");
+      document.getElementById("skip-to-content").addEventListener("click", () => target.focus());
+    }
   });
 </script>

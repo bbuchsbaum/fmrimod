@@ -16,6 +16,7 @@ the effect estimate, standard error, test statistic, and p-value.
 ## Build the event design
 
 ```{python}
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import fmrimod as fm

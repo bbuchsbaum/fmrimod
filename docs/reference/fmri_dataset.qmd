@@ -37,14 +37,16 @@ Construct the canonical `FmriDataset` from an image source.
 
 ## Examples {.doc-section .doc-section-examples}
 
-Two runs from NIfTI files with per-run BIDS event tables::
+Two runs from NIfTI files with per-run BIDS event tables:
 
-    ds = fmri_dataset(
-        ["run-1_bold.nii.gz", "run-2_bold.nii.gz"],
-        mask="brain_mask.nii.gz",
-        tr=2.0,
-        events=[events_run1, events_run2],
-    )
+```python
+ds = fmri_dataset(
+    ["run-1_bold.nii.gz", "run-2_bold.nii.gz"],
+    mask="brain_mask.nii.gz",
+    tr=2.0,
+    events=[events_run1, events_run2],
+)
+```
 
 A ``(time, voxels)`` matrix split into two runs:
 

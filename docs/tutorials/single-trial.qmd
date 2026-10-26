@@ -24,6 +24,7 @@ gradient. Voxel 1 receives the full gradient, voxel 2 receives half, and voxel
 3 is null.
 
 ```{python}
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 

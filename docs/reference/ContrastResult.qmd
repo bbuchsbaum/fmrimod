@@ -94,11 +94,12 @@ Threshold :attr:`z` by height and cluster extent.
 
 #### Examples {.doc-section .doc-section-examples}
 
-::
 
-    hits = fit.contrast("face - house").threshold(0.05, cluster_size=10)
-    hits.to_nifti("face_vs_house_fdr.nii.gz")
-    hits.clusters()
+```python
+hits = fit.contrast("face - house").threshold(0.05, cluster_size=10)
+hits.to_nifti("face_vs_house_fdr.nii.gz")
+hits.clusters()
+```
 
 ### to_img { #fmrimod.glm.contrasts.ContrastResult.to_img }
 
@@ -166,6 +167,7 @@ Write one statistic to disk as a NIfTI volume.
 
 #### Examples {.doc-section .doc-section-examples}
 
-::
 
-    fit.contrast("face - house").to_nifti("face_vs_house_z.nii.gz", kind="z")
+```python
+fit.contrast("face - house").to_nifti("face_vs_house_z.nii.gz", kind="z")
+```

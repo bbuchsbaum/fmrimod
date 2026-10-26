@@ -14,6 +14,7 @@ execute:
 the regressors; the dataset binds observations to timing and events.
 
 ```{python}
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import fmrimod as fm
@@ -108,7 +109,7 @@ errors.
 #| fig-width: 8
 #| fig-height: 4.5
 #| fig-alt: "Two panels for the first simulated feature: observed and fitted BOLD signals above, and their residual difference below."
-#| fig-cap: "Single-run OLS on simulated data, feature 1. The fitted signal follows the task responses; the residual retains the added noise. This calculation is for the OLS example here, not a general replacement for engine-specific diagnostics."
+#| fig-cap: "Single-run OLS on simulated data, feature 0, the leftmost feature in the next figure. The fitted signal follows the task responses; the residual retains the added noise. This calculation is for the OLS example here, not a general replacement for engine-specific diagnostics."
 X_fitted = fit.model.design_matrix_array(run=0)
 fitted_signal = X_fitted @ fit.betas
 observed = dataset.get_all_data()

@@ -23,13 +23,15 @@ Closes the typed-spec gap between the first-level
 (`fmrimod.fmri_lm`) and group-level stages of the
 modeling pipeline.
 
-Headline shape::
+Headline shape:
 
-    # n_subjects x n_voxels per-subject contrast betas
-    result = fm.fmri_group_lm(betas)
-    result.t_stat()       # (n_voxels,) one-sample group t map
-    result.effect()       # (n_voxels,) group-mean effect
-    result.p_value()      # (n_voxels,) two-sided p map
+```python
+# n_subjects x n_voxels per-subject contrast betas
+result = fm.fmri_group_lm(betas)
+result.t_stat()       # (n_voxels,) one-sample group t map
+result.effect()       # (n_voxels,) group-mean effect
+result.p_value()      # (n_voxels,) two-sided p map
+```
 
 ## Parameters {.doc-section .doc-section-parameters}
 
@@ -55,27 +57,33 @@ Headline shape::
 
 ## Examples {.doc-section .doc-section-examples}
 
-One-sample group t in one line::
+One-sample group t in one line:
 
-    result = fm.fmri_group_lm(per_subject_betas)
-    t_map = result.t_stat()
+```python
+result = fm.fmri_group_lm(per_subject_betas)
+t_map = result.t_stat()
+```
 
-Straight from first-level fits (subject id -> ``ContrastResult``)::
+Straight from first-level fits (subject id -> ``ContrastResult``):
 
-    per_subject = {
-        sub: fm.fmri_lm(spec, ds).contrast("face - house")
-        for sub, ds in datasets.items()
-    }
-    t_map = fm.fmri_group_lm(per_subject).t_stat()
+```python
+per_subject = {
+    sub: fm.fmri_lm(spec, ds).contrast("face - house")
+    for sub, ds in datasets.items()
+}
+t_map = fm.fmri_group_lm(per_subject).t_stat()
+```
 
-Two-group comparison with covariate::
+Two-group comparison with covariate:
 
-    import pandas as pd
-    design = pd.DataFrame({"group": [0,0,0,1,1,1], "age": [...]})
-    result = fm.fmri_group_lm(
-        per_subject_betas,
-        intercept_only=False,
-        design_matrix=design,
-    )
-    group_effect = result.effect("group")
-    group_t = result.t_stat("group")
+```python
+import pandas as pd
+design = pd.DataFrame({"group": [0,0,0,1,1,1], "age": [...]})
+result = fm.fmri_group_lm(
+    per_subject_betas,
+    intercept_only=False,
+    design_matrix=design,
+)
+group_effect = result.effect("group")
+group_t = result.t_stat("group")
+```
